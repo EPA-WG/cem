@@ -49,6 +49,7 @@ const EXIT_USAGE: u8 = 2;
 const EXIT_SCHEMA: u8 = 3;
 const EXIT_IO: u8 = 6;
 const EXIT_INTERNAL: u8 = 7;
+const EXIT_CANCELLED: u8 = 130;
 
 struct ExecutionProduct {
     operation_result: PortableOperationResultV1,
@@ -300,6 +301,87 @@ pub async fn execute_prepared_command_v1<E: CemMlEngine + ?Sized>(
         }
     }
     terminal_publisher.settle(outcome)
+}
+
+/// Project the operation-handle terminal into the command-service wire result.
+///
+/// Successful command execution already owns a complete result envelope. A
+/// control failure, cancellation, or fatal host outcome is retained by the
+/// operation handle instead, so host adapters use this common projection rather
+/// than recreating status and exit policy in JavaScript.
+pub fn project_command_service_terminal_v1(
+    request: &CommandServiceRequestV1,
+    claim: &TerminalClaim<CommandServiceResultV1>,
+    capability: &CapabilityManifest,
+    limits: CommandServiceLimitsV1,
+) -> CommandServiceResultV1 {
+    match claim.outcome().as_ref() {
+        OperationOutcome::Succeeded { result, .. } => result.clone(),
+        OperationOutcome::Failed { diagnostics, .. } => result_envelope(
+            request,
+            request.operation.operation(),
+            CommandServiceStatusV1::Failed,
+            Some(EXIT_HARD_FAILURE),
+            None,
+            diagnostics.items.clone(),
+            None,
+            Vec::new(),
+            Vec::new(),
+            capability,
+            limits,
+        ),
+        OperationOutcome::Cancelled { diagnostics, .. } => result_envelope(
+            request,
+            request.operation.operation(),
+            CommandServiceStatusV1::Cancelled,
+            Some(EXIT_CANCELLED),
+            None,
+            diagnostics.items.clone(),
+            None,
+            Vec::new(),
+            Vec::new(),
+            capability,
+            limits,
+        ),
+        OperationOutcome::Fatal { diagnostics, .. } => result_envelope(
+            request,
+            request.operation.operation(),
+            CommandServiceStatusV1::Fatal,
+            Some(EXIT_INTERNAL),
+            None,
+            diagnostics.items.clone(),
+            None,
+            Vec::new(),
+            Vec::new(),
+            capability,
+            limits,
+        ),
+    }
+}
+
+/// Construct the canonical stale terminal returned when admission observes a
+/// newer project or resource snapshot before an operation handle exists.
+pub fn stale_command_service_result_v1(
+    request: &CommandServiceRequestV1,
+    stale: crate::command_service::CommandStaleRevisionV1,
+    capability: &CapabilityManifest,
+    limits: CommandServiceLimitsV1,
+) -> CommandServiceResultV1 {
+    let mut result = result_envelope(
+        request,
+        request.operation.operation(),
+        CommandServiceStatusV1::Stale,
+        None,
+        None,
+        Vec::new(),
+        None,
+        Vec::new(),
+        Vec::new(),
+        capability,
+        limits,
+    );
+    result.stale = Some(stale);
+    result
 }
 
 fn execute_operation<E: CemMlEngine + ?Sized>(
@@ -1051,9 +1133,10 @@ mod tests {
         CommandResourceWriteRequestV1, CommandRevisionLedgerRequestV1,
     };
     use crate::command_service::{
-        sha256_hex, CommandPolicyStampV1, CommandProjectRevisionV1, CommandResourceVersionV1,
-        CommandRevisionLedgerV1, CommandRunPlanV1, CommandUriMapV1,
-        CommandVersionCapabilitiesResultV1, PortableOperationRequestV1, VirtualResourceV1,
+        sha256_hex, CommandChangedResourceV1, CommandPolicyStampV1, CommandProjectRevisionV1,
+        CommandResourceVersionV1, CommandRevisionLedgerV1, CommandRunPlanV1,
+        CommandStaleRevisionV1, CommandUriMapV1, CommandVersionCapabilitiesResultV1,
+        PortableOperationRequestV1, VirtualResourceV1,
     };
     use crate::engine::{
         BenchRequest, BenchResponse, CheckRequest, CheckResponse, ConvertRequest, ConvertResponse,
@@ -1611,6 +1694,7 @@ mod tests {
             let control = OperationControl::new(signal);
             let prepared = prepared_variants(&control, &capability).remove(operation_index);
             let request = fixture_request(false);
+            let projection_request = request.clone();
             let fixture_ledger = ledger(&request);
             let (invocation, _operation, mut subscription) =
                 fixture_invocation(request, prepared, control);
@@ -1627,6 +1711,16 @@ mod tests {
             assert!(claim.published());
             let result = succeeded_result(&claim);
             assert_eq!(result.status, CommandServiceStatusV1::Succeeded);
+            assert_eq!(
+                project_command_service_terminal_v1(
+                    &projection_request,
+                    &claim,
+                    &capability,
+                    CommandServiceLimitsV1::default(),
+                )
+                .request_id,
+                projection_request.request_id
+            );
             result_operations.push(result.operation);
             assert_eq!(terminal_count(&mut subscription), 1);
         }
@@ -1729,6 +1823,7 @@ mod tests {
         let prepared = prepared_variants(&control, &capability).remove(0);
         signal.abort();
         let request = fixture_request(false);
+        let projection_request = request.clone();
         let fixture_ledger = ledger(&request);
         let writer = FixtureWriter::default();
         let (invocation, _operation, mut subscription) =
@@ -1747,6 +1842,14 @@ mod tests {
             claim.outcome().as_ref(),
             OperationOutcome::Cancelled { .. }
         ));
+        let projected = project_command_service_terminal_v1(
+            &projection_request,
+            &claim,
+            &capability,
+            CommandServiceLimitsV1::default(),
+        );
+        assert_eq!(projected.status, CommandServiceStatusV1::Cancelled);
+        assert_eq!(projected.exit_code, Some(EXIT_CANCELLED));
         assert_eq!(terminal_count(&mut subscription), 1);
 
         let failing_engine = FixtureEngine::default();
@@ -1771,6 +1874,30 @@ mod tests {
         assert_eq!(result.status, CommandServiceStatusV1::Failed);
         assert_eq!(result.exit_code, Some(EXIT_IO));
         assert_eq!(terminal_count(&mut subscription), 1);
+    }
+
+    #[test]
+    fn stale_terminal_projection_retains_current_revision_without_an_exit_code() {
+        let request = fixture_request(false);
+        let stale = CommandStaleRevisionV1 {
+            current_project_revision: request.project.revision + 1,
+            changed_resources: vec![CommandChangedResourceV1 {
+                uri: DATA_URI.to_owned(),
+                revision: 2,
+                sha256: sha256_hex(b"changed"),
+            }],
+        };
+        let result = stale_command_service_result_v1(
+            &request,
+            stale.clone(),
+            &capability(),
+            CommandServiceLimitsV1::default(),
+        );
+        assert_eq!(result.status, CommandServiceStatusV1::Stale);
+        assert_eq!(result.exit_code, None);
+        assert_eq!(result.stale, Some(stale));
+        assert!(result.result.is_none());
+        assert!(result.artifacts.items.is_empty());
     }
 
     #[test]

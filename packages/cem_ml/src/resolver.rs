@@ -13,8 +13,10 @@ use std::sync::Arc;
 
 use crate::scheduler::AbortSignal;
 use crate::source_map::SourceMapStack;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ResolvePurpose {
     Config,
     Input,

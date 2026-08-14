@@ -12,6 +12,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use crate::command_service::{
     admit_command_service_request_v1, sha256_hex, validate_command_service_request_v1,
@@ -34,7 +35,8 @@ use crate::transform_config::{
 /// adapters remain free to return a `Send` future through this erased boundary.
 pub type CommandHostFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandResourceReadRequestV1 {
     pub request_id: String,
     pub project: CommandProjectRevisionV1,
@@ -45,7 +47,8 @@ pub struct CommandResourceReadRequestV1 {
     pub resolver_policy_stamp: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandResolvedResourceV1 {
     pub version: CommandResourceVersionV1,
     pub bytes: Vec<u8>,

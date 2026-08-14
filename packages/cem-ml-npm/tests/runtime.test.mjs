@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
@@ -43,6 +44,11 @@ test('browser loader accepts bytes and initializes the same WASM ABI', async () 
   );
   assert.equal(manifest.runtime, 'wasm-browser-worker');
   assert.equal(manifest.commonVersion, packageMetadata.version);
+
+  const result = await executeVersionCommand(browserRuntime, 'wasm-browser-worker');
+  assert.equal(result.status, 'succeeded');
+  assert.equal(result.identity.runtime, 'wasm-browser-worker');
+  assert.equal(result.result.value.kind, 'version-capabilities');
 });
 
 test('invalid capability requests remain structured diagnostics', async () => {
@@ -86,3 +92,192 @@ test('worker-pool capabilities and protocol descriptors remain Rust-owned', asyn
   const browserRuntimeMismatch = JSON.parse(runtime.browserWorkerCapabilityManifest(request, 2));
   assert.equal(browserRuntimeMismatch.error.code, 'cem.capability.runtime_mismatch');
 });
+
+test('async command-service binding owns success, stale, and callback failure projection', async () => {
+  const runtime = await import('@epa-wg/cem-ml/wasm');
+  const success = await executeVersionCommand(runtime, 'wasm-node');
+  assert.equal(success.protocolVersion, 1);
+  assert.equal(success.requestId, 'wasm-command-version');
+  assert.equal(success.operation, 'version-capabilities');
+  assert.equal(success.status, 'succeeded');
+  assert.equal(success.exitCode, 0);
+  assert.equal(success.identity.runtime, 'wasm-node');
+  assert.equal(success.result.storage, 'inline');
+  assert.equal(success.result.value.value.version.commonVersion, packageMetadata.version);
+
+  const stale = await executeVersionCommand(runtime, 'wasm-node', {
+    project: { projectId: 'wasm-fixture', revision: 2 },
+    resourceVersions: {},
+  });
+  assert.equal(stale.status, 'stale');
+  assert.equal(stale.exitCode, null);
+  assert.equal(stale.stale.currentProjectRevision, 2);
+  assert.deepEqual(stale.stale.changedResources, []);
+
+  const failure = await executeVersionCommand(runtime, 'wasm-node', {
+    error: { code: 'fixture.ledger', message: 'ledger unavailable' },
+  });
+  assert.equal(failure.error.code, 'cem.command_service.ledger_read');
+  assert.match(failure.error.message, /fixture\.ledger: currentRevision: ledger unavailable/);
+});
+
+test('async command-service binding hydrates and transactionally publishes through host callbacks', async () => {
+  const runtime = await import('@epa-wg/cem-ml/wasm');
+  const sourceUri = 'memory:fixture.css';
+  const outputUri = 'memory:fixture.cem';
+  const sourceBytes = new TextEncoder().encode('.card { color: red; }');
+  const version = {
+    revision: 1,
+    sha256: createHash('sha256').update(sourceBytes).digest('hex'),
+  };
+  const runConfig = {
+    inputs: [
+      {
+        uri: sourceUri,
+        rootScope: {
+          defaultContentType: 'text/css',
+          schema: 'https://cem.dev/ns/data/css/1',
+        },
+      },
+    ],
+    outputs: [
+      {
+        destination: outputUri,
+        rootScope: {
+          defaultContentType: 'application/cem',
+          schema: 'https://cem.dev/ns/cem-ml/1',
+        },
+      },
+    ],
+  };
+  const runPlan = JSON.parse(
+    runtime.normalizeCommandRunPlanV1(
+      JSON.stringify({ configBytes: [...new TextEncoder().encode(JSON.stringify(runConfig))] }),
+    ),
+  );
+  assert.equal(runPlan.inputs[0].inputId, 'input:0');
+  assert.equal(runPlan.outputs[0].inputId, 'input:0');
+
+  const request = {
+    protocolVersion: 1,
+    requestId: 'wasm-command-parse',
+    project: { projectId: 'wasm-fixture', revision: 1 },
+    resourceVersions: { [sourceUri]: version },
+    operation: {
+      kind: 'parse',
+      inputId: 'input:0',
+      projection: 'ast',
+      preserveSourceOffsets: true,
+    },
+    runPlan,
+    resources: {},
+    policyStamp: {
+      resolver: 'fixture-resolver',
+      safety: 'fixture-safety',
+      budget: 'fixture-budget',
+    },
+  };
+  const events = [];
+  const writes = new Map();
+  const result = JSON.parse(
+    await runtime.executeCommandServiceV1(
+      JSON.stringify(request),
+      JSON.stringify({
+        runtime: 'wasm-node',
+        targetIdentity: 'runtime-test:wasm-command',
+        abiIdentity: 'runtime-test-v1',
+        debugControlActive: false,
+      }),
+      async (json) => {
+        events.push(['ledger', JSON.parse(json)]);
+        return JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions });
+      },
+      async (json) => {
+        const read = JSON.parse(json);
+        events.push(['read', read]);
+        return JSON.stringify({
+          version,
+          bytes: [...sourceBytes],
+          identity: {
+            contentType: 'text/css',
+            schema: 'https://cem.dev/ns/data/css/1',
+          },
+        });
+      },
+      async (json, bytes) => {
+        const write = JSON.parse(json);
+        events.push(['prepare', write]);
+        writes.set('write:1', { write, bytes: [...bytes], committed: false });
+        return JSON.stringify({ token: 'write:1' });
+      },
+      async (token) => {
+        events.push(['commit', token]);
+        const write = writes.get(token);
+        assert.ok(write);
+        write.committed = true;
+        return JSON.stringify({ uri: write.write.uri });
+      },
+      async (token) => {
+        events.push(['rollback', token]);
+        writes.delete(token);
+      },
+    ),
+  );
+
+  assert.equal(result.status, 'succeeded');
+  assert.equal(result.operation, 'parse');
+  assert.equal(result.result.value.kind, 'parse');
+  assert.equal(result.artifacts.originalCount, 1);
+  assert.equal(result.artifacts.items[0].uri, outputUri);
+  assert.deepEqual(
+    events.map(([kind]) => kind),
+    ['ledger', 'read', 'prepare', 'ledger', 'commit'],
+  );
+  assert.equal(events[1][1].purposes[0], 'input');
+  assert.equal(events[2][1].purpose, 'output');
+  assert.equal(writes.get('write:1').committed, true);
+  assert.match(new TextDecoder().decode(Uint8Array.from(writes.get('write:1').bytes)), /@doc cem-ml 1/);
+});
+
+async function executeVersionCommand(runtime, runtimeKind, ledger = undefined) {
+  const request = {
+    protocolVersion: 1,
+    requestId: 'wasm-command-version',
+    project: { projectId: 'wasm-fixture', revision: 1 },
+    resourceVersions: {},
+    operation: { kind: 'version-capabilities' },
+    runPlan: null,
+    resources: {},
+    policyStamp: {
+      resolver: 'fixture-resolver',
+      safety: 'fixture-safety',
+      budget: 'fixture-budget',
+    },
+  };
+  const capabilityRequest = {
+    runtime: runtimeKind,
+    targetIdentity: `runtime-test:${runtimeKind}`,
+    abiIdentity: 'runtime-test-v1',
+    debugControlActive: false,
+  };
+  const unexpected = async (boundary) => {
+    throw new Error(`${boundary} callback must not run for version-capabilities`);
+  };
+  return JSON.parse(
+    await runtime.executeCommandServiceV1(
+      JSON.stringify(request),
+      JSON.stringify(capabilityRequest),
+      async () =>
+        JSON.stringify(
+          ledger ?? {
+            project: request.project,
+            resourceVersions: request.resourceVersions,
+          },
+        ),
+      async () => unexpected('readResource'),
+      async () => unexpected('prepareWrite'),
+      async () => unexpected('commitWrite'),
+      async () => unexpected('rollbackWrite'),
+    ),
+  );
+}

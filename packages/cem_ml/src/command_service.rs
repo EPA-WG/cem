@@ -468,7 +468,8 @@ pub struct CommandServiceLimitsV1 {
     pub worker: WorkerCoordinatorLimits,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandRevisionLedgerV1 {
     pub project: CommandProjectRevisionV1,
     pub resource_versions: CommandUriMapV1<CommandResourceVersionV1>,
@@ -1103,33 +1104,31 @@ fn validate_operation_metadata(
             params,
             template_entrypoint,
             ..
-        } => {
-            match source {
-                CommandTransformSourceV1::Direct {
-                    data_input_id,
-                    template_uri,
-                } => {
-                    if let Some(name) = template_entrypoint.name.as_deref() {
-                        validate_identity("operation.templateEntrypoint.name", name)?;
-                    }
-                    ids.push(data_input_id);
-                    validate_uri("operation.source.templateUri", template_uri)?;
+        } => match source {
+            CommandTransformSourceV1::Direct {
+                data_input_id,
+                template_uri,
+            } => {
+                if let Some(name) = template_entrypoint.name.as_deref() {
+                    validate_identity("operation.templateEntrypoint.name", name)?;
                 }
-                CommandTransformSourceV1::Graph { config_uri } => {
-                    if !params.is_empty() {
-                        return Err(CommandServiceError::TransformGraphStageLocal {
-                            field: "operation.params",
-                        });
-                    }
-                    if !template_entrypoint.is_implicit() {
-                        return Err(CommandServiceError::TransformGraphStageLocal {
-                            field: "operation.templateEntrypoint",
-                        });
-                    }
-                    validate_uri("operation.source.configUri", config_uri)?;
-                }
+                ids.push(data_input_id);
+                validate_uri("operation.source.templateUri", template_uri)?;
             }
-        }
+            CommandTransformSourceV1::Graph { config_uri } => {
+                if !params.is_empty() {
+                    return Err(CommandServiceError::TransformGraphStageLocal {
+                        field: "operation.params",
+                    });
+                }
+                if !template_entrypoint.is_implicit() {
+                    return Err(CommandServiceError::TransformGraphStageLocal {
+                        field: "operation.templateEntrypoint",
+                    });
+                }
+                validate_uri("operation.source.configUri", config_uri)?;
+            }
+        },
         PortableOperationRequestV1::VersionCapabilities => {}
     }
 
@@ -2013,8 +2012,7 @@ mod tests {
             .expect("implicit graph invocation metadata is admitted");
 
         let mut params_override = accepted.clone();
-        let PortableOperationRequestV1::Transform { params, .. } =
-            &mut params_override.operation
+        let PortableOperationRequestV1::Transform { params, .. } = &mut params_override.operation
         else {
             unreachable!()
         };

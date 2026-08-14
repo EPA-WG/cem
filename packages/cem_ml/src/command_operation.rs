@@ -226,7 +226,11 @@ pub fn prepare_command_operation_v1(
             projection: *projection,
             fail_level,
             preserve_source_offsets: *preserve_source_offsets,
-            presentation_scope: None,
+            presentation_scope: matches!(
+                projection,
+                engine::ParseProjection::Ast | engine::ParseProjection::Events
+            )
+            .then(|| command_presentation_scope(plan, input_id)),
             context,
         })),
         PortableOperationRequestV1::Validate {
@@ -253,7 +257,7 @@ pub fn prepare_command_operation_v1(
             Ok(PreparedPortableOperationV1::Inspect(InspectRequest {
                 input: engine_input(request, plan, input_id)?,
                 show: *show,
-                presentation_scope: None,
+                presentation_scope: Some(command_presentation_scope(plan, input_id)),
                 context,
             }))
         }
@@ -384,10 +388,8 @@ pub fn prepare_command_operation_v1(
                         },
                     );
                 }
-                let provider = ManifestTransformGraphResourceProvider::new(
-                    config_uri,
-                    &request.resources,
-                );
+                let provider =
+                    ManifestTransformGraphResourceProvider::new(config_uri, &request.resources);
                 let graph_request = lower_transform_graph_request(
                     &context,
                     &parsed.graph,
@@ -640,6 +642,31 @@ fn operation_outputs<'a>(plan: &'a NormalizedRunPlan, input_id: &str) -> Vec<&'a
         .iter()
         .filter(|output| output.input_id.as_deref() == Some(input_id))
         .collect()
+}
+
+fn command_presentation_scope(plan: &NormalizedRunPlan, input_id: &str) -> ScopeConfig {
+    let configured = operation_outputs(plan, input_id)
+        .first()
+        .and_then(|output| output.root_scope.output_pipeline.as_ref());
+    ScopeConfig {
+        output_color_type: Some(
+            configured
+                .and_then(|pipeline| pipeline.output_color_type.clone())
+                .unwrap_or_else(|| "none".to_owned()),
+        ),
+        cemt_formatter: configured.and_then(|pipeline| pipeline.cemt_formatter.clone()),
+        cemt_formatter_profile: Some(
+            configured
+                .and_then(|pipeline| pipeline.cemt_formatter_profile.clone())
+                .unwrap_or_else(|| "tabular".to_owned()),
+        ),
+        cemt_formatter_options: configured
+            .map(|pipeline| pipeline.cemt_formatter_options.clone())
+            .unwrap_or_default(),
+        cemt_colorizer: configured.and_then(|pipeline| pipeline.cemt_colorizer.clone()),
+        cemt_color_profile: configured.and_then(|pipeline| pipeline.cemt_color_profile.clone()),
+        ..ScopeConfig::default()
+    }
 }
 
 fn input_index(
@@ -1073,6 +1100,37 @@ mod tests {
             Some("2")
         );
         assert!(parse.preserve_source_offsets);
+        assert!(parse.presentation_scope.is_none());
+
+        let ast = prepare(&request(PortableOperationRequestV1::Parse {
+            input_id: "input:0".to_owned(),
+            projection: ParseProjection::Ast,
+            preserve_source_offsets: false,
+        }))
+        .expect("AST parse prepares");
+        let PreparedPortableOperationV1::Parse(ast) = ast else {
+            panic!("AST parse preparation variant")
+        };
+        let ast_scope = ast.presentation_scope.expect("AST presentation scope");
+        assert_eq!(ast_scope.cemt_formatter_profile.as_deref(), Some("tabular"));
+        assert_eq!(ast_scope.output_color_type.as_deref(), Some("none"));
+
+        let inspect = prepare(&request(PortableOperationRequestV1::Inspect {
+            input_id: "input:0".to_owned(),
+            show: InspectView::Summary,
+        }))
+        .expect("inspect prepares");
+        let PreparedPortableOperationV1::Inspect(inspect) = inspect else {
+            panic!("inspect preparation variant")
+        };
+        let inspect_scope = inspect
+            .presentation_scope
+            .expect("inspect presentation scope");
+        assert_eq!(
+            inspect_scope.cemt_formatter_profile.as_deref(),
+            Some("tabular")
+        );
+        assert_eq!(inspect_scope.output_color_type.as_deref(), Some("none"));
 
         let validate = prepare(&request(PortableOperationRequestV1::Validate {
             input_ids: vec!["input:1".to_owned(), "input:0".to_owned()],

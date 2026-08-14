@@ -62,10 +62,13 @@ use crate::worker_control::{
     OperationWorkPacket, OperationWorkResult, WorkerCoordinatorLimits, WorkerSlotId,
     WORKER_PROTOCOL_VERSION,
 };
+
+mod command_service;
 #[cfg(feature = "debug-control")]
 use crate::worker_control::{
     WorkerAddress, WorkerGeneration, WorkerStopDisposition, WorkerStopGeneration,
 };
+pub use command_service::execute_command_service_v1;
 
 thread_local! {
     static PARSE_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };
@@ -562,6 +565,35 @@ pub fn normalize_run_config(json: &str) -> String {
             "error": {
                 "code": error.code,
                 "message": error.to_string()
+            }
+        })
+        .to_string(),
+    }
+}
+
+/// Parse and normalize the exact run-plan request consumed by command-service
+/// v1. Host adapters use this Rust-owned entrypoint instead of reproducing
+/// input/output identity, resolver, scope, budget, or destination semantics.
+#[wasm_bindgen(js_name = "normalizeCommandRunPlanV1")]
+pub fn normalize_command_run_plan_v1(json: &str) -> String {
+    let request = match serde_json::from_str::<crate::run_config::NormalizedRunPlanRequest>(json) {
+        Ok(request) => request,
+        Err(error) => {
+            return serde_json::json!({
+                "error": {
+                    "code": "cem.command_service.run_plan_decode",
+                    "message": error.to_string(),
+                }
+            })
+            .to_string()
+        }
+    };
+    match crate::run_config::parse_normalized_run_plan(request) {
+        Ok(plan) => serde_json::to_string(&plan).unwrap_or_else(wasm_serialize_error),
+        Err(error) => serde_json::json!({
+            "error": {
+                "code": error.code,
+                "message": error.to_string(),
             }
         })
         .to_string(),

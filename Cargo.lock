@@ -291,6 +291,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-cem",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-time",
  "xee-xpath-ast",
  "xee-xpath-lexer",

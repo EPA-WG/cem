@@ -10,6 +10,8 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use crate::capability::MAX_IDENTITY_BYTES;
 use crate::command_host::CommandHostFuture;
 use crate::command_service::{
@@ -33,13 +35,15 @@ pub struct CommandPublicationItemV1 {
     pub source_map_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandRevisionLedgerRequestV1 {
     pub request_id: String,
     pub project: CommandProjectRevisionV1,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandResourceWriteRequestV1 {
     pub request_id: String,
     pub project: CommandProjectRevisionV1,
@@ -54,7 +58,8 @@ pub struct CommandResourceWriteRequestV1 {
     pub resolver_policy_stamp: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandResolvedWriteV1 {
     pub uri: String,
 }

@@ -836,6 +836,44 @@ replacement tree may mediate between internal engine layers.
                   and default and stripped WASM builds pass.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
+        - [x] Expose command-service v1 through one async Rust-owned WASM binding
+              with callback-backed revision-ledger, resource-read, and
+              transactional-write capabilities plus structured stale,
+              cancellation, failure, and success terminal projection.
+            - [x] Add native terminal-projection and generated Node/browser WASM
+                  binding fixtures covering async callbacks, success, stale
+                  admission, and stable callback failures.
+
+              Completed 2026-08-14: low-level `@epa-wg/cem-ml` now exports one
+              policy-free async `executeCommandServiceV1` binding backed by the
+              common Rust command service. Constructor-supplied JavaScript
+              callbacks provide revision-ledger, resource-read, and transactional
+              prepare/commit/rollback capabilities; synchronous and promised
+              callback results share stable host-error handling. Common Rust owns
+              stale, success, failure, fatal, and cancellation terminal projection,
+              and `normalizeCommandRunPlanV1` exposes the shared run-plan parser for
+              the upcoming deployment adapters.
+
+              Native fixtures cover terminal projection and stable stale results.
+              Generated Node and browser-WASM fixtures cover async callback success,
+              stale admission, callback failures, resource hydration, typed CEM
+              output, and transactional publication. The end-to-end fixture exposed
+              and fixed missing default command presentation scope for parse-AST and
+              inspect operations. The Nx common suites pass 1,945 default and 1,933
+              stripped unit tests; lint and default/stripped native and WASM builds
+              pass. The low-level npm aggregate check passes six runtime tests, ABI
+              verification with 433 integrity records, packaging, and clean consumer
+              installation; the stripped npm/WASM distribution also builds with the
+              new declarations.
+        - [ ] Add the dedicated-worker `./browser` command-service client with
+              typed request/result, resolver, progress, cancellation, artifact,
+              and capability adapters over the generated WASM binding.
+        - [ ] Add the `./node` command-service host and `cem-ml` npm executable
+              with file/HTTPS/stream/signal adapters and native-equivalent exit
+              policy.
+        - [ ] Add all-operation browser/Node/executable round trips and clean
+              pack/install consumer fixtures, including one-runtime resolution
+              and browser Node-builtin exclusion, under aggregate Nx targets.
 
 - [ ] Create exactly three native CLI deployment projects.
     - [ ] Add `x86_64-unknown-linux-gnu` / `native-linux-amd64`.

@@ -331,6 +331,17 @@ filesystem paths, streams, environment, signals, stdout/stderr, and process
 exit stay in their host adapter. Only the Node npm executable and native binary
 may terminate a process.
 
+The low-level WASM deployment exposes this lifecycle through the generated
+asynchronous `executeCommandServiceV1` binding. It accepts only the canonical
+request JSON, common capability request, and constructor-supplied current-
+revision, read, prepare-write, commit-write, and rollback-write callbacks.
+Callback request and response records serialize the Rust host-capability types;
+write bytes travel separately as a `Uint8Array`. The companion
+`normalizeCommandRunPlanV1` binding keeps normalized input/output identity,
+scope, resolver, budget, and destination semantics in Rust. Both bindings are
+policy-free prerequisites for the typed browser and Node adapters rather than a
+second public command model.
+
 ## Native build, package, and signing profiles
 
 All tool versions and runner images are pinned in the owning Nx project or
