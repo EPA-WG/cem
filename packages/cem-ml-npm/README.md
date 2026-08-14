@@ -37,6 +37,15 @@ ids are unique per runtime instance and are released on every terminal or early
 failure path. Progress callbacks are observational and cannot change command
 semantics.
 
+Committed artifact handles remain request-scoped inside Rust.
+`readCommandArtifactV1(requestId, handleId, offset, maxBytes)` returns a plain
+record with canonical metadata JSON in `json` and an owned `Uint8Array` copy in
+`bytes`; it never exposes a WASM memory view. Chunk sizes are bounded by the
+runtime transfer limit. `disposeCommandArtifactV1` releases one handle, while
+`disposeCommandArtifactsV1` releases the request's remaining handles; both are
+idempotent. Reusing a request id invalidates its prior artifact generation before
+the new command performs host I/O.
+
 `runtime.json` describes the package ABI and common capability projections.
 `integrity.json` records SHA-256 hashes for every generated runtime and
 schema-package asset. Schema assets are addressable below

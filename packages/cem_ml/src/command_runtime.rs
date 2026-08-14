@@ -14,7 +14,10 @@ use serde::{Deserialize, Serialize};
 use crate::capability::{
     CapabilityAvailability, CapabilityManifest, CapabilityOperation, CAPABILITY_CONTRACT_VERSION,
 };
-use crate::command_execution::execute_prepared_command_v1;
+use crate::command_execution::{
+    execute_prepared_command_v1, execute_prepared_command_with_artifacts_v1,
+    CommandServiceExecutionV1,
+};
 use crate::command_host::{
     hydrate_command_service_operation_v1, CommandResourceHydrationErrorV1, CommandResourceReaderV1,
     CommandServiceHydrationV1,
@@ -404,6 +407,26 @@ impl CommandServiceHostV1 {
         invocation: Box<PreparedCommandServiceInvocationV1>,
     ) -> Result<TerminalClaim<CommandServiceResultV1>, CommandServiceHostErrorV1> {
         execute_prepared_command_v1(
+            engine,
+            invocation,
+            self.ledger_reader.as_ref(),
+            self.execution.writer.as_ref(),
+            &self.execution.query_exporters,
+            &self.capability,
+            self.limits,
+        )
+        .await
+        .map_err(CommandServiceHostErrorV1::Operation)
+    }
+
+    /// Execute one ready invocation while returning the committed owned
+    /// artifact bytes needed by an outer request-scoped host registry.
+    pub async fn execute_with_artifacts<E: CemMlEngine + ?Sized>(
+        &self,
+        engine: &E,
+        invocation: Box<PreparedCommandServiceInvocationV1>,
+    ) -> Result<CommandServiceExecutionV1, CommandServiceHostErrorV1> {
+        execute_prepared_command_with_artifacts_v1(
             engine,
             invocation,
             self.ledger_reader.as_ref(),

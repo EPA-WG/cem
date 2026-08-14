@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 use crate::capability::{CapabilityManifest, CapabilityOperation};
+use crate::command_artifact::CommandServiceRetainedArtifactV1;
 use crate::command_operation::{
     PreparedCommandOutputV1, PreparedCommandTransformV1, PreparedPortableOperationV1,
 };
@@ -60,6 +61,14 @@ struct ExecutionProduct {
     force_hard_failure: bool,
 }
 
+/// One settled command terminal plus the committed artifact bytes that a host
+/// may install into its request-scoped artifact registry.
+#[derive(Debug)]
+pub struct CommandServiceExecutionV1 {
+    pub terminal: TerminalClaim<CommandServiceResultV1>,
+    pub artifacts: Vec<CommandServiceRetainedArtifactV1>,
+}
+
 enum ExecutionFailure {
     Command {
         status: CommandServiceStatusV1,
@@ -80,6 +89,31 @@ pub async fn execute_prepared_command_v1<E: CemMlEngine + ?Sized>(
     capability: &CapabilityManifest,
     limits: CommandServiceLimitsV1,
 ) -> Result<TerminalClaim<CommandServiceResultV1>, OperationHandleError> {
+    Ok(execute_prepared_command_with_artifacts_v1(
+        engine,
+        invocation,
+        ledger_reader,
+        writer,
+        query_exporters,
+        capability,
+        limits,
+    )
+    .await?
+    .terminal)
+}
+
+/// Execute and settle one prepared command while preserving owned copies of
+/// successfully published artifact bytes for an outer host registry. Failure,
+/// cancellation, stale publication, and terminal conflicts return no bytes.
+pub async fn execute_prepared_command_with_artifacts_v1<E: CemMlEngine + ?Sized>(
+    engine: &E,
+    invocation: Box<PreparedCommandServiceInvocationV1>,
+    ledger_reader: &dyn CommandRevisionLedgerReaderV1,
+    writer: &dyn CommandResourceWriterV1,
+    query_exporters: &QueryResultExporterRegistry,
+    capability: &CapabilityManifest,
+    limits: CommandServiceLimitsV1,
+) -> Result<CommandServiceExecutionV1, OperationHandleError> {
     let PreparedCommandServiceInvocationV1 {
         request,
         prepared,
@@ -91,6 +125,7 @@ pub async fn execute_prepared_command_v1<E: CemMlEngine + ?Sized>(
     let resolution = ensure_active(&operation)
         .and_then(|()| execute_operation(engine, &request, prepared, query_exporters, limits));
 
+    let mut retained_artifacts = Vec::new();
     let (outcome, validate_result) = match resolution {
         Err(ExecutionFailure::Control(failure, diagnostics)) => (
             OperationOutcome::from_control_failure(
@@ -212,6 +247,15 @@ pub async fn execute_prepared_command_v1<E: CemMlEngine + ?Sized>(
                                 label: item.label.clone(),
                             })
                             .collect::<Vec<_>>();
+                        retained_artifacts = artifacts
+                            .iter()
+                            .cloned()
+                            .zip(sorted_items)
+                            .map(|(handle, item)| CommandServiceRetainedArtifactV1 {
+                                handle,
+                                bytes: item.bytes,
+                            })
+                            .collect();
                         result.artifacts =
                             bounded(artifacts, limits.operation_host.max_artifact_references);
                         debug_assert!(validate_command_service_result_v1(&result, limits).is_ok());
@@ -292,15 +336,33 @@ pub async fn execute_prepared_command_v1<E: CemMlEngine + ?Sized>(
                     "cem.command_service.result_invalid",
                     error.to_string(),
                 );
-                return terminal_publisher.settle(OperationOutcome::from_control_failure(
-                    failure,
-                    diagnostics,
-                    ArtifactDisposition::default(),
-                ));
+                let terminal =
+                    terminal_publisher.settle(OperationOutcome::from_control_failure(
+                        failure,
+                        diagnostics,
+                        ArtifactDisposition::default(),
+                    ))?;
+                return Ok(CommandServiceExecutionV1 {
+                    terminal,
+                    artifacts: Vec::new(),
+                });
             }
         }
     }
-    terminal_publisher.settle(outcome)
+    let terminal = terminal_publisher.settle(outcome)?;
+    let retains_published_artifacts = matches!(
+        terminal.outcome().as_ref(),
+        OperationOutcome::Succeeded { result, .. }
+            if result.status == CommandServiceStatusV1::Succeeded
+                && result.artifacts.items.len() == retained_artifacts.len()
+    );
+    if !retains_published_artifacts {
+        retained_artifacts.clear();
+    }
+    Ok(CommandServiceExecutionV1 {
+        terminal,
+        artifacts: retained_artifacts,
+    })
 }
 
 /// Project the operation-handle terminal into the command-service wire result.
@@ -2012,7 +2074,7 @@ mod tests {
         let state = Arc::clone(&writer.state);
         let (invocation, _operation, mut subscription) =
             fixture_invocation(request, prepared, control);
-        let claim = block_on(execute_prepared_command_v1(
+        let execution = block_on(execute_prepared_command_with_artifacts_v1(
             &engine,
             invocation,
             &fixture_ledger,
@@ -2022,9 +2084,20 @@ mod tests {
             CommandServiceLimitsV1::default(),
         ))
         .unwrap();
+        let CommandServiceExecutionV1 {
+            terminal: claim,
+            artifacts,
+        } = execution;
         let result = succeeded_result(&claim);
         assert_eq!(result.status, CommandServiceStatusV1::Succeeded);
         assert_eq!(result.artifacts.items.len(), 1);
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts[0].handle, result.artifacts.items[0]);
+        assert_eq!(
+            artifacts[0].bytes.len() as u64,
+            artifacts[0].handle.byte_length
+        );
+        assert_eq!(sha256_hex(&artifacts[0].bytes), artifacts[0].handle.sha256);
         assert!(state.lock().unwrap().committed.contains_key(OUTPUT_URI));
         assert_eq!(terminal_count(&mut subscription), 1);
 

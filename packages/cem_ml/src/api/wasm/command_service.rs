@@ -7,7 +7,7 @@
 
 use std::fmt;
 
-use js_sys::{Function, Promise, Uint8Array};
+use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
@@ -15,6 +15,9 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 use crate::capability::{capability_manifest, CapabilityRequest};
+use crate::command_artifact::{
+    CommandServiceArtifactRegistryErrorV1, CommandServiceArtifactRegistryV1,
+};
 use crate::command_execution::{
     cancelled_command_service_result_v1, project_command_service_terminal_v1,
     stale_command_service_result_v1,
@@ -35,10 +38,11 @@ use crate::command_runtime::{
 };
 use crate::command_service::{
     decode_command_service_request_v1, CommandRevisionLedgerV1, CommandServiceLimitsV1,
-    CommandServiceResultV1, CommandServiceStatusV1,
+    CommandServiceResultV1, CommandServiceStatusV1, MAX_JSON_SAFE_INTEGER,
 };
 use crate::engine::EngineContext;
 use crate::operation_control::{OperationControl, OperationId};
+use crate::operation_handle::RetainedHandleId;
 use crate::query::QueryResultExporterRegistry;
 use crate::real::RealCemMlEngine;
 use crate::validation::css_selector::register_css_selector_query_exporters;
@@ -47,6 +51,8 @@ use crate::validation::xpath::register_xpath_query_exporters;
 thread_local! {
     static COMMAND_SERVICE_OPERATIONS: CommandServiceOperationRegistryV1 =
         CommandServiceOperationRegistryV1::default();
+    static COMMAND_SERVICE_ARTIFACTS: CommandServiceArtifactRegistryV1 =
+        CommandServiceArtifactRegistryV1::default();
 }
 
 /// Execute one command-service v1 request against JavaScript-owned async host
@@ -96,6 +102,71 @@ pub fn cancel_command_service_v1(request_id: String, reason: Option<String>) -> 
     }
 }
 
+/// Read one bounded artifact byte range. The returned plain JavaScript object
+/// has canonical Rust-owned metadata JSON in `json` and a copied `Uint8Array`
+/// in `bytes`; it never contains a view into WASM linear memory.
+#[wasm_bindgen(js_name = "readCommandArtifactV1")]
+pub fn read_command_artifact_v1(
+    request_id: String,
+    handle_id: f64,
+    offset: f64,
+    max_bytes: f64,
+) -> JsValue {
+    let result = artifact_wire_integer("handleId", handle_id, false)
+        .and_then(|handle_id| {
+            artifact_wire_integer("offset", offset, true)
+                .map(|offset| (RetainedHandleId::from_raw(handle_id), offset))
+        })
+        .and_then(|(handle_id, offset)| {
+            artifact_wire_integer("maxBytes", max_bytes, false)
+                .map(|max_bytes| (handle_id, offset, max_bytes))
+        })
+        .and_then(|(handle_id, offset, max_bytes)| {
+            COMMAND_SERVICE_ARTIFACTS
+                .with(|registry| registry.read(&request_id, handle_id, offset, max_bytes))
+                .map_err(artifact_registry_error)
+        });
+
+    match result {
+        Ok(chunk) => {
+            let json = serde_json::to_string(&chunk.metadata)
+                .unwrap_or_else(command_service_control_serialize_error);
+            artifact_read_response(json, Some(&chunk.bytes))
+        }
+        Err(error) => artifact_read_response(command_service_error_response(error), None),
+    }
+}
+
+/// Idempotently dispose one request-owned artifact handle.
+#[wasm_bindgen(js_name = "disposeCommandArtifactV1")]
+pub fn dispose_command_artifact_v1(request_id: String, handle_id: f64) -> String {
+    let result = artifact_wire_integer("handleId", handle_id, false)
+        .map(RetainedHandleId::from_raw)
+        .and_then(|handle_id| {
+            COMMAND_SERVICE_ARTIFACTS
+                .with(|registry| registry.dispose(&request_id, handle_id))
+                .map_err(artifact_registry_error)
+        });
+    match result {
+        Ok(acknowledgement) => serde_json::to_string(&acknowledgement)
+            .unwrap_or_else(command_service_control_serialize_error),
+        Err(error) => command_service_error_response(error),
+    }
+}
+
+/// Idempotently dispose every retained artifact for one request identity.
+#[wasm_bindgen(js_name = "disposeCommandArtifactsV1")]
+pub fn dispose_command_artifacts_v1(request_id: String) -> String {
+    let result = COMMAND_SERVICE_ARTIFACTS
+        .with(|registry| registry.dispose_request(&request_id))
+        .map_err(artifact_registry_error);
+    match result {
+        Ok(acknowledgement) => serde_json::to_string(&acknowledgement)
+            .unwrap_or_else(command_service_control_serialize_error),
+        Err(error) => command_service_error_response(error),
+    }
+}
+
 async fn execute_command_service(
     request_json: &str,
     capability_request_json: &str,
@@ -142,6 +213,9 @@ async fn execute_command_service(
     let registration = COMMAND_SERVICE_OPERATIONS
         .with(|registry| registry.register(&request.request_id, control.clone()))
         .map_err(registry_error)?;
+    COMMAND_SERVICE_ARTIFACTS
+        .with(|registry| registry.begin_request(&request.request_id))
+        .map_err(artifact_registry_error)?;
     let mut progress = WasmCommandProgress::new(
         &request.request_id,
         registration.operation_id(),
@@ -178,8 +252,11 @@ async fn execute_command_service(
         CommandServicePreparationV1::Ready(invocation) => {
             progress.emit(CommandServiceProgressStageV1::Prepared, None);
             progress.emit(CommandServiceProgressStageV1::Executing, None);
-            let terminal = match host.execute(&RealCemMlEngine::new(), invocation).await {
-                Ok(terminal) => terminal,
+            let execution = match host
+                .execute_with_artifacts(&RealCemMlEngine::new(), invocation)
+                .await
+            {
+                Ok(execution) => execution,
                 Err(error) => {
                     progress.emit(CommandServiceProgressStageV1::Terminal, None);
                     return Err(host_error(error));
@@ -187,10 +264,17 @@ async fn execute_command_service(
             };
             let result = project_command_service_terminal_v1(
                 &projection_request,
-                &terminal,
+                &execution.terminal,
                 &capability,
                 limits,
             );
+            if !execution.artifacts.is_empty() {
+                COMMAND_SERVICE_ARTIFACTS
+                    .with(|registry| {
+                        registry.publish(&projection_request.request_id, execution.artifacts)
+                    })
+                    .map_err(artifact_registry_error)?;
+            }
             progress.emit(CommandServiceProgressStageV1::Terminal, Some(result.status));
             Ok(result)
         }
@@ -499,6 +583,65 @@ fn host_error(error: CommandServiceHostErrorV1) -> WasmCommandServiceError {
 
 fn registry_error(error: CommandServiceOperationRegistryErrorV1) -> WasmCommandServiceError {
     WasmCommandServiceError::new(error.code(), error.to_string())
+}
+
+fn artifact_registry_error(
+    error: CommandServiceArtifactRegistryErrorV1,
+) -> WasmCommandServiceError {
+    WasmCommandServiceError::new(error.code(), error.to_string())
+}
+
+fn artifact_wire_integer(
+    field: &'static str,
+    value: f64,
+    allow_zero: bool,
+) -> Result<u64, WasmCommandServiceError> {
+    if !value.is_finite()
+        || value.fract() != 0.0
+        || value < if allow_zero { 0.0 } else { 1.0 }
+        || value > MAX_JSON_SAFE_INTEGER as f64
+    {
+        return Err(WasmCommandServiceError::new(
+            "cem.command_service.artifact_integer_invalid",
+            format!(
+                "command-service artifact {field} must be {} JSON-safe integer",
+                if allow_zero {
+                    "a non-negative"
+                } else {
+                    "a positive"
+                }
+            ),
+        ));
+    }
+    Ok(value as u64)
+}
+
+fn artifact_read_response(json: String, bytes: Option<&[u8]>) -> JsValue {
+    let response = Object::new();
+    let _ = Reflect::set(
+        response.as_ref(),
+        &JsValue::from_str("json"),
+        &JsValue::from_str(&json),
+    );
+    if let Some(bytes) = bytes {
+        let bytes = Uint8Array::from(bytes);
+        let _ = Reflect::set(
+            response.as_ref(),
+            &JsValue::from_str("bytes"),
+            bytes.as_ref(),
+        );
+    }
+    response.into()
+}
+
+fn command_service_error_response(error: WasmCommandServiceError) -> String {
+    serde_json::json!({
+        "error": {
+            "code": error.code,
+            "message": error.message,
+        }
+    })
+    .to_string()
 }
 
 #[derive(Debug)]

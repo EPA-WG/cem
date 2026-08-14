@@ -812,7 +812,7 @@ pub fn validate_command_service_result_v1(
     validate_execution_identity(&result.identity, limits)?;
     let mut artifact_ids = BTreeSet::new();
     for artifact in &result.artifacts.items {
-        validate_artifact_handle(artifact)?;
+        validate_command_artifact_handle_v1(artifact)?;
         if !artifact_ids.insert(artifact.handle_id) {
             return Err(CommandServiceError::ResultContract {
                 reason: "artifacts contain a duplicate handle id",
@@ -1452,7 +1452,9 @@ fn validate_execution_identity(
     Ok(())
 }
 
-fn validate_artifact_handle(artifact: &CommandArtifactHandleV1) -> Result<(), CommandServiceError> {
+pub fn validate_command_artifact_handle_v1(
+    artifact: &CommandArtifactHandleV1,
+) -> Result<(), CommandServiceError> {
     if artifact.handle_id.get() == 0 {
         return Err(CommandServiceError::ResultContract {
             reason: "artifact handle must be non-zero",
@@ -1516,7 +1518,7 @@ fn validate_payload<T: Serialize>(
                 });
             }
         }
-        CommandPayloadV1::Artifact { handle } => validate_artifact_handle(handle)?,
+        CommandPayloadV1::Artifact { handle } => validate_command_artifact_handle_v1(handle)?,
     }
     Ok(())
 }

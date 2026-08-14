@@ -44,6 +44,9 @@ test('browser loader accepts bytes and initializes the same WASM ABI', async () 
   );
   assert.equal(manifest.runtime, 'wasm-browser-worker');
   assert.equal(manifest.commonVersion, packageMetadata.version);
+  assert.equal(typeof browserRuntime.readCommandArtifactV1, 'function');
+  assert.equal(typeof browserRuntime.disposeCommandArtifactV1, 'function');
+  assert.equal(typeof browserRuntime.disposeCommandArtifactsV1, 'function');
 
   const progress = [];
   const result = await executeVersionCommand(browserRuntime, 'wasm-browser-worker', undefined, {
@@ -214,6 +217,7 @@ test('async command-service binding hydrates and transactionally publishes throu
   const runtime = await import('@epa-wg/cem-ml/wasm');
   const sourceUri = 'memory:fixture.css';
   const outputUri = 'memory:fixture.cem';
+  const secondOutputUri = 'memory:fixture-secondary.cem';
   const sourceBytes = new TextEncoder().encode('.card { color: red; }');
   const version = {
     revision: 1,
@@ -232,6 +236,13 @@ test('async command-service binding hydrates and transactionally publishes throu
     outputs: [
       {
         destination: outputUri,
+        rootScope: {
+          defaultContentType: 'application/cem',
+          schema: 'https://cem.dev/ns/cem-ml/1',
+        },
+      },
+      {
+        destination: secondOutputUri,
         rootScope: {
           defaultContentType: 'application/cem',
           schema: 'https://cem.dev/ns/cem-ml/1',
@@ -296,8 +307,9 @@ test('async command-service binding hydrates and transactionally publishes throu
       async (json, bytes) => {
         const write = JSON.parse(json);
         events.push(['prepare', write]);
-        writes.set('write:1', { write, bytes: [...bytes], committed: false });
-        return JSON.stringify({ token: 'write:1' });
+        const token = `write:${writes.size + 1}`;
+        writes.set(token, { write, bytes: [...bytes], committed: false });
+        return JSON.stringify({ token });
       },
       async (token) => {
         events.push(['commit', token]);
@@ -316,16 +328,96 @@ test('async command-service binding hydrates and transactionally publishes throu
   assert.equal(result.status, 'succeeded');
   assert.equal(result.operation, 'parse');
   assert.equal(result.result.value.kind, 'parse');
-  assert.equal(result.artifacts.originalCount, 1);
-  assert.equal(result.artifacts.items[0].uri, outputUri);
+  assert.equal(result.artifacts.originalCount, 2);
+  assert.deepEqual(
+    new Set(result.artifacts.items.map(({ uri }) => uri)),
+    new Set([outputUri, secondOutputUri]),
+  );
   assert.deepEqual(
     events.map(([kind]) => kind),
-    ['ledger', 'read', 'prepare', 'ledger', 'commit'],
+    ['ledger', 'read', 'prepare', 'prepare', 'ledger', 'commit', 'commit'],
   );
   assert.equal(events[1][1].purposes[0], 'input');
   assert.equal(events[2][1].purpose, 'output');
-  assert.equal(writes.get('write:1').committed, true);
-  assert.match(new TextDecoder().decode(Uint8Array.from(writes.get('write:1').bytes)), /@doc cem-ml 1/);
+  assert.ok([...writes.values()].every(({ committed }) => committed));
+  assert.match(
+    new TextDecoder().decode(Uint8Array.from(writes.get('write:1').bytes)),
+    /@doc cem-ml 1/,
+  );
+
+  const artifact = result.artifacts.items[0];
+  const firstRead = runtime.readCommandArtifactV1(request.requestId, artifact.handleId, 0, 16);
+  const firstMetadata = JSON.parse(firstRead.json);
+  assert.ok(firstRead.bytes instanceof Uint8Array);
+  assert.equal(firstMetadata.requestId, request.requestId);
+  assert.deepEqual(firstMetadata.handle, artifact);
+  assert.equal(firstMetadata.offset, 0);
+  assert.equal(firstMetadata.byteLength, firstRead.bytes.byteLength);
+  assert.equal(firstMetadata.eof, artifact.byteLength <= 16);
+
+  const firstByte = firstRead.bytes[0];
+  firstRead.bytes[0] ^= 0xff;
+  const repeatedRead = runtime.readCommandArtifactV1(request.requestId, artifact.handleId, 0, 16);
+  assert.equal(repeatedRead.bytes[0], firstByte, 'artifact reads must return owned byte copies');
+
+  const chunks = [];
+  let offset = 0;
+  while (offset < artifact.byteLength) {
+    const read = runtime.readCommandArtifactV1(request.requestId, artifact.handleId, offset, 16);
+    const metadata = JSON.parse(read.json);
+    assert.equal(metadata.offset, offset);
+    chunks.push(...read.bytes);
+    offset += read.bytes.byteLength;
+    assert.equal(metadata.eof, offset === artifact.byteLength);
+  }
+  assert.equal(chunks.length, artifact.byteLength);
+  assert.equal(createHash('sha256').update(Uint8Array.from(chunks)).digest('hex'), artifact.sha256);
+
+  const rangeFailure = JSON.parse(
+    runtime.readCommandArtifactV1(
+      request.requestId,
+      artifact.handleId,
+      artifact.byteLength + 1,
+      1,
+    ).json,
+  );
+  assert.equal(rangeFailure.error.code, 'cem.command_service.artifact_read_range');
+  const limitFailure = JSON.parse(
+    runtime.readCommandArtifactV1(request.requestId, artifact.handleId, 0, 64 * 1024 * 1024 + 1)
+      .json,
+  );
+  assert.equal(limitFailure.error.code, 'cem.command_service.artifact_read_limit');
+  const unknownFailure = JSON.parse(
+    runtime.readCommandArtifactV1(request.requestId, artifact.handleId + 1000, 0, 1).json,
+  );
+  assert.equal(unknownFailure.error.code, 'cem.command_service.artifact_handle_unknown');
+
+  const foreignFailure = JSON.parse(
+    runtime.readCommandArtifactV1('wasm-artifact-foreign', artifact.handleId, 0, 1).json,
+  );
+  assert.equal(foreignFailure.error.code, 'cem.command_service.artifact_handle_foreign');
+
+  const disposed = JSON.parse(
+    runtime.disposeCommandArtifactV1(request.requestId, artifact.handleId),
+  );
+  assert.equal(disposed.disposition, 'disposed');
+  assert.equal(disposed.disposedCount, 1);
+  const disposedAgain = JSON.parse(
+    runtime.disposeCommandArtifactV1(request.requestId, artifact.handleId),
+  );
+  assert.equal(disposedAgain.disposition, 'already-disposed');
+  const disposedRead = JSON.parse(
+    runtime.readCommandArtifactV1(request.requestId, artifact.handleId, 0, 1).json,
+  );
+  assert.equal(disposedRead.error.code, 'cem.command_service.artifact_handle_disposed');
+
+  const disposedRequest = JSON.parse(runtime.disposeCommandArtifactsV1(request.requestId));
+  assert.equal(disposedRequest.disposition, 'disposed');
+  assert.equal(disposedRequest.disposedCount, 1);
+  assert.equal(
+    JSON.parse(runtime.disposeCommandArtifactsV1(request.requestId)).disposition,
+    'already-disposed',
+  );
 });
 
 async function executeVersionCommand(runtime, runtimeKind, ledger = undefined, options = {}) {

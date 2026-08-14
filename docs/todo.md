@@ -899,8 +899,37 @@ replacement tree may mediate between internal engine layers.
                   The low-level npm aggregate passes seven runtime tests, ABI and 433-
                   record integrity verification, packaging, and clean installation;
                   its stripped npm/WASM distribution also builds with the new ABI.
-            - [ ] Add request-scoped artifact read/dispose lifecycle methods without
+            - [x] Add request-scoped artifact read/dispose lifecycle methods without
                   exposing WASM memory views or raw native handles.
+                - [x] Add native artifact-registry and generated Node/browser WASM
+                      fixtures covering bounded copied reads, metadata integrity,
+                      foreign/unknown/disposed handles, idempotent handle/request
+                      disposal, and request-id reuse cleanup.
+
+                  Completed 2026-08-14: common Rust now owns a clone-shared
+                  request/artifact registry that installs bytes only after complete
+                  transactional publication. Every read validates request ownership,
+                  opaque handle metadata, byte length, SHA-256, offset, and the
+                  negotiated transfer-byte limit, then returns an owned chunk with
+                  canonical offset/length/EOF metadata. Stable errors distinguish
+                  unknown requests, unknown/foreign/disposed handles, invalid ranges,
+                  and over-limit reads. Per-handle and request-wide disposal retain
+                  bounded tombstones for idempotence, and admitting a reused request
+                  id releases its previous artifact generation before host I/O.
+
+                  The generated WASM surface adds `readCommandArtifactV1`,
+                  `disposeCommandArtifactV1`, and `disposeCommandArtifactsV1`.
+                  Reads return canonical Rust metadata JSON beside a newly copied
+                  JavaScript `Uint8Array`, never a WASM memory view. Native fixtures
+                  cover atomic publication validation, chunk integrity and bounds,
+                  scope errors, both disposal paths, and generation reuse. Generated
+                  browser/Node fixtures cover ABI presence, multi-chunk digest parity,
+                  copy isolation, range/limit/ownership failures, and idempotent
+                  cleanup after a two-artifact transaction. The Nx common suites pass
+                  1,948 default and 1,936 stripped unit tests; Rust lint plus
+                  default/stripped WASM builds pass. The default npm runtime passes
+                  seven tests and 433-record ABI/integrity verification, while the
+                  stripped npm/WASM profile builds and verifies the same artifact ABI.
             - [ ] Generate the browser/Node TypeScript command request, result,
                   capability-callback, progress, control, and artifact projections
                   from their Rust-owned wire declarations.

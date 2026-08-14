@@ -58,7 +58,16 @@ for (const target of ['browser', 'node']) {
   );
   assert.match(
     declarations,
+    /disposeCommandArtifactV1\(request_id: string, handle_id: number\): string/,
+  );
+  assert.match(declarations, /disposeCommandArtifactsV1\(request_id: string\): string/);
+  assert.match(
+    declarations,
     /executeCommandServiceV1\(request_json: string, capability_request_json: string, current_revision: Function, read_resource: Function, prepare_write: Function, commit_write: Function, rollback_write: Function, progress\?: Function \| null\): Promise<string>/,
+  );
+  assert.match(
+    declarations,
+    /readCommandArtifactV1\(request_id: string, handle_id: number, offset: number, max_bytes: number\): any/,
   );
 }
 
@@ -70,7 +79,10 @@ assert.equal(typeof nodeRuntime.nodeWorkerCapabilityManifest, 'function');
 assert.equal(typeof nodeRuntime.workerProtocolDescriptor, 'function');
 assert.equal(typeof nodeRuntime.normalizeCommandRunPlanV1, 'function');
 assert.equal(typeof nodeRuntime.cancelCommandServiceV1, 'function');
+assert.equal(typeof nodeRuntime.disposeCommandArtifactV1, 'function');
+assert.equal(typeof nodeRuntime.disposeCommandArtifactsV1, 'function');
 assert.equal(typeof nodeRuntime.executeCommandServiceV1, 'function');
+assert.equal(typeof nodeRuntime.readCommandArtifactV1, 'function');
 
 const integrity = readJson(resolve(distRoot, 'integrity.json'));
 assert.equal(integrity.algorithm, 'sha256');

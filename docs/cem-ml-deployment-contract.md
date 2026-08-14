@@ -353,6 +353,19 @@ alter engine semantics. A cancellation observed before preparation has produced
 an operation handle still projects the canonical cancelled command result and
 exit policy in common Rust.
 
+Successfully committed artifact bytes move into a separate Rust-owned,
+request-scoped registry before the terminal result is observable. The generated
+`readCommandArtifactV1(requestId, handleId, offset, maxBytes)` method returns a
+plain JavaScript record containing canonical `CommandServiceArtifactReadV1`
+metadata JSON and a newly copied `Uint8Array`; reads are bounded by the
+negotiated transfer-byte limit and never expose WASM linear-memory views.
+`disposeCommandArtifactV1` and `disposeCommandArtifactsV1` release one handle or
+the whole request generation idempotently. Starting a new command with a reused
+request id releases the prior generation before host I/O. Unknown, foreign,
+disposed, out-of-range, and over-limit reads retain distinct stable common error
+codes, while stale, cancelled, failed, and rolled-back commands publish no
+readable bytes.
+
 ## Native build, package, and signing profiles
 
 All tool versions and runner images are pinned in the owning Nx project or
