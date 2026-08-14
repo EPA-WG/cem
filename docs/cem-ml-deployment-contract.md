@@ -264,6 +264,12 @@ scheduler scope ids, and native handles are never request fields.
 | `trace` | `inputId`, `projection` | `TraceRequest` |
 | `version-capabilities` | No additional fields | `ProductVersion` and `CapabilityManifest` |
 
+For a direct transform source, `params` and `templateEntrypoint` configure the
+projected `TransformRequest`. For a graph source, `params` MUST be empty and
+`templateEntrypoint` MUST be implicit because each graph `transform` stage owns
+its params and entrypoint. Command admission rejects an override with stable code
+`cem.command_service.transform_graph_stage_local`.
+
 All enum values use the serialization already owned by the named common Rust
 type. Fail level, target identity/scope, output pipeline, resolver bindings,
 budgets, report projection/destinations, terminal presentation preferences, and

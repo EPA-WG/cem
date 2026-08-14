@@ -735,6 +735,36 @@ replacement tree may mediate between internal engine layers.
               execution-service availability. The Nx default suite passes 1,931
               unit tests, the stripped suite passes 1,919, and lint plus default,
               stripped, default-WASM, and stripped-WASM builds pass.
+        - [ ] Execute every prepared command-service v1 invocation through common
+              engine/query boundaries and settle exactly one bounded terminal
+              result before publication.
+            - [x] Keep transform-graph params and entrypoints stage-local by
+                  rejecting non-empty or named operation-envelope values during
+                  command admission and native CLI parsing.
+                - [x] Add native command-service, preparation, and CLI fixtures
+                      covering accepted stage-local graph metadata and stable
+                      rejection of top-level graph overrides.
+
+                  Completed 2026-08-13: graph-source admission now rejects
+                  top-level params or a named entrypoint with stable code
+                  `cem.command_service.transform_graph_stage_local`, prepared
+                  graph invocations no longer retain those unusable envelope
+                  fields, and native `--config` parsing reports argument
+                  conflicts for `--param` and `--template-entrypoint`.
+
+                  Two common Rust fixture cases cover admission and preparation,
+                  while one native CLI fixture covers both argument conflicts.
+                  The Nx common default suite passes 1,933 unit tests, the
+                  stripped suite passes 1,921, the full native CLI target and
+                  stripped CLI fixture pass, and lint plus common default,
+                  stripped, default-WASM, stripped-WASM, and native CLI default
+                  and stripped builds pass.
+            - [ ] Extract transform-graph request lowering into common Rust behind
+                  manifest-backed and filesystem-backed resource providers, then
+                  make command execution and the native CLI share it.
+            - [ ] Add native execution fixtures covering every prepared operation,
+                  cancellation and failure mapping, output publication, and exactly
+                  one terminal command-service result.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 

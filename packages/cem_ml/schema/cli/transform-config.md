@@ -43,6 +43,8 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `transform` creates a template application node from `@src`.
 - `transform @entrypoint` selects a public CEM-native template entrypoint.
 - `transform` child `param @name @value` records provide caller params for that transform stage.
+- Graph params and entrypoints are stage-local; top-level CLI `--param` and
+  `--template-entrypoint` cannot be combined with `--config`.
 - `rewrite-importmap` mutates the `<script type="importmap">` JSON in a text
   HTML input artifact and leaves the rest of the HTML unchanged.
 - `rewrite-importmap @source-map` optionally validates the source `imports`

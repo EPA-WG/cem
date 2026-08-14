@@ -811,7 +811,7 @@ than applying a document-producing template or stylesheet.
       --out view.html
     ```
 
-    It also accepts `--data-schema`, `--template-schema`, `--template-entrypoint`, repeatable
+    Direct transforms also accept `--data-schema`, `--template-schema`, `--template-entrypoint`, repeatable
     `--param NAME=VALUE`, `--to-schema`, shared context options, `--report`, `--report-format`, and
     compatibility aliases `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
     `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
@@ -820,6 +820,9 @@ than applying a document-producing template or stylesheet.
     `join @mode="match-by" @by="..." @with:...` aggregation, and positional
     `join @mode="zip" @with:...` aggregation. Bounded XSLT 1.0 parity executes through the registered compatibility
     adapter, while full XSLT 3.0/4.0 engine execution remains deferred.
+
+    Graph transforms reject `--template-entrypoint` and `--param`; each
+    `transform` node in `--config` owns its entrypoint and params.
 
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.

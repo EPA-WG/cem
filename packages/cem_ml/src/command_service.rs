@@ -517,6 +517,9 @@ pub enum CommandServiceError {
     UnknownInputId {
         input_id: String,
     },
+    TransformGraphStageLocal {
+        field: &'static str,
+    },
     OperationMetadataTooLarge {
         requested: usize,
         maximum: usize,
@@ -558,6 +561,9 @@ impl CommandServiceError {
             Self::OperationInputsEmpty => "cem.command_service.operation_inputs_empty",
             Self::DuplicateInputId { .. } => "cem.command_service.input_id_duplicate",
             Self::UnknownInputId { .. } => "cem.command_service.input_id_unknown",
+            Self::TransformGraphStageLocal { .. } => {
+                "cem.command_service.transform_graph_stage_local"
+            }
             Self::OperationMetadataTooLarge { .. } => {
                 "cem.command_service.operation_metadata_too_large"
             }
@@ -644,6 +650,10 @@ impl fmt::Display for CommandServiceError {
             Self::UnknownInputId { input_id } => write!(
                 formatter,
                 "command-service operation references unknown input id `{input_id}`"
+            ),
+            Self::TransformGraphStageLocal { field } => write!(
+                formatter,
+                "command-service transform graph field {field} must be empty or implicit; graph stages own params and entrypoints"
             ),
             Self::OperationMetadataTooLarge { requested, maximum } => write!(
                 formatter,
@@ -1035,21 +1045,32 @@ fn validate_operation_metadata(
         }
         PortableOperationRequestV1::Transform {
             source,
+            params,
             template_entrypoint,
             ..
         } => {
-            if let Some(name) = template_entrypoint.name.as_deref() {
-                validate_identity("operation.templateEntrypoint.name", name)?;
-            }
             match source {
                 CommandTransformSourceV1::Direct {
                     data_input_id,
                     template_uri,
                 } => {
+                    if let Some(name) = template_entrypoint.name.as_deref() {
+                        validate_identity("operation.templateEntrypoint.name", name)?;
+                    }
                     ids.push(data_input_id);
                     validate_uri("operation.source.templateUri", template_uri)?;
                 }
                 CommandTransformSourceV1::Graph { config_uri } => {
+                    if !params.is_empty() {
+                        return Err(CommandServiceError::TransformGraphStageLocal {
+                            field: "operation.params",
+                        });
+                    }
+                    if !template_entrypoint.is_implicit() {
+                        return Err(CommandServiceError::TransformGraphStageLocal {
+                            field: "operation.templateEntrypoint",
+                        });
+                    }
                     validate_uri("operation.source.configUri", config_uri)?;
                 }
             }
@@ -1460,6 +1481,7 @@ mod tests {
     const DATA_URI: &str = "studio://catalog/data.cem";
     const QUERY_URI: &str = "studio://catalog/query.xpath";
     const TEMPLATE_URI: &str = "studio://catalog/template.cemt";
+    const GRAPH_URI: &str = "studio://catalog/graph.cem";
 
     fn sample_plan() -> NormalizedRunPlan {
         parse_normalized_run_plan(NormalizedRunPlanRequest {
@@ -1523,6 +1545,10 @@ mod tests {
                 source: CommandTransformSourceV1::Direct { .. },
                 ..
             } => insert_resource(&mut request, TEMPLATE_URI, b"<template/>"),
+            PortableOperationRequestV1::Transform {
+                source: CommandTransformSourceV1::Graph { .. },
+                ..
+            } => insert_resource(&mut request, GRAPH_URI, b"<graph/>"),
             _ => {}
         }
         request
@@ -1915,6 +1941,53 @@ mod tests {
                 .code(),
             "cem.command_service.run_plan_host_state"
         );
+    }
+
+    #[test]
+    fn transform_graph_admission_keeps_invocation_metadata_stage_local() {
+        let limits = CommandServiceLimitsV1::default();
+        let accepted = request(PortableOperationRequestV1::Transform {
+            source: CommandTransformSourceV1::Graph {
+                config_uri: GRAPH_URI.to_owned(),
+            },
+            params: BTreeMap::new(),
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            preserve_source_offsets: true,
+        });
+        validate_command_service_request_v1(&accepted, limits)
+            .expect("implicit graph invocation metadata is admitted");
+
+        let mut params_override = accepted.clone();
+        let PortableOperationRequestV1::Transform { params, .. } =
+            &mut params_override.operation
+        else {
+            unreachable!()
+        };
+        params.insert("locale".to_owned(), json!("en"));
+        let error = validate_command_service_request_v1(&params_override, limits)
+            .expect_err("top-level graph params are rejected");
+        assert_eq!(
+            error.code(),
+            "cem.command_service.transform_graph_stage_local"
+        );
+        assert!(error.to_string().contains("operation.params"));
+
+        let mut entrypoint_override = accepted;
+        let PortableOperationRequestV1::Transform {
+            template_entrypoint,
+            ..
+        } = &mut entrypoint_override.operation
+        else {
+            unreachable!()
+        };
+        *template_entrypoint = TransformTemplateEntrypoint::named("main");
+        let error = validate_command_service_request_v1(&entrypoint_override, limits)
+            .expect_err("top-level graph entrypoint is rejected");
+        assert_eq!(
+            error.code(),
+            "cem.command_service.transform_graph_stage_local"
+        );
+        assert!(error.to_string().contains("operation.templateEntrypoint"));
     }
 
     #[test]

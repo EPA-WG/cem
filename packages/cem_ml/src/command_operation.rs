@@ -52,8 +52,6 @@ pub enum PreparedCommandTransformV1 {
 pub struct PreparedCommandTransformGraphV1 {
     pub config_uri: String,
     pub graph: TransformGraphConfig,
-    pub params: BTreeMap<String, serde_json::Value>,
-    pub template_entrypoint: engine::TransformTemplateEntrypoint,
     pub preserve_source_offsets: bool,
     pub context: EngineContext,
     pub run_plan: Box<NormalizedRunPlan>,
@@ -389,8 +387,6 @@ pub fn prepare_command_operation_v1(
                     PreparedCommandTransformV1::Graph(Box::new(PreparedCommandTransformGraphV1 {
                         config_uri: config_uri.clone(),
                         graph: parsed.graph,
-                        params: params.clone(),
-                        template_entrypoint: template_entrypoint.clone(),
                         preserve_source_offsets: *preserve_source_offsets,
                         context,
                         run_plan: Box::new(plan.clone()),
@@ -1143,7 +1139,7 @@ mod tests {
             source: CommandTransformSourceV1::Graph {
                 config_uri: GRAPH_URI.to_owned(),
             },
-            params: BTreeMap::from([("locale".to_owned(), json!("en"))]),
+            params: BTreeMap::new(),
             template_entrypoint: TransformTemplateEntrypoint::implicit(),
             preserve_source_offsets: true,
         }))
@@ -1154,7 +1150,6 @@ mod tests {
             panic!("graph transform preparation variant")
         };
         assert_eq!(graph.graph.nodes.len(), 1);
-        assert_eq!(graph.params.get("locale"), Some(&json!("en")));
         assert!(graph.resources.contains_key(DATA_URI));
         assert!(graph.preserve_source_offsets);
 
@@ -1165,6 +1160,39 @@ mod tests {
         };
         assert_eq!(version.version.common_version, crate::VERSION);
         assert_eq!(version.capability.runtime, RuntimeKind::Native);
+    }
+
+    #[test]
+    fn preparation_rejects_top_level_graph_invocation_metadata() {
+        let overrides = [
+            (
+                BTreeMap::from([("locale".to_owned(), json!("en"))]),
+                TransformTemplateEntrypoint::implicit(),
+                "operation.params",
+            ),
+            (
+                BTreeMap::new(),
+                TransformTemplateEntrypoint::named("main"),
+                "operation.templateEntrypoint",
+            ),
+        ];
+
+        for (params, template_entrypoint, field) in overrides {
+            let error = prepare(&request(PortableOperationRequestV1::Transform {
+                source: CommandTransformSourceV1::Graph {
+                    config_uri: GRAPH_URI.to_owned(),
+                },
+                params,
+                template_entrypoint,
+                preserve_source_offsets: true,
+            }))
+            .expect_err("top-level graph invocation metadata is rejected");
+            assert_eq!(
+                error.code(),
+                "cem.command_service.transform_graph_stage_local"
+            );
+            assert!(error.to_string().contains(field));
+        }
     }
 
     #[test]

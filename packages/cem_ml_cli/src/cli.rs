@@ -788,6 +788,7 @@ pub struct TransformArgs {
     #[arg(
         long = "template-entrypoint",
         value_name = "NAME",
+        conflicts_with = "config",
         help = "Public CEM-native template entrypoint to render"
     )]
     pub template_entrypoint: Option<String>,
@@ -795,6 +796,7 @@ pub struct TransformArgs {
     #[arg(
         long = "param",
         value_name = "NAME=VALUE",
+        conflicts_with = "config",
         help = "CEM-native template param; repeatable"
     )]
     pub params: Vec<String>,
@@ -1506,6 +1508,29 @@ mod tests {
             args.config_schema.as_deref(),
             Some("https://cem.dev/ns/cli/transform-config/1")
         );
+    }
+
+    #[test]
+    fn transform_config_rejects_top_level_stage_metadata() {
+        for args in [
+            vec![
+                "transform",
+                "--config",
+                "graph.cem",
+                "--param",
+                "locale=en",
+            ],
+            vec![
+                "transform",
+                "--config",
+                "graph.cem",
+                "--template-entrypoint",
+                "main",
+            ],
+        ] {
+            let error = try_parse(&args).expect_err("graph stage metadata must stay in config");
+            assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
+        }
     }
 
     #[test]
