@@ -56,7 +56,6 @@ assert.deepEqual(
 );
 
 const checksumLines = readFileSync(artifactPath(names.checksum), 'utf8').trim().split('\n');
-assert.deepEqual(checksumLines, [...checksumLines].sort(), 'checksum manifest must be filename-sorted');
 const checksumEntries = new Map(
     checksumLines.map((line) => {
         const match = line.replace(/\r$/, '').match(/^([0-9a-f]{64}) {2}([^/\\]+)$/);
@@ -65,6 +64,11 @@ const checksumEntries = new Map(
     }),
 );
 assert.equal(checksumEntries.size, checksumLines.length, 'checksum filenames must be unique');
+assert.deepEqual(
+    [...checksumEntries.keys()],
+    [...checksumEntries.keys()].sort(),
+    'checksum manifest must be filename-sorted',
+);
 for (const [filename, expected] of checksumEntries) {
     assert.equal(sha256File(requireFile(artifactPath(filename))), expected, filename);
 }
