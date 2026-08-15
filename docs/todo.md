@@ -962,9 +962,40 @@ replacement tree may mediate between internal engine layers.
                   runtime tests, strict declaration checking, 576-record ABI and
                   integrity verification, packaging, and clean installation; the
                   stripped profile passes declaration and command-ABI parity.
-        - [ ] Add the dedicated-worker `./browser` command-service client with
+        - [x] Add the dedicated-worker `./browser` command-service client with
               typed request/result, resolver, progress, cancellation, artifact,
               and capability adapters over the generated WASM binding.
+            - [x] Add strict TypeScript and Chromium dedicated-worker fixtures
+                  covering one-runtime initialization, async revision/read/write
+                  callbacks, monotonic progress, cooperative cancellation,
+                  copied artifact chunks and disposal, concurrent request
+                  routing, worker failure/close cleanup, capability identity,
+                  and exclusion of main-thread execution and Node built-ins.
+
+              Completed 2026-08-14: `@epa-wg/cem-ml-cli/browser` now exports a
+              strict command-service client that owns exactly one initialized
+              dedicated worker, forwards the Rust-generated request/result and
+              host-capability types without a second model, and provides an
+              awaitable execution handle with observational progress,
+              AbortSignal/manual cancellation, copied artifact reads,
+              per-handle disposal, and request-wide cleanup. Revision, explicit
+              resource read, and transactional prepare/commit/rollback callbacks
+              cross the worker boundary through typed structured-clone messages;
+              transferred write buffers are copied before detachment. Command
+              errors retain canonical codes, while worker failure and client
+              close reject every pending execution/action without a pool or
+              main-thread fallback.
+
+              A strict public TypeScript fixture compiles the complete adapter
+              surface. Real Chromium fixtures prove asynchronous parse I/O and
+              two-artifact publication, monotonic progress, copy isolation,
+              idempotent cleanup, concurrent request routing, cooperative
+              cancellation, worker-failure/close cleanup, exact runtime/ABI
+              identity, and rejection when dedicated workers are unavailable.
+              Distribution checks reject browser Node built-ins and verify the
+              new emitted declarations. The aggregate Nx check passes browser,
+              Node, lint, distribution, package, and clean-install consumer
+              verification with one exact low-level runtime dependency.
         - [ ] Add the `./node` command-service host and `cem-ml` npm executable
               with file/HTTPS/stream/signal adapters and native-equivalent exit
               policy.

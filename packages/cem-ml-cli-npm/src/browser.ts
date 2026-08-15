@@ -30,6 +30,37 @@ import type {
 } from './protocol.js';
 
 export {
+    BrowserCommandServiceClient,
+    BrowserCommandServiceError,
+    BrowserCommandServiceHandle,
+    createBrowserCommandServiceClient,
+} from './browser-command.js';
+export type {
+    BrowserCommandArtifactReadOptions,
+    BrowserCommandArtifactReadResult,
+    BrowserCommandServiceClientOptions,
+    BrowserCommandServiceExecuteOptions,
+    BrowserCommandWorkerDescriptor,
+    BrowserCommandWorkerFailure,
+    CommandArtifactHandleV1,
+    CommandPreparedWriteTokenV1,
+    CommandResolvedResourceV1,
+    CommandResolvedWriteV1,
+    CommandResourceReadRequestV1,
+    CommandResourceWriteRequestV1,
+    CommandRevisionLedgerRequestV1,
+    CommandRevisionLedgerV1,
+    CommandServiceArtifactDisposeAckV1,
+    CommandServiceArtifactReadV1,
+    CommandServiceControlAckV1,
+    CommandServiceHostCapabilitiesV1,
+    CommandServiceProgressCallbackV1,
+    CommandServiceProgressV1,
+    CommandServiceRequestV1,
+    CommandServiceResultV1,
+} from './browser-command.js';
+
+export {
     CemMlCommandError,
     commandSchema,
     parseCemMlCommand,

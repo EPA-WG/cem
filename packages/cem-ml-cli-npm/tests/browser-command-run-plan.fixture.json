@@ -1,0 +1,212 @@
+{
+    "runId": "run:9d368d8abe38277e",
+    "configIdentity": {
+        "contentType": "application/json",
+        "schemaIdentity": "https://cem.dev/ns/cli/run-config/1",
+        "sourceKind": "bytes"
+    },
+    "effectiveConfig": {
+        "inputs": [
+            {
+                "uri": "memory:fixture.css",
+                "rootScope": {
+                    "defaultContentType": "text/css",
+                    "schema": "https://cem.dev/ns/data/css/1",
+                    "versionPins": {},
+                    "defaultNamespace": null,
+                    "namespaces": {},
+                    "moduleMap": null,
+                    "baseUri": null,
+                    "policy": null,
+                    "budgets": {}
+                }
+            }
+        ],
+        "outputs": [
+            {
+                "inputRef": null,
+                "destination": "memory:fixture.cem",
+                "rootScope": {
+                    "defaultContentType": "application/cem",
+                    "schema": "https://cem.dev/ns/cem-ml/1",
+                    "versionPins": {},
+                    "defaultNamespace": null,
+                    "namespaces": {},
+                    "moduleMap": null,
+                    "baseUri": null,
+                    "policy": null,
+                    "budgets": {}
+                }
+            },
+            {
+                "inputRef": null,
+                "destination": "memory:fixture-secondary.cem",
+                "rootScope": {
+                    "defaultContentType": "application/cem",
+                    "schema": "https://cem.dev/ns/cem-ml/1",
+                    "versionPins": {},
+                    "defaultNamespace": null,
+                    "namespaces": {},
+                    "moduleMap": null,
+                    "baseUri": null,
+                    "policy": null,
+                    "budgets": {}
+                }
+            }
+        ],
+        "schemaPackages": [],
+        "resolvers": [],
+        "scheduler": { "threadPool": null, "maxParallelDocuments": null }
+    },
+    "authoredSources": [
+        {
+            "sourceId": "config:0",
+            "sourceKind": "bytes",
+            "identity": {
+                "contentType": null,
+                "schema": null,
+                "defaultNamespace": null,
+                "namespaces": {},
+                "baseUri": null
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "inputId": "input:0",
+            "declaredUri": "memory:fixture.css",
+            "byteSourceKind": "uri",
+            "identity": {
+                "contentType": "text/css",
+                "schema": "https://cem.dev/ns/data/css/1",
+                "defaultNamespace": null,
+                "namespaces": {},
+                "baseUri": null
+            },
+            "rootScope": {
+                "scopeId": "scope:input:0",
+                "direction": "input",
+                "identity": {
+                    "contentType": "text/css",
+                    "schema": "https://cem.dev/ns/data/css/1",
+                    "defaultNamespace": null,
+                    "namespaces": {},
+                    "baseUri": null
+                },
+                "namespaces": {},
+                "versionPins": {},
+                "resolverContext": { "resolverIds": [] },
+                "policy": {
+                    "cpuWorkers": 1,
+                    "queueSize": 8,
+                    "ioStreams": 4,
+                    "memoryBytes": 8388608,
+                    "stackDepth": 256,
+                    "overflow": "reject",
+                    "provenance": []
+                },
+                "budgets": { "unknown": [], "provenance": [] },
+                "provenance": []
+            },
+            "provenance": []
+        }
+    ],
+    "outputs": [
+        {
+            "outputId": "output:0",
+            "inputId": "input:0",
+            "declaredDestination": "memory:fixture.cem",
+            "resolvedDestination": "memory:fixture.cem",
+            "identity": {
+                "contentType": "application/cem",
+                "schema": "https://cem.dev/ns/cem-ml/1",
+                "defaultNamespace": null,
+                "namespaces": {},
+                "baseUri": null
+            },
+            "rootScope": {
+                "scopeId": "scope:output:0",
+                "direction": "output",
+                "identity": {
+                    "contentType": "application/cem",
+                    "schema": "https://cem.dev/ns/cem-ml/1",
+                    "defaultNamespace": null,
+                    "namespaces": {},
+                    "baseUri": null
+                },
+                "namespaces": {},
+                "versionPins": {},
+                "resolverContext": { "resolverIds": [] },
+                "policy": {
+                    "cpuWorkers": 1,
+                    "queueSize": 8,
+                    "ioStreams": 4,
+                    "memoryBytes": 8388608,
+                    "stackDepth": 256,
+                    "overflow": "reject",
+                    "provenance": []
+                },
+                "budgets": { "unknown": [], "provenance": [] },
+                "provenance": []
+            },
+            "primaryOutputPolicy": "write-destination",
+            "sidecars": [],
+            "provenance": []
+        },
+        {
+            "outputId": "output:1",
+            "inputId": "input:0",
+            "declaredDestination": "memory:fixture-secondary.cem",
+            "resolvedDestination": "memory:fixture-secondary.cem",
+            "identity": {
+                "contentType": "application/cem",
+                "schema": "https://cem.dev/ns/cem-ml/1",
+                "defaultNamespace": null,
+                "namespaces": {},
+                "baseUri": null
+            },
+            "rootScope": {
+                "scopeId": "scope:output:1",
+                "direction": "output",
+                "identity": {
+                    "contentType": "application/cem",
+                    "schema": "https://cem.dev/ns/cem-ml/1",
+                    "defaultNamespace": null,
+                    "namespaces": {},
+                    "baseUri": null
+                },
+                "namespaces": {},
+                "versionPins": {},
+                "resolverContext": { "resolverIds": [] },
+                "policy": {
+                    "cpuWorkers": 1,
+                    "queueSize": 8,
+                    "ioStreams": 4,
+                    "memoryBytes": 8388608,
+                    "stackDepth": 256,
+                    "overflow": "reject",
+                    "provenance": []
+                },
+                "budgets": { "unknown": [], "provenance": [] },
+                "provenance": []
+            },
+            "primaryOutputPolicy": "write-destination",
+            "sidecars": [],
+            "provenance": []
+        }
+    ],
+    "schemaPackages": [],
+    "resolvers": [],
+    "scheduler": { "threadPool": null, "maxParallelDocuments": null },
+    "diagnosticsMode": {
+        "failLevel": "validate",
+        "primaryKind": "report",
+        "reportProjection": "json",
+        "reportDestinations": [],
+        "quiet": false,
+        "verbose": false,
+        "noColor": false
+    },
+    "provenance": [],
+    "diagnostics": []
+}

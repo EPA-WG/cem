@@ -154,8 +154,87 @@ try {
     assert.equal(operationMain.cancelled.status, 'cancelled');
     assert.equal(operationMain.replacementEvents.length, 0);
 
+    const command = await runFixture(page, 'command-service');
+    assert.equal(command.worker.slot, 1);
+    assert.equal(command.worker.generation, 1);
+    assert.equal(command.worker.commonVersion, packageMetadata.version);
+    assert.match(command.worker.runtimeInstanceId, /^browser-command-\d+:slot-1:generation-1$/);
+    assert.equal(command.runtime, 'wasm-browser-worker');
+    assert.equal(command.topology, 'browser-worker-pool');
+    assert.equal(command.effectiveMaxWorkers, 1);
+    assert.equal(command.abiIdentity, command.resultIdentity.abiIdentity);
+    assert.equal(command.resultIdentity.runtime, 'wasm-browser-worker');
+    assert.equal(command.status, 'succeeded');
+    assert.equal(command.originalArtifactCount, 2);
+    assert.ok(command.artifactByteLength > 16);
+    assert.equal(command.firstReadByteLength, 16);
+    assert.equal(command.copiedArtifactBytes, true);
+    assert.deepEqual(command.disposeDispositions, ['disposed', 'already-disposed', 'disposed']);
+    assert.deepEqual(command.progress, [
+        [1, 'accepted', undefined],
+        [2, 'prepared', undefined],
+        [3, 'executing', undefined],
+        [4, 'terminal', 'succeeded'],
+    ]);
+    assert.deepEqual(command.subscribedProgress, [1, 2, 3, 4]);
+    assert.deepEqual(
+        command.events.slice(0, 7).map(([kind]) => kind),
+        ['ledger', 'read', 'prepare', 'prepare', 'ledger', 'commit', 'commit'],
+    );
+    assert.deepEqual(
+        new Set(command.writes.map(({ uri }) => uri)),
+        new Set(command.outputUris),
+    );
+    assert.ok(command.writes.every(({ byteLength, committed }) => byteLength > 0 && committed));
+    assert.deepEqual(command.concurrent, [
+        { requestId: 'browser-command-version-a', status: 'succeeded' },
+        { requestId: 'browser-command-version-b', status: 'succeeded' },
+    ]);
+    assert.deepEqual(command.concurrentProgress, {
+        'browser-command-version-a': [1, 2, 3, 4],
+        'browser-command-version-b': [1, 2, 3, 4],
+    });
+    assert.equal(command.callbackFailure.resolved, false);
+    assert.equal(command.callbackFailure.code, 'cem.command_service.ledger_read');
+    assert.match(command.callbackFailure.message, /fixture revision ledger unavailable/);
+
+    const cancellation = await runFixture(page, 'command-cancellation');
+    assert.equal(cancellation.acknowledgement.requestId, 'browser-command-cancel');
+    assert.equal(cancellation.acknowledgement.disposition, 'accepted');
+    assert.equal(cancellation.status, 'cancelled');
+    assert.equal(cancellation.exitCode, 130);
+    assert.deepEqual(cancellation.progress, [
+        [1, 'accepted', undefined],
+        [2, 'terminal', 'cancelled'],
+    ]);
+
+    const close = await runFixture(page, 'command-close');
+    assert.deepEqual(close.failure, {
+        resolved: false,
+        code: 'cem.browser_command.client_closed',
+        message: 'CEM-ML browser command-service client was closed',
+    });
+    assert.equal(close.postCloseCode, 'cem.browser_command.client_closed');
+
+    const workerFailure = await runFixture(page, 'command-worker-failure');
+    assert.equal(workerFailure.corrupted, true);
+    assert.deepEqual(workerFailure.terminal, {
+        resolved: false,
+        code: 'cem.browser_command.worker_failed',
+    });
+    assert.equal(workerFailure.failures.length, 1);
+    assert.equal(workerFailure.failures[0].code, 'worker-error');
+    assert.equal(workerFailure.failures[0].worker.slot, 1);
+
+    const workerUnavailable = await runFixture(page, 'command-worker-unavailable');
+    assert.deepEqual(workerUnavailable, {
+        accepted: false,
+        code: 'cem.browser_command.worker_unavailable',
+        callbacks: 0,
+    });
+
     console.log(
-        `Verified ${packageMetadata.name}@${packageMetadata.version} in Chromium: transform/query control across dedicated-worker, one-worker, and main-thread modes, hard replacement, and no shared-memory requirement.`,
+        `Verified ${packageMetadata.name}@${packageMetadata.version} in Chromium: worker-pool control plus dedicated-worker command callbacks, progress, cancellation, artifacts, cleanup, and capability identity.`,
     );
 } finally {
     await browser?.close();

@@ -73,6 +73,42 @@ The browser host falls back from the bounded pool to one dedicated worker and
 then to one main-thread WASM runtime when workers cannot initialize; it does not
 require shared-memory WASM or cross-origin isolation.
 
+The browser command-service API is a separate strict boundary: it always owns
+exactly one dedicated worker and never falls back to pool scheduling or
+main-thread execution. Callers provide explicit asynchronous revision, read,
+and transactional-write capabilities; URLs and virtual resources have no
+implicit filesystem behavior.
+
+```js
+import { createBrowserCommandServiceClient } from '@epa-wg/cem-ml-cli/browser';
+
+const client = await createBrowserCommandServiceClient({
+    host: {
+        currentRevision: async ({ project }) => ({ project, resourceVersions: {} }),
+        readResource: async (request) => resolveApplicationResource(request),
+        prepareWrite: async (request, bytes) => stageApplicationWrite(request, bytes),
+        commitWrite: async (token) => commitApplicationWrite(token),
+        rollbackWrite: async (token) => rollbackApplicationWrite(token),
+    },
+});
+const operation = client.execute(commandServiceRequest, {
+    signal: abortController.signal,
+    onProgress: (progress) => console.log(progress),
+});
+const result = await operation;
+for (const artifact of result.artifacts.items) {
+    const { metadata, bytes } = await operation.readArtifact(artifact);
+    consumeCopiedArtifactChunk(metadata, bytes);
+}
+await operation.dispose();
+await client.close();
+```
+
+The request, result, callback, progress, cancellation, and artifact types are
+re-exported directly from the Rust-generated `@epa-wg/cem-ml/wasm`
+declarations. Pre-terminal command errors reject with
+`BrowserCommandServiceError`; canonical terminal statuses remain typed results.
+
 `pool.run(request)` returns an awaitable operation handle with `result()`,
 `subscribe()`, `cancel()`, `pause()`, `continue()`, `step()`, and `dispose()`.
 The common Rust coordinator retains continuation and deterministic commit order;
@@ -81,6 +117,5 @@ terminated and replaced when cancellation exceeds the negotiated hard-cancel
 grace. Main-thread browser fallback uses the same bounded packets and cooperative
 controls, while truthfully reporting hard cancellation as unavailable.
 
-Mapping parsed commands into the complete common operation service, Node and
-browser resolver/report adapters, and the `cem-ml` npm executable remain
-subsequent checklist work.
+Mapping parsed commands into the Node resolver/report adapters and the `cem-ml`
+npm executable remains subsequent checklist work.

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +17,8 @@ assert.equal(packageMetadata.bin, undefined);
 assert.equal(packageMetadata.exports['./browser'].import, './dist/browser.js');
 assert.equal(packageMetadata.exports['./node'].import, './dist/node.js');
 for (const path of [
+    'browser-command.js',
+    'browser-command.d.ts',
     'browser.js',
     'browser.d.ts',
     'browser-worker.js',
@@ -51,11 +54,36 @@ const workerSource = readFileSync(resolve(projectRoot, 'dist/node-worker.js'), '
 assert.match(workerSource, /@epa-wg\/cem-ml\/wasm/);
 assert.doesNotMatch(workerSource, /cem_ml_bg\.wasm/);
 const browserSource = readFileSync(resolve(projectRoot, 'dist/browser.js'), 'utf8');
+const browserCommandSource = readFileSync(resolve(projectRoot, 'dist/browser-command.js'), 'utf8');
 const browserWorkerSource = readFileSync(resolve(projectRoot, 'dist/browser-worker.js'), 'utf8');
 assert.match(browserSource, /new Worker\(new URL\('\.\/browser-worker\.js'/);
 assert.match(browserSource, /hardwareConcurrency/);
 assert.match(browserWorkerSource, /browserWorkerCapabilityManifest/);
-assert.doesNotMatch(`${browserSource}\n${browserWorkerSource}`, /SharedArrayBuffer/);
+assert.doesNotMatch(`${browserSource}\n${browserCommandSource}\n${browserWorkerSource}`, /SharedArrayBuffer/);
+assert.doesNotMatch(`${browserSource}\n${browserCommandSource}\n${browserWorkerSource}`, /node:/);
+
+const typecheck = spawnSync(
+    process.platform === 'win32' ? 'yarn.cmd' : 'yarn',
+    [
+        'tsc',
+        '--ignoreConfig',
+        '--noEmit',
+        '--strict',
+        '--target',
+        'ES2022',
+        '--module',
+        'NodeNext',
+        '--moduleResolution',
+        'NodeNext',
+        'tests/browser-command-types.ts',
+    ],
+    { cwd: projectRoot, encoding: 'utf8' },
+);
+assert.equal(
+    typecheck.status,
+    0,
+    `browser command-service declarations failed strict TypeScript checking:\n${typecheck.stdout}${typecheck.stderr}`,
+);
 
 console.log(
     `Verified ${packageMetadata.name}@${packageMetadata.version}: generated command schema and policy-free browser/Node worker artifacts.`,

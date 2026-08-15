@@ -138,6 +138,104 @@ export interface WorkerWorkRequest {
     readonly packet: OperationWorkPacket;
 }
 
+export type BrowserCommandCapabilityName =
+    | 'currentRevision'
+    | 'readResource'
+    | 'prepareWrite'
+    | 'commitWrite'
+    | 'rollbackWrite';
+
+export interface BrowserCommandExecuteRequest {
+    readonly type: 'cem-command-execute';
+    readonly executionId: number;
+    readonly request: unknown;
+}
+
+export interface BrowserCommandCancelRequest {
+    readonly type: 'cem-command-cancel';
+    readonly actionId: number;
+    readonly requestId: string;
+    readonly reason?: string;
+}
+
+export interface BrowserCommandArtifactReadRequest {
+    readonly type: 'cem-command-artifact-read';
+    readonly actionId: number;
+    readonly requestId: string;
+    readonly handleId: number;
+    readonly offset: number;
+    readonly maxBytes: number;
+}
+
+export interface BrowserCommandArtifactDisposeRequest {
+    readonly type: 'cem-command-artifact-dispose';
+    readonly actionId: number;
+    readonly requestId: string;
+    readonly handleId: number;
+}
+
+export interface BrowserCommandArtifactsDisposeRequest {
+    readonly type: 'cem-command-artifacts-dispose';
+    readonly actionId: number;
+    readonly requestId: string;
+}
+
+export interface BrowserCommandCapabilityResponse {
+    readonly type: 'cem-command-capability-response';
+    readonly callbackId: number;
+    readonly ok: boolean;
+    readonly value?: unknown;
+    readonly error?: BrowserCommandSerializedError;
+}
+
+export type BrowserCommandWorkerRequest =
+    | BrowserCommandExecuteRequest
+    | BrowserCommandCancelRequest
+    | BrowserCommandArtifactReadRequest
+    | BrowserCommandArtifactDisposeRequest
+    | BrowserCommandArtifactsDisposeRequest
+    | BrowserCommandCapabilityResponse;
+
+export interface BrowserCommandProgressMessage {
+    readonly type: 'cem-command-progress';
+    readonly executionId: number;
+    readonly progress: unknown;
+}
+
+export interface BrowserCommandResultMessage {
+    readonly type: 'cem-command-result';
+    readonly executionId: number;
+    readonly result: unknown;
+}
+
+export interface BrowserCommandActionResultMessage {
+    readonly type: 'cem-command-action-result';
+    readonly actionId: number;
+    readonly result: unknown;
+    readonly bytes?: Uint8Array;
+}
+
+export interface BrowserCommandCapabilityRequest {
+    readonly type: 'cem-command-capability-request';
+    readonly executionId: number;
+    readonly callbackId: number;
+    readonly capability: BrowserCommandCapabilityName;
+    readonly argument: unknown;
+    readonly bytes?: Uint8Array;
+}
+
+export interface BrowserCommandSerializedError {
+    readonly name: string;
+    readonly message: string;
+    readonly code?: string;
+}
+
+export type BrowserCommandWorkerMessage =
+    | BrowserCommandProgressMessage
+    | BrowserCommandResultMessage
+    | BrowserCommandActionResultMessage
+    | BrowserCommandCapabilityRequest;
+
 export interface WorkerWorkResultEnvelope extends WorkerEnvelope<OperationWorkResult> {
     readonly operation: {
         readonly protocolVersion: number;
