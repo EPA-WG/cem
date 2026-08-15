@@ -101,11 +101,17 @@ the [Node release table](https://nodejs.org/en/about/previous-releases) and
 | Browser API | Current project Playwright Chromium plus a real dedicated worker | `wasm-browser-worker` |
 | Linux native | Ubuntu 24.04 x64; `x86_64-unknown-linux-gnu` | `native-linux-amd64` |
 | Homebrew native | GitHub-hosted `macos-14` ARM64; `aarch64-apple-darwin` | `native-macos-arm64` |
-| Windows native | GitHub-hosted `windows-2025` x64; `x86_64-pc-windows-msvc` | `native-windows-amd64` |
+| Windows native build/package | GitHub-hosted `windows-2025` x64; `x86_64-pc-windows-msvc` | `native-windows-amd64` |
+| Windows native Sandbox smoke | EPA-WG self-hosted Windows 11 x64; `windows-11-sandbox-x64` | `native-windows-amd64` |
 
 GitHub currently provides x64 Ubuntu/Windows runners and ARM64 macOS runners,
 so each release artifact is built and smoke-tested on its native architecture
-rather than cross-signed on an unrelated host. See the
+rather than cross-signed on an unrelated host. The Windows installer lifecycle
+is additionally exercised on an EPA-WG-controlled Windows 11 x64 runner with
+the `windows-11-sandbox-x64` label, nested virtualization, Windows Sandbox, and
+an interactive runner session. This split is required because the hosted
+`windows-2025` build image is Windows Server while Windows Sandbox is a Windows
+10/11 capability. See the
 [GitHub-hosted runner matrix](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
 Node support is reviewed at each CEM-ML minor release. A newly promoted Node LTS
@@ -405,7 +411,8 @@ blocks, and taps are normally Git repositories. See the
 
 ### Windows AMD64
 
-- Build on `windows-2025` x64 for `x86_64-pc-windows-msvc`.
+- Build, package, validate, and perform direct MSI lifecycle checks on
+  GitHub-hosted `windows-2025` x64 for `x86_64-pc-windows-msvc`.
 - Publish a portable `.zip` and a WiX v4 `.msi` with silent install/uninstall,
   plus SHA-256 manifest, SPDX JSON SBOM, GitHub artifact attestation, and
   release-index entry.
@@ -413,8 +420,11 @@ blocks, and taps are normally Git repositories. See the
   using an EPA-WG public-trust profile; verify signature and timestamp before
   packaging and after download.
 - Publish versioned WinGet manifests to `microsoft/winget-pkgs` that resolve the
-  immutable MSI and validate with `winget validate` plus a Windows Sandbox
-  install/upgrade/uninstall smoke test.
+  immutable MSI and validate with `winget validate`.
+- Run the same MSI install/fixture-upgrade/uninstall lifecycle inside a fresh
+  Windows Sandbox on the self-hosted `windows-11-sandbox-x64` verification
+  runner. The job remains explicitly gated until that runner is provisioned;
+  it must not silently fall back to the hosted Windows Server VM.
 
 WinGet supports MSI and portable packages and validates public manifest
 submissions; see the [WinGet overview](https://learn.microsoft.com/en-us/windows/package-manager/winget/)

@@ -1,0 +1,36 @@
+{
+    "schemaVersion": 1,
+    "nxProject": "cem_ml_cli_native_windows_amd64",
+    "rustPackage": "cem-ml-cli",
+    "rustBinary": "cem-ml.exe",
+    "rustTarget": "x86_64-pc-windows-msvc",
+    "runtimeIdentity": "native-windows-amd64",
+    "assetCoordinate": "windows-amd64-msvc",
+    "host": {
+        "platform": "win32",
+        "architecture": "x64",
+        "runner": "windows-2025",
+        "sandboxRunner": "windows-11-sandbox-x64"
+    },
+    "windowsInstaller": {
+        "packageIdentifier": "EPA-WG.CEM-ML",
+        "publisher": "EPA-WG",
+        "upgradeCode": "{A4D30566-CA1C-4AE0-94C2-F7B4000EACF9}",
+        "productCodeNamespace": "47a4a83b-38d0-4d18-8fbd-9a163c1dfef0",
+        "packageCodeNamespace": "9c286615-f83d-472b-b3a6-3f90212f6095",
+        "componentGuids": {
+            "executable": "{07A3D85A-A3F4-4C64-8E78-72FFB1E520EE}",
+            "metadata": "{1F26E6A8-E22E-4CD0-A0C0-C8B1E93C25BE}",
+            "documentation": "{5818CFBE-8050-487C-9957-4D0464870044}"
+        },
+        "wingetRepository": "microsoft/winget-pkgs",
+        "wingetManifestVersion": "1.12.0"
+    },
+    "wix": {
+        "version": "4.0.6"
+    },
+    "syft": {
+        "version": "1.50.0",
+        "windowsAmd64ArchiveSha256": "815ee6973ec5dff6a671d7f41b0e78835a8c45b91d5a39f4743ea1cee833d3be"
+    }
+}

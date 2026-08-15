@@ -1,0 +1,161 @@
+{
+    "name": "cem_ml_cli_native_windows_amd64",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "application",
+    "implicitDependencies": ["cem_ml_cli"],
+    "tags": ["scope:cem-ml", "type:deployment", "platform:windows", "arch:amd64"],
+    "targets": {
+        "build": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/build.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/deployment.json",
+                "{projectRoot}/scripts/lib.mjs",
+                "{projectRoot}/scripts/build.mjs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/examples/native-capability-emit.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "SOURCE_DATE_EPOCH" }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/target/cem_ml_cli_native_windows_amd64",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-native-windows-amd64/build"
+            ]
+        },
+        "package": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node scripts/package.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/deployment.json",
+                "{projectRoot}/README.md",
+                "{projectRoot}/scripts/assemble.mjs",
+                "{projectRoot}/scripts/installer.mjs",
+                "{projectRoot}/scripts/lib.mjs",
+                "{projectRoot}/scripts/package.mjs",
+                "{projectRoot}/scripts/winget.mjs",
+                "{projectRoot}/scripts/zip.mjs",
+                "{workspaceRoot}/LICENSE",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                },
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "SOURCE_DATE_EPOCH" }
+            ],
+            "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-native-windows-amd64/artifacts"]
+        },
+        "sign": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["package"],
+            "options": {
+                "command": "node scripts/sign.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-native-windows-amd64/artifacts"]
+        },
+        "verify": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["sign"],
+            "options": {
+                "command": "node scripts/verify.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "outputs": []
+        },
+        "publish": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify"],
+            "options": {
+                "command": "node scripts/publish.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "outputs": []
+        },
+        "smoke:install": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify"],
+            "options": {
+                "command": "node scripts/smoke.mjs install",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/installer.mjs",
+                "{projectRoot}/scripts/lib.mjs",
+                "{projectRoot}/scripts/smoke.mjs",
+                "{projectRoot}/tests/smoke-input.cem"
+            ],
+            "outputs": []
+        },
+        "smoke:upgrade": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify"],
+            "options": {
+                "command": "node scripts/smoke.mjs upgrade",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/installer.mjs",
+                "{projectRoot}/scripts/lib.mjs",
+                "{projectRoot}/scripts/smoke.mjs",
+                "{projectRoot}/tests/smoke-input.cem"
+            ],
+            "outputs": []
+        },
+        "smoke:uninstall": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify"],
+            "options": {
+                "command": "node scripts/smoke.mjs uninstall",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/installer.mjs",
+                "{projectRoot}/scripts/lib.mjs",
+                "{projectRoot}/scripts/smoke.mjs",
+                "{projectRoot}/tests/smoke-input.cem"
+            ],
+            "outputs": []
+        },
+        "smoke:sandbox": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify"],
+            "options": {
+                "command": "node scripts/sandbox.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/installer.mjs",
+                "{projectRoot}/scripts/lib.mjs",
+                "{projectRoot}/scripts/sandbox.mjs",
+                "{projectRoot}/scripts/sandbox-lifecycle.ps1",
+                "{projectRoot}/tests/smoke-input.cem"
+            ],
+            "outputs": []
+        }
+    }
+}
