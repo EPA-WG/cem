@@ -74,3 +74,62 @@ jobs:
 
       - name: Run affected targets
         run: yarn nx affected -t lint test test:unit build typecheck e2e-ci
+
+  native-macos-arm64:
+    name: CEM-ML native macOS ARM64
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> dist/target"
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Lint native deployment project
+        run: yarn nx run cem_ml_cli_native_brew_arm64:lint
+
+      - name: Prove deterministic unsigned package shape
+        run: |
+          yarn nx run cem_ml_cli_native_brew_arm64:package
+          artifact_dir=dist/packages/cem-ml-cli-native-brew-arm64/artifacts
+          find "$artifact_dir" -type f -print | sort | while IFS= read -r file; do
+            shasum -a 256 "$file"
+          done | sed "s|$artifact_dir/||" > "$RUNNER_TEMP/cem-ml-macos-before.sha256"
+          yarn nx run cem_ml_cli_native_brew_arm64:package --skipNxCache --excludeTaskDependencies
+          find "$artifact_dir" -type f -print | sort | while IFS= read -r file; do
+            shasum -a 256 "$file"
+          done | sed "s|$artifact_dir/||" > "$RUNNER_TEMP/cem-ml-macos-after.sha256"
+          diff -u "$RUNNER_TEMP/cem-ml-macos-before.sha256" "$RUNNER_TEMP/cem-ml-macos-after.sha256"
+
+      - name: Verify native package shape
+        run: yarn nx run cem_ml_cli_native_brew_arm64:verify
+
+      - name: Run Homebrew lifecycle smokes
+        run: |
+          yarn nx run cem_ml_cli_native_brew_arm64:smoke:install
+          yarn nx run cem_ml_cli_native_brew_arm64:smoke:upgrade
+          yarn nx run cem_ml_cli_native_brew_arm64:smoke:uninstall

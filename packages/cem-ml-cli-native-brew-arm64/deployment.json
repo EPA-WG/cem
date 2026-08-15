@@ -1,0 +1,24 @@
+{
+    "schemaVersion": 1,
+    "nxProject": "cem_ml_cli_native_brew_arm64",
+    "rustPackage": "cem-ml-cli",
+    "rustBinary": "cem-ml",
+    "rustTarget": "aarch64-apple-darwin",
+    "runtimeIdentity": "native-macos-arm64",
+    "assetCoordinate": "macos-arm64",
+    "host": {
+        "platform": "darwin",
+        "architecture": "arm64",
+        "runner": "macos-14"
+    },
+    "homebrew": {
+        "formula": "cem-ml",
+        "formulaClass": "CemMl",
+        "repository": "EPA-WG/homebrew-cem",
+        "repositoryPath": "Formula/cem-ml.rb"
+    },
+    "syft": {
+        "version": "1.50.0",
+        "darwinArm64ArchiveSha256": "e32fdb9d47823fa633748a1efca2528fd77c37469ea93c9e40ab835da44e4cce"
+    }
+}
