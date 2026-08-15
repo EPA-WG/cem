@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
@@ -52,6 +52,7 @@ export function buildMsi({ destination, payloadRoot, version, workRoot, sourceEp
         source,
     ]);
     normalizeMsiSummary(destination, installerPackageCode, sourceEpoch);
+    normalizeCompoundFileMetadata(destination, sourceEpoch);
     requireFile(destination, 'WiX MSI');
     return {
         packageCode: installerPackageCode,
@@ -141,6 +142,84 @@ function normalizeMsiSummary(path, installerPackageCode, epoch) {
             CEM_ML_MSI_SOURCE_EPOCH: String(epoch),
         },
     });
+}
+
+function normalizeCompoundFileMetadata(path, epoch) {
+    const image = readFileSync(path);
+    const signature = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+    if (image.length < 512 || !image.subarray(0, signature.length).equals(signature)) {
+        throw new Error(`${path} is not a Compound File Binary MSI`);
+    }
+    if (image.readUInt16LE(0x1c) !== 0xfffe) {
+        throw new Error(`${path} has an unsupported Compound File byte order`);
+    }
+
+    const sectorSize = 2 ** image.readUInt16LE(0x1e);
+    if (![512, 4096].includes(sectorSize) || image.length % sectorSize !== 0) {
+        throw new Error(`${path} has an unsupported Compound File sector size ${sectorSize}`);
+    }
+    const sectorCount = image.length / sectorSize - 1;
+    const sectorOffset = (sector, label) => {
+        if (sector >= sectorCount) throw new Error(`${path} ${label} sector ${sector} is out of range`);
+        return (sector + 1) * sectorSize;
+    };
+
+    const freeSector = 0xffffffff;
+    const endOfChain = 0xfffffffe;
+    const maximumRegularSector = 0xfffffffa;
+    const fatSectorCount = image.readUInt32LE(0x2c);
+    const fatSectors = [];
+    for (let index = 0; index < 109; index += 1) {
+        const sector = image.readUInt32LE(0x4c + index * 4);
+        if (sector !== freeSector) fatSectors.push(sector);
+    }
+
+    let difatSector = image.readUInt32LE(0x44);
+    const difatSectorCount = image.readUInt32LE(0x48);
+    for (let chainIndex = 0; chainIndex < difatSectorCount; chainIndex += 1) {
+        if (difatSector >= maximumRegularSector) {
+            throw new Error(`${path} has an invalid DIFAT chain`);
+        }
+        const offset = sectorOffset(difatSector, 'DIFAT');
+        for (let index = 0; index < sectorSize / 4 - 1; index += 1) {
+            const sector = image.readUInt32LE(offset + index * 4);
+            if (sector !== freeSector) fatSectors.push(sector);
+        }
+        difatSector = image.readUInt32LE(offset + sectorSize - 4);
+    }
+    if (fatSectors.length < fatSectorCount) {
+        throw new Error(`${path} declares ${fatSectorCount} FAT sectors but exposes ${fatSectors.length}`);
+    }
+
+    const fat = [];
+    for (const sector of fatSectors.slice(0, fatSectorCount)) {
+        if (sector >= maximumRegularSector) throw new Error(`${path} has an invalid FAT sector ${sector}`);
+        const offset = sectorOffset(sector, 'FAT');
+        for (let index = 0; index < sectorSize / 4; index += 1) {
+            fat.push(image.readUInt32LE(offset + index * 4));
+        }
+    }
+
+    image.writeUInt32LE(0, 0x34);
+    const sourceFiletime = (BigInt(epoch) + 11_644_473_600n) * 10_000_000n;
+    const visited = new Set();
+    let directorySector = image.readUInt32LE(0x30);
+    while (directorySector !== endOfChain) {
+        if (directorySector >= maximumRegularSector || visited.has(directorySector)) {
+            throw new Error(`${path} has an invalid Compound File directory chain`);
+        }
+        visited.add(directorySector);
+        const offset = sectorOffset(directorySector, 'directory');
+        for (let entryOffset = offset; entryOffset < offset + sectorSize; entryOffset += 128) {
+            const objectType = image[entryOffset + 66];
+            if (![1, 2, 5].includes(objectType)) continue;
+            const timestamp = objectType === 2 ? 0n : sourceFiletime;
+            image.writeBigUInt64LE(timestamp, entryOffset + 100);
+            image.writeBigUInt64LE(timestamp, entryOffset + 108);
+        }
+        directorySector = fat[directorySector];
+    }
+    writeFileSync(path, image);
 }
 
 function windowsInstallerVersion(version) {

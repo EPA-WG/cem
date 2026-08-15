@@ -212,16 +212,39 @@ jobs:
                 "$hash  $($_.Name)"
               } | Set-Content -LiteralPath $Destination -Encoding utf8NoBOM
           }
+          function Copy-MsiDiagnostic([string]$Destination) {
+            $installers = @(Get-ChildItem `
+              'dist/packages/cem-ml-cli-native-windows-amd64/artifacts' `
+              -Filter '*.msi' `
+              -File)
+            if ($installers.Count -ne 1) {
+              throw "Expected one MSI diagnostic input, found $($installers.Count)"
+            }
+            Copy-Item -LiteralPath $installers[0].FullName -Destination $Destination
+          }
           yarn nx run cem_ml_cli_native_windows_amd64:package
           Write-ArtifactManifest "$env:RUNNER_TEMP\cem-ml-windows-before.sha256"
+          Copy-MsiDiagnostic "$env:RUNNER_TEMP\cem-ml-windows-before.msi"
           yarn nx run cem_ml_cli_native_windows_amd64:package --skipNxCache --excludeTaskDependencies
           Write-ArtifactManifest "$env:RUNNER_TEMP\cem-ml-windows-after.sha256"
+          Copy-MsiDiagnostic "$env:RUNNER_TEMP\cem-ml-windows-after.msi"
           $difference = Compare-Object `
             (Get-Content "$env:RUNNER_TEMP\cem-ml-windows-before.sha256") `
             (Get-Content "$env:RUNNER_TEMP\cem-ml-windows-after.sha256")
           if ($difference) {
             $difference | Format-Table | Out-String | Write-Error
           }
+
+      - name: Upload determinism diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cem-ml-native-windows-amd64-determinism-diagnostics
+          path: |
+            ${{ runner.temp }}/cem-ml-windows-before.msi
+            ${{ runner.temp }}/cem-ml-windows-after.msi
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Verify native package shape
         run: yarn nx run cem_ml_cli_native_windows_amd64:verify
