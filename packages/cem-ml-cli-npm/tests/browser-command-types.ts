@@ -1,8 +1,13 @@
 import {
+    buildBrowserCommandInvocation,
     createBrowserCommandServiceClient,
+    parseCemMlCommand,
+    projectBrowserCommandPresentation,
     type BrowserCommandArtifactReadOptions,
     type BrowserCommandServiceExecuteOptions,
     type CommandArtifactHandleV1,
+    type CommandInvocationV1,
+    type CommandPresentationV1,
     type CommandResolvedResourceV1,
     type CommandResolvedWriteV1,
     type CommandRevisionLedgerV1,
@@ -15,6 +20,7 @@ import {
     type CommandServiceResultV1,
 } from '../dist/browser.js';
 
+const bytes = new TextEncoder().encode('{root}');
 const host = {
     currentRevision: async ({ project }): Promise<CommandRevisionLedgerV1> => ({
         project,
@@ -55,8 +61,13 @@ const executeOptions = {
 const readOptions = { offset: 0, maxBytes: 1024 } satisfies BrowserCommandArtifactReadOptions;
 
 async function compilePublicBrowserCommandContract(): Promise<void> {
+    const parsed = parseCemMlCommand(['version'], { runtime: 'wasm-browser-worker' });
+    const invocation: CommandInvocationV1 = await buildBrowserCommandInvocation(
+        parsed,
+        async (requirement) => [{ uri: requirement.uri, bytes }],
+    );
     const client = await createBrowserCommandServiceClient({ host });
-    const handle = client.execute(request, executeOptions);
+    const handle = client.execute(invocation.request, executeOptions);
     const unsubscribe: () => void = handle.subscribe((event) => progress.push(event));
     const resultFromThen: CommandServiceResultV1 = await handle;
     const result: CommandServiceResultV1 = await handle.result();
@@ -70,11 +81,15 @@ async function compilePublicBrowserCommandContract(): Promise<void> {
     }
     const cancellation: CommandServiceControlAckV1 = await handle.cancel('typed cancellation');
     const disposedRequest: CommandServiceArtifactDisposeAckV1 = await handle.dispose();
+    const presentation: CommandPresentationV1 = projectBrowserCommandPresentation(
+        invocation.presentation,
+        result,
+    );
     const runtime: 'wasm-browser-worker' = client.capability.runtime;
     const workerRuntime: string = client.worker.runtimeInstanceId;
     unsubscribe();
     await client.close();
-    void [resultFromThen, cancellation, disposedRequest, runtime, workerRuntime];
+    void [request, resultFromThen, cancellation, disposedRequest, presentation, runtime, workerRuntime];
 }
 
 void compilePublicBrowserCommandContract;

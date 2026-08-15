@@ -198,6 +198,43 @@ try {
     assert.equal(command.callbackFailure.code, 'cem.command_service.ledger_read');
     assert.match(command.callbackFailure.message, /fixture revision ledger unavailable/);
 
+    const allOperations = await runFixture(page, 'command-all-operations');
+    assert.deepEqual(
+        allOperations.summaries.map(({ operation }) => operation),
+        [
+            'parse',
+            'validate',
+            'check',
+            'inspect',
+            'convert',
+            'query',
+            'transform',
+            'transform',
+            'trace',
+            'version-capabilities',
+        ],
+    );
+    assert.deepEqual(
+        allOperations.summaries
+            .filter(({ operation }) => operation === 'transform')
+            .map(({ sourceKind }) => sourceKind),
+        ['direct', 'graph'],
+    );
+    assert.ok(
+        allOperations.summaries.every(
+            ({ status, exitCode, runtime, diagnostics, hasResult }) =>
+                status === 'succeeded' &&
+                exitCode === 0 &&
+                runtime === 'wasm-browser-worker' &&
+                diagnostics === 0 &&
+                hasResult,
+        ),
+    );
+    assert.ok(allOperations.summaries.some(({ hasReport }) => hasReport));
+    assert.ok(allOperations.summaries.some(({ sourceMaps }) => sourceMaps > 0));
+    assert.ok(allOperations.summaries.some(({ presentationTargets }) => presentationTargets.length > 0));
+    assert.ok(allOperations.committedWrites > 0);
+
     const cancellation = await runFixture(page, 'command-cancellation');
     assert.equal(cancellation.acknowledgement.requestId, 'browser-command-cancel');
     assert.equal(cancellation.acknowledgement.disposition, 'accepted');

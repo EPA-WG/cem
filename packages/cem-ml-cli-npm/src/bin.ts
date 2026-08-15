@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { realpathSync } from 'node:fs';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
@@ -178,7 +179,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const entry = process.argv[1];
-if (entry !== undefined && pathToFileURL(entry).href === import.meta.url) {
+if (entry !== undefined && pathToFileURL(realpathSync(entry)).href === import.meta.url) {
     void runCemMlExecutable(process.argv.slice(2)).then(
         (exitCode) => {
             process.exitCode = exitCode;

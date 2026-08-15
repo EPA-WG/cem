@@ -80,7 +80,21 @@ and transactional-write capabilities; URLs and virtual resources have no
 implicit filesystem behavior.
 
 ```js
-import { createBrowserCommandServiceClient } from '@epa-wg/cem-ml-cli/browser';
+import {
+    buildBrowserCommandInvocation,
+    createBrowserCommandServiceClient,
+    parseCemMlCommand,
+    projectBrowserCommandPresentation,
+} from '@epa-wg/cem-ml-cli/browser';
+
+const parsed = parseCemMlCommand(['parse', 'document.cem'], {
+    runtime: 'wasm-browser-worker',
+});
+const invocation = await buildBrowserCommandInvocation(
+    parsed,
+    async ({ uri }) => [{ uri, bytes: await readApplicationBytes(uri) }],
+    { cwd: '/workspace' },
+);
 
 const client = await createBrowserCommandServiceClient({
     host: {
@@ -91,11 +105,13 @@ const client = await createBrowserCommandServiceClient({
         rollbackWrite: async (token) => rollbackApplicationWrite(token),
     },
 });
-const operation = client.execute(commandServiceRequest, {
+const operation = client.execute(invocation.request, {
     signal: abortController.signal,
     onProgress: (progress) => console.log(progress),
 });
 const result = await operation;
+const presentation = projectBrowserCommandPresentation(invocation.presentation, result);
+consumePresentation(presentation);
 for (const artifact of result.artifacts.items) {
     const { metadata, bytes } = await operation.readArtifact(artifact);
     consumeCopiedArtifactChunk(metadata, bytes);
@@ -146,5 +162,8 @@ terminated and replaced when cancellation exceeds the negotiated hard-cancel
 grace. Main-thread browser fallback uses the same bounded packets and cooperative
 controls, while truthfully reporting hard cancellation as unavailable.
 
-Complete all-operation parity and clean installed-consumer round trips remain
-the next deployment checklist slice.
+The aggregate package checks run the shared parse, validate, check, inspect,
+convert, query, transform, trace, and version/capabilities matrix through the
+browser and Node command-service workers and the executable. Packaging then
+installs both archives into a clean consumer, proves one resolved common runtime,
+and repeats the executable matrix through the installed `cem-ml` bin.

@@ -61,6 +61,29 @@ export type {
 } from './browser-command.js';
 
 export {
+    buildBrowserCommandInvocation,
+    BrowserCommandInvocationError,
+    projectBrowserCommandPresentation,
+} from './browser-invocation.js';
+export type {
+    BrowserCommandInvocationOptions,
+    BrowserCommandInvocationResolver,
+    BrowserCommandInvocationResource,
+} from './browser-invocation.js';
+export type {
+    CommandInvocationBuildResponseV1,
+    CommandInvocationEnvironmentV1,
+    CommandInvocationResourceRequirementKindV1,
+    CommandInvocationResourceRequirementV1,
+    CommandInvocationV1,
+    CommandPresentationPlanV1,
+    CommandPresentationRouteV1,
+    CommandPresentationTargetKindV1,
+    CommandPresentationV1,
+    CommandPresentationWriteV1,
+} from '@epa-wg/cem-ml/wasm';
+
+export {
     CemMlCommandError,
     commandSchema,
     parseCemMlCommand,

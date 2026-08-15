@@ -1027,9 +1027,17 @@ replacement tree may mediate between internal engine layers.
               parsed-command execution and publication, cooperative cancellation,
               executable version/usage/I/O exits, generated declarations, package
               metadata, executable mode, and browser Node-builtin exclusion.
-        - [ ] Add all-operation browser/Node/executable round trips and clean
+        - [x] Add all-operation browser/Node/executable round trips and clean
               pack/install consumer fixtures, including one-runtime resolution
               and browser Node-builtin exclusion, under aggregate Nx targets.
+            - [x] Add a shared executable command matrix covering parse, validate,
+                  check, inspect, convert, query, direct and graph transform,
+                  trace, and version/capabilities with stable result, diagnostic,
+                  report, source-map, presentation, and exit projections.
+            - [x] Run the same nine portable operation kinds through dedicated
+                  browser and Node command-service workers, then invoke the packed
+                  executable from a clean consumer while proving one resolved
+                  common runtime and no Node built-ins in browser artifacts.
 
 - [ ] Create exactly three native CLI deployment projects.
     - [ ] Add `x86_64-unknown-linux-gnu` / `native-linux-amd64`.

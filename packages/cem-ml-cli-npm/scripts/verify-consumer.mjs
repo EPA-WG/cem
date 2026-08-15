@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { commandCases, fixtureFiles } from '../tests/command-all-operations.fixture.mjs';
+
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(projectRoot, '../..');
 const cliArchive = resolve(workspaceRoot, 'dist/packages/cem-ml-cli-npm/package.tgz');
@@ -37,6 +39,10 @@ try {
 
     const runtimeInstalls = findRuntimeInstalls(resolve(consumerRoot, 'node_modules'));
     assert.deepEqual(runtimeInstalls, [installedRuntimeRoot]);
+
+    for (const [name, source] of Object.entries(fixtureFiles)) {
+        writeFileSync(resolve(consumerRoot, name), source);
+    }
 
     writeFileSync(
         resolve(consumerRoot, 'probe.mjs'),
@@ -99,8 +105,36 @@ try {
     );
     assert.equal(new Set(probe.instances.map(({ runtimeInstanceId }) => runtimeInstanceId)).size, 2);
 
+    const executable = resolve(
+        consumerRoot,
+        'node_modules/.bin',
+        process.platform === 'win32' ? 'cem-ml.cmd' : 'cem-ml',
+    );
+    for (const fixtureCase of commandCases) {
+        const result = spawnSync(executable, fixtureCase.argv, {
+            cwd: consumerRoot,
+            encoding: 'utf8',
+        });
+        assert.equal(
+            result.status,
+            0,
+            `installed executable ${fixtureCase.name} failed:\n${result.stderr || result.stdout || result.error}`,
+        );
+        assert.equal(result.signal, null, fixtureCase.name);
+        assert.equal(result.stderr, '', fixtureCase.name);
+        if (fixtureCase.name !== 'transform-graph') assert.ok(result.stdout.length > 0, fixtureCase.name);
+    }
+    assert.equal(
+        JSON.parse(readFileSync(resolve(consumerRoot, 'graph-output.json'), 'utf8')).sequence.items.length,
+        2,
+    );
+    assert.equal(
+        JSON.parse(readFileSync(resolve(consumerRoot, 'validate-report.json'), 'utf8')).summary.inputCount,
+        1,
+    );
+
     console.log(
-        `Clean consumer verified ${installedCli.name}@${installedCli.version}: generated command round trip, one runtime copy, and two Node workers.`,
+        `Clean consumer verified ${installedCli.name}@${installedCli.version}: all portable executable operations, generated command round trip, one runtime copy, and two Node workers.`,
     );
 } finally {
     assert.ok(consumerRoot.startsWith(`${tmpdir()}${sep}cem-ml-cli-consumer-`));

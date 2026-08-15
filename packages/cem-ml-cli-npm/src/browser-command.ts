@@ -176,7 +176,17 @@ export class BrowserCommandServiceHandle implements PromiseLike<CommandServiceRe
         return this.#client.disposeArtifact(this.requestId, handle);
     }
 
-    dispose(): Promise<CommandServiceArtifactDisposeAckV1> {
+    async dispose(): Promise<CommandServiceArtifactDisposeAckV1> {
+        const result = await this.#promise;
+        if (result.artifacts.originalCount === 0) {
+            return {
+                protocolVersion: 1,
+                requestId: this.requestId,
+                handleId: null,
+                disposition: 'already-disposed',
+                disposedCount: 0,
+            };
+        }
         return this.#client.disposeArtifacts(this.requestId);
     }
 

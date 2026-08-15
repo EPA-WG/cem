@@ -54,7 +54,7 @@
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
             "options": {
-                "command": "node --test tests/command-schema.test.mjs tests/node-command-service.test.mjs tests/node-worker-pool.test.mjs",
+                "command": "node --test tests/command-schema.test.mjs tests/command-all-operations.test.mjs tests/node-command-service.test.mjs tests/node-worker-pool.test.mjs",
                 "cwd": "{projectRoot}"
             },
             "inputs": [
@@ -77,6 +77,7 @@
             "inputs": [
                 "{projectRoot}/scripts/verify-browser.mjs",
                 "{projectRoot}/tests/browser-worker-pool.fixture.mjs",
+                "{projectRoot}/tests/command-all-operations.fixture.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
@@ -139,7 +140,10 @@
                 "command": "node scripts/verify-consumer.mjs",
                 "cwd": "{projectRoot}"
             },
-            "inputs": ["{projectRoot}/scripts/verify-consumer.mjs"],
+            "inputs": [
+                "{projectRoot}/scripts/verify-consumer.mjs",
+                "{projectRoot}/tests/command-all-operations.fixture.mjs"
+            ],
             "outputs": []
         },
         "check": {

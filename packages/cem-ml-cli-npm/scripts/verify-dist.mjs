@@ -21,6 +21,8 @@ for (const path of [
     'bin.d.ts',
     'browser-command.js',
     'browser-command.d.ts',
+    'browser-invocation.js',
+    'browser-invocation.d.ts',
     'browser.js',
     'browser.d.ts',
     'browser-worker.js',
@@ -65,12 +67,14 @@ assert.match(workerSource, /@epa-wg\/cem-ml\/wasm/);
 assert.doesNotMatch(workerSource, /cem_ml_bg\.wasm/);
 const browserSource = readFileSync(resolve(projectRoot, 'dist/browser.js'), 'utf8');
 const browserCommandSource = readFileSync(resolve(projectRoot, 'dist/browser-command.js'), 'utf8');
+const browserInvocationSource = readFileSync(resolve(projectRoot, 'dist/browser-invocation.js'), 'utf8');
 const browserWorkerSource = readFileSync(resolve(projectRoot, 'dist/browser-worker.js'), 'utf8');
 assert.match(browserSource, /new Worker\(new URL\('\.\/browser-worker\.js'/);
 assert.match(browserSource, /hardwareConcurrency/);
 assert.match(browserWorkerSource, /browserWorkerCapabilityManifest/);
-assert.doesNotMatch(`${browserSource}\n${browserCommandSource}\n${browserWorkerSource}`, /SharedArrayBuffer/);
-assert.doesNotMatch(`${browserSource}\n${browserCommandSource}\n${browserWorkerSource}`, /node:/);
+const browserClosure = `${browserSource}\n${browserCommandSource}\n${browserInvocationSource}\n${browserWorkerSource}`;
+assert.doesNotMatch(browserClosure, /SharedArrayBuffer/);
+assert.doesNotMatch(browserClosure, /node:/);
 
 const typecheck = spawnSync(
     process.platform === 'win32' ? 'yarn.cmd' : 'yarn',

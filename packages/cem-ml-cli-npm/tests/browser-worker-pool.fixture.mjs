@@ -1,11 +1,20 @@
 import {
+    buildBrowserCommandInvocation,
     createBrowserCommandServiceClient,
     createBrowserWorkerPool,
+    parseCemMlCommand,
+    projectBrowserCommandPresentation,
 } from '../dist/browser.js';
 import parseRunPlan from './browser-command-run-plan.fixture.json' with { type: 'json' };
+import {
+    commandCases,
+    fixtureDirectory,
+    fixtureFiles,
+} from './command-all-operations.fixture.mjs';
 
 globalThis.runCemMlBrowserFixture = async (scenario) => {
     if (scenario === 'command-service') return runCommandServiceFixture();
+    if (scenario === 'command-all-operations') return runCommandAllOperationsFixture();
     if (scenario === 'command-cancellation') return runCommandCancellationFixture();
     if (scenario === 'command-close') return runCommandCloseFixture();
     if (scenario === 'command-worker-failure') return runCommandWorkerFailureFixture();
@@ -89,6 +98,103 @@ globalThis.runCemMlBrowserFixture = async (scenario) => {
         globalThis.Worker = NativeWorker;
     }
 };
+
+async function runCommandAllOperationsFixture() {
+    const encoder = new TextEncoder();
+    const resources = new Map(
+        Object.entries(fixtureFiles).map(([name, source]) => [
+            `file://${fixtureDirectory}/${name}`,
+            encoder.encode(source),
+        ]),
+    );
+    const ledgers = new Map();
+    const writes = new Map();
+    let nextWrite = 1;
+    const client = await createBrowserCommandServiceClient({
+        host: {
+            currentRevision: async ({ requestId }) => {
+                const ledger = ledgers.get(requestId);
+                if (ledger === undefined) throw new Error(`missing fixture ledger ${requestId}`);
+                return ledger;
+            },
+            readResource: async (request) => {
+                throw new Error(`inline fixture unexpectedly read ${request.uri}`);
+            },
+            prepareWrite: async (request, bytes) => {
+                const token = `all-operation:${nextWrite++}`;
+                writes.set(token, { request, bytes: new Uint8Array(bytes), committed: false });
+                return { token };
+            },
+            commitWrite: async (token) => {
+                const write = writes.get(token);
+                if (write === undefined) throw new Error(`unknown all-operation write ${token}`);
+                write.committed = true;
+                return { uri: write.request.uri };
+            },
+            rollbackWrite: async (token) => {
+                writes.delete(token);
+            },
+        },
+    });
+    try {
+        const summaries = [];
+        for (const fixtureCase of commandCases) {
+            const requestId = `browser-all-${fixtureCase.name}`;
+            const parsed = parseCemMlCommand(fixtureCase.argv, {
+                runtime: 'wasm-browser-worker',
+            });
+            const invocation = await buildBrowserCommandInvocation(
+                parsed,
+                async (requirement) => {
+                    if (requirement.kind === 'read') {
+                        const bytes = resources.get(requirement.uri);
+                        if (bytes === undefined) throw new Error(`missing fixture resource ${requirement.uri}`);
+                        return [{ uri: requirement.uri, bytes }];
+                    }
+                    return [...resources].map(([uri, bytes]) => ({ uri, bytes }));
+                },
+                {
+                    requestId,
+                    projectId: 'browser-all-operations',
+                    projectRevision: 1,
+                    resourceRevision: 1,
+                    cwd: fixtureDirectory,
+                },
+            );
+            ledgers.set(requestId, {
+                project: invocation.request.project,
+                resourceVersions: invocation.request.resourceVersions,
+            });
+            const handle = client.execute(invocation.request);
+            const result = await handle;
+            const presentation = projectBrowserCommandPresentation(invocation.presentation, result);
+            summaries.push({
+                name: fixtureCase.name,
+                operation: result.operation,
+                sourceKind:
+                    invocation.request.operation.kind === 'transform'
+                        ? invocation.request.operation.source.kind
+                        : undefined,
+                status: result.status,
+                exitCode: result.exitCode,
+                runtime: result.identity.runtime,
+                diagnostics: result.diagnostics.originalCount,
+                artifacts: result.artifacts.originalCount,
+                sourceMaps: result.sourceMaps.originalCount,
+                hasResult: result.result != null,
+                hasReport: result.report != null,
+                presentationTargets: presentation.writes.map(({ target }) => target),
+            });
+            await handle.dispose();
+        }
+        return {
+            summaries,
+            committedWrites: [...writes.values()].filter(({ committed }) => committed).length,
+        };
+    } finally {
+        await client.close();
+    }
+}
 
 async function runCommandServiceFixture() {
     const sourceUri = 'memory:fixture.css';
