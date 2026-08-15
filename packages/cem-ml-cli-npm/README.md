@@ -109,6 +109,35 @@ re-exported directly from the Rust-generated `@epa-wg/cem-ml/wasm`
 declarations. Pre-terminal command errors reject with
 `BrowserCommandServiceError`; canonical terminal statuses remain typed results.
 
+The Node command service adds explicit filesystem, local `file://`, HTTPS, and
+application-stream resolution plus prepared file/stream writes. Parsed command
+lowering, resource discovery, canonical requests, diagnostics, reports,
+terminal presentation, and exit codes remain owned by the common Rust runtime.
+
+```js
+import {
+    createNodeCommandHost,
+    createNodeCommandService,
+    parseCemMlCommand,
+} from '@epa-wg/cem-ml-cli/node';
+
+const host = createNodeCommandHost({ stdout: process.stdout, stderr: process.stderr });
+const service = await createNodeCommandService({ host });
+try {
+    const command = parseCemMlCommand(['parse', 'document.cem'], { runtime: 'wasm-node' });
+    const { invocation, handle } = await service.run(command);
+    const result = await handle;
+    await service.publish(invocation, result);
+    await handle.dispose();
+} finally {
+    await service.close();
+}
+```
+
+The package also installs `cem-ml`. It uses one worker-thread runtime, maps
+`SIGINT`/`SIGTERM` to cooperative cancellation, publishes stdout/stderr and
+report files through the Node host, and preserves the stable common exit policy.
+
 `pool.run(request)` returns an awaitable operation handle with `result()`,
 `subscribe()`, `cancel()`, `pause()`, `continue()`, `step()`, and `dispose()`.
 The common Rust coordinator retains continuation and deterministic commit order;
@@ -117,5 +146,5 @@ terminated and replaced when cancellation exceeds the negotiated hard-cancel
 grace. Main-thread browser fallback uses the same bounded packets and cooperative
 controls, while truthfully reporting hard cancellation as unavailable.
 
-Mapping parsed commands into the Node resolver/report adapters and the `cem-ml`
-npm executable remains subsequent checklist work.
+Complete all-operation parity and clean installed-consumer round trips remain
+the next deployment checklist slice.

@@ -35,9 +35,70 @@ export {
 export type {
     CommandRuntime,
     ParsedCemMlCommand,
+    ParsedCommandValue,
     ParseCemMlCommandOptions,
     SharedCommandSchema,
 } from './command.js';
+
+export {
+    NodeCommandServiceClient,
+    NodeCommandServiceError,
+    NodeCommandServiceHandle,
+    createNodeCommandServiceClient,
+} from './node-command.js';
+export type {
+    NodeCommandArtifactReadOptions,
+    NodeCommandArtifactReadResult,
+    NodeCommandServiceClientOptions,
+    NodeCommandServiceExecuteOptions,
+} from './node-command.js';
+export { createNodeCommandHost, NodeCommandHost } from './node-host.js';
+export type {
+    NodeCommandHostOptions,
+    NodeCommandPresentationWrite,
+    NodeCommandReadable,
+    NodeCommandResolverMap,
+    NodeCommandWritable,
+} from './node-host.js';
+export {
+    buildNodeCommandInvocation,
+    NodeCommandInvocationError,
+    projectNodeCommandPresentation,
+} from './node-invocation.js';
+export type { NodeCommandInvocationOptions } from './node-invocation.js';
+export { createNodeCommandService, NodeCommandService } from './node-service.js';
+export type {
+    NodeCommandServiceOptions,
+    NodeParsedCommandRun,
+} from './node-service.js';
+export type {
+    CommandArtifactHandleV1,
+    CommandInvocationBuildResponseV1,
+    CommandInvocationEnvironmentV1,
+    CommandInvocationResourceRequirementKindV1,
+    CommandInvocationResourceRequirementV1,
+    CommandInvocationV1,
+    CommandPreparedWriteTokenV1,
+    CommandPresentationPlanV1,
+    CommandPresentationRouteV1,
+    CommandPresentationTargetKindV1,
+    CommandPresentationV1,
+    CommandPresentationWriteV1,
+    CommandResolvedResourceV1,
+    CommandResolvedWriteV1,
+    CommandResourceReadRequestV1,
+    CommandResourceWriteRequestV1,
+    CommandRevisionLedgerRequestV1,
+    CommandRevisionLedgerV1,
+    CommandServiceArtifactDisposeAckV1,
+    CommandServiceArtifactReadV1,
+    CommandServiceControlAckV1,
+    CommandServiceHostCapabilitiesV1,
+    CommandServiceProgressCallbackV1,
+    CommandServiceProgressV1,
+    CommandServiceRequestV1,
+    CommandServiceResultV1,
+} from '@epa-wg/cem-ml/wasm';
 
 export type NodeWorkerPoolMode = 'pool' | 'single-worker' | 'single-worker-fallback';
 

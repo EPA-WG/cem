@@ -14,6 +14,10 @@ use ts_rs::{Config, TS};
 use crate::capability::CapabilityRequest;
 use crate::command_artifact::{CommandServiceArtifactDisposeAckV1, CommandServiceArtifactReadV1};
 use crate::command_host::{CommandResolvedResourceV1, CommandResourceReadRequestV1};
+use crate::command_invocation::{
+    CommandInvocationBuildResponseV1, CommandInvocationEnvironmentV1, CommandPresentationPlanV1,
+    CommandPresentationV1, ParsedCommandInvocationV1,
+};
 use crate::command_publication::{
     CommandPreparedWriteTokenV1, CommandResolvedWriteV1, CommandResourceWriteRequestV1,
     CommandRevisionLedgerRequestV1,
@@ -71,6 +75,11 @@ fn emit_into(output_directory: &Path) -> Result<(), String> {
     export::<CommandServiceControlAckV1>(&config)?;
     export::<CommandServiceArtifactReadV1>(&config)?;
     export::<CommandServiceArtifactDisposeAckV1>(&config)?;
+    export::<ParsedCommandInvocationV1>(&config)?;
+    export::<CommandInvocationEnvironmentV1>(&config)?;
+    export::<CommandInvocationBuildResponseV1>(&config)?;
+    export::<CommandPresentationPlanV1>(&config)?;
+    export::<CommandPresentationV1>(&config)?;
 
     let generated = rename_declarations(output_directory)?;
     fs::write(

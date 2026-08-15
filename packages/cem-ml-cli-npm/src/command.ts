@@ -1,4 +1,8 @@
 import { generatedCommandSchema } from './generated/command-schema.js';
+import type {
+    ParsedCommandInvocationV1,
+    ParsedCommandValueV1,
+} from '@epa-wg/cem-ml/wasm';
 
 export type CommandAvailability = 'available' | 'development-only' | 'unavailable';
 export type CommandRuntime = 'native' | 'wasm-node' | 'wasm-browser-worker';
@@ -68,17 +72,8 @@ export interface SharedCommandSchema {
     readonly commands: readonly CommandDescriptorSchema[];
 }
 
-export type ParsedCommandValue = string | boolean | number | readonly string[];
-
-export interface ParsedCemMlCommand {
-    readonly schemaVersion: number;
-    readonly commonVersion: string;
-    readonly commandPath: readonly string[];
-    readonly globalOptions: Readonly<Record<string, ParsedCommandValue>>;
-    readonly options: Readonly<Record<string, ParsedCommandValue>>;
-    readonly positionals: Readonly<Record<string, ParsedCommandValue>>;
-    readonly metaAction?: 'help' | 'version';
-}
+export type ParsedCommandValue = ParsedCommandValueV1;
+export type ParsedCemMlCommand = ParsedCommandInvocationV1;
 
 export interface ParseCemMlCommandOptions {
     readonly runtime?: CommandRuntime;
@@ -192,7 +187,7 @@ export function parseCemMlCommand(
     return Object.freeze({
         schemaVersion: commandSchema.schemaVersion,
         commonVersion: commandSchema.commonVersion,
-        commandPath: Object.freeze(commandPath),
+        commandPath,
         globalOptions: freezeRecord(globalState.values),
         options,
         positionals,
@@ -317,10 +312,10 @@ function setValues(
     if (argument.action === 'append' || argument.maxValues === null || (argument.maxValues ?? 0) > 1) {
         const current = state.provided.has(argument.id) ? state.values.get(argument.id) : undefined;
         const prior = Array.isArray(current) ? current : current === undefined ? [] : [String(current)];
-        state.values.set(argument.id, Object.freeze([...prior, ...values]));
+        state.values.set(argument.id, [...prior, ...values]);
     } else {
         if (state.provided.has(argument.id)) argumentConflict(argument, argument.id);
-        state.values.set(argument.id, values.length === 1 ? values[0] ?? '' : Object.freeze([...values]));
+        state.values.set(argument.id, values.length === 1 ? values[0] ?? '' : [...values]);
     }
     state.provided.add(argument.id);
 }
@@ -369,7 +364,7 @@ function applyDefaults(
             state.values.set(
                 argument.id,
                 argument.action === 'append' || argument.defaultValues.length > 1
-                    ? Object.freeze([...argument.defaultValues])
+                    ? [...argument.defaultValues]
                     : argument.defaultValues[0] ?? '',
             );
         } else if (argument.action === 'set-true') {

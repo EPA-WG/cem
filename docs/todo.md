@@ -19,9 +19,9 @@ build, test, lint, WASM-build, fixture, and release-publish surfaces. The
 workspace now also contains the policy-free `@epa-wg/cem-ml` browser/Node WASM
 deployment and the first browser/Node worker-host slices of
 `@epa-wg/cem-ml-cli`, both with direct common-version drift gates. The universal
-CLI now has one generated native/npm command grammar; its complete typed command
-service, browser/Node resolver and report adapters, npm executable, and complete
-command surface remain open, as do the three
+CLI now has one generated native/npm command grammar, dedicated browser and Node
+command services, host resolver/report adapters, and an npm executable. Complete
+all-operation surface parity remains open, as do the three
 native deployment projects, complete family synchronizer, and fixed
 `cem-ml-platform` release group. The common `packages/cem_ml/Cargo.toml` version
 remains the authority.
@@ -996,9 +996,37 @@ replacement tree may mediate between internal engine layers.
               new emitted declarations. The aggregate Nx check passes browser,
               Node, lint, distribution, package, and clean-install consumer
               verification with one exact low-level runtime dependency.
-        - [ ] Add the `./node` command-service host and `cem-ml` npm executable
+        - [x] Add the `./node` command-service host and `cem-ml` npm executable
               with file/HTTPS/stream/signal adapters and native-equivalent exit
               policy.
+            - [x] Add Rust and strict Node fixtures covering canonical parsed-command
+                  lowering, file/HTTPS/stream transactions, cooperative signals,
+                  terminal presentation, and the stable executable exit codes.
+
+              Completed 2026-08-14: common Rust now lowers the generated parsed
+              command grammar into canonical command-service requests for every
+              portable operation, iteratively declares resource and graph-glob
+              requirements, and owns terminal diagnostics, reports, version, and
+              primary-output presentation. The generated WASM surface exposes
+              both lowering and presentation without introducing a second Node
+              request or result model.
+
+              `@epa-wg/cem-ml-cli/node` now provides a worker-thread service and
+              host with exact revision ledgers, local-file and HTTPS reads,
+              application streams, resolver maps, transactional file writes,
+              deferred transactional stream publication, copied artifact reads,
+              cooperative AbortSignal cancellation, progress, and deterministic
+              cleanup. The published `cem-ml` executable uses the generated
+              grammar/help, one worker service, Rust-owned presentation, signal
+              cancellation, and stable success, usage, host-I/O, cancellation,
+              and internal exit policies.
+
+              Rust fixtures cover canonical resource discovery, graph globs, and
+              multi-format report projection. Strict Node and runtime fixtures
+              cover file/HTTPS/stream adapters, commit/rollback restoration,
+              parsed-command execution and publication, cooperative cancellation,
+              executable version/usage/I/O exits, generated declarations, package
+              metadata, executable mode, and browser Node-builtin exclusion.
         - [ ] Add all-operation browser/Node/executable round trips and clean
               pack/install consumer fixtures, including one-runtime resolution
               and browser Node-builtin exclusion, under aggregate Nx targets.

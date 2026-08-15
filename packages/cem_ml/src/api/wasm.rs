@@ -603,6 +603,78 @@ pub fn normalize_command_run_plan_v1(json: &str) -> String {
     }
 }
 
+/// Iteratively lower one schema-parsed universal command into the canonical
+/// command-service request. A host calls this again after satisfying returned
+/// resource requirements; no command semantics or graph matching live in JS.
+#[wasm_bindgen(js_name = "buildCommandInvocationV1")]
+pub fn build_command_invocation_v1(
+    parsed_json: &str,
+    environment_json: &str,
+    resources_json: &str,
+) -> String {
+    use crate::command_invocation::{
+        CommandInvocationBuildResponseV1, CommandInvocationErrorV1,
+        CommandInvocationEnvironmentV1, ParsedCommandInvocationV1,
+    };
+    use crate::command_service::{CommandUriMapV1, VirtualResourceV1};
+
+    let decoded = serde_json::from_str::<ParsedCommandInvocationV1>(parsed_json)
+        .map_err(|error| ("parsedCommand", error))
+        .and_then(|parsed| {
+            serde_json::from_str::<CommandInvocationEnvironmentV1>(environment_json)
+                .map(|environment| (parsed, environment))
+                .map_err(|error| ("environment", error))
+        })
+        .and_then(|(parsed, environment)| {
+            serde_json::from_str::<CommandUriMapV1<VirtualResourceV1>>(resources_json)
+                .map(|resources| (parsed, environment, resources))
+                .map_err(|error| ("resources", error))
+        });
+    let response = match decoded {
+        Ok((parsed, environment, resources)) => {
+            crate::command_invocation::build_command_invocation_v1(parsed, environment, resources)
+        }
+        Err((field, error)) => CommandInvocationBuildResponseV1::Error {
+            error: CommandInvocationErrorV1 {
+                code: "cem.command.invocation_decode".to_owned(),
+                message: format!("command invocation {field} is invalid: {error}"),
+                exit_code: 2,
+            },
+        },
+    };
+    serde_json::to_string(&response).unwrap_or_else(wasm_serialize_error)
+}
+
+/// Project the canonical terminal result into host-owned stdout, stderr, and
+/// report-file writes. Artifact-backed primary output stays a copied artifact
+/// read so stdout never becomes a transactional command-service destination.
+#[wasm_bindgen(js_name = "projectCommandPresentationV1")]
+pub fn project_command_presentation_v1(plan_json: &str, result_json: &str) -> String {
+    let projected = serde_json::from_str::<crate::command_invocation::CommandPresentationPlanV1>(
+        plan_json,
+    )
+    .map_err(|error| format!("presentation plan is invalid: {error}"))
+    .and_then(|plan| {
+        serde_json::from_str::<crate::command_service::CommandServiceResultV1>(result_json)
+            .map(|result| (plan, result))
+            .map_err(|error| format!("command result is invalid: {error}"))
+    })
+    .and_then(|(plan, result)| {
+        crate::command_invocation::project_command_presentation_v1(&plan, &result)
+            .map_err(|error| format!("{}: {}", error.code, error.message))
+    });
+    match projected {
+        Ok(projected) => serde_json::to_string(&projected).unwrap_or_else(wasm_serialize_error),
+        Err(message) => serde_json::json!({
+            "error": {
+                "code": "cem.command.presentation",
+                "message": message,
+            }
+        })
+        .to_string(),
+    }
+}
+
 #[wasm_bindgen(js_name = "parseInputSpecRecord")]
 pub fn parse_input_spec_record(record: &str) -> String {
     match crate::run_config::parse_input_spec_record(record) {

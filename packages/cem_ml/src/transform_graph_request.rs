@@ -518,6 +518,17 @@ fn transform_graph_reference_matcher(pattern: &str) -> Result<Regex, String> {
     Regex::new(&expression).map_err(|error| error.to_string())
 }
 
+/// Match one resolved resource URI against the exact graph wildcard and
+/// binding grammar used by both filesystem and manifest-backed lowering.
+/// Host adapters use this during pre-request discovery so they never need a
+/// second implementation of graph selector semantics.
+pub fn transform_graph_reference_matches(
+    pattern: &str,
+    candidate: &str,
+) -> Result<bool, String> {
+    transform_graph_reference_matcher(pattern).map(|matcher| matcher.is_match(candidate))
+}
+
 fn validate_transform_graph_import_glob(
     raw: &str,
     config_uri: &str,

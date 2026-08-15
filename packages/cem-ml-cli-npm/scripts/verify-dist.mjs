@@ -13,10 +13,12 @@ assert.equal(packageMetadata.version, runtimeMetadata.version);
 assert.deepEqual(packageMetadata.dependencies, {
     '@epa-wg/cem-ml': runtimeMetadata.version,
 });
-assert.equal(packageMetadata.bin, undefined);
+assert.deepEqual(packageMetadata.bin, { 'cem-ml': './dist/bin.js' });
 assert.equal(packageMetadata.exports['./browser'].import, './dist/browser.js');
 assert.equal(packageMetadata.exports['./node'].import, './dist/node.js');
 for (const path of [
+    'bin.js',
+    'bin.d.ts',
     'browser-command.js',
     'browser-command.d.ts',
     'browser.js',
@@ -28,6 +30,14 @@ for (const path of [
     'generated/command-schema.d.ts',
     'node.js',
     'node.d.ts',
+    'node-command.js',
+    'node-command.d.ts',
+    'node-host.js',
+    'node-host.d.ts',
+    'node-invocation.js',
+    'node-invocation.d.ts',
+    'node-service.js',
+    'node-service.d.ts',
     'node-worker.js',
     'operation.js',
     'operation.d.ts',
@@ -76,6 +86,7 @@ const typecheck = spawnSync(
         '--moduleResolution',
         'NodeNext',
         'tests/browser-command-types.ts',
+        'tests/node-command-types.ts',
     ],
     { cwd: projectRoot, encoding: 'utf8' },
 );

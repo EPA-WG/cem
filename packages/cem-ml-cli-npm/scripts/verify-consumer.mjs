@@ -33,7 +33,7 @@ try {
     assert.equal(installedCli.version, packageMetadata.version);
     assert.deepEqual(installedCli.dependencies, { '@epa-wg/cem-ml': packageMetadata.version });
     assert.equal(installedRuntime.version, packageMetadata.version);
-    assert.equal(installedCli.bin, undefined);
+    assert.deepEqual(installedCli.bin, { 'cem-ml': './dist/bin.js' });
 
     const runtimeInstalls = findRuntimeInstalls(resolve(consumerRoot, 'node_modules'));
     assert.deepEqual(runtimeInstalls, [installedRuntimeRoot]);

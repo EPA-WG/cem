@@ -54,7 +54,7 @@
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
             "options": {
-                "command": "node --test tests/command-schema.test.mjs tests/node-worker-pool.test.mjs",
+                "command": "node --test tests/command-schema.test.mjs tests/node-command-service.test.mjs tests/node-worker-pool.test.mjs",
                 "cwd": "{projectRoot}"
             },
             "inputs": [

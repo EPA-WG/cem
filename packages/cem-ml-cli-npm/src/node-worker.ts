@@ -4,6 +4,17 @@ import { parentPort, threadId, workerData } from 'node:worker_threads';
 import * as runtime from '@epa-wg/cem-ml/wasm';
 
 import type {
+    BrowserCommandActionResultMessage,
+    BrowserCommandArtifactDisposeRequest,
+    BrowserCommandArtifactReadRequest,
+    BrowserCommandArtifactsDisposeRequest,
+    BrowserCommandCancelRequest,
+    BrowserCommandCapabilityName,
+    BrowserCommandCapabilityRequest,
+    BrowserCommandCapabilityResponse,
+    BrowserCommandExecuteRequest,
+    BrowserCommandProgressMessage,
+    BrowserCommandResultMessage,
     NodeWorkerBootstrap,
     NodeWorkerCapabilityManifest,
     NodeWorkerInitializeEnvelope,
@@ -13,10 +24,10 @@ import type {
 } from './protocol.js';
 import type { ResumableRuntime } from './operation.js';
 
-const port = parentPort;
-if (port === null) {
+if (parentPort === null) {
     throw new Error('CEM-ML Node worker host requires a worker-thread parent port');
 }
+const port = parentPort;
 
 const bootstrap = parseBootstrap(workerData as unknown);
 const runtimeMetadataUrl = new URL(import.meta.resolve('@epa-wg/cem-ml/runtime.json'));
@@ -64,6 +75,11 @@ const envelope: NodeWorkerInitializeEnvelope = {
 
 port.postMessage(envelope);
 let nextSequence = 2;
+let nextCallbackId = 1;
+const pendingCapabilities = new Map<
+    number,
+    { readonly resolve: (value: unknown) => void; readonly reject: (error: Error) => void }
+>();
 port.on('message', (message: unknown) => {
     if (isRecord(message) && message.type === 'cem-worker-close') {
         port.close();
@@ -94,8 +110,168 @@ port.on('message', (message: unknown) => {
             transfers: [],
         };
         port.postMessage(response);
+        return;
+    }
+    if (isCommandExecuteRequest(message)) {
+        void executeCommand(message).catch(reportFailure);
+        return;
+    }
+    if (isCommandActionRequest(message)) {
+        executeCommandAction(message);
+        return;
+    }
+    if (isCommandCapabilityResponse(message)) {
+        acceptCapabilityResponse(message);
     }
 });
+
+async function executeCommand(message: BrowserCommandExecuteRequest): Promise<void> {
+    const request = JSON.stringify({
+        runtime: capability.runtime,
+        targetIdentity: capability.targetIdentity,
+        abiIdentity: capability.abiIdentity,
+        debugControlActive: false,
+    });
+    const bridge = (name: BrowserCommandCapabilityName, argument: unknown, bytes?: Uint8Array) =>
+        requestCapability(message.executionId, name, argument, bytes);
+    const resultJson = await runtime.executeCommandServiceV1(
+        JSON.stringify(message.request),
+        request,
+        async (json) => JSON.stringify(await bridge('currentRevision', JSON.parse(json))),
+        async (json) => JSON.stringify(await bridge('readResource', JSON.parse(json))),
+        async (json, bytes) => JSON.stringify(await bridge('prepareWrite', JSON.parse(json), bytes)),
+        async (token) => JSON.stringify(await bridge('commitWrite', token)),
+        async (token) => {
+            const value = await bridge('rollbackWrite', token);
+            return value === undefined ? undefined : JSON.stringify(value);
+        },
+        (json) => {
+            const progress: BrowserCommandProgressMessage = {
+                type: 'cem-command-progress',
+                executionId: message.executionId,
+                progress: JSON.parse(json),
+            };
+            port.postMessage(progress);
+        },
+    );
+    const result: BrowserCommandResultMessage = {
+        type: 'cem-command-result',
+        executionId: message.executionId,
+        result: JSON.parse(resultJson),
+    };
+    port.postMessage(result);
+}
+
+function executeCommandAction(
+    message:
+        | BrowserCommandCancelRequest
+        | BrowserCommandArtifactReadRequest
+        | BrowserCommandArtifactDisposeRequest
+        | BrowserCommandArtifactsDisposeRequest,
+): void {
+    if (message.type === 'cem-command-artifact-read') {
+        const read = runtime.readCommandArtifactV1(
+            message.requestId,
+            message.handleId,
+            message.offset,
+            message.maxBytes,
+        );
+        const bytes = read.bytes === undefined ? undefined : new Uint8Array(read.bytes);
+        const response: BrowserCommandActionResultMessage = {
+            type: 'cem-command-action-result',
+            actionId: message.actionId,
+            result: JSON.parse(read.json),
+            ...(bytes === undefined ? {} : { bytes }),
+        };
+        port.postMessage(response, bytes === undefined ? [] : [bytes.buffer]);
+        return;
+    }
+    const json =
+        message.type === 'cem-command-cancel'
+            ? runtime.cancelCommandServiceV1(message.requestId, message.reason)
+            : message.type === 'cem-command-artifact-dispose'
+              ? runtime.disposeCommandArtifactV1(message.requestId, message.handleId)
+              : runtime.disposeCommandArtifactsV1(message.requestId);
+    const response: BrowserCommandActionResultMessage = {
+        type: 'cem-command-action-result',
+        actionId: message.actionId,
+        result: JSON.parse(json),
+    };
+    port.postMessage(response);
+}
+
+function requestCapability(
+    executionId: number,
+    name: BrowserCommandCapabilityName,
+    argument: unknown,
+    bytes?: Uint8Array,
+): Promise<unknown> {
+    const callbackId = nextCallbackId++;
+    const copiedBytes = bytes === undefined ? undefined : new Uint8Array(bytes);
+    const request: BrowserCommandCapabilityRequest = {
+        type: 'cem-command-capability-request',
+        executionId,
+        callbackId,
+        capability: name,
+        argument,
+        ...(copiedBytes === undefined ? {} : { bytes: copiedBytes }),
+    };
+    const pending = new Promise<unknown>((resolve, reject) => {
+        pendingCapabilities.set(callbackId, { resolve, reject });
+    });
+    port.postMessage(request, copiedBytes === undefined ? [] : [copiedBytes.buffer]);
+    return pending;
+}
+
+function acceptCapabilityResponse(message: BrowserCommandCapabilityResponse): void {
+    const pending = pendingCapabilities.get(message.callbackId);
+    if (pending === undefined) throw new Error('CEM-ML Node command capability response is unexpected');
+    pendingCapabilities.delete(message.callbackId);
+    if (message.ok) {
+        pending.resolve(message.value);
+        return;
+    }
+    const serialized = message.error;
+    const error = new Error(
+        `${serialized?.code === undefined ? '' : `${serialized.code}: `}${serialized?.message ?? 'Node host capability failed'}`,
+    );
+    error.name = serialized?.name ?? 'Error';
+    pending.reject(error);
+}
+
+function isCommandExecuteRequest(value: unknown): value is BrowserCommandExecuteRequest {
+    return isRecord(value) && value.type === 'cem-command-execute' && isPositiveInteger(value.executionId) && isRecord(value.request);
+}
+
+function isCommandActionRequest(
+    value: unknown,
+): value is
+    | BrowserCommandCancelRequest
+    | BrowserCommandArtifactReadRequest
+    | BrowserCommandArtifactDisposeRequest
+    | BrowserCommandArtifactsDisposeRequest {
+    return (
+        isRecord(value) &&
+        [
+            'cem-command-cancel',
+            'cem-command-artifact-read',
+            'cem-command-artifact-dispose',
+            'cem-command-artifacts-dispose',
+        ].includes(String(value.type)) &&
+        isPositiveInteger(value.actionId) &&
+        typeof value.requestId === 'string'
+    );
+}
+
+function isCommandCapabilityResponse(value: unknown): value is BrowserCommandCapabilityResponse {
+    return isRecord(value) && value.type === 'cem-command-capability-response' && isPositiveInteger(value.callbackId) && typeof value.ok === 'boolean';
+}
+
+function reportFailure(error: unknown): void {
+    queueMicrotask(() => {
+        throw error instanceof Error ? error : new Error(String(error));
+    });
+}
 
 function parseRuntimeResult(json: string): WorkerWorkResultEnvelope['operation']['payload'] {
     const value = JSON.parse(json) as unknown;

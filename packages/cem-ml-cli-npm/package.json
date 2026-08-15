@@ -8,6 +8,9 @@
     },
     "license": "MIT",
     "type": "module",
+    "bin": {
+        "cem-ml": "./dist/bin.js"
+    },
     "repository": {
         "type": "git",
         "url": "https://github.com/EPA-WG/cem.git",

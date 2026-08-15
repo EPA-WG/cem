@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,7 +17,9 @@ if (packageMetadata.version !== cargoVersion || runtimeMetadata.version !== carg
 if (packageMetadata.dependencies?.['@epa-wg/cem-ml'] !== cargoVersion) {
     throw new Error('CEM-ML CLI must depend on the exact common @epa-wg/cem-ml version');
 }
-if ('bin' in packageMetadata) throw new Error('The npm executable requires the later command-service slice');
+if (packageMetadata.bin?.['cem-ml'] !== './dist/bin.js') {
+    throw new Error('CEM-ML CLI must publish the version-synchronized cem-ml executable');
+}
 
 const commandSchemaPath = resolve(
     workspaceRoot,
@@ -49,6 +51,7 @@ try {
 } finally {
     rmSync(generatedRoot, { recursive: true, force: true });
 }
+chmodSync(resolve(projectRoot, 'dist/bin.js'), 0o755);
 
 console.log(
     `Built ${packageMetadata.name}@${packageMetadata.version} browser/Node hosts with command schema v${commandSchema.schemaVersion}.`,

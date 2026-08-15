@@ -5,6 +5,7 @@ pub mod capability;
 pub mod command_artifact;
 pub mod command_execution;
 pub mod command_host;
+pub mod command_invocation;
 pub mod command_operation;
 pub mod command_publication;
 pub mod command_runtime;

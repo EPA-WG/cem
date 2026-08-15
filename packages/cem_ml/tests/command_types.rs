@@ -75,6 +75,18 @@ fn generated_command_types_follow_the_serde_wire_contract() {
     assert!(artifact.contains("byteLength: number"));
     assert!(artifact.contains("eof: boolean"));
 
+    let parsed = text(&files, "ParsedCommandInvocationV1.d.ts");
+    assert!(parsed.contains("schemaVersion: number"));
+    assert!(parsed.contains("commandPath: Array<string>"));
+    assert!(parsed.contains("globalOptions: { [key in string]: ParsedCommandValueV1 }"));
+    let invocation = text(&files, "CommandInvocationBuildResponseV1.d.ts");
+    assert!(invocation.contains("\"state\": \"needs-resources\""));
+    assert!(invocation.contains("requirements: Array<CommandInvocationResourceRequirementV1>"));
+    assert!(invocation.contains("\"state\": \"ready\""));
+    let presentation = text(&files, "CommandPresentationWriteV1.d.ts");
+    assert!(presentation.contains("target: CommandPresentationTargetKindV1"));
+    assert!(presentation.contains("bytes: Array<number>"));
+
     let index = text(&files, "index.d.ts");
     assert!(index.contains("interface CommandServiceHostCapabilitiesV1"));
     assert!(index.contains("type CommandServiceProgressCallbackV1"));
