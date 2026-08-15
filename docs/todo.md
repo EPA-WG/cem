@@ -1050,15 +1050,15 @@ replacement tree may mediate between internal engine layers.
         - [x] Add deterministic unsigned package-shape plus functional
               install, fixture-upgrade, and uninstall coverage for the native
               Linux package and run it through Nx on Linux AMD64.
-    - [ ] Add `aarch64-apple-darwin` through Homebrew /
+    - [x] Add `aarch64-apple-darwin` through Homebrew /
           `native-macos-arm64`.
-        - [ ] Scaffold `cem_ml_cli_native_brew_arm64` with only the accepted
+        - [x] Scaffold `cem_ml_cli_native_brew_arm64` with only the accepted
               target-specific build, package, sign, verify, publish, and
               install/upgrade/uninstall smoke lifecycle.
-        - [ ] Emit the versioned macOS archive, checksum, SPDX 2.3 SBOM,
+        - [x] Emit the versioned macOS archive, checksum, SPDX 2.3 SBOM,
               capability metadata, provenance/signing/notarization records,
               release-index entry, and immutable Homebrew formula projection.
-        - [ ] Add deterministic unsigned package-shape plus functional
+        - [x] Add deterministic unsigned package-shape plus functional
               Homebrew install, fixture-upgrade, and uninstall coverage and run
               it through Nx on a GitHub-hosted macOS ARM64 runner.
     - [ ] Add `x86_64-pc-windows-msvc` / `native-windows-amd64`.
