@@ -126,24 +126,21 @@ function payloadPaths(payloadRoot) {
 function normalizeMsiSummary(path, installerPackageCode, epoch) {
     const script = [
         '$installer = New-Object -ComObject WindowsInstaller.Installer',
-        '$summary = $installer.SummaryInformation($args[0], 3)',
+        '$summary = $installer.SummaryInformation($env:CEM_ML_MSI_SUMMARY_PATH, 3)',
         '$binding = [System.Reflection.BindingFlags]::SetProperty',
-        "$summary.GetType().InvokeMember('Property', $binding, $null, $summary, @(9, $args[1])) | Out-Null",
-        '$timestamp = [DateTimeOffset]::FromUnixTimeSeconds([int64]$args[2]).UtcDateTime',
+        "$summary.GetType().InvokeMember('Property', $binding, $null, $summary, @(9, $env:CEM_ML_MSI_PACKAGE_CODE)) | Out-Null",
+        '$timestamp = [DateTimeOffset]::FromUnixTimeSeconds([int64]$env:CEM_ML_MSI_SOURCE_EPOCH).UtcDateTime',
         "$summary.GetType().InvokeMember('Property', $binding, $null, $summary, @(12, $timestamp)) | Out-Null",
         "$summary.GetType().InvokeMember('Property', $binding, $null, $summary, @(13, $timestamp)) | Out-Null",
         '$summary.Persist()',
     ].join('\n');
-    run('powershell.exe', [
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        script,
-        requireFile(path),
-        installerPackageCode,
-        String(epoch),
-    ]);
+    run('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
+        env: {
+            CEM_ML_MSI_SUMMARY_PATH: requireFile(path),
+            CEM_ML_MSI_PACKAGE_CODE: installerPackageCode,
+            CEM_ML_MSI_SOURCE_EPOCH: String(epoch),
+        },
+    });
 }
 
 function windowsInstallerVersion(version) {

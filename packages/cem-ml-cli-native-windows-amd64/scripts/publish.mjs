@@ -82,15 +82,22 @@ if (sha256File(downloadedMsi) !== sha256File(artifactPath(names.msi))) {
     throw new Error('downloaded MSI digest does not match the staged release asset');
 }
 const extractedRoot = resolve(downloadRoot, 'archive');
-run('powershell.exe', [
-    '-NoLogo',
-    '-NoProfile',
-    '-NonInteractive',
-    '-Command',
-    'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force',
-    downloadedArchive,
-    extractedRoot,
-]);
+run(
+    'pwsh.exe',
+    [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Expand-Archive -LiteralPath $env:CEM_ML_ARCHIVE_PATH -DestinationPath $env:CEM_ML_ARCHIVE_DESTINATION -Force',
+    ],
+    {
+        env: {
+            CEM_ML_ARCHIVE_PATH: downloadedArchive,
+            CEM_ML_ARCHIVE_DESTINATION: extractedRoot,
+        },
+    },
+);
 const downloadedBinary = requireFile(resolve(extractedRoot, names.base, 'bin/cem-ml.exe'));
 const binarySignature = assertValidAuthenticode(downloadedBinary, 'downloaded ZIP executable');
 const msiSignature = assertValidAuthenticode(downloadedMsi, 'downloaded MSI');

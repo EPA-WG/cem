@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, resolve, sep } from 'node:path';
 
@@ -137,14 +137,7 @@ const verifyRoot = mkdtempSync(resolve(tmpdir(), 'cem-ml-native-windows-verify-'
 try {
     const manifestRoot = resolve(verifyRoot, 'winget');
     const identifier = deployment.windowsInstaller.packageIdentifier;
-    run('powershell.exe', [
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        'New-Item -ItemType Directory -Force -Path $args[0] | Out-Null',
-        manifestRoot,
-    ]);
+    mkdirSync(manifestRoot, { recursive: true });
     copyFileSync(artifactPath(names.wingetInstaller), resolve(manifestRoot, `${identifier}.installer.yaml`));
     copyFileSync(artifactPath(names.wingetLocale), resolve(manifestRoot, `${identifier}.locale.en-US.yaml`));
     copyFileSync(artifactPath(names.wingetVersion), resolve(manifestRoot, `${identifier}.yaml`));
@@ -215,15 +208,22 @@ function verifyPackagedBinary(binary, metadata) {
 }
 
 function expandArchive(archive, destination) {
-    const result = runResult('powershell.exe', [
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force',
-        archive,
-        destination,
-    ]);
+    const result = runResult(
+        'pwsh.exe',
+        [
+            '-NoLogo',
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            'Expand-Archive -LiteralPath $env:CEM_ML_ARCHIVE_PATH -DestinationPath $env:CEM_ML_ARCHIVE_DESTINATION -Force',
+        ],
+        {
+            env: {
+                CEM_ML_ARCHIVE_PATH: archive,
+                CEM_ML_ARCHIVE_DESTINATION: destination,
+            },
+        },
+    );
     if (result.status !== 0) {
         throw new Error(`Expand-Archive failed: ${result.stderr || result.stdout || result.error?.message}`);
     }

@@ -137,15 +137,22 @@ console.log(
 rmSync(sandboxRoot, { recursive: true, force: true });
 
 function expandArchive(archive, destination) {
-    const result = runResult('powershell.exe', [
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force',
-        archive,
-        destination,
-    ]);
+    const result = runResult(
+        'pwsh.exe',
+        [
+            '-NoLogo',
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            'Expand-Archive -LiteralPath $env:CEM_ML_ARCHIVE_PATH -DestinationPath $env:CEM_ML_ARCHIVE_DESTINATION -Force',
+        ],
+        {
+            env: {
+                CEM_ML_ARCHIVE_PATH: archive,
+                CEM_ML_ARCHIVE_DESTINATION: destination,
+            },
+        },
+    );
     if (result.status !== 0) {
         throw new Error(`Expand-Archive failed: ${result.stderr || result.stdout || result.error?.message}`);
     }

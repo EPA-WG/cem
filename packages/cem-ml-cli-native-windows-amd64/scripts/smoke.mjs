@@ -125,10 +125,12 @@ function runMsi(args, cleanup = false) {
 function productState(code) {
     const script = [
         '$installer = New-Object -ComObject WindowsInstaller.Installer',
-        '$installer.ProductState($args[0])',
+        '$installer.ProductState($env:CEM_ML_PRODUCT_CODE)',
     ].join('\n');
     return Number(
-        capture('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script, code]).trim(),
+        capture('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
+            env: { CEM_ML_PRODUCT_CODE: code },
+        }).trim(),
     );
 }
 

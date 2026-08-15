@@ -166,10 +166,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> dist/target"
+          cache-on-failure: true
 
       - name: Install WiX v4
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           if (dotnet tool list --global | Select-String '^wix\s') {
             dotnet tool update --global wix --version 4.0.6
           } else {
@@ -180,6 +182,7 @@ jobs:
       - name: Ensure WinGet is registered
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
             Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction SilentlyContinue
           }
@@ -199,6 +202,7 @@ jobs:
       - name: Prove deterministic unsigned package shape
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           function Write-ArtifactManifest([string]$Destination) {
             $artifactDir = (Resolve-Path 'dist/packages/cem-ml-cli-native-windows-amd64/artifacts').Path
             Get-ChildItem -LiteralPath $artifactDir -File |
@@ -223,7 +227,9 @@ jobs:
         run: yarn nx run cem_ml_cli_native_windows_amd64:verify
 
       - name: Run direct MSI lifecycle smokes
+        shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           yarn nx run cem_ml_cli_native_windows_amd64:smoke:install
           yarn nx run cem_ml_cli_native_windows_amd64:smoke:upgrade
           yarn nx run cem_ml_cli_native_windows_amd64:smoke:uninstall
@@ -261,6 +267,7 @@ jobs:
       - name: Install WiX v4
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           if (dotnet tool list --global | Select-String '^wix\s') {
             dotnet tool update --global wix --version 4.0.6
           } else {
