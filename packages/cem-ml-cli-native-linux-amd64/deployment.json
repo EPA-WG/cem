@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "nxProject": "cem_ml_cli_native_linux_amd64",
+  "rustPackage": "cem-ml-cli",
+  "rustBinary": "cem-ml",
+  "rustTarget": "x86_64-unknown-linux-gnu",
+  "runtimeIdentity": "native-linux-amd64",
+  "assetCoordinate": "linux-amd64-gnu",
+  "host": {
+    "platform": "linux",
+    "architecture": "x64",
+    "runner": "ubuntu-24.04"
+  },
+  "debian": {
+    "package": "cem-ml",
+    "architecture": "amd64",
+    "repository": "EPA-WG/cem-apt"
+  },
+  "syft": {
+    "version": "1.50.0",
+    "linuxAmd64ArchiveSha256": "bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788"
+  }
+}

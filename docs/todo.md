@@ -1040,7 +1040,16 @@ replacement tree may mediate between internal engine layers.
                   common runtime and no Node built-ins in browser artifacts.
 
 - [ ] Create exactly three native CLI deployment projects.
-    - [ ] Add `x86_64-unknown-linux-gnu` / `native-linux-amd64`.
+    - [x] Add `x86_64-unknown-linux-gnu` / `native-linux-amd64`.
+        - [x] Scaffold `cem_ml_cli_native_linux_amd64` with only the accepted
+              target-specific build, package, sign, verify, publish, and
+              install/upgrade/uninstall smoke lifecycle.
+        - [x] Emit the versioned GNU/Linux archive, Debian package, checksum,
+              SPDX 2.3 SBOM, capability metadata, provenance/signing records,
+              release-index entry, and immutable APT channel record.
+        - [x] Add deterministic unsigned package-shape plus functional
+              install, fixture-upgrade, and uninstall coverage for the native
+              Linux package and run it through Nx on Linux AMD64.
     - [ ] Add `aarch64-apple-darwin` through Homebrew /
           `native-macos-arm64`.
     - [ ] Add `x86_64-pc-windows-msvc` / `native-windows-amd64`.
