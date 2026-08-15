@@ -48,7 +48,9 @@ const signing = readJson(artifactPath(names.signing));
 const allowedArtifacts = [...requiredArtifacts];
 if (signing.publicationReady === true) allowedArtifacts.push(names.attestation);
 assert.deepEqual(
-    listFiles(artifactRoot).map(basename).sort(),
+    listFiles(artifactRoot)
+        .map((path) => basename(path))
+        .sort(),
     allowedArtifacts.sort(),
     'native Windows artifact set drifted',
 );
