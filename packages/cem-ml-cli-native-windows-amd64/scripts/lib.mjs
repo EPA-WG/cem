@@ -212,7 +212,7 @@ export function packageCode(identity) {
 
 export function authenticodeSignature(path) {
     const script = [
-        '$signature = Get-AuthenticodeSignature -LiteralPath $args[0]',
+        '$signature = Get-AuthenticodeSignature -LiteralPath $env:CEM_ML_SIGNATURE_PATH',
         '[pscustomobject]@{',
         'status = $signature.Status.ToString()',
         'statusMessage = $signature.StatusMessage',
@@ -223,7 +223,9 @@ export function authenticodeSignature(path) {
         '} | ConvertTo-Json -Compress',
     ].join('\n');
     return JSON.parse(
-        capture('pwsh.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script, path]),
+        capture('pwsh.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
+            env: { CEM_ML_SIGNATURE_PATH: path },
+        }),
     );
 }
 
