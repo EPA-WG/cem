@@ -23,6 +23,7 @@ const featureProfile = stripped ? 'stripped' : 'debug-control';
 const distRoot = resolve(projectRoot, stripped ? 'dist-stripped' : 'dist');
 const browserRoot = resolve(distRoot, 'wasm/browser');
 const nodeRoot = resolve(distRoot, 'wasm/node');
+const commandTypesRoot = resolve(distRoot, 'command-service');
 const schemaSourceRoot = resolve(workspaceRoot, 'packages/cem_ml/schema-packages');
 const schemaOutputRoot = resolve(distRoot, 'schema-packages');
 const cargoManifestPath = resolve(workspaceRoot, 'packages/cem_ml/Cargo.toml');
@@ -111,6 +112,25 @@ for (const [target, outputRoot] of [
   ]);
 }
 writeJson(resolve(nodeRoot, 'package.json'), { type: 'commonjs' });
+
+const commandTypesTargetRoot = resolve(workspaceRoot, 'dist/target/cem_ml_command_types');
+run('cargo', [
+  'run',
+  '--locked',
+  '--package',
+  'cem-ml',
+  '--no-default-features',
+  '--features',
+  'typescript-projections',
+  '--bin',
+  'cem-ml-command-types-emit',
+  '--target-dir',
+  commandTypesTargetRoot,
+  '--',
+  '--out',
+  commandTypesRoot,
+]);
+for (const outputRoot of [browserRoot, nodeRoot]) installCommandDeclarations(outputRoot);
 
 cpSync(schemaSourceRoot, schemaOutputRoot, {
   recursive: true,
@@ -214,6 +234,42 @@ function parseCapability(json) {
     throw new Error(`Capability projection failed: ${value.error.code}: ${value.error.message}`);
   }
   return value;
+}
+
+function installCommandDeclarations(outputRoot) {
+  const declarationPath = resolve(outputRoot, 'cem_ml.d.ts');
+  let declarations = readFileSync(declarationPath, 'utf8');
+  declarations = replaceDeclaration(
+    declarations,
+    'export function executeCommandServiceV1(request_json: string, capability_request_json: string, current_revision: Function, read_resource: Function, prepare_write: Function, commit_write: Function, rollback_write: Function, progress?: Function | null): Promise<string>;',
+    'export function executeCommandServiceV1(request_json: string, capability_request_json: string, current_revision: CommandRevisionLedgerJsonCallbackV1, read_resource: CommandResourceReadJsonCallbackV1, prepare_write: CommandPrepareWriteJsonCallbackV1, commit_write: CommandCommitWriteJsonCallbackV1, rollback_write: CommandRollbackWriteJsonCallbackV1, progress?: CommandProgressJsonCallbackV1 | null): Promise<string>;',
+  );
+  declarations = replaceDeclaration(
+    declarations,
+    'export function readCommandArtifactV1(request_id: string, handle_id: number, offset: number, max_bytes: number): any;',
+    'export function readCommandArtifactV1(request_id: string, handle_id: number, offset: number, max_bytes: number): CommandArtifactReadWireResponseV1;',
+  );
+  const commandImports = `import type {
+  CommandArtifactReadWireResponseV1,
+  CommandCommitWriteJsonCallbackV1,
+  CommandPrepareWriteJsonCallbackV1,
+  CommandProgressJsonCallbackV1,
+  CommandResourceReadJsonCallbackV1,
+  CommandRevisionLedgerJsonCallbackV1,
+  CommandRollbackWriteJsonCallbackV1,
+} from '../../command-service/index.js';
+export type * from '../../command-service/index.js';
+
+`;
+  writeFileSync(declarationPath, `${commandImports}${declarations}`);
+}
+
+function replaceDeclaration(declarations, expected, replacement) {
+  const first = declarations.indexOf(expected);
+  if (first < 0 || declarations.indexOf(expected, first + expected.length) >= 0) {
+    throw new Error(`Expected exactly one generated WASM declaration: ${expected}`);
+  }
+  return declarations.replace(expected, replacement);
 }
 
 function listFiles(root) {

@@ -53,6 +53,7 @@ const XPATH_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::XdmTree];
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum QueryLanguage {
     CssSelector,
@@ -406,6 +407,7 @@ impl fmt::Debug for QueryEvaluatorRegistry {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum QueryExportFormat {
     Terminal,

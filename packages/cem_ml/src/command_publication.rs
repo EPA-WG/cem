@@ -36,6 +36,7 @@ pub struct CommandPublicationItemV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandRevisionLedgerRequestV1 {
     pub request_id: String,
@@ -43,6 +44,7 @@ pub struct CommandRevisionLedgerRequestV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandResourceWriteRequestV1 {
     pub request_id: String,
@@ -59,9 +61,18 @@ pub struct CommandResourceWriteRequestV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandResolvedWriteV1 {
     pub uri: String,
+}
+
+/// Opaque host transaction token returned after a write has been staged.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct CommandPreparedWriteTokenV1 {
+    pub token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

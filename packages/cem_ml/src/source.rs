@@ -19,11 +19,14 @@ pub const MAX_SOURCE_CHUNK_BYTES: usize = 64 * 1024;
 
 /// Stable opaque identity for a byte stream. Source-map frames reference it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-projections", ts(type = "number"))]
 pub struct SourceId(pub u32);
 
 /// Absolute byte range inside a `SourceId`. Ground-truth coordinate per
 /// `cem-ml-stack-design-impl.md` §2.1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ByteRange {
     pub start: u64,
     pub len: u32,

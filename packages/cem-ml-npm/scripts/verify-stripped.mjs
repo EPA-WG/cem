@@ -64,6 +64,27 @@ const strippedDeclarations = readFileSync(
   resolve(strippedRoot, strippedManifest.artifacts.node.types),
   'utf8',
 );
+const defaultCommandTypeFiles = listFiles(resolve(defaultRoot, 'command-service'));
+const strippedCommandTypeFiles = listFiles(resolve(strippedRoot, 'command-service'));
+assert.deepEqual(
+  strippedCommandTypeFiles,
+  defaultCommandTypeFiles,
+  'default and stripped profiles must publish the same Rust-owned command types',
+);
+for (const path of defaultCommandTypeFiles) {
+  assert.equal(
+    readFileSync(resolve(strippedRoot, 'command-service', path), 'utf8'),
+    readFileSync(resolve(defaultRoot, 'command-service', path), 'utf8'),
+    `command TypeScript projection drift between profiles: ${path}`,
+  );
+}
+for (const declaration of [
+  'executeCommandServiceV1(request_json: string, capability_request_json: string, current_revision: CommandRevisionLedgerJsonCallbackV1',
+  'readCommandArtifactV1(request_id: string, handle_id: number, offset: number, max_bytes: number): CommandArtifactReadWireResponseV1',
+]) {
+  assert.ok(defaultDeclarations.includes(declaration));
+  assert.ok(strippedDeclarations.includes(declaration));
+}
 const coreWasmBindings = [
   'initializeResumableOperationHost',
   'startResumableOperation',

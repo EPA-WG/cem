@@ -27,6 +27,7 @@ pub struct CommandServiceRetainedArtifactV1 {
 
 /// Metadata accompanying one copied artifact byte range.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandServiceArtifactReadV1 {
     pub protocol_version: u16,
@@ -46,6 +47,7 @@ pub struct CommandServiceArtifactChunkV1 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum CommandServiceArtifactDisposeDispositionV1 {
     Disposed,
@@ -53,6 +55,7 @@ pub enum CommandServiceArtifactDisposeDispositionV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandServiceArtifactDisposeAckV1 {
     pub protocol_version: u16,

@@ -18,6 +18,7 @@ pub const RUN_CONFIG_NAMESPACE_URI: &str = RUN_CONFIG_SCHEMA_URI;
 pub const RUN_CONFIG_JSON_SCHEMA_URI: &str = "https://cem.dev/schema/cli/run-config.schema.json";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct RunConfig {
     #[serde(default)]
@@ -33,6 +34,7 @@ pub struct RunConfig {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct InputSpec {
     pub uri: String,
@@ -41,6 +43,7 @@ pub struct InputSpec {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct OutputSpec {
     #[serde(default)]
@@ -52,6 +55,7 @@ pub struct OutputSpec {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ResolverSpec {
     pub uri_prefix: String,
@@ -63,6 +67,7 @@ pub struct ResolverSpec {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ScopeConfig {
     #[serde(default)]
@@ -98,6 +103,7 @@ pub struct ScopeConfig {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SchedulerConfig {
     #[serde(default)]
@@ -139,6 +145,7 @@ impl ScopeConfig {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct RunConfigDefaults {
     #[serde(default)]
@@ -165,6 +172,7 @@ pub struct RunConfigParseResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedRunPlanRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -205,6 +213,7 @@ impl Default for NormalizedRunPlanRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedRunPlan {
     pub run_id: String,
@@ -240,6 +249,7 @@ impl NormalizedRunPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedConfigIdentity {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -258,6 +268,7 @@ pub struct NormalizedConfigIdentity {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum NormalizedConfigSourceKind {
     File,
@@ -270,6 +281,7 @@ pub enum NormalizedConfigSourceKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedAuthoredSource {
     pub source_id: String,
@@ -285,6 +297,7 @@ pub struct NormalizedAuthoredSource {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedSourceRange {
     pub start_byte: u64,
@@ -292,6 +305,7 @@ pub struct NormalizedSourceRange {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedInput {
     pub input_id: String,
@@ -310,6 +324,7 @@ pub struct NormalizedInput {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum NormalizedByteSourceKind {
     #[default]
@@ -319,6 +334,7 @@ pub enum NormalizedByteSourceKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedOutput {
     pub output_id: String,
@@ -342,6 +358,7 @@ pub struct NormalizedOutput {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum NormalizedPrimaryOutputPolicy {
     #[default]
@@ -350,6 +367,7 @@ pub enum NormalizedPrimaryOutputPolicy {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedSchemaPackage {
     pub schema_package_id: String,
@@ -365,6 +383,7 @@ pub struct NormalizedSchemaPackage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedRootScope {
     pub scope_id: String,
@@ -390,6 +409,7 @@ pub struct NormalizedRootScope {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum NormalizedScopeDirection {
     #[default]
@@ -399,6 +419,7 @@ pub enum NormalizedScopeDirection {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedResolverContext {
     #[serde(default)]
@@ -406,6 +427,7 @@ pub struct NormalizedResolverContext {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedModuleMapIdentity {
     pub declared_uri: String,
@@ -427,6 +449,7 @@ pub struct NormalizedModuleMapIdentity {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum NormalizedModuleMapState {
     Valid,
@@ -438,6 +461,7 @@ pub enum NormalizedModuleMapState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedScopePolicy {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -481,6 +505,7 @@ impl Default for NormalizedScopePolicy {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedBudgets {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -520,6 +545,7 @@ pub struct NormalizedBudgets {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedBudgetEntry {
     pub name: String,
@@ -527,6 +553,7 @@ pub struct NormalizedBudgetEntry {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedOutputPipeline {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -544,6 +571,7 @@ pub struct NormalizedOutputPipeline {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedResolverBinding {
     pub resolver_id: String,
@@ -561,6 +589,7 @@ pub struct NormalizedResolverBinding {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum NormalizedResolverPurpose {
     Config,
@@ -573,6 +602,7 @@ pub enum NormalizedResolverPurpose {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum NormalizedResolverDirection {
     Read,
@@ -580,6 +610,7 @@ pub enum NormalizedResolverDirection {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum NormalizedResolverSupport {
     #[default]
@@ -588,6 +619,7 @@ pub enum NormalizedResolverSupport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedDiagnosticsMode {
     pub fail_level: FailLevel,
@@ -621,6 +653,7 @@ impl Default for NormalizedDiagnosticsMode {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum NormalizedPrimaryKind {
     #[default]
@@ -629,6 +662,7 @@ pub enum NormalizedPrimaryKind {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum NormalizedReportProjection {
     Text,
@@ -641,6 +675,7 @@ pub enum NormalizedReportProjection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedProvenance {
     pub field_path: String,

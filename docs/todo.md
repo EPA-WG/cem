@@ -865,7 +865,7 @@ replacement tree may mediate between internal engine layers.
               verification with 433 integrity records, packaging, and clean consumer
               installation; the stripped npm/WASM distribution also builds with the
               new declarations.
-        - [ ] Complete the Rust-owned command-session primitives required by the
+        - [x] Complete the Rust-owned command-session primitives required by the
               dedicated-worker browser adapter.
             - [x] Register in-flight command-service requests at the WASM boundary,
                   expose cooperative root cancellation, and stream bounded,
@@ -930,9 +930,38 @@ replacement tree may mediate between internal engine layers.
                   default/stripped WASM builds pass. The default npm runtime passes
                   seven tests and 433-record ABI/integrity verification, while the
                   stripped npm/WASM profile builds and verifies the same artifact ABI.
-            - [ ] Generate the browser/Node TypeScript command request, result,
+            - [x] Generate the browser/Node TypeScript command request, result,
                   capability-callback, progress, control, and artifact projections
                   from their Rust-owned wire declarations.
+                - [x] Add Rust generation and generated browser/Node TypeScript
+                      fixtures covering serde field/tag parity, callback signatures,
+                      progress/control/artifact shapes, declaration drift, profile
+                      parity, and removal of `Function`/`any` from the command ABI.
+
+                  Completed 2026-08-14: an optional Rust `typescript-projections`
+                  feature now derives the command-service request, result,
+                  operation, capability, progress, control, artifact, diagnostic,
+                  report, and source-map declarations from their serde-owned wire
+                  types. A dedicated Rust emitter writes a deterministic 143-file
+                  declaration tree, while its small handwritten index is limited to
+                  JavaScript callback and copied-byte envelopes that have no
+                  serializable Rust representation. Browser and Node WASM
+                  declarations re-export that shared tree and replace the raw
+                  command `Function`/`any` signatures with typed callback and
+                  artifact-read aliases.
+
+                  Native fixtures pin camel-case fields, tagged operation unions,
+                  result/progress/control/artifact shapes, callback surfaces,
+                  forbidden ABI escape hatches, and byte-stable regeneration. A
+                  strict TypeScript fixture proves browser/Node parity and compiles
+                  representative request, capability, progress, control, artifact,
+                  execute, and read values. Default and stripped packages publish
+                  byte-identical command declarations. The Nx common suites pass
+                  1,948 default and 1,936 stripped tests plus two focused generation
+                  tests; Rust and npm lint pass. The npm aggregate passes seven
+                  runtime tests, strict declaration checking, 576-record ABI and
+                  integrity verification, packaging, and clean installation; the
+                  stripped profile passes declaration and command-ABI parity.
         - [ ] Add the dedicated-worker `./browser` command-service client with
               typed request/result, resolver, progress, cancellation, artifact,
               and capability adapters over the generated WASM binding.

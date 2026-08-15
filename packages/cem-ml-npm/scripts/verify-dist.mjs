@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -63,13 +64,39 @@ for (const target of ['browser', 'node']) {
   assert.match(declarations, /disposeCommandArtifactsV1\(request_id: string\): string/);
   assert.match(
     declarations,
-    /executeCommandServiceV1\(request_json: string, capability_request_json: string, current_revision: Function, read_resource: Function, prepare_write: Function, commit_write: Function, rollback_write: Function, progress\?: Function \| null\): Promise<string>/,
+    /executeCommandServiceV1\(request_json: string, capability_request_json: string, current_revision: CommandRevisionLedgerJsonCallbackV1, read_resource: CommandResourceReadJsonCallbackV1, prepare_write: CommandPrepareWriteJsonCallbackV1, commit_write: CommandCommitWriteJsonCallbackV1, rollback_write: CommandRollbackWriteJsonCallbackV1, progress\?: CommandProgressJsonCallbackV1 \| null\): Promise<string>/,
   );
   assert.match(
     declarations,
-    /readCommandArtifactV1\(request_id: string, handle_id: number, offset: number, max_bytes: number\): any/,
+    /readCommandArtifactV1\(request_id: string, handle_id: number, offset: number, max_bytes: number\): CommandArtifactReadWireResponseV1/,
   );
+  assert.match(declarations, /export type \* from '\.\.\/\.\.\/command-service\/index\.js'/);
+  assert.doesNotMatch(declarations, /executeCommandServiceV1\([^\n]+\bFunction\b/);
+  assert.doesNotMatch(declarations, /readCommandArtifactV1\([^\n]+\): any/);
 }
+
+const typecheck = spawnSync(
+  process.execPath,
+  [
+    resolve(workspaceRoot, 'node_modules/typescript/bin/tsc'),
+    '--ignoreConfig',
+    '--noEmit',
+    '--strict',
+    '--target',
+    'ES2022',
+    '--module',
+    'NodeNext',
+    '--moduleResolution',
+    'NodeNext',
+    resolve(projectRoot, 'tests/command-types.ts'),
+  ],
+  { cwd: workspaceRoot, encoding: 'utf8' },
+);
+assert.equal(
+  typecheck.status,
+  0,
+  `generated command TypeScript fixture failed:\n${typecheck.stderr || typecheck.stdout}`,
+);
 
 const nodeRuntime = createRequire(import.meta.url)(resolve(distRoot, 'wasm/node/cem_ml.js'));
 assert.equal(nodeRuntime.version(), cargoVersion);

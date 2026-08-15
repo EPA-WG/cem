@@ -44,6 +44,7 @@ pub struct TransformOutput {
 /// frames they originated from. Tier A emits one span per AST node-derived
 /// output chunk (open tag, attribute, text, close tag).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct OutputSpan {
     pub output_range: ByteRange,

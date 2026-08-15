@@ -51,6 +51,8 @@ macro_rules! opaque_id {
         #[derive(
             Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
         )]
+        #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+        #[cfg_attr(feature = "typescript-projections", ts(type = "number"))]
         #[serde(transparent)]
         pub struct $name(u64);
 

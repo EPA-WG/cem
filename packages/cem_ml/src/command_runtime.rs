@@ -46,6 +46,7 @@ use crate::query::QueryResultExporterRegistry;
 /// Coarse command-service lifecycle stages streamed by host bindings while the
 /// common operation handle retains detailed engine and control semantics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum CommandServiceProgressStageV1 {
     Accepted,
@@ -56,6 +57,7 @@ pub enum CommandServiceProgressStageV1 {
 
 /// Bounded, monotonic progress record for one active command-service request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandServiceProgressV1 {
     pub protocol_version: u16,
@@ -98,6 +100,7 @@ impl CommandServiceProgressV1 {
 
 /// Stable acknowledgement returned by command-service host cancellation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandServiceControlAckV1 {
     pub protocol_version: u16,

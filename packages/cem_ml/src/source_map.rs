@@ -4,6 +4,7 @@ use crate::source::{ByteRange, SourceId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ScssOriginKind {
     Source,
@@ -15,6 +16,7 @@ pub enum ScssOriginKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(tag = "kind")]
 pub enum TransformKind {
     HtmlTokenizer,
@@ -53,6 +55,7 @@ pub enum TransformKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(tag = "kind", content = "ranges")]
 pub enum FrameSpan {
     Single(ByteRange),
@@ -63,6 +66,7 @@ pub enum FrameSpan {
 /// `FrameSpan`) is the durable location identity; `line`/`column` are
 /// projections derived on demand from a `LineIndex` and never stored here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct SourceMapFrame {
     pub source_id: SourceId,
     pub span: FrameSpan,
@@ -70,6 +74,7 @@ pub struct SourceMapFrame {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct SourceMapStack {
     /// Ordered origin-first; the current frame is last (AC-P-7).
     pub frames: Vec<SourceMapFrame>,

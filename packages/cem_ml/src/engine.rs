@@ -38,6 +38,7 @@ impl std::fmt::Debug for dyn ConvertRequestHandler {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum FailLevel {
     Parse,
@@ -46,6 +47,7 @@ pub enum FailLevel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum InputFormat {
     Cem,
@@ -54,6 +56,7 @@ pub enum InputFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum LayerFormat {
     Cem,
@@ -73,6 +76,7 @@ pub enum LayerFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ParseProjection {
     DomJson,
@@ -82,6 +86,7 @@ pub enum ParseProjection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum ValidateProjection {
     Json,
@@ -93,6 +98,7 @@ pub enum ValidateProjection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum TraceProjection {
     Json,
@@ -110,6 +116,7 @@ pub enum BenchProjection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum InspectView {
     Summary,
@@ -213,6 +220,7 @@ impl EngineContext {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct FormatIdentity {
     #[serde(rename = "contentType")]
     pub content_type: Option<String>,
@@ -309,6 +317,7 @@ pub struct TransformExecutionPolicy {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateEntrypoint {
     #[serde(default)]
@@ -1076,6 +1085,7 @@ pub struct FixtureRoundtripRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ParseResponse {
     /// Structured compatibility result for programmatic hosts and explicit
     /// JSON formats. Human-facing presentation uses `primary_bytes`.
@@ -1088,11 +1098,13 @@ pub struct ParseResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ValidateResponse {
     pub report: Report,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct CheckResponse {
     pub report: Report,
     #[serde(rename = "hardViolationCount")]
@@ -1100,6 +1112,7 @@ pub struct CheckResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct InspectResponse {
     pub view: InspectView,
     pub body: Value,
@@ -1121,6 +1134,7 @@ pub struct PrimaryBytes {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertExecutionMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1134,6 +1148,7 @@ pub struct ConvertExecutionMetadata {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertOutputPipelineMetadata {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1141,6 +1156,7 @@ pub struct ConvertOutputPipelineMetadata {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertOutputPipelineStageMetadata {
     pub stage: String,
@@ -1159,6 +1175,7 @@ pub struct ConvertOutputPipelineStageMetadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ConvertResponse {
     pub primary: Value,
     #[serde(skip)]
@@ -1171,6 +1188,7 @@ pub struct ConvertResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct TransformResponse {
     pub primary: Value,
     #[serde(rename = "sourceMap", default, skip_serializing_if = "Option::is_none")]
@@ -1183,6 +1201,7 @@ pub struct TransformResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct TransformGraphResponse {
     #[serde(default)]
     pub artifacts: Vec<TransformGraphArtifact>,
@@ -1192,6 +1211,7 @@ pub struct TransformGraphResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphArtifact {
     pub export_id: String,
@@ -1208,6 +1228,7 @@ pub struct TransformGraphArtifact {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct TraceResponse {
     pub body: Value,
 }

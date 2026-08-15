@@ -51,6 +51,8 @@ macro_rules! opaque_id {
         #[derive(
             Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
         )]
+        #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+        #[cfg_attr(feature = "typescript-projections", ts(type = "number"))]
         #[serde(transparent)]
         pub struct $name(u64);
 
@@ -255,6 +257,7 @@ pub struct CancelRequest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ControlAckDisposition {
     Accepted,
@@ -303,6 +306,7 @@ pub struct DiscardedArtifact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct BoundedList<T> {
     pub items: Vec<T>,

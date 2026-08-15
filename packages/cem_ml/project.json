@@ -51,7 +51,11 @@
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",
-            "dependsOn": ["test:observability-schema", "test:cli-schema-artifacts"],
+            "dependsOn": [
+                "test:observability-schema",
+                "test:cli-schema-artifacts",
+                "test:command-types"
+            ],
             "outputs": ["{options.target-dir}"],
             "options": {
                 "package": "cem-ml",
@@ -72,6 +76,22 @@
                     "release": true
                 }
             }
+        },
+        "test:command-types": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --locked --package cem-ml --no-default-features --features typescript-projections --test command_types --target-dir dist/target/cem_ml_typescript",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/command_types.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_typescript"]
         },
         "build:stripped": {
             "cache": true,

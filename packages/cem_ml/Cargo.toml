@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["debug-control"]
 debug-control = []
 fake-engine = []
+typescript-projections = ["dep:ts-rs"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -30,6 +31,12 @@ csv = "1"
 cssparser = "0.37"
 ryu = "1"
 web-time = "1.1"
+ts-rs = { version = "12.0.1", optional = true, features = ["no-serde-warnings", "serde-json-impl"] }
+
+[[bin]]
+name = "cem-ml-command-types-emit"
+path = "src/bin/cem-ml-command-types-emit.rs"
+required-features = ["typescript-projections"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"

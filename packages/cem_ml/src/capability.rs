@@ -29,6 +29,7 @@ pub const DEBUG_DAP_ADAPTER_VERSION: u16 = 1;
 pub const DEBUG_REQUEST_VERSION: u16 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ProductVersion {
     pub common_version: String,
@@ -41,6 +42,7 @@ pub fn product_version() -> ProductVersion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum RuntimeKind {
     Native,
@@ -49,6 +51,7 @@ pub enum RuntimeKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum CapabilityOperation {
     Parse,
@@ -85,6 +88,7 @@ impl CapabilityOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum CapabilityAvailability {
     Available,
@@ -93,6 +97,7 @@ pub enum CapabilityAvailability {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct OperationCapability {
     pub operation: CapabilityOperation,
@@ -100,6 +105,7 @@ pub struct OperationCapability {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ControlCapabilityKind {
     RootCancellation,
@@ -144,6 +150,7 @@ impl ControlCapabilityKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ControlCoverage {
     None,
@@ -168,6 +175,7 @@ pub enum ControlCoverage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ControlCapability {
     pub control: ControlCapabilityKind,
@@ -176,6 +184,7 @@ pub struct ControlCapability {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MemoryAccountingCapability {
     /// `true` once engine stores actually acquire byte-counted permits.
@@ -188,6 +197,7 @@ pub struct MemoryAccountingCapability {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum ExecutorTopology {
     Sequential,
@@ -197,6 +207,7 @@ pub enum ExecutorTopology {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct DebugControlCapability {
     pub compiled: bool,
@@ -210,6 +221,7 @@ pub struct DebugControlCapability {
 /// Effective operation-host bounds returned by initialization and capability
 /// discovery. Hosts may negotiate stricter values, never larger ones.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct OperationHostLimits {
     pub max_live_subscriptions: u16,
@@ -252,6 +264,7 @@ impl Default for OperationHostLimits {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilityRequest {
     pub runtime: RuntimeKind,
@@ -262,6 +275,7 @@ pub struct CapabilityRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilityManifest {
     pub contract_version: u16,

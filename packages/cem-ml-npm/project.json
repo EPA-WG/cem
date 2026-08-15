@@ -79,6 +79,7 @@
       },
       "inputs": [
         "{projectRoot}/scripts/verify-dist.mjs",
+        "{projectRoot}/tests/command-types.ts",
         {
           "dependentTasksOutputFiles": "**/*",
           "transitive": false

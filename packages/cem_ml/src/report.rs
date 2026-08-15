@@ -7,6 +7,7 @@ pub const DETERMINISTIC_TIMESTAMP: &str = "1970-01-01T00:00:00.000Z";
 pub const CLI_REPORT_JSON_SCHEMA_URI: &str = "https://cem.dev/schema/cli/report.schema.json";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ReportSummary {
     #[serde(rename = "inputCount")]
     pub input_count: u32,
@@ -23,6 +24,7 @@ pub struct ReportSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ReportOptionsSnapshot {
     #[serde(rename = "failLevel")]
     pub fail_level: FailLevel,
@@ -34,6 +36,7 @@ pub struct ReportOptionsSnapshot {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ReportAst {
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,
@@ -48,6 +51,7 @@ pub struct ReportAst {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct SchedulerTraceReport {
     #[serde(rename = "eventCount")]
     pub event_count: u64,
@@ -76,6 +80,7 @@ impl SchedulerTraceReport {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ParserStageReport {
     pub stage_count: u64,
@@ -83,6 +88,7 @@ pub struct ParserStageReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ParserStageReportEntry {
     pub input: String,
@@ -95,6 +101,7 @@ pub struct ParserStageReportEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ParserStageSourceMapBoundary {
     #[serde(rename = "sourceId")]
@@ -105,6 +112,7 @@ pub struct ParserStageSourceMapBoundary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct SchedulerTraceReportEvent {
     pub sequence: u64,
     #[serde(rename = "scopeId")]
@@ -125,6 +133,7 @@ impl From<SchedulerEvent> for SchedulerTraceReportEvent {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct TransformReport {
     pub input: String,
@@ -140,6 +149,7 @@ pub struct TransformReport {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertReport {
     pub output_count: u64,
@@ -147,6 +157,7 @@ pub struct ConvertReport {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertOutputReport {
     pub input: String,
@@ -162,6 +173,7 @@ pub struct ConvertOutputReport {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphReport {
     pub export_count: u64,
@@ -169,6 +181,7 @@ pub struct TransformGraphReport {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphExportReport {
     pub export_id: String,
@@ -191,6 +204,7 @@ pub struct TransformGraphExportReport {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphCollectionItemReport {
     pub input: String,
@@ -211,6 +225,7 @@ pub struct TransformGraphCollectionItemReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct Report {
     #[serde(rename = "generatedAt")]
     pub generated_at: String,

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Behaviour when a bounded queue is full (AC-A-5).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum OverflowPolicy {
     /// Block the caller until a slot is available.

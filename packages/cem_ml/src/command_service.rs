@@ -43,6 +43,11 @@ pub const SHA256_HEX_BYTES: usize = 64;
 /// URI-keyed wire map that rejects duplicate object keys while decoding JSON.
 /// A transparent wrapper preserves the exact object shape on the wire.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "typescript-projections",
+    ts(type = "{ [key in string]: T }", bound = "T: ts_rs::TS")
+)]
 #[serde(transparent)]
 pub struct CommandUriMapV1<T>(BTreeMap<String, T>);
 
@@ -129,6 +134,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandProjectRevisionV1 {
     pub project_id: String,
@@ -136,6 +142,7 @@ pub struct CommandProjectRevisionV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandResourceVersionV1 {
     pub revision: u64,
@@ -143,6 +150,7 @@ pub struct CommandResourceVersionV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct VirtualResourceV1 {
     pub bytes: Vec<u8>,
@@ -151,6 +159,7 @@ pub struct VirtualResourceV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandPolicyStampV1 {
     pub resolver: String,
@@ -161,6 +170,7 @@ pub struct CommandPolicyStampV1 {
 /// Required `runPlan` field that can carry a plan or an explicit wire `null`.
 /// Unlike `Option`, a missing field fails deserialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(untagged)]
 pub enum CommandRunPlanV1 {
     Plan(Box<NormalizedRunPlan>),
@@ -183,6 +193,7 @@ impl From<NormalizedRunPlan> for CommandRunPlanV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(
     tag = "kind",
     rename_all = "kebab-case",
@@ -199,6 +210,7 @@ pub enum CommandTransformSourceV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(
     tag = "kind",
     rename_all = "kebab-case",
@@ -265,6 +277,7 @@ impl PortableOperationRequestV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandServiceRequestV1 {
     pub protocol_version: u16,
@@ -278,6 +291,7 @@ pub struct CommandServiceRequestV1 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum CommandArtifactKindV1 {
     Output,
@@ -289,6 +303,7 @@ pub enum CommandArtifactKindV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandArtifactHandleV1 {
     pub handle_id: RetainedHandleId,
@@ -303,6 +318,7 @@ pub struct CommandArtifactHandleV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(
     tag = "storage",
     rename_all = "kebab-case",
@@ -314,6 +330,7 @@ pub enum CommandPayloadV1<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(
     tag = "kind",
     rename_all = "kebab-case",
@@ -325,6 +342,7 @@ pub enum CommandSourceMapOwnerV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandSourceMapReferenceV1 {
     pub source_map_id: String,
@@ -333,6 +351,7 @@ pub struct CommandSourceMapReferenceV1 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum CommandServiceStatusV1 {
     Succeeded,
@@ -343,6 +362,7 @@ pub enum CommandServiceStatusV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandExecutionIdentityV1 {
     pub common_version: String,
@@ -357,6 +377,7 @@ pub struct CommandExecutionIdentityV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandChangedResourceV1 {
     pub uri: String,
@@ -365,6 +386,7 @@ pub struct CommandChangedResourceV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandStaleRevisionV1 {
     pub current_project_revision: u64,
@@ -372,6 +394,7 @@ pub struct CommandStaleRevisionV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandQueryResultV1 {
     pub language: QueryLanguage,
@@ -380,6 +403,7 @@ pub struct CommandQueryResultV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandOutputResultV1<T> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -390,12 +414,14 @@ pub struct CommandOutputResultV1<T> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandFanoutResultV1<T> {
     pub outputs: BoundedList<CommandOutputResultV1<T>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(tag = "kind", content = "value", rename_all = "kebab-case")]
 pub enum CommandTransformResultV1 {
     Direct(CommandFanoutResultV1<TransformResponse>),
@@ -403,6 +429,7 @@ pub enum CommandTransformResultV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandVersionCapabilitiesResultV1 {
     pub version: ProductVersion,
@@ -410,6 +437,7 @@ pub struct CommandVersionCapabilitiesResultV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(tag = "kind", content = "value", rename_all = "kebab-case")]
 pub enum PortableOperationResultV1 {
     Parse(ParseResponse),
@@ -440,6 +468,7 @@ impl PortableOperationResultV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandServiceResultV1 {
     pub protocol_version: u16,
@@ -469,6 +498,7 @@ pub struct CommandServiceLimitsV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandRevisionLedgerV1 {
     pub project: CommandProjectRevisionV1,

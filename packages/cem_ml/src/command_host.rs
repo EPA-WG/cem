@@ -36,6 +36,7 @@ use crate::transform_config::{
 pub type CommandHostFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandResourceReadRequestV1 {
     pub request_id: String,
@@ -48,6 +49,7 @@ pub struct CommandResourceReadRequestV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandResolvedResourceV1 {
     pub version: CommandResourceVersionV1,

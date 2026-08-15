@@ -29,6 +29,15 @@ rollback. Callback request/response models remain Rust-owned JSON; publication
 bytes are passed separately as a `Uint8Array`. Applications should normally use
 the typed adapters from `@epa-wg/cem-ml-cli` rather than call this raw boundary.
 
+The browser and Node declarations re-export the same generated command-service
+types. `CommandServiceRequestV1`, `CommandServiceResultV1`, operation unions,
+capability callback payloads, progress/control acknowledgements, and artifact
+metadata are derived from their serde-annotated Rust declarations during every
+package build. `CommandServiceHostCapabilitiesV1` describes typed adapter
+callbacks, while the `*JsonCallbackV1` aliases describe the raw generated WASM
+boundary. This keeps both runtime targets and the native wire contract on one
+declaration source of truth.
+
 Hosts may supply an optional final progress callback to
 `executeCommandServiceV1`; it receives monotonic Rust-owned lifecycle JSON.
 `cancelCommandServiceV1(requestId, reason?)` cooperatively cancels the matching

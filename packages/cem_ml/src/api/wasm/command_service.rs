@@ -9,7 +9,6 @@ use std::fmt;
 
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
@@ -27,9 +26,9 @@ use crate::command_host::{
     CommandResourceReadRequestV1, CommandResourceReaderV1,
 };
 use crate::command_publication::{
-    CommandPreparedResourceWriteV1, CommandPublicationHostFailureV1, CommandResolvedWriteV1,
-    CommandResourceWriteRequestV1, CommandResourceWriterV1, CommandRevisionLedgerReaderV1,
-    CommandRevisionLedgerRequestV1,
+    CommandPreparedResourceWriteV1, CommandPreparedWriteTokenV1, CommandPublicationHostFailureV1,
+    CommandResolvedWriteV1, CommandResourceWriteRequestV1, CommandResourceWriterV1,
+    CommandRevisionLedgerReaderV1, CommandRevisionLedgerRequestV1,
 };
 use crate::command_runtime::{
     CommandExecutionServicesV1, CommandServiceHostErrorV1, CommandServiceHostV1,
@@ -395,7 +394,7 @@ impl CommandResourceWriterV1 for JsCommandResourceWriter {
             let response = invoke_two(&prepare, JsValue::from_str(&request), bytes.into())
                 .await
                 .map_err(publication_callback_error)?;
-            let prepared = decode_callback::<PreparedWriteToken>(response, "prepareWrite")
+            let prepared = decode_callback::<CommandPreparedWriteTokenV1>(response, "prepareWrite")
                 .map_err(publication_callback_error)?;
             if prepared.token.trim().is_empty() {
                 return Err(CommandPublicationHostFailureV1::new(
@@ -445,12 +444,6 @@ impl CommandPreparedResourceWriteV1 for JsPreparedCommandWrite {
             decode_ack(response, "rollbackWrite").map_err(publication_callback_error)
         })
     }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PreparedWriteToken {
-    token: String,
 }
 
 #[derive(Debug)]
