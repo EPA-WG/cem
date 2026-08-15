@@ -223,7 +223,7 @@ export function authenticodeSignature(path) {
         '} | ConvertTo-Json -Compress',
     ].join('\n');
     return JSON.parse(
-        capture('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script, path]),
+        capture('pwsh.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script, path]),
     );
 }
 
