@@ -1395,6 +1395,8 @@ __metadata:
     "@epa-wg/cem-ml": "npm:0.1.0"
     "@types/node": "npm:25.6.0"
     typescript: "npm:6.0.3"
+  bin:
+    cem-ml: ./dist/bin.js
   languageName: unknown
   linkType: soft
 
