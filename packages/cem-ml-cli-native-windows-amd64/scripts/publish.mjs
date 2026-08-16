@@ -22,7 +22,7 @@ import {
 
 assertNativeHost();
 if (process.env.CEM_ML_NATIVE_PUBLISH !== '1') {
-    throw new Error('native publication is disabled; set CEM_ML_NATIVE_PUBLISH=1 in the protected release job');
+    throw new Error('native publication is disabled; set CEM_ML_NATIVE_PUBLISH=1 for an authorized local release');
 }
 const version = authoritativeVersion();
 const names = assetNames(version);

@@ -9,7 +9,7 @@
     "host": {
         "platform": "darwin",
         "architecture": "arm64",
-        "runner": "macos-14"
+        "runner": "local-macos-arm64"
     },
     "homebrew": {
         "formula": "cem-ml",

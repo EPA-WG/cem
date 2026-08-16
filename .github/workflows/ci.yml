@@ -79,6 +79,10 @@ jobs:
 
   native-macos-arm64:
     name: CEM-ML native macOS ARM64
+    # Temporarily local-only. Keep the job recipe available, but build, verify,
+    # sign, and publish this executable through its Nx targets on an authorized
+    # Apple Silicon host.
+    if: ${{ false }}
     runs-on: macos-14
     timeout-minutes: 45
 
@@ -138,6 +142,10 @@ jobs:
 
   native-windows-amd64:
     name: CEM-ML native Windows AMD64
+    # Temporarily local-only. Keep the job recipe available, but build, verify,
+    # sign, and publish this executable through its Nx targets on an authorized
+    # Windows AMD64 host.
+    if: ${{ false }}
     runs-on: windows-2025
     timeout-minutes: 60
 
@@ -280,7 +288,8 @@ jobs:
 
   native-windows-sandbox:
     name: CEM-ML native Windows Sandbox lifecycle
-    if: ${{ vars.CEM_ML_WINDOWS_SANDBOX_ENABLED == '1' }}
+    # The Windows lifecycle now runs locally through the existing Nx target.
+    if: ${{ false }}
     needs: native-windows-amd64
     runs-on: [self-hosted, Windows, X64, windows-11-sandbox-x64]
     timeout-minutes: 45

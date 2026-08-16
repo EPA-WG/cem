@@ -77,9 +77,10 @@ The release sequence is:
 4. Run Nx Release for only `cem-ml-platform`, supplying the exact authoritative
    Cargo version rather than deriving another value from conventional commits
    or an independent version plan.
-5. Build and verify all artifacts from the tagged commit, stage a draft GitHub
-   Release, attach the complete asset/index set, and publish it only after every
-   artifact verifies.
+5. Build and verify Linux and WASM/npm artifacts from the tagged commit in
+   CI/CD. Build macOS and Windows executables from the same commit on authorized
+   local native hosts, upload them through their Nx `publish` targets, and
+   publish the draft GitHub Release only after every artifact verifies.
 
 The sync target may write during an intentional version-preparation change. The
 verification and release gates never repair drift. Failed publication may retry
@@ -100,19 +101,16 @@ the [Node release table](https://nodejs.org/en/about/previous-releases) and
 | Universal npm CLI | Ubuntu x64 on Node 22 and 24; macOS ARM64 and Windows x64 on Node 24 | `wasm-node` |
 | Browser API | Current project Playwright Chromium plus a real dedicated worker | `wasm-browser-worker` |
 | Linux native | Ubuntu 24.04 x64; `x86_64-unknown-linux-gnu` | `native-linux-amd64` |
-| Homebrew native | GitHub-hosted `macos-14` ARM64; `aarch64-apple-darwin` | `native-macos-arm64` |
-| Windows native build/package | GitHub-hosted `windows-2025` x64; `x86_64-pc-windows-msvc` | `native-windows-amd64` |
-| Windows native Sandbox smoke | EPA-WG self-hosted Windows 11 x64; `windows-11-sandbox-x64` | `native-windows-amd64` |
+| Homebrew native | Authorized local Apple Silicon macOS host; `aarch64-apple-darwin` | `native-macos-arm64` |
+| Windows native build/package | Authorized local Windows 11 x64 host; `x86_64-pc-windows-msvc` | `native-windows-amd64` |
+| Windows native Sandbox smoke | The local Windows 11 Pro/Enterprise release host with Windows Sandbox | `native-windows-amd64` |
 
-GitHub currently provides x64 Ubuntu/Windows runners and ARM64 macOS runners,
-so each release artifact is built and smoke-tested on its native architecture
-rather than cross-signed on an unrelated host. The Windows installer lifecycle
-is additionally exercised on an EPA-WG-controlled Windows 11 x64 runner with
-the `windows-11-sandbox-x64` label, nested virtualization, Windows Sandbox, and
-an interactive runner session. This split is required because the hosted
-`windows-2025` build image is Windows Server while Windows Sandbox is a Windows
-10/11 capability. See the
-[GitHub-hosted runner matrix](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+The current automation policy keeps Linux native and WASM/npm builds in CI/CD
+while intentionally excluding the macOS and Windows native executable projects.
+Those two projects retain their complete Nx build, package, sign, verify, smoke,
+and publish targets and run on authorized local native hosts. The Windows local
+release host also runs the installer lifecycle inside a fresh Windows Sandbox
+with nested virtualization and an interactive session.
 
 Node support is reviewed at each CEM-ML minor release. A newly promoted Node LTS
 line is not claimed until the complete npm/browser matrix passes; an EOL line is
@@ -395,8 +393,9 @@ the SBOM describes shipped bytes rather than only source manifests.
 
 ### macOS ARM64 and Homebrew
 
-- Build on a GitHub-hosted `macos-14` ARM64 runner for
-  `aarch64-apple-darwin`.
+- Build locally on an authorized Apple Silicon host for `aarch64-apple-darwin`
+  through `cem_ml_cli_native_brew_arm64` Nx targets; CI/CD must exclude this
+  executable.
 - Sign the binary with an EPA-WG Apple Developer ID, notarize the versioned
   archive, and verify both before promotion.
 - Publish a versioned `.tar.gz`, SHA-256 manifest, SPDX JSON SBOM, GitHub
@@ -411,8 +410,10 @@ blocks, and taps are normally Git repositories. See the
 
 ### Windows AMD64
 
-- Build, package, validate, and perform direct MSI lifecycle checks on
-  GitHub-hosted `windows-2025` x64 for `x86_64-pc-windows-msvc`.
+- Build, package, validate, and perform direct MSI lifecycle checks locally on
+  an authorized Windows 11 x64 host for `x86_64-pc-windows-msvc` through
+  `cem_ml_cli_native_windows_amd64` Nx targets; CI/CD must exclude this
+  executable.
 - Publish a portable `.zip` and a WiX v4 `.msi` with silent install/uninstall,
   plus SHA-256 manifest, SPDX JSON SBOM, GitHub artifact attestation, and
   release-index entry.
@@ -421,10 +422,8 @@ blocks, and taps are normally Git repositories. See the
   packaging and after download.
 - Publish versioned WinGet manifests to `microsoft/winget-pkgs` that resolve the
   immutable MSI and validate with `winget validate`.
-- Run the same MSI install/fixture-upgrade/uninstall lifecycle inside a fresh
-  Windows Sandbox on the self-hosted `windows-11-sandbox-x64` verification
-  runner. The job remains explicitly gated until that runner is provisioned;
-  it must not silently fall back to the hosted Windows Server VM.
+- Run the same MSI install/fixture-upgrade/uninstall lifecycle locally inside a
+  fresh Windows Sandbox before uploading the Windows release assets.
 
 WinGet supports MSI and portable packages and validates public manifest
 submissions; see the [WinGet overview](https://learn.microsoft.com/en-us/windows/package-manager/winget/)

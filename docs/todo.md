@@ -26,6 +26,11 @@ native deployment projects, complete family synchronizer, and fixed
 `cem-ml-platform` release group. The common `packages/cem_ml/Cargo.toml` version
 remains the authority.
 
+For the current automation boundary, Linux native and WASM/npm builds remain in
+CI/CD. macOS and Windows executables are intentionally excluded from workflows;
+their existing Nx lifecycle and publish targets run on authorized local native
+hosts and upload the verified local artifacts to the draft GitHub Release.
+
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters exchange borrowed
 native AST streams or typed evaluator values directly. JSON and other encodings
@@ -580,7 +585,7 @@ replacement tree may mediate between internal engine layers.
       installation in a clean temporary consumer, metadata/assets, and the
       absence of `bin`, command, UI, and independent engine dependencies.
 
-- [ ] Create the separate `@epa-wg/cem-ml-cli` universal npm deployment
+- [x] Create the separate `@epa-wg/cem-ml-cli` universal npm deployment
       project.
     - [x] Depend on exactly the same version of `@epa-wg/cem-ml` and prove the
           installed consumer resolves one runtime copy.
@@ -590,7 +595,7 @@ replacement tree may mediate between internal engine layers.
       package/verification targets, and clean installation proof. The browser worker
       slice now also exposes `./browser`; the parent stays open until the shared
       command service, npm executable, and complete cross-host fixtures land.
-    - [ ] Add worker-safe `./browser` and Node-hosted `./node` exports plus the
+    - [x] Add worker-safe `./browser` and Node-hosted `./node` exports plus the
           npm `cem-ml` executable without duplicating engine semantics.
         - [x] Generate one versioned shared command schema from the canonical
               native Clap grammar and common runtime capability matrix, expose
@@ -618,7 +623,7 @@ replacement tree may mediate between internal engine layers.
           schema tests, both lint targets, all nine npm tests, real Chromium
           worker verification, distribution verification, packaging, and a clean
           consumer command round trip with one runtime copy all pass.
-    - [ ] Project the shared command parser, capability discovery, progress,
+    - [x] Project the shared command parser, capability discovery, progress,
           cancellation, resolver bridge, reports, signals, and exit policy through
           the appropriate host adapters.
         - [x] Accept the exact version-1 host-neutral command-service request,
@@ -834,7 +839,7 @@ replacement tree may mediate between internal engine layers.
                   common default suite passes 1,944 unit tests and the stripped
                   suite passes 1,932. Lint plus default and stripped native builds
                   and default and stripped WASM builds pass.
-    - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
+    - [x] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
         - [x] Expose command-service v1 through one async Rust-owned WASM binding
               with callback-backed revision-ledger, resource-read, and
@@ -1039,6 +1044,15 @@ replacement tree may mediate between internal engine layers.
                   executable from a clean consumer while proving one resolved
                   common runtime and no Node built-ins in browser artifacts.
 
+    Completed 2026-08-16: the aggregate `@epa-wg/cem-ml-cli:check` Nx gate
+    passed its 13-task graph. It regenerated the native-owned command schema and
+    low-level browser/Node WASM runtime, passed seven low-level runtime tests,
+    sixteen universal CLI Node tests, real-Chromium worker verification, strict
+    distribution checks, both npm package builds, and a clean consumer install.
+    The installed consumer exercised every portable executable operation with
+    one resolved runtime copy and two Node workers, closing the four stale
+    wrapper checkboxes above their already-complete descendant fixtures.
+
 - [ ] Create exactly three native CLI deployment projects.
     - [x] Add `x86_64-unknown-linux-gnu` / `native-linux-amd64`.
         - [x] Scaffold `cem_ml_cli_native_linux_amd64` with only the accepted
@@ -1071,18 +1085,28 @@ replacement tree may mediate between internal engine layers.
         - [x] Add deterministic unsigned package-shape plus functional direct
               MSI install, fixture-upgrade, and uninstall coverage and run it
               through Nx on GitHub-hosted Windows Server 2025 x64.
-        - [ ] Run the same lifecycle in Windows Sandbox on the provisioned
-              self-hosted `windows-11-sandbox-x64` verification runner.
+        - [ ] Run the same lifecycle locally in Windows Sandbox on the intended
+              Windows 11 release host before the first local publication.
 
           Completed 2026-08-15: the hosted Windows Server 2025 job now proves
           byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
           archive/MSI payload identity, Authenticode state, and bounded direct
-          install, fixture major-upgrade, and uninstall lifecycles. The opt-in
-          Windows 11 Sandbox proof remains pending its labeled self-hosted runner.
+          install, fixture major-upgrade, and uninstall lifecycles. The current
+          policy disables the hosted Windows workflow; the Windows 11 Sandbox
+          proof remains pending as a local Nx lifecycle gate.
     - [x] Give each Nx project only its target-specific build, package, sign,
           verify, publish, and install/upgrade/uninstall smoke lifecycle.
     - [x] Emit target-qualified archives/installers, checksums, signatures, SBOMs,
           provenance, capability/version metadata, and package-channel records.
+    - [x] Keep Linux native and WASM/npm build automation in CI/CD while making
+          the macOS and Windows executable lifecycles local-only without removing
+          their Nx targets.
+
+      Completed 2026-08-16: the macOS, Windows, and Windows Sandbox workflow
+      jobs are explicitly disabled, tag-publish builds exclude the two native
+      executable projects, and both deployment projects retain local build,
+      package, sign, verify, smoke, and GitHub publication targets. Linux native
+      and WASM/npm builds remain in the Ubuntu automation path.
 
 - [ ] Add the fixed `cem-ml-platform` release family and immutable artifact
       contract.

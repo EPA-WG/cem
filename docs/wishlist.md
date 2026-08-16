@@ -5,6 +5,11 @@ in [`todo.md`](todo.md).
 
 ## CEM-ML Runtime
 
+- [ ] **Platform-native Linux npm package `@epa-wg/cem-ml-cli-linux-x64`.** Create a separate Linux x64 package for
+      the native `cem-ml` executable and let `@epa-wg/cem-ml-cli` select it through an optional platform dependency
+      with a deterministic WASM fallback. Keep the ELF binary out of the policy-free `@epa-wg/cem-ml` WASM package,
+      synchronize its version with the CEM-ML product family, and cover glibc compatibility, integrity, signing,
+      provenance, SBOM, package selection, and clean-consumer installation before publishing it.
 - [ ] **Engine XSLT 3.0/4.0 execution behind G-NVDL-FULL (AC-P-6.9).** The architecture keeps XSLT as a
       capability-gated peer language behind explicit dispatch, not the primary authoring/rendering model or a
       browser-native dependency. Building the XSLT 3/4 engine remains out of scope for the current release.

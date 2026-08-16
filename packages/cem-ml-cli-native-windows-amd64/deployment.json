@@ -9,8 +9,8 @@
     "host": {
         "platform": "win32",
         "architecture": "x64",
-        "runner": "windows-2025",
-        "sandboxRunner": "windows-11-sandbox-x64"
+        "runner": "local-windows-amd64",
+        "sandboxRunner": "local-windows-11-sandbox-x64"
     },
     "windowsInstaller": {
         "packageIdentifier": "EPA-WG.CEM-ML",

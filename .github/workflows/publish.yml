@@ -59,7 +59,11 @@ jobs:
         run: yarn nx run @epa-wg/trang-native:build
 
       - name: Build packages
-        run: yarn nx run-many -t build
+        # Native macOS and Windows executables are built and released from their
+        # target hosts through the project-local Nx publish targets.
+        run: >-
+          yarn nx run-many -t build
+          --exclude=cem_ml_cli_native_brew_arm64,cem_ml_cli_native_windows_amd64
 
       - name: Publish packages
         run: yarn nx release publish --groups cem --excludeTaskDependencies --access public --outputStyle static
