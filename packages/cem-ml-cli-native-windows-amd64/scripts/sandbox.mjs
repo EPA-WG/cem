@@ -82,9 +82,9 @@ const command = [
     '-File C:\\CemMlSmoke\\sandbox-lifecycle.ps1',
     '-InputRoot C:\\CemMlSmoke',
     '-OutputRoot C:\\CemMlResult',
-    `-CurrentProductCode '${productCode(version)}'`,
-    `-FixtureProductCode '${productCode('0.0.0')}'`,
-    `-ExpectedVersion '${version}'`,
+    `-CurrentProductCode ${productCode(version)}`,
+    `-FixtureProductCode ${productCode('0.0.0')}`,
+    `-ExpectedVersion ${version}`,
 ].join(' ');
 const configuration = resolve(sandboxRoot, 'cem-ml-smoke.wsb');
 writeFileSync(
