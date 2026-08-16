@@ -249,13 +249,26 @@ jobs:
       - name: Verify native package shape
         run: yarn nx run cem_ml_cli_native_windows_amd64:verify
 
-      - name: Run direct MSI lifecycle smokes
-        shell: pwsh
-        run: |
-          $PSNativeCommandUseErrorActionPreference = $true
-          yarn nx run cem_ml_cli_native_windows_amd64:smoke:install
-          yarn nx run cem_ml_cli_native_windows_amd64:smoke:upgrade
-          yarn nx run cem_ml_cli_native_windows_amd64:smoke:uninstall
+      - name: Run direct MSI install smoke
+        timeout-minutes: 10
+        run: yarn nx run cem_ml_cli_native_windows_amd64:smoke:install
+
+      - name: Run direct MSI fixture-upgrade smoke
+        timeout-minutes: 10
+        run: yarn nx run cem_ml_cli_native_windows_amd64:smoke:upgrade
+
+      - name: Run direct MSI uninstall smoke
+        timeout-minutes: 10
+        run: yarn nx run cem_ml_cli_native_windows_amd64:smoke:uninstall
+
+      - name: Upload MSI lifecycle diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cem-ml-native-windows-amd64-msi-lifecycle-diagnostics
+          path: dist/packages/cem-ml-cli-native-windows-amd64/smoke-*/**/*
+          if-no-files-found: warn
+          retention-days: 1
 
       - name: Stage Windows Sandbox inputs
         uses: actions/upload-artifact@v4

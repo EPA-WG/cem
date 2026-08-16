@@ -37,10 +37,12 @@ const binary = resolve(installRoot, 'cem-ml.exe');
 const currentCode = productCode(version);
 const fixtureVersion = '0.0.0';
 const fixtureCode = productCode(fixtureVersion);
+const externalCommandTimeoutMs = 120_000;
 
 resetDirectory(smokeRoot);
 const fixtureMsi = createFixtureMsi(smokeRoot);
 cleanupInstallations();
+let failure;
 try {
     if (mode === 'upgrade') {
         installMsi(fixtureMsi, 'fixture-install');
@@ -50,7 +52,7 @@ try {
 
     installMsi(currentMsi, mode === 'upgrade' ? 'current-upgrade' : 'current-install');
     assert.equal(productState(currentCode), 5, 'current MSI was not installed');
-    assert.equal(capture(binary, ['version']).trim().split('\n')[0].replace(/\r$/, ''), `cem-ml ${version}`);
+    assert.equal(captureSmoke(binary, ['version']).trim().split('\n')[0].replace(/\r$/, ''), `cem-ml ${version}`);
     verifyFunctionalCommand(binary);
     const metadata = readJson(resolve(installRoot, 'share/cem-ml/build-metadata.json'));
     assert.equal(metadata.commonVersion, version);
@@ -66,9 +68,22 @@ try {
         assert.equal(existsSync(installRoot), false);
     }
     console.log(`${deployment.runtimeIdentity} MSI ${mode} smoke passed for cem-ml ${version}.`);
-} finally {
+} catch (error) {
+    failure = error;
+}
+try {
     cleanupInstallations();
+} catch (error) {
+    failure =
+        failure === undefined
+            ? error
+            : new AggregateError([failure, error], `${mode} smoke and post-smoke cleanup both failed`);
+}
+if (failure === undefined) {
     rmSync(smokeRoot, { recursive: true, force: true });
+} else {
+    console.error(`Preserved failed ${mode} smoke diagnostics at ${smokeRoot}.`);
+    throw failure;
 }
 
 function createFixtureMsi(root) {
@@ -115,11 +130,19 @@ function cleanupInstallations() {
 }
 
 function runMsi(args, cleanup = false) {
-    const result = runResult('msiexec.exe', args, { stdio: 'pipe' });
+    const logIndex = args.findIndex((argument) => argument.toLowerCase() === '/l*v');
+    const logPath = logIndex >= 0 ? args[logIndex + 1] : undefined;
+    console.log(`Starting msiexec ${args[0]} ${args[1]}; log: ${logPath ?? 'not configured'}.`);
+    const result = runResult('msiexec.exe', args, {
+        stdio: 'pipe',
+        timeout: externalCommandTimeoutMs,
+    });
     const accepted = cleanup ? [0, 1605, 1614, 1641, 3010] : [0, 1641, 3010];
     if (!accepted.includes(result.status)) {
-        throw new Error(`msiexec ${args.join(' ')} failed: ${result.stderr || result.stdout || result.status}`);
+        const detail = result.error?.message || result.stderr || result.stdout || `exit ${result.status}`;
+        throw new Error(`msiexec ${args.join(' ')} failed: ${detail}`);
     }
+    console.log(`Completed msiexec ${args[0]} ${args[1]} with exit ${result.status}.`);
 }
 
 function productState(code) {
@@ -130,17 +153,22 @@ function productState(code) {
     return Number(
         capture('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
             env: { CEM_ML_PRODUCT_CODE: code },
+            timeout: externalCommandTimeoutMs,
         }).trim(),
     );
 }
 
 function verifyFunctionalCommand(executable) {
     const fixture = resolve(projectRoot, 'tests/smoke-input.cem');
-    const validation = JSON.parse(capture(executable, ['validate', fixture, '--format', 'json']));
+    const validation = JSON.parse(captureSmoke(executable, ['validate', fixture, '--format', 'json']));
     assert.equal(validation.summary.inputCount, 1);
     assert.equal(validation.summary.hardViolationCount, 0);
     const conversion = JSON.parse(
-        capture(executable, ['convert', fixture, '--to-format', 'dom-json', '--preserve-source-offsets']),
+        captureSmoke(executable, ['convert', fixture, '--to-format', 'dom-json', '--preserve-source-offsets']),
     );
     assert.equal(conversion.kind, 'document');
+}
+
+function captureSmoke(command, args) {
+    return capture(command, args, { timeout: externalCommandTimeoutMs });
 }
