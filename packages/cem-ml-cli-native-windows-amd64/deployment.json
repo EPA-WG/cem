@@ -24,7 +24,7 @@
             "documentation": "{5818CFBE-8050-487C-9957-4D0464870044}"
         },
         "wingetRepository": "microsoft/winget-pkgs",
-        "wingetManifestVersion": "1.12.0"
+        "wingetManifestVersion": "1.10.0"
     },
     "wix": {
         "version": "4.0.6"

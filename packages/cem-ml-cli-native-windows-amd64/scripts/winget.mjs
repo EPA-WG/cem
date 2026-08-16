@@ -42,7 +42,7 @@ Installers:
     Publisher: ${deployment.windowsInstaller.publisher}
     DisplayVersion: ${version}
     ProductCode: '${installerCode}'
-  UpgradeCode: '${deployment.windowsInstaller.upgradeCode}'
+    UpgradeCode: '${deployment.windowsInstaller.upgradeCode}'
   InstallationMetadata:
     DefaultInstallLocation: '%ProgramFiles%\\EPA-WG\\CEM-ML'
 ManifestType: installer

@@ -114,11 +114,24 @@ for (const manifest of winget.manifestProjection.files) {
 assert.equal(winget.manifestProjection.rebuildExecutable, false);
 
 const installerManifest = readFileSync(artifactPath(names.wingetInstaller), 'utf8');
+const wingetManifestVersion = escapeRegex(deployment.windowsInstaller.wingetManifestVersion);
+assert.match(
+    installerManifest,
+    new RegExp(
+        `^# yaml-language-server: \\$schema=https://aka\\.ms/winget-manifest\\.installer\\.${wingetManifestVersion}\\.schema\\.json$`,
+        'm',
+    ),
+);
+assert.match(installerManifest, new RegExp(`^ManifestVersion: ${wingetManifestVersion}$`, 'm'));
 assert.match(installerManifest, /InstallerType: wix/);
 assert.match(installerManifest, /Architecture: x64/);
 assert.match(installerManifest, /ElevationRequirement: elevationRequired/);
 assert.match(installerManifest, new RegExp(`InstallerSha256: ${sha256File(artifactPath(names.msi)).toUpperCase()}`));
 assert.match(installerManifest, new RegExp(`ProductCode: '${escapeRegex(productCode(version))}'`));
+assert.match(
+    installerManifest,
+    new RegExp(`^    UpgradeCode: '${escapeRegex(deployment.windowsInstaller.upgradeCode)}'$`, 'm'),
+);
 assert.doesNotMatch(installerManifest, /releases\/latest|archive\/refs\/heads/);
 
 const releaseEntry = readJson(artifactPath(names.releaseEntry));
