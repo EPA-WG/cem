@@ -1062,20 +1062,26 @@ replacement tree may mediate between internal engine layers.
               Homebrew install, fixture-upgrade, and uninstall coverage and run
               it through Nx on a GitHub-hosted macOS ARM64 runner.
     - [ ] Add `x86_64-pc-windows-msvc` / `native-windows-amd64`.
-        - [ ] Scaffold `cem_ml_cli_native_windows_amd64` with only the accepted
+        - [x] Scaffold `cem_ml_cli_native_windows_amd64` with only the accepted
               target-specific build, package, sign, verify, publish, and
               install/upgrade/uninstall smoke lifecycle.
-        - [ ] Emit the versioned Windows archive, WiX v4 MSI, checksum, SPDX 2.3
+        - [x] Emit the versioned Windows archive, WiX v4 MSI, checksum, SPDX 2.3
               SBOM, capability metadata, provenance/signing records,
               release-index entry, and immutable WinGet manifest projection.
-        - [ ] Add deterministic unsigned package-shape plus functional direct
+        - [x] Add deterministic unsigned package-shape plus functional direct
               MSI install, fixture-upgrade, and uninstall coverage and run it
               through Nx on GitHub-hosted Windows Server 2025 x64.
         - [ ] Run the same lifecycle in Windows Sandbox on the provisioned
               self-hosted `windows-11-sandbox-x64` verification runner.
-    - [ ] Give each Nx project only its target-specific build, package, sign,
+
+          Completed 2026-08-15: the hosted Windows Server 2025 job now proves
+          byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
+          archive/MSI payload identity, Authenticode state, and bounded direct
+          install, fixture major-upgrade, and uninstall lifecycles. The opt-in
+          Windows 11 Sandbox proof remains pending its labeled self-hosted runner.
+    - [x] Give each Nx project only its target-specific build, package, sign,
           verify, publish, and install/upgrade/uninstall smoke lifecycle.
-    - [ ] Emit target-qualified archives/installers, checksums, signatures, SBOMs,
+    - [x] Emit target-qualified archives/installers, checksums, signatures, SBOMs,
           provenance, capability/version metadata, and package-channel records.
 
 - [ ] Add the fixed `cem-ml-platform` release family and immutable artifact
