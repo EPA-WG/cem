@@ -1085,6 +1085,12 @@ replacement tree may mediate between internal engine layers.
         - [x] Add deterministic unsigned package-shape plus functional direct
               MSI install, fixture-upgrade, and uninstall coverage and run it
               through Nx on GitHub-hosted Windows Server 2025 x64.
+        - [x] Provision the intended Windows 11 Pro release host with the native
+              Node/Rust/MSVC/SDK/.NET/WiX/PowerShell toolchain and enable
+              Windows Sandbox without a pending reboot.
+        - [x] Make the portable ZIP/MSI executable independent of a separately
+              installed MSVC runtime, record static CRT linkage in build and
+              provenance metadata, and reject dynamic MSVC/UCRT PE imports.
         - [ ] Run the same lifecycle locally in Windows Sandbox on the intended
               Windows 11 release host before the first local publication.
 
@@ -1105,14 +1111,20 @@ replacement tree may mediate between internal engine layers.
 
           The first local Sandbox run exposed and fixed POSIX single-quote
           handling in the generated Windows command (`6080a3ea`). The corrected
-          run passed clean-product cleanup and installed the MSI, then stopped
-          before completing any lifecycle phase because the installed CLI
-          produced no version output. PE import inspection confirms the binary
-          imports `VCRUNTIME140.dll`, which Build Tools supplies on the host but
-          clean offline Sandbox does not. This item remains open at the explicit
-          packaging decision between target-specific static CRT linkage
-          (recommended for the portable archive) and adding a Microsoft VC
-          runtime redistribution contract.
+          run then exposed the portable executable's undeclared
+          `VCRUNTIME140.dll` dependency. Commit `1fbd8eba` resolves that boundary
+          with deployment-owned `+crt-static` flags for both Cargo invocations,
+          static-runtime build/provenance metadata, and self-contained PE import
+          verification across the build, ZIP, and MSI copies. Its full Nx graph
+          regenerated and verified all twelve unsigned artifacts; the resulting
+          executable imports only Windows system DLLs.
+
+          The subsequent Sandbox instance closed during MSI installation before
+          its `finally` block could emit `result.json`; no lifecycle phase is
+          claimed. A bounded Sandbox-only retry did not start because its UAC
+          elevation was canceled. This item remains open pending one interactive
+          elevated rerun that returns the required install/upgrade/uninstall
+          result.
 
           Completed 2026-08-15: the hosted Windows Server 2025 job now proves
           byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
