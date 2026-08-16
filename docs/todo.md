@@ -1096,12 +1096,23 @@ replacement tree may mediate between internal engine layers.
           remains open pending an explicit choice to provision this PC or use a
           prepared Windows release host.
 
-          Follow-up 2026-08-16: provisioning this PC as the release host is in
-          progress. Git 2.55.0, Node 24.19.0, rustup 1.29.0 with Rust 1.96.0,
-          and a clean native NTFS checkout at commit `02e4337a` are complete.
-          Installation is paused at the Windows UAC prompt for the .NET 8 SDK;
-          Visual C++ Build Tools, WiX 4.0.6, elevated Sandbox feature
-          verification, dependency installation, and the Nx lifecycle remain.
+          Follow-up 2026-08-16: this Windows 11 Pro PC is now provisioned with
+          Git 2.55.0, Node 24.19.0, rustup 1.29.0 / Rust 1.96.0, PowerShell
+          7.6.5, .NET SDK 8.0.424, WiX 4.0.6, Visual Studio Build Tools 2026
+          with the x64 MSVC workload and Windows SDK 10.0.26100, and an
+          immutable Yarn install in the native NTFS checkout. Windows Sandbox
+          is enabled without a pending reboot.
+
+          The first local Sandbox run exposed and fixed POSIX single-quote
+          handling in the generated Windows command (`6080a3ea`). The corrected
+          run passed clean-product cleanup and installed the MSI, then stopped
+          before completing any lifecycle phase because the installed CLI
+          produced no version output. PE import inspection confirms the binary
+          imports `VCRUNTIME140.dll`, which Build Tools supplies on the host but
+          clean offline Sandbox does not. This item remains open at the explicit
+          packaging decision between target-specific static CRT linkage
+          (recommended for the portable archive) and adding a Microsoft VC
+          runtime redistribution contract.
 
           Completed 2026-08-15: the hosted Windows Server 2025 job now proves
           byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
