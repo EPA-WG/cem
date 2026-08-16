@@ -8,6 +8,7 @@ import {
     artifactRoot,
     assertNativeHost,
     assertPeAmd64,
+    assertStaticMsvcRuntime,
     assertUnsignedAuthenticode,
     assertValidAuthenticode,
     assetNames,
@@ -88,6 +89,8 @@ assert.ok(Array.isArray(sbom.packages));
 
 const provenance = readJson(artifactPath(names.provenance));
 assert.equal(provenance.buildDefinition.externalParameters.rustTarget, deployment.rustTarget);
+assert.equal(provenance.buildDefinition.externalParameters.msvcRuntime, deployment.msvcRuntime);
+assert.deepEqual(provenance.buildDefinition.externalParameters.rustFlags, ['-C', 'target-feature=+crt-static']);
 assert.equal(provenance.buildDefinition.externalParameters.runtimeIdentity, deployment.runtimeIdentity);
 assert.equal(provenance.buildDefinition.externalParameters.wixVersion, deployment.wix.version);
 assert.equal(provenance.buildDefinition.externalParameters.productCode, productCode(version));
@@ -216,9 +219,12 @@ console.log(
 
 function verifyPackagedBinary(binary, metadata) {
     assertPeAmd64(binary);
+    assertStaticMsvcRuntime(binary, 'packaged native executable');
     assert.equal(metadata.commonVersion, version);
     assert.equal(metadata.sourceCommit.length, 40);
     assert.equal(metadata.rustTarget, deployment.rustTarget);
+    assert.equal(metadata.msvcRuntime, deployment.msvcRuntime);
+    assert.deepEqual(metadata.rustFlags, ['-C', 'target-feature=+crt-static']);
     assert.equal(metadata.runtimeIdentity, deployment.runtimeIdentity);
     assert.equal(metadata.capabilitySha256, sha256File(artifactPath(names.capability)));
     assert.equal(metadata.binarySha256, sha256File(binary));

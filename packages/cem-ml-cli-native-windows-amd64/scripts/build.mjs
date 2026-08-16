@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import {
     assertNativeHost,
     assertPeAmd64,
+    assertStaticMsvcRuntime,
     assertUnsignedAuthenticode,
     authoritativeVersion,
     buildRoot,
@@ -28,6 +29,11 @@ const cliVersion = cargoPackageVersion(resolve(workspaceRoot, 'packages/cem_ml_c
 if (cliVersion !== version) {
     throw new Error(`cem_ml_cli version ${cliVersion} does not match authoritative ${version}`);
 }
+if (deployment.msvcRuntime !== 'static') {
+    throw new Error(`unsupported MSVC runtime linkage ${deployment.msvcRuntime}`);
+}
+const rustFlags = ['-C', 'target-feature=+crt-static'];
+const cargoEnvironment = { CARGO_ENCODED_RUSTFLAGS: rustFlags.join('\u001f') };
 
 run('cargo.exe', [
     'build',
@@ -39,26 +45,30 @@ run('cargo.exe', [
     deployment.rustTarget,
     '--target-dir',
     cargoTargetRoot,
-]);
+], { env: cargoEnvironment });
 
 const abiIdentity = `cem-ml-native-cli-v1:${deployment.rustTarget}`;
 const capability = JSON.parse(
-    capture('cargo.exe', [
-        'run',
-        '--locked',
-        '--release',
-        '--package',
-        deployment.rustPackage,
-        '--example',
-        'native-capability-emit',
-        '--target',
-        deployment.rustTarget,
-        '--target-dir',
-        cargoTargetRoot,
-        '--',
-        deployment.rustTarget,
-        abiIdentity,
-    ]),
+    capture(
+        'cargo.exe',
+        [
+            'run',
+            '--locked',
+            '--release',
+            '--package',
+            deployment.rustPackage,
+            '--example',
+            'native-capability-emit',
+            '--target',
+            deployment.rustTarget,
+            '--target-dir',
+            cargoTargetRoot,
+            '--',
+            deployment.rustTarget,
+            abiIdentity,
+        ],
+        { env: cargoEnvironment },
+    ),
 );
 if (capability.commonVersion !== version || capability.runtime !== 'native') {
     throw new Error('native capability projection does not match the deployment identity');
@@ -75,6 +85,7 @@ const sourceBinary = requireFile(
 const binary = resolve(buildRoot, deployment.rustBinary);
 copyFileSync(sourceBinary, binary);
 assertPeAmd64(binary);
+assertStaticMsvcRuntime(binary, 'freshly built native executable');
 assertUnsignedAuthenticode(binary, 'freshly built native executable');
 writeJson(resolve(buildRoot, 'capabilities.json'), capability);
 
@@ -89,6 +100,8 @@ writeJson(resolve(buildRoot, 'build-metadata.json'), {
     sourceCommit: sourceCommit(),
     sourceDateEpoch: sourceEpoch(),
     rustTarget: deployment.rustTarget,
+    msvcRuntime: deployment.msvcRuntime,
+    rustFlags,
     runtimeIdentity: deployment.runtimeIdentity,
     abiIdentity,
     binary: deployment.rustBinary,

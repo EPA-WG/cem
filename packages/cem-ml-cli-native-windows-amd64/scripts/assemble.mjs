@@ -42,6 +42,7 @@ export async function assembleArtifacts({
     if (
         buildMetadata.commonVersion !== version ||
         buildMetadata.rustTarget !== deployment.rustTarget ||
+        buildMetadata.msvcRuntime !== deployment.msvcRuntime ||
         buildMetadata.runtimeIdentity !== deployment.runtimeIdentity
     ) {
         throw new Error('native Windows build metadata drifted from the deployment contract');
@@ -125,6 +126,8 @@ export function refreshReleaseMetadata({ buildMetadata, distributionMode, instal
                 cargoLocked: true,
                 cargoRelease: true,
                 rustTarget: deployment.rustTarget,
+                msvcRuntime: buildMetadata.msvcRuntime,
+                rustFlags: buildMetadata.rustFlags,
                 runtimeIdentity: deployment.runtimeIdentity,
                 wixVersion: deployment.wix.version,
                 productCode: installerIdentity.productCode,

@@ -4,6 +4,7 @@
     "rustPackage": "cem-ml-cli",
     "rustBinary": "cem-ml.exe",
     "rustTarget": "x86_64-pc-windows-msvc",
+    "msvcRuntime": "static",
     "runtimeIdentity": "native-windows-amd64",
     "assetCoordinate": "windows-amd64-msvc",
     "host": {

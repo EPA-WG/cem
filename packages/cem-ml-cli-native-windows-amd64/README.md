@@ -9,7 +9,9 @@ The package target emits a versioned portable `.zip`, a WiX v4 per-machine
 common native capability manifest, an unsigned build-provenance record,
 versioned WinGet manifest projections, and a release-index entry. The MSI adds
 `%ProgramFiles%\EPA-WG\CEM-ML` to the machine `PATH` and supports quiet install,
-major upgrade, and uninstall through Windows Installer.
+major upgrade, and uninstall through Windows Installer. Both portable payloads
+use the deployment-owned static MSVC runtime contract; build and verification
+reject dynamic MSVC/UCRT imports so they run on clean offline Windows hosts.
 
 ```powershell
 yarn nx run cem_ml_cli_native_windows_amd64:build
