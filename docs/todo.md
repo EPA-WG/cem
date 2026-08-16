@@ -1096,6 +1096,13 @@ replacement tree may mediate between internal engine layers.
           remains open pending an explicit choice to provision this PC or use a
           prepared Windows release host.
 
+          Follow-up 2026-08-16: provisioning this PC as the release host is in
+          progress. Git 2.55.0, Node 24.19.0, rustup 1.29.0 with Rust 1.96.0,
+          and a clean native NTFS checkout at commit `02e4337a` are complete.
+          Installation is paused at the Windows UAC prompt for the .NET 8 SDK;
+          Visual C++ Build Tools, WiX 4.0.6, elevated Sandbox feature
+          verification, dependency installation, and the Nx lifecycle remain.
+
           Completed 2026-08-15: the hosted Windows Server 2025 job now proves
           byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
           archive/MSI payload identity, Authenticode state, and bounded direct
