@@ -1088,6 +1088,14 @@ replacement tree may mediate between internal engine layers.
         - [ ] Run the same lifecycle locally in Windows Sandbox on the intended
               Windows 11 release host before the first local publication.
 
+          Attempted 2026-08-16 from the WSL2 development host: Windows 11 Pro
+          and `WindowsSandbox.exe` are present, but the native Windows Git,
+          Node/Corepack/Yarn, Rust/MSVC, Windows SDK, WiX, and .NET SDK toolchain
+          is not provisioned. The Sandbox feature-state query also requires an
+          elevated Windows session. No lifecycle result is claimed; this item
+          remains open pending an explicit choice to provision this PC or use a
+          prepared Windows release host.
+
           Completed 2026-08-15: the hosted Windows Server 2025 job now proves
           byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
           archive/MSI payload identity, Authenticode state, and bounded direct
