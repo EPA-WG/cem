@@ -201,6 +201,66 @@ Exit criteria:
 - Release verification fails on any version, dependency, source-commit, checksum, SBOM, provenance, or capability
   manifest drift from the common `cem_ml` version.
 
+## Phase 2.6 - CEM-ML GitHub Release Artifact Promotion
+
+Goal: turn the Phase 2.5 artifact generators and guarded upload targets into one resumable release path. CI/CD owns the
+WASM/npm and Linux AMD64 artifacts, authorized native hosts own macOS ARM64 and Windows AMD64 artifacts, and a protected
+coordinator publishes one immutable GitHub Release only after the complete five-deployment set verifies.
+
+Current foundation: the fixed `cem-ml-platform` Nx group, both WASM/npm `package` and `sign` targets, all three native
+`build`/`package`/`sign`/`verify`/`publish` lifecycles, and aggregate `cem_ml:release:stage`, `release:verify`, and
+`release:upload-draft` targets already exist. The current generic publish workflow does not invoke that graph, cannot
+write GitHub Releases, and does not collect the local-only native artifacts. Phase 2.6 wires those existing contracts
+without moving macOS or Windows compilation onto an unauthorized runner.
+
+Deliverables:
+
+- Add a protected CEM-ML release workflow for exact `cem-ml-v{version}` tags, with a manual retry/finalize entry point,
+  one concurrency group per tag, and only the GitHub permissions required for release assets and artifact attestations.
+  Keep the existing `{version}` `cem` npm-family workflow separate so a CEM-ML tag cannot publish the wrong release
+  group.
+- Separate tag/changelog creation from publication. The coordinator creates or resumes a draft GitHub Release before
+  any deployment uploads; no Nx changelog integration or workflow step may publish the release while assets are still
+  arriving.
+- In CI/CD, build the two WASM/npm deployments and Linux AMD64 deployment from the tagged commit through their Nx
+  targets. Run package, signing/attestation, verification, clean-consumer, parity, and Linux lifecycle gates before
+  uploading their version-qualified unit assets. GitHub Actions artifacts are job-to-job transport only; the draft
+  GitHub Release is the durable release boundary.
+- Preserve authorized native-host ownership for macOS ARM64 and Windows AMD64. A documented manual lane checks out the
+  exact release tag and source commit, verifies the synchronized version, and runs each deployment project's Nx
+  `package` → `sign` → `verify` → install/upgrade/uninstall smoke → `publish` sequence. Retain the same manual lane as a
+  recovery path for Linux without making manually rebuilt bytes interchangeable with already-uploaded CI bytes.
+- Make every unit upload resumable and immutable. An absent asset may be uploaded, an identical existing asset may be
+  retained, and an unexpected name or changed byte must stop the release. Failed runs leave the release in draft state;
+  they never delete, replace, or silently supersede an uploaded artifact.
+- Add an Nx-owned collection step that downloads the complete draft asset set, materializes the five expected release
+  units, and runs the aggregate publication-mode stage and verification. It generates and uploads the aggregate release
+  index and `SHA256SUMS`, then redownloads every remote asset and proves filename, byte size, digest, version, source
+  commit, target identity, capability, SBOM, provenance, signature/attestation, and package-channel URL integrity.
+- Add an explicit protected promotion target after remote verification. Promotion changes the verified draft to a
+  published GitHub Release exactly once; APT, Homebrew, WinGet, and npm publication may consume only the immutable
+  assets from that published tag and may not rebuild binaries or WASM payloads.
+- Record producer and promotion evidence for each deployment: tagged source commit, Nx target identity, CI workflow run
+  or authorized native-host identity, toolchain and target identity, signing/attestation references, smoke result, and
+  final promotion run. Keep platform signing credentials on their authorized hosts and use protected GitHub
+  environments for `contents: write`, `id-token: write`, and `attestations: write` authority.
+
+Exit criteria:
+
+- Pushing an exact CEM-ML release tag creates or resumes one draft and CI/CD uploads verified WASM/browser, WASM/Node,
+  and Linux AMD64 release assets from that commit without publishing the draft.
+- Authorized macOS ARM64 and Windows AMD64 hosts can independently prove their full lifecycle and idempotently upload
+  their artifacts to the same draft; the release remains blocked while either native unit is absent.
+- The finalizer rejects missing, extra, mismatched, unsigned/unattested, wrong-version, wrong-commit, or wrong-target
+  assets and publishes only after all five deployment units plus the aggregate index and checksum manifest redownload
+  byte-identically.
+- A retry after interruption preserves identical assets, uploads only missing assets, and cannot overwrite a released
+  version. Any byte-changing correction requires a new common CEM-ML version and tag.
+- The published GitHub Release is the sole binary/WASM artifact origin referenced by APT, Homebrew, and WinGet metadata;
+  npm registry publication uses the same verified tarballs and exact common version rather than repacking them.
+- One protected release rehearsal records the complete CI/manual handoff and proves that the generic `cem` npm release
+  workflow, CEM-ML workflow, and native local-host lanes cannot publish one another's groups or tags.
+
 ## Phase 3 - Custom-Element Runtime
 
 Goal: establish the reusable declarative web runtime before building the full component catalog. Phase 3 has two
