@@ -83,7 +83,33 @@
                     "transitive": false
                 }
             ],
-            "outputs": []
+            "outputs": ["{workspaceRoot}/dist/reports/cem-ml-platform-parity.browser.json"]
+        },
+        "verify:platform-parity": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build",
+                "test:browser",
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "node scripts/verify-platform-parity.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-platform-parity.mjs",
+                "{projectRoot}/tests/command-all-operations.fixture.mjs",
+                "{workspaceRoot}/packages/cem_ml_cli/examples/native-platform-parity-emit.rs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-ml-platform-parity.json"]
         },
         "verify": {
             "cache": true,

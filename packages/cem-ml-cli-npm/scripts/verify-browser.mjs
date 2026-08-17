@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { build } from 'vite';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const workspaceRoot = resolve(projectRoot, '../..');
 const packageMetadata = JSON.parse(readFileSync(resolve(projectRoot, 'package.json'), 'utf8'));
 const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'cem-ml-browser-worker-'));
 const bundleRoot = resolve(temporaryRoot, 'bundle');
@@ -269,6 +270,25 @@ try {
         code: 'cem.browser_command.worker_unavailable',
         callbacks: 0,
     });
+
+    const parityReport = resolve(workspaceRoot, 'dist/reports/cem-ml-platform-parity.browser.json');
+    mkdirSync(dirname(parityReport), { recursive: true });
+    writeFileSync(
+        parityReport,
+        `${JSON.stringify(
+            {
+                schemaVersion: 1,
+                host: 'wasm-browser-worker',
+                capability: command.capability,
+                identity: command.resultIdentity,
+                successProgress: command.progress,
+                operations: allOperations.summaries,
+                cancellation,
+            },
+            null,
+            2,
+        )}\n`,
+    );
 
     console.log(
         `Verified ${packageMetadata.name}@${packageMetadata.version} in Chromium: worker-pool control plus dedicated-worker command callbacks, progress, cancellation, artifacts, cleanup, and capability identity.`,

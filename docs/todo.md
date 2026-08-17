@@ -7,11 +7,11 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Start Phase 2.5 by turning the existing common `cem_ml` engine and
-`cem_ml_cli` native source projects into a separately deployable,
-version-synchronized CEM-ML product family. The canonical deployment decision
-is [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md); the Phase
-2.5 roadmap section supplies product sequencing, while
+Phase 2.5 is complete: the existing common `cem_ml` engine and `cem_ml_cli`
+native source projects now form a separately deployable, version-synchronized
+CEM-ML product family. The canonical deployment decision is
+[`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md); the Phase 2.5
+roadmap section records product sequencing, while
 [`cem-studio.md`](cem-studio.md) remains the broader Studio proposal.
 
 The starting Nx audit confirmed that `cem_ml` and `cem_ml_cli` provide Rust
@@ -1141,8 +1141,9 @@ replacement tree may mediate between internal engine layers.
           byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
           archive/MSI payload identity, Authenticode state, and bounded direct
           install, fixture major-upgrade, and uninstall lifecycles. The current
-          policy disables the hosted Windows workflow; the Windows 11 Sandbox
-          proof remains pending as a local Nx lifecycle gate.
+          policy disables the hosted Windows workflow; the later 2026-08-16
+          local Windows 11 Sandbox proof above closes the remaining lifecycle
+          gate after the host restart.
     - [x] Give each Nx project only its target-specific build, package, sign,
           verify, publish, and install/upgrade/uninstall smoke lifecycle.
     - [x] Emit target-qualified archives/installers, checksums, signatures, SBOMs,
@@ -1201,15 +1202,34 @@ replacement tree may mediate between internal engine layers.
     covering its archive, Debian package, checksums, SPDX SBOM, capability,
     provenance, signing state, APT record, and release entry.
 
-- [ ] Prove and promote the Phase 2.5 deployment gate.
-    - [ ] Add an explicit native/WASM parity fixture covering the accepted
+- [x] Prove and promote the Phase 2.5 deployment gate.
+    - [x] Add an explicit native/WASM parity fixture covering the accepted
           operation matrix, normalized results, diagnostics, reports, source maps,
           capability gaps, progress, cancellation, and runtime/target identity.
-    - [ ] Run clean-consumer npm pack/install checks and per-platform
+    - [x] Run clean-consumer npm pack/install checks and per-platform
           install/upgrade/uninstall smoke checks through their Nx projects.
-    - [ ] Add one Phase 2.5 aggregate Nx target and run the common Rust,
+    - [x] Add one Phase 2.5 aggregate Nx target and run the common Rust,
           Node/WASM, package, parity, native-build-where-available, and release
           drift gates before marking the phase complete.
+
+    Completed 2026-08-17: `@epa-wg/cem-ml-cli:verify:platform-parity`
+    runs ten command cases spanning the nine accepted portable operation kinds
+    through the current native x86_64 Linux CLI, Node/WASM, and a real Chromium
+    worker. It proves equal normalized results, diagnostics, reports, source
+    maps, direct and graph transforms, trace shape, capability gaps, progress,
+    cancellation, common version, and runtime/target/ABI identity. The evidence
+    is written to `dist/reports/cem-ml-platform-parity.json`.
+
+    Both npm deployments pass clean-consumer pack/install gates. The aggregate
+    `cem_ml:verify:platform` graph then passed its target and all 63 dependencies,
+    covering the common Rust suite, CLI suite, Node/WASM and browser checks,
+    package and release-drift gates, parity fixture, and Linux native release
+    lifecycle. On this Linux x64 host the native adapter freshly passed the exact
+    Linux `verify`, `smoke:install`, `smoke:upgrade`, and `smoke:uninstall`
+    targets, and explicitly reported the macOS ARM64 and Windows x64 gates as
+    unavailable instead of passing them. Their target-specific lifecycle proofs
+    remain recorded above. Host evidence is written to
+    `dist/reports/cem-ml-phase25-native-gates.json`.
 
 ## Current Source Verification Commands
 
@@ -1225,11 +1245,14 @@ replacement tree may mediate between internal engine layers.
 - `yarn nx run @epa-wg/cem-ml:check`
 - `yarn nx run @epa-wg/cem-ml-cli:verify`
 - `yarn nx run @epa-wg/cem-ml-cli:verify:consumer`
+- `yarn nx run @epa-wg/cem-ml-cli:verify:platform-parity`
+- `yarn nx run cem_ml:verify:platform`
 
-The Phase 2.5 aggregate command will be added only after its name and deployment
-project graph are accepted. Native target checks remain target-specific; a
-missing cross-compile, signing, or package-manager toolchain must be reported as
-an explicit unavailable gate rather than silently treated as a pass.
+`cem_ml:verify:platform` is the accepted Phase 2.5 aggregate command. Native
+target checks remain target-specific; the aggregate runs the matching host's
+release and lifecycle gates and reports a missing cross-compile, signing, or
+package-manager toolchain as explicitly unavailable rather than silently
+treating it as a pass.
 
 ## Deferred Work
 

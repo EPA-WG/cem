@@ -4,6 +4,64 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ml/src",
     "targets": {
+        "verify:platform": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "lint",
+                "test",
+                "build:wasm",
+                "verify:platform-version",
+                "test:platform-release",
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "lint"
+                },
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "test"
+                },
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "test:command-schema"
+                },
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "validate-fixtures"
+                },
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "validate-converter-parity"
+                },
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "e2e"
+                },
+                {
+                    "projects": ["@epa-wg/cem-ml"],
+                    "target": "check"
+                },
+                {
+                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "target": "check"
+                },
+                {
+                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "target": "verify:platform-parity"
+                }
+            ],
+            "options": {
+                "command": "node tools/scripts/cem-ml-phase25-native-gates.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-phase25-native-gates.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/deployment.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/deployment.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/deployment.json"
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-ml-phase25-native-gates.json"]
+        },
         "sync:platform-version": {
             "cache": false,
             "executor": "nx:run-commands",
@@ -61,7 +119,7 @@
             "options": {
                 "commands": [
                     "node --check tools/scripts/cem-ml-nx-version-actions.cjs",
-                    "yarn eslint tools/scripts/cem-ml-npm-release-evidence.mjs tools/scripts/cem-ml-platform-version.mjs tools/scripts/cem-ml-platform-version.test.mjs tools/scripts/cem-ml-platform-release.mjs tools/scripts/cem-ml-platform-release.test.mjs"
+                    "yarn eslint tools/scripts/cem-ml-npm-release-evidence.mjs tools/scripts/cem-ml-platform-version.mjs tools/scripts/cem-ml-platform-version.test.mjs tools/scripts/cem-ml-platform-release.mjs tools/scripts/cem-ml-platform-release.test.mjs tools/scripts/cem-ml-phase25-native-gates.mjs"
                 ],
                 "cwd": "{workspaceRoot}",
                 "parallel": false
@@ -73,7 +131,8 @@
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-version.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-version.test.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
-                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs"
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-phase25-native-gates.mjs"
             ],
             "outputs": []
         },
@@ -189,7 +248,7 @@
                 "test:cli-schema-artifacts",
                 "test:command-types"
             ],
-            "outputs": ["{options.target-dir}"],
+            "outputs": [],
             "options": {
                 "package": "cem-ml",
                 "target-dir": "dist/target/cem_ml"
@@ -224,7 +283,7 @@
                 "{workspaceRoot}/Cargo.toml",
                 "{workspaceRoot}/Cargo.lock"
             ],
-            "outputs": ["{workspaceRoot}/dist/target/cem_ml_typescript"]
+            "outputs": []
         },
         "build:stripped": {
             "cache": true,
@@ -261,7 +320,7 @@
                 "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/lib.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/src/dispatch.rs"
             ],
-            "outputs": ["{workspaceRoot}/dist/target/cem_ml_stripped"]
+            "outputs": []
         },
         "test:scss": {
             "cache": true,
@@ -288,7 +347,7 @@
                 "{workspaceRoot}/Cargo.toml",
                 "{workspaceRoot}/Cargo.lock"
             ],
-            "outputs": ["{workspaceRoot}/dist/target/cem_ml"]
+            "outputs": []
         },
         "test:observability-schema": {
             "cache": true,
@@ -337,12 +396,12 @@
                 "{projectRoot}/src/schema/package_sources.rs",
                 "{projectRoot}/Cargo.toml"
             ],
-            "outputs": ["{workspaceRoot}/dist/target/cem_ml"]
+            "outputs": []
         },
         "lint": {
             "cache": true,
             "executor": "@monodon/rust:lint",
-            "outputs": ["{options.target-dir}"],
+            "outputs": [],
             "options": {
                 "package": "cem-ml",
                 "target-dir": "dist/target/cem_ml"

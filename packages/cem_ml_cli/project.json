@@ -7,7 +7,12 @@
         "build": {
             "cache": true,
             "executor": "@monodon/rust:build",
-            "outputs": ["{options.target-dir}"],
+            "outputs": [
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml",
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml.exe",
+                "{workspaceRoot}/dist/target/cem_ml_cli/release/cem-ml",
+                "{workspaceRoot}/dist/target/cem_ml_cli/release/cem-ml.exe"
+            ],
             "options": {
                 "package": "cem-ml-cli",
                 "target-dir": "dist/target/cem_ml_cli"
@@ -91,7 +96,7 @@
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem-ml-cli-npm/tests/command-roundtrip.fixture.json"
             ],
-            "outputs": ["{workspaceRoot}/dist/target/cem_ml_cli"]
+            "outputs": []
         },
         "test": {
             "cache": true,
@@ -128,7 +133,7 @@
                     "target": "verify"
                 }
             ],
-            "outputs": ["{options.target-dir}"],
+            "outputs": [],
             "options": {
                 "package": "cem-ml-cli",
                 "target-dir": "dist/target/cem_ml_cli"
@@ -208,7 +213,7 @@
         "lint": {
             "cache": true,
             "executor": "@monodon/rust:lint",
-            "outputs": ["{options.target-dir}"],
+            "outputs": [],
             "options": {
                 "package": "cem-ml-cli",
                 "target-dir": "dist/target/cem_ml_cli"

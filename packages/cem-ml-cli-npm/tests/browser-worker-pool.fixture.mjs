@@ -10,6 +10,7 @@ import {
     commandCases,
     fixtureDirectory,
     fixtureFiles,
+    normalizeWasmCommandResult,
 } from './command-all-operations.fixture.mjs';
 
 globalThis.runCemMlBrowserFixture = async (scenario) => {
@@ -165,7 +166,10 @@ async function runCommandAllOperationsFixture() {
                 project: invocation.request.project,
                 resourceVersions: invocation.request.resourceVersions,
             });
-            const handle = client.execute(invocation.request);
+            const progress = [];
+            const handle = client.execute(invocation.request, {
+                onProgress: (event) => progress.push(event),
+            });
             const result = await handle;
             const presentation = projectBrowserCommandPresentation(invocation.presentation, result);
             summaries.push({
@@ -178,12 +182,17 @@ async function runCommandAllOperationsFixture() {
                 status: result.status,
                 exitCode: result.exitCode,
                 runtime: result.identity.runtime,
+                commonVersion: result.identity.commonVersion,
+                targetIdentity: result.identity.targetIdentity,
+                abiIdentity: result.identity.abiIdentity,
                 diagnostics: result.diagnostics.originalCount,
                 artifacts: result.artifacts.originalCount,
                 sourceMaps: result.sourceMaps.originalCount,
                 hasResult: result.result != null,
                 hasReport: result.report != null,
                 presentationTargets: presentation.writes.map(({ target }) => target),
+                progress: progress.map(({ sequence, stage, status }) => [sequence, stage, status]),
+                normalizedResult: normalizeWasmCommandResult(fixtureCase, result),
             });
             await handle.dispose();
         }
@@ -293,6 +302,7 @@ async function runCommandServiceFixture() {
             topology: client.capability.executorTopology,
             effectiveMaxWorkers: client.capability.effectiveMaxWorkers,
             abiIdentity: client.capability.abiIdentity,
+            capability: client.capability,
             resultIdentity: result.identity,
             status: result.status,
             originalArtifactCount: result.artifacts.originalCount,
