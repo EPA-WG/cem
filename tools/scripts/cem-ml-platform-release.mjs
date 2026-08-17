@@ -49,6 +49,68 @@ export const expectedReleaseUnits = Object.freeze([
     },
 ]);
 
+export function createOrResumePlatformReleaseDraft({
+    workspaceRoot = defaultWorkspaceRoot,
+    authorized = process.env.CEM_ML_PLATFORM_DRAFT === '1',
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+    previousReleaseTag,
+    github,
+} = {}) {
+    if (!authorized) {
+        throw new Error('draft creation is disabled; set CEM_ML_PLATFORM_DRAFT=1 in the protected release job');
+    }
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= process.env.CEM_ML_RELEASE_TAG ?? `cem-ml-v${version}`;
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    previousReleaseTag ??= previousPlatformReleaseTag(workspaceRoot, sourceCommit);
+    github ??= createGithubReleaseClient(workspaceRoot);
+
+    assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML release tag drift');
+    assert.match(sourceCommit, /^[a-f0-9]{40,64}$/, 'invalid checked-out source commit');
+    assert.equal(taggedCommit, sourceCommit, 'CEM-ML tagged source-commit drift');
+    if (previousReleaseTag !== undefined) {
+        assert.notEqual(previousReleaseTag, releaseTag, 'generated notes must start at a previous CEM-ML tag');
+    }
+
+    const title = `CEM-ML ${version}`;
+    const prerelease = version.includes('-');
+    let release = github.view(releaseTag);
+    let action = 'resumed';
+    if (release === null) {
+        github.create({
+            tag: releaseTag,
+            title,
+            draft: true,
+            prerelease,
+            generateNotes: true,
+            notesStartTag: previousReleaseTag,
+        });
+        release = github.view(releaseTag);
+        assert.ok(release, `created GitHub draft ${releaseTag} could not be read back`);
+        action = 'created';
+    }
+
+    assert.equal(release.tagName, releaseTag, 'GitHub draft release tag drift');
+    assert.equal(release.name, title, 'GitHub draft release title drift');
+    assert.equal(release.isDraft, true, `${releaseTag} must remain a draft until protected promotion`);
+    assert.equal(release.isPrerelease, prerelease, 'GitHub draft prerelease drift');
+    assert.ok(Array.isArray(release.assets), 'GitHub draft asset listing is missing');
+    return { action, release, releaseTag, sourceCommit, previousReleaseTag };
+}
+
+export function githubDraftCreateArguments({ tag, title, draft, prerelease, generateNotes, notesStartTag }) {
+    assert.equal(draft, true, 'GitHub release coordinator may create drafts only');
+    assert.equal(generateNotes, true, 'CEM-ML draft requires generated release notes');
+    const args = ['release', 'create', tag, '--verify-tag', '--draft', '--title', title, '--generate-notes'];
+    if (notesStartTag !== undefined) args.push('--notes-start-tag', notesStartTag);
+    if (prerelease) args.push('--prerelease');
+    return args;
+}
+
 export function stagePlatformRelease({
     workspaceRoot = defaultWorkspaceRoot,
     sourceCommit = gitSourceCommit(workspaceRoot),
@@ -404,6 +466,47 @@ function gitSourceCommit(workspaceRoot) {
     return result.stdout.trim();
 }
 
+function gitTagSourceCommit(workspaceRoot, releaseTag) {
+    const result = spawnSync('git', ['rev-parse', `${releaseTag}^{commit}`], {
+        cwd: workspaceRoot,
+        encoding: 'utf8',
+        stdio: 'pipe',
+    });
+    if (result.status !== 0) throw new Error(`cannot resolve required release tag ${releaseTag}: ${result.stderr}`);
+    return result.stdout.trim();
+}
+
+function previousPlatformReleaseTag(workspaceRoot, sourceCommit) {
+    const result = spawnSync('git', ['describe', '--tags', '--abbrev=0', '--match', 'cem-ml-v*', `${sourceCommit}^`], {
+        cwd: workspaceRoot,
+        encoding: 'utf8',
+        stdio: 'pipe',
+    });
+    if (result.status === 0) return result.stdout.trim();
+    if (/cannot describe|No names found|unknown revision|bad revision/i.test(`${result.stdout}\n${result.stderr}`)) {
+        return undefined;
+    }
+    throw new Error(`cannot resolve previous CEM-ML release tag: ${result.stderr}`);
+}
+
+function createGithubReleaseClient(workspaceRoot) {
+    return {
+        view(releaseTag) {
+            const result = spawnSync(
+                'gh',
+                ['release', 'view', releaseTag, '--json', 'assets,isDraft,isPrerelease,name,tagName'],
+                { cwd: workspaceRoot, encoding: 'utf8', stdio: 'pipe' },
+            );
+            if (result.status === 0) return JSON.parse(result.stdout);
+            if (/release not found|HTTP 404|not found/i.test(`${result.stdout}\n${result.stderr}`)) return null;
+            throw new Error(`gh release view ${releaseTag} failed: ${result.stderr}`);
+        },
+        create(request) {
+            run('gh', githubDraftCreateArguments(request), workspaceRoot);
+        },
+    };
+}
+
 function run(command, args, cwd) {
     const result = spawnSync(command, args, { cwd, encoding: 'utf8', stdio: 'inherit' });
     if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed with status ${result.status}`);
@@ -466,14 +569,20 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     const command = process.argv[2];
     const publication = process.argv.includes('--publication');
     if (
-        !['stage', 'verify', 'upload-draft'].includes(command) ||
+        !['create-draft', 'stage', 'verify', 'upload-draft'].includes(command) ||
         process.argv.slice(3).some((arg) => arg !== '--publication')
     ) {
         throw new Error(
-            'usage: node tools/scripts/cem-ml-platform-release.mjs <stage|verify|upload-draft> [--publication]',
+            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|stage|verify|upload-draft> [--publication]',
         );
     }
-    if (command === 'stage') {
+    if (command === 'create-draft') {
+        if (publication) throw new Error('create-draft never publishes; omit --publication');
+        const result = createOrResumePlatformReleaseDraft();
+        console.log(
+            `${result.action === 'created' ? 'Created' : 'Resumed'} protected GitHub draft ${result.releaseTag}.`,
+        );
+    } else if (command === 'stage') {
         const result = stagePlatformRelease({ publication });
         console.log(
             `Staged ${result.index.assets.length} CEM-ML ${result.index.commonVersion} assets from five deployments.`,

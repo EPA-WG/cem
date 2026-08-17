@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - '*.*.*'
+      - '!cem-ml-v*'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

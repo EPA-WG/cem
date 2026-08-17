@@ -2,19 +2,187 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { attestNpmReleaseEvidence } from './cem-ml-npm-release-evidence.mjs';
 import {
+    createOrResumePlatformReleaseDraft,
     expectedReleaseUnits,
+    githubDraftCreateArguments,
     stagePlatformRelease,
     uploadPlatformReleaseDraft,
     verifyPlatformRelease,
 } from './cem-ml-platform-release.mjs';
 
+const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const version = '3.4.5';
 const sourceCommit = '1234567890abcdef1234567890abcdef12345678';
+const releaseTag = `cem-ml-v${version}`;
+const releaseTitle = `CEM-ML ${version}`;
+
+test('absent GitHub release creates one notes-bounded draft without a publish path', () => {
+    const github = createFakeGithubReleaseClient();
+    const result = createOrResumePlatformReleaseDraft({
+        authorized: true,
+        version,
+        sourceCommit,
+        releaseTag,
+        taggedCommit: sourceCommit,
+        previousReleaseTag: 'cem-ml-v3.4.4',
+        github,
+    });
+
+    assert.equal(result.action, 'created');
+    assert.deepEqual(github.createRequests, [
+        {
+            tag: releaseTag,
+            title: releaseTitle,
+            draft: true,
+            prerelease: false,
+            generateNotes: true,
+            notesStartTag: 'cem-ml-v3.4.4',
+        },
+    ]);
+    assert.equal(github.publishCalls, 0, 'draft coordinator must not expose publication');
+});
+
+test('GitHub CLI draft creation uses the existing tag and bounded generated notes', () => {
+    assert.deepEqual(
+        githubDraftCreateArguments({
+            tag: releaseTag,
+            title: releaseTitle,
+            draft: true,
+            prerelease: false,
+            generateNotes: true,
+            notesStartTag: 'cem-ml-v3.4.4',
+        }),
+        [
+            'release',
+            'create',
+            releaseTag,
+            '--verify-tag',
+            '--draft',
+            '--title',
+            releaseTitle,
+            '--generate-notes',
+            '--notes-start-tag',
+            'cem-ml-v3.4.4',
+        ],
+    );
+});
+
+test('identical existing GitHub draft resumes without mutation', () => {
+    const existing = githubDraft();
+    const github = createFakeGithubReleaseClient(existing);
+    const result = createOrResumePlatformReleaseDraft({
+        authorized: true,
+        version,
+        sourceCommit,
+        releaseTag,
+        taggedCommit: sourceCommit,
+        previousReleaseTag: 'cem-ml-v3.4.4',
+        github,
+    });
+
+    assert.equal(result.action, 'resumed');
+    assert.deepEqual(result.release, existing);
+    assert.deepEqual(github.createRequests, []);
+    assert.equal(github.publishCalls, 0);
+});
+
+for (const [label, release, message] of [
+    ['wrong tag', githubDraft({ tagName: 'cem-ml-v3.4.4' }), /tag drift/],
+    ['published release', githubDraft({ isDraft: false }), /must remain a draft/],
+    ['wrong title', githubDraft({ name: 'Unexpected title' }), /title drift/],
+    ['wrong prerelease state', githubDraft({ isPrerelease: true }), /prerelease drift/],
+]) {
+    test(`draft coordinator rejects ${label}`, () => {
+        const github = createFakeGithubReleaseClient(release);
+        assert.throws(
+            () =>
+                createOrResumePlatformReleaseDraft({
+                    authorized: true,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    github,
+                }),
+            message,
+        );
+        assert.deepEqual(github.createRequests, []);
+        assert.equal(github.publishCalls, 0);
+    });
+}
+
+test('draft coordinator rejects a tag that does not resolve to the checked-out source commit', () => {
+    const github = createFakeGithubReleaseClient();
+    assert.throws(
+        () =>
+            createOrResumePlatformReleaseDraft({
+                authorized: true,
+                version,
+                sourceCommit,
+                releaseTag,
+                taggedCommit: 'f'.repeat(40),
+                github,
+            }),
+        /tagged source-commit drift/,
+    );
+    assert.deepEqual(github.createRequests, []);
+});
+
+test('draft coordinator rejects a manual tag outside the exact CEM-ML version contract', () => {
+    const github = createFakeGithubReleaseClient();
+    assert.throws(
+        () =>
+            createOrResumePlatformReleaseDraft({
+                authorized: true,
+                version,
+                sourceCommit,
+                releaseTag: `cem-ml-v${version}-unexpected`,
+                taggedCommit: sourceCommit,
+                github,
+            }),
+        /release tag drift/,
+    );
+    assert.deepEqual(github.createRequests, []);
+});
+
+test('draft coordinator remains inert without protected release authorization', () => {
+    const github = createFakeGithubReleaseClient();
+    assert.throws(
+        () =>
+            createOrResumePlatformReleaseDraft({
+                authorized: false,
+                version,
+                sourceCommit,
+                releaseTag,
+                taggedCommit: sourceCommit,
+                github,
+            }),
+        /draft creation is disabled/,
+    );
+    assert.deepEqual(github.createRequests, []);
+});
+
+test('CEM-ML workflow owns its tag family and generic publishing excludes it', () => {
+    const workflow = readFileSync(resolve(workspaceRoot, '.github/workflows/cem-ml-release.yml'), 'utf8');
+    const generic = readFileSync(resolve(workspaceRoot, '.github/workflows/publish.yml'), 'utf8');
+
+    assert.match(workflow, /tags:\s*\n\s+- 'cem-ml-v\*'/);
+    assert.match(workflow, /release_tag:\s*\n\s+description:/);
+    assert.match(workflow, /group: cem-ml-release-/);
+    assert.match(workflow, /name: cem-ml-release/);
+    assert.match(workflow, /contents: write/);
+    assert.match(workflow, /cem_ml:release:create-draft/);
+    assert.match(workflow, /CEM_ML_PLATFORM_DRAFT: \$\{\{ vars\.CEM_ML_PLATFORM_DRAFT \}\}/);
+    assert.doesNotMatch(workflow, /CEM_ML_PLATFORM_DRAFT: ['"]?1/);
+    assert.doesNotMatch(workflow, /release edit|draft=false|nx release publish/);
+    assert.match(generic, /- '!cem-ml-v\*'/);
+});
 
 test('five deployment fixtures stage one complete immutable release index', () => {
     const fixture = createFixture();
@@ -103,6 +271,33 @@ for (const [label, mutate] of driftCases) {
             fixture.dispose();
         }
     });
+}
+
+function githubDraft(overrides = {}) {
+    return {
+        tagName: releaseTag,
+        name: releaseTitle,
+        isDraft: true,
+        isPrerelease: false,
+        assets: [],
+        ...overrides,
+    };
+}
+
+function createFakeGithubReleaseClient(initialRelease = null) {
+    let release = initialRelease;
+    const client = {
+        createRequests: [],
+        publishCalls: 0,
+        view() {
+            return release;
+        },
+        create(request) {
+            client.createRequests.push(request);
+            release = githubDraft({ isPrerelease: request.prerelease });
+        },
+    };
+    return client;
 }
 
 function createFixture() {

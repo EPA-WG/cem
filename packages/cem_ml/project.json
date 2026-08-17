@@ -109,7 +109,9 @@
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-version.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-version.test.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
-                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs"
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs",
+                "{workspaceRoot}/.github/workflows/cem-ml-release.yml",
+                "{workspaceRoot}/.github/workflows/publish.yml"
             ],
             "outputs": []
         },
@@ -133,6 +135,23 @@
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-phase25-native-gates.mjs"
+            ],
+            "outputs": []
+        },
+        "release:create-draft": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:platform-version"],
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs create-draft",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "CEM_ML_RELEASE_TAG" },
+                { "env": "CEM_ML_PLATFORM_DRAFT" }
             ],
             "outputs": []
         },

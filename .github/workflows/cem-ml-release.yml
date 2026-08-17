@@ -1,0 +1,55 @@
+name: CEM-ML Release
+
+on:
+  push:
+    tags:
+      - 'cem-ml-v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Exact existing CEM-ML tag to create or resume
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cem-ml-release-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  create-draft:
+    name: Create or resume protected draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: cem-ml-release
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Create or resume draft release
+        run: yarn nx run cem_ml:release:create-draft --parallel=false
+        env:
+          CEM_ML_PLATFORM_DRAFT: ${{ vars.CEM_ML_PLATFORM_DRAFT }}
+          CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}

@@ -42,22 +42,30 @@ only to the final promotion step.
       foundation/gap inventory above defines the execution boundary.
 
 - [ ] Establish the protected draft coordinator and release-workflow isolation.
-    - [ ] Add synthetic coordinator tests for absent-draft creation, identical
+    - [x] Add synthetic coordinator tests for absent-draft creation, identical
           draft resumption, wrong-tag/non-draft rejection, and the no-publish
           invariant before adding workflow wiring.
-    - [ ] Add an Nx-owned create/resume-draft target that validates the exact
+    - [x] Add an Nx-owned create/resume-draft target that validates the exact
           `cem-ml-v{version}` tag and tagged source commit and never publishes,
           deletes, replaces, or supersedes a release.
-    - [ ] Add a dedicated CEM-ML workflow with exact tag and manual retry inputs,
-          per-tag concurrency, a protected environment, and job-scoped minimal
-          `contents`, `id-token`, and `attestations` permissions.
-    - [ ] Prove the generic `{version}` npm-family workflow rejects CEM-ML tags
+    - [x] Add the dedicated CEM-ML workflow scaffold with exact tag and manual
+          retry inputs, per-tag concurrency, the `cem-ml-release` environment
+          reference, and job-scoped minimal `contents` permission for draft
+          creation. Producer jobs add `id-token` and `attestations` only when
+          their later checklist item requires them.
+    - [ ] Configure the `cem-ml-release` repository environment with required
+          reviewers, self-review/administrator-bypass policy, and deployment-tag
+          restrictions, then set its `CEM_ML_PLATFORM_DRAFT=1` environment
+          variable. GitHub currently reports that the environment does not exist;
+          reviewer identity and bypass policy require owner direction. Until the
+          variable is configured, the workflow is mutation-inert.
+    - [x] Prove the generic `{version}` npm-family workflow rejects CEM-ML tags
           before it can invoke the `cem` Nx release group.
-    - Decision required before implementation: choose the draft title/release-
-      notes source and the protected GitHub environment/manual-dispatch input
-      names; the recommended default is a deterministic `CEM-ML {version}` title,
-      generated notes bounded by CEM-ML tags, environment `cem-ml-release`, and
-      one required exact `cem-ml-v{version}` input.
+    - Completed 2026-08-17: applied the approved deterministic `CEM-ML {version}`
+      title, generated notes bounded by the preceding reachable CEM-ML tag,
+      environment name `cem-ml-release`, and required `release_tag` manual input.
+      The Nx-owned coordinator is opt-in, creates or resumes drafts only, and
+      reads the created release back before success.
 
 - [ ] Add CI-owned production and upload for the two WASM/npm units and Linux AMD64.
     - [ ] Build each unit from the checked-out tag through its Nx package/sign/
