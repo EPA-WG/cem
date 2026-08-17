@@ -167,3 +167,14 @@ convert, query, transform, trace, and version/capabilities matrix through the
 browser and Node command-service workers and the executable. Packaging then
 installs both archives into a clean consumer, proves one resolved common runtime,
 and repeats the executable matrix through the installed `cem-ml` bin.
+
+The package build writes its runtime/capability projection and complete
+SHA-256 integrity manifest. Its Nx `package` target adds the version-qualified
+npm tarball, SPDX 2.3 SBOM, provenance, checksums, signing state, and release
+index entry, then validates those artifacts against the common platform
+contract before returning success.
+
+The uncached Nx `sign` target verifies and records a supplied
+`CEM_ML_GITHUB_ATTESTATION_BUNDLE`; `CEM_ML_RELEASE_SIGNING=required` turns a
+missing bundle into a hard release failure. Unsigned development packages
+remain explicitly non-publishable.

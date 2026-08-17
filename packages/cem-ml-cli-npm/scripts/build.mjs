@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { chmodSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -53,10 +54,66 @@ try {
 }
 chmodSync(resolve(projectRoot, 'dist/bin.js'), 0o755);
 
+const runtimeManifest = readJson(resolve(workspaceRoot, 'packages/cem-ml-npm/dist/cem-ml-runtime.json'));
+if (runtimeManifest.commonVersion !== cargoVersion) {
+    throw new Error('low-level runtime manifest drifted from the CLI package version');
+}
+writeJson(resolve(projectRoot, 'dist/cem-ml-cli-runtime.json'), {
+    schemaVersion: 1,
+    package: { name: packageMetadata.name, version: packageMetadata.version },
+    commonVersion: cargoVersion,
+    runtimeDependency: {
+        name: runtimeMetadata.name,
+        version: runtimeMetadata.version,
+        integritySha256: sha256File(resolve(workspaceRoot, 'packages/cem-ml-npm/dist/integrity.json')),
+    },
+    abi: runtimeManifest.abi,
+    runtimeIdentities: ['wasm-browser-worker', 'wasm-node'],
+    targetIdentities: ['wasm32-unknown-unknown:web', 'wasm32-unknown-unknown:nodejs'],
+    capabilities: runtimeManifest.capabilities,
+    commandSchema: {
+        schemaVersion: commandSchema.schemaVersion,
+        sha256: sha256File(commandSchemaPath),
+    },
+});
+const integrityFiles = listFiles(resolve(projectRoot, 'dist'))
+    .filter((path) => !path.endsWith('/integrity.json'))
+    .map((path) => {
+        const bytes = readFileSync(resolve(projectRoot, 'dist', path));
+        return { path, byteLength: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') };
+    });
+writeJson(resolve(projectRoot, 'dist/integrity.json'), {
+    schemaVersion: 1,
+    algorithm: 'sha256',
+    commonVersion: cargoVersion,
+    files: integrityFiles,
+});
+
 console.log(
     `Built ${packageMetadata.name}@${packageMetadata.version} browser/Node hosts with command schema v${commandSchema.schemaVersion}.`,
 );
 
 function readJson(path) {
     return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function writeJson(path, value) {
+    writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function sha256File(path) {
+    return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function listFiles(root) {
+    const files = [];
+    const visit = (directory) => {
+        for (const entry of readdirSync(directory, { withFileTypes: true })) {
+            const path = resolve(directory, entry.name);
+            if (entry.isDirectory()) visit(path);
+            else if (entry.isFile() && statSync(path).isFile()) files.push(relative(root, path).split(sep).join('/'));
+        }
+    };
+    visit(root);
+    return files.sort();
 }

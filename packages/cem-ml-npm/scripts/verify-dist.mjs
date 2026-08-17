@@ -113,6 +113,7 @@ assert.equal(typeof nodeRuntime.readCommandArtifactV1, 'function');
 
 const integrity = readJson(resolve(distRoot, 'integrity.json'));
 assert.equal(integrity.algorithm, 'sha256');
+assert.equal(integrity.commonVersion, cargoVersion);
 const recordedPaths = integrity.files.map((entry) => entry.path);
 const actualPaths = listFiles(distRoot).filter((path) => path !== 'integrity.json');
 assert.deepEqual(recordedPaths, actualPaths, 'integrity must cover every generated file exactly once');

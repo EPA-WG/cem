@@ -4,6 +4,139 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ml/src",
     "targets": {
+        "sync:platform-version": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-version.mjs --write",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        },
+        "verify:platform-version": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-version.mjs --check",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-version.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-nx-version-actions.cjs",
+                "{workspaceRoot}/nx.json",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/yarn.lock",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/grammar/tree-sitter-cem/Cargo.toml",
+                "{workspaceRoot}/packages/cem-ml-npm/package.json",
+                "{workspaceRoot}/packages/cem-ml-cli-npm/package.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/deployment.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/deployment.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/deployment.json"
+            ],
+            "outputs": []
+        },
+        "test:platform-release": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:platform-version", "lint:platform-release"],
+            "options": {
+                "command": "node --test tools/scripts/cem-ml-platform-version.test.mjs tools/scripts/cem-ml-platform-release.test.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-version.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-version.test.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs"
+            ],
+            "outputs": []
+        },
+        "lint:platform-release": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "node --check tools/scripts/cem-ml-nx-version-actions.cjs",
+                    "yarn eslint tools/scripts/cem-ml-npm-release-evidence.mjs tools/scripts/cem-ml-platform-version.mjs tools/scripts/cem-ml-platform-version.test.mjs tools/scripts/cem-ml-platform-release.mjs tools/scripts/cem-ml-platform-release.test.mjs"
+                ],
+                "cwd": "{workspaceRoot}",
+                "parallel": false
+            },
+            "inputs": [
+                "{workspaceRoot}/eslint.config.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-nx-version-actions.cjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-npm-release-evidence.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-version.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-version.test.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs"
+            ],
+            "outputs": []
+        },
+        "release:stage": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:platform-version"],
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs stage",
+                "cwd": "{workspaceRoot}"
+            },
+            "configurations": {
+                "publication": {
+                    "command": "node tools/scripts/cem-ml-platform-release.mjs stage --publication"
+                }
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/dist/packages/cem-ml-npm/artifacts/**/*",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts/**/*",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts/**/*",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-native-brew-arm64/artifacts/**/*",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-native-windows-amd64/artifacts/**/*",
+                { "runtime": "git rev-parse HEAD" }
+            ],
+            "outputs": ["{workspaceRoot}/dist/releases/cem-ml-platform"]
+        },
+        "release:verify": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:platform-version"],
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs verify",
+                "cwd": "{workspaceRoot}"
+            },
+            "configurations": {
+                "publication": {
+                    "command": "node tools/scripts/cem-ml-platform-release.mjs verify --publication"
+                }
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/dist/releases/cem-ml-platform/**/*",
+                { "runtime": "git rev-parse HEAD" }
+            ],
+            "outputs": []
+        },
+        "release:upload-draft": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:platform-version"],
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs upload-draft",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/dist/releases/cem-ml-platform/**/*",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "CEM_ML_PLATFORM_UPLOAD" }
+            ],
+            "outputs": []
+        },
         "build": {
             "executor": "@monodon/rust:check",
             "dependsOn": ["build:docs"],

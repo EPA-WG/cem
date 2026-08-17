@@ -221,6 +221,7 @@ const integrityFiles = listFiles(distRoot)
 writeJson(resolve(distRoot, 'integrity.json'), {
   schemaVersion: 1,
   algorithm: 'sha256',
+  commonVersion: cargoVersion,
   files: integrityFiles,
 });
 

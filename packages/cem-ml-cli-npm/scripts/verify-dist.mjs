@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -76,6 +77,27 @@ const browserClosure = `${browserSource}\n${browserCommandSource}\n${browserInvo
 assert.doesNotMatch(browserClosure, /SharedArrayBuffer/);
 assert.doesNotMatch(browserClosure, /node:/);
 
+const runtimeManifest = readJson(resolve(projectRoot, 'dist/cem-ml-cli-runtime.json'));
+assert.equal(runtimeManifest.commonVersion, packageMetadata.version);
+assert.deepEqual(runtimeManifest.runtimeIdentities, ['wasm-browser-worker', 'wasm-node']);
+assert.deepEqual(runtimeManifest.targetIdentities, [
+    'wasm32-unknown-unknown:web',
+    'wasm32-unknown-unknown:nodejs',
+]);
+assert.equal(runtimeManifest.runtimeDependency.name, '@epa-wg/cem-ml');
+assert.equal(runtimeManifest.runtimeDependency.version, packageMetadata.version);
+
+const integrity = readJson(resolve(projectRoot, 'dist/integrity.json'));
+assert.equal(integrity.commonVersion, packageMetadata.version);
+assert.equal(integrity.algorithm, 'sha256');
+const actualIntegrityPaths = listFiles(resolve(projectRoot, 'dist')).filter((path) => path !== 'integrity.json');
+assert.deepEqual(integrity.files.map(({ path }) => path), actualIntegrityPaths);
+for (const entry of integrity.files) {
+    const bytes = readFileSync(resolve(projectRoot, 'dist', entry.path));
+    assert.equal(entry.byteLength, bytes.byteLength, entry.path);
+    assert.equal(entry.sha256, createHash('sha256').update(bytes).digest('hex'), entry.path);
+}
+
 const typecheck = spawnSync(
     process.platform === 'win32' ? 'yarn.cmd' : 'yarn',
     [
@@ -106,4 +128,17 @@ console.log(
 
 function readJson(path) {
     return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function listFiles(root) {
+    const files = [];
+    const visit = (directory) => {
+        for (const entry of readdirSync(directory, { withFileTypes: true })) {
+            const path = resolve(directory, entry.name);
+            if (entry.isDirectory()) visit(path);
+            else if (entry.isFile()) files.push(relative(root, path).split(sep).join('/'));
+        }
+    };
+    visit(root);
+    return files.sort();
 }

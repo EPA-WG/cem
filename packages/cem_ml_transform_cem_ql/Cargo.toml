@@ -17,6 +17,6 @@ debug-control = ["cem-ml/debug-control", "cem-ql/debug-control"]
 
 [dependencies]
 blake3 = "1"
-cem-ml = { path = "../cem_ml", default-features = false }
-cem-ql = { path = "../cem_ql", default-features = false }
+cem-ml = { version = "=0.1.0", path = "../cem_ml", default-features = false }
+cem-ql = { version = "=0.1.0", path = "../cem_ql", default-features = false }
 serde_json = "1"

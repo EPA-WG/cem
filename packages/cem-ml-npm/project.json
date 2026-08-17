@@ -119,12 +119,30 @@
       },
       "inputs": [
         "{projectRoot}/scripts/package.mjs",
+        "{workspaceRoot}/tools/scripts/cem-ml-npm-release-evidence.mjs",
+        "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
         {
           "dependentTasksOutputFiles": "**/*",
           "transitive": false
         }
       ],
-      "outputs": ["{workspaceRoot}/dist/packages/cem-ml-npm/package.tgz"]
+      "outputs": ["{workspaceRoot}/dist/packages/cem-ml-npm"]
+    },
+    "sign": {
+      "cache": false,
+      "executor": "nx:run-commands",
+      "dependsOn": ["package"],
+      "options": {
+        "command": "node tools/scripts/cem-ml-npm-release-evidence.mjs attest @epa-wg/cem-ml",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": [
+        "{workspaceRoot}/tools/scripts/cem-ml-npm-release-evidence.mjs",
+        { "dependentTasksOutputFiles": "**/*", "transitive": false },
+        { "env": "CEM_ML_GITHUB_ATTESTATION_BUNDLE" },
+        { "env": "CEM_ML_RELEASE_SIGNING" }
+      ],
+      "outputs": ["{workspaceRoot}/dist/packages/cem-ml-npm/artifacts"]
     },
     "verify:consumer": {
       "cache": false,

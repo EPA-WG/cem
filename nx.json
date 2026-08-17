@@ -53,6 +53,7 @@
                     "requireSemver": true
                 },
                 "version": {
+                    "groupPreVersionCommand": "node tools/scripts/sync-release-version.cjs && yarn dlx nx run-many -t build",
                     "conventionalCommits": true,
                     "updateDependents": "never",
                     "versionPrefix": "^",
@@ -66,10 +67,40 @@
                     },
                     "projectChangelogs": false
                 }
+            },
+            "cem-ml-platform": {
+                "projects": [
+                    "cem_ml",
+                    "cem_ml_cli",
+                    "@epa-wg/cem-ml",
+                    "@epa-wg/cem-ml-cli",
+                    "cem_ml_cli_native_linux_amd64",
+                    "cem_ml_cli_native_brew_arm64",
+                    "cem_ml_cli_native_windows_amd64"
+                ],
+                "projectsRelationship": "fixed",
+                "releaseTag": {
+                    "pattern": "cem-ml-v{version}",
+                    "requireSemver": true
+                },
+                "version": {
+                    "groupPreVersionCommand": "yarn nx run cem_ml:verify:platform-version",
+                    "specifierSource": "prompt",
+                    "currentVersionResolver": "disk",
+                    "versionPrefix": "=",
+                    "updateDependents": "never",
+                    "preserveMatchingDependencyRanges": false,
+                    "versionActions": "tools/scripts/cem-ml-nx-version-actions.cjs"
+                },
+                "changelog": {
+                    "workspaceChangelog": {
+                        "createRelease": "github"
+                    },
+                    "projectChangelogs": false
+                }
             }
         },
         "version": {
-            "preVersionCommand": "node tools/scripts/sync-release-version.cjs && yarn dlx nx run-many -t build",
             "generatorOptions": {
                 "currentVersionResolver": "git-tag",
                 "specifierSource": "conventional-commits"

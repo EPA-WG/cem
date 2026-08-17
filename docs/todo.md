@@ -1157,16 +1157,49 @@ replacement tree may mediate between internal engine layers.
       package, sign, verify, smoke, and GitHub publication targets. Linux native
       and WASM/npm builds remain in the Ubuntu automation path.
 
-- [ ] Add the fixed `cem-ml-platform` release family and immutable artifact
+- [x] Add the fixed `cem-ml-platform` release family and immutable artifact
       contract.
-    - [ ] Synchronize the exact common version and source commit across the common
+    - [x] Add synthetic five-deployment release fixtures that prove complete
+          staging and independently reject version, dependency, source-commit,
+          target, checksum, signature, SBOM, provenance, capability, and
+          release-index drift without mutating governed sources.
+    - [x] Synchronize the exact common version and source commit across the common
           crates, both npm deployments, three native deployments, capability
           output, integrity metadata, provenance, SBOMs, and release index.
-    - [ ] Stage the complete version-qualified GitHub Release asset set before
+    - [x] Stage the complete version-qualified GitHub Release asset set before
           publication; package channels must resolve those immutable assets rather
           than mutable build URLs.
-    - [ ] Reject version, dependency, source-commit, target, checksum, signature,
+    - [x] Reject version, dependency, source-commit, target, checksum, signature,
           SBOM, provenance, capability, or release-index drift.
+
+    Completed 2026-08-16: `cem-ml-platform` is a fixed seven-project Nx
+    release group with `cem-ml-v{version}` tags and Cargo-authoritative custom
+    version actions. The write target projects the authority into the other four
+    Cargo package versions, every exact internal Cargo/npm dependency, both npm
+    manifests, all three native deployment manifests, Cargo.lock, and Yarn's exact
+    workspace resolution. Its separate read-only target reports drift without
+    repair. An exact-version Nx Release dry run resolved all seven members to
+    0.1.0 and changed no version file.
+
+    Both npm package targets now validate version-qualified tarball, capability,
+    integrity, SPDX 2.3 SBOM, provenance, checksum, signing-state, and release-
+    index evidence. The common release stage requires exactly those two npm
+    units and the three native units at one source commit, writes one aggregate
+    index and SHA256SUMS file, and validates immutable APT, Homebrew, and WinGet
+    release URLs. Publication mode additionally requires a clean source tree and
+    publication-ready signing/attestation records. Its opt-in draft uploader
+    preserves already-uploaded identical host assets, rejects extras or changed
+    bytes, uploads only missing assets, and re-downloads the complete draft set
+    before any later release publication; it was intentionally not invoked in
+    this unsigned development run.
+
+    Thirteen synthetic release/version fixtures pass, including every independent
+    drift class plus the protected upload and required-attestation guards. The
+    real npm package/sign graph and clean two-package consumer pass, as do both npm
+    lints, all three native
+    deployment lints, and a fresh Linux native build/package/sign/verify graph
+    covering its archive, Debian package, checksums, SPDX SBOM, capability,
+    provenance, signing state, APT record, and release entry.
 
 - [ ] Prove and promote the Phase 2.5 deployment gate.
     - [ ] Add an explicit native/WASM parity fixture covering the accepted
@@ -1183,6 +1216,8 @@ replacement tree may mediate between internal engine layers.
 - `yarn nx run cem_ml:lint`
 - `yarn nx run cem_ml:test`
 - `yarn nx run cem_ml:build:wasm`
+- `yarn nx run cem_ml:verify:platform-version`
+- `yarn nx run cem_ml:test:platform-release`
 - `yarn nx run cem_ml_cli:lint`
 - `yarn nx run cem_ml_cli:test`
 - `yarn nx run cem_ml_cli:test:command-schema`

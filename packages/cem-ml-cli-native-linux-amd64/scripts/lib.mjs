@@ -30,7 +30,11 @@ export const cargoTargetRoot = resolve(
 export const deployment = readJson(resolve(projectRoot, 'deployment.json'));
 
 export function authoritativeVersion() {
-    return cargoPackageVersion(resolve(workspaceRoot, 'packages/cem_ml/Cargo.toml'));
+    const version = cargoPackageVersion(resolve(workspaceRoot, 'packages/cem_ml/Cargo.toml'));
+    if (deployment.commonVersion !== version) {
+        throw new Error(`deployment commonVersion ${deployment.commonVersion} drifted from Cargo ${version}`);
+    }
+    return version;
 }
 
 export function cargoPackageVersion(path) {

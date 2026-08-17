@@ -59,3 +59,15 @@ the new command performs host I/O.
 `integrity.json` records SHA-256 hashes for every generated runtime and
 schema-package asset. Schema assets are addressable below
 `@epa-wg/cem-ml/schema-packages/`.
+
+The Nx `package` target also emits a version-qualified release-evidence set for
+the fixed `cem-ml-platform` family: the npm tarball, capability and integrity
+manifests, SPDX 2.3 SBOM, provenance, checksums, signing state, and one release
+index entry. The target validates that set before it succeeds; aggregate
+staging remains blocked until both npm deployments and all three native
+deployments identify the same Cargo version and source commit.
+
+The uncached Nx `sign` target records unsigned-local state by default. In a
+protected release job, provide `CEM_ML_GITHUB_ATTESTATION_BUNDLE` (and set
+`CEM_ML_RELEASE_SIGNING=required`) so it verifies the packed tarball with `gh`,
+copies the bundle, and marks the signing record publication-ready.
