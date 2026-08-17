@@ -21,6 +21,7 @@ export const outputRoot = resolve(
     workspaceRoot,
     'dist/packages/cem-ml-cli-native-linux-amd64',
 );
+export const compileRoot = resolve(outputRoot, 'compiled');
 export const buildRoot = resolve(outputRoot, 'build');
 export const artifactRoot = resolve(outputRoot, 'artifacts');
 export const cargoTargetRoot = resolve(

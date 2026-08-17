@@ -24,3 +24,8 @@ yarn nx run cem_ml_cli_native_linux_amd64:smoke:uninstall
 the signing record is publication-ready, and `cem-ml-v<version>` already exists
 as a draft GitHub Release. The APT record points at that immutable release; the
 separate `EPA-WG/cem-apt` repository consumes it and never rebuilds the binary.
+
+The `build` target separates the expensive Rust compilation from the lightweight
+release-provenance stamp. Nx keys the `compile` dependency by Rust sources and
+toolchain and caches only its staged binary and capability manifest; the current
+Git commit and `SOURCE_DATE_EPOCH` invalidate only the fast `build` assembly.

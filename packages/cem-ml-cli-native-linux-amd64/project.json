@@ -5,17 +5,18 @@
   "implicitDependencies": ["cem_ml_cli"],
   "tags": ["scope:cem-ml", "type:deployment", "platform:linux", "arch:amd64"],
   "targets": {
-    "build": {
+    "compile": {
       "cache": true,
       "executor": "nx:run-commands",
       "options": {
-        "command": "node scripts/build.mjs",
+        "command": "node scripts/compile.mjs",
         "cwd": "{projectRoot}"
       },
       "inputs": [
         "{projectRoot}/deployment.json",
         "{projectRoot}/scripts/lib.mjs",
-        "{projectRoot}/scripts/build.mjs",
+        "{projectRoot}/scripts/compile.mjs",
+        "{workspaceRoot}/.cargo/config.toml",
         "{workspaceRoot}/Cargo.toml",
         "{workspaceRoot}/Cargo.lock",
         "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
@@ -27,13 +28,31 @@
         "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml",
         "{workspaceRoot}/packages/cem_ql/src/**/*.rs",
         "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+        { "runtime": "rustc --version --verbose" },
+        { "runtime": "cargo --version" }
+      ],
+      "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/compiled"]
+    },
+    "build": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": ["compile"],
+      "options": {
+        "command": "node scripts/build.mjs",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/deployment.json",
+        "{projectRoot}/scripts/lib.mjs",
+        "{projectRoot}/scripts/build.mjs",
+        {
+          "dependentTasksOutputFiles": "**/*",
+          "transitive": false
+        },
         { "runtime": "git rev-parse HEAD" },
         { "env": "SOURCE_DATE_EPOCH" }
       ],
-      "outputs": [
-        "{workspaceRoot}/dist/target/cem_ml_cli_native_linux_amd64",
-        "{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/build"
-      ]
+      "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/build"]
     },
     "package": {
       "cache": true,

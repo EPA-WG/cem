@@ -3,62 +3,36 @@ import { resolve } from 'node:path';
 
 import {
     assertNativeHost,
-    authoritativeVersion,
     buildRoot,
-    cargoPackageVersion,
     capture,
-    cargoTargetRoot,
+    compileRoot,
     deployment,
     readJson,
     releaseTag,
     requireFile,
     resetDirectory,
-    run,
     sha256File,
     sourceCommit,
     sourceEpoch,
-    workspaceRoot,
     writeJson,
 } from './lib.mjs';
 
 assertNativeHost();
-const version = authoritativeVersion();
-const cliVersion = cargoPackageVersion(resolve(workspaceRoot, 'packages/cem_ml_cli/Cargo.toml'));
-if (cliVersion !== version) {
-    throw new Error(`cem_ml_cli version ${cliVersion} does not match authoritative ${version}`);
-}
-
-run('cargo', [
-    'build',
-    '--locked',
-    '--release',
-    '--package',
-    deployment.rustPackage,
-    '--target',
-    deployment.rustTarget,
-    '--target-dir',
-    cargoTargetRoot,
-]);
-
 const abiIdentity = `cem-ml-native-cli-v1:${deployment.rustTarget}`;
-const capability = JSON.parse(
-    capture('cargo', [
-        'run',
-        '--locked',
-        '--release',
-        '--package',
-        deployment.rustPackage,
-        '--example',
-        'native-capability-emit',
-        '--target',
-        deployment.rustTarget,
-        '--target-dir',
-        cargoTargetRoot,
-        '--',
-        deployment.rustTarget,
-        abiIdentity,
-    ]),
-);
+const compileMetadata = readJson(requireFile(resolve(compileRoot, 'compile-metadata.json')));
+const version = compileMetadata.commonVersion;
+if (
+    compileMetadata.product !== 'cem-ml' ||
+    compileMetadata.rustTarget !== deployment.rustTarget ||
+    compileMetadata.runtimeIdentity !== deployment.runtimeIdentity ||
+    compileMetadata.abiIdentity !== abiIdentity ||
+    compileMetadata.binary !== deployment.rustBinary ||
+    version !== deployment.commonVersion
+) {
+    throw new Error('compiled native identity does not match the deployment identity');
+}
+const capabilitySource = requireFile(resolve(compileRoot, 'capabilities.json'));
+const capability = readJson(capabilitySource);
 if (capability.commonVersion !== version || capability.runtime !== 'native') {
     throw new Error('native capability projection does not match the deployment identity');
 }
@@ -68,13 +42,21 @@ if (capability.targetIdentity !== deployment.rustTarget || capability.abiIdentit
 
 resetDirectory(buildRoot);
 const sourceBinary = requireFile(
-    resolve(cargoTargetRoot, deployment.rustTarget, 'release', deployment.rustBinary),
-    'release native binary',
+    resolve(compileRoot, deployment.rustBinary),
+    'compiled native binary',
 );
 const binary = resolve(buildRoot, deployment.rustBinary);
 copyFileSync(sourceBinary, binary);
 chmodSync(binary, 0o755);
-writeJson(resolve(buildRoot, 'capabilities.json'), capability);
+const capabilityPath = resolve(buildRoot, 'capabilities.json');
+copyFileSync(capabilitySource, capabilityPath);
+
+if (
+    sha256File(binary) !== compileMetadata.binarySha256 ||
+    sha256File(capabilityPath) !== compileMetadata.capabilitySha256
+) {
+    throw new Error('compiled native outputs do not match their cached metadata');
+}
 
 const versionOutput = capture(binary, ['version']).trim().split('\n')[0];
 if (versionOutput !== `cem-ml ${version}`) {
@@ -91,10 +73,10 @@ writeJson(resolve(buildRoot, 'build-metadata.json'), {
     abiIdentity,
     binary: deployment.rustBinary,
     binarySha256: sha256File(binary),
-    capabilitySha256: sha256File(resolve(buildRoot, 'capabilities.json')),
+    capabilitySha256: sha256File(capabilityPath),
     releaseTag: releaseTag(version),
-    rustc: capture('rustc', ['--version']).trim(),
-    cargo: capture('cargo', ['--version']).trim(),
+    rustc: compileMetadata.rustc,
+    cargo: compileMetadata.cargo,
 });
 
 const metadata = readJson(resolve(buildRoot, 'build-metadata.json'));
