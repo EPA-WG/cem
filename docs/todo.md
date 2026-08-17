@@ -41,7 +41,7 @@ only to the final promotion step.
     - Completed 2026-08-17: the roadmap phase is now active and the verified
       foundation/gap inventory above defines the execution boundary.
 
-- [ ] Establish the protected draft coordinator and release-workflow isolation.
+- [x] Establish the protected draft coordinator and release-workflow isolation.
     - [x] Add synthetic coordinator tests for absent-draft creation, identical
           draft resumption, wrong-tag/non-draft rejection, and the no-publish
           invariant before adding workflow wiring.
@@ -53,12 +53,10 @@ only to the final promotion step.
           reference, and job-scoped minimal `contents` permission for draft
           creation. Producer jobs add `id-token` and `attestations` only when
           their later checklist item requires them.
-    - [ ] Configure the `cem-ml-release` repository environment with required
-          reviewers, self-review/administrator-bypass policy, and deployment-tag
-          restrictions, then set its `CEM_ML_PLATFORM_DRAFT=1` environment
-          variable. GitHub currently reports that the environment does not exist;
-          reviewer identity and bypass policy require owner direction. Until the
-          variable is configured, the workflow is mutation-inert.
+    - [x] Configure the `cem-ml-release` repository environment with required
+          reviewer `sashafirsov`, solo-maintainer self-review, administrator
+          bypass disabled, the `cem-ml-v*` tag-only deployment restriction, and
+          environment variable `CEM_ML_PLATFORM_DRAFT=1`.
     - [x] Prove the generic `{version}` npm-family workflow rejects CEM-ML tags
           before it can invoke the `cem` Nx release group.
     - Completed 2026-08-17: applied the approved deterministic `CEM-ML {version}`
@@ -71,6 +69,11 @@ only to the final promotion step.
     - [ ] Build each unit from the checked-out tag through its Nx package/sign/
           verify targets and run clean-consumer, platform-parity, and Linux
           install/upgrade/uninstall gates.
+    - Credential required before the Linux producer can be publication-ready:
+      provision the EPA-WG release GPG private key in the protected environment
+      and identify its signing key for `CEM_ML_RELEASE_GPG_KEY`. The environment
+      currently has no secrets, while the existing Linux Nx `sign` target
+      requires both that GPG identity and a GitHub artifact-attestation bundle.
     - [ ] Generate GitHub artifact attestations and publication-ready signing
           evidence without granting any producer permission to publish the draft.
     - [ ] Upload version-qualified unit assets idempotently to the existing draft;
