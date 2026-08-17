@@ -18,10 +18,10 @@
 
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
 import initCemQlWasm, {
+    cemQlVersion,
     compileTemplate,
     convertLegacyCustomElementTemplate,
     renderTemplateSource,
-    version as cemQlVersion,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 import {
     assertProcessingBoundaryValue,

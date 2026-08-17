@@ -19,7 +19,12 @@ thread_local! {
     static ARTIFACTS: RefCell<Vec<Option<TemplateArtifact>>> = const { RefCell::new(Vec::new()) };
 }
 
-#[wasm_bindgen(js_name = "version")]
+/// Returns the `cem_ql` Cargo version embedded in this combined WASM module.
+///
+/// The linked `cem_ml` dependency owns the common `version` export, so CEM-QL
+/// uses an explicit name and both crate identities remain available without a
+/// wasm-linker symbol collision.
+#[wasm_bindgen(js_name = "cemQlVersion")]
 pub fn wasm_version() -> String {
     crate::VERSION.to_owned()
 }
