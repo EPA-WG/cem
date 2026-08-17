@@ -7,19 +7,110 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-No implementation phase is currently promoted into a task-level checklist.
+Execute
+[`Phase 2.6 - CEM-ML GitHub Release Artifact Promotion`](../roadmap.md#phase-26---cem-ml-github-release-artifact-promotion).
+Connect the existing WASM/npm and Linux CI artifact generators, authorized
+macOS and Windows native-host publication lanes, complete draft collection,
+remote verification, and protected GitHub Release promotion without allowing
+any lane to rebuild or overwrite an already uploaded release unit.
 
-Phase 2.5 is complete. Its full CEM-ML deployment checklist, rationale,
-platform lifecycle evidence, and verification commands are preserved in
+Phase 2.5 is complete. Its full deployment checklist, rationale, platform
+lifecycle evidence, and verification commands are preserved in
 [`archive/todo-completed-2026-08-17.md`](archive/todo-completed-2026-08-17.md).
 
-The next roadmap priority is
-[`Phase 2.6 - CEM-ML GitHub Release Artifact Promotion`](../roadmap.md#phase-26---cem-ml-github-release-artifact-promotion).
-It will connect the existing WASM/npm and Linux CI artifact generators,
-authorized macOS and Windows native-host publication lanes, complete draft
-collection, remote verification, and protected GitHub Release promotion.
-Per the current sequencing decision, Phase 2.6 remains roadmap-only until it is
-explicitly promoted into an execution checklist here.
+Recommended execution order: keep release policy in tested Nx-owned scripts,
+then make GitHub Actions and authorized native hosts thin producers around those
+targets. Establish the draft boundary first, add independent producer lanes,
+collect and remotely verify all five units, and grant publication authority
+only to the final promotion step.
+
+## Phase 2.6 Checklist
+
+- [x] Promote Phase 2.6 and audit the Phase 2.5 release foundation.
+    - [x] Confirm the resolved Nx graph exposes package/sign/verify surfaces for
+          both WASM/npm units and package/sign/verify/publish plus lifecycle
+          smoke surfaces for Linux AMD64, macOS ARM64, and Windows AMD64.
+    - [x] Confirm `cem_ml:release:stage`, `release:verify`, and
+          `release:upload-draft` enforce the five-unit aggregate, publication
+          signing state, immutable existing bytes, missing-only upload, and
+          post-upload redownload verification.
+    - [x] Confirm the remaining boundary gaps: the generic npm publish workflow
+          is not contractually isolated from `cem-ml-v{version}` tags, no
+          protected CEM-ML workflow creates/resumes the draft, CI does not
+          produce/upload its three units, and no final promotion target exists.
+    - Completed 2026-08-17: the roadmap phase is now active and the verified
+      foundation/gap inventory above defines the execution boundary.
+
+- [ ] Establish the protected draft coordinator and release-workflow isolation.
+    - [ ] Add synthetic coordinator tests for absent-draft creation, identical
+          draft resumption, wrong-tag/non-draft rejection, and the no-publish
+          invariant before adding workflow wiring.
+    - [ ] Add an Nx-owned create/resume-draft target that validates the exact
+          `cem-ml-v{version}` tag and tagged source commit and never publishes,
+          deletes, replaces, or supersedes a release.
+    - [ ] Add a dedicated CEM-ML workflow with exact tag and manual retry inputs,
+          per-tag concurrency, a protected environment, and job-scoped minimal
+          `contents`, `id-token`, and `attestations` permissions.
+    - [ ] Prove the generic `{version}` npm-family workflow rejects CEM-ML tags
+          before it can invoke the `cem` Nx release group.
+    - Decision required before implementation: choose the draft title/release-
+      notes source and the protected GitHub environment/manual-dispatch input
+      names; the recommended default is a deterministic `CEM-ML {version}` title,
+      generated notes bounded by CEM-ML tags, environment `cem-ml-release`, and
+      one required exact `cem-ml-v{version}` input.
+
+- [ ] Add CI-owned production and upload for the two WASM/npm units and Linux AMD64.
+    - [ ] Build each unit from the checked-out tag through its Nx package/sign/
+          verify targets and run clean-consumer, platform-parity, and Linux
+          install/upgrade/uninstall gates.
+    - [ ] Generate GitHub artifact attestations and publication-ready signing
+          evidence without granting any producer permission to publish the draft.
+    - [ ] Upload version-qualified unit assets idempotently to the existing draft;
+          use GitHub Actions artifacts only for job-to-job transport.
+    - [ ] Record source commit, Nx target, workflow run, toolchain/target identity,
+          attestation, and smoke evidence for each CI-owned unit.
+
+- [ ] Document and verify authorized native-host publication and recovery lanes.
+    - [ ] Add one exact-tag/source-commit preflight shared by macOS ARM64,
+          Windows AMD64, and optional Linux recovery execution.
+    - [ ] Document and exercise each host's package → sign → verify → lifecycle
+          smoke → immutable publish sequence, including required credentials and
+          attestation-bundle handoff.
+    - [ ] Make each native publisher retain identical assets, upload only missing
+          names, reject remote extras or byte drift, and never use `--clobber`.
+    - [ ] Record authorized host, signing/notarization/Authenticode evidence,
+          target/toolchain identity, smoke results, and uploaded digests.
+
+- [ ] Collect the complete draft and generate aggregate release evidence.
+    - [ ] Add an Nx-owned collection target that downloads the draft into the five
+          expected unit roots and rejects missing, extra, duplicate, or
+          misclassified assets.
+    - [ ] Run publication-mode aggregate stage/verification over the downloaded
+          units, upload the aggregate release index and `SHA256SUMS` idempotently,
+          and redownload the complete remote set.
+    - [ ] Verify every remote filename, size, digest, version, source commit,
+          runtime/target/capability identity, SBOM, provenance, signature/
+          attestation, and immutable package-channel URL.
+
+- [ ] Add protected, exactly-once GitHub Release promotion.
+    - [ ] Add synthetic promotion tests covering incomplete drafts, remote drift,
+          already-published matching releases, and forbidden overwrite/rebuild
+          paths.
+    - [ ] Add an Nx promotion target that consumes only remotely verified evidence
+          and changes the matching draft to published exactly once.
+    - [ ] Restrict promotion authority to the protected finalizer and record the
+          final workflow run and complete producer evidence in the release index.
+    - [ ] Prove APT, Homebrew, WinGet, and npm publication consume the published
+          immutable assets and cannot repack or rebuild them.
+
+- [ ] Rehearse, document, and close Phase 2.6.
+    - [ ] Run one protected release rehearsal across the CI/manual handoff,
+          interruption/resume paths, complete remote verification, and promotion.
+    - [ ] Prove generic `cem`, CEM-ML, and native local-host lanes cannot trigger or
+          publish one another's release groups/tags.
+    - [ ] Record the exact commands, workflow runs, host evidence, expected
+          unavailable-host behavior, and any operator recovery steps.
+    - [ ] Archive the completed checklist and promote the next roadmap goal.
 
 ## Deferred Roadmap Work
 
