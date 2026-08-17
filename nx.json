@@ -53,7 +53,7 @@
                     "requireSemver": true
                 },
                 "version": {
-                    "groupPreVersionCommand": "node tools/scripts/sync-release-version.cjs && yarn dlx nx run-many -t build",
+                    "groupPreVersionCommand": "node tools/scripts/sync-release-version.cjs && yarn dlx nx run-many -t build --exclude=cem_ml_cli_native_brew_arm64,cem_ml_cli_native_windows_amd64",
                     "conventionalCommits": true,
                     "updateDependents": "never",
                     "versionPrefix": "^",

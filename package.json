@@ -14,7 +14,7 @@
     },
     "scripts": {
         "rebuild": "yarn build:clean; yarn build",
-        "build": "nx run-many -t build && nx run cem_ml_cli:validate-fixtures",
+        "build": "nx run-many -t build --exclude=cem_ml_cli_native_brew_arm64,cem_ml_cli_native_windows_amd64 && nx run cem_ml_cli:validate-fixtures",
         "build:cli:release": "nx run cem_ml_cli:build:production && echo 'dist/target/cem_ml_cli/release/cem-ml'",
         "build:clean": "nx reset; rm -rf packages/cem-theme/dist; rm -rf packages/cem-components/dist; rm -rf packages/cem-elements/dist",
         "build:theme": "nx run @epa-wg/cem-theme:build",
