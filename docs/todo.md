@@ -1053,7 +1053,7 @@ replacement tree may mediate between internal engine layers.
     one resolved runtime copy and two Node workers, closing the four stale
     wrapper checkboxes above their already-complete descendant fixtures.
 
-- [ ] Create exactly three native CLI deployment projects.
+- [x] Create exactly three native CLI deployment projects.
     - [x] Add `x86_64-unknown-linux-gnu` / `native-linux-amd64`.
         - [x] Scaffold `cem_ml_cli_native_linux_amd64` with only the accepted
               target-specific build, package, sign, verify, publish, and
@@ -1075,7 +1075,7 @@ replacement tree may mediate between internal engine layers.
         - [x] Add deterministic unsigned package-shape plus functional
               Homebrew install, fixture-upgrade, and uninstall coverage and run
               it through Nx on a GitHub-hosted macOS ARM64 runner.
-    - [ ] Add `x86_64-pc-windows-msvc` / `native-windows-amd64`.
+    - [x] Add `x86_64-pc-windows-msvc` / `native-windows-amd64`.
         - [x] Scaffold `cem_ml_cli_native_windows_amd64` with only the accepted
               target-specific build, package, sign, verify, publish, and
               install/upgrade/uninstall smoke lifecycle.
@@ -1091,7 +1091,7 @@ replacement tree may mediate between internal engine layers.
         - [x] Make the portable ZIP/MSI executable independent of a separately
               installed MSVC runtime, record static CRT linkage in build and
               provenance metadata, and reject dynamic MSVC/UCRT PE imports.
-        - [ ] Run the same lifecycle locally in Windows Sandbox on the intended
+        - [x] Run the same lifecycle locally in Windows Sandbox on the intended
               Windows 11 release host before the first local publication.
 
           Attempted 2026-08-16 from the WSL2 development host: Windows 11 Pro
@@ -1126,10 +1126,16 @@ replacement tree may mediate between internal engine layers.
           started the existing verified artifacts: both cleanup probes completed
           and the current MSI installation began, but the Sandbox instance again
           closed mid-install before emitting `result.json`; the Nx target exited
-          with status 1. No lifecycle phase is claimed. This item remains open at
-          an explicit host-stability decision point: reboot/repair Windows
-          Sandbox on this PC, or rerun the local gate on a prepared Windows 11
-          release host.
+          with status 1. No lifecycle phase is claimed from those attempts. The
+          Windows 11 release host was restarted before the next retry.
+
+          Completed 2026-08-16 after the host restart: the local Windows Sandbox
+          lifecycle emitted its terminal `result.json` with `status: passed` and
+          all three required phases (`install`, `uninstall`, and `upgrade`). The
+          MSI logs independently record successful 0.1.0 installation and CLI
+          smoke, removal, 0.0.0 fixture installation, major upgrade to 0.1.0,
+          and final cleanup, all with Windows Installer status 0. No Sandbox or
+          installer process remained after the terminal result.
 
           Completed 2026-08-15: the hosted Windows Server 2025 job now proves
           byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
