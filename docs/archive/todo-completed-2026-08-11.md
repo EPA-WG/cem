@@ -9,6 +9,9 @@ in [`../todo.md`](../todo.md).
 Product/module sequencing lives in [`../../roadmap.md`](../../roadmap.md), and
 future wishlist work lives in [`../wishlist.md`](../wishlist.md).
 
+Later completed execution history is preserved in
+[`todo-completed-2026-08-17.md`](todo-completed-2026-08-17.md).
+
 ## Immediate Goal
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The Phase
