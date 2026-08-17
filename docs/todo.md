@@ -1121,10 +1121,15 @@ replacement tree may mediate between internal engine layers.
 
           The subsequent Sandbox instance closed during MSI installation before
           its `finally` block could emit `result.json`; no lifecycle phase is
-          claimed. A bounded Sandbox-only retry did not start because its UAC
-          elevation was canceled. This item remains open pending one interactive
-          elevated rerun that returns the required install/upgrade/uninstall
-          result.
+          claimed. A first bounded Sandbox-only retry did not start because its
+          UAC elevation was canceled. A second bounded retry was elevated and
+          started the existing verified artifacts: both cleanup probes completed
+          and the current MSI installation began, but the Sandbox instance again
+          closed mid-install before emitting `result.json`; the Nx target exited
+          with status 1. No lifecycle phase is claimed. This item remains open at
+          an explicit host-stability decision point: reboot/repair Windows
+          Sandbox on this PC, or rerun the local gate on a prepared Windows 11
+          release host.
 
           Completed 2026-08-15: the hosted Windows Server 2025 job now proves
           byte-identical unsigned ZIP/MSI package sets, WinGet and WiX validation,
