@@ -150,7 +150,9 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "SOURCE_DATE_EPOCH" }
             ],
             "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-npm"]
         },
@@ -169,6 +171,21 @@
                 { "env": "CEM_ML_RELEASE_SIGNING" }
             ],
             "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts"]
+        },
+        "verify:release": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["sign"],
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs verify-unit @epa-wg/cem-ml-cli",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                { "dependentTasksOutputFiles": "**/*", "transitive": false },
+                { "runtime": "git rev-parse HEAD" }
+            ],
+            "outputs": []
         },
         "verify:consumer": {
             "cache": false,

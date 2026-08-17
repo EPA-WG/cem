@@ -108,10 +108,17 @@
             "inputs": [
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-version.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-version.test.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ml-npm-release-evidence.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs",
                 "{workspaceRoot}/.github/workflows/cem-ml-release.yml",
-                "{workspaceRoot}/.github/workflows/publish.yml"
+                "{workspaceRoot}/.github/workflows/publish.yml",
+                "{workspaceRoot}/packages/cem_ml/project.json",
+                "{workspaceRoot}/packages/cem-ml-npm/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-npm/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs"
             ],
             "outputs": []
         },
@@ -121,7 +128,7 @@
             "options": {
                 "commands": [
                     "node --check tools/scripts/cem-ml-nx-version-actions.cjs",
-                    "yarn eslint tools/scripts/cem-ml-npm-release-evidence.mjs tools/scripts/cem-ml-platform-version.mjs tools/scripts/cem-ml-platform-version.test.mjs tools/scripts/cem-ml-platform-release.mjs tools/scripts/cem-ml-platform-release.test.mjs tools/scripts/cem-ml-phase25-native-gates.mjs"
+                    "yarn eslint tools/scripts/cem-ml-npm-release-evidence.mjs tools/scripts/cem-ml-platform-version.mjs tools/scripts/cem-ml-platform-version.test.mjs tools/scripts/cem-ml-platform-release.mjs tools/scripts/cem-ml-platform-release.test.mjs tools/scripts/cem-ml-phase25-native-gates.mjs packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs"
                 ],
                 "cwd": "{workspaceRoot}",
                 "parallel": false
@@ -134,7 +141,13 @@
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-version.test.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs",
-                "{workspaceRoot}/tools/scripts/cem-ml-phase25-native-gates.mjs"
+                "{workspaceRoot}/tools/scripts/cem-ml-phase25-native-gates.mjs",
+                "{workspaceRoot}/packages/cem_ml/project.json",
+                "{workspaceRoot}/packages/cem-ml-npm/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-npm/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs"
             ],
             "outputs": []
         },
@@ -152,6 +165,25 @@
                 { "runtime": "git rev-parse HEAD" },
                 { "env": "CEM_ML_RELEASE_TAG" },
                 { "env": "CEM_ML_PLATFORM_DRAFT" }
+            ],
+            "outputs": []
+        },
+        "release:upload-ci-units": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:platform-version"],
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs upload-ci-units",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/dist/packages/cem-ml-npm/artifacts/**/*",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts/**/*",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts/**/*",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "CEM_ML_RELEASE_TAG" },
+                { "env": "CEM_ML_PLATFORM_UPLOAD" }
             ],
             "outputs": []
         },

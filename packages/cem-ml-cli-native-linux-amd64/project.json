@@ -97,6 +97,21 @@
       },
       "outputs": []
     },
+    "verify:release": {
+      "cache": false,
+      "executor": "nx:run-commands",
+      "dependsOn": ["sign"],
+      "options": {
+        "command": "node tools/scripts/cem-ml-platform-release.mjs verify-unit native-linux-amd64",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": [
+        "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+        { "dependentTasksOutputFiles": "**/*", "transitive": false },
+        { "runtime": "git rev-parse HEAD" }
+      ],
+      "outputs": []
+    },
     "publish": {
       "cache": false,
       "executor": "nx:run-commands",
@@ -135,6 +150,22 @@
       "dependsOn": ["verify"],
       "options": {
         "command": "node scripts/smoke.mjs uninstall",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": ["{projectRoot}/scripts/smoke.mjs", "{projectRoot}/tests/smoke-input.cem"],
+      "outputs": []
+    },
+    "smoke:release": {
+      "cache": false,
+      "executor": "nx:run-commands",
+      "dependsOn": ["verify", "verify:release"],
+      "options": {
+        "commands": [
+          "node scripts/smoke.mjs install",
+          "node scripts/smoke.mjs upgrade",
+          "node scripts/smoke.mjs uninstall"
+        ],
+        "parallel": false,
         "cwd": "{projectRoot}"
       },
       "inputs": ["{projectRoot}/scripts/smoke.mjs", "{projectRoot}/tests/smoke-input.cem"],

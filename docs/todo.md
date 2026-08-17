@@ -66,20 +66,30 @@ only to the final promotion step.
       reads the created release back before success.
 
 - [ ] Add CI-owned production and upload for the two WASM/npm units and Linux AMD64.
-    - [ ] Build each unit from the checked-out tag through its Nx package/sign/
+    - [x] Build each unit from the checked-out tag through its Nx package/sign/
           verify targets and run clean-consumer, platform-parity, and Linux
           install/upgrade/uninstall gates.
-    - Credential required before the Linux producer can be publication-ready:
-      provision the EPA-WG release GPG private key in the protected environment
-      and identify its signing key for `CEM_ML_RELEASE_GPG_KEY`. The environment
-      currently has no secrets, while the existing Linux Nx `sign` target
-      requires both that GPG identity and a GitHub artifact-attestation bundle.
-    - [ ] Generate GitHub artifact attestations and publication-ready signing
+    - [x] Generate GitHub artifact attestations and publication-ready signing
           evidence without granting any producer permission to publish the draft.
-    - [ ] Upload version-qualified unit assets idempotently to the existing draft;
+    - [x] Upload version-qualified unit assets idempotently to the existing draft;
           use GitHub Actions artifacts only for job-to-job transport.
     - [ ] Record source commit, Nx target, workflow run, toolchain/target identity,
           attestation, and smoke evidence for each CI-owned unit.
+    - Completed 2026-08-17: added independent Nx-owned npm/WASM and Linux AMD64
+      producer lanes, checksum-subject GitHub attestations, protected Linux GPG
+      signing, publication-mode unit verification, Linux lifecycle smoke gates,
+      Actions-artifact transport, and byte-verifying no-clobber upload to the
+      existing draft. The protected `cem-ml-release` environment owns the GPG
+      secret material, signing fingerprint, and both draft/upload opt-ins;
+      producer jobs have no `contents: write` authority. Synthetic coordinator,
+      signing, target-contract, drift, and idempotence coverage passes 30 tests.
+    - Next decision point: producer evidence must be emitted after all smoke gates,
+      but mutating an already checksummed and attested release unit would invalidate
+      its evidence. Recommended design is a separate version-qualified
+      `*.producer-evidence.json` sidecar per unit containing the workflow run and
+      attempt, Nx target, pinned toolchain/target identity, attestation reference,
+      and gate results, with its own attestation rather than rewriting package
+      subjects. Confirm that schema and trust boundary before implementing it.
 
 - [ ] Document and verify authorized native-host publication and recovery lanes.
     - [ ] Add one exact-tag/source-commit preflight shared by macOS ARM64,

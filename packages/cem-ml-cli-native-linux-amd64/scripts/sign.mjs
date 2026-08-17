@@ -1,4 +1,4 @@
-import { copyFileSync, rmSync } from 'node:fs';
+import { copyFileSync, readFileSync, rmSync } from 'node:fs';
 
 import {
     artifactPath,
@@ -6,6 +6,8 @@ import {
     authoritativeVersion,
     deployment,
     releaseTag,
+    releaseGpgSigningInvocation,
+    releasePublicationReady,
     requireFile,
     run,
     sha256File,
@@ -18,22 +20,25 @@ const checksum = requireFile(artifactPath(names.checksum), 'native checksum mani
 const signature = artifactPath(names.checksumSignature);
 const suppliedAttestation = process.env.CEM_ML_GITHUB_ATTESTATION_BUNDLE;
 const releaseKey = process.env.CEM_ML_RELEASE_GPG_KEY;
+const releasePassphrase = process.env.CEM_ML_RELEASE_GPG_PASSPHRASE;
+const signingRequired = process.env.CEM_ML_RELEASE_SIGNING === 'required';
+if (signingRequired && (!releaseKey?.trim() || !releasePassphrase || !suppliedAttestation)) {
+    throw new Error(
+        'release signing requires CEM_ML_RELEASE_GPG_KEY, CEM_ML_RELEASE_GPG_PASSPHRASE, and CEM_ML_GITHUB_ATTESTATION_BUNDLE',
+    );
+}
 rmSync(signature, { force: true });
 rmSync(artifactPath(names.attestation), { force: true });
 
 let gpg = { status: 'awaiting-release-credentials', signature: null, sha256: null };
 if (releaseKey !== undefined && releaseKey.trim().length > 0) {
-    run('gpg', [
-        '--batch',
-        '--yes',
-        '--armor',
-        '--local-user',
+    const invocation = releaseGpgSigningInvocation({
         releaseKey,
-        '--output',
+        passphrase: releasePassphrase,
         signature,
-        '--detach-sign',
         checksum,
-    ]);
+    });
+    run('gpg', invocation.args, { input: invocation.input, stdio: invocation.stdio });
     run('gpg', ['--verify', signature, checksum]);
     gpg = {
         status: 'signed',
@@ -44,15 +49,24 @@ if (releaseKey !== undefined && releaseKey.trim().length > 0) {
 
 let attestation = { status: 'awaiting-github-oidc', bundle: null, sha256: null };
 if (suppliedAttestation !== undefined) {
-    copyFileSync(requireFile(suppliedAttestation, 'GitHub attestation bundle'), artifactPath(names.attestation));
+    const bundle = requireFile(suppliedAttestation, 'GitHub attestation bundle');
+    for (const line of readFileSync(checksum, 'utf8').trim().split('\n')) {
+        const match = line.match(/^[a-f0-9]{64} {2}([^/\\]+)$/);
+        if (!match) throw new Error(`invalid native checksum line: ${line}`);
+        run('gh', ['attestation', 'verify', artifactPath(match[1]), '--repo', 'EPA-WG/cem', '--bundle', bundle]);
+    }
+    copyFileSync(bundle, artifactPath(names.attestation));
     attestation = {
-        status: 'supplied',
+        status: 'verified',
         bundle: names.attestation,
         sha256: sha256File(artifactPath(names.attestation)),
     };
 }
 
-const publicationReady = gpg.status === 'signed' && attestation.status === 'supplied';
+const publicationReady = releasePublicationReady({
+    gpgStatus: gpg.status,
+    attestationStatus: attestation.status,
+});
 writeJson(artifactPath(names.signing), {
     schemaVersion: 1,
     product: 'cem-ml',
@@ -73,9 +87,9 @@ writeJson(artifactPath(names.signing), {
     mode: publicationReady ? 'release' : 'unsigned-local',
 });
 
-if (process.env.CEM_ML_RELEASE_SIGNING === 'required' && !publicationReady) {
+if (signingRequired && !publicationReady) {
     throw new Error(
-        'release signing requires CEM_ML_RELEASE_GPG_KEY and CEM_ML_GITHUB_ATTESTATION_BUNDLE',
+        'release signing requires verified GPG and GitHub artifact-attestation evidence',
     );
 }
 console.log(

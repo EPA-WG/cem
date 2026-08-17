@@ -49,6 +49,8 @@ export const expectedReleaseUnits = Object.freeze([
     },
 ]);
 
+export const ciReleaseUnits = Object.freeze(expectedReleaseUnits.slice(0, 3));
+
 export function createOrResumePlatformReleaseDraft({
     workspaceRoot = defaultWorkspaceRoot,
     authorized = process.env.CEM_ML_PLATFORM_DRAFT === '1',
@@ -228,6 +230,127 @@ export function verifyPlatformRelease({
     const actualFiles = listFiles(assetsRoot).sort();
     assert.deepEqual(actualFiles, [...expectedChecksummed, checksumName].sort(), 'unindexed aggregate release asset');
     return index;
+}
+
+export function verifyPlatformReleaseUnit({
+    workspaceRoot = defaultWorkspaceRoot,
+    identity,
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+} = {}) {
+    const unit = expectedReleaseUnits.find((candidate) => candidate.identity === identity);
+    if (!unit) throw new Error(`unsupported CEM-ML release unit: ${identity}`);
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= `cem-ml-v${version}`;
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML release-unit tag drift');
+    assert.equal(taggedCommit, sourceCommit, 'CEM-ML release-unit source-commit drift');
+    return validateReleaseUnit({
+        root: resolve(workspaceRoot, unit.root),
+        unit,
+        version,
+        sourceCommit,
+        releaseTag,
+        publication: true,
+    });
+}
+
+export function uploadPlatformReleaseUnits({
+    workspaceRoot = defaultWorkspaceRoot,
+    units = ciReleaseUnits,
+    authorized = process.env.CEM_ML_PLATFORM_UPLOAD === '1',
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+    github,
+} = {}) {
+    if (!authorized) {
+        throw new Error('CI unit upload is disabled; set CEM_ML_PLATFORM_UPLOAD=1 in the protected release job');
+    }
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= process.env.CEM_ML_RELEASE_TAG ?? `cem-ml-v${version}`;
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    github ??= createGithubAssetClient(workspaceRoot);
+    assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML CI-unit release tag drift');
+    assert.equal(taggedCommit, sourceCommit, 'CEM-ML CI-unit tagged source-commit drift');
+
+    const validated = units.map((unit) =>
+        validateReleaseUnit({
+            root: resolve(workspaceRoot, unit.root),
+            unit,
+            version,
+            sourceCommit,
+            releaseTag,
+            publication: true,
+        }),
+    );
+    const localAssets = new Map();
+    const ownedBases = [];
+    for (const { root, entryFilename } of validated) {
+        ownedBases.push(entryFilename.replace(/\.release-index-entry\.json$/, ''));
+        for (const filename of listFiles(root)) {
+            if (!filename.startsWith(`cem-ml-${version}-`)) {
+                throw new Error(`CI release asset is not version-qualified for ${version}: ${filename}`);
+            }
+            if (localAssets.has(filename)) throw new Error(`duplicate CI release asset filename: ${filename}`);
+            localAssets.set(filename, resolve(root, filename));
+        }
+    }
+
+    const release = github.view(releaseTag);
+    assert.equal(release.tagName, releaseTag, 'GitHub draft release tag drift');
+    assert.equal(release.isDraft, true, `${releaseTag} must remain a draft during CI unit upload`);
+    const remoteNames = release.assets.map(({ name }) => name).sort();
+    const unexpectedOwned = remoteNames.filter(
+        (filename) => ownedBases.some((base) => filename.startsWith(`${base}.`)) && !localAssets.has(filename),
+    );
+    assert.deepEqual(unexpectedOwned, [], 'GitHub draft contains unexpected assets owned by CI release units');
+
+    const existingRoot = mkdtempSync(resolve(tmpdir(), `cem-ml-${version}-ci-existing-`));
+    try {
+        for (const filename of remoteNames.filter((name) => localAssets.has(name))) {
+            github.download(releaseTag, filename, existingRoot);
+            assert.equal(
+                sha256File(resolve(existingRoot, filename)),
+                sha256File(localAssets.get(filename)),
+                `existing CI draft asset is not immutable: ${filename}`,
+            );
+        }
+    } finally {
+        rmSync(existingRoot, { recursive: true, force: true });
+    }
+
+    const uploaded = [...localAssets.keys()].filter((filename) => !remoteNames.includes(filename));
+    if (uploaded.length > 0) github.upload(releaseTag, uploaded.map((filename) => localAssets.get(filename)));
+
+    const finalRelease = github.view(releaseTag);
+    assert.equal(finalRelease.isDraft, true, `${releaseTag} was published during CI unit upload`);
+    const finalNames = finalRelease.assets.map(({ name }) => name);
+    const downloadRoot = mkdtempSync(resolve(tmpdir(), `cem-ml-${version}-ci-final-`));
+    try {
+        for (const [filename, localPath] of localAssets) {
+            assert.ok(finalNames.includes(filename), `GitHub draft is missing CI asset ${filename}`);
+            github.download(releaseTag, filename, downloadRoot);
+            assert.equal(
+                sha256File(resolve(downloadRoot, filename)),
+                sha256File(localPath),
+                `downloaded CI draft asset drift: ${filename}`,
+            );
+        }
+    } finally {
+        rmSync(downloadRoot, { recursive: true, force: true });
+    }
+    return {
+        releaseTag,
+        identities: validated.map(({ identity }) => identity),
+        filenames: [...localAssets.keys()].sort(),
+        uploaded: uploaded.sort(),
+    };
 }
 
 export function uploadPlatformReleaseDraft({ workspaceRoot = defaultWorkspaceRoot } = {}) {
@@ -507,6 +630,22 @@ function createGithubReleaseClient(workspaceRoot) {
     };
 }
 
+function createGithubAssetClient(workspaceRoot) {
+    return {
+        view(releaseTag) {
+            return JSON.parse(
+                capture('gh', ['release', 'view', releaseTag, '--json', 'assets,isDraft,tagName'], workspaceRoot),
+            );
+        },
+        download(releaseTag, filename, destinationRoot) {
+            run('gh', ['release', 'download', releaseTag, '--pattern', filename, '--dir', destinationRoot], workspaceRoot);
+        },
+        upload(releaseTag, paths) {
+            run('gh', ['release', 'upload', releaseTag, ...paths], workspaceRoot);
+        },
+    };
+}
+
 function run(command, args, cwd) {
     const result = spawnSync(command, args, { cwd, encoding: 'utf8', stdio: 'inherit' });
     if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed with status ${result.status}`);
@@ -567,13 +706,13 @@ function writeJson(path, value) {
 
 if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     const command = process.argv[2];
-    const publication = process.argv.includes('--publication');
-    if (
-        !['create-draft', 'stage', 'verify', 'upload-draft'].includes(command) ||
-        process.argv.slice(3).some((arg) => arg !== '--publication')
-    ) {
+    const args = process.argv.slice(3);
+    const publication = args.includes('--publication');
+    const standardCommand = ['create-draft', 'stage', 'verify', 'upload-draft', 'upload-ci-units'].includes(command);
+    const verifyUnitCommand = command === 'verify-unit' && args.length === 1;
+    if ((!standardCommand && !verifyUnitCommand) || (standardCommand && args.some((arg) => arg !== '--publication'))) {
         throw new Error(
-            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|stage|verify|upload-draft> [--publication]',
+            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|stage|verify|upload-draft|upload-ci-units> [--publication] | verify-unit <identity>',
         );
     }
     if (command === 'create-draft') {
@@ -590,9 +729,16 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     } else if (command === 'verify') {
         const index = verifyPlatformRelease({ publication });
         console.log(`Verified immutable CEM-ML ${index.commonVersion} release stage across five deployments.`);
-    } else {
+    } else if (command === 'upload-draft') {
         if (publication) throw new Error('upload-draft is always publication mode; omit --publication');
         const index = uploadPlatformReleaseDraft();
         console.log(`Uploaded and reverified the complete draft ${index.releaseTag} asset set.`);
+    } else if (command === 'upload-ci-units') {
+        if (publication) throw new Error('upload-ci-units validates publication-ready units implicitly');
+        const result = uploadPlatformReleaseUnits();
+        console.log(`Uploaded ${result.uploaded.length} missing assets for ${result.identities.join(', ')}.`);
+    } else {
+        const result = verifyPlatformReleaseUnit({ identity: args[0] });
+        console.log(`Verified publication-ready CEM-ML release unit ${result.identity}.`);
     }
 }

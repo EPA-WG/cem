@@ -189,17 +189,14 @@ export function attestNpmReleaseEvidence({ workspaceRoot, packageName }) {
     const signing = readJson(signingPath);
     const suppliedAttestation = process.env.CEM_ML_GITHUB_ATTESTATION_BUNDLE;
     if (suppliedAttestation) {
-        const archive = entry.artifacts.find(({ filename }) => filename.endsWith('.tgz'));
-        if (!archive) throw new Error(`${packageName} release archive is missing`);
-        run('gh', [
-            'attestation',
-            'verify',
-            resolve(artifactRoot, archive.filename),
-            '--repo',
-            'EPA-WG/cem',
-            '--bundle',
-            requireFile(suppliedAttestation, 'GitHub artifact-attestation bundle'),
-        ], workspaceRoot);
+        const attestationBundle = requireFile(suppliedAttestation, 'GitHub artifact-attestation bundle');
+        for (const subject of releaseAttestationSubjects({ artifactRoot, entry })) {
+            run(
+                'gh',
+                ['attestation', 'verify', subject, '--repo', 'EPA-WG/cem', '--bundle', attestationBundle],
+                workspaceRoot,
+            );
+        }
         const attestationFilename = entry.signingRecord.replace('.signing.json', '.attestation.jsonl');
         const attestationPath = resolve(artifactRoot, attestationFilename);
         copyFileSync(suppliedAttestation, attestationPath);
@@ -216,6 +213,18 @@ export function attestNpmReleaseEvidence({ workspaceRoot, packageName }) {
         throw new Error(`${packageName} release signing requires CEM_ML_GITHUB_ATTESTATION_BUNDLE`);
     }
     return { artifactRoot, entry, signing };
+}
+
+export function releaseAttestationSubjects({ artifactRoot, entry }) {
+    const checksumPath = resolve(artifactRoot, entry.checksumManifest);
+    const lines = readFileSync(checksumPath, 'utf8').trim().split('\n');
+    const subjects = lines.map((line) => {
+        const filename = line.match(/^[a-f0-9]{64} {2}([^/]+)$/)?.[1];
+        if (!filename) throw new Error(`${entry.npmIdentity} checksum manifest contains an invalid subject`);
+        return requireFile(resolve(artifactRoot, filename), 'attestation subject');
+    });
+    if (subjects.length === 0) throw new Error(`${entry.npmIdentity} checksum manifest has no attestation subjects`);
+    return subjects;
 }
 
 function authoritativeVersion(workspaceRoot) {

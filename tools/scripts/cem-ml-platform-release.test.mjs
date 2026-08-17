@@ -1,18 +1,33 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    readdirSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-import { attestNpmReleaseEvidence } from './cem-ml-npm-release-evidence.mjs';
+import { attestNpmReleaseEvidence, releaseAttestationSubjects } from './cem-ml-npm-release-evidence.mjs';
 import {
+    releaseGpgSigningInvocation,
+    releasePublicationReady,
+} from '../../packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs';
+import {
+    ciReleaseUnits,
     createOrResumePlatformReleaseDraft,
     expectedReleaseUnits,
     githubDraftCreateArguments,
     stagePlatformRelease,
+    uploadPlatformReleaseUnits,
     uploadPlatformReleaseDraft,
+    verifyPlatformReleaseUnit,
     verifyPlatformRelease,
 } from './cem-ml-platform-release.mjs';
 
@@ -178,10 +193,155 @@ test('CEM-ML workflow owns its tag family and generic publishing excludes it', (
     assert.match(workflow, /name: cem-ml-release/);
     assert.match(workflow, /contents: write/);
     assert.match(workflow, /cem_ml:release:create-draft/);
+    assert.match(workflow, /npm-producers:/);
+    assert.match(workflow, /linux-producer:/);
+    assert.match(workflow, /upload-ci-units:/);
+    assert.ok(workflow.match(/uses: actions\/attest@v4/g)?.length >= 2);
+    assert.match(workflow, /artifact-metadata: write/);
+    assert.match(workflow, /CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64: \$\{\{ secrets\./);
+    assert.match(workflow, /CEM_ML_RELEASE_GPG_PASSPHRASE: \$\{\{ secrets\./);
+    assert.match(workflow, /uses: actions\/upload-artifact@v4/);
+    assert.match(workflow, /uses: actions\/download-artifact@v5/);
+    const producerJobs = workflow.slice(workflow.indexOf('  npm-producers:'), workflow.indexOf('  upload-ci-units:'));
+    assert.doesNotMatch(producerJobs, /contents: write/);
     assert.match(workflow, /CEM_ML_PLATFORM_DRAFT: \$\{\{ vars\.CEM_ML_PLATFORM_DRAFT \}\}/);
     assert.doesNotMatch(workflow, /CEM_ML_PLATFORM_DRAFT: ['"]?1/);
     assert.doesNotMatch(workflow, /release edit|draft=false|nx release publish/);
     assert.match(generic, /- '!cem-ml-v\*'/);
+});
+
+test('CI producer Nx targets are explicit and package evidence is keyed by the source commit', () => {
+    const npmRuntime = readProject('packages/cem-ml-npm/project.json');
+    const npmCli = readProject('packages/cem-ml-cli-npm/project.json');
+    const linux = readProject('packages/cem-ml-cli-native-linux-amd64/project.json');
+    const coordinator = readProject('packages/cem_ml/project.json');
+
+    for (const project of [npmRuntime, npmCli]) {
+        assert.deepEqual(project.targets.package.inputs.at(-2), { runtime: 'git rev-parse HEAD' });
+        assert.ok(project.targets['verify:release']);
+    }
+    assert.ok(linux.targets['verify:release']);
+    assert.ok(linux.targets['smoke:release']);
+    assert.deepEqual(linux.targets['smoke:release'].dependsOn, ['verify', 'verify:release']);
+    assert.ok(coordinator.targets['release:upload-ci-units']);
+});
+
+test('npm release attestations cover every checksum-listed subject', () => {
+    const fixture = createFixture();
+    try {
+        const entry = readJson(fixture.npmRuntime.entry);
+        const subjects = releaseAttestationSubjects({ artifactRoot: dirname(fixture.npmRuntime.entry), entry });
+        const expected = readFileSync(fixture.npmRuntime.checksum, 'utf8')
+            .trim()
+            .split('\n')
+            .map((line) => resolve(dirname(fixture.npmRuntime.entry), line.slice(66)));
+        assert.deepEqual(subjects, expected);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('Linux release GPG signing supplies a protected passphrase only through standard input', () => {
+    const passphrase = 'never-in-arguments';
+    const invocation = releaseGpgSigningInvocation({
+        releaseKey: 'a'.repeat(40),
+        passphrase,
+        signature: '/tmp/checksum.asc',
+        checksum: '/tmp/checksum',
+    });
+
+    assert.ok(invocation.args.includes('--pinentry-mode'));
+    assert.ok(invocation.args.includes('--passphrase-fd'));
+    assert.equal(invocation.args.includes(passphrase), false);
+    assert.equal(invocation.input, passphrase);
+    assert.deepEqual(invocation.stdio, ['pipe', 'inherit', 'inherit']);
+    assert.equal(releasePublicationReady({ gpgStatus: 'signed', attestationStatus: 'verified' }), true);
+    assert.equal(releasePublicationReady({ gpgStatus: 'signed', attestationStatus: 'supplied' }), false);
+});
+
+test('CI release-unit verification accepts each publication-ready CI-owned unit independently', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, ciReleaseUnits);
+        for (const unit of ciReleaseUnits) {
+            const verified = verifyPlatformReleaseUnit({
+                workspaceRoot: fixture.root,
+                identity: unit.identity,
+                version,
+                sourceCommit,
+                releaseTag,
+                taggedCommit: sourceCommit,
+            });
+            assert.equal(verified.identity, unit.identity);
+        }
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('CI-owned unit upload is idempotent, byte-verifies existing assets, and preserves foreign units', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, ciReleaseUnits);
+        const github = createFakeGithubAssetClient({
+            'cem-ml-3.4.5-native-macos-arm64.manual': 'manual host bytes',
+        });
+        const first = uploadPlatformReleaseUnits({
+            workspaceRoot: fixture.root,
+            units: ciReleaseUnits,
+            authorized: true,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            github,
+        });
+        assert.equal(first.uploaded.length > 0, true);
+        assert.equal(github.assets.has('cem-ml-3.4.5-native-macos-arm64.manual'), true);
+
+        const second = uploadPlatformReleaseUnits({
+            workspaceRoot: fixture.root,
+            units: ciReleaseUnits,
+            authorized: true,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            github,
+        });
+        assert.deepEqual(second.uploaded, []);
+        assert.equal(github.uploadCalls, 1);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('CI-owned unit upload rejects remote byte drift without clobbering', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, ciReleaseUnits);
+        const ownedRoot = resolve(fixture.root, ciReleaseUnits[0].root);
+        const ownedFilename = readdirSync(ownedRoot).find((filename) => filename.endsWith('.tgz'));
+        assert.ok(ownedFilename);
+        const github = createFakeGithubAssetClient({ [ownedFilename]: 'drifted remote bytes' });
+        assert.throws(
+            () =>
+                uploadPlatformReleaseUnits({
+                    workspaceRoot: fixture.root,
+                    units: ciReleaseUnits,
+                    authorized: true,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    github,
+                }),
+            /immutable|drift/,
+        );
+        assert.equal(github.uploadCalls, 0);
+    } finally {
+        fixture.dispose();
+    }
 });
 
 test('five deployment fixtures stage one complete immutable release index', () => {
@@ -300,6 +460,34 @@ function createFakeGithubReleaseClient(initialRelease = null) {
     return client;
 }
 
+function createFakeGithubAssetClient(initialAssets = {}) {
+    const assets = new Map(Object.entries(initialAssets).map(([name, content]) => [name, Buffer.from(content)]));
+    return {
+        assets,
+        uploadCalls: 0,
+        view(tag) {
+            return {
+                tagName: tag,
+                isDraft: true,
+                assets: [...assets.keys()].sort().map((name) => ({ name })),
+            };
+        },
+        download(_tag, filename, destinationRoot) {
+            const content = assets.get(filename);
+            if (!content) throw new Error(`missing fake remote asset ${filename}`);
+            writeFileSync(resolve(destinationRoot, filename), content);
+        },
+        upload(_tag, paths) {
+            this.uploadCalls += 1;
+            for (const path of paths) {
+                const filename = basename(path);
+                if (assets.has(filename)) throw new Error(`fake upload would clobber ${filename}`);
+                assets.set(filename, readFileSync(path));
+            }
+        },
+    };
+}
+
 function createFixture() {
     const root = mkdtempSync(resolve(tmpdir(), 'cem-ml-platform-release-'));
     let npmRuntime;
@@ -308,6 +496,27 @@ function createFixture() {
         if (unit.identity === '@epa-wg/cem-ml') npmRuntime = created;
     }
     return { root, npmRuntime, dispose: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+function makePublicationReady(workspaceRoot, units) {
+    for (const unit of units) {
+        const root = resolve(workspaceRoot, unit.root);
+        const entryFilename = readdirSync(root).find((filename) => filename.endsWith('.release-index-entry.json'));
+        assert.ok(entryFilename);
+        const entry = JSON.parse(readFileSync(resolve(root, entryFilename), 'utf8'));
+        const signingPath = resolve(root, entry.signingRecord);
+        const attestationFilename = entry.signingRecord.replace('.signing.json', '.attestation.jsonl');
+        const attestationPath = resolve(root, attestationFilename);
+        writeFileSync(attestationPath, `${JSON.stringify({ unit: unit.identity })}\n`);
+        updateJson(signingPath, (signing) => {
+            signing.githubArtifactAttestation = {
+                status: 'verified',
+                bundle: attestationFilename,
+                sha256: sha256File(attestationPath),
+            };
+            signing.publicationReady = true;
+        });
+    }
 }
 
 function writeUnit(workspaceRoot, unit) {
@@ -407,7 +616,17 @@ function writeUnit(workspaceRoot, unit) {
         githubArtifactAttestation: { status: 'awaiting-github-oidc', bundle: null, sha256: null },
         publicationReady: false,
     });
-    return { root, primary, capability, integrity, sbom, provenance, entry, signing };
+    return {
+        root,
+        primary,
+        capability,
+        integrity,
+        sbom,
+        provenance,
+        entry,
+        checksum: resolve(root, checksumName),
+        signing,
+    };
 }
 
 function artifactRecord(root, filename) {
@@ -421,6 +640,14 @@ function sha256File(path) {
 
 function writeJson(path, value) {
     writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function readJson(path) {
+    return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function readProject(relativePath) {
+    return readJson(resolve(workspaceRoot, relativePath));
 }
 
 function updateJson(path, mutate) {

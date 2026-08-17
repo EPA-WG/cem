@@ -105,6 +105,7 @@ export function run(command, args, options = {}) {
         env: { ...process.env, ...options.env },
         encoding: 'utf8',
         stdio: options.stdio ?? 'inherit',
+        input: options.input,
     });
     if (result.status !== 0) {
         const detail =
@@ -112,6 +113,25 @@ export function run(command, args, options = {}) {
         throw new Error(`${command} ${args.join(' ')} failed: ${detail}`);
     }
     return result;
+}
+
+export function releaseGpgSigningInvocation({ releaseKey, passphrase, signature, checksum }) {
+    if (!releaseKey?.trim()) throw new Error('release GPG fingerprint is required');
+    const args = ['--batch', '--yes'];
+    let input;
+    let stdio = 'inherit';
+    if (passphrase !== undefined) {
+        if (passphrase.length === 0) throw new Error('release GPG passphrase must not be empty');
+        args.push('--pinentry-mode', 'loopback', '--passphrase-fd', '0');
+        input = passphrase;
+        stdio = ['pipe', 'inherit', 'inherit'];
+    }
+    args.push('--armor', '--local-user', releaseKey, '--output', signature, '--detach-sign', checksum);
+    return { args, input, stdio };
+}
+
+export function releasePublicationReady({ gpgStatus, attestationStatus }) {
+    return gpgStatus === 'signed' && attestationStatus === 'verified';
 }
 
 export function capture(command, args, options = {}) {
