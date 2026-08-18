@@ -169,7 +169,10 @@ test('Node command AbortSignal produces the stable cooperative cancellation term
 test('cem-ml executable preserves success, usage, and host-I/O exit policy', () => {
     const version = runExecutable(['--version']);
     assert.equal(version.status, 0);
-    assert.match(version.stdout, /^cem-ml \d+\.\d+\.\d+\n/);
+    assert.match(
+        version.stdout,
+        /^cem-ml (?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\n/,
+    );
     assert.match(version.stdout, /Copyright/);
 
     const usage = runExecutable(['--definitely-invalid']);

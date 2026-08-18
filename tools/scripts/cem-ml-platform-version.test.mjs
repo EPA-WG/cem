@@ -19,7 +19,7 @@ test('Cargo authority synchronizes every platform manifest and exact dependency 
         const authorityPath = resolve(fixtureRoot, 'packages/cem_ml/Cargo.toml');
         writeFileSync(
             authorityPath,
-            readFileSync(authorityPath, 'utf8').replace('version = "0.1.0"', 'version = "2.3.4"'),
+            readFileSync(authorityPath, 'utf8').replace(/^version\s*=\s*"[^"]+"\s*$/m, 'version = "2.3.4"'),
         );
 
         const synchronized = synchronizePlatformVersion({ workspaceRoot: fixtureRoot, write: true });

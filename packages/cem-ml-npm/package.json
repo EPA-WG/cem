@@ -1,6 +1,6 @@
 {
   "name": "@epa-wg/cem-ml",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "description": "Low-level browser and Node WebAssembly runtime for CEM-ML",
   "author": {
     "name": "Sasha Firsov",

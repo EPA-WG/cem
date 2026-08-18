@@ -1392,7 +1392,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-ml-cli@workspace:packages/cem-ml-cli-npm"
   dependencies:
-    "@epa-wg/cem-ml": "npm:0.1.0"
+    "@epa-wg/cem-ml": "npm:0.1.0-rc.1"
     "@types/node": "npm:25.6.0"
     typescript: "npm:6.0.3"
   bin:
@@ -1400,7 +1400,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/cem-ml@npm:0.1.0, @epa-wg/cem-ml@workspace:packages/cem-ml-npm":
+"@epa-wg/cem-ml@npm:0.1.0-rc.1, @epa-wg/cem-ml@workspace:packages/cem-ml-npm":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-ml@workspace:packages/cem-ml-npm"
   languageName: unknown

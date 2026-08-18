@@ -21,5 +21,5 @@
         "version": "1.50.0",
         "darwinArm64ArchiveSha256": "e32fdb9d47823fa633748a1efca2528fd77c37469ea93c9e40ab835da44e4cce"
     },
-    "commonVersion": "0.1.0"
+    "commonVersion": "0.1.0-rc.1"
 }
