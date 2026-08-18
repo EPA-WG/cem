@@ -945,6 +945,15 @@ name })`; bundlers, CSP-constrained hosts, and browser fixtures may inject the s
 factory signature with their resolved module URL. The injected value creates a worker
 and does not replace the semantic processing host.
 
+For Phase 3A distribution, `@epa-wg/cem-elements` owns the worker runtime assets.
+Its build copies the exact `cem_ql:build:wasm` ESM glue, declarations, and adjacent
+WASM binary into `dist/lib/internal/runtime-support/vendor/`, then rewrites only the
+built runtime-support imports to that package-local module. Workspace source keeps its
+direct generated-output import for Storybook and tests. The npm package MUST contain
+the package-local runtime assets and MUST NOT retain a monorepo-relative
+`packages/cem_ql` import. Publishing a separate CEM-QL JavaScript package remains
+deferred with extraction of the package-private runtime-support layer.
+
 The host moves through `worker-starting`, `worker-ready`, `main-thread-ready`, and
 `disposed`. A startup or post-handshake worker failure selects the main-thread host at
 most once, ignores all later responses from the failed worker generation, and emits

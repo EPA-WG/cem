@@ -5,7 +5,29 @@
     "projectType": "library",
     "targets": {
         "build": {
-            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }]
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }],
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/tsconfig.lib.json",
+                "{projectRoot}/src/**/*.ts",
+                "!{projectRoot}/src/**/*.spec.ts",
+                "!{projectRoot}/src/**/*.test.ts",
+                "!{projectRoot}/src/**/*.stories.ts",
+                "{projectRoot}/scripts/package-runtime-assets.mjs",
+                "{workspaceRoot}/tsconfig.base.json",
+                "{workspaceRoot}/packages/cem_ql/dist/wasm/**"
+            ],
+            "outputs": ["{projectRoot}/dist"],
+            "options": {
+                "commands": [
+                    "tsc --build tsconfig.lib.json",
+                    "node scripts/package-runtime-assets.mjs"
+                ],
+                "parallel": false,
+                "cwd": "{projectRoot}"
+            }
         },
         "typecheck": {
             "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }]
@@ -183,6 +205,24 @@
             ],
             "outputs": []
         },
+        "verify-package": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "inputs": [
+                "{projectRoot}/scripts/verify-package.mjs",
+                "{projectRoot}/package.json",
+                {
+                    "dependentTasksOutputFiles": "dist/**",
+                    "transitive": false
+                }
+            ],
+            "outputs": [],
+            "options": {
+                "command": "node scripts/verify-package.mjs",
+                "cwd": "{projectRoot}"
+            }
+        },
         "verify-edge-ssr": {
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -210,10 +250,11 @@
                 "verify-legacy-fixtures",
                 "verify-material-fixtures",
                 "verify-demo-fixtures",
-                "verify-cemt-pipeline-story"
+                "verify-cemt-pipeline-story",
+                "verify-package"
             ],
             "options": {
-                "command": "echo \"Phase 3A browser verification gate green: lint, typecheck, unit and Storybook browser tests, CEM-ML validation/e2e/bench, substrate roundtrips, file-backed parity inventories, executable demos, and the CEMT pipeline story all passed.\"",
+                "command": "echo \"Phase 3A browser verification gate green: lint, typecheck, unit and Storybook browser tests, CEM-ML validation/e2e/bench, substrate roundtrips, file-backed parity inventories, executable demos, the CEMT pipeline story, and the clean npm package check all passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

@@ -27,6 +27,7 @@ That aggregate gate runs:
 - `cem-elements:verify-legacy-fixtures`
 - `cem-elements:verify-material-fixtures`
 - `cem-elements:verify-cemt-pipeline-story`
+- `cem-elements:verify-package`
 - `cem-elements:test:unit`
 - `cem-elements:test`
 
@@ -59,6 +60,12 @@ That adoption remains a later Phase 3.6 handoff after Edge/SSR boundaries are in
 ## Building
 
 Run `yarn nx run cem-elements:build` to build the library.
+
+The build vendors the exact `cem_ql:build:wasm` browser module, declarations,
+and WASM binary under `dist/lib/internal/runtime-support/vendor/`; published
+runtime modules never import a monorepo-relative `packages/cem_ql` path. Run
+`yarn nx run cem-elements:verify-package` to compare those bytes and verify the
+real npm archive and clean-consumer import.
 
 ## Testing
 

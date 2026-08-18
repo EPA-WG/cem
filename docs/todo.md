@@ -131,6 +131,15 @@ registration identities may reuse an inherited or existing definition.
     - [x] Register one inline `<cem-element>` declaration under the locked name
           rules and capture one produced instance's author payload into an inert
           WHATWG template data island.
+    - [x] Package the exact generated CEM-QL ESM/declaration/WASM assets beside the
+          package-private runtime support, rewrite built imports package-locally,
+          declare the assets as cached Nx outputs, and verify the npm archive
+          inventory before adding the module-worker entry.
+          Completed 2026-08-18: `cem-elements:verify-package` packs 44 files,
+          verifies the exact 31,092,853-byte WASM artifact and local ESM imports,
+          excludes sources/build metadata, and imports the tarball from a clean
+          temporary consumer; its build and verification targets restore from Nx
+          cache.
     - [ ] Compile/render through the existing CEM-ML/CEM-QL WASM boundary using
           one dedicated worker, with the same semantic result through the required
           main-thread fallback.
