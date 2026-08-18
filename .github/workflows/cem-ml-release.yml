@@ -1,357 +1,409 @@
 name: CEM-ML Release
 
 on:
-  push:
-    tags:
-      - 'cem-ml-v*'
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: Exact existing CEM-ML tag to create or resume
-        required: true
-        type: string
+    push:
+        tags:
+            - 'cem-ml-v*'
+    workflow_dispatch:
+        inputs:
+            release_tag:
+                description: Exact existing CEM-ML tag to create or resume
+                required: true
+                type: string
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: cem-ml-release-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
-  cancel-in-progress: false
+    group: cem-ml-release-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+    cancel-in-progress: false
 
 jobs:
-  create-draft:
-    name: Create or resume protected draft
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment:
-      name: cem-ml-release
-    permissions:
-      contents: write
+    create-draft:
+        name: Create or resume protected draft
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        environment:
+            name: cem-ml-release
+        permissions:
+            contents: write
 
-    steps:
-      - name: Checkout exact release tag
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
-      - name: Enable Corepack
-        run: corepack enable
+            - name: Enable Corepack
+              run: corepack enable
 
-      - name: Use Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: yarn
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  cache: yarn
 
-      - name: Install dependencies
-        run: yarn install --immutable
+            - name: Install dependencies
+              run: yarn install --immutable
 
-      - name: Create or resume draft release
-        run: yarn nx run cem_ml:release:create-draft --parallel=false
-        env:
-          CEM_ML_PLATFORM_DRAFT: ${{ vars.CEM_ML_PLATFORM_DRAFT }}
-          CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
-          GH_TOKEN: ${{ github.token }}
+            - name: Create or resume draft release
+              run: yarn nx run cem_ml:release:create-draft --parallel=false
+              env:
+                  CEM_ML_PLATFORM_DRAFT: ${{ vars.CEM_ML_PLATFORM_DRAFT }}
+                  CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+                  GH_TOKEN: ${{ github.token }}
 
-  npm-producers:
-    name: Produce ${{ matrix.project }}
-    needs: create-draft
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - project: '@epa-wg/cem-ml'
-            artifact-root: dist/packages/cem-ml-npm/artifacts
-            artifact-name: cem-ml-wasm-runtime-npm
-            platform-parity: false
-          - project: '@epa-wg/cem-ml-cli'
-            artifact-root: dist/packages/cem-ml-cli-npm/artifacts
-            artifact-name: cem-ml-universal-cli-npm
-            platform-parity: true
+    npm-producers:
+        name: Produce ${{ matrix.project }}
+        needs: create-draft
+        runs-on: ubuntu-24.04
+        timeout-minutes: 45
+        permissions:
+            contents: read
+            id-token: write
+            attestations: write
+            artifact-metadata: write
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: '@epa-wg/cem-ml'
+                      artifact-root: dist/packages/cem-ml-npm/artifacts
+                      artifact-name: cem-ml-wasm-runtime-npm
+                      platform-parity: false
+                    - project: '@epa-wg/cem-ml-cli'
+                      artifact-root: dist/packages/cem-ml-cli-npm/artifacts
+                      artifact-name: cem-ml-universal-cli-npm
+                      platform-parity: true
 
-    steps:
-      - name: Checkout exact release tag
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
-      - name: Enable Corepack
-        run: corepack enable
+            - name: Enable Corepack
+              run: corepack enable
 
-      - name: Use Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: yarn
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  cache: yarn
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: wasm32-unknown-unknown
 
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: '. -> dist/target'
+            - name: Cache Rust
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: '. -> dist/target'
 
-      - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@v2
-        with:
-          tool: wasm-bindgen-cli@0.2.122
+            - name: Install wasm-bindgen CLI
+              uses: taiki-e/install-action@v2
+              with:
+                  tool: wasm-bindgen-cli@0.2.122
 
-      - name: Install dependencies
-        run: yarn install --immutable
+            - name: Install dependencies
+              run: yarn install --immutable
 
-      - name: Install Playwright Chromium
-        if: matrix.platform-parity
-        run: npx playwright install --with-deps chromium
+            - name: Install Playwright Chromium
+              if: matrix.platform-parity
+              run: npx playwright install --with-deps chromium
 
-      - name: Package through Nx
-        run: yarn nx run "${{ matrix.project }}:package" --parallel=false
+            - name: Package through Nx
+              run: yarn nx run "${{ matrix.project }}:package" --parallel=false
 
-      - name: Run clean-consumer gate
-        run: yarn nx run "${{ matrix.project }}:check" --parallel=false
+            - name: Run clean-consumer gate
+              run: yarn nx run "${{ matrix.project }}:check" --parallel=false
 
-      - name: Run native, Node, and browser platform parity
-        if: matrix.platform-parity
-        run: yarn nx run "${{ matrix.project }}:verify:platform-parity" --parallel=false
+            - name: Run native, Node, and browser platform parity
+              if: matrix.platform-parity
+              run: yarn nx run "${{ matrix.project }}:verify:platform-parity" --parallel=false
 
-      - name: Resolve checksum manifest
-        id: checksum
-        shell: bash
-        run: |
-          mapfile -t manifests < <(find "${{ matrix.artifact-root }}" -maxdepth 1 -type f -name '*.sha256' -print)
-          test "${#manifests[@]}" -eq 1
-          echo "path=${manifests[0]}" >> "$GITHUB_OUTPUT"
+            - name: Resolve checksum manifest
+              id: checksum
+              shell: bash
+              run: |
+                  mapfile -t manifests < <(find "${{ matrix.artifact-root }}" -maxdepth 1 -type f -name '*.sha256' -print)
+                  test "${#manifests[@]}" -eq 1
+                  echo "path=${manifests[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate GitHub artifact attestation
-        id: attestation
-        uses: actions/attest@v4
-        with:
-          subject-checksums: ${{ steps.checksum.outputs.path }}
+            - name: Generate GitHub artifact attestation
+              id: attestation
+              uses: actions/attest@v4
+              with:
+                  subject-checksums: ${{ steps.checksum.outputs.path }}
 
-      - name: Verify publication-ready release unit through Nx
-        run: yarn nx run "${{ matrix.project }}:verify:release" --parallel=false
-        env:
-          CEM_ML_GITHUB_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
-          CEM_ML_RELEASE_SIGNING: required
-          GH_TOKEN: ${{ github.token }}
+            - name: Verify publication-ready release unit through Nx
+              run: yarn nx run "${{ matrix.project }}:verify:release" --parallel=false
+              env:
+                  CEM_ML_GITHUB_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
+                  CEM_ML_RELEASE_SIGNING: required
+                  GH_TOKEN: ${{ github.token }}
 
-      - name: Record post-gate producer evidence through Nx
-        run: yarn nx run "${{ matrix.project }}:record:producer-evidence" --parallel=false
-        env:
-          CEM_ML_ARTIFACT_ATTESTATION_ID: ${{ steps.attestation.outputs.attestation-id }}
-          CEM_ML_ARTIFACT_ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
-          CEM_ML_RUNNER_IMAGE: ubuntu-24.04
+            - name: Record post-gate producer evidence through Nx
+              run: yarn nx run "${{ matrix.project }}:record:producer-evidence" --parallel=false
+              env:
+                  CEM_ML_ARTIFACT_ATTESTATION_ID: ${{ steps.attestation.outputs.attestation-id }}
+                  CEM_ML_ARTIFACT_ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+                  CEM_ML_RUNNER_IMAGE: ubuntu-24.04
 
-      - name: Resolve producer-evidence sidecar
-        id: producer-evidence
-        shell: bash
-        run: |
-          mapfile -t evidence < <(find "${{ matrix.artifact-root }}" -maxdepth 1 -type f -name '*.producer-evidence.json' -print)
-          test "${#evidence[@]}" -eq 1
-          echo "path=${evidence[0]}" >> "$GITHUB_OUTPUT"
+            - name: Resolve producer-evidence sidecar
+              id: producer-evidence
+              shell: bash
+              run: |
+                  mapfile -t evidence < <(find "${{ matrix.artifact-root }}" -maxdepth 1 -type f -name '*.producer-evidence.json' -print)
+                  test "${#evidence[@]}" -eq 1
+                  echo "path=${evidence[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Attest producer-evidence sidecar
-        id: producer-evidence-attestation
-        uses: actions/attest@v4
-        with:
-          subject-path: ${{ steps.producer-evidence.outputs.path }}
+            - name: Attest producer-evidence sidecar
+              id: producer-evidence-attestation
+              uses: actions/attest@v4
+              with:
+                  subject-path: ${{ steps.producer-evidence.outputs.path }}
 
-      - name: Verify producer-evidence attestation through Nx
-        run: yarn nx run "${{ matrix.project }}:verify:producer-evidence" --parallel=false
-        env:
-          CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE: ${{ steps.producer-evidence-attestation.outputs.bundle-path }}
-          GH_TOKEN: ${{ github.token }}
+            - name: Verify producer-evidence attestation through Nx
+              run: yarn nx run "${{ matrix.project }}:verify:producer-evidence" --parallel=false
+              env:
+                  CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE: ${{ steps.producer-evidence-attestation.outputs.bundle-path }}
+                  GH_TOKEN: ${{ github.token }}
 
-      - name: Transport release unit
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact-name }}
-          path: ${{ matrix.artifact-root }}
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
+            - name: Transport release unit
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ matrix.artifact-name }}
+                  path: ${{ matrix.artifact-root }}
+                  if-no-files-found: error
+                  compression-level: 0
+                  retention-days: 7
 
-  linux-producer:
-    name: Produce native Linux AMD64
-    needs: create-draft
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    environment:
-      name: cem-ml-release
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
+    linux-producer:
+        name: Produce native Linux AMD64
+        needs: create-draft
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        environment:
+            name: cem-ml-release
+        permissions:
+            contents: read
+            id-token: write
+            attestations: write
+            artifact-metadata: write
 
-    steps:
-      - name: Checkout exact release tag
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
-      - name: Enable Corepack
-        run: corepack enable
+            - name: Enable Corepack
+              run: corepack enable
 
-      - name: Use Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: yarn
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  cache: yarn
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: x86_64-unknown-linux-gnu
 
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: '. -> dist/target'
+            - name: Cache Rust
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: '. -> dist/target'
 
-      - name: Install dependencies
-        run: yarn install --immutable
+            - name: Install dependencies
+              run: yarn install --immutable
 
-      - name: Package through Nx
-        run: yarn nx run cem_ml_cli_native_linux_amd64:package --parallel=false
+            - name: Package through Nx
+              run: yarn nx run cem_ml_cli_native_linux_amd64:package --parallel=false
 
-      - name: Resolve checksum manifest
-        id: checksum
-        shell: bash
-        run: |
-          mapfile -t manifests < <(find dist/packages/cem-ml-cli-native-linux-amd64/artifacts -maxdepth 1 -type f -name '*.sha256' -print)
-          test "${#manifests[@]}" -eq 1
-          echo "path=${manifests[0]}" >> "$GITHUB_OUTPUT"
+            - name: Resolve checksum manifest
+              id: checksum
+              shell: bash
+              run: |
+                  mapfile -t manifests < <(find dist/packages/cem-ml-cli-native-linux-amd64/artifacts -maxdepth 1 -type f -name '*.sha256' -print)
+                  test "${#manifests[@]}" -eq 1
+                  echo "path=${manifests[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate GitHub artifact attestation
-        id: attestation
-        uses: actions/attest@v4
-        with:
-          subject-checksums: ${{ steps.checksum.outputs.path }}
+            - name: Generate GitHub artifact attestation
+              id: attestation
+              uses: actions/attest@v4
+              with:
+                  subject-checksums: ${{ steps.checksum.outputs.path }}
 
-      - name: Import protected release signing subkey
-        shell: bash
-        env:
-          CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64: ${{ secrets.CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64 }}
-          CEM_ML_RELEASE_GPG_KEY: ${{ vars.CEM_ML_RELEASE_GPG_KEY }}
-        run: |
-          signing_home="$RUNNER_TEMP/cem-ml-release-gnupg"
-          install -d -m 700 "$signing_home"
-          printf '%s' "$CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64" | base64 --decode | gpg --batch --homedir "$signing_home" --import
-          imported_fingerprint="$(gpg --batch --homedir "$signing_home" --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
-          test "$imported_fingerprint" = "$CEM_ML_RELEASE_GPG_KEY"
-          echo "GNUPGHOME=$signing_home" >> "$GITHUB_ENV"
+            - name: Import protected release signing subkey
+              shell: bash
+              env:
+                  CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64: ${{ secrets.CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64 }}
+                  CEM_ML_RELEASE_GPG_KEY: ${{ vars.CEM_ML_RELEASE_GPG_KEY }}
+              run: |
+                  signing_home="$RUNNER_TEMP/cem-ml-release-gnupg"
+                  install -d -m 700 "$signing_home"
+                  printf '%s' "$CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64" | base64 --decode | gpg --batch --homedir "$signing_home" --import
+                  imported_fingerprint="$(gpg --batch --homedir "$signing_home" --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
+                  test "$imported_fingerprint" = "$CEM_ML_RELEASE_GPG_KEY"
+                  echo "GNUPGHOME=$signing_home" >> "$GITHUB_ENV"
 
-      - name: Verify signed release unit and lifecycle through Nx
-        run: yarn nx run cem_ml_cli_native_linux_amd64:smoke:release --parallel=false
-        env:
-          CEM_ML_GITHUB_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
-          CEM_ML_RELEASE_GPG_KEY: ${{ vars.CEM_ML_RELEASE_GPG_KEY }}
-          CEM_ML_RELEASE_GPG_PASSPHRASE: ${{ secrets.CEM_ML_RELEASE_GPG_PASSPHRASE }}
-          CEM_ML_RELEASE_SIGNING: required
-          CEM_ML_RELEASE_VERIFY: '1'
-          GH_TOKEN: ${{ github.token }}
+            - name: Verify signed release unit and lifecycle through Nx
+              run: yarn nx run cem_ml_cli_native_linux_amd64:smoke:release --parallel=false
+              env:
+                  CEM_ML_GITHUB_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
+                  CEM_ML_RELEASE_GPG_KEY: ${{ vars.CEM_ML_RELEASE_GPG_KEY }}
+                  CEM_ML_RELEASE_GPG_PASSPHRASE: ${{ secrets.CEM_ML_RELEASE_GPG_PASSPHRASE }}
+                  CEM_ML_RELEASE_SIGNING: required
+                  CEM_ML_RELEASE_VERIFY: '1'
+                  GH_TOKEN: ${{ github.token }}
 
-      - name: Record post-smoke producer evidence through Nx
-        run: yarn nx run cem_ml_cli_native_linux_amd64:record:producer-evidence --parallel=false
-        env:
-          CEM_ML_ARTIFACT_ATTESTATION_ID: ${{ steps.attestation.outputs.attestation-id }}
-          CEM_ML_ARTIFACT_ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
-          CEM_ML_RUNNER_IMAGE: ubuntu-24.04
+            - name: Record post-smoke producer evidence through Nx
+              run: yarn nx run cem_ml_cli_native_linux_amd64:record:producer-evidence --parallel=false
+              env:
+                  CEM_ML_ARTIFACT_ATTESTATION_ID: ${{ steps.attestation.outputs.attestation-id }}
+                  CEM_ML_ARTIFACT_ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+                  CEM_ML_RUNNER_IMAGE: ubuntu-24.04
 
-      - name: Resolve producer-evidence sidecar
-        id: producer-evidence
-        shell: bash
-        run: |
-          mapfile -t evidence < <(find dist/packages/cem-ml-cli-native-linux-amd64/artifacts -maxdepth 1 -type f -name '*.producer-evidence.json' -print)
-          test "${#evidence[@]}" -eq 1
-          echo "path=${evidence[0]}" >> "$GITHUB_OUTPUT"
+            - name: Resolve producer-evidence sidecar
+              id: producer-evidence
+              shell: bash
+              run: |
+                  mapfile -t evidence < <(find dist/packages/cem-ml-cli-native-linux-amd64/artifacts -maxdepth 1 -type f -name '*.producer-evidence.json' -print)
+                  test "${#evidence[@]}" -eq 1
+                  echo "path=${evidence[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Attest producer-evidence sidecar
-        id: producer-evidence-attestation
-        uses: actions/attest@v4
-        with:
-          subject-path: ${{ steps.producer-evidence.outputs.path }}
+            - name: Attest producer-evidence sidecar
+              id: producer-evidence-attestation
+              uses: actions/attest@v4
+              with:
+                  subject-path: ${{ steps.producer-evidence.outputs.path }}
 
-      - name: Verify producer-evidence attestation through Nx
-        run: yarn nx run cem_ml_cli_native_linux_amd64:verify:producer-evidence --parallel=false
-        env:
-          CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE: ${{ steps.producer-evidence-attestation.outputs.bundle-path }}
-          GH_TOKEN: ${{ github.token }}
+            - name: Verify producer-evidence attestation through Nx
+              run: yarn nx run cem_ml_cli_native_linux_amd64:verify:producer-evidence --parallel=false
+              env:
+                  CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE: ${{ steps.producer-evidence-attestation.outputs.bundle-path }}
+                  GH_TOKEN: ${{ github.token }}
 
-      - name: Transport release unit
-        uses: actions/upload-artifact@v4
-        with:
-          name: cem-ml-native-linux-amd64
-          path: dist/packages/cem-ml-cli-native-linux-amd64/artifacts
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
+            - name: Transport release unit
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cem-ml-native-linux-amd64
+                  path: dist/packages/cem-ml-cli-native-linux-amd64/artifacts
+                  if-no-files-found: error
+                  compression-level: 0
+                  retention-days: 7
 
-  upload-ci-units:
-    name: Upload immutable CI-owned units to draft
-    needs:
-      - npm-producers
-      - linux-producer
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment:
-      name: cem-ml-release
-    permissions:
-      contents: write
+    upload-ci-units:
+        name: Upload immutable CI-owned units to draft
+        needs:
+            - npm-producers
+            - linux-producer
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        environment:
+            name: cem-ml-release
+        permissions:
+            contents: write
 
-    steps:
-      - name: Checkout exact release tag
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
-      - name: Enable Corepack
-        run: corepack enable
+            - name: Enable Corepack
+              run: corepack enable
 
-      - name: Use Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: yarn
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  cache: yarn
 
-      - name: Install dependencies
-        run: yarn install --immutable
+            - name: Install dependencies
+              run: yarn install --immutable
 
-      - name: Download CEM-ML WASM runtime unit
-        uses: actions/download-artifact@v5
-        with:
-          name: cem-ml-wasm-runtime-npm
-          path: dist/packages/cem-ml-npm/artifacts
+            - name: Download CEM-ML WASM runtime unit
+              uses: actions/download-artifact@v5
+              with:
+                  name: cem-ml-wasm-runtime-npm
+                  path: dist/packages/cem-ml-npm/artifacts
 
-      - name: Download CEM-ML universal CLI unit
-        uses: actions/download-artifact@v5
-        with:
-          name: cem-ml-universal-cli-npm
-          path: dist/packages/cem-ml-cli-npm/artifacts
+            - name: Download CEM-ML universal CLI unit
+              uses: actions/download-artifact@v5
+              with:
+                  name: cem-ml-universal-cli-npm
+                  path: dist/packages/cem-ml-cli-npm/artifacts
 
-      - name: Download native Linux AMD64 unit
-        uses: actions/download-artifact@v5
-        with:
-          name: cem-ml-native-linux-amd64
-          path: dist/packages/cem-ml-cli-native-linux-amd64/artifacts
+            - name: Download native Linux AMD64 unit
+              uses: actions/download-artifact@v5
+              with:
+                  name: cem-ml-native-linux-amd64
+                  path: dist/packages/cem-ml-cli-native-linux-amd64/artifacts
 
-      - name: Upload and byte-verify missing draft assets through Nx
-        run: yarn nx run cem_ml:release:upload-ci-units --parallel=false
-        env:
-          CEM_ML_PLATFORM_UPLOAD: ${{ vars.CEM_ML_PLATFORM_UPLOAD }}
-          CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
-          GH_TOKEN: ${{ github.token }}
+            - name: Upload and byte-verify missing draft assets through Nx
+              run: yarn nx run cem_ml:release:upload-ci-units --parallel=false
+              env:
+                  CEM_ML_PLATFORM_UPLOAD: ${{ vars.CEM_ML_PLATFORM_UPLOAD }}
+                  CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+                  GH_TOKEN: ${{ github.token }}
+
+    aggregate-draft:
+        name: Collect and stage aggregate draft evidence
+        needs: upload-ci-units
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        environment:
+            name: cem-ml-release
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+
+            - name: Enable Corepack
+              run: corepack enable
+
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  cache: yarn
+
+            - name: Install dependencies
+              run: yarn install --immutable
+
+            - name: Collect and verify exact remote release units through Nx
+              run: yarn nx run cem_ml:release:collect-draft --parallel=false
+              env:
+                  CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+                  GH_TOKEN: ${{ github.token }}
+
+            - name: Generate publication-ready aggregate index and checksum manifest
+              run: yarn nx run cem_ml:release:stage --configuration=publication --parallel=false
+              env:
+                  GH_TOKEN: ${{ github.token }}
+
+            - name: Verify aggregate evidence through Nx
+              run: yarn nx run cem_ml:release:verify --configuration=publication --parallel=false
+              env:
+                  GH_TOKEN: ${{ github.token }}
+
+            - name: Upload and remotely reverify aggregate evidence through Nx
+              run: yarn nx run cem_ml:release:upload-draft --parallel=false
+              env:
+                  CEM_ML_PLATFORM_UPLOAD: ${{ vars.CEM_ML_PLATFORM_UPLOAD }}
+                  CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+                  GH_TOKEN: ${{ github.token }}

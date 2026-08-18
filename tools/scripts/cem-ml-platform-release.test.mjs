@@ -13,6 +13,7 @@ import {
 } from '../../packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs';
 import {
     ciReleaseUnits,
+    collectPlatformReleaseDraft,
     createOrResumePlatformReleaseDraft,
     expectedReleaseUnits,
     finalizeCiProducerEvidence,
@@ -306,6 +307,12 @@ test('CEM-ML workflow owns its tag family and generic publishing excludes it', (
     assert.match(workflow, /npm-producers:/);
     assert.match(workflow, /linux-producer:/);
     assert.match(workflow, /upload-ci-units:/);
+    assert.match(workflow, /aggregate-draft:/);
+    assert.match(workflow, /needs: upload-ci-units/);
+    assert.match(workflow, /cem_ml:release:collect-draft/);
+    assert.match(workflow, /cem_ml:release:stage --configuration=publication/);
+    assert.match(workflow, /cem_ml:release:verify --configuration=publication/);
+    assert.match(workflow, /cem_ml:release:upload-draft/);
     assert.ok(workflow.match(/uses: actions\/attest@v4/g)?.length >= 4);
     assert.match(workflow, /artifact-metadata: write/);
     assert.match(workflow, /CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64: \$\{\{ secrets\./);
@@ -343,6 +350,12 @@ test('CI producer Nx targets are explicit and package evidence is keyed by the s
     assert.ok(linux.targets['record:producer-evidence']);
     assert.ok(linux.targets['verify:producer-evidence']);
     assert.ok(coordinator.targets['release:upload-ci-units']);
+    assert.equal(coordinator.targets['release:collect-draft'].cache, false);
+    assert.deepEqual(coordinator.targets['release:collect-draft'].outputs, [
+        '{workspaceRoot}/dist/packages/cem-ml-npm/artifacts',
+        '{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts',
+        '{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts',
+    ]);
     assert.deepEqual(
         coordinator.targets['release:stage'].inputs.filter(
             (input) =>
@@ -714,6 +727,289 @@ test('CI-owned unit upload rejects remote byte drift without clobbering', () => 
     }
 });
 
+test('draft collector classifies and publication-verifies the exact three remote units', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const expectedAssets = releaseUnitAssets(fixture.root);
+        const github = createFakeGithubAssetClient(expectedAssets);
+
+        const collected = collectPlatformReleaseDraft({
+            workspaceRoot: fixture.root,
+            units: expectedReleaseUnits,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            github,
+            attestationVerifier: () => true,
+        });
+
+        assert.deepEqual(collected.identities, expectedReleaseUnits.map(({ identity }) => identity).sort());
+        assert.equal(collected.aggregatePresent, false);
+        for (const unit of expectedReleaseUnits) {
+            const expected = [...expectedAssets.keys()]
+                .filter((filename) => filename.startsWith(`cem-ml-${version}-${unit.assetCoordinate}.`))
+                .sort();
+            assert.deepEqual(readdirSync(resolve(fixture.root, unit.root)).sort(), expected);
+        }
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('draft collector rejects an incomplete unit without changing existing local artifacts', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const before = snapshotReleaseUnitRoots(fixture.root);
+        const remoteAssets = releaseUnitAssets(fixture.root);
+        const missing = [...remoteAssets.keys()].find((filename) => filename.endsWith('.producer-evidence.json'));
+        assert.ok(missing);
+        remoteAssets.delete(missing);
+
+        assert.throws(
+            () =>
+                collectPlatformReleaseDraft({
+                    workspaceRoot: fixture.root,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    github: createFakeGithubAssetClient(remoteAssets),
+                    attestationVerifier: () => true,
+                }),
+            /producer evidence|asset set|missing/,
+        );
+        assert.deepEqual(snapshotReleaseUnitRoots(fixture.root), before);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('draft collector rejects extra and misclassified unit assets', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const remoteAssets = releaseUnitAssets(fixture.root);
+        remoteAssets.set(`cem-ml-${version}-wasm-runtime-npm.unexpected`, Buffer.from('unexpected'));
+        assert.throws(
+            () =>
+                collectPlatformReleaseDraft({
+                    workspaceRoot: fixture.root,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    github: createFakeGithubAssetClient(remoteAssets),
+                    attestationVerifier: () => true,
+                }),
+            /unexpected.*asset|asset set/i,
+        );
+
+        remoteAssets.delete(`cem-ml-${version}-wasm-runtime-npm.unexpected`);
+        const entryName = [...remoteAssets.keys()].find((filename) =>
+            filename.endsWith('wasm-runtime-npm.release-index-entry.json'),
+        );
+        assert.ok(entryName);
+        const misclassified = `cem-ml-${version}-wrong-coordinate.release-index-entry.json`;
+        remoteAssets.set(misclassified, remoteAssets.get(entryName));
+        remoteAssets.delete(entryName);
+        assert.throws(
+            () =>
+                collectPlatformReleaseDraft({
+                    workspaceRoot: fixture.root,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    github: createFakeGithubAssetClient(remoteAssets),
+                    attestationVerifier: () => true,
+                }),
+            /release-entry filename drift|asset coordinate/,
+        );
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('aggregate draft upload adds only aggregate evidence and is idempotent across recollection', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const github = createFakeGithubAssetClient(releaseUnitAssets(fixture.root));
+        const staged = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+        });
+
+        uploadPlatformReleaseDraft({
+            workspaceRoot: fixture.root,
+            authorized: true,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            outputRoot: staged.outputRoot,
+            github,
+            attestationVerifier: () => true,
+        });
+        assert.deepEqual(github.uploadedFilenames, [
+            `cem-ml-${version}.SHA256SUMS`,
+            `cem-ml-${version}.release-index.json`,
+        ]);
+        assert.deepEqual([...github.assets.keys()].sort(), readdirSync(staged.assetsRoot).sort());
+
+        const collected = collectPlatformReleaseDraft({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            github,
+            attestationVerifier: () => true,
+        });
+        assert.equal(collected.aggregatePresent, true);
+        stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+        });
+        uploadPlatformReleaseDraft({
+            workspaceRoot: fixture.root,
+            authorized: true,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            outputRoot: staged.outputRoot,
+            github,
+            attestationVerifier: () => true,
+        });
+        assert.equal(github.uploadCalls, 1);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('aggregate draft upload rejects existing aggregate byte drift and remote extras', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const staged = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+        });
+        const aggregateName = `cem-ml-${version}.release-index.json`;
+        const remoteAssets = releaseUnitAssets(fixture.root);
+        remoteAssets.set(aggregateName, Buffer.from('drifted aggregate'));
+        remoteAssets.set(
+            `cem-ml-${version}.SHA256SUMS`,
+            readFileSync(resolve(staged.assetsRoot, `cem-ml-${version}.SHA256SUMS`)),
+        );
+        const drifted = createFakeGithubAssetClient(remoteAssets);
+        assert.throws(
+            () =>
+                uploadPlatformReleaseDraft({
+                    workspaceRoot: fixture.root,
+                    authorized: true,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    outputRoot: staged.outputRoot,
+                    github: drifted,
+                    attestationVerifier: () => true,
+                }),
+            /existing draft asset is not immutable/,
+        );
+        assert.equal(drifted.uploadCalls, 0);
+
+        const extraAssets = releaseUnitAssets(fixture.root);
+        extraAssets.set(`cem-ml-${version}-foreign.bin`, Buffer.from('foreign'));
+        const extra = createFakeGithubAssetClient(extraAssets);
+        assert.throws(
+            () =>
+                uploadPlatformReleaseDraft({
+                    workspaceRoot: fixture.root,
+                    authorized: true,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    outputRoot: staged.outputRoot,
+                    github: extra,
+                    attestationVerifier: () => true,
+                }),
+            /assets outside the immutable stage/,
+        );
+        assert.equal(extra.uploadCalls, 0);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('aggregate draft upload resumes after one aggregate asset was already uploaded', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const staged = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+        });
+        const indexName = `cem-ml-${version}.release-index.json`;
+        const remoteAssets = releaseUnitAssets(fixture.root);
+        remoteAssets.set(indexName, readFileSync(resolve(staged.assetsRoot, indexName)));
+        const github = createFakeGithubAssetClient(remoteAssets);
+
+        uploadPlatformReleaseDraft({
+            workspaceRoot: fixture.root,
+            authorized: true,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            outputRoot: staged.outputRoot,
+            github,
+            attestationVerifier: () => true,
+        });
+        assert.deepEqual(github.uploadedFilenames, [`cem-ml-${version}.SHA256SUMS`]);
+    } finally {
+        fixture.dispose();
+    }
+});
+
 test('native draft upload preserves foreign units, uploads only missing assets, and is idempotent', () => {
     const root = mkdtempSync(resolve(tmpdir(), 'cem-ml-native-upload-'));
     const base = `cem-ml-${version}-linux-amd64-gnu`;
@@ -983,10 +1279,12 @@ function nativePreflightArguments(overrides = {}) {
 }
 
 function createFakeGithubAssetClient(initialAssets = {}) {
-    const assets = new Map(Object.entries(initialAssets).map(([name, content]) => [name, Buffer.from(content)]));
+    const entries = initialAssets instanceof Map ? initialAssets : new Map(Object.entries(initialAssets));
+    const assets = new Map([...entries].map(([name, content]) => [name, Buffer.from(content)]));
     return {
         assets,
         uploadCalls: 0,
+        uploadedFilenames: [],
         view(tag) {
             return {
                 tagName: tag,
@@ -1005,7 +1303,9 @@ function createFakeGithubAssetClient(initialAssets = {}) {
                 const filename = basename(path);
                 if (assets.has(filename)) throw new Error(`fake upload would clobber ${filename}`);
                 assets.set(filename, readFileSync(path));
+                this.uploadedFilenames.push(filename);
             }
+            this.uploadedFilenames.sort();
         },
     };
 }
@@ -1037,8 +1337,46 @@ function makePublicationReady(workspaceRoot, units) {
                 sha256: sha256File(attestationPath),
             };
             signing.publicationReady = true;
+            if (unit.identity === 'native-linux-amd64') {
+                const signatureFilename = entry.signingRecord.replace('.signing.json', '.sha256.asc');
+                const signaturePath = resolve(root, signatureFilename);
+                writeFileSync(signaturePath, 'fixture GPG signature\n');
+                signing.gpg = {
+                    status: 'signed',
+                    signature: signatureFilename,
+                    sha256: sha256File(signaturePath),
+                };
+            }
         });
     }
+}
+
+function releaseUnitAssets(workspaceRoot) {
+    const assets = new Map();
+    for (const unit of expectedReleaseUnits) {
+        const root = resolve(workspaceRoot, unit.root);
+        for (const filename of readdirSync(root)) {
+            assert.equal(assets.has(filename), false, `duplicate fixture asset ${filename}`);
+            assets.set(filename, readFileSync(resolve(root, filename)));
+        }
+    }
+    return assets;
+}
+
+function snapshotReleaseUnitRoots(workspaceRoot) {
+    return Object.fromEntries(
+        expectedReleaseUnits.map((unit) => {
+            const root = resolve(workspaceRoot, unit.root);
+            return [
+                unit.identity,
+                Object.fromEntries(
+                    readdirSync(root)
+                        .sort()
+                        .map((filename) => [filename, sha256File(resolve(root, filename))]),
+                ),
+            ];
+        }),
+    );
 }
 
 function producerWorkflow(unit) {
@@ -1123,8 +1461,7 @@ function findChecksum(root) {
 function writeUnit(workspaceRoot, unit) {
     const root = resolve(workspaceRoot, unit.root);
     mkdirSync(root, { recursive: true });
-    const coordinate = unit.identity.replace('@epa-wg/', '').replaceAll(/[^a-z0-9]+/g, '-');
-    const base = `cem-ml-${version}-${coordinate}`;
+    const base = `cem-ml-${version}-${unit.assetCoordinate}`;
     const primaryName = `${base}.${unit.identity.startsWith('native-') ? 'zip' : 'tgz'}`;
     const capabilityName = `${base}.capabilities.json`;
     const integrityName = `${base}.integrity.json`;

@@ -455,6 +455,14 @@ before the first public Phase 2.5 release. GitHub recommends attaching all
 assets to a draft before publication when immutability is enabled; see
 [release management](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
 
+After the three producers upload their units, an Nx-owned collector downloads
+the draft and classifies every file by its exact WASM-runtime, WASM-CLI, or Linux
+asset coordinate. It rejects missing, extra, duplicate, or misclassified files
+before replacing local generated roots. Publication-mode staging then generates
+the aggregate release index and `SHA256SUMS`; the protected workflow uploads
+only missing aggregate files and redownloads and verifies the complete remote
+draft. This finalizer never publishes the release or replaces an asset.
+
 No package-channel job rebuilds an executable. APT records only immutable Linux
 release artifacts. Homebrew and WinGet records are local validation projections
 and are not published. A packaging correction that changes release bytes

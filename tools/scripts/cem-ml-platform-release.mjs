@@ -21,16 +21,19 @@ const defaultWorkspaceRoot = resolve(dirname(scriptPath), '../..');
 export const expectedReleaseUnits = Object.freeze([
     {
         identity: '@epa-wg/cem-ml',
+        assetCoordinate: 'wasm-runtime-npm',
         root: 'dist/packages/cem-ml-npm/artifacts',
         targets: ['wasm32-unknown-unknown:nodejs', 'wasm32-unknown-unknown:web'],
     },
     {
         identity: '@epa-wg/cem-ml-cli',
+        assetCoordinate: 'universal-cli-npm',
         root: 'dist/packages/cem-ml-cli-npm/artifacts',
         targets: ['wasm32-unknown-unknown:nodejs', 'wasm32-unknown-unknown:web'],
     },
     {
         identity: 'native-linux-amd64',
+        assetCoordinate: 'linux-amd64-gnu',
         root: 'dist/packages/cem-ml-cli-native-linux-amd64/artifacts',
         target: 'x86_64-unknown-linux-gnu',
         channel: 'apt',
@@ -239,6 +242,113 @@ export function preflightNativeHostRelease({
     };
 }
 
+export function collectPlatformReleaseDraft({
+    workspaceRoot = defaultWorkspaceRoot,
+    units = expectedReleaseUnits,
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+    sourceTreeStatus,
+    github,
+    attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
+} = {}) {
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= process.env.CEM_ML_RELEASE_TAG;
+    if (!releaseTag?.trim()) throw new Error('CEM_ML_RELEASE_TAG is required for draft collection');
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML collection release tag drift');
+    assert.equal(taggedCommit, sourceCommit, 'CEM-ML collection tagged source-commit drift');
+    assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
+
+    github ??= createGithubAssetClient(workspaceRoot);
+    const release = github.view(releaseTag);
+    assert.ok(release, `required GitHub draft ${releaseTag} does not exist`);
+    assert.equal(release.tagName, releaseTag, 'GitHub draft release tag drift');
+    assert.equal(release.isDraft, true, `${releaseTag} must remain a draft during collection`);
+    assert.ok(Array.isArray(release.assets), 'GitHub draft asset listing is missing');
+    const remoteNames = release.assets.map(({ name }) => name).sort();
+    assert.equal(new Set(remoteNames).size, remoteNames.length, 'GitHub draft contains duplicate asset names');
+
+    const aggregateNames = [`cem-ml-${version}.SHA256SUMS`, `cem-ml-${version}.release-index.json`];
+    const aggregateAssets = remoteNames.filter((filename) => aggregateNames.includes(filename));
+    const unitNames = remoteNames.filter((filename) => !aggregateNames.includes(filename));
+    const invalidNames = unitNames.filter((filename) => !filename.startsWith(`cem-ml-${version}-`));
+    assert.deepEqual(invalidNames, [], 'GitHub draft contains assets outside the CEM-ML release namespace');
+
+    const downloadRoot = mkdtempSync(resolve(tmpdir(), `cem-ml-${version}-collect-`));
+    try {
+        for (const filename of unitNames) github.download(releaseTag, filename, downloadRoot);
+        assert.deepEqual(listFiles(downloadRoot), unitNames, 'GitHub draft asset listing/download drift');
+        const releaseEntries = unitNames.filter((filename) => filename.endsWith('.release-index-entry.json'));
+        assert.equal(releaseEntries.length, units.length, 'GitHub draft release-entry count drift');
+
+        const classified = new Map();
+        for (const entryFilename of releaseEntries) {
+            const entry = readJson(resolve(downloadRoot, entryFilename));
+            const identity = entry.npmIdentity ?? entry.runtimeIdentity;
+            const unit = units.find((candidate) => candidate.identity === identity);
+            assert.ok(unit, `GitHub draft contains unsupported release unit ${identity ?? 'without identity'}`);
+            assert.equal(classified.has(identity), false, `GitHub draft contains duplicate ${identity} release units`);
+            const base = releaseAssetBase(unit, version);
+            const filenames = unitNames.filter((filename) => filename.startsWith(`${base}.`));
+            const releaseUnit = validateReleaseUnit({
+                root: downloadRoot,
+                unit,
+                version,
+                sourceCommit,
+                releaseTag,
+                publication: true,
+                entryFilename,
+            });
+            const producerEvidence = validateCiProducerEvidence({
+                root: downloadRoot,
+                unit,
+                version,
+                sourceCommit,
+                releaseTag,
+                entryFilename,
+                attestationVerifier,
+            });
+            assert.deepEqual(
+                filenames,
+                publicationReleaseUnitFilenames(downloadRoot, unit, releaseUnit, producerEvidence),
+                `${identity} remote release-unit asset set drift`,
+            );
+            classified.set(identity, filenames);
+        }
+
+        assert.deepEqual(
+            [...classified.keys()].sort(),
+            units.map(({ identity }) => identity).sort(),
+            'GitHub draft release-unit identity set drift',
+        );
+        const classifiedNames = [...classified.values()].flat().sort();
+        assert.deepEqual(classifiedNames, unitNames, 'GitHub draft contains unclassified release-unit assets');
+
+        for (const unit of units) {
+            const root = resolve(workspaceRoot, unit.root);
+            assertGeneratedReleaseUnitOutput(workspaceRoot, root, units);
+            rmSync(root, { recursive: true, force: true });
+            mkdirSync(root, { recursive: true });
+            for (const filename of classified.get(unit.identity)) {
+                copyFileSync(resolve(downloadRoot, filename), resolve(root, filename));
+            }
+        }
+        return {
+            releaseTag,
+            sourceCommit,
+            identities: [...classified.keys()].sort(),
+            filenames: unitNames,
+            aggregateAssets,
+            aggregatePresent: aggregateAssets.length === aggregateNames.length,
+        };
+    } finally {
+        rmSync(downloadRoot, { recursive: true, force: true });
+    }
+}
+
 export function stagePlatformRelease({
     workspaceRoot = defaultWorkspaceRoot,
     sourceCommit = gitSourceCommit(workspaceRoot),
@@ -247,8 +357,9 @@ export function stagePlatformRelease({
     units = expectedReleaseUnits,
     outputRoot = resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version),
     attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
+    sourceTreeStatus,
 } = {}) {
-    if (publication) assertCleanSourceTree(workspaceRoot);
+    if (publication) assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
     const releaseTag = `cem-ml-v${version}`;
     const validated = units.map((unit) => {
         const root = resolve(workspaceRoot, unit.root);
@@ -329,6 +440,7 @@ export function stagePlatformRelease({
         publication,
         units,
         attestationVerifier,
+        sourceTreeStatus,
     });
     return { outputRoot, assetsRoot, indexName, checksumName, index };
 }
@@ -341,8 +453,9 @@ export function verifyPlatformRelease({
     publication = false,
     units = expectedReleaseUnits,
     attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
+    sourceTreeStatus,
 } = {}) {
-    if (publication) assertCleanSourceTree(workspaceRoot);
+    if (publication) assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
     const releaseRoot = outputRoot ?? resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version);
     const assetsRoot = resolve(releaseRoot, 'assets');
     const indexName = `cem-ml-${version}.release-index.json`;
@@ -816,13 +929,29 @@ export function uploadImmutableDraftAssetSet({
     return { identity, releaseTag, filenames, uploaded };
 }
 
-export function uploadPlatformReleaseDraft({ workspaceRoot = defaultWorkspaceRoot } = {}) {
-    if (process.env.CEM_ML_PLATFORM_UPLOAD !== '1') {
+export function uploadPlatformReleaseDraft({
+    workspaceRoot = defaultWorkspaceRoot,
+    authorized = process.env.CEM_ML_PLATFORM_UPLOAD === '1',
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+    sourceTreeStatus,
+    outputRoot,
+    github,
+    attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
+} = {}) {
+    if (!authorized) {
         throw new Error('draft upload is disabled; set CEM_ML_PLATFORM_UPLOAD=1 in the protected release job');
     }
-    const version = authoritativeVersion(workspaceRoot);
-    const sourceCommit = gitSourceCommit(workspaceRoot);
-    const outputRoot = resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version);
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= process.env.CEM_ML_RELEASE_TAG ?? `cem-ml-v${version}`;
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML aggregate release tag drift');
+    assert.equal(taggedCommit, sourceCommit, 'CEM-ML aggregate tagged source-commit drift');
+    assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
+    outputRoot ??= resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version);
     const assetsRoot = resolve(outputRoot, 'assets');
     const index = verifyPlatformRelease({
         workspaceRoot,
@@ -830,20 +959,28 @@ export function uploadPlatformReleaseDraft({ workspaceRoot = defaultWorkspaceRoo
         version,
         sourceCommit,
         publication: true,
+        attestationVerifier,
+        sourceTreeStatus,
     });
-    const release = JSON.parse(
-        capture('gh', ['release', 'view', index.releaseTag, '--json', 'assets,isDraft,tagName'], workspaceRoot),
-    );
+    assert.equal(index.releaseTag, releaseTag, 'aggregate stage release tag drift');
+    github ??= createGithubAssetClient(workspaceRoot);
+    const release = github.view(releaseTag);
     assert.equal(release.tagName, index.releaseTag, 'GitHub draft release tag drift');
     assert.equal(release.isDraft, true, `${index.releaseTag} must remain a draft during complete asset staging`);
     const filenames = listFiles(assetsRoot);
     const remoteNames = release.assets.map(({ name }) => name).sort();
+    assert.equal(new Set(remoteNames).size, remoteNames.length, 'GitHub draft contains duplicate asset names');
     const unexpectedRemote = remoteNames.filter((filename) => !filenames.includes(filename));
     assert.deepEqual(unexpectedRemote, [], 'draft GitHub Release contains assets outside the immutable stage');
+    const resolvedAggregateNames = [`cem-ml-${version}.release-index.json`, `cem-ml-${version}.SHA256SUMS`];
+    const missingUnitNames = filenames.filter(
+        (filename) => !resolvedAggregateNames.includes(filename) && !remoteNames.includes(filename),
+    );
+    assert.deepEqual(missingUnitNames, [], 'draft GitHub Release is missing collected release-unit assets');
     if (remoteNames.length > 0) {
         const existingRoot = mkdtempSync(resolve(tmpdir(), `cem-ml-${version}-existing-`));
         try {
-            run('gh', ['release', 'download', index.releaseTag, '--dir', existingRoot], workspaceRoot);
+            for (const filename of remoteNames) github.download(releaseTag, filename, existingRoot);
             assert.deepEqual(listFiles(existingRoot), remoteNames, 'GitHub draft asset listing/download drift');
             for (const filename of remoteNames) {
                 assert.equal(
@@ -857,33 +994,43 @@ export function uploadPlatformReleaseDraft({ workspaceRoot = defaultWorkspaceRoo
         }
     }
     const missingNames = filenames.filter((filename) => !remoteNames.includes(filename));
-    if (missingNames.length > 0) {
-        run(
-            'gh',
-            ['release', 'upload', index.releaseTag, ...missingNames.map((filename) => resolve(assetsRoot, filename))],
-            workspaceRoot,
+    if (missingNames.length > 0)
+        github.upload(
+            releaseTag,
+            missingNames.map((filename) => resolve(assetsRoot, filename)),
         );
-    }
 
-    const downloadRoot = mkdtempSync(resolve(tmpdir(), `cem-ml-${version}-draft-`));
+    const finalRelease = github.view(releaseTag);
+    assert.equal(finalRelease.tagName, releaseTag, 'GitHub draft release tag drift after aggregate upload');
+    assert.equal(finalRelease.isDraft, true, `${releaseTag} was published during aggregate upload`);
+    const finalNames = finalRelease.assets.map(({ name }) => name).sort();
+    assert.deepEqual(finalNames, filenames, 'draft GitHub Release asset set is incomplete or contains extras');
+
+    const remoteOutputRoot = mkdtempSync(resolve(tmpdir(), `cem-ml-${version}-remote-stage-`));
+    const remoteAssetsRoot = resolve(remoteOutputRoot, 'assets');
     try {
-        run('gh', ['release', 'download', index.releaseTag, '--dir', downloadRoot], workspaceRoot);
-        assert.deepEqual(
-            listFiles(downloadRoot),
-            filenames,
-            'draft GitHub Release asset set is incomplete or contains extras',
-        );
+        mkdirSync(remoteAssetsRoot, { recursive: true });
+        for (const filename of finalNames) github.download(releaseTag, filename, remoteAssetsRoot);
+        assert.deepEqual(listFiles(remoteAssetsRoot), filenames, 'GitHub draft final listing/download drift');
         for (const filename of filenames) {
             assert.equal(
-                sha256File(resolve(downloadRoot, filename)),
+                sha256File(resolve(remoteAssetsRoot, filename)),
                 sha256File(resolve(assetsRoot, filename)),
                 `downloaded draft asset drift: ${filename}`,
             );
         }
+        return verifyPlatformRelease({
+            workspaceRoot,
+            outputRoot: remoteOutputRoot,
+            version,
+            sourceCommit,
+            publication: true,
+            attestationVerifier,
+            sourceTreeStatus,
+        });
     } finally {
-        rmSync(downloadRoot, { recursive: true, force: true });
+        rmSync(remoteOutputRoot, { recursive: true, force: true });
     }
-    return index;
 }
 
 export function validateReleaseUnit({
@@ -900,6 +1047,12 @@ export function validateReleaseUnit({
     if (!resolvedEntryFilename || (!entryFilename && releaseEntries.length !== 1)) {
         throw new Error(`${unit.identity} must provide exactly one release-index entry`);
     }
+    const base = releaseAssetBase(unit, version);
+    assert.equal(
+        resolvedEntryFilename,
+        `${base}.release-index-entry.json`,
+        `${unit.identity} release-entry filename drift from asset coordinate`,
+    );
     const entry = readJson(requireFile(resolve(root, resolvedEntryFilename), `${unit.identity} release entry`));
     const identity = entry.npmIdentity ?? entry.runtimeIdentity;
     assert.equal(identity, unit.identity, `${unit.identity} release identity drift`);
@@ -916,9 +1069,12 @@ export function validateReleaseUnit({
     for (const artifact of entry.artifacts) {
         assert.ok(!artifactNames.has(artifact.filename), `${identity} duplicate artifact ${artifact.filename}`);
         artifactNames.add(artifact.filename);
-        assert.ok(artifact.filename.startsWith(`cem-ml-${version}-`), `${identity} unversioned artifact`);
+        assert.ok(artifact.filename.startsWith(`${base}.`), `${identity} misclassified release artifact`);
         verifyArtifactRecord(root, artifact);
     }
+
+    assert.equal(entry.checksumManifest, `${base}.sha256`, `${identity} checksum filename drift`);
+    assert.equal(entry.signingRecord, `${base}.signing.json`, `${identity} signing-record filename drift`);
 
     const capabilityArtifact = entry.artifacts.find(({ filename }) => filename.endsWith('.capabilities.json'));
     assert.ok(capabilityArtifact, `${identity} capability artifact is missing`);
@@ -970,7 +1126,8 @@ export function validateReleaseUnit({
     assert.equal(signing.checksumManifest.filename, entry.checksumManifest, `${identity} signing checksum name drift`);
     assert.equal(signing.checksumManifest.sha256, sha256File(checksumPath), `${identity} signing checksum drift`);
     if (publication) assert.equal(signing.publicationReady, true, `${identity} is not publication-ready`);
-    if (signing.publicationReady === true) validateAttestation(root, signing, identity);
+    if (signing.publicationReady === true) validateAttestation(root, signing, identity, publication);
+    if (publication && unit.channel === 'apt') validateGpgSignature(root, signing, identity);
 
     if (unit.channel) validateChannel(root, entry, unit.channel, version, releaseTag);
     return { root, entry, entryFilename: resolvedEntryFilename, identity };
@@ -1106,15 +1263,55 @@ function validateChannel(root, entry, expectedChannel, version, releaseTag) {
     );
 }
 
-function validateAttestation(root, signing, identity) {
+function publicationReleaseUnitFilenames(root, unit, releaseUnit, producerEvidence) {
+    const base = releaseAssetBase(unit, releaseUnit.entry.commonVersion);
+    const signing = readJson(resolve(root, releaseUnit.entry.signingRecord));
+    const filenames = new Set([
+        releaseUnit.entryFilename,
+        releaseUnit.entry.checksumManifest,
+        releaseUnit.entry.signingRecord,
+        ...releaseUnit.entry.artifacts.map(({ filename }) => filename),
+        producerEvidence.evidenceFilename,
+        producerEvidence.bundleFilename,
+    ]);
+    if (signing.githubArtifactAttestation?.bundle) filenames.add(signing.githubArtifactAttestation.bundle);
+    if (signing.gpg?.signature) filenames.add(signing.gpg.signature);
+    for (const filename of filenames) {
+        assert.ok(filename.startsWith(`${base}.`), `${unit.identity} referenced asset is misclassified: ${filename}`);
+        requireFile(resolve(root, filename), `${unit.identity} referenced release asset`);
+    }
+    return [...filenames].sort();
+}
+
+function validateAttestation(root, signing, identity, publication = false) {
     const attestation = signing.githubArtifactAttestation;
     assert.ok(attestation, `${identity} publication-ready signing record has no attestation`);
     assert.ok(['supplied', 'verified'].includes(attestation.status), `${identity} attestation is not verified`);
+    if (publication) assert.equal(attestation.status, 'verified', `${identity} release attestation is not verified`);
     assert.equal(
         attestation.sha256,
         sha256File(requireFile(resolve(root, attestation.bundle), `${identity} attestation bundle`)),
         `${identity} attestation digest drift`,
     );
+}
+
+function validateGpgSignature(root, signing, identity) {
+    assert.equal(signing.gpg?.status, 'signed', `${identity} release checksum is not GPG-signed`);
+    assert.match(signing.gpg?.signature ?? '', /^[^/\\]+\.sha256\.asc$/, `${identity} GPG signature name is invalid`);
+    assert.equal(
+        signing.gpg.sha256,
+        sha256File(requireFile(resolve(root, signing.gpg.signature), `${identity} GPG signature`)),
+        `${identity} GPG signature digest drift`,
+    );
+}
+
+function releaseAssetBase(unit, version) {
+    assert.match(
+        unit.assetCoordinate ?? '',
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        `${unit.identity} asset coordinate is invalid`,
+    );
+    return `cem-ml-${version}-${unit.assetCoordinate}`;
 }
 
 function assertAllCommonVersions(value, version, label) {
@@ -1297,8 +1494,8 @@ function capture(command, args, cwd) {
     return result.stdout;
 }
 
-function assertCleanSourceTree(workspaceRoot) {
-    if (gitSourceTreeStatus(workspaceRoot).trim()) {
+function assertCleanSourceTree(workspaceRoot, sourceTreeStatus) {
+    if ((sourceTreeStatus ?? gitSourceTreeStatus(workspaceRoot)).trim()) {
         throw new Error('publication staging requires a clean source tree at the tagged commit');
     }
 }
@@ -1319,6 +1516,12 @@ function assertGeneratedOutput(workspaceRoot, outputRoot) {
     if (normalized !== allowedRoot && !normalized.startsWith(`${allowedRoot}/`)) {
         throw new Error(`refusing to reset non-release output path: ${normalized}`);
     }
+}
+
+function assertGeneratedReleaseUnitOutput(workspaceRoot, outputRoot, units) {
+    const allowed = new Set(units.map((unit) => resolve(workspaceRoot, unit.root)));
+    const normalized = resolve(outputRoot);
+    if (!allowed.has(normalized)) throw new Error(`refusing to reset non-unit output path: ${normalized}`);
 }
 
 function artifactRecord(root, filename) {
@@ -1354,7 +1557,14 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     const command = process.argv[2];
     const args = process.argv.slice(3);
     const publication = args.includes('--publication');
-    const standardCommand = ['create-draft', 'stage', 'verify', 'upload-draft', 'upload-ci-units'].includes(command);
+    const standardCommand = [
+        'create-draft',
+        'collect-draft',
+        'stage',
+        'verify',
+        'upload-draft',
+        'upload-ci-units',
+    ].includes(command);
     const unitCommand = [
         'preflight-native-host',
         'verify-unit',
@@ -1364,7 +1574,7 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     const validUnitCommand = unitCommand && args.length === 1;
     if ((!standardCommand && !validUnitCommand) || (standardCommand && args.some((arg) => arg !== '--publication'))) {
         throw new Error(
-            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|stage|verify|upload-draft|upload-ci-units> [--publication] | <preflight-native-host|verify-unit|record-producer-evidence|finalize-producer-evidence> <identity>',
+            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|collect-draft|stage|verify|upload-draft|upload-ci-units> [--publication] | <preflight-native-host|verify-unit|record-producer-evidence|finalize-producer-evidence> <identity>',
         );
     }
     if (command === 'create-draft') {
@@ -1373,6 +1583,10 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
         console.log(
             `${result.action === 'created' ? 'Created' : 'Resumed'} protected GitHub draft ${result.releaseTag}.`,
         );
+    } else if (command === 'collect-draft') {
+        if (publication) throw new Error('collect-draft validates publication-ready units implicitly');
+        const result = collectPlatformReleaseDraft();
+        console.log(`Collected and verified ${result.identities.length} units from GitHub draft ${result.releaseTag}.`);
     } else if (command === 'stage') {
         const result = stagePlatformRelease({ publication });
         console.log(

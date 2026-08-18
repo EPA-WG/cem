@@ -111,16 +111,27 @@ promotion step.
       No macOS/Windows runner registration or release credential setup is needed;
       62 platform-release/version tests verify the narrowed contract.
 
-- [ ] Collect the complete draft and generate aggregate release evidence.
-    - [ ] Add an Nx-owned collection target that downloads the draft into the three
+- [x] Collect the complete draft and generate aggregate release evidence.
+    - [x] Add an Nx-owned collection target that downloads the draft into the three
           expected unit roots and rejects missing, extra, duplicate, or
           misclassified assets.
-    - [ ] Run publication-mode aggregate stage/verification over the downloaded
+    - [x] Run publication-mode aggregate stage/verification over the downloaded
           units, upload the aggregate release index and `SHA256SUMS` idempotently,
           and redownload the complete remote set.
-    - [ ] Verify every remote filename, size, digest, version, source commit,
+    - [x] Verify every remote filename, size, digest, version, source commit,
           runtime/target/capability identity, SBOM, provenance, signature/
           attestation, and immutable package-channel URL.
+    - Completed 2026-08-17: added uncached `cem_ml:release:collect-draft`
+      classification by the three exact asset coordinates. Collection validates
+      the exact tag, clean source commit, draft state, complete per-unit file set,
+      checksums, GPG-signature record, GitHub attestations, producer evidence,
+      SBOM, provenance, capabilities, and APT URL before replacing any local
+      artifact root. The protected aggregate job then runs publication-mode
+      stage/verify, uploads only missing aggregate evidence, redownloads the
+      complete draft, and verifies the remote bytes again. Retry preserves
+      identical assets and repairs a one-file aggregate interruption without
+      clobbering; 68 platform-release/version tests cover collection, drift,
+      classification, remote extras, and idempotence.
 
 - [ ] Add protected, exactly-once GitHub Release promotion.
     - [ ] Add synthetic promotion tests covering incomplete drafts, remote drift,
