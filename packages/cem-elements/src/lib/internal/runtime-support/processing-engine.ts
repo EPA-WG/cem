@@ -6,6 +6,8 @@ import {
     scopeRenderPlan,
     validateRenderPlanGeneratedIds,
     type RenderPlan,
+    type RenderPlanAttribute,
+    type RenderPlanNode,
 } from '../../projection.js';
 import {
     compileCemMlTemplate,
@@ -21,6 +23,7 @@ import type {
     CemProcessingRenderDiffInput,
     CemProcessingRenderDiffResult,
     CemProcessingRenderPlanHandle,
+    CemProcessingResourceControl,
 } from './processing-host.js';
 
 interface RetainedTemplateArtifact {
@@ -45,14 +48,15 @@ export class CemProcessingEngine {
             return compileResult(retained);
         }
 
-        const diagnostics = await compileCemMlTemplate(input.source);
+        const source = processingSourceText(input);
+        const diagnostics = await compileCemMlTemplate(source);
         this.assertActive();
         const handle: CemProcessingArtifactHandle = {
             kind: 'template-artifact-handle',
             artifactId: input.templateArtifactId,
             cacheKey: edgeContentAddress('template-artifact', {
                 language: input.language,
-                source: input.source,
+                source,
                 sourceRef: input.sourceRef,
                 resolverIdentity: input.resolverIdentity,
                 scopePolicyStamp: input.scopePolicyStamp,
@@ -76,7 +80,7 @@ export class CemProcessingEngine {
         assertRenderRevision(input);
         const previous = retainedPreviousPlan(this.renderPlans, input.previousRenderPlan, input.artifact);
         const processed = await processCemMlTemplate({
-            source: artifact.input.source,
+            source: processingSourceText(artifact.input),
             data: input.data,
             payload: input.snapshot.payload,
             identity: {
@@ -89,10 +93,11 @@ export class CemProcessingEngine {
         const scoped = scopeRenderPlan(processed.renderPlan, input.scopeUid, {
             instanceScopeUid: input.instanceScopeUid,
         });
-        const frames = diffRenderPlansToPatchFrames(previous, scoped.renderPlan, {
+        const lowered = lowerResourceControls(scoped.renderPlan);
+        const frames = diffRenderPlansToPatchFrames(previous, lowered.renderPlan, {
             batchSize: input.patchBatchSize,
         });
-        const renderPlanId = edgeContentAddress('render-plan', scoped.renderPlan).key;
+        const renderPlanId = edgeContentAddress('render-plan', lowered.renderPlan).key;
         const nextRenderPlan: CemProcessingRenderPlanHandle = {
             kind: 'render-plan-handle',
             renderPlanId,
@@ -101,12 +106,13 @@ export class CemProcessingEngine {
             renderEngineVersion: RENDER_ENGINE_VERSION,
             sourceMapMode: input.artifact.sourceMapMode,
         };
-        this.renderPlans.set(renderPlanId, scoped.renderPlan);
-        const generatedIdDiagnostics = validateRenderPlanGeneratedIds(scoped.renderPlan);
+        this.renderPlans.set(renderPlanId, lowered.renderPlan);
+        const generatedIdDiagnostics = validateRenderPlanGeneratedIds(lowered.renderPlan);
         return {
             revision: input.revision,
             nextRenderPlan,
             frames,
+            resourceControls: lowered.resourceControls,
             diagnostics: [
                 ...processed.diagnostics,
                 ...scoped.diagnostics.map((diagnostic) => ({
@@ -151,7 +157,90 @@ function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessi
     return left.registrationIdentity === right.registrationIdentity
         && left.scopePolicyStamp === right.scopePolicyStamp
         && left.sourceMapMode === right.sourceMapMode
-        && left.source === right.source;
+        && processingSourceText(left) === processingSourceText(right)
+        && left.sourceRef.kind === right.sourceRef.kind
+        && left.sourceRef.value === right.sourceRef.value
+        && left.resolverIdentity === right.resolverIdentity;
+}
+
+function processingSourceText(input: CemProcessingCompileInput): string {
+    if (input.source.kind !== 'text-chunks-v1') {
+        throw new TypeError(`unsupported CEM processing source kind ${String(input.source.kind)}`);
+    }
+    return input.source.chunks.join('');
+}
+
+function lowerResourceControls(plan: RenderPlan): {
+    renderPlan: RenderPlan;
+    resourceControls: CemProcessingResourceControl[];
+} {
+    const resourceControls: CemProcessingResourceControl[] = [];
+    const lowerNodes = (nodes: RenderPlanNode[]): RenderPlanNode[] => {
+        const retained: RenderPlanNode[] = [];
+        for (const node of nodes) {
+            if (node.kind !== 'element') {
+                retained.push(node);
+                continue;
+            }
+            if (node.tag === 'http-request') {
+                const control = lowerHttpRequestControl(node);
+                if (control) {
+                    resourceControls.push(control);
+                }
+                continue;
+            }
+            retained.push({ ...node, children: lowerNodes(node.children) });
+        }
+        return retained;
+    };
+    return {
+        renderPlan: { ...plan, nodes: lowerNodes(plan.nodes) },
+        resourceControls,
+    };
+}
+
+function lowerHttpRequestControl(
+    node: Extract<RenderPlanNode, { kind: 'element' }>
+): CemProcessingResourceControl | null {
+    const attributes = renderAttributeRecord(node.attributes);
+    const sliceName = attributes.slice?.trim() ?? '';
+    const authoredUrl = attributes.url?.trim() ?? '';
+    if (!sliceName || !authoredUrl) {
+        return null;
+    }
+    const headers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(attributes)) {
+        if (name.startsWith('header-') && name.length > 'header-'.length) {
+            headers[name.slice('header-'.length).trim().toLowerCase()] = value;
+        }
+    }
+    const expectedContentType = optionalControlAttribute(attributes, 'content-type');
+    const credentials = optionalControlAttribute(attributes, 'credentials');
+    const cache = optionalControlAttribute(attributes, 'cache');
+    return {
+        kind: 'http-request',
+        renderNodeId: node.renderNodeId,
+        sliceName,
+        authoredUrl,
+        method: (attributes.method?.trim() || 'GET').toUpperCase(),
+        headers,
+        ...(expectedContentType === undefined ? {} : { expectedContentType }),
+        ...(credentials === undefined ? {} : { credentials }),
+        ...(cache === undefined ? {} : { cache }),
+        ...(node.sourceMapRef === undefined ? {} : { sourceMapRef: node.sourceMapRef }),
+    };
+}
+
+function renderAttributeRecord(attributes: RenderPlanAttribute[]): Record<string, string> {
+    return Object.fromEntries(attributes.map((attribute) => [attribute.name.toLowerCase(), attribute.value]));
+}
+
+function optionalControlAttribute(
+    attributes: Record<string, string>,
+    name: string
+): string | undefined {
+    const value = attributes[name]?.trim();
+    return value ? value : undefined;
 }
 
 function sameArtifactHandle(left: CemProcessingArtifactHandle, right: CemProcessingArtifactHandle): boolean {

@@ -27,11 +27,14 @@ import {
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
 import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
-import type {
-    CemProcessingCompileResult,
-    CemProcessingHost,
-    CemProcessingRenderPlanHandle,
-    CemProcessingWorkerFactory,
+import {
+    createCemProcessingTextSource,
+    type CemProcessingSourceRef,
+    type CemProcessingCompileResult,
+    type CemProcessingHost,
+    type CemProcessingResourceControl,
+    type CemProcessingRenderPlanHandle,
+    type CemProcessingWorkerFactory,
 } from './internal/runtime-support/processing-host.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
 import { LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG } from './legacy-xslt/contract.js';
@@ -251,8 +254,10 @@ export interface CemResourceResolutionRequest {
     authoredUrl: string;
     baseUrl: string;
     declarationScopeId: string;
+    contextIdentity: string;
     method: string;
     headers: Record<string, string>;
+    expectedContentTypes?: readonly string[];
     expectedContentType?: string;
 }
 
@@ -261,6 +266,7 @@ export interface CemResourceResolution {
     resolvedUrl: string;
     resolverIdentity: string;
     resourcePolicyStamp: string;
+    contextIdentity?: string;
     contentTypeHint?: string;
     integrity?: string;
 }
@@ -273,8 +279,10 @@ export interface CemHttpRequest {
     resolvedUrl: string;
     resolverIdentity: string;
     resourcePolicyStamp: string;
+    contextIdentity: string;
     method: 'GET' | 'HEAD';
     headers: Record<string, string>;
+    expectedContentTypes?: readonly string[];
     credentials?: string;
     cache?: string;
     expectedContentType?: string;
@@ -300,6 +308,7 @@ export interface CemHttpResourceSourceId {
     finalUrl: string;
     resolverIdentity: string;
     resourcePolicyStamp: string;
+    contextIdentity: string;
     method: string;
     contentType: string | null;
     responseIdentityHash?: string;
@@ -311,7 +320,15 @@ export interface CemHttpResourceLoadResult {
     body: AsyncIterable<Uint8Array>;
 }
 
-export type CemHttpResourceState = 'pending' | 'headers' | 'complete' | 'error' | 'aborted';
+/** Stream-shaped external declaration source with host-owned resolution identity. */
+export interface CemSrcDocumentLoadResult {
+    body: AsyncIterable<Uint8Array>;
+    resolvedUrl: string;
+    resolverIdentity: string;
+    contentType?: string;
+}
+
+export type CemHttpResourceState = 'scheduled' | 'in-progress' | 'loaded' | 'failed';
 
 export interface CemHttpResourcePolicy {
     allowCrossOrigin: boolean;
@@ -324,14 +341,19 @@ export interface CemHttpResourceEnvelope {
     kind: 'http-request';
     state: CemHttpResourceState;
     resourceRevision: number;
+    contextIdentity: string;
+    resourcePolicyStamp: string;
+    expectedContentTypes?: readonly string[];
     request: {
         authoredUrl: string;
         url: string;
         resolvedUrl: string;
         resolverIdentity: string;
         resourcePolicyStamp: string;
+        contextIdentity: string;
         method: string;
         headers: Record<string, string>;
+        expectedContentTypes?: readonly string[];
     };
     response?: CemHttpResponseHead;
     sourceId?: CemHttpResourceSourceId;
@@ -356,7 +378,10 @@ export interface CemElementRuntimeOptions {
      * resolution, fetching, and scope-URL policy (and makes external `src` testable). The
      * default resolves the path against the declaring document's base URL and `fetch`es it.
      */
-    loadSrcDocument?: (specifier: string, baseDocument: Document) => Promise<string>;
+    loadSrcDocument?: (
+        specifier: string,
+        baseDocument: Document
+    ) => Promise<string | CemSrcDocumentLoadResult>;
     /**
      * Resolve a `module-url` resource slice specifier to the URL exposed under
      * `datadom.slices.<slice>`. Relative/absolute URLs resolve by default; bare
@@ -506,6 +531,9 @@ interface CompiledDeclaration {
     declarationScope: CemDeclarationScope;
     scopeUid: string;
     artifactId: string;
+    sourceRef: CemProcessingSourceRef;
+    resolverIdentity: string;
+    resourceBaseUrl: string;
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
     mode: 'dom' | 'cem-ml' | 'legacy-xslt';
@@ -607,6 +635,18 @@ interface HttpRequestDeclaration {
     expectedContentType?: string;
     credentials?: string;
     cache?: string;
+    sourceMapRef?: SourceMapRef;
+}
+
+interface ResolvedDeclarationSource {
+    sourceRef: CemProcessingSourceRef;
+    resolverIdentity: string;
+    resourceBaseUrl: string;
+}
+
+interface LoadedSrcDocument {
+    document: Document;
+    source: ResolvedDeclarationSource;
 }
 
 interface LocalStorageDeclaration {
@@ -1020,7 +1060,7 @@ export class CemElementRuntime {
     private readonly processingArtifacts = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileResult>>();
     private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
-    private readonly srcDocuments = new Map<string, Promise<Document>>();
+    private readonly srcDocuments = new Map<string, Promise<LoadedSrcDocument>>();
     private readonly moduleUrls = new Map<string, Promise<string>>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
@@ -1150,7 +1190,12 @@ export class CemElementRuntime {
                     shape.tag,
                     localTemplate,
                     shape.diagnostics,
-                    declarationScope
+                    declarationScope,
+                    {
+                        sourceRef: { kind: 'fragment', value: shape.src },
+                        resolverIdentity: `document:${declarationElement.ownerDocument.baseURI}`,
+                        resourceBaseUrl: declarationElement.ownerDocument.baseURI,
+                    }
                 )
             );
             return true;
@@ -1175,7 +1220,12 @@ export class CemElementRuntime {
                 shape.tag,
                 template,
                 shape.diagnostics,
-                declarationScope
+                declarationScope,
+                {
+                    sourceRef: { kind: 'inline', value: shape.tag },
+                    resolverIdentity: `document:${declarationElement.ownerDocument.baseURI}`,
+                    resourceBaseUrl: declarationElement.ownerDocument.baseURI,
+                }
             )
         );
         return true;
@@ -1187,12 +1237,14 @@ export class CemElementRuntime {
         tag: string,
         template: HTMLTemplateElement,
         shapeDiagnostics: CemElementDiagnostic[],
-        declarationScope: CemDeclarationScope
+        declarationScope: CemDeclarationScope,
+        source: ResolvedDeclarationSource
     ): Promise<void> {
         const registrationOptions = this.registrationOptions.get(declarationElement);
         const compiled = compileInlineDeclaration(declarationElement, tag, template, {
             declarationTag: this.declarationTag,
             declarationScope,
+            source,
             uidSeed: this.uidSeedOption,
             uidSeedFallback: this.uidSeedFallback,
             behavior: registrationOptions?.behavior,
@@ -1285,9 +1337,9 @@ export class CemElementRuntime {
         reference: SrcReference,
         declarationScope: CemDeclarationScope
     ): Promise<void> {
-        let document: Document;
+        let loaded: LoadedSrcDocument;
         try {
-            document = await this.loadSrcDocumentParsed(declarationElement, reference.path);
+            loaded = await this.loadSrcDocumentParsed(declarationElement, reference.path);
         } catch (error) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
@@ -1298,6 +1350,7 @@ export class CemElementRuntime {
             ]);
             return;
         }
+        const document = loaded.document;
         const sourceTemplate =
             reference.id.length > 0
                 ? templateFromTarget(document.getElementById(reference.id), declarationElement.ownerDocument)
@@ -1314,7 +1367,22 @@ export class CemElementRuntime {
             ]);
             return;
         }
-        await this.registerResolvedDeclaration(declarationElement, tag, sourceTemplate, [], declarationScope);
+        await this.registerResolvedDeclaration(
+            declarationElement,
+            tag,
+            sourceTemplate,
+            [],
+            declarationScope,
+            {
+                ...loaded.source,
+                sourceRef: {
+                    kind: loaded.source.sourceRef.kind,
+                    value: reference.id.length > 0
+                        ? `${loaded.source.sourceRef.value}#${reference.id}`
+                        : loaded.source.sourceRef.value,
+                },
+            }
+        );
     }
 
     /** Resolve a same-document `src="#id"` reference to its `<template>`, or diagnose a miss. */
@@ -1341,21 +1409,33 @@ export class CemElementRuntime {
     }
 
     /** Fetch + parse the document an external `src` references, cached per declaring document and path. */
-    private loadSrcDocumentParsed(declarationElement: HTMLElement, path: string): Promise<Document> {
+    private loadSrcDocumentParsed(declarationElement: HTMLElement, path: string): Promise<LoadedSrcDocument> {
         const baseDocument = declarationElement.ownerDocument;
         const key = `${baseDocument.baseURI}\n${path}`;
         const cached = this.srcDocuments.get(key);
         if (cached) {
             return cached;
         }
-        const parsed = this.loadSrcDocument(path, baseDocument).then((html) =>
-            new DOMParser().parseFromString(html, 'text/html')
-        );
+        const parsed = this.loadSrcDocument(path, baseDocument).then(async (loaded) => {
+            const result = typeof loaded === 'string'
+                ? fallbackSrcDocumentLoadResult(path, baseDocument, loaded)
+                : loaded;
+            const html = typeof loaded === 'string'
+                ? loaded
+                : await readTextStream(loaded.body);
+            return {
+                document: new DOMParser().parseFromString(html, 'text/html'),
+                source: srcDocumentSource(path, baseDocument, result),
+            };
+        });
         this.srcDocuments.set(key, parsed);
         return parsed;
     }
 
-    private loadSrcDocument(path: string, baseDocument: Document): Promise<string> {
+    private loadSrcDocument(
+        path: string,
+        baseDocument: Document
+    ): Promise<string | CemSrcDocumentLoadResult> {
         return this.loadSrcDocumentOption
             ? this.loadSrcDocumentOption(path, baseDocument)
             : defaultLoadSrcDocument(path, baseDocument);
@@ -1766,8 +1846,7 @@ export class CemElementRuntime {
     private usesProcessingHost(compiled: CompiledDeclaration): boolean {
         return compiled.mode === 'cem-ml'
             && compiled.cemMlSource !== null
-            && !compiled.declarationElement.hasAttribute('src')
-            && !containsRuntimeResourceDirective(compiled.cemMlSource);
+            && !containsNonHttpRuntimeResourceDirective(compiled.cemMlSource);
     }
 
     private processingHost(compiled: CompiledDeclaration): CemProcessingHost {
@@ -1789,9 +1868,9 @@ export class CemElementRuntime {
                 producedTag: compiled.producedTag,
                 templateArtifactId: compiled.artifactId,
                 registrationIdentity,
-                source: compiled.cemMlSource ?? '',
-                sourceRef: { kind: 'inline', value: compiled.producedTag },
-                resolverIdentity: `document:${compiled.declarationElement.ownerDocument.baseURI}`,
+                source: createCemProcessingTextSource(compiled.cemMlSource ?? ''),
+                sourceRef: compiled.sourceRef,
+                resolverIdentity: compiled.resolverIdentity,
                 scopePolicyStamp: this.scopePolicyStamp,
                 sourceMapMode: 'dev',
             }).result;
@@ -1851,6 +1930,7 @@ export class CemElementRuntime {
                     compiled,
                     island,
                     result.frames,
+                    result.resourceControls,
                     committedRevision,
                     token
                 );
@@ -1891,6 +1971,7 @@ export class CemElementRuntime {
                     compiled,
                     island,
                     result.frames,
+                    result.resourceControls,
                     committedRevision,
                     token
                 );
@@ -1916,6 +1997,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         island: HTMLTemplateElement,
         frames: Parameters<typeof applyPatchFramesToRange>[1],
+        resourceControls: readonly CemProcessingResourceControl[],
         revision: Parameters<typeof applyPatchFramesToRange>[2],
         token: number
     ): Promise<void> {
@@ -1945,7 +2027,31 @@ export class CemElementRuntime {
         this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
         this.bindRenderedCustomValidityInRange(bounds);
         this.bindRenderedFormEventsInRange(instance, compiled, bounds);
-        return this.bindRenderedResourceSlicesInRange(instance, compiled, bounds, token);
+        return this.bindProcessingResourceControls(instance, compiled, resourceControls, token);
+    }
+
+    private bindProcessingResourceControls(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        controls: readonly CemProcessingResourceControl[],
+        _token: number
+    ): Promise<void> {
+        const settled: Promise<void>[] = [];
+        for (const control of controls) {
+            if (control.kind === 'http-request') {
+                settled.push(this.startHttpRequestResource(instance, compiled, {
+                    sliceName: control.sliceName,
+                    authoredUrl: control.authoredUrl,
+                    method: control.method,
+                    headers: { ...control.headers },
+                    expectedContentType: control.expectedContentType,
+                    credentials: control.credentials,
+                    cache: control.cache,
+                    sourceMapRef: control.sourceMapRef,
+                }));
+            }
+        }
+        return settled.length === 0 ? Promise.resolve() : Promise.all(settled).then(() => undefined);
     }
 
     private nextRenderToken(instance: HTMLElement): number {
@@ -2780,7 +2886,7 @@ export class CemElementRuntime {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         const key = httpRequestCacheKey({
-            baseUrl: instance.ownerDocument.baseURI,
+            baseUrl: compiled.resourceBaseUrl,
             scope: this.currentScopeUid(instance, compiled),
             declaration,
             policy: this.httpResourcePolicy,
@@ -2799,8 +2905,12 @@ export class CemElementRuntime {
         const pending = this.httpRequestEnvelope({
             declaration,
             revision,
-            state: 'pending',
-            request: unresolvedHttpRequestMetadata(declaration, this.scopePolicyStamp),
+            state: 'scheduled',
+            request: unresolvedHttpRequestMetadata(
+                declaration,
+                this.scopePolicyStamp,
+                this.currentScopeUid(instance, compiled)
+            ),
             data: null,
             diagnostics: [],
         });
@@ -2827,9 +2937,10 @@ export class CemElementRuntime {
                 resolvedUrl: result,
                 resolverIdentity: `host:${baseDocument.baseURI}`,
                 resourcePolicyStamp: this.scopePolicyStamp,
+                contextIdentity: request.contextIdentity,
             };
         }
-        return result;
+        return { ...result, contextIdentity: result.contextIdentity ?? request.contextIdentity };
     }
 
     private async runHttpRequestResource(
@@ -2852,10 +2963,14 @@ export class CemElementRuntime {
             const resolutionRequest: CemResourceResolutionRequest = {
                 kind: 'http-request',
                 authoredUrl: declaration.authoredUrl,
-                baseUrl: instance.ownerDocument.baseURI,
+                baseUrl: compiled.resourceBaseUrl,
                 declarationScopeId: this.currentScopeUid(instance, compiled),
+                contextIdentity: this.currentScopeUid(instance, compiled),
                 method,
                 headers: declaration.headers,
+                ...(declaration.expectedContentType
+                    ? { expectedContentTypes: [declaration.expectedContentType] }
+                    : {}),
                 expectedContentType: declaration.expectedContentType,
             };
             const resolution = await this.resolveHttpResourceUrl(resolutionRequest, instance.ownerDocument);
@@ -2867,12 +2982,14 @@ export class CemElementRuntime {
             }
             const request: CemHttpRequest = {
                 authoredUrl: resolution.authoredUrl,
-                baseUrl: instance.ownerDocument.baseURI,
+                baseUrl: compiled.resourceBaseUrl,
                 resolvedUrl: resolution.resolvedUrl,
                 resolverIdentity: resolution.resolverIdentity,
                 resourcePolicyStamp: resolution.resourcePolicyStamp,
+                contextIdentity: resolutionRequest.contextIdentity,
                 method,
                 headers: declaration.headers,
+                expectedContentTypes: resolutionRequest.expectedContentTypes,
                 credentials: declaration.credentials,
                 cache: declaration.cache,
                 expectedContentType: declaration.expectedContentType ?? resolution.contentTypeHint,
@@ -2889,7 +3006,7 @@ export class CemElementRuntime {
             this.updateHttpResourceAndRerender(instance, compiled, declaration.sliceName, revision, {
                 declaration,
                 revision,
-                state: 'headers',
+                state: 'in-progress',
                 request: requestMetadata,
                 response: loaded.response,
                 data: null,
@@ -2910,7 +3027,7 @@ export class CemElementRuntime {
             this.updateHttpResourceAndRerender(instance, compiled, declaration.sliceName, revision, {
                 declaration,
                 revision,
-                state: parse.ok ? 'complete' : 'error',
+                state: parse.ok ? 'loaded' : 'failed',
                 request: requestMetadata,
                 response: loaded.response,
                 sourceId: parse.sourceId,
@@ -2931,8 +3048,12 @@ export class CemElementRuntime {
             this.updateHttpResourceAndRerender(instance, compiled, declaration.sliceName, revision, {
                 declaration,
                 revision,
-                state: aborted ? 'aborted' : 'error',
-                request: unresolvedHttpRequestMetadata(declaration, this.scopePolicyStamp),
+                state: 'failed',
+                request: unresolvedHttpRequestMetadata(
+                    declaration,
+                    this.scopePolicyStamp,
+                    this.currentScopeUid(instance, compiled)
+                ),
                 data: null,
                 diagnostics: [
                     resourceDiagnostic(
@@ -2941,7 +3062,8 @@ export class CemElementRuntime {
                             error instanceof Error ? error.message : String(error)
                         }`,
                         compiled.producedTag,
-                        aborted ? 'warning' : 'error'
+                        aborted ? 'warning' : 'error',
+                        declaration.sourceMapRef
                     ),
                 ],
             });
@@ -2966,6 +3088,9 @@ export class CemElementRuntime {
             kind: 'http-request',
             state: input.state,
             resourceRevision: input.revision,
+            contextIdentity: input.request.contextIdentity,
+            resourcePolicyStamp: input.request.resourcePolicyStamp,
+            expectedContentTypes: input.request.expectedContentTypes,
             request: input.request,
             response: input.response,
             sourceId: input.sourceId,
@@ -3481,6 +3606,9 @@ function compileInlineDeclaration(
         declarationScope: options.declarationScope,
         scopeUid: generateScopeUid({ producedTag, uidSeed: uidSeedResolution.seed, occurrencePath }),
         artifactId: `template-artifact-${++artifactSequence}`,
+        sourceRef: options.source.sourceRef,
+        resolverIdentity: options.source.resolverIdentity,
+        resourceBaseUrl: options.source.resourceBaseUrl,
         template,
         templateSource,
         mode,
@@ -3497,6 +3625,7 @@ function compileInlineDeclaration(
 interface InlineDeclarationCompileOptions {
     declarationTag: string;
     declarationScope: CemDeclarationScope;
+    source: ResolvedDeclarationSource;
     uidSeed?: CemElementRuntimeOptions['uidSeed'];
     uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
     behavior?: CemProducedElementBehavior;
@@ -3725,21 +3854,78 @@ function parseSrcReference(src: string): SrcReference {
  * and `fetch` it. Bare module specifiers (`@scope/pkg`) require a host `loadSrcDocument`
  * (the shared module-map resolver).
  */
-function defaultLoadSrcDocument(path: string, baseDocument: Document): Promise<string> {
+async function defaultLoadSrcDocument(
+    path: string,
+    baseDocument: Document
+): Promise<CemSrcDocumentLoadResult> {
     let url: string;
     try {
         url = new URL(path, baseDocument.baseURI).href;
     } catch {
-        return Promise.reject(
-            new Error(`cannot resolve \`${path}\`; bare module specifiers need a host \`loadSrcDocument\``)
-        );
+        throw new Error(`cannot resolve \`${path}\`; bare module specifiers need a host \`loadSrcDocument\``);
     }
-    return fetch(url).then((response) => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status} for ${url}`);
-        }
-        return response.text();
-    });
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${url}`);
+    }
+    return {
+        body: responseBody(response),
+        resolvedUrl: response.url || url,
+        resolverIdentity: `document-base:${baseDocument.baseURI}`,
+        contentType: response.headers.get('content-type') ?? undefined,
+    };
+}
+
+function fallbackSrcDocumentLoadResult(
+    path: string,
+    baseDocument: Document,
+    html: string
+): CemSrcDocumentLoadResult {
+    const urlLike = isUrlLikeSpecifier(path);
+    return {
+        body: textByteStream(html),
+        resolvedUrl: urlLike ? new URL(path, baseDocument.baseURI).href : path,
+        resolverIdentity: urlLike
+            ? `document-base:${baseDocument.baseURI}`
+            : `host-loader:${baseDocument.baseURI}`,
+    };
+}
+
+function srcDocumentSource(
+    path: string,
+    baseDocument: Document,
+    loaded: CemSrcDocumentLoadResult
+): ResolvedDeclarationSource {
+    const urlLike = isUrlLikeSpecifier(path);
+    let resourceBaseUrl = baseDocument.baseURI;
+    try {
+        const resolved = new URL(loaded.resolvedUrl, baseDocument.baseURI);
+        resolved.hash = '';
+        resourceBaseUrl = resolved.href;
+    } catch {
+        // A bare host specifier needs an explicit resolved URL to change the base.
+    }
+    return {
+        sourceRef: {
+            kind: urlLike ? 'url' : 'specifier',
+            value: urlLike ? resourceBaseUrl : path,
+        },
+        resolverIdentity: loaded.resolverIdentity,
+        resourceBaseUrl,
+    };
+}
+
+async function readTextStream(body: AsyncIterable<Uint8Array>): Promise<string> {
+    const decoder = new TextDecoder('utf-8');
+    let text = '';
+    for await (const chunk of body) {
+        text += decoder.decode(chunk, { stream: true });
+    }
+    return text + decoder.decode();
+}
+
+async function* textByteStream(text: string): AsyncIterable<Uint8Array> {
+    yield new TextEncoder().encode(text);
 }
 
 function defaultResolveModuleUrl(specifier: string, baseDocument: Document): string {
@@ -4151,7 +4337,7 @@ function resourceValuesEqual(left: unknown, right: unknown): boolean {
 
 function defaultResolveResourceUrl(
     request: CemResourceResolutionRequest,
-    baseDocument: Document,
+    _baseDocument: Document,
     resourcePolicyStamp: string,
     policy: CemHttpResourcePolicy
 ): CemResourceResolution {
@@ -4159,9 +4345,9 @@ function defaultResolveResourceUrl(
     if (!isUrlLikeSpecifier(trimmed)) {
         throw new Error(`cannot resolve \`${request.authoredUrl}\`; bare resource specifiers need a host resolver`);
     }
-    const resolvedUrl = new URL(trimmed, baseDocument.baseURI).href;
+    const resolvedUrl = new URL(trimmed, request.baseUrl).href;
     if (!policy.allowCrossOrigin) {
-        const baseOrigin = new URL(baseDocument.baseURI).origin;
+        const baseOrigin = new URL(request.baseUrl).origin;
         const resolvedOrigin = new URL(resolvedUrl).origin;
         if (baseOrigin !== resolvedOrigin) {
             throw new Error(`cross-origin http-request \`${request.authoredUrl}\` requires host policy`);
@@ -4170,14 +4356,16 @@ function defaultResolveResourceUrl(
     return {
         authoredUrl: request.authoredUrl,
         resolvedUrl,
-        resolverIdentity: `document-base:${baseDocument.baseURI}`,
+        resolverIdentity: `document-base:${request.baseUrl}`,
         resourcePolicyStamp,
+        contextIdentity: request.contextIdentity,
     };
 }
 
 function unresolvedHttpRequestMetadata(
     declaration: HttpRequestDeclaration,
-    resourcePolicyStamp: string
+    resourcePolicyStamp: string,
+    contextIdentity: string
 ): CemHttpResourceEnvelope['request'] {
     return {
         authoredUrl: declaration.authoredUrl,
@@ -4185,8 +4373,12 @@ function unresolvedHttpRequestMetadata(
         resolvedUrl: declaration.authoredUrl,
         resolverIdentity: 'unresolved',
         resourcePolicyStamp,
+        contextIdentity,
         method: declaration.method,
         headers: declaration.headers,
+        ...(declaration.expectedContentType
+            ? { expectedContentTypes: [declaration.expectedContentType] }
+            : {}),
     };
 }
 
@@ -4197,8 +4389,10 @@ function httpRequestMetadata(request: CemHttpRequest): CemHttpResourceEnvelope['
         resolvedUrl: request.resolvedUrl,
         resolverIdentity: request.resolverIdentity,
         resourcePolicyStamp: request.resourcePolicyStamp,
+        contextIdentity: request.contextIdentity,
         method: request.method,
         headers: { ...request.headers },
+        expectedContentTypes: request.expectedContentTypes,
     };
 }
 
@@ -4448,6 +4642,7 @@ function httpResourceSourceId(
         finalUrl: response.url,
         resolverIdentity: request.resolverIdentity,
         resourcePolicyStamp: request.resourcePolicyStamp,
+        contextIdentity: request.contextIdentity,
         method: request.method,
         contentType,
         responseIdentityHash,
@@ -4460,6 +4655,7 @@ function httpResourceSourceId(
         finalUrl: response.url,
         resolverIdentity: request.resolverIdentity,
         resourcePolicyStamp: request.resourcePolicyStamp,
+        contextIdentity: request.contextIdentity,
         method: request.method,
         contentType,
         responseIdentityHash,
@@ -5128,8 +5324,8 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
     return plan.nodes.some(visit);
 }
 
-function containsRuntimeResourceDirective(source: string): boolean {
-    return /\{\s*(?:module-url|http-request|local-storage|location-element)(?=\s|@|\||\})/.test(source);
+function containsNonHttpRuntimeResourceDirective(source: string): boolean {
+    return /\{\s*(?:module-url|local-storage|location-element)(?=\s|@|\||\})/.test(source);
 }
 
 function templateValues(

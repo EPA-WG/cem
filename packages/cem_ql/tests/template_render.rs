@@ -741,6 +741,76 @@ fn render_template_for_each_iterates_array_item_members() {
 }
 
 #[test]
+fn render_template_http_resource_envelope_drives_for_each() {
+    // Phase 1 resource hosts retain transport/lifecycle ownership and expose the
+    // completed stream-derived projection under the resource envelope's `data`
+    // field. CEM-QL owns interpolation of the control declaration and iteration
+    // over that projection; the browser adapter must not reimplement either.
+    let results = Item::Array(vec![
+        record([
+            (
+                "name",
+                vec![Item::Atomic(AtomValue::String("Bulbasaur".to_owned()))],
+            ),
+            (
+                "status",
+                vec![Item::Atomic(AtomValue::String("ready".to_owned()))],
+            ),
+        ]),
+        record([
+            (
+                "name",
+                vec![Item::Atomic(AtomValue::String("Ivysaur".to_owned()))],
+            ),
+            (
+                "status",
+                vec![Item::Atomic(AtomValue::String("waiting".to_owned()))],
+            ),
+        ]),
+    ]);
+    let page = record([
+        (
+            "state",
+            vec![Item::Atomic(AtomValue::String("loaded".to_owned()))],
+        ),
+        ("data", vec![record([("results", vec![results])])]),
+    ]);
+    let datadom = record([("slices", vec![record([("page", vec![page])])])]);
+    let data = TemplateData::default()
+        .with_binding("datadom", ItemStream::once(datadom))
+        .with_binding("resource_url", string_value("./pokemon.json"));
+
+    let rendered = render_template(
+        concat!(
+            "{http-request @slice=page @url=\"{$resource_url}\" @content-type=\"application/json\"}",
+            "{ul |{cem:for-each @select=\"datadom.slices.page.data.results\" @as=record |",
+            "{li @data-status=\"{$record.status}\" | {$ record.name}}}}"
+        ),
+        &data,
+    );
+
+    assert!(
+        rendered.rendered.starts_with(
+            "<http-request slice=\"page\" url=\"./pokemon.json\" content-type=\"application/json\"></http-request>"
+        ),
+        "{}",
+        rendered.rendered
+    );
+    assert!(
+        rendered
+            .rendered
+            .ends_with("<ul><li data-status=\"ready\">Bulbasaur</li><li data-status=\"waiting\">Ivysaur</li></ul>"),
+        "{}",
+        rendered.rendered
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
 fn render_template_rich_content_emits_literal_braces_around_for_each() {
     // The CSS-generator shape: rich-content (triple backtick) supplies the literal `:root { … }`
     // braces that would otherwise collide with cem-ml structure, while a sibling for-each emits the

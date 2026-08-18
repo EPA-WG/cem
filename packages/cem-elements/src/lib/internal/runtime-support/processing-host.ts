@@ -36,12 +36,40 @@ export interface CemProcessingSourceRef {
     value: string;
 }
 
+/** Clone-safe text chunks consumed as one Phase 3A compile source. */
+export interface CemProcessingTextSource {
+    kind: 'text-chunks-v1';
+    chunks: string[];
+}
+
+/**
+ * Adapt local text or a materialized Phase 1 remote stream to the same worker
+ * source shape. Chunk boundaries are transport details and do not participate in
+ * artifact identity.
+ */
+export function createCemProcessingTextSource(
+    source: string,
+    chunkSize = 16_384
+): CemProcessingTextSource {
+    if (!Number.isSafeInteger(chunkSize) || chunkSize < 1) {
+        throw new RangeError('a CEM processing source chunk size must be a positive safe integer');
+    }
+    const chunks: string[] = [];
+    for (let offset = 0; offset < source.length; offset += chunkSize) {
+        chunks.push(source.slice(offset, offset + chunkSize));
+    }
+    if (chunks.length === 0) {
+        chunks.push('');
+    }
+    return { kind: 'text-chunks-v1', chunks };
+}
+
 export interface CemProcessingCompileInput {
     language: 'cem-ml';
     producedTag: string;
     templateArtifactId: string;
     registrationIdentity: string;
-    source: string;
+    source: CemProcessingTextSource;
     sourceRef: CemProcessingSourceRef;
     resolverIdentity: string;
     scopePolicyStamp: string;
@@ -89,10 +117,31 @@ export interface CemProcessingRenderDiffInput {
     patchBatchSize?: number;
 }
 
+/**
+ * Browser-owned resource work lowered out of a worker render plan before DOM
+ * diffing. It contains only interpolated, clone-safe declaration data; URL
+ * resolution, policy, transport streams, and AbortSignals stay on the host.
+ */
+export interface CemProcessingHttpRequestControl {
+    kind: 'http-request';
+    renderNodeId: string;
+    sliceName: string;
+    authoredUrl: string;
+    method: string;
+    headers: Record<string, string>;
+    expectedContentType?: string;
+    credentials?: string;
+    cache?: string;
+    sourceMapRef?: SourceMapRef;
+}
+
+export type CemProcessingResourceControl = CemProcessingHttpRequestControl;
+
 export interface CemProcessingRenderDiffResult {
     revision: RenderRevision;
     nextRenderPlan: CemProcessingRenderPlanHandle;
     frames: PatchFrame[];
+    resourceControls: CemProcessingResourceControl[];
     diagnostics: CemProcessingDiagnostic[];
 }
 

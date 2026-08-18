@@ -8,6 +8,7 @@ import {
     CemProcessingJobSequence,
     assertCemProcessingEnvelope,
     cemProcessingHostOwnerScope,
+    createCemProcessingTextSource,
     createCemProcessingReadyEnvelope,
     createCemProcessingRequestEnvelope,
     createCemProcessingSuccessEnvelope,
@@ -47,7 +48,7 @@ describe('Phase 3A processing-host contract', () => {
             producedTag: 'cem-card',
             templateArtifactId: REVISION.templateArtifactId,
             registrationIdentity: 'cem-registration-v1:card',
-            source: '<template><p>{$title}</p></template>',
+            source: createCemProcessingTextSource('<template><p>{$title}</p></template>', 8),
             sourceRef: { kind: 'inline', value: 'cem-card' },
             resolverIdentity: 'document:https://example.test/components/',
             scopePolicyStamp: REVISION.scopePolicyStamp,
@@ -110,6 +111,7 @@ describe('Phase 3A processing-host contract', () => {
                     nextRenderPlan: { producedTag: 'cem-card', ...REVISION },
                 },
             ],
+            resourceControls: [],
             diagnostics: [],
         });
 

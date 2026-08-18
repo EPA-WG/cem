@@ -1739,13 +1739,47 @@ export const UriAndModuleResolutionPolicy: Story = {
         );
 
         const sourceLoads: string[] = [];
+        const importedResourceBases: string[] = [];
         const sourceRuntime = new CemElementRuntime({
             declarationTag: 'cem-element-story-uri-source',
             loadSrcDocument: async (path, baseDocument) => {
-                const href = new URL(path, baseDocument.baseURI).href;
+                const href = path.startsWith('@scope/')
+                    ? `https://modules.example.test/${path.slice('@scope/'.length)}`
+                    : new URL(path, baseDocument.baseURI).href;
                 sourceLoads.push(href);
-                return `<template id="card"><span class="source">${href}</span></template>`;
+                const source = path.includes('http-card.html')
+                    ? [
+                          '{http-request @slice=page @url=./data.json @content-type="application/json"}',
+                          '{output @class=imported-resource | {$datadom.slices.page.data.label}}',
+                      ].join('\n')
+                    : `{span @class=source | ${href}}`;
+                return {
+                    resolvedUrl: href,
+                    resolverIdentity: 'story-template-module-map-v1',
+                    body: utf8Body(`<template id="card" type="text/cem-ml">${source}</template>`),
+                };
             },
+            resolveResourceUrl: (request) => {
+                importedResourceBases.push(request.baseUrl);
+                return {
+                    authoredUrl: request.authoredUrl,
+                    resolvedUrl: new URL(request.authoredUrl, request.baseUrl).href,
+                    resolverIdentity: 'story-imported-resource-map-v1',
+                    resourcePolicyStamp: 'story-imported-resource-policy-v1',
+                };
+            },
+            loadHttpResource: async (request) => ({
+                response: {
+                    url: request.resolvedUrl,
+                    status: 200,
+                    statusText: 'OK',
+                    ok: true,
+                    redirected: false,
+                    headers: { 'content-type': 'application/json' },
+                    contentType: 'application/json',
+                },
+                body: utf8Body(JSON.stringify({ label: 'Imported resource' })),
+            }),
         });
         const firstFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/alpha/');
         const secondFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/beta/');
@@ -1776,6 +1810,53 @@ export const UriAndModuleResolutionPolicy: Story = {
             sourceLoads.join('|'),
             'https://example.test/alpha/cards.html|https://example.test/beta/cards.html',
             'same external src path loads once per declaring document identity'
+        );
+
+        const absoluteFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/gamma/');
+        const moduleFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/delta/');
+        sourceRuntime.install(absoluteFrame.contentWindow as Window);
+        sourceRuntime.install(moduleFrame.contentWindow as Window);
+        const absoluteSource = await registerExternalSourceInstance(
+            sourceRuntime,
+            absoluteFrame.contentDocument as Document,
+            'story-uri-source-absolute',
+            'https://assets.example.test/cards.html#card'
+        );
+        const moduleSource = await registerExternalSourceInstance(
+            sourceRuntime,
+            moduleFrame.contentDocument as Document,
+            'story-uri-source-module',
+            '@scope/cards/card.html#card'
+        );
+        assertEqual(
+            requiredElement(absoluteSource, '.source').textContent,
+            'https://assets.example.test/cards.html',
+            'absolute external src retains its resolved URL identity'
+        );
+        assertEqual(
+            requiredElement(moduleSource, '.source').textContent,
+            'https://modules.example.test/cards/card.html',
+            'module-map src streams through the host resolver result'
+        );
+        const importedResource = await registerExternalSourceInstance(
+            sourceRuntime,
+            moduleFrame.contentDocument as Document,
+            'story-uri-source-imported-resource',
+            '@scope/cards/http-card.html#card'
+        );
+        await waitForCondition(
+            () => importedResource.querySelector('.imported-resource')?.textContent === 'Imported resource',
+            'streamed URI declaration resource rerender settles'
+        );
+        assertEqual(
+            requiredElement(importedResource, '.imported-resource').textContent,
+            'Imported resource',
+            'a streamed URI declaration renders its HTTP resource result through the worker'
+        );
+        assertEqual(
+            importedResourceBases.at(-1),
+            'https://modules.example.test/cards/http-card.html',
+            'relative HTTP URLs inside an imported template resolve against the imported source URL'
         );
 
         const specifier = '@scope/widget/icon.svg';
@@ -1863,7 +1944,7 @@ export const HttpRequestResourceLifecycle: Story = {
     render: () =>
         storyPanel(
             'HTTP request resource lifecycle',
-            'pending/header/complete envelopes, resource revision, and stale request abort'
+            'scheduled/in-progress/loaded envelopes, resource revision, and stale request abort'
         ),
     play: async ({ canvasElement }) => {
         const root = document.createElement('section');
@@ -1872,6 +1953,7 @@ export const HttpRequestResourceLifecycle: Story = {
 
         const pending = new Map<string, (name: string) => void>();
         const aborted: string[] = [];
+        const streamedChunks: Record<string, number> = {};
         const runtime = new CemElementRuntime({
             declarationTag: 'cem-element-story-http-resource',
             resolveResourceUrl: (request) => ({
@@ -1890,7 +1972,25 @@ export const HttpRequestResourceLifecycle: Story = {
                         },
                         { once: true }
                     );
-                    pending.set(request.authoredUrl, (name) =>
+                    pending.set(request.authoredUrl, (name) => {
+                        const xml = request.authoredUrl === 'xml';
+                        const unsupported = request.authoredUrl === 'unsupported';
+                        const contentType = xml
+                            ? 'application/xml'
+                            : unsupported
+                              ? 'application/octet-stream'
+                              : 'application/json';
+                        const body = unsupported
+                            ? 'opaque bytes'
+                            : xml
+                              ? '<catalog><entry status="ready">XML one</entry><entry status="waiting">XML two</entry></catalog>'
+                              : JSON.stringify({
+                                  name,
+                                  results: [
+                                      { name, status: 'ready' },
+                                      { name: `${name}-next`, status: 'waiting' },
+                                  ],
+                              });
                         resolve({
                             response: {
                                 url: request.resolvedUrl,
@@ -1898,12 +1998,15 @@ export const HttpRequestResourceLifecycle: Story = {
                                 statusText: 'OK',
                                 ok: true,
                                 redirected: false,
-                                headers: { 'content-type': 'application/json' },
-                                contentType: 'application/json',
+                                headers: { 'content-type': contentType },
+                                contentType,
                             },
-                            body: utf8Body(JSON.stringify({ name, results: [{ name, status: 'ready' }] })),
-                        })
-                    );
+                            body: countedUtf8Body(body, 7, () => {
+                                streamedChunks[request.authoredUrl] =
+                                    (streamedChunks[request.authoredUrl] ?? 0) + 1;
+                            }),
+                        });
+                    });
                 }),
         });
 
@@ -1912,11 +2015,25 @@ export const HttpRequestResourceLifecycle: Story = {
             'story-http-resource-panel',
             [
                 '{http-request @slice=page @url="{$datadom.attributes.url}" @content-type="application/json"}',
+                '{http-request @slice=xml @url=xml @content-type="application/xml"}',
+                '{http-request @slice=unsupported @url=unsupported @content-type="application/octet-stream"}',
                 '{article |',
                 '  {p @class=state | {$datadom.slices.page.state}}',
                 '  {p @class=revision | {$datadom.slices.page.resourceRevision}}',
-                '  {cem:if @test=\'datadom.slices.page.state == "complete"\' |',
+                '  {cem:if @test=\'datadom.slices.page.state == "loaded"\' |',
                 '    {output @class=name | {$datadom.slices.page.data.name}}',
+                '    {ul @class=json-results |',
+                '      {cem:for-each @select="datadom.slices.page.data.results" @as=result |',
+                '        {li @data-status="{$result.status}" | {$result.name}}',
+                '      }',
+                '    }',
+                '  }',
+                '  {cem:if @test=\'datadom.slices.xml.state == "loaded"\' |',
+                '    {ol @class=xml-results |',
+                '      {cem:for-each @select="datadom.slices.xml.data.children" @as=entry |',
+                '        {li @data-status="{$entry.attributes.status}" | {$entry.text}}',
+                '      }',
+                '    }',
                 '  }',
                 '}',
             ].join('\n')
@@ -1929,16 +2046,40 @@ export const HttpRequestResourceLifecycle: Story = {
         instance.setAttribute('url', 'first');
         root.appendChild(instance);
         await waitForCondition(
-            () => instance.querySelector('.state')?.textContent?.trim() === 'pending',
-            'http-request renders pending state'
+            () => instance.querySelector('.state')?.textContent?.trim() === 'scheduled',
+            'http-request renders scheduled state'
         );
 
         instance.setAttribute('url', 'second');
         await waitForCondition(() => aborted.includes('first'), 'stale http-request is aborted');
         pending.get('second')?.('second');
+        pending.get('xml')?.('xml');
+        pending.get('unsupported')?.('unsupported');
+        await runtime.whenRenderSettled(instance);
         await waitForCondition(
             () => instance.querySelector('.name')?.textContent?.trim() === 'second',
             'latest http-request completion renders data'
+        );
+        assertEqual(
+            Array.from(instance.querySelectorAll('.json-results li')).map((element) => element.textContent?.trim()).join('|'),
+            'second|second-next',
+            'JSON response projection drives worker CEM-QL for-each output'
+        );
+        assertEqual(
+            Array.from(instance.querySelectorAll('.xml-results li')).map((element) => element.textContent?.trim()).join('|'),
+            'XML one|XML two',
+            'XML response projection drives the same worker CEM-QL for-each flow'
+        );
+        assert((streamedChunks.second ?? 0) > 1, 'JSON response is consumed through multiple loader chunks');
+        assert((streamedChunks.xml ?? 0) > 1, 'XML response is consumed through multiple loader chunks');
+        assertEqual(
+            (runtime.snapshotInstance(instance).slices.unsupported as { state?: string }).state,
+            'failed',
+            'unsupported response content reaches a stable failed lifecycle state'
+        );
+        assertDiagnostic(
+            runtime.diagnosticsFor(instance),
+            'cem-element.http_request_unsupported_content_type'
         );
 
         const snapshot = runtime.snapshotInstance(instance);
@@ -1955,7 +2096,7 @@ export const HttpRequestResourceLifecycle: Story = {
             };
             data?: { name?: string };
         };
-        assertEqual(page.state, 'complete', 'snapshot stores completed http-request state');
+        assertEqual(page.state, 'loaded', 'snapshot stores loaded http-request state');
         assertEqual(page.resourceRevision, 2, 'resource revision increments after URL change');
         assertEqual(page.request?.authoredUrl, 'second', 'snapshot stores latest authored URL');
         assertEqual(page.sourceId?.kind, 'http-response', 'snapshot stores source-id kind');
@@ -5507,11 +5648,12 @@ async function appendResolutionPolicyFrame(parent: HTMLElement, baseHref: string
 async function registerExternalSourceInstance(
     runtime: CemElementRuntime,
     doc: Document,
-    producedTag: string
+    producedTag: string,
+    src = './cards.html#card'
 ): Promise<HTMLElement> {
     const declaration = doc.createElement('cem-element-story-uri-source');
     declaration.setAttribute('tag', producedTag);
-    declaration.setAttribute('src', './cards.html#card');
+    declaration.setAttribute('src', src);
     doc.body.appendChild(declaration);
     assert(runtime.registerDeclaration(declaration), `${producedTag} external src declaration registers`);
     await runtime.whenDeclarationSettled(declaration);
@@ -5566,6 +5708,18 @@ function nextFrame(): Promise<void> {
 
 async function* utf8Body(text: string): AsyncIterable<Uint8Array> {
     yield new TextEncoder().encode(text);
+}
+
+async function* countedUtf8Body(
+    text: string,
+    chunkSize: number,
+    onChunk: () => void
+): AsyncIterable<Uint8Array> {
+    const bytes = new TextEncoder().encode(text);
+    for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
+        onChunk();
+        yield bytes.slice(offset, offset + chunkSize);
+    }
 }
 
 /** Concatenated, trimmed text content of a render-plan node list (for WASM-boundary assertions). */

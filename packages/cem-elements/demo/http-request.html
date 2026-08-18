@@ -25,7 +25,7 @@
                         {h2 | {$datadom.attributes.title}}
                         {p | Requested URL: {$datadom.attributes.url}}
                         {p | state: {output | {$datadom.slices.page.state}}}
-                        {cem:if @test='datadom.slices.page.state == "complete"' |
+                        {cem:if @test='datadom.slices.page.state == "loaded"' |
                             {ul |
                                 {cem:for-each @select="datadom.slices.page.data.results" @as=item |
                                     {li | {$item.name}: {$item.status}}
@@ -34,7 +34,7 @@
                         }
                         {p | XML URL: {$datadom.attributes.xml-url}}
                         {p | xml state: {output | {$datadom.slices.xml.state}}}
-                        {cem:if @test='datadom.slices.xml.state == "complete"' |
+                        {cem:if @test='datadom.slices.xml.state == "loaded"' |
                             {ul @class=xml-results |
                                 {cem:for-each @select="datadom.slices.xml.data.children" @as=item |
                                     {li | {$item.attributes.name}: {$item.attributes.status}}

@@ -157,15 +157,29 @@ registration identities may reuse an inherited or existing definition.
       accepted evidence is Rust-first parity 3/3, TypeScript unit 111/111, Storybook
       Chromium 97/97, typecheck/lint, and the 53-file clean-consumer package probe.
 
-- [ ] Add URI declarations and the Phase 1 `<http-request>` resource slice.
-    - [ ] Support declaration `src` for document-relative, fragment-only, absolute,
+- [x] Add URI declarations and the Phase 1 `<http-request>` resource slice.
+    - [x] Support declaration `src` for document-relative, fragment-only, absolute,
           and module-map identities under the host resolver and scope policy.
-    - [ ] Add remote/local streaming, abort/stale-response protection, JSON/XML
+    - [x] Add remote/local streaming, abort/stale-response protection, JSON/XML
           projections, and the fixture-backed `cem:for-each` flow.
-    - [ ] Preserve the same artifact identity, worker/fallback semantics, source
+    - [x] Preserve the same artifact identity, worker/fallback semantics, source
           maps, diagnostics, and patch protocol as inline declarations.
+    - Completed 2026-08-18: canonical fragment, document-relative, absolute, and
+      module-map declarations now compile as clone-safe chunked text through the
+      retained root-scope worker/fallback host. URI artifact cache identity includes
+      source-ref, resolver, and scope-policy state, and imported resource controls use
+      the imported source URL as their base. CEM-QL-rendered `<http-request>` nodes
+      lower to explicit clone-safe controls before DOM diffing; the main thread retains
+      resolver/policy, multi-chunk loader, abort/stale-revision, and patch-commit
+      ownership. Template-visible HTTP states now use the portable lifecycle vocabulary,
+      and executable JSON/XML projections drive the same `cem:for-each` path. Accepted
+      evidence is the Rust-native resource-envelope test, TypeScript unit 113/113,
+      Storybook Chromium 97/97, all 15 executable demo pages, typecheck/lint, and
+      the 53-file clean-consumer package probe.
 
 - [ ] Complete Phase 3A/3B/3C substrate parity.
+    - [ ] Wire superseded processing-host render jobs to the locked `cancel`
+          operation while preserving revision checks and atomic patch recovery.
     - [ ] Prove legacy compatibility only through opt-in
           `lang="custom-element-v0"` fixtures.
     - [ ] Prove the full legacy and material parity inventories plus browser

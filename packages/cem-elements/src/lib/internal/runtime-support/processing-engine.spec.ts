@@ -5,6 +5,7 @@ import type { DataIslandSnapshot } from '../../cem-elements.js';
 vi.mock('./cem-ql-render.js', () => ({
     compileCemMlTemplate: vi.fn(async () => []),
     processCemMlTemplate: vi.fn(async (input: {
+        source: string;
         data: Record<string, unknown>;
         identity: {
             producedTag: string;
@@ -18,7 +19,23 @@ vi.mock('./cem-ql-render.js', () => ({
         diagnostics: [],
         renderPlan: {
             ...input.identity,
-            nodes: [{
+            nodes: [
+                ...(input.source.includes('http-request') ? [{
+                    kind: 'element' as const,
+                    namespace: null,
+                    tag: 'http-request',
+                    attributes: [
+                        { name: 'slice', value: 'page' },
+                        { name: 'url', value: './records.json' },
+                        { name: 'method', value: 'get' },
+                        { name: 'header-accept', value: 'application/json' },
+                        { name: 'content-type', value: 'application/json' },
+                    ],
+                    renderNodeId: `${input.identity.producedTag}-control-1`,
+                    children: [],
+                    sourceMapRef: { fidelity: 'author-byte-exact' as const, frame: 'cem:0' },
+                }] : []),
+                {
                 kind: 'element' as const,
                 namespace: null,
                 tag: 'span',
@@ -29,12 +46,14 @@ vi.mock('./cem-ql-render.js', () => ({
                     text: String(input.data.label ?? ''),
                     sourceMapRef: { fidelity: 'author-byte-exact' as const, frame: 'cem:8' },
                 }],
-            }],
+                },
+            ],
         },
     })),
 }));
 
 import { CemProcessingEngine } from './processing-engine.js';
+import { createCemProcessingTextSource } from './processing-host.js';
 
 describe('Phase 3A retained processing engine', () => {
     it('compiles and diffs the same canonical CEM-ML semantics for worker and fallback hosts', async () => {
@@ -45,7 +64,10 @@ describe('Phase 3A retained processing engine', () => {
             producedTag: 'cem-worker-card',
             templateArtifactId: 'template-worker-card-1',
             registrationIdentity: 'cem-registration-v1:worker-card',
-            source: '{article @class="card" | {span | {$label}}}',
+            source: createCemProcessingTextSource(
+                '{http-request @slice=page @url=./records.json}{article @class="card" | {span | {$label}}}',
+                8
+            ),
             sourceRef: { kind: 'inline' as const, value: 'cem-worker-card' },
             resolverIdentity: 'document:https://example.test/',
             scopePolicyStamp: 'scope-policy-v1',
@@ -79,6 +101,7 @@ describe('Phase 3A retained processing engine', () => {
         ]);
 
         expect(workerRender).toEqual(fallbackRender);
+        expect(workerRender.resourceControls).toHaveLength(1);
         expect(workerRender.frames.at(0)).toEqual(expect.objectContaining({ type: 'begin' }));
         expect(workerRender.frames.at(-1)).toEqual(expect.objectContaining({ type: 'commit' }));
         expect(workerRender.frames.some(
@@ -93,7 +116,7 @@ describe('Phase 3A retained processing engine', () => {
             producedTag: 'cem-worker-label',
             templateArtifactId: 'template-worker-label-1',
             registrationIdentity: 'cem-registration-v1:worker-label',
-            source: '{span | {$label}}',
+            source: createCemProcessingTextSource('{span | {$label}}'),
             sourceRef: { kind: 'inline', value: 'cem-worker-label' },
             resolverIdentity: 'document:https://example.test/',
             scopePolicyStamp: 'scope-policy-v1',
@@ -123,6 +146,81 @@ describe('Phase 3A retained processing engine', () => {
         expect(second.frames.flatMap((frame) => frame.type === 'ops' ? frame.ops : [])).toContainEqual(
             expect.objectContaining({ op: 'setText', value: 'After' })
         );
+    });
+
+    it('keys URI artifacts by source and resolver identity, not transport chunk boundaries', async () => {
+        const engine = new CemProcessingEngine();
+        const source = '{span | URI source}';
+        const common = {
+            language: 'cem-ml' as const,
+            producedTag: 'cem-uri-card',
+            registrationIdentity: 'cem-registration-v1:uri-card',
+            sourceRef: { kind: 'specifier' as const, value: '@scope/cards/card.cem' },
+            resolverIdentity: 'module-map:v1',
+            scopePolicyStamp: 'scope-policy-v1',
+            sourceMapMode: 'dev' as const,
+        };
+        const first = await engine.compile({
+            ...common,
+            templateArtifactId: 'template-uri-card-1',
+            source: createCemProcessingTextSource(source, 2),
+        });
+        const rechunked = await engine.compile({
+            ...common,
+            templateArtifactId: 'template-uri-card-2',
+            source: createCemProcessingTextSource(source, 9),
+        });
+        const anotherResolver = await engine.compile({
+            ...common,
+            templateArtifactId: 'template-uri-card-3',
+            resolverIdentity: 'module-map:v2',
+            source: createCemProcessingTextSource(source, 9),
+        });
+
+        expect(rechunked.artifact.cacheKey).toBe(first.artifact.cacheKey);
+        expect(anotherResolver.artifact.cacheKey).not.toBe(first.artifact.cacheKey);
+    });
+
+    it('lowers interpolated HTTP declarations to clone-safe controls before retained-plan diffing', async () => {
+        const engine = new CemProcessingEngine();
+        const snapshot = snapshotFixture('1', 'template-worker-http-1', 'cem-worker-http');
+        const compiled = await engine.compile({
+            language: 'cem-ml',
+            producedTag: 'cem-worker-http',
+            templateArtifactId: snapshot.templateArtifactId,
+            registrationIdentity: 'cem-registration-v1:worker-http',
+            source: createCemProcessingTextSource(
+                '{http-request @slice=page @url=./records.json}{span | {$label}}',
+                7
+            ),
+            sourceRef: { kind: 'url', value: 'https://example.test/components/http.cem' },
+            resolverIdentity: 'module-map:fixture-v1',
+            scopePolicyStamp: snapshot.scopePolicyStamp,
+            sourceMapMode: 'dev',
+        });
+
+        const rendered = await engine.renderDiff({
+            artifact: compiled.artifact,
+            revision: revision(snapshot),
+            snapshot,
+            data: { label: 'Loaded' },
+            scopeUid: 'worker-http-scope',
+            instanceScopeUid: 'worker-http-instance-scope',
+            previousRenderPlan: null,
+        });
+
+        expect(rendered.resourceControls).toEqual([{
+            kind: 'http-request',
+            renderNodeId: 'cem-worker-http-control-1',
+            sliceName: 'page',
+            authoredUrl: './records.json',
+            method: 'GET',
+            headers: { accept: 'application/json' },
+            expectedContentType: 'application/json',
+            sourceMapRef: { fidelity: 'author-byte-exact', frame: 'cem:0' },
+        }]);
+        expect(JSON.stringify(rendered.frames)).not.toContain('http-request');
+        expect(structuredClone(rendered)).toEqual(rendered);
     });
 });
 

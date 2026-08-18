@@ -10,6 +10,19 @@ resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resourc
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements
 binding for resource role, acquisition policy, metadata, and expected content-type context.
 
+URI-backed canonical CEM-ML declarations and inline canonical declarations use the same
+retained worker/fallback processing host. A host `loadSrcDocument` hook may keep returning
+a complete string, or return `{ body, resolvedUrl, resolverIdentity }`, where `body` is an
+`AsyncIterable<Uint8Array>`. The stream form preserves module-map/resolver identity and
+makes the imported URL the base for relative resource controls inside that declaration.
+
+`<http-request>` is lowered by CEM-QL to a clone-safe host-control descriptor before the
+worker render plan is diffed. URL resolution, policy, response streaming, `AbortSignal`,
+and stale-resource revisions remain main-thread host responsibilities. Template-visible
+states use the portable lifecycle vocabulary: `scheduled`, `in-progress`, `loaded`, and
+`failed` for the implemented Phase 1 transitions. JSON/XML projections are available at
+`datadom.slices.<name>.data` and can be consumed by `cem:for-each`.
+
 ## Production-Ready Trigger
 
 The package is considered browser-substrate production-ready when this command passes:
