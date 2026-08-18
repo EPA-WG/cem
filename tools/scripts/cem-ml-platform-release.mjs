@@ -1643,7 +1643,7 @@ function previousPlatformReleaseTag(workspaceRoot, sourceCommit) {
         stdio: 'pipe',
     });
     if (result.status === 0) return result.stdout.trim();
-    if (/cannot describe|No names found|unknown revision|bad revision/i.test(`${result.stdout}\n${result.stderr}`)) {
+    if (/cannot describe|No tags can describe|No names found|unknown revision|bad revision/i.test(`${result.stdout}\n${result.stderr}`)) {
         return undefined;
     }
     throw new Error(`cannot resolve previous CEM-ML release tag: ${result.stderr}`);

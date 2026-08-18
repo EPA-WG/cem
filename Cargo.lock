@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "cem-ml"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 dependencies = [
  "blake3",
  "cssparser",
@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "cem-ml-cli"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 dependencies = [
  "cem-ml",
  "cem-ml-transform-cem-ql",
@@ -316,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "cem-ml-transform-cem-ql"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 dependencies = [
  "blake3",
  "cem-ml",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "cem-ql"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 dependencies = [
  "cem-ml",
  "serde_json",
@@ -2207,7 +2207,7 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-cem"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 dependencies = [
  "cc",
  "tree-sitter-language",

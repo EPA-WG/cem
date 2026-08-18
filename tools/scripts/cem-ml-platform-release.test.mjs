@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -104,6 +105,50 @@ test('GitHub CLI draft creation uses the existing tag and bounded generated note
     );
 });
 
+test('first CEM-ML tag creates a draft without a generated-notes start tag', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'cem-ml-first-release-'));
+    const firstVersion = '0.1.0-rc.1';
+    const firstReleaseTag = `cem-ml-v${firstVersion}`;
+    try {
+        git(root, 'init', '--quiet');
+        git(root, 'config', 'user.name', 'CEM-ML release test');
+        git(root, 'config', 'user.email', 'cem-ml-release@example.test');
+        writeFileSync(resolve(root, 'history.txt'), 'initial\n');
+        git(root, 'add', 'history.txt');
+        git(root, 'commit', '--quiet', '-m', 'initial');
+        writeFileSync(resolve(root, 'history.txt'), 'release\n');
+        git(root, 'commit', '--quiet', '-am', 'release');
+        git(root, 'tag', '-a', firstReleaseTag, '-m', firstReleaseTag);
+
+        const firstSourceCommit = git(root, 'rev-parse', 'HEAD').trim();
+        const github = createFakeGithubReleaseClient();
+        const result = createOrResumePlatformReleaseDraft({
+            workspaceRoot: root,
+            authorized: true,
+            version: firstVersion,
+            sourceCommit: firstSourceCommit,
+            releaseTag: firstReleaseTag,
+            taggedCommit: firstSourceCommit,
+            github,
+        });
+
+        assert.equal(result.action, 'created');
+        assert.equal(result.previousReleaseTag, undefined);
+        assert.deepEqual(github.createRequests, [
+            {
+                tag: firstReleaseTag,
+                title: `CEM-ML ${firstVersion}`,
+                draft: true,
+                prerelease: true,
+                generateNotes: true,
+                notesStartTag: undefined,
+            },
+        ]);
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
 test('identical existing GitHub draft resumes without mutation', () => {
     const existing = githubDraft();
     const github = createFakeGithubReleaseClient(existing);
@@ -139,6 +184,7 @@ for (const [label, release, message] of [
                     sourceCommit,
                     releaseTag,
                     taggedCommit: sourceCommit,
+                    previousReleaseTag: 'cem-ml-v3.4.4',
                     github,
                 }),
             message,
@@ -158,6 +204,7 @@ test('draft coordinator rejects a tag that does not resolve to the checked-out s
                 sourceCommit,
                 releaseTag,
                 taggedCommit: 'f'.repeat(40),
+                previousReleaseTag: 'cem-ml-v3.4.4',
                 github,
             }),
         /tagged source-commit drift/,
@@ -175,6 +222,7 @@ test('draft coordinator rejects a manual tag outside the exact CEM-ML version co
                 sourceCommit,
                 releaseTag: `cem-ml-v${version}-unexpected`,
                 taggedCommit: sourceCommit,
+                previousReleaseTag: 'cem-ml-v3.4.4',
                 github,
             }),
         /release tag drift/,
@@ -1542,7 +1590,11 @@ function createFakeGithubReleaseClient(initialRelease = null) {
         },
         create(request) {
             client.createRequests.push(request);
-            release = githubDraft({ isPrerelease: request.prerelease });
+            release = githubDraft({
+                tagName: request.tag,
+                name: request.title,
+                isPrerelease: request.prerelease,
+            });
         },
     };
     return client;
@@ -1627,6 +1679,10 @@ function createFixture() {
         if (unit.identity === '@epa-wg/cem-ml') npmRuntime = created;
     }
     return { root, npmRuntime, dispose: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+function git(root, ...arguments_) {
+    return execFileSync('git', arguments_, { cwd: root, encoding: 'utf8', stdio: 'pipe' });
 }
 
 function makePublicationReady(workspaceRoot, units) {

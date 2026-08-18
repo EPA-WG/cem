@@ -1,6 +1,6 @@
 [package]
 name = "cem-ml-cli"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 authors = ["Sasha Firsov <sasha@firsov.net>"]
 edition = "2021"
 description = "CEM parser/runtime CLI"
@@ -20,8 +20,8 @@ debug-control = [
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-cem-ml = { version = "=0.1.0-rc.1", path = "../cem_ml", default-features = false }
-cem-ml-transform-cem-ql = { version = "=0.1.0-rc.1", path = "../cem_ml_transform_cem_ql", default-features = false }
+cem-ml = { version = "=0.1.0-rc.2", path = "../cem_ml", default-features = false }
+cem-ml-transform-cem-ql = { version = "=0.1.0-rc.2", path = "../cem_ml_transform_cem_ql", default-features = false }
 ctrlc = { version = "3.5", features = ["termination"] }
 quick-xml = "0.41"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls-webpki-roots"] }
@@ -30,4 +30,4 @@ serde_json = "1"
 yaml-rust2 = "0.11"
 
 [dev-dependencies]
-cem-ml = { version = "=0.1.0-rc.1", path = "../cem_ml", default-features = false, features = ["fake-engine"] }
+cem-ml = { version = "=0.1.0-rc.2", path = "../cem_ml", default-features = false, features = ["fake-engine"] }

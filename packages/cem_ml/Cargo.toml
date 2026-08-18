@@ -1,6 +1,6 @@
 [package]
 name = "cem-ml"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 authors = ["Sasha Firsov <sasha@firsov.net>"]
 edition = "2021"
 description = "CEM schema-defined parser/runtime library"

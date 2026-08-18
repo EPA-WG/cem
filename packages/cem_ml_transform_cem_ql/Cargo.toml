@@ -1,6 +1,6 @@
 [package]
 name = "cem-ml-transform-cem-ql"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 authors = ["Sasha Firsov <sasha@firsov.net>"]
 edition = "2021"
 description = "CEM-ML transform template adapter backed by CEM-QL rendering"
@@ -17,6 +17,6 @@ debug-control = ["cem-ml/debug-control", "cem-ql/debug-control"]
 
 [dependencies]
 blake3 = "1"
-cem-ml = { version = "=0.1.0-rc.1", path = "../cem_ml", default-features = false }
-cem-ql = { version = "=0.1.0-rc.1", path = "../cem_ql", default-features = false }
+cem-ml = { version = "=0.1.0-rc.2", path = "../cem_ml", default-features = false }
+cem-ql = { version = "=0.1.0-rc.2", path = "../cem_ql", default-features = false }
 serde_json = "1"
