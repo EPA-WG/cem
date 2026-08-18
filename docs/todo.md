@@ -65,7 +65,7 @@ only to the final promotion step.
       The Nx-owned coordinator is opt-in, creates or resumes drafts only, and
       reads the created release back before success.
 
-- [ ] Add CI-owned production and upload for the two WASM/npm units and Linux AMD64.
+- [x] Add CI-owned production and upload for the two WASM/npm units and Linux AMD64.
     - [x] Build each unit from the checked-out tag through its Nx package/sign/
           verify targets and run clean-consumer, platform-parity, and Linux
           install/upgrade/uninstall gates.
@@ -73,7 +73,7 @@ only to the final promotion step.
           evidence without granting any producer permission to publish the draft.
     - [x] Upload version-qualified unit assets idempotently to the existing draft;
           use GitHub Actions artifacts only for job-to-job transport.
-    - [ ] Record source commit, Nx target, workflow run, toolchain/target identity,
+    - [x] Record source commit, Nx target, workflow run, toolchain/target identity,
           attestation, and smoke evidence for each CI-owned unit.
     - Completed 2026-08-17: added independent Nx-owned npm/WASM and Linux AMD64
       producer lanes, checksum-subject GitHub attestations, protected Linux GPG
@@ -81,15 +81,17 @@ only to the final promotion step.
       Actions-artifact transport, and byte-verifying no-clobber upload to the
       existing draft. The protected `cem-ml-release` environment owns the GPG
       secret material, signing fingerprint, and both draft/upload opt-ins;
-      producer jobs have no `contents: write` authority. Synthetic coordinator,
-      signing, target-contract, drift, and idempotence coverage passes 30 tests.
-    - Next decision point: producer evidence must be emitted after all smoke gates,
-      but mutating an already checksummed and attested release unit would invalidate
-      its evidence. Recommended design is a separate version-qualified
-      `*.producer-evidence.json` sidecar per unit containing the workflow run and
-      attempt, Nx target, pinned toolchain/target identity, attestation reference,
-      and gate results, with its own attestation rather than rewriting package
-      subjects. Confirm that schema and trust boundary before implementing it.
+      producer jobs have no `contents: write` authority.
+    - Completed 2026-08-17: each CI unit now emits an authoritative,
+      version-qualified `*.producer-evidence.json` sidecar after its gates pass.
+      The sidecar binds the exact workflow run/attempt, actors, runner image,
+      source/workflow commits, Nx targets and gate results, captured toolchain and
+      target identities, release-entry/checksum/signing records, and original
+      artifact-attestation ID, URL, bundle, and digest. A separate
+      `actions/attest@v4` invocation signs the immutable sidecar; Nx verifies that
+      detached bundle before Actions transport, draft upload, and aggregate-index
+      inclusion. Synthetic coordinator, signing, schema, target-contract, drift,
+      aggregate, and idempotence coverage passes 38 tests.
 
 - [ ] Document and verify authorized native-host publication and recovery lanes.
     - [ ] Add one exact-tag/source-commit preflight shared by macOS ARM64,

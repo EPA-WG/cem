@@ -187,6 +187,39 @@
             ],
             "outputs": []
         },
+        "record:producer-evidence": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs record-producer-evidence @epa-wg/cem-ml-cli",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts/**/*",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "CEM_ML_ARTIFACT_ATTESTATION_ID" },
+                { "env": "CEM_ML_ARTIFACT_ATTESTATION_URL" },
+                { "env": "GITHUB_RUN_ID" },
+                { "env": "GITHUB_RUN_ATTEMPT" }
+            ],
+            "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts"]
+        },
+        "verify:producer-evidence": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs finalize-producer-evidence @epa-wg/cem-ml-cli",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts/**/*",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE" }
+            ],
+            "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts"]
+        },
         "verify:consumer": {
             "cache": false,
             "executor": "nx:run-commands",

@@ -51,6 +51,59 @@ export const expectedReleaseUnits = Object.freeze([
 
 export const ciReleaseUnits = Object.freeze(expectedReleaseUnits.slice(0, 3));
 
+const ciProducerProfiles = Object.freeze({
+    '@epa-wg/cem-ml': {
+        job: 'npm-producers',
+        nxTargets: ['@epa-wg/cem-ml:package', '@epa-wg/cem-ml:check', '@epa-wg/cem-ml:verify:release'],
+        gates: [
+            { name: 'clean-consumer', nxTarget: '@epa-wg/cem-ml:check', status: 'passed' },
+            { name: 'publication-unit-verification', nxTarget: '@epa-wg/cem-ml:verify:release', status: 'passed' },
+        ],
+        requiredToolchain: ['node', 'yarn', 'rustc', 'cargo', 'githubCli', 'wasmBindgen'],
+    },
+    '@epa-wg/cem-ml-cli': {
+        job: 'npm-producers',
+        nxTargets: [
+            '@epa-wg/cem-ml-cli:package',
+            '@epa-wg/cem-ml-cli:check',
+            '@epa-wg/cem-ml-cli:verify:platform-parity',
+            '@epa-wg/cem-ml-cli:verify:release',
+        ],
+        gates: [
+            { name: 'clean-consumer', nxTarget: '@epa-wg/cem-ml-cli:check', status: 'passed' },
+            {
+                name: 'platform-parity',
+                nxTarget: '@epa-wg/cem-ml-cli:verify:platform-parity',
+                status: 'passed',
+            },
+            {
+                name: 'publication-unit-verification',
+                nxTarget: '@epa-wg/cem-ml-cli:verify:release',
+                status: 'passed',
+            },
+        ],
+        requiredToolchain: ['node', 'yarn', 'rustc', 'cargo', 'githubCli', 'wasmBindgen'],
+    },
+    'native-linux-amd64': {
+        job: 'linux-producer',
+        nxTargets: [
+            'cem_ml_cli_native_linux_amd64:package',
+            'cem_ml_cli_native_linux_amd64:smoke:release',
+        ],
+        gates: [
+            {
+                name: 'publication-unit-verification',
+                nxTarget: 'cem_ml_cli_native_linux_amd64:smoke:release',
+                status: 'passed',
+            },
+            { name: 'install-smoke', nxTarget: 'cem_ml_cli_native_linux_amd64:smoke:release', status: 'passed' },
+            { name: 'upgrade-smoke', nxTarget: 'cem_ml_cli_native_linux_amd64:smoke:release', status: 'passed' },
+            { name: 'uninstall-smoke', nxTarget: 'cem_ml_cli_native_linux_amd64:smoke:release', status: 'passed' },
+        ],
+        requiredToolchain: ['node', 'yarn', 'rustc', 'cargo', 'githubCli', 'gpg'],
+    },
+});
+
 export function createOrResumePlatformReleaseDraft({
     workspaceRoot = defaultWorkspaceRoot,
     authorized = process.env.CEM_ML_PLATFORM_DRAFT === '1',
@@ -120,12 +173,30 @@ export function stagePlatformRelease({
     publication = false,
     units = expectedReleaseUnits,
     outputRoot = resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version),
+    attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
 } = {}) {
     if (publication) assertCleanSourceTree(workspaceRoot);
     const releaseTag = `cem-ml-v${version}`;
     const validated = units.map((unit) => {
         const root = resolve(workspaceRoot, unit.root);
-        return validateReleaseUnit({ root, unit, version, sourceCommit, releaseTag, publication });
+        const releaseUnit = validateReleaseUnit({ root, unit, version, sourceCommit, releaseTag, publication });
+        const evidencePath = ciProducerProfiles[unit.identity]
+            ? findProducerEvidencePath(root, unit, version)
+            : undefined;
+        const hasProducerEvidence = evidencePath && statSync(evidencePath, { throwIfNoEntry: false })?.isFile();
+        const producerEvidence =
+            ciProducerProfiles[unit.identity] && (publication || hasProducerEvidence)
+                ? validateCiProducerEvidence({
+                      root,
+                      unit,
+                      version,
+                      sourceCommit,
+                      releaseTag,
+                      entryFilename: releaseUnit.entryFilename,
+                      attestationVerifier,
+                  })
+                : undefined;
+        return { ...releaseUnit, producerEvidence };
     });
     const assetsRoot = resolve(outputRoot, 'assets');
     assertGeneratedOutput(workspaceRoot, outputRoot);
@@ -155,12 +226,18 @@ export function stagePlatformRelease({
         releaseTag,
         publicationState: publication ? 'publication-ready' : 'verified-staged',
         units: validated
-            .map(({ entry, entryFilename, identity }) => ({
+            .map(({ entry, entryFilename, identity, producerEvidence }) => ({
                 identity,
                 releaseEntry: entryFilename,
                 capabilityManifestDigest: entry.capabilityManifestDigest,
                 checksumManifest: entry.checksumManifest,
                 signingRecord: entry.signingRecord,
+                ...(producerEvidence
+                    ? {
+                          producerEvidence: producerEvidence.evidenceFilename,
+                          producerEvidenceAttestation: producerEvidence.bundleFilename,
+                      }
+                    : {}),
             }))
             .sort((left, right) => left.identity.localeCompare(right.identity)),
         assets: [...copied.values()].sort((left, right) => left.filename.localeCompare(right.filename)),
@@ -171,7 +248,15 @@ export function stagePlatformRelease({
         resolve(assetsRoot, checksumName),
         `${checksummed.map((filename) => `${sha256File(resolve(assetsRoot, filename))}  ${filename}`).join('\n')}\n`,
     );
-    verifyPlatformRelease({ workspaceRoot, outputRoot, version, sourceCommit, publication, units });
+    verifyPlatformRelease({
+        workspaceRoot,
+        outputRoot,
+        version,
+        sourceCommit,
+        publication,
+        units,
+        attestationVerifier,
+    });
     return { outputRoot, assetsRoot, indexName, checksumName, index };
 }
 
@@ -182,6 +267,7 @@ export function verifyPlatformRelease({
     sourceCommit = gitSourceCommit(workspaceRoot),
     publication = false,
     units = expectedReleaseUnits,
+    attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
 } = {}) {
     if (publication) assertCleanSourceTree(workspaceRoot);
     const releaseRoot = outputRoot ?? resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version);
@@ -207,7 +293,7 @@ export function verifyPlatformRelease({
     for (const unit of units) {
         const summary = index.units.find(({ identity }) => identity === unit.identity);
         assert.ok(summary, `aggregate release index is missing ${unit.identity}`);
-        validateReleaseUnit({
+        const releaseUnit = validateReleaseUnit({
             root: assetsRoot,
             unit,
             version,
@@ -216,6 +302,29 @@ export function verifyPlatformRelease({
             publication,
             entryFilename: summary.releaseEntry,
         });
+        const hasProducerEvidence =
+            summary.producerEvidence !== undefined || summary.producerEvidenceAttestation !== undefined;
+        if (ciProducerProfiles[unit.identity] && (publication || hasProducerEvidence)) {
+            const producerEvidence = validateCiProducerEvidence({
+                root: assetsRoot,
+                unit,
+                version,
+                sourceCommit,
+                releaseTag: index.releaseTag,
+                entryFilename: releaseUnit.entryFilename,
+                attestationVerifier,
+            });
+            assert.equal(
+                summary.producerEvidence,
+                producerEvidence.evidenceFilename,
+                `${unit.identity} aggregate producer-evidence name drift`,
+            );
+            assert.equal(
+                summary.producerEvidenceAttestation,
+                producerEvidence.bundleFilename,
+                `${unit.identity} aggregate producer-evidence attestation drift`,
+            );
+        }
     }
     const checksumEntries = readChecksumManifest(resolve(assetsRoot, checksumName));
     const expectedChecksummed = [...expectedAssets.keys(), indexName].sort();
@@ -258,6 +367,181 @@ export function verifyPlatformReleaseUnit({
     });
 }
 
+export function recordCiProducerEvidence({
+    workspaceRoot = defaultWorkspaceRoot,
+    identity,
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+    workflow,
+    runner,
+    toolchain,
+    artifactAttestation,
+} = {}) {
+    const unit = requireCiReleaseUnit(identity);
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= `cem-ml-v${version}`;
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    const validated = verifyPlatformReleaseUnit({
+        workspaceRoot,
+        identity,
+        version,
+        sourceCommit,
+        releaseTag,
+        taggedCommit,
+    });
+    const profile = ciProducerProfiles[identity];
+    const signingPath = requireFile(
+        resolve(validated.root, validated.entry.signingRecord),
+        `${identity} signing record`,
+    );
+    const signing = readJson(signingPath);
+    const packageAttestation = signing.githubArtifactAttestation;
+    assert.equal(packageAttestation?.status, 'verified', `${identity} package attestation is not verified`);
+    assert.match(artifactAttestation?.id ?? '', /^\d+$/, `${identity} artifact-attestation ID is invalid`);
+    assert.equal(
+        artifactAttestation?.url,
+        `https://github.com/EPA-WG/cem/attestations/${artifactAttestation.id}`,
+        `${identity} artifact-attestation URL drift`,
+    );
+
+    const base = validated.entryFilename.replace(/\.release-index-entry\.json$/, '');
+    const evidenceFilename = `${base}.producer-evidence.json`;
+    const bundleFilename = `${base}.producer-evidence.attestation.jsonl`;
+    const evidencePath = resolve(validated.root, evidenceFilename);
+    const bundlePath = resolve(validated.root, bundleFilename);
+    rmSync(bundlePath, { force: true });
+    const evidence = {
+        schemaVersion: 1,
+        evidenceType: 'cem-ml-ci-producer',
+        product: 'cem-ml',
+        commonVersion: version,
+        sourceCommit,
+        releaseTag,
+        unitIdentity: identity,
+        targetIdentities: unit.targets ? [...unit.targets] : [unit.target],
+        releaseUnit: {
+            releaseEntry: artifactRecord(validated.root, validated.entryFilename),
+            checksumManifest: artifactRecord(validated.root, validated.entry.checksumManifest),
+            signingRecord: artifactRecord(validated.root, validated.entry.signingRecord),
+        },
+        workflow,
+        runner,
+        toolchain,
+        nx: {
+            targets: [...profile.nxTargets],
+            gates: profile.gates.map((gate) => ({ ...gate })),
+        },
+        artifactAttestation: {
+            id: artifactAttestation.id,
+            url: artifactAttestation.url,
+            status: packageAttestation.status,
+            bundle: packageAttestation.bundle,
+            sha256: packageAttestation.sha256,
+        },
+        evidenceAttestation: {
+            status: 'required-detached',
+            bundle: bundleFilename,
+        },
+    };
+    validateCiProducerEvidenceDocument({ evidence, unit, profile, version, sourceCommit, releaseTag });
+    writeJson(evidencePath, evidence);
+    return { root: validated.root, evidence, evidenceFilename, evidencePath, bundleFilename, bundlePath };
+}
+
+export function finalizeCiProducerEvidence({
+    workspaceRoot = defaultWorkspaceRoot,
+    identity,
+    suppliedAttestation = process.env.CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE,
+    attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+} = {}) {
+    const unit = requireCiReleaseUnit(identity);
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= `cem-ml-v${version}`;
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    assert.equal(taggedCommit, sourceCommit, 'CEM-ML producer-evidence tagged source-commit drift');
+    if (!suppliedAttestation?.trim()) {
+        throw new Error('CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE is required');
+    }
+    const root = resolve(workspaceRoot, unit.root);
+    const evidencePath = requireFile(findProducerEvidencePath(root, unit, version), `${identity} producer evidence`);
+    const evidence = readJson(evidencePath);
+    const bundlePath = resolve(root, evidence.evidenceAttestation?.bundle ?? 'missing-producer-evidence-bundle');
+    const suppliedBundle = requireFile(suppliedAttestation, 'producer-evidence attestation bundle');
+    copyFileSync(suppliedBundle, bundlePath);
+    try {
+        return validateCiProducerEvidence({
+            root,
+            unit,
+            version,
+            sourceCommit,
+            releaseTag,
+            attestationVerifier,
+        });
+    } catch (error) {
+        rmSync(bundlePath, { force: true });
+        throw error;
+    }
+}
+
+export function validateCiProducerEvidence({
+    root,
+    unit,
+    version,
+    sourceCommit,
+    releaseTag,
+    entryFilename,
+    attestationVerifier = createGithubAttestationVerifier(defaultWorkspaceRoot),
+}) {
+    const profile = ciProducerProfiles[unit.identity];
+    if (!profile) throw new Error(`${unit.identity} is not a CI-owned CEM-ML release unit`);
+    const releaseEntries = listFiles(root).filter((filename) => filename.endsWith('.release-index-entry.json'));
+    const resolvedEntryFilename = entryFilename ?? releaseEntries[0];
+    if (!resolvedEntryFilename || (!entryFilename && releaseEntries.length !== 1)) {
+        throw new Error(`${unit.identity} must provide exactly one release-index entry for producer evidence`);
+    }
+    const base = resolvedEntryFilename.replace(/\.release-index-entry\.json$/, '');
+    const evidenceFilename = `${base}.producer-evidence.json`;
+    const evidencePath = requireFile(resolve(root, evidenceFilename), `${unit.identity} producer evidence`);
+    const evidence = readJson(evidencePath);
+    validateCiProducerEvidenceDocument({ evidence, unit, profile, version, sourceCommit, releaseTag });
+    assert.equal(
+        evidence.releaseUnit.releaseEntry.filename,
+        resolvedEntryFilename,
+        `${unit.identity} producer-evidence release-entry name drift`,
+    );
+    for (const artifact of Object.values(evidence.releaseUnit)) verifyArtifactRecord(root, artifact);
+
+    const signing = readJson(requireFile(resolve(root, evidence.releaseUnit.signingRecord.filename)));
+    assert.deepEqual(
+        evidence.artifactAttestation,
+        {
+            id: evidence.artifactAttestation.id,
+            url: evidence.artifactAttestation.url,
+            status: signing.githubArtifactAttestation.status,
+            bundle: signing.githubArtifactAttestation.bundle,
+            sha256: signing.githubArtifactAttestation.sha256,
+        },
+        `${unit.identity} producer-evidence package attestation drift`,
+    );
+    const bundleFilename = `${base}.producer-evidence.attestation.jsonl`;
+    assert.equal(
+        evidence.evidenceAttestation.bundle,
+        bundleFilename,
+        `${unit.identity} producer-evidence bundle name drift`,
+    );
+    const bundlePath = requireFile(resolve(root, bundleFilename), `${unit.identity} producer-evidence attestation`);
+    attestationVerifier({ subject: evidencePath, bundle: bundlePath, repository: 'EPA-WG/cem' });
+    return { root, evidence, evidenceFilename, evidencePath, bundleFilename, bundlePath };
+}
+
 export function uploadPlatformReleaseUnits({
     workspaceRoot = defaultWorkspaceRoot,
     units = ciReleaseUnits,
@@ -267,6 +551,7 @@ export function uploadPlatformReleaseUnits({
     releaseTag,
     taggedCommit,
     github,
+    attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
 } = {}) {
     if (!authorized) {
         throw new Error('CI unit upload is disabled; set CEM_ML_PLATFORM_UPLOAD=1 in the protected release job');
@@ -279,16 +564,26 @@ export function uploadPlatformReleaseUnits({
     assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML CI-unit release tag drift');
     assert.equal(taggedCommit, sourceCommit, 'CEM-ML CI-unit tagged source-commit drift');
 
-    const validated = units.map((unit) =>
-        validateReleaseUnit({
+    const validated = units.map((unit) => {
+        const releaseUnit = validateReleaseUnit({
             root: resolve(workspaceRoot, unit.root),
             unit,
             version,
             sourceCommit,
             releaseTag,
             publication: true,
-        }),
-    );
+        });
+        const producerEvidence = validateCiProducerEvidence({
+            root: releaseUnit.root,
+            unit,
+            version,
+            sourceCommit,
+            releaseTag,
+            entryFilename: releaseUnit.entryFilename,
+            attestationVerifier,
+        });
+        return { ...releaseUnit, producerEvidence };
+    });
     const localAssets = new Map();
     const ownedBases = [];
     for (const { root, entryFilename } of validated) {
@@ -509,6 +804,113 @@ export function validateReleaseUnit({
     return { root, entry, entryFilename: resolvedEntryFilename, identity };
 }
 
+function validateCiProducerEvidenceDocument({ evidence, unit, profile, version, sourceCommit, releaseTag }) {
+    assert.equal(evidence.schemaVersion, 1, `${unit.identity} producer-evidence schema drift`);
+    assert.equal(evidence.evidenceType, 'cem-ml-ci-producer', `${unit.identity} producer-evidence type drift`);
+    assert.equal(evidence.product, 'cem-ml', `${unit.identity} producer-evidence product drift`);
+    assert.equal(evidence.commonVersion, version, `${unit.identity} producer-evidence version drift`);
+    assert.equal(evidence.sourceCommit, sourceCommit, `${unit.identity} producer-evidence source-commit drift`);
+    assert.equal(evidence.releaseTag, releaseTag, `${unit.identity} producer-evidence release-tag drift`);
+    assert.equal(evidence.unitIdentity, unit.identity, `${unit.identity} producer-evidence unit drift`);
+    assert.deepEqual(
+        [...evidence.targetIdentities].sort(),
+        [...(unit.targets ?? [unit.target])].sort(),
+        `${unit.identity} producer-evidence target drift`,
+    );
+
+    const workflow = evidence.workflow;
+    assert.equal(workflow?.repository, 'EPA-WG/cem', `${unit.identity} producer-evidence repository drift`);
+    assert.match(
+        workflow?.workflowRef ?? '',
+        /^EPA-WG\/cem\/\.github\/workflows\/cem-ml-release\.yml@refs\/(?:heads|tags)\/\S+$/,
+        `${unit.identity} producer-evidence workflow ref drift`,
+    );
+    assert.match(workflow?.workflowSha ?? '', /^[a-f0-9]{40,64}$/, `${unit.identity} workflow SHA is invalid`);
+    assert.match(workflow?.runId ?? '', /^\d+$/, `${unit.identity} workflow run ID is invalid`);
+    assert.ok(Number.isInteger(workflow?.runAttempt) && workflow.runAttempt > 0, `${unit.identity} run attempt is invalid`);
+    assert.equal(workflow?.job, profile.job, `${unit.identity} producer job drift`);
+    assert.match(workflow?.actor ?? '', /^\S+$/, `${unit.identity} workflow actor is missing`);
+    assert.match(
+        workflow?.triggeringActor ?? '',
+        /^\S+$/,
+        `${unit.identity} workflow triggering actor is missing`,
+    );
+    assert.equal(
+        workflow?.url,
+        `https://github.com/EPA-WG/cem/actions/runs/${workflow.runId}/attempts/${workflow.runAttempt}`,
+        `${unit.identity} workflow run URL drift`,
+    );
+
+    for (const field of ['name', 'os', 'architecture', 'environment', 'image']) {
+        assert.match(evidence.runner?.[field] ?? '', /\S/, `${unit.identity} producer runner ${field} is missing`);
+    }
+    assert.deepEqual(evidence.nx?.targets, profile.nxTargets, `${unit.identity} producer Nx target drift`);
+    for (const gate of evidence.nx?.gates ?? []) {
+        assert.equal(gate.status, 'passed', `${unit.identity} producer gate did not pass: ${gate.name}`);
+    }
+    assert.deepEqual(evidence.nx?.gates, profile.gates, `${unit.identity} producer gate set drift`);
+    assert.deepEqual(
+        Object.keys(evidence.toolchain ?? {}).sort(),
+        [...profile.requiredToolchain].sort(),
+        `${unit.identity} producer toolchain set drift`,
+    );
+    for (const [name, value] of Object.entries(evidence.toolchain ?? {})) {
+        assert.match(value, /\S/, `${unit.identity} producer toolchain ${name} is missing`);
+    }
+
+    for (const [name, artifact] of Object.entries(evidence.releaseUnit ?? {})) {
+        assert.match(artifact?.filename ?? '', /^[^/\\]+$/, `${unit.identity} ${name} filename is invalid`);
+        assert.ok(Number.isInteger(artifact?.byteLength) && artifact.byteLength > 0, `${unit.identity} ${name} is empty`);
+        assert.match(artifact?.sha256 ?? '', /^[a-f0-9]{64}$/, `${unit.identity} ${name} digest is invalid`);
+    }
+    assert.deepEqual(
+        Object.keys(evidence.releaseUnit ?? {}).sort(),
+        ['checksumManifest', 'releaseEntry', 'signingRecord'],
+        `${unit.identity} producer-evidence release-unit set drift`,
+    );
+    assert.match(evidence.artifactAttestation?.id ?? '', /^\d+$/, `${unit.identity} attestation ID is invalid`);
+    assert.equal(
+        evidence.artifactAttestation?.url,
+        `https://github.com/EPA-WG/cem/attestations/${evidence.artifactAttestation.id}`,
+        `${unit.identity} attestation URL drift`,
+    );
+    assert.equal(evidence.artifactAttestation?.status, 'verified', `${unit.identity} attestation is not verified`);
+    assert.match(
+        evidence.artifactAttestation?.bundle ?? '',
+        /^[^/\\]+\.attestation\.jsonl$/,
+        `${unit.identity} artifact-attestation bundle name drift`,
+    );
+    assert.match(
+        evidence.artifactAttestation?.sha256 ?? '',
+        /^[a-f0-9]{64}$/,
+        `${unit.identity} artifact-attestation digest is invalid`,
+    );
+    assert.equal(
+        evidence.evidenceAttestation?.status,
+        'required-detached',
+        `${unit.identity} producer-evidence attestation policy drift`,
+    );
+    assert.match(
+        evidence.evidenceAttestation?.bundle ?? '',
+        /^[^/\\]+\.producer-evidence\.attestation\.jsonl$/,
+        `${unit.identity} producer-evidence bundle name drift`,
+    );
+}
+
+function requireCiReleaseUnit(identity) {
+    const unit = ciReleaseUnits.find((candidate) => candidate.identity === identity);
+    if (!unit) throw new Error(`${identity} is not a CI-owned CEM-ML release unit`);
+    return unit;
+}
+
+function findProducerEvidencePath(root, unit, version) {
+    const releaseEntries = listFiles(root).filter((filename) => filename.endsWith('.release-index-entry.json'));
+    assert.equal(releaseEntries.length, 1, `${unit.identity} must provide exactly one release-index entry`);
+    const base = releaseEntries[0].replace(/\.release-index-entry\.json$/, '');
+    assert.ok(base.startsWith(`cem-ml-${version}-`), `${unit.identity} producer-evidence base is unversioned`);
+    return resolve(root, `${base}.producer-evidence.json`);
+}
+
 function validateChannel(root, entry, expectedChannel, version, releaseTag) {
     const channelArtifact = entry.artifacts.find(({ filename }) => filename.endsWith(`.${expectedChannel}.json`));
     assert.ok(channelArtifact, `${entry.runtimeIdentity} ${expectedChannel} record is missing`);
@@ -646,6 +1048,66 @@ function createGithubAssetClient(workspaceRoot) {
     };
 }
 
+function createGithubAttestationVerifier(workspaceRoot) {
+    return ({ subject, bundle, repository = 'EPA-WG/cem' }) =>
+        run('gh', ['attestation', 'verify', subject, '--repo', repository, '--bundle', bundle], workspaceRoot);
+}
+
+function producerWorkflowFromEnvironment() {
+    const repository = requiredEnvironment('GITHUB_REPOSITORY');
+    const runId = requiredEnvironment('GITHUB_RUN_ID');
+    const runAttempt = Number(requiredEnvironment('GITHUB_RUN_ATTEMPT'));
+    return {
+        repository,
+        workflowRef: requiredEnvironment('GITHUB_WORKFLOW_REF'),
+        workflowSha: requiredEnvironment('GITHUB_WORKFLOW_SHA'),
+        runId,
+        runAttempt,
+        job: requiredEnvironment('GITHUB_JOB'),
+        actor: requiredEnvironment('GITHUB_ACTOR'),
+        triggeringActor: requiredEnvironment('GITHUB_TRIGGERING_ACTOR'),
+        url: `${requiredEnvironment('GITHUB_SERVER_URL')}/${repository}/actions/runs/${runId}/attempts/${runAttempt}`,
+    };
+}
+
+function producerRunnerFromEnvironment() {
+    const runner = {
+        name: requiredEnvironment('RUNNER_NAME'),
+        os: requiredEnvironment('RUNNER_OS'),
+        architecture: requiredEnvironment('RUNNER_ARCH'),
+        environment: requiredEnvironment('RUNNER_ENVIRONMENT'),
+        image: requiredEnvironment('CEM_ML_RUNNER_IMAGE'),
+    };
+    if (process.env.ImageVersion?.trim()) runner.imageVersion = process.env.ImageVersion;
+    return runner;
+}
+
+function captureProducerToolchain(workspaceRoot, identity) {
+    const toolchain = {
+        node: capture('node', ['--version'], workspaceRoot).trim(),
+        yarn: capture('yarn', ['--version'], workspaceRoot).trim(),
+        rustc: capture('rustc', ['--version', '--verbose'], workspaceRoot).trim(),
+        cargo: capture('cargo', ['--version'], workspaceRoot).trim(),
+        githubCli: firstLine(capture('gh', ['--version'], workspaceRoot)),
+    };
+    if (identity.startsWith('@')) {
+        toolchain.wasmBindgen = capture('wasm-bindgen', ['--version'], workspaceRoot).trim();
+    } else {
+        toolchain.gpg = firstLine(capture('gpg', ['--version'], workspaceRoot));
+    }
+    return toolchain;
+}
+
+function requiredEnvironment(name) {
+    const value = process.env[name];
+    if (!value?.trim()) throw new Error(`${name} is required for CEM-ML producer evidence`);
+    return value;
+}
+
+function firstLine(value) {
+    return value.trim().split('\n')[0];
+}
+
 function run(command, args, cwd) {
     const result = spawnSync(command, args, { cwd, encoding: 'utf8', stdio: 'inherit' });
     if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed with status ${result.status}`);
@@ -709,10 +1171,11 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     const args = process.argv.slice(3);
     const publication = args.includes('--publication');
     const standardCommand = ['create-draft', 'stage', 'verify', 'upload-draft', 'upload-ci-units'].includes(command);
-    const verifyUnitCommand = command === 'verify-unit' && args.length === 1;
-    if ((!standardCommand && !verifyUnitCommand) || (standardCommand && args.some((arg) => arg !== '--publication'))) {
+    const unitCommand = ['verify-unit', 'record-producer-evidence', 'finalize-producer-evidence'].includes(command);
+    const validUnitCommand = unitCommand && args.length === 1;
+    if ((!standardCommand && !validUnitCommand) || (standardCommand && args.some((arg) => arg !== '--publication'))) {
         throw new Error(
-            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|stage|verify|upload-draft|upload-ci-units> [--publication] | verify-unit <identity>',
+            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|stage|verify|upload-draft|upload-ci-units> [--publication] | <verify-unit|record-producer-evidence|finalize-producer-evidence> <identity>',
         );
     }
     if (command === 'create-draft') {
@@ -737,8 +1200,23 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
         if (publication) throw new Error('upload-ci-units validates publication-ready units implicitly');
         const result = uploadPlatformReleaseUnits();
         console.log(`Uploaded ${result.uploaded.length} missing assets for ${result.identities.join(', ')}.`);
-    } else {
+    } else if (command === 'verify-unit') {
         const result = verifyPlatformReleaseUnit({ identity: args[0] });
         console.log(`Verified publication-ready CEM-ML release unit ${result.identity}.`);
+    } else if (command === 'record-producer-evidence') {
+        const result = recordCiProducerEvidence({
+            identity: args[0],
+            workflow: producerWorkflowFromEnvironment(),
+            runner: producerRunnerFromEnvironment(),
+            toolchain: captureProducerToolchain(defaultWorkspaceRoot, args[0]),
+            artifactAttestation: {
+                id: requiredEnvironment('CEM_ML_ARTIFACT_ATTESTATION_ID'),
+                url: requiredEnvironment('CEM_ML_ARTIFACT_ATTESTATION_URL'),
+            },
+        });
+        console.log(`Recorded ${result.evidenceFilename} after all CI producer gates passed.`);
+    } else {
+        const result = finalizeCiProducerEvidence({ identity: args[0] });
+        console.log(`Verified detached producer-evidence attestation ${result.bundleFilename}.`);
     }
 }

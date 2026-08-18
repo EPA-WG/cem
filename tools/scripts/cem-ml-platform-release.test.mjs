@@ -23,10 +23,13 @@ import {
     ciReleaseUnits,
     createOrResumePlatformReleaseDraft,
     expectedReleaseUnits,
+    finalizeCiProducerEvidence,
     githubDraftCreateArguments,
+    recordCiProducerEvidence,
     stagePlatformRelease,
     uploadPlatformReleaseUnits,
     uploadPlatformReleaseDraft,
+    validateCiProducerEvidence,
     verifyPlatformReleaseUnit,
     verifyPlatformRelease,
 } from './cem-ml-platform-release.mjs';
@@ -196,12 +199,17 @@ test('CEM-ML workflow owns its tag family and generic publishing excludes it', (
     assert.match(workflow, /npm-producers:/);
     assert.match(workflow, /linux-producer:/);
     assert.match(workflow, /upload-ci-units:/);
-    assert.ok(workflow.match(/uses: actions\/attest@v4/g)?.length >= 2);
+    assert.ok(workflow.match(/uses: actions\/attest@v4/g)?.length >= 4);
     assert.match(workflow, /artifact-metadata: write/);
     assert.match(workflow, /CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64: \$\{\{ secrets\./);
     assert.match(workflow, /CEM_ML_RELEASE_GPG_PASSPHRASE: \$\{\{ secrets\./);
     assert.match(workflow, /uses: actions\/upload-artifact@v4/);
     assert.match(workflow, /uses: actions\/download-artifact@v5/);
+    assert.match(workflow, /CEM_ML_ARTIFACT_ATTESTATION_ID: \$\{\{ steps\.attestation\.outputs\.attestation-id \}\}/);
+    assert.match(workflow, /CEM_ML_ARTIFACT_ATTESTATION_URL: \$\{\{ steps\.attestation\.outputs\.attestation-url \}\}/);
+    assert.match(workflow, /producer-evidence\.json/);
+    assert.match(workflow, /record:producer-evidence/);
+    assert.match(workflow, /verify:producer-evidence/);
     const producerJobs = workflow.slice(workflow.indexOf('  npm-producers:'), workflow.indexOf('  upload-ci-units:'));
     assert.doesNotMatch(producerJobs, /contents: write/);
     assert.match(workflow, /CEM_ML_PLATFORM_DRAFT: \$\{\{ vars\.CEM_ML_PLATFORM_DRAFT \}\}/);
@@ -219,10 +227,14 @@ test('CI producer Nx targets are explicit and package evidence is keyed by the s
     for (const project of [npmRuntime, npmCli]) {
         assert.deepEqual(project.targets.package.inputs.at(-2), { runtime: 'git rev-parse HEAD' });
         assert.ok(project.targets['verify:release']);
+        assert.ok(project.targets['record:producer-evidence']);
+        assert.ok(project.targets['verify:producer-evidence']);
     }
     assert.ok(linux.targets['verify:release']);
     assert.ok(linux.targets['smoke:release']);
     assert.deepEqual(linux.targets['smoke:release'].dependsOn, ['verify', 'verify:release']);
+    assert.ok(linux.targets['record:producer-evidence']);
+    assert.ok(linux.targets['verify:producer-evidence']);
     assert.ok(coordinator.targets['release:upload-ci-units']);
 });
 
@@ -279,10 +291,126 @@ test('CI release-unit verification accepts each publication-ready CI-owned unit 
     }
 });
 
+test('CI producer evidence records the exact run, completed gates, toolchain, target, and artifact attestation', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, ciReleaseUnits);
+        const unit = ciReleaseUnits[1];
+        const root = resolve(fixture.root, unit.root);
+        const entryBefore = readFileSync(findReleaseEntry(root));
+        const checksumBefore = readFileSync(findChecksum(root));
+        const result = recordCiProducerEvidence({
+            workspaceRoot: fixture.root,
+            identity: unit.identity,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            workflow: producerWorkflow(),
+            runner: producerRunner(),
+            toolchain: producerToolchain(),
+            artifactAttestation: producerArtifactAttestation(),
+        });
+
+        assert.match(result.evidenceFilename, /^cem-ml-3\.4\.5-.+\.producer-evidence\.json$/);
+        assert.equal(result.evidence.unitIdentity, unit.identity);
+        assert.equal(result.evidence.workflow.runId, '123456789');
+        assert.equal(result.evidence.workflow.runAttempt, 2);
+        assert.equal(result.evidence.workflow.url, 'https://github.com/EPA-WG/cem/actions/runs/123456789/attempts/2');
+        assert.deepEqual(result.evidence.targetIdentities, [...unit.targets]);
+        assert.deepEqual(result.evidence.toolchain, producerToolchain());
+        assert.ok(result.evidence.nx.gates.every(({ status }) => status === 'passed'));
+        assert.ok(result.evidence.nx.gates.some(({ name }) => name === 'platform-parity'));
+        assert.equal(result.evidence.artifactAttestation.id, producerArtifactAttestation().id);
+        assert.equal(result.evidence.artifactAttestation.url, producerArtifactAttestation().url);
+        assert.equal(result.evidence.artifactAttestation.status, 'verified');
+        assert.match(result.evidence.artifactAttestation.bundle, /\.attestation\.jsonl$/);
+        assert.match(result.evidence.artifactAttestation.sha256, /^[a-f0-9]{64}$/);
+        assert.equal(readFileSync(findReleaseEntry(root)).equals(entryBefore), true);
+        assert.equal(readFileSync(findChecksum(root)).equals(checksumBefore), true);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('detached producer-evidence attestation is verified before becoming a release asset', () => {
+    const fixture = createFixture();
+    const suppliedBundle = resolve(fixture.root, 'supplied-producer-evidence-attestation.json');
+    try {
+        makePublicationReady(fixture.root, ciReleaseUnits);
+        const unit = ciReleaseUnits[0];
+        const recorded = recordProducerEvidenceFixture(fixture.root, unit);
+        writeFileSync(suppliedBundle, '{"verificationMaterial":{}}\n');
+        const calls = [];
+        const finalized = finalizeCiProducerEvidence({
+            workspaceRoot: fixture.root,
+            identity: unit.identity,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            suppliedAttestation: suppliedBundle,
+            attestationVerifier: ({ subject, bundle }) => calls.push({ subject, bundle }),
+        });
+
+        assert.deepEqual(calls, [{ subject: recorded.evidencePath, bundle: finalized.bundlePath }]);
+        assert.equal(finalized.evidence.evidenceAttestation.status, 'required-detached');
+        assert.equal(statSync(finalized.bundlePath).isFile(), true);
+        assert.equal(
+            validateCiProducerEvidence({
+                root: resolve(fixture.root, unit.root),
+                unit,
+                version,
+                sourceCommit,
+                releaseTag,
+                attestationVerifier: ({ subject, bundle }) => calls.push({ subject, bundle }),
+            }).evidenceFilename,
+            recorded.evidenceFilename,
+        );
+        assert.equal(calls.length, 2);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+for (const [label, mutate, message] of [
+    ['source commit', (evidence) => (evidence.sourceCommit = 'f'.repeat(40)), /source-commit drift/],
+    ['workflow URL', (evidence) => (evidence.workflow.url = 'https://example.com/run'), /workflow run URL drift/],
+    ['target identity', (evidence) => (evidence.targetIdentities = ['wrong-target']), /target drift/],
+    ['gate result', (evidence) => (evidence.nx.gates[0].status = 'failed'), /gate did not pass/],
+    ['attestation URL', (evidence) => (evidence.artifactAttestation.url = 'https://example.com'), /attestation URL drift/],
+]) {
+    test(`CI producer evidence rejects ${label} drift`, () => {
+        const fixture = createFixture();
+        try {
+            makePublicationReady(fixture.root, ciReleaseUnits);
+            const unit = ciReleaseUnits[0];
+            const recorded = recordProducerEvidenceFixture(fixture.root, unit);
+            writeFileSync(resolve(fixture.root, unit.root, recorded.bundleFilename), '{"bundle":true}\n');
+            updateJson(recorded.evidencePath, mutate);
+            assert.throws(
+                () =>
+                    validateCiProducerEvidence({
+                        root: resolve(fixture.root, unit.root),
+                        unit,
+                        version,
+                        sourceCommit,
+                        releaseTag,
+                        attestationVerifier: () => true,
+                    }),
+                message,
+            );
+        } finally {
+            fixture.dispose();
+        }
+    });
+}
+
 test('CI-owned unit upload is idempotent, byte-verifies existing assets, and preserves foreign units', () => {
     const fixture = createFixture();
     try {
         makePublicationReady(fixture.root, ciReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, ciReleaseUnits);
         const github = createFakeGithubAssetClient({
             'cem-ml-3.4.5-native-macos-arm64.manual': 'manual host bytes',
         });
@@ -295,6 +423,7 @@ test('CI-owned unit upload is idempotent, byte-verifies existing assets, and pre
             releaseTag,
             taggedCommit: sourceCommit,
             github,
+            attestationVerifier: () => true,
         });
         assert.equal(first.uploaded.length > 0, true);
         assert.equal(github.assets.has('cem-ml-3.4.5-native-macos-arm64.manual'), true);
@@ -308,6 +437,7 @@ test('CI-owned unit upload is idempotent, byte-verifies existing assets, and pre
             releaseTag,
             taggedCommit: sourceCommit,
             github,
+            attestationVerifier: () => true,
         });
         assert.deepEqual(second.uploaded, []);
         assert.equal(github.uploadCalls, 1);
@@ -320,6 +450,7 @@ test('CI-owned unit upload rejects remote byte drift without clobbering', () => 
     const fixture = createFixture();
     try {
         makePublicationReady(fixture.root, ciReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, ciReleaseUnits);
         const ownedRoot = resolve(fixture.root, ciReleaseUnits[0].root);
         const ownedFilename = readdirSync(ownedRoot).find((filename) => filename.endsWith('.tgz'));
         assert.ok(ownedFilename);
@@ -335,6 +466,7 @@ test('CI-owned unit upload rejects remote byte drift without clobbering', () => 
                     releaseTag,
                     taggedCommit: sourceCommit,
                     github,
+                    attestationVerifier: () => true,
                 }),
             /immutable|drift/,
         );
@@ -366,6 +498,30 @@ test('five deployment fixtures stage one complete immutable release index', () =
             }).sourceCommit,
             sourceCommit,
         );
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('aggregate release evidence indexes each authoritative CI producer sidecar and detached attestation', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, ciReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, ciReleaseUnits);
+        const staged = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            units: expectedReleaseUnits,
+            attestationVerifier: () => true,
+        });
+        for (const unit of ciReleaseUnits) {
+            const summary = staged.index.units.find(({ identity }) => identity === unit.identity);
+            assert.match(summary.producerEvidence, /\.producer-evidence\.json$/);
+            assert.match(summary.producerEvidenceAttestation, /\.producer-evidence\.attestation\.jsonl$/);
+            assert.ok(staged.index.assets.some(({ filename }) => filename === summary.producerEvidence));
+            assert.ok(staged.index.assets.some(({ filename }) => filename === summary.producerEvidenceAttestation));
+        }
     } finally {
         fixture.dispose();
     }
@@ -517,6 +673,85 @@ function makePublicationReady(workspaceRoot, units) {
             signing.publicationReady = true;
         });
     }
+}
+
+function producerWorkflow(unit) {
+    return {
+        repository: 'EPA-WG/cem',
+        workflowRef: 'EPA-WG/cem/.github/workflows/cem-ml-release.yml@refs/tags/cem-ml-v3.4.5',
+        workflowSha: sourceCommit,
+        runId: '123456789',
+        runAttempt: 2,
+        job: unit?.identity === 'native-linux-amd64' ? 'linux-producer' : 'npm-producers',
+        actor: 'release-operator',
+        triggeringActor: 'release-operator',
+        url: 'https://github.com/EPA-WG/cem/actions/runs/123456789/attempts/2',
+    };
+}
+
+function producerRunner() {
+    return {
+        name: 'GitHub Actions 7',
+        os: 'Linux',
+        architecture: 'X64',
+        environment: 'github-hosted',
+        image: 'ubuntu24',
+        imageVersion: '20260810.1',
+    };
+}
+
+function producerToolchain(unit) {
+    const toolchain = {
+        node: 'v24.6.0',
+        yarn: '4.9.2',
+        rustc: 'rustc 1.89.0 (fixture)',
+        cargo: 'cargo 1.89.0 (fixture)',
+        githubCli: 'gh version 2.76.2 (fixture)',
+    };
+    if (unit?.identity === 'native-linux-amd64') toolchain.gpg = 'gpg (GnuPG) 2.4.7';
+    else toolchain.wasmBindgen = 'wasm-bindgen 0.2.122';
+    return toolchain;
+}
+
+function producerArtifactAttestation() {
+    return {
+        id: '987654321',
+        url: 'https://github.com/EPA-WG/cem/attestations/987654321',
+    };
+}
+
+function recordProducerEvidenceFixture(workspaceRoot, unit) {
+    return recordCiProducerEvidence({
+        workspaceRoot,
+        identity: unit.identity,
+        version,
+        sourceCommit,
+        releaseTag,
+        taggedCommit: sourceCommit,
+        workflow: producerWorkflow(unit),
+        runner: producerRunner(),
+        toolchain: producerToolchain(unit),
+        artifactAttestation: producerArtifactAttestation(),
+    });
+}
+
+function makeProducerEvidenceReady(workspaceRoot, units) {
+    for (const unit of units) {
+        const recorded = recordProducerEvidenceFixture(workspaceRoot, unit);
+        writeFileSync(resolve(workspaceRoot, unit.root, recorded.bundleFilename), '{"bundle":true}\n');
+    }
+}
+
+function findReleaseEntry(root) {
+    const filename = readdirSync(root).find((candidate) => candidate.endsWith('.release-index-entry.json'));
+    assert.ok(filename);
+    return resolve(root, filename);
+}
+
+function findChecksum(root) {
+    const filename = readdirSync(root).find((candidate) => candidate.endsWith('.sha256'));
+    assert.ok(filename);
+    return resolve(root, filename);
 }
 
 function writeUnit(workspaceRoot, unit) {

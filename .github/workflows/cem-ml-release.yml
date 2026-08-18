@@ -146,6 +146,33 @@ jobs:
           CEM_ML_RELEASE_SIGNING: required
           GH_TOKEN: ${{ github.token }}
 
+      - name: Record post-gate producer evidence through Nx
+        run: yarn nx run "${{ matrix.project }}:record:producer-evidence" --parallel=false
+        env:
+          CEM_ML_ARTIFACT_ATTESTATION_ID: ${{ steps.attestation.outputs.attestation-id }}
+          CEM_ML_ARTIFACT_ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+          CEM_ML_RUNNER_IMAGE: ubuntu-24.04
+
+      - name: Resolve producer-evidence sidecar
+        id: producer-evidence
+        shell: bash
+        run: |
+          mapfile -t evidence < <(find "${{ matrix.artifact-root }}" -maxdepth 1 -type f -name '*.producer-evidence.json' -print)
+          test "${#evidence[@]}" -eq 1
+          echo "path=${evidence[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest producer-evidence sidecar
+        id: producer-evidence-attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ steps.producer-evidence.outputs.path }}
+
+      - name: Verify producer-evidence attestation through Nx
+        run: yarn nx run "${{ matrix.project }}:verify:producer-evidence" --parallel=false
+        env:
+          CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE: ${{ steps.producer-evidence-attestation.outputs.bundle-path }}
+          GH_TOKEN: ${{ github.token }}
+
       - name: Transport release unit
         uses: actions/upload-artifact@v4
         with:
@@ -235,6 +262,33 @@ jobs:
           CEM_ML_RELEASE_GPG_PASSPHRASE: ${{ secrets.CEM_ML_RELEASE_GPG_PASSPHRASE }}
           CEM_ML_RELEASE_SIGNING: required
           CEM_ML_RELEASE_VERIFY: '1'
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Record post-smoke producer evidence through Nx
+        run: yarn nx run cem_ml_cli_native_linux_amd64:record:producer-evidence --parallel=false
+        env:
+          CEM_ML_ARTIFACT_ATTESTATION_ID: ${{ steps.attestation.outputs.attestation-id }}
+          CEM_ML_ARTIFACT_ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+          CEM_ML_RUNNER_IMAGE: ubuntu-24.04
+
+      - name: Resolve producer-evidence sidecar
+        id: producer-evidence
+        shell: bash
+        run: |
+          mapfile -t evidence < <(find dist/packages/cem-ml-cli-native-linux-amd64/artifacts -maxdepth 1 -type f -name '*.producer-evidence.json' -print)
+          test "${#evidence[@]}" -eq 1
+          echo "path=${evidence[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest producer-evidence sidecar
+        id: producer-evidence-attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ steps.producer-evidence.outputs.path }}
+
+      - name: Verify producer-evidence attestation through Nx
+        run: yarn nx run cem_ml_cli_native_linux_amd64:verify:producer-evidence --parallel=false
+        env:
+          CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE: ${{ steps.producer-evidence-attestation.outputs.bundle-path }}
           GH_TOKEN: ${{ github.token }}
 
       - name: Transport release unit

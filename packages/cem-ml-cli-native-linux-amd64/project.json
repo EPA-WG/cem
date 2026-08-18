@@ -112,6 +112,39 @@
       ],
       "outputs": []
     },
+    "record:producer-evidence": {
+      "cache": false,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/scripts/cem-ml-platform-release.mjs record-producer-evidence native-linux-amd64",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": [
+        "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+        "{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts/**/*",
+        { "runtime": "git rev-parse HEAD" },
+        { "env": "CEM_ML_ARTIFACT_ATTESTATION_ID" },
+        { "env": "CEM_ML_ARTIFACT_ATTESTATION_URL" },
+        { "env": "GITHUB_RUN_ID" },
+        { "env": "GITHUB_RUN_ATTEMPT" }
+      ],
+      "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts"]
+    },
+    "verify:producer-evidence": {
+      "cache": false,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/scripts/cem-ml-platform-release.mjs finalize-producer-evidence native-linux-amd64",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": [
+        "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+        "{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts/**/*",
+        { "runtime": "git rev-parse HEAD" },
+        { "env": "CEM_ML_PRODUCER_EVIDENCE_ATTESTATION_BUNDLE" }
+      ],
+      "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts"]
+    },
     "publish": {
       "cache": false,
       "executor": "nx:run-commands",
