@@ -266,13 +266,19 @@ export function collectPlatformReleaseDraft({
     const release = github.view(releaseTag);
     assert.ok(release, `required GitHub draft ${releaseTag} does not exist`);
     assert.equal(release.tagName, releaseTag, 'GitHub draft release tag drift');
-    assert.equal(release.isDraft, true, `${releaseTag} must remain a draft during collection`);
     assert.ok(Array.isArray(release.assets), 'GitHub draft asset listing is missing');
     const remoteNames = release.assets.map(({ name }) => name).sort();
     assert.equal(new Set(remoteNames).size, remoteNames.length, 'GitHub draft contains duplicate asset names');
 
     const aggregateNames = [`cem-ml-${version}.SHA256SUMS`, `cem-ml-${version}.release-index.json`];
     const aggregateAssets = remoteNames.filter((filename) => aggregateNames.includes(filename));
+    if (!release.isDraft) {
+        assert.deepEqual(
+            aggregateAssets,
+            aggregateNames.sort(),
+            `${releaseTag} published retry requires complete aggregate evidence`,
+        );
+    }
     const unitNames = remoteNames.filter((filename) => !aggregateNames.includes(filename));
     const invalidNames = unitNames.filter((filename) => !filename.startsWith(`cem-ml-${version}-`));
     assert.deepEqual(invalidNames, [], 'GitHub draft contains assets outside the CEM-ML release namespace');
@@ -1005,7 +1011,6 @@ export function uploadPlatformReleaseDraft({
     github ??= createGithubAssetClient(workspaceRoot);
     const release = github.view(releaseTag);
     assert.equal(release.tagName, index.releaseTag, 'GitHub draft release tag drift');
-    assert.equal(release.isDraft, true, `${index.releaseTag} must remain a draft during complete asset staging`);
     const filenames = listFiles(assetsRoot);
     const remoteNames = release.assets.map(({ name }) => name).sort();
     assert.equal(new Set(remoteNames).size, remoteNames.length, 'GitHub draft contains duplicate asset names');
@@ -1043,6 +1048,9 @@ export function uploadPlatformReleaseDraft({
         }
     }
     const missingNames = filenames.filter((filename) => !remoteNames.includes(filename));
+    if (!release.isDraft) {
+        assert.deepEqual(missingNames, [], 'published GitHub Release is missing immutable aggregate assets');
+    }
     if (missingNames.length > 0)
         github.upload(
             releaseTag,
@@ -1051,7 +1059,11 @@ export function uploadPlatformReleaseDraft({
 
     const finalRelease = github.view(releaseTag);
     assert.equal(finalRelease.tagName, releaseTag, 'GitHub draft release tag drift after aggregate upload');
-    assert.equal(finalRelease.isDraft, true, `${releaseTag} was published during aggregate upload`);
+    assert.equal(
+        finalRelease.isDraft,
+        release.isDraft,
+        `${releaseTag} publication state changed during aggregate upload`,
+    );
     const finalNames = finalRelease.assets.map(({ name }) => name).sort();
     assert.deepEqual(finalNames, filenames, 'draft GitHub Release asset set is incomplete or contains extras');
 

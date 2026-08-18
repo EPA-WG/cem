@@ -1092,6 +1092,41 @@ test('protected promotion publishes a complete verified draft once and re-verifi
             ],
         );
 
+        const recollected = collectPlatformReleaseDraft({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            github,
+            attestationVerifier: () => true,
+        });
+        assert.equal(recollected.aggregatePresent, true);
+        const restaged = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+            promotionWorkflow: workflow,
+        });
+        uploadPlatformReleaseDraft({
+            workspaceRoot: fixture.root,
+            authorized: true,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            outputRoot: restaged.outputRoot,
+            github,
+            attestationVerifier: () => true,
+            promotionWorkflow: workflow,
+        });
+        assert.equal(github.uploadCalls, 0, 'published finalizer retry must not upload release assets');
+
         const retry = promotePlatformRelease({
             workspaceRoot: fixture.root,
             authorized: true,
@@ -1149,6 +1184,23 @@ test('promotion rejects incomplete and drifted remote releases before publicatio
             /checksum|missing|unindexed/i,
         );
         assert.equal(incomplete.publishCalls, 0);
+
+        const publishedIncomplete = createFakeGithubAssetClient(incompleteAssets, { isDraft: false });
+        assert.throws(
+            () =>
+                collectPlatformReleaseDraft({
+                    workspaceRoot: fixture.root,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    github: publishedIncomplete,
+                    attestationVerifier: () => true,
+                }),
+            /published retry requires complete aggregate evidence/,
+        );
+        assert.equal(publishedIncomplete.uploadCalls, 0);
 
         const driftedAssets = new Map(complete);
         const tarball = [...driftedAssets.keys()].find((filename) => filename.endsWith('.tgz'));
