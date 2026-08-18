@@ -1052,6 +1052,13 @@ the concrete plugin architecture section.
 - **AC-R-3 [B] SHOULD** detect registry/template collisions across nested scopes and
   surface them as warnings or policy-controlled diagnostics.
 
+Phase 3 binds these requirements through the declaration registry and name
+contract in [`cem-element-design.md`](./cem-element-design.md): logical CEM
+declaration lookup is scoped and inherited, while produced browser tag names remain
+document-global. Compatible inherited identities reuse one definition; same-scope
+duplicates, incompatible inherited shadows, and incompatible CEM, legacy, or
+foreign browser definitions fail before `CustomElementRegistry#define`.
+
 ## 10. Performance & Resource Budgets
 
 - **AC-N-1 [A] MUST** parse + validate + transform any canonical fixture in

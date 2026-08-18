@@ -9,8 +9,8 @@ history is preserved under [`archive/`](archive/).
 
 Begin
 [`Phase 3 - Custom-Element Runtime`](../roadmap.md#phase-3---custom-element-runtime)
-by locking the declaration/registration contract for the
-`@epa-wg/cem-elements` substrate before extending its browser runtime.
+by auditing the existing `@epa-wg/cem-elements` substrate against the now-locked
+declaration/registration contract before extending its browser runtime.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -20,30 +20,30 @@ and same-run recovery evidence are recorded in
 
 The Phase 3 WASM topology is already decided: Option B, one dedicated browser
 worker, is primary; Option A, main-thread WASM, is the required fallback. The
-remaining immediate ambiguity is the relationship between the logical scoped
-CEM template registry and the browser custom-elements registry, plus the
-uniqueness/collision rules for produced tag names. Do not implement registration
-behavior until the first checklist item resolves that boundary.
+registration boundary is also locked: logical declaration lookup is scoped and
+inherited, browser registration remains document-global, and only identical CEM
+registration identities may reuse an inherited or existing definition.
 
 ## Phase 3 Checklist
 
-- [ ] Lock the `<cem-element>` declaration and registration contract.
-    - [ ] Decide whether CEM declarations use a scoped, inherited logical template
+- [x] Lock the `<cem-element>` declaration and registration contract.
+    - [x] Decide whether CEM declarations use a scoped, inherited logical template
           registry while produced browser custom elements remain registered in the
           document's global `customElements` registry.
-    - [ ] Decide which names are globally unique, which references may be
+    - [x] Decide which names are globally unique, which references may be
           scope-local, and how duplicate declarations, inherited shadowing, and
           collisions with legacy `<custom-element>` declarations fail.
-    - [ ] Reconcile the decision with `AC-R-1` through `AC-R-3`, the reserved
+    - [x] Reconcile the decision with `AC-R-1` through `AC-R-3`, the reserved
           `cem-` component namespace, and the coexistence rule that browser tag
           names must not collide.
-    - [ ] Promote the accepted rules into `docs/cem-element-design.md` and
+    - [x] Promote the accepted rules into `docs/cem-element-design.md` and
           executable contract tests; remove the two blocking `TBD` statements.
-    - Recommended direction: scope and inherit CEM template/declaration lookup,
-      keep browser `customElements` registration global, require globally unique
-      public produced tag names, and make same-scope duplicates or incompatible
-      inherited shadowing deterministic errors. This preserves the scoped CEM
-      model without pretending the default browser registry is scoped.
+    - Completed 2026-08-18: adopted scoped/inherited logical lookup with
+      document-global browser registration. Same-scope duplicates and incompatible
+      inherited, legacy, foreign, or existing-CEM definitions fail before browser
+      mutation; identical inherited or existing CEM registration identities reuse
+      the one global definition. The pure decision core and 7 focused contract
+      cases pass as part of all 94 `cem-elements:test:unit` tests.
 
 - [ ] Audit the existing Phase 3 substrate against the locked contract.
     - [ ] Classify current `cem-elements` declaration-shape, data-document,
@@ -53,6 +53,15 @@ behavior until the first checklist item resolves that boundary.
     - [ ] Map every current resolved Nx target to the Phase 3A/3B/3C roadmap and
           move edge/SSR-only acceptance out of the Phase 3 browser gate where
           necessary.
+    - [ ] Repair or retire the inferred
+          `test-ci--src/lib/cem-elements.declaration-shape.spec.ts` target, which
+          currently selects the Storybook-only Vitest project and reports no unit
+          test files; keep `cem-elements:test:unit` as the accepted unit gate until
+          the resolved target topology is corrected.
+    - [ ] Restore the `cem-elements:lint` project baseline: it currently reports
+          15 pre-existing module-boundary errors in the CEMT/Storybook sources and
+          two unrelated warnings, while the registration-contract source and test
+          lint clean in isolation.
     - [ ] Add an explicit todo checkitem before adding any new parity or browser
           fixture discovered by the audit.
 

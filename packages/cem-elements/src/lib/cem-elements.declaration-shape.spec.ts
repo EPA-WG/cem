@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { analyzeDeclarationShape } from './cem-elements.js';
+import {
+    CEM_DECLARATION_REGISTRATION_CONTRACT,
+    analyzeDeclarationRegistration,
+    analyzeDeclarationShape,
+} from './cem-elements.js';
 
 describe('cem-element declaration shape contract', () => {
     it('accepts exactly one inline template with no live declaration content', () => {
@@ -96,6 +100,124 @@ describe('cem-element declaration shape contract', () => {
     });
 });
 
-function codes(result: ReturnType<typeof analyzeDeclarationShape>): string[] {
+describe('cem-element declaration registration contract', () => {
+    it('separates scoped inherited declaration lookup from document-global browser registration', () => {
+        expect(CEM_DECLARATION_REGISTRATION_CONTRACT).toEqual({
+            logicalRegistry: 'scoped-inherited',
+            browserRegistry: 'document-global',
+            scopedBrowserRegistryRequired: false,
+            publicTagUniqueness: 'document-global',
+            sameScopeDuplicate: 'error',
+            compatibleInheritedDeclaration: 'reuse',
+            incompatibleInheritedDeclaration: 'error',
+            incompatibleBrowserDefinition: 'error',
+        });
+
+        expect(
+            analyzeDeclarationRegistration({
+                tag: 'cem-button',
+                registrationIdentity: 'sha256:button-v1',
+            }),
+        ).toEqual({
+            action: 'define-browser-tag',
+            diagnostics: [],
+        });
+
+        // The `cem-` prefix is reserved for @epa-wg/cem-components by its
+        // package contract, not required of every third-party declaration.
+        expect(
+            analyzeDeclarationRegistration({
+                tag: 'story-button',
+                registrationIdentity: 'sha256:story-button-v1',
+            }).action,
+        ).toBe('define-browser-tag');
+    });
+
+    it('rejects same-scope duplicates even when their registration identities match', () => {
+        const result = analyzeDeclarationRegistration({
+            tag: 'cem-button',
+            registrationIdentity: 'sha256:button-v1',
+            sameScope: { registrationIdentity: 'sha256:button-v1' },
+        });
+
+        expect(result.action).toBe('reject');
+        expect(codes(result)).toEqual(['cem-element.registry_same_scope_duplicate']);
+    });
+
+    it('reuses an identical inherited declaration without defining the browser tag again', () => {
+        const result = analyzeDeclarationRegistration({
+            tag: 'cem-button',
+            registrationIdentity: 'sha256:button-v1',
+            inherited: { registrationIdentity: 'sha256:button-v1' },
+            browser: {
+                owner: 'cem-element',
+                registrationIdentity: 'sha256:button-v1',
+            },
+        });
+
+        expect(result).toEqual({
+            action: 'reuse-inherited',
+            diagnostics: [],
+        });
+    });
+
+    it('rejects incompatible inherited shadowing before browser mutation', () => {
+        const result = analyzeDeclarationRegistration({
+            tag: 'cem-button',
+            registrationIdentity: 'sha256:button-v2',
+            inherited: { registrationIdentity: 'sha256:button-v1' },
+            browser: {
+                owner: 'cem-element',
+                registrationIdentity: 'sha256:button-v1',
+            },
+        });
+
+        expect(result.action).toBe('reject');
+        expect(codes(result)).toEqual(['cem-element.registry_inherited_collision']);
+    });
+
+    it.each(['legacy-custom-element', 'foreign'] as const)(
+        'rejects a document-global browser tag owned by %s',
+        (owner) => {
+            const result = analyzeDeclarationRegistration({
+                tag: 'cem-button',
+                registrationIdentity: 'sha256:button-v1',
+                browser: { owner },
+            });
+
+            expect(result.action).toBe('reject');
+            expect(codes(result)).toEqual(['cem-element.browser_tag_collision']);
+        },
+    );
+
+    it('reuses only the same CEM registration identity across runtime instances', () => {
+        expect(
+            analyzeDeclarationRegistration({
+                tag: 'cem-button',
+                registrationIdentity: 'sha256:button-v1',
+                browser: {
+                    owner: 'cem-element',
+                    registrationIdentity: 'sha256:button-v1',
+                },
+            }),
+        ).toEqual({
+            action: 'reuse-browser-tag',
+            diagnostics: [],
+        });
+
+        const incompatible = analyzeDeclarationRegistration({
+            tag: 'cem-button',
+            registrationIdentity: 'sha256:button-v2',
+            browser: {
+                owner: 'cem-element',
+                registrationIdentity: 'sha256:button-v1',
+            },
+        });
+        expect(incompatible.action).toBe('reject');
+        expect(codes(incompatible)).toEqual(['cem-element.browser_tag_collision']);
+    });
+});
+
+function codes(result: { diagnostics: Array<{ code: string }> }): string[] {
     return result.diagnostics.map((diagnostic) => diagnostic.code);
 }

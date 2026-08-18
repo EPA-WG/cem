@@ -49,7 +49,9 @@ monorepo.
 Terminology used below:
 
 - **Declaration element** means `<cem-element>`. It declares/registers a custom
-  element tag and owns the CEM-ML template source. The (scoped) custom elements registry use TBD. The use of unique tag names is TBD.
+  element tag and owns the CEM-ML template source. CEM declaration lookup is scoped
+  and inherited, while the produced tag is registered once in the declaration
+  document's global browser `customElements` registry under the contract below.
 - **Declaration template** means the single direct-child WHATWG `<template>` inside
   `<cem-element>`. It is inert browser content, but it is not the mutable runtime
   data island.
@@ -58,6 +60,57 @@ Terminology used below:
 - **Instance data island** means the produced custom element instance's inert
   `<template data-cem-island="instance">`, which stores mutable attributes, payload,
   slices, validation state, and event payloads.
+
+### Declaration registry and name contract
+
+Phase 3 separates two registries that have different scopes:
+
+- The **logical CEM declaration registry** belongs to a CEM parser/runtime scope.
+  Lookup checks the current scope first and then walks parent scopes. This is the
+  scoped, inherited template/registry behavior required by AC-R-1 and AC-R-2.
+- The **browser custom-elements registry** is
+  `declarationElement.ownerDocument.defaultView.customElements`. Phase 3A treats it
+  as document-global and does not require browser scoped-custom-element-registry
+  support. A later browser optimization may use scoped registries only behind the
+  same logical lookup and collision contract.
+
+Every resolved declaration has a stable **registration identity** that binds the
+produced tag, resolved template source identity, template language, and browser
+behavior contract. Registration is decided before calling
+`CustomElementRegistry#define`:
+
+1. A second declaration for the same tag in the same logical scope is an error,
+   even when both registration identities match
+   (`cem-element.registry_same_scope_duplicate`).
+2. A child scope may repeat an inherited tag only when its registration identity
+   is identical. The child aliases the inherited declaration and does not define
+   the browser tag again.
+3. A different registration identity for an inherited tag is an incompatible
+   shadow and fails before browser mutation
+   (`cem-element.registry_inherited_collision`). Discovery-only tooling may expose
+   the collision as the policy-controlled diagnostic required by AC-R-3, but the
+   runtime registration gate is fail-closed.
+4. A document-global browser definition may be reused only when it is owned by the
+   CEM runtime and carries the identical registration identity. A different CEM
+   identity, a legacy `@epa-wg/custom-element` definition, or any foreign
+   constructor is a hard collision (`cem-element.browser_tag_collision`).
+5. Therefore every public produced tag has one compatible definition per browser
+   document. During the coexistence window, CEM and legacy declarations may share
+   a document but may not claim the same produced tag.
+
+Produced tags MUST satisfy the WHATWG custom-element name syntax. The `cem-`
+prefix remains reserved for primitives published by `@epa-wg/cem-components`, as
+defined by that package's conventions; the generic `cem-element` runtime does not
+require third-party declarations to use that prefix and cannot infer package
+ownership from a DOM declaration. Package authoring and verification gates enforce
+the reserved namespace.
+
+The executable decision core is
+`CEM_DECLARATION_REGISTRATION_CONTRACT` plus
+`analyzeDeclarationRegistration()` in `@epa-wg/cem-elements`. It is deliberately
+pure so duplicate and collision decisions can be verified before the browser
+registry is mutated. The Phase 3 substrate audit must wire runtime registration to
+that accepted decision core rather than maintaining a second policy.
 
 A `<cem-element>` declaration has one direct child: the WHATWG `<template>` that
 contains the declaration's CEM-ML template source. This declaration template is not

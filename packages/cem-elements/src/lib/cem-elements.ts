@@ -54,6 +54,42 @@ export interface DeclarationShapeResult {
     diagnostics: CemElementDiagnostic[];
 }
 
+export const CEM_DECLARATION_REGISTRATION_CONTRACT = Object.freeze({
+    logicalRegistry: 'scoped-inherited',
+    browserRegistry: 'document-global',
+    scopedBrowserRegistryRequired: false,
+    publicTagUniqueness: 'document-global',
+    sameScopeDuplicate: 'error',
+    compatibleInheritedDeclaration: 'reuse',
+    incompatibleInheritedDeclaration: 'error',
+    incompatibleBrowserDefinition: 'error',
+} as const);
+
+export interface CemDeclarationRegistrationIdentity {
+    /**
+     * Stable identity of the produced tag's resolved template source, template
+     * language, and browser behavior contract.
+     */
+    registrationIdentity: string;
+}
+
+export interface CemBrowserTagRegistration {
+    owner: 'cem-element' | 'legacy-custom-element' | 'foreign';
+    registrationIdentity?: string;
+}
+
+export interface DeclarationRegistrationContractInput extends CemDeclarationRegistrationIdentity {
+    tag: string;
+    sameScope?: CemDeclarationRegistrationIdentity;
+    inherited?: CemDeclarationRegistrationIdentity;
+    browser?: CemBrowserTagRegistration;
+}
+
+export interface DeclarationRegistrationContractResult {
+    action: 'define-browser-tag' | 'reuse-inherited' | 'reuse-browser-tag' | 'reject';
+    diagnostics: CemElementDiagnostic[];
+}
+
 export interface SerializedPayload {
     text: string;
     childCount: number;
@@ -709,6 +745,74 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
         tag,
         src,
         diagnostics,
+    };
+}
+
+/**
+ * Pure Phase 3 registration decision core.
+ *
+ * CEM declaration lookup is scoped and inherited, but produced custom-element
+ * tags use the document-global browser registry. This function makes collision
+ * decisions before any call to `CustomElementRegistry#define`.
+ */
+export function analyzeDeclarationRegistration(
+    input: DeclarationRegistrationContractInput
+): DeclarationRegistrationContractResult {
+    const tag = input.tag.trim();
+
+    if (!isValidCustomElementName(tag)) {
+        return registrationRejection(
+            'cem-element.tag_invalid',
+            `declaration tag \`${tag}\` is not a valid custom-element name`,
+            tag
+        );
+    }
+
+    if (input.sameScope) {
+        return registrationRejection(
+            'cem-element.registry_same_scope_duplicate',
+            `declaration tag \`${tag}\` is already declared in this CEM scope`,
+            tag
+        );
+    }
+
+    if (input.inherited && input.inherited.registrationIdentity !== input.registrationIdentity) {
+        return registrationRejection(
+            'cem-element.registry_inherited_collision',
+            `declaration tag \`${tag}\` conflicts with an inherited CEM declaration`,
+            tag
+        );
+    }
+
+    if (
+        input.browser &&
+        (input.browser.owner !== 'cem-element' ||
+            input.browser.registrationIdentity !== input.registrationIdentity)
+    ) {
+        return registrationRejection(
+            'cem-element.browser_tag_collision',
+            `custom element \`${tag}\` already has an incompatible document-global definition`,
+            tag
+        );
+    }
+
+    if (input.inherited) {
+        return { action: 'reuse-inherited', diagnostics: [] };
+    }
+    if (input.browser) {
+        return { action: 'reuse-browser-tag', diagnostics: [] };
+    }
+    return { action: 'define-browser-tag', diagnostics: [] };
+}
+
+function registrationRejection(
+    code: string,
+    message: string,
+    tag: string
+): DeclarationRegistrationContractResult {
+    return {
+        action: 'reject',
+        diagnostics: [declarationDiagnostic(code, message, tag)],
     };
 }
 
