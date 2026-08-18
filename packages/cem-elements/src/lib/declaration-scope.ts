@@ -187,6 +187,29 @@ export function bindCemDeclarationScopeRegistration<TDeclaration>(
     );
 }
 
+/** @internal Roll back a local binding when document-global browser definition fails. */
+export function unbindCemDeclarationScopeRegistration<TDeclaration>(
+    scope: CemDeclarationScope,
+    tag: string,
+    registration?: CemDeclarationScopeRegistration<TDeclaration>
+): boolean {
+    assertScopeChainActive(scope);
+    const state = scopeState(scope);
+    const name = requiredTag(tag);
+    const existing = state.registrations.get(name);
+    if (!existing) {
+        return false;
+    }
+    if (
+        registration
+        && (existing.registrationIdentity !== registration.registrationIdentity
+            || existing.declaration !== registration.declaration)
+    ) {
+        return false;
+    }
+    return state.registrations.delete(name);
+}
+
 /** @internal Fail closed when a scope or any explicitly supplied ancestor was disposed. */
 export function assertCemDeclarationScopeActive(scope: CemDeclarationScope): void {
     assertScopeChainActive(scope);

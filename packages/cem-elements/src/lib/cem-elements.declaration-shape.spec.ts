@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     CEM_DECLARATION_REGISTRATION_CONTRACT,
     analyzeDeclarationRegistration,
+    analyzeDeclarationRegistrationIdentity,
     analyzeDeclarationShape,
 } from './cem-elements.js';
 
@@ -101,6 +102,62 @@ describe('cem-element declaration shape contract', () => {
 });
 
 describe('cem-element declaration registration contract', () => {
+    it('content-addresses source, language, tag, and an explicit browser behavior identity', () => {
+        const base = {
+            tag: 'cem-button',
+            resolvedTemplateSource: '{button | Save}',
+            templateLanguage: 'cem-ml' as const,
+            hasBehavior: false,
+        };
+        const identity = analyzeDeclarationRegistrationIdentity(base);
+
+        expect(identity.diagnostics).toEqual([]);
+        expect(identity.registrationIdentity).toMatch(/^cem-registration-v1:/);
+        expect(analyzeDeclarationRegistrationIdentity(base)).toEqual(identity);
+
+        const identities = [
+            identity.registrationIdentity,
+            analyzeDeclarationRegistrationIdentity({ ...base, tag: 'cem-link' }).registrationIdentity,
+            analyzeDeclarationRegistrationIdentity({
+                ...base,
+                resolvedTemplateSource: '{button | Delete}',
+            }).registrationIdentity,
+            analyzeDeclarationRegistrationIdentity({ ...base, templateLanguage: 'dom' }).registrationIdentity,
+            analyzeDeclarationRegistrationIdentity({
+                ...base,
+                hasBehavior: true,
+                behaviorIdentity: 'button-behavior-v1',
+            }).registrationIdentity,
+            analyzeDeclarationRegistrationIdentity({
+                ...base,
+                hasBehavior: true,
+                behaviorIdentity: 'button-behavior-v2',
+            }).registrationIdentity,
+        ];
+        expect(new Set(identities).size).toBe(identities.length);
+    });
+
+    it('requires a non-empty host identity for behavior-bearing declarations', () => {
+        const missing = analyzeDeclarationRegistrationIdentity({
+            tag: 'cem-button',
+            resolvedTemplateSource: '{button | Save}',
+            templateLanguage: 'cem-ml',
+            hasBehavior: true,
+        });
+        expect(missing.registrationIdentity).toBeNull();
+        expect(codes(missing)).toEqual(['cem-element.behavior_identity_required']);
+
+        const blank = analyzeDeclarationRegistrationIdentity({
+            tag: 'cem-button',
+            resolvedTemplateSource: '{button | Save}',
+            templateLanguage: 'cem-ml',
+            hasBehavior: true,
+            behaviorIdentity: '   ',
+        });
+        expect(blank.registrationIdentity).toBeNull();
+        expect(codes(blank)).toEqual(['cem-element.behavior_identity_required']);
+    });
+
     it('separates scoped inherited declaration lookup from document-global browser registration', () => {
         expect(CEM_DECLARATION_REGISTRATION_CONTRACT).toEqual({
             logicalRegistry: 'scoped-inherited',

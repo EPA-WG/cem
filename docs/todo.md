@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Lock the stable identity of registrations carrying opt-in browser behavior before
-wiring the completed logical declaration-scope host foundation and registration
-decision core into `CemElementRuntime`.
+Lock the package-private Phase 3A processing-host API before moving canonical
+CEM-ML/CEM-QL compilation and rendering from main-thread WASM into the selected
+single dedicated worker with deterministic fallback.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -71,12 +71,12 @@ registration identities may reuse an inherited or existing definition.
       The audit added the focused registration-scope fixture checkitem below before
       creating any new fixture.
 
-- [ ] Lock the logical declaration-scope host API required by runtime registration.
+- [x] Lock the logical declaration-scope host API required by runtime registration.
     - [x] Decide how a host creates an explicit scope and supplies its optional
           parent: opaque runtime-owned scope objects, one default root per
           `Document`, explicit same-document host/parser parents, and no inference
           from arbitrary DOM ancestry.
-    - [ ] Associate both inline and external runtime declarations with the selected
+    - [x] Associate both inline and external runtime declarations with the selected
           explicit scope or their document's default root.
     - [x] Define scope identity, document ownership, parent compatibility, lifetime,
           and disposal without conflating the scope with `scopePolicyStamp`.
@@ -85,23 +85,42 @@ registration identities may reuse an inherited or existing definition.
           incompatible shadows fail before browser mutation.
     - [x] Promote the accepted API and lifecycle into
           `docs/cem-element-design.md` and focused pure contract tests.
-    - [ ] Lock registration-identity derivation for `CemProducedElementBehavior`.
-          Recommended: require a non-empty host `behaviorIdentity` when behavior is
-          supplied, include it with tag/source/language in the content address, and
-          reject callback-source hashing or implicit object-identity reuse.
-    - [ ] Add the audit-identified browser registration-scope fixture only after the
+    - [x] Lock registration-identity derivation for `CemProducedElementBehavior`:
+          require a non-empty host `behaviorIdentity` when behavior is supplied,
+          include it with tag/source/language in the content address, and reject
+          callback-source hashing or implicit object-identity reuse.
+    - [x] Add the audit-identified browser registration-scope fixture after the
           API is locked; prove same-scope failure, identical inherited reuse, and
           incompatible inherited/browser collisions without adding unrelated parity
           fixtures.
-    - Completed foundation 2026-08-18: `CemDeclarationScope`,
-      `createCemDeclarationScope()`, and `getDefaultCemDeclarationScope()` now lock
-      opaque identity, weakly held document roots, explicit immutable parents,
-      nearest inherited lookup, alias binding, and idempotent logical disposal in 4
-      focused cases (98 total `cem-elements:test:unit` tests). Runtime association
-      stops at the behavior-identity decision above.
+    - Completed 2026-08-18: the runtime now selects explicit/default logical scopes
+      for inline and external declarations, derives `cem-registration-v1` identities
+      including required host behavior versions, invokes the pure decision core, and
+      marks CEM-owned constructors before document-global definition. Four scope and
+      nine registration cases pass within all 100 unit tests; the focused browser
+      fixture passes within all 96 Storybook tests and proves same-scope rejection,
+      inherited reuse, incompatible inherited/CEM/foreign browser collisions, and
+      missing behavior identity without registry mutation.
+
+- [ ] Lock the Phase 3A processing-host and worker/fallback transition API.
+    - [ ] Decide whether the single dedicated worker is owned per logical root scope,
+          per `CemElementRuntime`, or per browser `Document`. Recommended: per logical
+          root scope so explicit child scopes share retained compatible artifacts and
+          independent roots remain isolated.
+    - [ ] Define versioned structured-clone request/response envelopes with monotonic
+          job IDs, full render revisions, diagnostics, retained artifact/plan handles,
+          and explicit cancel/dispose messages.
+    - [ ] Define the worker construction seam for bundlers, CSP hosts, and browser
+          tests. Recommended: an injectable module-worker factory with a package
+          default, not a public worker instance or ambient global override.
+    - [ ] Define deterministic startup-failure and post-handshake execution-failure
+          transitions to the same main-thread host interface, including which jobs
+          may be retried and how duplicate commits are prevented.
+    - [ ] Promote the accepted host lifecycle and transition table into the design
+          before creating the worker/fallback browser fixture.
 
 - [ ] Implement the smallest tests-first Phase 3A browser vertical slice.
-    - [ ] Register one inline `<cem-element>` declaration under the locked name
+    - [x] Register one inline `<cem-element>` declaration under the locked name
           rules and capture one produced instance's author payload into an inert
           WHATWG template data island.
     - [ ] Compile/render through the existing CEM-ML/CEM-QL WASM boundary using

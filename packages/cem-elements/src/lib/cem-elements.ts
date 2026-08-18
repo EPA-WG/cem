@@ -28,6 +28,15 @@ import {
 } from './internal/runtime-support/cem-ql-render.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
 import { LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG } from './legacy-xslt/contract.js';
+import {
+    CemDeclarationScopeError,
+    assertCemDeclarationScopeActive,
+    bindCemDeclarationScopeRegistration,
+    getDefaultCemDeclarationScope,
+    lookupCemDeclarationScopeRegistration,
+    unbindCemDeclarationScopeRegistration,
+    type CemDeclarationScope,
+} from './declaration-scope.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
@@ -71,6 +80,21 @@ export interface CemDeclarationRegistrationIdentity {
      * language, and browser behavior contract.
      */
     registrationIdentity: string;
+}
+
+export type CemDeclarationTemplateLanguage = 'dom' | 'cem-ml' | 'legacy-xslt';
+
+export interface DeclarationRegistrationIdentityInput {
+    tag: string;
+    resolvedTemplateSource: string;
+    templateLanguage: CemDeclarationTemplateLanguage;
+    hasBehavior: boolean;
+    behaviorIdentity?: string;
+}
+
+export interface DeclarationRegistrationIdentityResult {
+    registrationIdentity: string | null;
+    diagnostics: CemElementDiagnostic[];
 }
 
 export interface CemBrowserTagRegistration {
@@ -308,6 +332,12 @@ export interface CemHttpResourceEnvelope {
 
 export interface CemElementRuntimeOptions {
     declarationTag?: string;
+    /**
+     * Explicit logical declaration scope. When omitted, declarations use the
+     * owning Document's default root scope. The scope must own the declaration
+     * Document; scope ancestry is never inferred from DOM ancestry.
+     */
+    declarationScope?: CemDeclarationScope;
     scopePolicyStamp?: string;
     privacyPolicyStamp?: string;
     logger?: Pick<Console, 'warn' | 'error'>;
@@ -407,6 +437,12 @@ export interface CemProducedElementBehavior {
 
 export interface CemDeclarationRegistrationOptions {
     behavior?: CemProducedElementBehavior;
+    /**
+     * Stable host version for the browser behavior contract. Required whenever
+     * `behavior` is supplied; callback source text and object identity are not
+     * stable registration identities.
+     */
+    behaviorIdentity?: string;
 }
 
 export interface CemProducedElementBehaviorContext {
@@ -452,6 +488,7 @@ interface CompiledDeclaration {
     uidSeedSource: 'declaration' | 'host' | 'source-hash' | 'runtime';
     occurrencePath: string;
     sourceHash: string;
+    registrationIdentity: string | null;
     scopeUid: string;
     artifactId: string;
     template: HTMLTemplateElement;
@@ -470,6 +507,17 @@ interface CompiledDeclaration {
     declaredSlices: SliceDeclaration[];
     diagnostics: CemElementDiagnostic[];
     behavior?: CemProducedElementBehavior;
+}
+
+interface CemBrowserRegistrationMarker {
+    contract: 'cem-browser-registration-v1';
+    registrationIdentity: string;
+    declaration: CompiledDeclaration;
+}
+
+interface CemBrowserTagRegistrationLookup {
+    registration: CemBrowserTagRegistration;
+    declaration?: CompiledDeclaration;
 }
 
 interface RenderBounds {
@@ -584,6 +632,7 @@ type RenderedResourceResult =
     { kind: 'module-url'; sliceName: string; specifier: string; value: string; error?: unknown };
 
 const DEFAULT_DECLARATION_TAG = 'cem-element';
+const CEM_BROWSER_REGISTRATION_MARKER = Symbol.for('@epa-wg/cem-elements/browser-registration-v1');
 const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
 const DEFAULT_PRIVACY_POLICY_STAMP = 'local-only';
 const DEFAULT_HTTP_RESOURCE_POLICY: CemHttpResourcePolicy = {
@@ -805,6 +854,69 @@ export function analyzeDeclarationRegistration(
     return { action: 'define-browser-tag', diagnostics: [] };
 }
 
+/**
+ * Derive the stable document-global registration identity before registry mutation.
+ * Browser behavior is versioned by an explicit host identity because JavaScript
+ * callback source text and object identity are not stable across builds/runtimes.
+ */
+export function analyzeDeclarationRegistrationIdentity(
+    input: DeclarationRegistrationIdentityInput
+): DeclarationRegistrationIdentityResult {
+    const behaviorIdentity = input.hasBehavior ? input.behaviorIdentity?.trim() ?? '' : '';
+    if (input.hasBehavior && !behaviorIdentity) {
+        return {
+            registrationIdentity: null,
+            diagnostics: [
+                declarationDiagnostic(
+                    'cem-element.behavior_identity_required',
+                    `declaration tag \`${input.tag.trim()}\` supplies browser behavior without a stable \`behaviorIdentity\``,
+                    input.tag.trim() || undefined
+                ),
+            ],
+        };
+    }
+
+    const digest = edgeContentAddress('template-artifact', {
+        contract: 'cem-declaration-registration-v1',
+        producedTag: input.tag.trim(),
+        resolvedTemplateSource: input.resolvedTemplateSource,
+        templateLanguage: input.templateLanguage,
+        behaviorIdentity: input.hasBehavior ? behaviorIdentity : null,
+    }).digest;
+    return {
+        registrationIdentity: `cem-registration-v1:${digest}`,
+        diagnostics: [],
+    };
+}
+
+function inspectBrowserTagRegistration(
+    constructor: CustomElementConstructor | undefined
+): CemBrowserTagRegistrationLookup | undefined {
+    if (!constructor) {
+        return undefined;
+    }
+    const marker = (constructor as CustomElementConstructor & {
+        [CEM_BROWSER_REGISTRATION_MARKER]?: CemBrowserRegistrationMarker;
+    })[CEM_BROWSER_REGISTRATION_MARKER];
+    if (
+        marker?.contract === 'cem-browser-registration-v1'
+        && typeof marker.registrationIdentity === 'string'
+        && marker.registrationIdentity.length > 0
+        && marker.declaration
+    ) {
+        return {
+            registration: {
+                owner: 'cem-element',
+                registrationIdentity: marker.registrationIdentity,
+            },
+            declaration: marker.declaration,
+        };
+    }
+    return {
+        registration: { owner: 'foreign' },
+    };
+}
+
 function registrationRejection(
     code: string,
     message: string,
@@ -858,7 +970,8 @@ export class CemElementRuntime {
     readonly privacyPolicyStamp: string;
 
     private readonly logger?: Pick<Console, 'warn' | 'error'>;
-    private readonly declarations = new Map<string, CompiledDeclaration>();
+    private readonly declarationsByDocument = new WeakMap<Document, Map<string, CompiledDeclaration>>();
+    private readonly declarationScopeOption?: CemDeclarationScope;
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
     private readonly registeredDeclarationElements = new WeakSet<object>();
@@ -897,6 +1010,7 @@ export class CemElementRuntime {
 
     constructor(options: CemElementRuntimeOptions = {}) {
         this.declarationTag = options.declarationTag ?? DEFAULT_DECLARATION_TAG;
+        this.declarationScopeOption = options.declarationScope;
         this.scopePolicyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
@@ -940,6 +1054,30 @@ export class CemElementRuntime {
         host.customElements.define(this.declarationTag, CemElementDeclarationElement);
     }
 
+    private scopeForDeclaration(declarationElement: HTMLElement): CemDeclarationScope | undefined {
+        const document = declarationElement.ownerDocument;
+        try {
+            const scope = this.declarationScopeOption ?? getDefaultCemDeclarationScope(document);
+            assertCemDeclarationScopeActive(scope);
+            if (scope.document !== document) {
+                this.recordDiagnostics(declarationElement, [
+                    declarationDiagnostic(
+                        'cem-element.scope_document_mismatch',
+                        `declaration tag \`${declarationElement.getAttribute('tag') ?? ''}\` cannot use a logical scope owned by another Document`,
+                        declarationElement.getAttribute('tag') ?? undefined
+                    ),
+                ]);
+                return undefined;
+            }
+            return scope;
+        } catch (error) {
+            this.recordDiagnostics(declarationElement, [
+                declarationScopeDiagnostic(error, declarationElement.getAttribute('tag') ?? undefined),
+            ]);
+            return undefined;
+        }
+    }
+
     registerDeclaration(
         declarationElement: HTMLElement,
         options: CemDeclarationRegistrationOptions = {}
@@ -955,6 +1093,10 @@ export class CemElementRuntime {
             this.recordDiagnostics(declarationElement, shape.diagnostics);
             return false;
         }
+        const declarationScope = this.scopeForDeclaration(declarationElement);
+        if (!declarationScope) {
+            return false;
+        }
 
         if (shape.src) {
             const reference = parseSrcReference(shape.src);
@@ -963,7 +1105,13 @@ export class CemElementRuntime {
                 this.registeredDeclarationElements.add(declarationElement);
                 this.declarationSettled.set(
                     declarationElement,
-                    this.registerExternalDeclaration(declarationElement, shape.tag, shape.src, reference)
+                    this.registerExternalDeclaration(
+                        declarationElement,
+                        shape.tag,
+                        shape.src,
+                        reference,
+                        declarationScope
+                    )
                 );
                 return true;
             }
@@ -974,7 +1122,13 @@ export class CemElementRuntime {
             this.registeredDeclarationElements.add(declarationElement);
             this.declarationSettled.set(
                 declarationElement,
-                this.registerResolvedDeclaration(declarationElement, shape.tag, localTemplate, shape.diagnostics)
+                this.registerResolvedDeclaration(
+                    declarationElement,
+                    shape.tag,
+                    localTemplate,
+                    shape.diagnostics,
+                    declarationScope
+                )
             );
             return true;
         }
@@ -993,7 +1147,13 @@ export class CemElementRuntime {
         this.registeredDeclarationElements.add(declarationElement);
         this.declarationSettled.set(
             declarationElement,
-            this.registerResolvedDeclaration(declarationElement, shape.tag, template, shape.diagnostics)
+            this.registerResolvedDeclaration(
+                declarationElement,
+                shape.tag,
+                template,
+                shape.diagnostics,
+                declarationScope
+            )
         );
         return true;
     }
@@ -1003,37 +1163,86 @@ export class CemElementRuntime {
         declarationElement: HTMLElement,
         tag: string,
         template: HTMLTemplateElement,
-        shapeDiagnostics: CemElementDiagnostic[]
+        shapeDiagnostics: CemElementDiagnostic[],
+        declarationScope: CemDeclarationScope
     ): Promise<void> {
-        const registry = declarationElement.ownerDocument.defaultView?.customElements;
-        if (this.declarations.has(tag) || registry?.get(tag)) {
-            this.recordDiagnostics(declarationElement, [
-                declarationDiagnostic(
-                    'cem-element.tag_already_defined',
-                    `custom element \`${tag}\` is already defined`,
-                    tag
-                ),
-            ]);
-            return Promise.resolve();
-        }
-
+        const registrationOptions = this.registrationOptions.get(declarationElement);
         const compiled = compileInlineDeclaration(declarationElement, tag, template, {
             declarationTag: this.declarationTag,
             uidSeed: this.uidSeedOption,
             uidSeedFallback: this.uidSeedFallback,
-            behavior: this.registrationOptions.get(declarationElement)?.behavior,
+            behavior: registrationOptions?.behavior,
+            behaviorIdentity: registrationOptions?.behaviorIdentity,
         });
-        if (!this.validateGeneratedDeclarationIds(compiled)) {
+        this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
+        if (!compiled.registrationIdentity) {
             return Promise.resolve();
         }
-        this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
-        this.declarations.set(tag, compiled);
-        this.defineProducedElement(declarationElement, compiled);
+
+        let logicalLookup;
+        try {
+            logicalLookup = lookupCemDeclarationScopeRegistration<CompiledDeclaration>(declarationScope, tag);
+        } catch (error) {
+            this.recordDiagnostics(declarationElement, [declarationScopeDiagnostic(error, tag)]);
+            return Promise.resolve();
+        }
+
+        const registry = declarationElement.ownerDocument.defaultView?.customElements;
+        const browserLookup = inspectBrowserTagRegistration(registry?.get(tag));
+        const decision = analyzeDeclarationRegistration({
+            tag,
+            registrationIdentity: compiled.registrationIdentity,
+            sameScope: logicalLookup.sameScope,
+            inherited: logicalLookup.inherited,
+            browser: browserLookup?.registration,
+        });
+        if (decision.action === 'reject') {
+            this.recordDiagnostics(declarationElement, decision.diagnostics);
+            return Promise.resolve();
+        }
+
+        let effectiveDeclaration = compiled;
+        if (decision.action === 'reuse-inherited') {
+            effectiveDeclaration = logicalLookup.inherited?.declaration ?? compiled;
+        } else if (decision.action === 'reuse-browser-tag') {
+            effectiveDeclaration = browserLookup?.declaration ?? compiled;
+        }
+
+        if (decision.action === 'define-browser-tag' && !this.validateGeneratedDeclarationIds(compiled)) {
+            return Promise.resolve();
+        }
+
+        const scopeRegistration = {
+            registrationIdentity: compiled.registrationIdentity,
+            declaration: effectiveDeclaration,
+        };
+        try {
+            bindCemDeclarationScopeRegistration(declarationScope, tag, scopeRegistration);
+        } catch (error) {
+            this.recordDiagnostics(declarationElement, [declarationScopeDiagnostic(error, tag)]);
+            return Promise.resolve();
+        }
+        const documentDeclarations = this.declarationsForDocument(declarationElement.ownerDocument);
+        documentDeclarations.set(tag, effectiveDeclaration);
+
+        if (decision.action === 'define-browser-tag' && !this.defineProducedElement(declarationElement, compiled)) {
+            try {
+                unbindCemDeclarationScopeRegistration(declarationScope, tag, scopeRegistration);
+            } catch {
+                // A host may dispose the scope during synchronous custom-element upgrade.
+            }
+            if (documentDeclarations.get(tag) === effectiveDeclaration) {
+                documentDeclarations.delete(tag);
+            }
+            this.releaseGeneratedDeclarationIds(compiled);
+            return Promise.resolve();
+        }
+
         // CEM-ML declaration parse diagnostics (structural well-formedness) come from the async
         // cem_ql WASM compile; cem-ql expression errors surface at render instead. Legacy-XSLT
         // declarations have no cemMlSource until the engine lowers them on first render, where their
         // conversion diagnostics surface — so they are not compiled here.
-        if (compiled.mode === 'cem-ml' && compiled.cemMlSource !== null) {
+        if (effectiveDeclaration === compiled && compiled.mode === 'cem-ml' && compiled.cemMlSource !== null) {
             return this.surfaceDeclarationDiagnostics(declarationElement, compiled);
         }
         return Promise.resolve();
@@ -1049,7 +1258,8 @@ export class CemElementRuntime {
         declarationElement: HTMLElement,
         tag: string,
         src: string,
-        reference: SrcReference
+        reference: SrcReference,
+        declarationScope: CemDeclarationScope
     ): Promise<void> {
         let document: Document;
         try {
@@ -1080,7 +1290,7 @@ export class CemElementRuntime {
             ]);
             return;
         }
-        await this.registerResolvedDeclaration(declarationElement, tag, sourceTemplate, []);
+        await this.registerResolvedDeclaration(declarationElement, tag, sourceTemplate, [], declarationScope);
     }
 
     /** Resolve a same-document `src="#id"` reference to its `<template>`, or diagnose a miss. */
@@ -1206,7 +1416,7 @@ export class CemElementRuntime {
         };
     }
 
-    private defineProducedElement(declarationElement: HTMLElement, compiled: CompiledDeclaration): void {
+    private defineProducedElement(declarationElement: HTMLElement, compiled: CompiledDeclaration): boolean {
         const registry = declarationElement.ownerDocument.defaultView?.customElements;
         const baseElement = declarationElement.ownerDocument.defaultView?.HTMLElement;
         if (!registry || !baseElement) {
@@ -1217,18 +1427,28 @@ export class CemElementRuntime {
                     compiled.producedTag
                 ),
             ]);
-            return;
+            return false;
         }
 
         if (registry.get(compiled.producedTag)) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
-                    'cem-element.tag_already_defined',
-                    `custom element \`${compiled.producedTag}\` is already defined`,
+                    'cem-element.browser_tag_collision',
+                    `custom element \`${compiled.producedTag}\` acquired an incompatible document-global definition before registration committed`,
                     compiled.producedTag
                 ),
             ]);
-            return;
+            return false;
+        }
+        if (!compiled.registrationIdentity) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.registration_identity_missing',
+                    `custom element \`${compiled.producedTag}\` has no stable registration identity`,
+                    compiled.producedTag
+                ),
+            ]);
+            return false;
         }
 
         const connectProducedInstance = this.connectProducedInstance.bind(this);
@@ -1283,7 +1503,26 @@ export class CemElementRuntime {
             }
         }
 
-        registry.define(compiled.producedTag, ProducedCemElement);
+        Object.defineProperty(ProducedCemElement, CEM_BROWSER_REGISTRATION_MARKER, {
+            value: Object.freeze({
+                contract: 'cem-browser-registration-v1',
+                registrationIdentity: compiled.registrationIdentity,
+                declaration: compiled,
+            } satisfies CemBrowserRegistrationMarker),
+        });
+        try {
+            registry.define(compiled.producedTag, ProducedCemElement);
+            return true;
+        } catch (error) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.browser_define_failed',
+                    `defining custom element \`${compiled.producedTag}\` failed: ${error instanceof Error ? error.message : String(error)}`,
+                    compiled.producedTag
+                ),
+            ]);
+            return false;
+        }
     }
 
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
@@ -2656,7 +2895,8 @@ export class CemElementRuntime {
         const mergeOptions = {
             preserveElementAttribute,
             preserveElementChildren: (current: Element) =>
-                this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
+                (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false)
+                && directDataIsland(current) !== undefined,
             transientElementTags: ['module-url', 'http-request', 'local-storage', 'location-element'],
         };
         if (previous) {
@@ -2855,7 +3095,17 @@ export class CemElementRuntime {
     }
 
     private declarationForInstance(instance: HTMLElement): CompiledDeclaration | undefined {
-        return this.declarations.get(instance.localName);
+        return this.declarationsByDocument.get(instance.ownerDocument)?.get(instance.localName);
+    }
+
+    private declarationsForDocument(document: Document): Map<string, CompiledDeclaration> {
+        const existing = this.declarationsByDocument.get(document);
+        if (existing) {
+            return existing;
+        }
+        const declarations = new Map<string, CompiledDeclaration>();
+        this.declarationsByDocument.set(document, declarations);
+        return declarations;
     }
 
     private validateGeneratedDeclarationIds(compiled: CompiledDeclaration): boolean {
@@ -2880,6 +3130,18 @@ export class CemElementRuntime {
             this.generatedIdOwners.set(key, compiled.declarationElement);
         }
         return valid;
+    }
+
+    private releaseGeneratedDeclarationIds(compiled: CompiledDeclaration): void {
+        if (!this.validateGeneratedIds) {
+            return;
+        }
+        for (const generated of generatedDeclarationIds(compiled)) {
+            const key = `${generated.kind}:${generated.id}`;
+            if (this.generatedIdOwners.get(key) === compiled.declarationElement) {
+                this.generatedIdOwners.delete(key);
+            }
+        }
     }
 
     private recordDiagnostics(target: object, diagnostics: CemElementDiagnostic[]): void {
@@ -2965,6 +3227,14 @@ function compileInlineDeclaration(
         mode,
         sourceText,
     });
+    const registration = analyzeDeclarationRegistrationIdentity({
+        tag: producedTag,
+        resolvedTemplateSource: sourceText,
+        templateLanguage: mode,
+        hasBehavior: options.behavior !== undefined,
+        behaviorIdentity: options.behaviorIdentity,
+    });
+    diagnostics.push(...registration.diagnostics);
     const uidSeedResolution = resolveDeclarationUidSeed({
         declarationElement,
         declarationTag: options.declarationTag,
@@ -2983,6 +3253,7 @@ function compileInlineDeclaration(
         uidSeedSource: uidSeedResolution.source,
         occurrencePath,
         sourceHash,
+        registrationIdentity: registration.registrationIdentity,
         scopeUid: generateScopeUid({ producedTag, uidSeed: uidSeedResolution.seed, occurrencePath }),
         artifactId: `template-artifact-${++artifactSequence}`,
         template,
@@ -3003,6 +3274,7 @@ interface InlineDeclarationCompileOptions {
     uidSeed?: CemElementRuntimeOptions['uidSeed'];
     uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
     behavior?: CemProducedElementBehavior;
+    behaviorIdentity?: string;
 }
 
 interface ResolvedUidSeed {
@@ -4530,6 +4802,17 @@ function directLiveNodeCount(element: Element): number {
         }
         return node.nodeType !== 8;
     }).length;
+}
+
+function declarationScopeDiagnostic(error: unknown, tag?: string): CemElementDiagnostic {
+    if (error instanceof CemDeclarationScopeError) {
+        return declarationDiagnostic(error.code, error.message, tag);
+    }
+    return declarationDiagnostic(
+        'cem-element.scope_invalid',
+        `logical CEM declaration scope validation failed: ${error instanceof Error ? error.message : String(error)}`,
+        tag
+    );
 }
 
 function declarationDiagnostic(code: string, message: string, tag?: string): CemElementDiagnostic {

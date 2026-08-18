@@ -26,7 +26,7 @@ Phase 3A topology.
 
 | Area | Status | Existing evidence | Missing or incorrectly sequenced work |
 |---|---|---|---|
-| Declaration shape and registration | Partial | `analyzeDeclarationShape()` and its unit cases enforce inline/source shape; `CEM_DECLARATION_REGISTRATION_CONTRACT` and `analyzeDeclarationRegistration()` encode the seven locked duplicate/reuse/collision cases. The opaque `CemDeclarationScope` host API now locks default roots, explicit same-document parents, nearest inherited lookup, aliases, and disposal. | `CemElementRuntime` still owns one flat `Map` and rejects any existing name before compilation. It does not yet select a logical scope, derive the full registration identity, reuse an inherited binding, mark CEM-owned constructors, or call the locked decision core. Behavior-bearing declarations first need a stable host identity that does not hash callback source text. |
+| Declaration shape and registration | Implemented | `analyzeDeclarationShape()` enforces inline/source shape. The opaque `CemDeclarationScope` API locks default roots, explicit same-document parents, nearest inherited lookup, aliases, and disposal. `CemElementRuntime` selects explicit/default scopes for inline and external declarations, derives source/language/behavior-version registration identities, calls the pure decision core, and marks CEM-owned document-global constructors. Unit and browser fixtures cover missing behavior identity, same-scope rejection, identical inherited reuse, incompatible inherited/CEM-browser collisions, and foreign browser collisions before mutation. | Worker artifact ownership must preserve the same registration identity, but that is processing-host work rather than a missing declaration-registry rule. |
 | Data document | Implemented, bounded helper | `data-document.ts` provides DOM-record and table-row projections with executable Storybook assertions. The runtime stories separately exercise CEM-QL `/datadom` selection. | The helper is story-local rather than the general worker data-AST transport; it must not be treated as that transport. |
 | Disposition | Implemented | `disposition.ts`, `disposition.spec.ts`, and `projection.disposition.spec.ts` provide tested run-mode and contract-version decisions. | Worker startup/fallback diagnostics do not yet flow through this policy because the worker host does not exist. |
 | Browser projection and DOM ownership | Partial | `projection.ts` implements serializable render plans, deterministic node identities, scoped CSS, materialization, identity-aware range merge, revision metadata, and patch-frame generation/application. Browser stories cover focus and runtime-owned attribute preservation. | Patch frames are produced in the same browser thread; there is no dedicated-worker producer/consumer protocol, startup failure recovery, or stale worker-job cancellation. |
@@ -67,27 +67,22 @@ contract is green would reverse the accepted sequence.
 
 ## Ordered gaps and next decision
 
-1. Finish registration-identity derivation for declarations carrying the optional
-   browser behavior adapter. Template source and language are content-addressable;
-   JavaScript callbacks are not, so the host contract must supply a stable behavior
-   identity or explicitly forbid cross-scope reuse for behavior-bearing declarations.
-2. Add `CemDeclarationScope` selection to `CemElementRuntime`, wire registration
-   through the pure decision core, and mark CEM-owned browser constructors before
-   adding any new compilation topology.
-3. Add the one-dedicated-worker processing host and deterministic main-thread
+1. Lock the package-private Phase 3A processing-host API: worker ownership boundary,
+   versioned request/response envelopes, startup handshake, job cancellation, and
+   deterministic transition diagnostics shared by worker and fallback modes.
+2. Add the one-dedicated-worker processing host and deterministic main-thread
    fallback behind one semantic result/diagnostic/patch contract.
-4. Separate Phase 3.5 story/unit selection before Phase 3.5 becomes active; until
+3. Separate Phase 3.5 story/unit selection before Phase 3.5 becomes active; until
    then keep `verify-edge-ssr` opt-in and outside `verify`.
-5. Turn the structural legacy/material inventories into full rendered and
+4. Turn the structural legacy/material inventories into full rendered and
    accessibility acceptance after the Phase 3A architecture is authoritative.
-6. Leave the Phase 3B pool/cache/scheduler and Phase 3C precompiled path deferred.
+5. Leave the Phase 3B pool/cache/scheduler and Phase 3C precompiled path deferred.
 
-The scope-object decision is now locked: object identity, one default root per
-`Document`, optional explicit same-document parent, no DOM-ancestry inference, and
-idempotent logical disposal. The next item is a real registration-identity decision.
-The recommended direction is a required, non-empty `behaviorIdentity` whenever a
-host supplies `CemProducedElementBehavior`; the runtime then content-addresses the
-produced tag, resolved template source, template language, and that opaque behavior
-version. Behavior-less declarations need no extra option. Hashing callback
-`Function#toString()` output or silently treating separate behavior objects as
-compatible would not be stable across builds and must remain rejected.
+The declaration-scope and registration-identity decisions are now implemented. The
+next item is a processing-host API decision. The recommended direction is one
+package-private host per logical root scope, a versioned structured-clone envelope
+with monotonic job IDs and complete `RenderRevision`, an injectable module-worker
+factory for tests/CSP hosts, and the same interface implemented by main-thread WASM.
+Startup failure should abort pending worker jobs once, emit one stable transition
+diagnostic, and retry them through the fallback host; runtime execution failures after
+a successful handshake need an explicit retry/idempotency rule before implementation.

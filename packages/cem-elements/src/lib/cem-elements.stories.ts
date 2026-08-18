@@ -1229,7 +1229,7 @@ export const ProducedTagLifecycleBehavior: Story = {
         root.appendChild(duplicateDeclaration);
         runtime.registerDeclaration(duplicateDeclaration);
         await runtime.whenDeclarationSettled(duplicateDeclaration);
-        assertDiagnostic(runtime.diagnosticsFor(duplicateDeclaration), 'cem-element.tag_already_defined');
+        assertDiagnostic(runtime.diagnosticsFor(duplicateDeclaration), 'cem-element.registry_same_scope_duplicate');
 
         const instance = document.createElement('story-lifecycle-parent');
         root.appendChild(instance);
@@ -4584,6 +4584,7 @@ export const ProducedElementBehaviorAndFormAssociation: Story = {
         );
         root.appendChild(declaration);
         runtime.registerDeclaration(declaration, {
+            behaviorIdentity: 'story-behavior-field-v1',
             behavior: {
                 formAssociated: true,
                 constructed(instance, context) {
@@ -4663,6 +4664,7 @@ export const ProducedElementBehaviorOwnsNativeDialogOpenAttribute: Story = {
         );
         root.appendChild(declaration);
         runtime.registerDeclaration(declaration, {
+            behaviorIdentity: 'story-runtime-attribute-dialog-v1',
             behavior: {
                 constructed(instance) {
                     Object.defineProperty(instance, 'runtimeAttributeBehaviorEvidence', {
@@ -4891,7 +4893,7 @@ export const DeclarationDiagnosticsAreExposed: Story = {
             templates: [{ html: '<button>second</button>' }],
         });
         runtime.registerDeclaration(secondDefine);
-        assertDiagnostic(runtime.diagnosticsFor(secondDefine), 'cem-element.tag_already_defined');
+        assertDiagnostic(runtime.diagnosticsFor(secondDefine), 'cem-element.registry_same_scope_duplicate');
     },
 };
 

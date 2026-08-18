@@ -137,10 +137,21 @@ The logical-scope host API is `CemDeclarationScope` plus
   processing, resolver, privacy, and cache-policy metadata.
 
 The construction, ancestry, lookup, and disposal contract is executable in the
-pure declaration-scope tests. Runtime association is intentionally not implicit:
-`CemElementRuntime` wiring must first finish stable registration-identity derivation
-for the optional browser behavior adapter, whose function callbacks cannot be
-content-addressed safely by inspecting JavaScript source text.
+pure declaration-scope tests. `CemElementRuntimeOptions.declarationScope` selects an
+explicit scope; otherwise inline and external declarations select their owning
+document's default root. The runtime derives a `cem-registration-v1` content address
+from the produced tag, resolved template source, template language, and browser
+behavior version. `CemDeclarationRegistrationOptions.behaviorIdentity` is required
+and non-empty whenever `behavior` is present because function source text and object
+identity are not stable across builds. Behavior-less declarations use a fixed null
+behavior component and need no extra option.
+
+After `analyzeDeclarationRegistration()` accepts the combined logical/browser state,
+the runtime commits the logical binding and marks the produced constructor with the
+CEM registration identity before `CustomElementRegistry#define`. Identical inherited
+or independent-scope declarations alias the retained compiled declaration and the one
+document-global constructor. Rejections and failed browser definitions leave no new
+logical binding.
 
 A `<cem-element>` declaration has one direct child: the WHATWG `<template>` that
 contains the declaration's CEM-ML template source. This declaration template is not
