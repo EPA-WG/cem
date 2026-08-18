@@ -35,6 +35,7 @@
         },
         {
             "plugin": "@nx/vitest",
+            "exclude": ["packages/cem-elements/{vite,vitest}.config.{js,ts,mjs,mts,cjs,cts}"],
             "options": {
                 "testTargetName": "test",
                 "ciTargetName": "test-ci",

@@ -1,6 +1,7 @@
 # CEM Elements Edge/SSR Gate
 
-This records the Phase 3.5 Edge/SSR processing release gate for `cem-elements`.
+This records the deferred Phase 3.5 Edge/SSR processing gate for `cem-elements`.
+It is intentionally separate from the current Phase 3A browser gate.
 
 ## Command
 
@@ -10,11 +11,15 @@ Run the narrow Phase 3.5 gate:
 yarn nx run cem-elements:verify-edge-ssr
 ```
 
-The package release gate includes this target through:
+Run the current browser gate independently through:
 
 ```bash
-yarn nx run cem-elements:verify
+yarn nx run cem-elements:verify:phase3a
 ```
+
+`cem-elements:verify` aliases the current Phase 3A gate and does not invoke
+`verify-edge-ssr`. Edge/SSR evidence must not become a browser-substrate release
+prerequisite before Phase 3.5 is active.
 
 ## Coverage
 
@@ -27,6 +32,8 @@ yarn nx run cem-elements:verify
 
 ## Handoff
 
-Phase 3.6 `@epa-wg/custom-element` adoption can consume the `cem-elements` processing boundary when this target and
-the broader `cem-elements:verify` gate pass. The hydration contract serializes `DataIslandSnapshot.sourceMapMode`, so
-SSR adoption must preserve source-fidelity metadata for dev-mode snapshots or fail closed before client fallback.
+Phase 3.6 `@epa-wg/custom-element` adoption can consume the `cem-elements`
+processing boundary only after Phase 3.5 is active and both this target and the
+then-current broader package gate pass. The hydration contract serializes
+`DataIslandSnapshot.sourceMapMode`, so SSR adoption must preserve source-fidelity
+metadata for dev-mode snapshots or fail closed before client fallback.

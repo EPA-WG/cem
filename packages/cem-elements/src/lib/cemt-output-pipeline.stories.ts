@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+/* eslint-disable @nx/enforce-module-boundaries -- This executable fixture intentionally consumes colocated schema-package artifacts as raw source. */
 import packagePipelineColorizerHelperSource from '../../../cem_ml/schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt?raw';
 import packagePipelineColorizerSource from '../../../cem_ml/schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt?raw';
 import packagePipelineStageFixture from '../../../cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem?raw';
@@ -6,6 +7,7 @@ import packagePipelineFormatterHelperSource from '../../../cem_ml/schema-package
 import packagePipelineFormatterSource from '../../../cem_ml/schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt?raw';
 import cemtPipelineStageFixture from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem?raw';
 import cemtPipelineSource from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt?raw';
+/* eslint-enable @nx/enforce-module-boundaries */
 import {
     type CemtPipelineShowcase,
     createCemtPipelineShowcase,

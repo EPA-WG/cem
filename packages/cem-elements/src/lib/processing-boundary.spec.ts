@@ -19,7 +19,6 @@ import {
     scopeCssText,
     scopeRenderPlan,
     validateRenderPlanGeneratedIds,
-    type PatchFrame,
     type RenderPlan,
     type TemplateProjectionInput,
     type TemplateSourceNode,

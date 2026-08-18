@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- This executable fixture intentionally exercises the canonical workspace example as raw source.
 import canonicalLoginFixture from '../../../../examples/cem-ml/login.cem?raw';
 import {
     CemElementRuntime,
@@ -130,7 +131,9 @@ export const DataDocumentDomBridge: Story = {
         assertEqual(tokenTableRows(root, 'missing-anchor').length, 0, 'a missing anchor yields no rows');
         assertEqual(normalizeSpace('  a   b \n c '), 'a b c', 'normalizeSpace collapses whitespace');
 
-        const node = domToRecord(root.querySelector('table')!);
+        const table = root.querySelector('table');
+        assert(table, 'the fixture includes a table');
+        const node = domToRecord(table);
         assertEqual(node.tag, 'table', 'generic record carries the element local name');
         assert(
             node.children.some((child) => child.tag === 'tbody'),

@@ -40,6 +40,8 @@ This index links the active project, release, and token workflow documents.
 - [CEM component MVP](./component-mvp.md) — first component list and state matrix.
 - [`cem-element` design](./cem-element-design.md) — custom-element successor substrate, `<template>` data islands,
   event-to-data wiring, render loop, UI/processing split, migration path, and parity gates.
+- [`cem-element` Phase 3 substrate audit](./cem-elements-phase3-substrate-audit.md) — current implementation and
+  fixture classification, resolved Nx target ownership, and the next logical-scope API decision.
 - [`cem-element` WASM proposal](./cem-element-wasm-proposal.md) — options for using `cem_ml` WASM, inline and URI
   declaration templates, module-map resolution, streaming source adapters, host runtime support, patch-frame streams,
   worker-pool scheduling, edge processing, and server-side rendering.

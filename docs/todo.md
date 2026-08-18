@@ -7,10 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Begin
-[`Phase 3 - Custom-Element Runtime`](../roadmap.md#phase-3---custom-element-runtime)
-by auditing the existing `@epa-wg/cem-elements` substrate against the now-locked
-declaration/registration contract before extending its browser runtime.
+Define the logical declaration-scope host API identified by the completed
+[`Phase 3 substrate audit`](cem-elements-phase3-substrate-audit.md) before wiring
+the locked registration decision core into `CemElementRuntime`.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -45,25 +44,49 @@ registration identities may reuse an inherited or existing definition.
       the one global definition. The pure decision core and 7 focused contract
       cases pass as part of all 94 `cem-elements:test:unit` tests.
 
-- [ ] Audit the existing Phase 3 substrate against the locked contract.
-    - [ ] Classify current `cem-elements` declaration-shape, data-document,
+- [x] Audit the existing Phase 3 substrate against the locked contract.
+    - [x] Classify current `cem-elements` declaration-shape, data-document,
           disposition, projection, processing-boundary, runtime-support, Storybook,
           legacy, material, and edge/SSR fixtures as implemented, partial,
           placeholder, or deferred.
-    - [ ] Map every current resolved Nx target to the Phase 3A/3B/3C roadmap and
+    - [x] Map every current resolved Nx target to the Phase 3A/3B/3C roadmap and
           move edge/SSR-only acceptance out of the Phase 3 browser gate where
           necessary.
-    - [ ] Repair or retire the inferred
+    - [x] Repair or retire the inferred
           `test-ci--src/lib/cem-elements.declaration-shape.spec.ts` target, which
           currently selects the Storybook-only Vitest project and reports no unit
           test files; keep `cem-elements:test:unit` as the accepted unit gate until
           the resolved target topology is corrected.
-    - [ ] Restore the `cem-elements:lint` project baseline: it currently reports
+    - [x] Restore the `cem-elements:lint` project baseline: it currently reports
           15 pre-existing module-boundary errors in the CEMT/Storybook sources and
           two unrelated warnings, while the registration-contract source and test
           lint clean in isolation.
-    - [ ] Add an explicit todo checkitem before adding any new parity or browser
+    - [x] Add an explicit todo checkitem before adding any new parity or browser
           fixture discovered by the audit.
+    - Completed 2026-08-18: classified the substrate and every resolved target in
+      [`cem-elements-phase3-substrate-audit.md`](cem-elements-phase3-substrate-audit.md),
+      retired the misconfigured inferred Vitest atomics only for `cem-elements`,
+      restored a warning-free project lint gate, and separated the current
+      `verify:phase3a` browser aggregate from opt-in `verify-edge-ssr` evidence.
+      The audit added the focused registration-scope fixture checkitem below before
+      creating any new fixture.
+
+- [ ] Lock the logical declaration-scope host API required by runtime registration.
+    - [ ] Decide how a host creates an explicit scope, supplies its optional parent,
+          and associates inline and external declarations with it. Recommended:
+          runtime-owned scope objects, one default root per `Document`, explicit
+          host/parser parents, and no inference from arbitrary DOM ancestry.
+    - [ ] Define scope identity, document ownership, parent compatibility, lifetime,
+          and disposal without conflating the scope with `scopePolicyStamp`.
+    - [ ] Define how identical inherited registrations reuse the parent declaration
+          and document-global constructor while same-scope duplicates and
+          incompatible shadows fail before browser mutation.
+    - [ ] Promote the accepted API and lifecycle into
+          `docs/cem-element-design.md` and focused pure contract tests.
+    - [ ] Add the audit-identified browser registration-scope fixture only after the
+          API is locked; prove same-scope failure, identical inherited reuse, and
+          incompatible inherited/browser collisions without adding unrelated parity
+          fixtures.
 
 - [ ] Implement the smallest tests-first Phase 3A browser vertical slice.
     - [ ] Register one inline `<cem-element>` declaration under the locked name
@@ -110,3 +133,8 @@ The Edge/SSR host fixtures belong to Phase 3.5 after the browser substrate is
 stable. Moving `@epa-wg/custom-element` into the monorepo and deciding final
 legacy XSLT preservation belong to Phase 3.6. Figma UI Kit work remains Phase 5,
 and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
+
+- [ ] Before activating Phase 3.5, split its six Storybook cases and supporting
+      processing-boundary selections from the shared Phase 3A files so
+      `verify-edge-ssr` has phase-specific evidence instead of relying on the broad
+      browser and unit targets.
