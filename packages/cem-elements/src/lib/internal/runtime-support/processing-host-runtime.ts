@@ -4,6 +4,7 @@ import {
 } from '../../declaration-scope.js';
 import { CemProcessingEngine } from './processing-engine.js';
 import {
+    CemProcessingCancellationRegistry,
     CemProcessingJobSequence,
     assertCemProcessingEnvelope,
     cemProcessingHostOwnerScope,
@@ -172,8 +173,16 @@ class CemProcessingOperationError extends Error {
     }
 }
 
+class CemProcessingJobCancelledError extends Error {
+    constructor(readonly jobId: number) {
+        super(`CEM processing job ${jobId} was cancelled`);
+        this.name = 'CemProcessingJobCancelledError';
+    }
+}
+
 class RootCemProcessingHost implements CemProcessingHost {
     private readonly sequence = new CemProcessingJobSequence();
+    private readonly jobs = new CemProcessingCancellationRegistry();
     private readonly engine = new CemProcessingEngine();
     private readonly compileInputs = new Map<string, CemProcessingCompileInput>();
     private readonly initialReady: Promise<CemProcessingReadyEnvelope>;
@@ -222,7 +231,7 @@ class RootCemProcessingHost implements CemProcessingHost {
     }
 
     cancel(input: CemProcessingCancelInput): CemProcessingJob<CemProcessingCancelResult> {
-        return this.submit('cancel', input);
+        return this.submit('cancel', input, false, this.jobs.cancel(input.targetJobId));
     }
 
     dispose(input: CemProcessingDisposeInput): CemProcessingJob<CemProcessingDisposeResult> {
@@ -243,21 +252,28 @@ class RootCemProcessingHost implements CemProcessingHost {
     private submit<TOperation extends CemProcessingOperation>(
         operation: TOperation,
         payload: Parameters<typeof createCemProcessingRequestEnvelope<TOperation>>[2],
-        allowDisposed = false
+        allowDisposed = false,
+        cancellationAccepted = false
     ): CemProcessingJob<OperationResult<TOperation>> {
         const request = createCemProcessingRequestEnvelope(this.sequence, operation, payload);
+        this.jobs.start(request.jobId);
         const result = Promise.resolve().then(async () => {
             if (this.disposed && !allowDisposed) {
                 throw new Error('the CEM processing host is disposed');
             }
             await this.ready;
+            this.assertNotCancelled(request);
             if (this.fallbackSelected || !this.worker) {
-                return this.addPendingTransitionDiagnostic(await this.executeMainThread(request));
+                return this.addPendingTransitionDiagnostic(
+                    await this.executeMainThread(request, cancellationAccepted)
+                );
             }
             try {
                 const response = await this.worker.request(request);
+                this.assertNotCancelled(request);
                 return responseResult<TOperation>(response, operation);
             } catch (error) {
+                this.assertNotCancelled(request);
                 if (!(error instanceof CemProcessingWorkerTransportError)) {
                     throw error;
                 }
@@ -265,7 +281,7 @@ class RootCemProcessingHost implements CemProcessingHost {
                 if (request.operation === 'cancel') {
                     return {
                         targetJobId: request.payload.targetJobId,
-                        accepted: false,
+                        accepted: cancellationAccepted,
                     } as OperationResult<TOperation>;
                 }
                 if (request.operation === 'dispose') {
@@ -273,9 +289,10 @@ class RootCemProcessingHost implements CemProcessingHost {
                 }
                 const retry = createCemProcessingRequestEnvelope(this.sequence, operation, payload);
                 const retried = await this.executeMainThreadWithArtifact(retry);
+                this.assertNotCancelled(request);
                 return this.addPendingTransitionDiagnostic(retried);
             }
-        });
+        }).finally(() => this.jobs.finish(request.jobId));
         return { jobId: request.jobId, result };
     }
 
@@ -293,21 +310,32 @@ class RootCemProcessingHost implements CemProcessingHost {
     }
 
     private async executeMainThread<TOperation extends CemProcessingOperation>(
-        request: CemProcessingRequestEnvelope<TOperation>
+        request: CemProcessingRequestEnvelope<TOperation>,
+        cancellationAccepted = false
     ): Promise<OperationResult<TOperation>> {
         if (request.operation === 'compile') {
-            return await this.engine.compile(request.payload) as OperationResult<TOperation>;
+            const result = await this.engine.compile(request.payload);
+            this.assertNotCancelled(request);
+            return result as OperationResult<TOperation>;
         }
         if (request.operation === 'render-diff') {
-            return await this.engine.renderDiff(request.payload) as OperationResult<TOperation>;
+            const result = await this.engine.renderDiff(request.payload);
+            this.assertNotCancelled(request);
+            return result as OperationResult<TOperation>;
         }
         if (request.operation === 'cancel') {
             return {
                 targetJobId: request.payload.targetJobId,
-                accepted: true,
+                accepted: cancellationAccepted,
             } as OperationResult<TOperation>;
         }
         return this.engine.dispose(request.payload) as OperationResult<TOperation>;
+    }
+
+    private assertNotCancelled(request: CemProcessingRequestEnvelope): void {
+        if (request.operation !== 'cancel' && this.jobs.isCancelled(request.jobId)) {
+            throw new CemProcessingJobCancelledError(request.jobId);
+        }
     }
 
     private selectFallback(

@@ -939,6 +939,16 @@ state crosses as a `CemProcessingArtifactHandle` or
 an ordered job. Messages that have the wrong protocol version, invalid job ID, unknown
 operation, or non-plain transport value fail before engine execution.
 
+For each produced instance, the UI adapter retains at most one active `renderDiff`
+job. Creating a newer render token sends `cancel` with reason `superseded` for the
+older job before the newer render is submitted. Worker and main-thread fallback modes
+use the same bounded active/cancelled-job lifecycle: cancellation is accepted only
+while the target is active, a cancelled result is never exposed to the patch adapter,
+and terminal IDs are forgotten. Cancellation does not weaken the independent render
+token or full-revision checks. A late obsolete response is therefore ignored, and a
+fresh response still enters the buffered atomic commit path; target mismatch recovery
+allocates its normal fresh `renderAttempt` and cannot partially commit cancelled work.
+
 Worker construction is an injection seam rather than a public worker instance or
 ambient override. The package default calls `new Worker(scriptUrl, { type: "module",
 name })`; bundlers, CSP-constrained hosts, and browser fixtures may inject the same

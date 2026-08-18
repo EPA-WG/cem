@@ -45,7 +45,11 @@ import {
     runtimeVersion,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
-import { createCemProcessingReadyEnvelope } from './internal/runtime-support/processing-host.js';
+import {
+    createCemProcessingReadyEnvelope,
+    type CemProcessingRequestEnvelope,
+    type CemProcessingResponseEnvelope,
+} from './internal/runtime-support/processing-host.js';
 import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 
@@ -805,6 +809,7 @@ interface WorkerFallbackStoryState {
     fallbackDeclaration: HTMLElement;
     executionFallbackDeclaration: HTMLElement;
     workerFactoryCalls: number;
+    workerTransport: StoryControllableWorker | null;
 }
 
 const workerFallbackStoryStates = new WeakMap<HTMLElement, WorkerFallbackStoryState>();
@@ -823,13 +828,15 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
             fallbackDeclaration: document.createElement('cem-element-story-processing-fallback'),
             executionFallbackDeclaration: document.createElement('cem-element-story-processing-execution-fallback'),
             workerFactoryCalls: 0,
+            workerTransport: null,
         };
         state.workerRuntime = new CemElementRuntime({
             declarationTag: 'cem-element-story-processing-worker',
             declarationScope: workerScope,
             processingWorkerFactory: ({ scriptUrl, name, type }) => {
                 state.workerFactoryCalls += 1;
-                return new Worker(scriptUrl, { name, type });
+                state.workerTransport = new StoryControllableWorker(new Worker(scriptUrl, { name, type }));
+                return state.workerTransport as unknown as Worker;
             },
         });
         state.fallbackRuntime = new CemElementRuntime({
@@ -950,6 +957,43 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
             1,
             'worker patch stays outside the inert data island'
         );
+
+        const transport = state.workerTransport;
+        assert(transport, 'the worker fixture exposes its controllable transport');
+        transport.holdNextRenderResponse();
+        workerInstance.setAttribute('label', 'Superseded');
+        await waitForCondition(
+            () => transport.heldRenderJobId !== null,
+            'the superseded worker render response is held'
+        );
+        const supersededJobId = transport.heldRenderJobId;
+        assert(supersededJobId !== null, 'the held render has a worker job ID');
+
+        const staleSpan = requiredElement(workerInstance, 'span');
+        staleSpan.remove();
+        workerInstance.setAttribute('label', 'Final');
+        await nextFrame();
+        await state.workerRuntime.whenRenderSettled(workerInstance);
+
+        assert(
+            transport.cancelledTargetJobIds.includes(supersededJobId),
+            'the newer revision cancels the superseded worker render by job ID'
+        );
+        assertEqual(
+            requiredElement(workerInstance, 'span').textContent,
+            'Final',
+            'the fresh revision commits after the superseded late result is ignored'
+        );
+        assert(
+            requiredElement(workerInstance, 'span') !== staleSpan,
+            'the fresh revision atomically recovers from the corrupted patch target'
+        );
+        assert(
+            !state.workerRuntime.diagnosticsFor(workerInstance).some(
+                (diagnostic) => diagnostic.code === 'cem-element.processing_host_render_failed'
+            ),
+            'superseded cancellation does not surface as an instance render failure'
+        );
     },
 };
 
@@ -979,6 +1023,86 @@ class StoryExecutionFailingWorker extends EventTarget {
     terminate(): void {
         // The fixture has no underlying browser worker to release.
     }
+}
+
+class StoryControllableWorker extends EventTarget {
+    heldRenderJobId: number | null = null;
+    readonly cancelledTargetJobIds: number[] = [];
+
+    private holdRenderResponse = false;
+    private heldResponse: CemProcessingResponseEnvelope | null = null;
+
+    constructor(private readonly worker: Worker) {
+        super();
+        worker.addEventListener('message', this.onMessage);
+        worker.addEventListener('error', this.onError);
+        worker.addEventListener('messageerror', this.onMessageError);
+    }
+
+    holdNextRenderResponse(): void {
+        this.holdRenderResponse = true;
+        this.heldRenderJobId = null;
+        this.heldResponse = null;
+    }
+
+    postMessage(message: CemProcessingRequestEnvelope): void {
+        if (message.operation === 'cancel') {
+            this.cancelledTargetJobIds.push(message.payload.targetJobId);
+        }
+        this.worker.postMessage(message);
+        if (
+            message.operation === 'cancel'
+            && this.heldResponse?.jobId === message.payload.targetJobId
+        ) {
+            const held = this.heldResponse;
+            this.heldResponse = null;
+            queueMicrotask(() => this.dispatchMessage(held));
+        }
+    }
+
+    terminate(): void {
+        this.worker.removeEventListener('message', this.onMessage);
+        this.worker.removeEventListener('error', this.onError);
+        this.worker.removeEventListener('messageerror', this.onMessageError);
+        this.worker.terminate();
+    }
+
+    private readonly onMessage = (event: MessageEvent<unknown>): void => {
+        const message = event.data;
+        if (
+            this.holdRenderResponse
+            && isProcessingResponse(message)
+            && message.operation === 'render-diff'
+        ) {
+            this.holdRenderResponse = false;
+            this.heldRenderJobId = message.jobId;
+            this.heldResponse = message;
+            return;
+        }
+        this.dispatchEvent(new MessageEvent('message', { data: message }));
+    };
+
+    private readonly onError = (event: ErrorEvent): void => {
+        this.dispatchEvent(new ErrorEvent('error', {
+            cancelable: true,
+            error: event.error,
+            message: event.message,
+        }));
+    };
+
+    private readonly onMessageError = (): void => {
+        this.dispatchEvent(new MessageEvent('messageerror'));
+    };
+
+    private dispatchMessage(message: CemProcessingResponseEnvelope): void {
+        this.dispatchEvent(new MessageEvent('message', { data: message }));
+    }
+}
+
+function isProcessingResponse(value: unknown): value is CemProcessingResponseEnvelope {
+    return typeof value === 'object'
+        && value !== null
+        && (value as { direction?: unknown }).direction === 'response';
 }
 
 export const Phase2CanonicalLoginRuntimeFixture: Story = {

@@ -2,6 +2,7 @@
 
 import { CemProcessingEngine } from './processing-engine.js';
 import {
+    CemProcessingCancellationRegistry,
     assertCemProcessingEnvelope,
     createCemProcessingFailureEnvelope,
     createCemProcessingReadyEnvelope,
@@ -12,7 +13,7 @@ import {
 
 const workerScope = self as unknown as DedicatedWorkerGlobalScope;
 const engine = new CemProcessingEngine();
-const cancelledJobs = new Set<number>();
+const jobs = new CemProcessingCancellationRegistry();
 
 workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
     void handleMessage(event.data);
@@ -34,20 +35,16 @@ async function handleMessage(message: unknown): Promise<void> {
 
     try {
         if (request.operation === 'cancel') {
-            cancelledJobs.add(request.payload.targetJobId);
             workerScope.postMessage(createCemProcessingSuccessEnvelope(request, {
                 targetJobId: request.payload.targetJobId,
-                accepted: true,
+                accepted: jobs.cancel(request.payload.targetJobId),
             }));
             return;
         }
-        if (cancelledJobs.has(request.jobId)) {
-            workerScope.postMessage(createCemProcessingFailureEnvelope(request, 'cancelled', [cancelledDiagnostic()]));
-            return;
-        }
+        jobs.start(request.jobId);
         if (request.operation === 'compile') {
             const result = await engine.compile(request.payload);
-            if (cancelledJobs.has(request.jobId)) {
+            if (jobs.isCancelled(request.jobId)) {
                 workerScope.postMessage(createCemProcessingFailureEnvelope(request, 'cancelled', [cancelledDiagnostic()]));
             } else {
                 workerScope.postMessage(createCemProcessingSuccessEnvelope(request, result));
@@ -56,7 +53,7 @@ async function handleMessage(message: unknown): Promise<void> {
         }
         if (request.operation === 'render-diff') {
             const result = await engine.renderDiff(request.payload);
-            if (cancelledJobs.has(request.jobId)) {
+            if (jobs.isCancelled(request.jobId)) {
                 workerScope.postMessage(createCemProcessingFailureEnvelope(request, 'cancelled', [cancelledDiagnostic()]));
             } else {
                 workerScope.postMessage(createCemProcessingSuccessEnvelope(request, result));
@@ -67,7 +64,15 @@ async function handleMessage(message: unknown): Promise<void> {
         workerScope.postMessage(createCemProcessingSuccessEnvelope(request, result));
         workerScope.close();
     } catch (error) {
-        workerScope.postMessage(createCemProcessingFailureEnvelope(request, 'failure', [failureDiagnostic(error)]));
+        workerScope.postMessage(
+            jobs.isCancelled(request.jobId)
+                ? createCemProcessingFailureEnvelope(request, 'cancelled', [cancelledDiagnostic()])
+                : createCemProcessingFailureEnvelope(request, 'failure', [failureDiagnostic(error)])
+        );
+    } finally {
+        if (request.operation !== 'cancel') {
+            jobs.finish(request.jobId);
+        }
     }
 }
 

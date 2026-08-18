@@ -241,6 +241,36 @@ export class CemProcessingJobSequence {
     }
 }
 
+/**
+ * Tracks the bounded lifetime of host jobs so worker and fallback cancellation
+ * have the same acceptance and late-result suppression semantics.
+ */
+export class CemProcessingCancellationRegistry {
+    private readonly activeJobs = new Set<CemProcessingJobId>();
+    private readonly cancelledJobs = new Set<CemProcessingJobId>();
+
+    start(jobId: CemProcessingJobId): void {
+        this.activeJobs.add(jobId);
+    }
+
+    cancel(jobId: CemProcessingJobId): boolean {
+        if (!this.activeJobs.has(jobId)) {
+            return false;
+        }
+        this.cancelledJobs.add(jobId);
+        return true;
+    }
+
+    isCancelled(jobId: CemProcessingJobId): boolean {
+        return this.cancelledJobs.has(jobId);
+    }
+
+    finish(jobId: CemProcessingJobId): void {
+        this.activeJobs.delete(jobId);
+        this.cancelledJobs.delete(jobId);
+    }
+}
+
 export function createCemProcessingReadyEnvelope(
     mode: CemProcessingHostMode
 ): CemProcessingReadyEnvelope {

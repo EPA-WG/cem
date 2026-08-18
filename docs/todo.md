@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Extend the stable Phase 3A worker substrate to URI-backed declarations and the
-Phase 1 `<http-request>` resource slice while preserving resolver/policy identity,
-streaming cancellation, and the same worker/fallback patch semantics as inline CEM-ML.
+Complete the remaining Phase 3 substrate parity on the stable worker/fallback
+boundary, beginning with opt-in legacy compatibility and then the full legacy and
+material acceptance inventories before Phase 3B scheduling or Phase 3C precompilation.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -178,8 +178,16 @@ registration identities may reuse an inherited or existing definition.
       the 53-file clean-consumer package probe.
 
 - [ ] Complete Phase 3A/3B/3C substrate parity.
-    - [ ] Wire superseded processing-host render jobs to the locked `cancel`
+    - [x] Wire superseded processing-host render jobs to the locked `cancel`
           operation while preserving revision checks and atomic patch recovery.
+          Completed 2026-08-18: each canonical instance now retains its active
+          render job ID and sends `cancel(reason: "superseded")` before a newer
+          revision enters the root-scope host. Worker and main-thread modes share a
+          bounded active/cancelled lifecycle, reject late cancelled results, accept
+          only live targets, and forget terminal IDs. The existing worker browser
+          fixture holds and releases an obsolete result late, then corrupts a patch
+          target and proves only the fresh revision commits through atomic recovery;
+          accepted evidence is unit 114/114 and Storybook Chromium 97/97.
     - [ ] Prove legacy compatibility only through opt-in
           `lang="custom-element-v0"` fixtures.
     - [ ] Prove the full legacy and material parity inventories plus browser

@@ -32,6 +32,8 @@ import {
     type CemProcessingSourceRef,
     type CemProcessingCompileResult,
     type CemProcessingHost,
+    type CemProcessingRenderDiffInput,
+    type CemProcessingRenderDiffResult,
     type CemProcessingResourceControl,
     type CemProcessingRenderPlanHandle,
     type CemProcessingWorkerFactory,
@@ -575,6 +577,12 @@ class CemPatchCommitError extends Error {
     }
 }
 
+interface ActiveProcessingRenderJob {
+    host: CemProcessingHost;
+    jobId: number;
+    token: number;
+}
+
 interface InstanceState {
     slices: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
@@ -1059,6 +1067,7 @@ export class CemElementRuntime {
     private readonly legacyConversions = new WeakMap<CompiledDeclaration, Promise<void>>();
     private readonly processingArtifacts = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileResult>>();
     private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
+    private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
     private readonly srcDocuments = new Map<string, Promise<LoadedSrcDocument>>();
     private readonly moduleUrls = new Map<string, Promise<string>>();
@@ -1712,6 +1721,7 @@ export class CemElementRuntime {
         const token = this.nextRenderToken(instance);
 
         if (this.usesProcessingHost(compiled)) {
+            this.cancelSupersededProcessingRender(instance, token);
             this.renderSettled.set(
                 instance,
                 this.renderViaProcessingHost(instance, compiled, snapshot, token).then(() => {
@@ -1898,7 +1908,8 @@ export class CemElementRuntime {
                 outputTarget: snapshot.outputTarget,
                 ...(snapshot.renderAttempt === undefined ? {} : { renderAttempt: snapshot.renderAttempt }),
             };
-            let result = await this.processingHost(compiled).renderDiff({
+            const host = this.processingHost(compiled);
+            let result = await this.submitProcessingRender(instance, host, token, {
                 artifact: compile.artifact,
                 revision,
                 snapshot,
@@ -1906,7 +1917,7 @@ export class CemElementRuntime {
                 scopeUid: this.currentScopeUid(instance, compiled),
                 instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
                 previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,
-            }).result;
+            });
             if (this.renderTokens.get(instance) !== token) {
                 return;
             }
@@ -1941,7 +1952,7 @@ export class CemElementRuntime {
                 const renderAttempt = (snapshot.renderAttempt ?? 0) + 1;
                 const recoverySnapshot = { ...snapshot, renderAttempt };
                 committedRevision = { ...revision, renderAttempt };
-                result = await this.processingHost(compiled).renderDiff({
+                result = await this.submitProcessingRender(instance, host, token, {
                     artifact: compile.artifact,
                     revision: committedRevision,
                     snapshot: recoverySnapshot,
@@ -1949,7 +1960,7 @@ export class CemElementRuntime {
                     scopeUid: this.currentScopeUid(instance, compiled),
                     instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
                     previousRenderPlan: null,
-                }).result;
+                });
                 if (this.renderTokens.get(instance) !== token) {
                     return;
                 }
@@ -1989,6 +2000,36 @@ export class CemElementRuntime {
                     compiled.producedTag
                 ),
             ]);
+        }
+    }
+
+    private cancelSupersededProcessingRender(instance: HTMLElement, token: number): void {
+        const active = this.processingRenderJobs.get(instance);
+        if (!active || active.token === token) {
+            return;
+        }
+        this.processingRenderJobs.delete(instance);
+        void active.host.cancel({
+            targetJobId: active.jobId,
+            reason: 'superseded',
+        }).result.catch(() => undefined);
+    }
+
+    private async submitProcessingRender(
+        instance: HTMLElement,
+        host: CemProcessingHost,
+        token: number,
+        input: CemProcessingRenderDiffInput
+    ): Promise<CemProcessingRenderDiffResult> {
+        const job = host.renderDiff(input);
+        const active = { host, jobId: job.jobId, token };
+        this.processingRenderJobs.set(instance, active);
+        try {
+            return await job.result;
+        } finally {
+            if (this.processingRenderJobs.get(instance) === active) {
+                this.processingRenderJobs.delete(instance);
+            }
         }
     }
 

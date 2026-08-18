@@ -5,6 +5,7 @@ import type { DataIslandSnapshot } from '../../cem-elements.js';
 import type { RenderRevision } from '../../projection.js';
 import {
     CEM_PROCESSING_HOST_PROTOCOL_VERSION,
+    CemProcessingCancellationRegistry,
     CemProcessingJobSequence,
     assertCemProcessingEnvelope,
     cemProcessingHostOwnerScope,
@@ -27,6 +28,21 @@ const REVISION: RenderRevision = {
 };
 
 describe('Phase 3A processing-host contract', () => {
+    it('accepts cancellation only for active jobs and forgets terminal jobs', () => {
+        const jobs = new CemProcessingCancellationRegistry();
+
+        expect(jobs.cancel(7)).toBe(false);
+        jobs.start(7);
+        expect(jobs.isCancelled(7)).toBe(false);
+        expect(jobs.cancel(7)).toBe(true);
+        expect(jobs.isCancelled(7)).toBe(true);
+        expect(jobs.cancel(7)).toBe(true);
+
+        jobs.finish(7);
+        expect(jobs.isCancelled(7)).toBe(false);
+        expect(jobs.cancel(7)).toBe(false);
+    });
+
     it('owns one host at the logical root while keeping independent roots isolated', () => {
         const document = {} as Document;
         const root = createCemDeclarationScope({ document });
