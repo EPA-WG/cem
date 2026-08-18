@@ -200,6 +200,23 @@ registration identities may reuse an inherited or existing definition.
           all 15 demos and the 56-file clean-consumer package probe also pass.
     - [ ] Prove the full legacy and material parity inventories plus browser
           data-island isolation and accessibility gates.
+        - [x] Promote all 12 file-backed legacy/CEM fixture pairs into
+              one-to-one executable Storybook browser cases.
+              Completed 2026-08-18: each manifest pair is imported directly
+              from its checked-in legacy and CEM HTML files by a named browser
+              story. The 12 cases exercise registration, declaration-shape
+              rejection, local/external sources, payload, attributes and
+              invalidation, slots, slice events, datadom migration,
+              conditionals, and the exact legacy bridge; Storybook Chromium
+              passes all 109 tests.
+        - [ ] Promote all 8 material/CEM fixture pairs into one-to-one
+              executable Storybook browser cases.
+        - [ ] Prove raw declaration templates and captured data islands remain
+              inert to layout, selectors, forms, accessibility, and visible text.
+        - [ ] Enforce the Phase 3 accessibility contract across the complete
+              legacy and material browser inventories.
+        - [ ] Include every parity fixture in the Phase 2 CLI validation,
+              end-to-end, and benchmark aggregate gates.
     - [ ] Add the Phase 3B scope-policy worker pool, content-addressed cache, and
           deterministic scheduling traces behind the stable host API.
     - [ ] Add Phase 3C precompiled component-template artifacts without removing

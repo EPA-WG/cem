@@ -1,4 +1,29 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import attributeInvalidationCemFixture from '../../tests/parity/legacy/attribute-invalidation.cem.html?raw';
+import attributeInvalidationLegacyFixture from '../../tests/parity/legacy/attribute-invalidation.legacy.html?raw';
+import attributesCemFixture from '../../tests/parity/legacy/attributes.cem.html?raw';
+import attributesLegacyFixture from '../../tests/parity/legacy/attributes.legacy.html?raw';
+import conditionalsCemFixture from '../../tests/parity/legacy/conditionals.cem.html?raw';
+import conditionalsLegacyFixture from '../../tests/parity/legacy/conditionals.legacy.html?raw';
+import datadomAccessCemFixture from '../../tests/parity/legacy/datadom-access.cem.html?raw';
+import datadomAccessLegacyFixture from '../../tests/parity/legacy/datadom-access.legacy.html?raw';
+import declarationRegistrationCemFixture from '../../tests/parity/legacy/declaration-registration.cem.html?raw';
+import declarationRegistrationLegacyFixture from '../../tests/parity/legacy/declaration-registration.legacy.html?raw';
+import externalSrcCemFixture from '../../tests/parity/legacy/external-src.cem.html?raw';
+import externalSrcLegacyFixture from '../../tests/parity/legacy/external-src.legacy.html?raw';
+import externalSrcTemplatesFixture from '../../tests/parity/legacy/external-src.templates.html?raw';
+import inlineTemplateShapeCemFixture from '../../tests/parity/legacy/inline-template-shape.cem.html?raw';
+import inlineTemplateShapeLegacyFixture from '../../tests/parity/legacy/inline-template-shape.legacy.html?raw';
+import legacyBridgeCemFixture from '../../tests/parity/legacy/legacy-bridge.cem.html?raw';
+import legacyBridgeLegacyFixture from '../../tests/parity/legacy/legacy-bridge.legacy.html?raw';
+import localSrcCemFixture from '../../tests/parity/legacy/local-src.cem.html?raw';
+import localSrcLegacyFixture from '../../tests/parity/legacy/local-src.legacy.html?raw';
+import payloadCaptureCemFixture from '../../tests/parity/legacy/payload-capture.cem.html?raw';
+import payloadCaptureLegacyFixture from '../../tests/parity/legacy/payload-capture.legacy.html?raw';
+import sliceEventsCemFixture from '../../tests/parity/legacy/slice-events.cem.html?raw';
+import sliceEventsLegacyFixture from '../../tests/parity/legacy/slice-events.legacy.html?raw';
+import slotsCemFixture from '../../tests/parity/legacy/slots.cem.html?raw';
+import slotsLegacyFixture from '../../tests/parity/legacy/slots.legacy.html?raw';
 import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 
 /**
@@ -277,8 +302,345 @@ export const LegacySliceIfOrderingParity: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// File-backed migration inventory
+// ---------------------------------------------------------------------------
+
+export const FileDeclarationRegistrationParity: Story = fileBackedParityStory(
+    'declaration-registration',
+    declarationRegistrationLegacyFixture,
+    declarationRegistrationCemFixture,
+    [{ selector: 'article.legacy-register-card', texts: ['Registered'] }]
+);
+
+export const FileInlineTemplateShapeParity: Story = fileBackedParityStory(
+    'inline-template-shape',
+    inlineTemplateShapeLegacyFixture,
+    inlineTemplateShapeCemFixture,
+    [{ selector: 'span', texts: ['Shape'] }],
+    { instanceAttributes: { label: 'Shape' } }
+);
+
+export const FileLocalSrcParity: Story = fileBackedParityStory(
+    'local-src',
+    localSrcLegacyFixture,
+    localSrcCemFixture,
+    [{ selector: 'p.local', texts: ['Local'] }]
+);
+
+export const FileExternalSrcParity: Story = fileBackedParityStory(
+    'external-src',
+    externalSrcLegacyFixture,
+    externalSrcCemFixture,
+    [{ selector: 'section.external', texts: ['External'] }]
+);
+
+export const FilePayloadCaptureParity: Story = fileBackedParityStory(
+    'payload-capture',
+    payloadCaptureLegacyFixture,
+    payloadCaptureCemFixture,
+    [{ selector: 'article.payload strong', texts: ['Fallback payload'] }]
+);
+
+export const FileAttributeDefaultsOverridesParity: Story = fileBackedParityStory(
+    'attribute-defaults-overrides',
+    attributesLegacyFixture,
+    attributesCemFixture,
+    [{ selector: 'span.tone', texts: ['Default', 'Override'] }]
+);
+
+export const FileAttributeInvalidationParity: Story = fileBackedParityStory(
+    'attribute-invalidation',
+    attributeInvalidationLegacyFixture,
+    attributeInvalidationCemFixture,
+    [{ selector: 'span.label', texts: ['Before'] }],
+    { mutatedExpectations: [{ selector: 'span.label', texts: ['After'] }] }
+);
+
+export const FileSlotsParity: Story = fileBackedParityStory(
+    'slots',
+    slotsLegacyFixture,
+    slotsCemFixture,
+    [
+        { selector: 'h2', texts: ['Projected title'] },
+        { selector: 'article > div', texts: ['Projected body'] },
+    ]
+);
+
+export const FileSliceEventsParity: Story = fileBackedParityStory(
+    'slice-events',
+    sliceEventsLegacyFixture,
+    sliceEventsCemFixture,
+    [{ selector: 'output', texts: ['off'] }],
+    { eventExpectations: [{ selector: 'output', texts: ['on'] }] }
+);
+
+export const FileDatadomAccessParity: Story = fileBackedParityStory(
+    'datadom-access-migration',
+    datadomAccessLegacyFixture,
+    datadomAccessCemFixture,
+    [{ selector: 'p', texts: ['From datadom'] }]
+);
+
+export const FileConditionalsParity: Story = fileBackedParityStory(
+    'conditionals',
+    conditionalsLegacyFixture,
+    conditionalsCemFixture,
+    [
+        { selector: 'strong', texts: ['alert'] },
+        { selector: 'em', texts: ['none'] },
+        { selector: 'span.present', texts: ['present'] },
+    ]
+);
+
+export const FileLegacyBridgeParity: Story = fileBackedParityStory(
+    'legacy-bridge',
+    legacyBridgeLegacyFixture,
+    legacyBridgeCemFixture,
+    [{ selector: 'button[type="button"]', texts: ['Bridge'] }]
+);
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+interface FileParityExpectation {
+    selector: string;
+    texts: string[];
+}
+
+interface FileParityStoryOptions {
+    instanceAttributes?: Record<string, string>;
+    mutatedExpectations?: FileParityExpectation[];
+    eventExpectations?: FileParityExpectation[];
+}
+
+interface FileParitySide {
+    root: HTMLElement;
+    runtime: CemElementRuntime;
+    declarations: HTMLElement[];
+    instances: HTMLElement[];
+}
+
+interface FileParityState {
+    id: string;
+    legacy: FileParitySide;
+    cemMl: FileParitySide;
+}
+
+const fileParityStates = new WeakMap<HTMLElement, FileParityState>();
+
+function fileBackedParityStory(
+    id: string,
+    legacySource: string,
+    cemMlSource: string,
+    expectations: FileParityExpectation[],
+    options: FileParityStoryOptions = {}
+): Story {
+    return {
+        render: () => {
+            const root = section(`file-backed legacy parity: ${id}`);
+            root.dataset.legacyFileParity = id;
+            const legacy = prepareFileParitySide(id, 'legacy', legacySource, options);
+            const cemMl = prepareFileParitySide(id, 'cem-ml', cemMlSource, options);
+            root.append(legacy.root, cemMl.root);
+            fileParityStates.set(root, { id, legacy, cemMl });
+            return root;
+        },
+        play: async ({ canvasElement }) => {
+            const root = requiredElement(
+                canvasElement,
+                `section[data-legacy-file-parity="${id}"]`
+            ) as HTMLElement;
+            const state = fileParityStates.get(root);
+            assert(state, `file-backed parity state exists for ${id}`);
+
+            await registerFileParitySide(state.legacy, 'legacy');
+            await registerFileParitySide(state.cemMl, 'CEM-ML');
+            assertFileParity(state, expectations, 'initial render');
+
+            if (options.mutatedExpectations) {
+                mutateMarkedAttributes(state.legacy.instances);
+                mutateMarkedAttributes(state.cemMl.instances);
+                await settleFileParity(state);
+                await waitForFileExpectations(state, options.mutatedExpectations, 'attribute invalidation');
+                assertFileParity(state, options.mutatedExpectations, 'attribute invalidation');
+            }
+
+            if (options.eventExpectations) {
+                dispatchMarkedSliceEvents(state.legacy.instances);
+                dispatchMarkedSliceEvents(state.cemMl.instances);
+                await settleFileParity(state);
+                await waitForFileExpectations(state, options.eventExpectations, 'slice event');
+                assertFileParity(state, options.eventExpectations, 'slice event');
+            }
+        },
+    };
+}
+
+function prepareFileParitySide(
+    id: string,
+    mode: 'legacy' | 'cem-ml',
+    source: string,
+    options: FileParityStoryOptions
+): FileParitySide {
+    const root = document.createElement('div');
+    root.dataset.paritySide = mode;
+    const fixture = document.createElement('template');
+    fixture.innerHTML = source;
+    root.appendChild(fixture.content.cloneNode(true));
+
+    const declarations = Array.from(root.querySelectorAll('cem-element')).map(neutralizeFixtureDeclaration);
+    if (options.instanceAttributes) {
+        const validDeclaration = declarations.find((declaration) => declaration.dataset.case !== 'live-content-invalid'
+            && declaration.dataset.case !== 'missing-template-invalid');
+        assert(validDeclaration, `${id} ${mode} fixture has a valid declaration`);
+        const tag = validDeclaration.getAttribute('tag');
+        assert(tag, `${id} ${mode} valid declaration has a tag`);
+        root.appendChild(instance(tag, options.instanceAttributes, ''));
+    }
+
+    const runtime = new CemElementRuntime({
+        declarationTag: `cem-element-file-${mode}-${id}`,
+        loadSrcDocument: async (path) => {
+            assertEqual(path, './external-src.templates.html', `${id} external source path`);
+            return externalSrcTemplatesFixture;
+        },
+    });
+    return { root, runtime, declarations, instances: [] };
+}
+
+function neutralizeFixtureDeclaration(declaration: Element): HTMLElement {
+    const neutral = document.createElement('div');
+    for (const attribute of Array.from(declaration.attributes)) {
+        neutral.setAttribute(attribute.name, attribute.value);
+    }
+    while (declaration.firstChild) {
+        neutral.appendChild(declaration.firstChild);
+    }
+    declaration.replaceWith(neutral);
+    return neutral;
+}
+
+async function registerFileParitySide(side: FileParitySide, label: string): Promise<void> {
+    const producedTags: string[] = [];
+    for (const declaration of side.declarations) {
+        const invalidCase = declaration.dataset.case?.endsWith('-invalid') ?? false;
+        const accepted = side.runtime.registerDeclaration(declaration);
+        if (invalidCase) {
+            assertEqual(accepted, false, `${label} ${declaration.dataset.case} declaration is rejected`);
+            const expectedCode = declaration.dataset.case === 'live-content-invalid'
+                ? 'cem-element.declaration_live_content'
+                : 'cem-element.inline_template_missing';
+            assert(
+                side.runtime.diagnosticsFor(declaration).some((diagnostic) => diagnostic.code === expectedCode),
+                `${label} ${declaration.dataset.case} reports ${expectedCode}`
+            );
+            continue;
+        }
+        assert(accepted, `${label} file-backed declaration is accepted`);
+        await side.runtime.whenDeclarationSettled(declaration);
+        const tag = declaration.getAttribute('tag');
+        assert(tag, `${label} file-backed declaration has a produced tag`);
+        assert(window.customElements.get(tag), `${label} file-backed declaration registers <${tag}>`);
+        producedTags.push(tag);
+    }
+
+    side.instances = producedTags.flatMap((tag) =>
+        Array.from(side.root.querySelectorAll(tag)) as HTMLElement[]
+    );
+    assert(side.instances.length > 0, `${label} file-backed fixture exercises a produced instance`);
+    await Promise.all(side.instances.map((producedInstance) => side.runtime.whenRenderSettled(producedInstance)));
+}
+
+function assertFileParity(
+    state: FileParityState,
+    expectations: FileParityExpectation[],
+    phase: string
+): void {
+    assertEqual(
+        state.legacy.instances.length,
+        state.cemMl.instances.length,
+        `${state.id} ${phase} instance count`
+    );
+    for (let index = 0; index < state.legacy.instances.length; index += 1) {
+        assertEqual(
+            renderedHtml(state.legacy.instances[index] as HTMLElement),
+            renderedHtml(state.cemMl.instances[index] as HTMLElement),
+            `${state.id} ${phase} legacy instance ${index + 1} matches its CEM-ML twin`
+        );
+    }
+    assertFileExpectations(state.legacy, expectations, `${state.id} legacy ${phase}`);
+    assertFileExpectations(state.cemMl, expectations, `${state.id} CEM-ML ${phase}`);
+}
+
+function assertFileExpectations(
+    side: FileParitySide,
+    expectations: FileParityExpectation[],
+    label: string
+): void {
+    for (const expectation of expectations) {
+        const texts = fileExpectationTexts(side, expectation);
+        assertEqual(texts.join('|'), expectation.texts.join('|'), `${label} ${expectation.selector} output`);
+    }
+}
+
+function fileExpectationTexts(side: FileParitySide, expectation: FileParityExpectation): string[] {
+    return side.instances.flatMap((producedInstance) =>
+        Array.from(producedInstance.querySelectorAll(expectation.selector), (element) =>
+            element.textContent?.trim() ?? ''
+        )
+    );
+}
+
+async function waitForFileExpectations(
+    state: FileParityState,
+    expectations: FileParityExpectation[],
+    phase: string,
+    timeout = 2000
+): Promise<void> {
+    const start = Date.now();
+    for (;;) {
+        const ready = [state.legacy, state.cemMl].every((side) =>
+            expectations.every((expectation) =>
+                fileExpectationTexts(side, expectation).join('|') === expectation.texts.join('|')
+            )
+        );
+        if (ready) {
+            return;
+        }
+        if (Date.now() - start > timeout) {
+            throw new Error(`${state.id} timed out waiting for ${phase} output`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 16));
+    }
+}
+
+function mutateMarkedAttributes(instances: HTMLElement[]): void {
+    for (const producedInstance of instances) {
+        const instruction = producedInstance.dataset.mutate;
+        if (!instruction) {
+            continue;
+        }
+        const separator = instruction.indexOf(':');
+        assert(separator > 0, `valid data-mutate instruction ${instruction}`);
+        producedInstance.setAttribute(instruction.slice(0, separator), instruction.slice(separator + 1));
+    }
+}
+
+function dispatchMarkedSliceEvents(instances: HTMLElement[]): void {
+    for (const producedInstance of instances) {
+        const input = requiredElement(producedInstance, 'input[type="checkbox"]') as HTMLInputElement;
+        input.checked = true;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+async function settleFileParity(state: FileParityState): Promise<void> {
+    await Promise.all([
+        ...state.legacy.instances.map((producedInstance) => state.legacy.runtime.whenRenderSettled(producedInstance)),
+        ...state.cemMl.instances.map((producedInstance) => state.cemMl.runtime.whenRenderSettled(producedInstance)),
+    ]);
+}
 
 let runtimeSequence = 0;
 

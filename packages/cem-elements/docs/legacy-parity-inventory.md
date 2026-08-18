@@ -65,6 +65,12 @@ file-backed legacy fixture manifest through `cem-elements:verify-legacy-fixtures
 Phase 2 CLI validation/e2e checks, the `cem_ml:bench` performance suite, unit tests, and Storybook browser parity
 stories.
 
+Each of the 12 manifest pairs is also imported directly into a named `File*Parity` Storybook case. Those cases
+register the declarations from the checked-in HTML, render every produced instance, compare normalized legacy and
+CEM-ML light DOM one-to-one, exercise the fixture's invalidation/event action where present, and verify the
+declaration-shape rejection cases. The fixture directory is an explicit `cem-elements:test` and `build-storybook`
+Nx input, so an HTML fixture edit invalidates the browser evidence cache.
+
 The current bridge proves that fixture-bounded legacy HTML+XSLT can be compiled through the shared CEM engine path to
 canonical CEM-ML and rendered through `cem_ql` WASM. Passing the aggregate gate means the `<cem-element>` browser
 substrate is eligible for the Phase 3.5 Edge/SSR follow-up; it does not mean the old `@epa-wg/custom-element` package

@@ -49,6 +49,7 @@
             "inputs": [
                 "{projectRoot}/.storybook/**/*",
                 "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/tests/parity/legacy/**/*",
                 "{projectRoot}/package.json",
                 "{workspaceRoot}/package.json",
                 "{workspaceRoot}/yarn.lock",
@@ -72,6 +73,7 @@
             "inputs": [
                 "{projectRoot}/.storybook/**/*",
                 "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/tests/parity/legacy/**/*",
                 "{projectRoot}/vitest.config.mts",
                 "{projectRoot}/package.json",
                 "{workspaceRoot}/package.json",
