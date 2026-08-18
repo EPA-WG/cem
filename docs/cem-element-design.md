@@ -1031,6 +1031,10 @@ During the bridge period (between this design landing and the post-Edge/SSR
 - The `cem-element` runtime understands the legacy XSLT-shaped template body as a
   compat surface only when the body is annotated `lang="custom-element-v0"` on the
   `<template>` element. New code MUST use the CEM-ML surface.
+- Untyped markup is never inspected for XSLT element names. The
+  `custom-element-xslt` identity names the native converter/CLI content type and does
+  not select browser compatibility; explicit `text/cem-ml` or
+  `application/cem-ml` retains precedence over the legacy annotation.
 
 ### 6.3 Cem-components contract
 

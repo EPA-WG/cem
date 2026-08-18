@@ -20,8 +20,9 @@ production trigger is complete.
 
 No placeholder-only substrate was found. Canonical inline and URI/resource work now
 uses the selected worker-backed Phase 3A topology with retained identities and
-superseded-job cancellation. The main sequencing risk has moved to proving the legacy
-bridge remains strictly opt-in before expanding the legacy/material parity gate.
+superseded-job cancellation, and the legacy bridge is strictly opt-in. The main
+sequencing risk has moved to converting the structural legacy/material inventories
+into full rendered, isolation, and accessibility evidence.
 
 ## Implementation and fixture inventory
 
@@ -35,7 +36,7 @@ bridge remains strictly opt-in before expanding the legacy/material parity gate.
 | Runtime support | Implemented for canonical CEM-ML URI and HTTP Phase 1 paths | `processing-engine.ts` retains inline/URI artifacts and DOM-only plans around the generated `cem_ql` WASM module in both worker and fallback modes, returns clone-safe HTTP controls, and preserves source-map refs. `cem-ql-query.ts` maps query bindings/results. The cached package build vendors byte-identical CEM-QL assets and includes the engine, host runtime, and worker entry in the verified npm archive. | Progressive resource AST consumption remains Phase 2; Phase 1 materializes stream-derived projections before render. |
 | Browser runtime and resources | Implemented for URI declarations and Phase 1 HTTP | `CemElementRuntime` streams or adapts declaration sources, retains fragment/URL/specifier plus resolver identities, resolves imported-template resources against the imported base URL, and routes canonical CEM-ML through the scope-owned worker host. The main thread owns HTTP resolution/policy, multi-chunk response loading, abort/stale guards, portable lifecycle envelopes, JSON/XML projections, and final patch application. Legacy and the other resource primitives retain their established paths. | `module-url`, `local-storage`, and `location-element` worker controls remain outside this bounded HTTP slice. |
 | Storybook/browser evidence | Implemented through URI and HTTP Phase 1 | The focused worker fixture constructs a real module worker, separately rooted startup fallback, and post-handshake execution failure, then proves semantic output, patch identity, focus/selection, inert-island preservation, superseded-job cancellation, late-result suppression, and atomic target-mismatch recovery. URI fixtures cover local, document-relative, absolute, and module-map sources plus imported-resource base resolution. HTTP fixtures cover portable states, multi-chunk JSON/XML projections, `cem:for-each`, abort, and stale-response rejection. All 97 Chromium stories remain green. | Phase 3A and the six Edge/SSR stories still share `cem-elements.stories.ts`; phase-specific Edge/SSR selection remains deferred until Phase 3.5 activates. |
-| Legacy parity | Partial | Twelve manifest-backed legacy/CEM-ML file pairs, six executable legacy-XSLT stories, runtime bridge stories, and Rust/TypeScript contract-alignment tests exist. `custom-element-v0` routes through the bounded `custom-element-xslt` compatibility adapter. | `verify-legacy-fixtures` verifies inventory and markers, not rendered equivalence of every paired file. Full browser behavior and accessibility parity remain production-trigger work. |
+| Legacy parity | Partial | Twelve manifest-backed legacy/CEM-ML file pairs, six executable legacy-XSLT stories, runtime bridge stories, and Rust/TypeScript contract-alignment tests exist. The exact `lang="custom-element-v0"` annotation is the sole browser selector for the bounded `custom-element-xslt` compatibility adapter; untyped/XSLT-shaped and engine-language templates have negative unit and browser coverage. The inventory gate rejects unannotated legacy templates. | `verify-legacy-fixtures` proves structure and opt-in markers, not rendered equivalence of every paired file. Full browser behavior, data-island isolation, and accessibility parity remain production-trigger work. |
 | Material parity | Partial | Eight manifest-backed pairs cover action, autocomplete, badge, dropdown, icon, icon-link, input, and menu; executable stories cover the eight examples plus scoped-style policy and first paint. | `verify-material-fixtures` is structural. It does not by itself prove all paired-file output, interaction, keyboard, and accessibility equivalence. |
 | Edge/SSR | Deferred | Snapshot hydration, rejection/fallback, edge patch frames, export policy, hybrid render-state storage, and supporting unit primitives already exist. | Roadmap Phase 3.5 begins only after the browser worker substrate is stable. These prototypes remain useful but are not a Phase 3A release prerequisite. |
 
@@ -69,16 +70,15 @@ contract is green would reverse the accepted sequence.
 
 ## Ordered gaps and next work
 
-1. Prove the legacy bridge is reachable only through explicit
-   `lang="custom-element-v0"` fixtures; canonical CEM-ML must not select it.
-2. Turn the structural legacy/material inventories into full rendered, data-island,
+1. Turn the structural legacy/material inventories into full rendered, data-island,
    and accessibility acceptance on the authoritative Phase 3A architecture.
-3. Add the Phase 3B scope-policy pool/cache/scheduler only after parity is green.
-4. Leave the Phase 3C precompiled path deferred until the source-driven path remains
+2. Add the Phase 3B scope-policy pool/cache/scheduler only after parity is green.
+3. Leave the Phase 3C precompiled path deferred until the source-driven path remains
    proven alongside it.
 
 The declaration-scope, registration-identity, processing-host API, canonical
 inline/URI worker paths, Phase 1 `<http-request>` extension, and superseded render-job
 cancellation are implemented without changing revision, fallback, or atomic patch
-semantics. The next substrate gap is proving that legacy compatibility is strictly
-opt-in through `lang="custom-element-v0"`; it must remain off the canonical path.
+semantics. Legacy conversion is strictly opt-in through
+`lang="custom-element-v0"` and remains off the canonical path. The next substrate gap
+is full rendered legacy/material parity with data-island and accessibility gates.

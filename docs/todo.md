@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Complete the remaining Phase 3 substrate parity on the stable worker/fallback
-boundary, beginning with opt-in legacy compatibility and then the full legacy and
-material acceptance inventories before Phase 3B scheduling or Phase 3C precompilation.
+Complete the full legacy and material acceptance inventories on the stable Phase 3A
+worker/fallback boundary, including browser data-island isolation and accessibility,
+before Phase 3B scheduling or Phase 3C precompilation.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -188,8 +188,16 @@ registration identities may reuse an inherited or existing definition.
           fixture holds and releases an obsolete result late, then corrupts a patch
           target and proves only the fresh revision commits through atomic recovery;
           accepted evidence is unit 114/114 and Storybook Chromium 97/97.
-    - [ ] Prove legacy compatibility only through opt-in
+    - [x] Prove legacy compatibility only through opt-in
           `lang="custom-element-v0"` fixtures.
+          Completed 2026-08-18: the browser selector now enters the legacy converter
+          only for the exact `lang="custom-element-v0"` annotation; explicit CEM-ML
+          retains precedence, while untyped XSLT-shaped markup and the native
+          `custom-element-xslt` engine identity stay on the DOM path. All 12 legacy
+          fixture pairs carry the annotation and the inventory gate rejects any
+          unannotated legacy template. Positive and negative browser evidence passes
+          within Storybook Chromium 97/97, with selector coverage in unit 123/123;
+          all 15 demos and the 56-file clean-consumer package probe also pass.
     - [ ] Prove the full legacy and material parity inventories plus browser
           data-island isolation and accessibility gates.
     - [ ] Add the Phase 3B scope-policy worker pool, content-addressed cache, and

@@ -154,7 +154,9 @@ DOM shape.
 Provided type is derived in this order:
 
 1. Host loader metadata, such as HTTP `Content-Type` response header or equivalent file/package metadata.
-2. Explicit target marker such as `<template type="text/cem-ml">` or `<template lang="custom-element-xslt">`.
+2. Explicit target marker such as `<template type="text/cem-ml">` or the browser
+   migration annotation `<template lang="custom-element-v0">`; the latter maps to
+   the registered `custom-element-xslt` converter content type.
 3. Module-map or resource-map entry metadata, when a host resolver supplied it.
 4. File extension fallback, only when the active registry and host policy permit extension fallback.
 5. Structural sniffing, only through registered sniffers for the active context.

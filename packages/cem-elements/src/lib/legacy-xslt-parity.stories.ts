@@ -287,11 +287,12 @@ function makeRuntime(prefix: string, options: Omit<CemElementRuntimeOptions, 'de
     return new CemElementRuntime({ ...options, declarationTag: `legacy-decl-${prefix}-${runtimeSequence}` });
 }
 
-/** Register a legacy HTML+XSLT template (set as `innerHTML`, no `type` → `legacy-xslt` mode). */
+/** Register a legacy HTML+XSLT template through the explicit migration annotation. */
 function defineLegacy(runtime: CemElementRuntime, tag: string, legacyHtml: string): void {
     const declaration = document.createElement('div');
     declaration.setAttribute('tag', tag);
     const template = document.createElement('template');
+    template.setAttribute('lang', 'custom-element-v0');
     template.innerHTML = legacyHtml;
     declaration.appendChild(template);
     assert(runtime.registerDeclaration(declaration), `registered legacy <${tag}>`);

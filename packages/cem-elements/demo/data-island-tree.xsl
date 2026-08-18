@@ -1,3 +1,7 @@
+<!doctype html>
+<html lang="en">
+<body>
+<template lang="custom-element-v0">
 <article class="demo-card">
     <h2>XSLT data island tree</h2>
     <details style="padding:0 1rem" open="open">
@@ -45,3 +49,6 @@
         </xsl:for-each>
     </details>
 </article>
+</template>
+</body>
+</html>

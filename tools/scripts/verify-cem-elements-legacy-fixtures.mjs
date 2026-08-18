@@ -69,6 +69,17 @@ for (const fixture of manifest.fixtures ?? []) {
     if (legacySurface && !legacySurface.includes('<template')) fail(`${fixture.id}: missing template`);
     if (cemMlSurface && !cemMlSurface.includes('type="text/cem-ml"')) fail(`${fixture.id}: missing text/cem-ml template`);
 
+    const legacyTemplateTags = Array.from(
+        legacySurface.matchAll(/<template\b[^>]*>/g),
+        (match) => match[0]
+    ).filter((tag) => !tag.includes('type="text/cem-ml"'));
+    if (legacyTemplateTags.length === 0) fail(`${fixture.id}: missing legacy template`);
+    for (const tag of legacyTemplateTags) {
+        if (!tag.includes('lang="custom-element-v0"')) {
+            fail(`${fixture.id}: legacy template must opt in with lang="custom-element-v0"`);
+        }
+    }
+
     for (const marker of fixture.markers ?? []) {
         if (!legacySurface.includes(marker) && !cemMlSurface.includes(marker)) {
             fail(`${fixture.id}: marker ${JSON.stringify(marker)} not found in paired fixtures`);

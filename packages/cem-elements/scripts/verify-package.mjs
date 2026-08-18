@@ -54,6 +54,7 @@ try {
         'dist/lib/internal/runtime-support/processing-host.js',
         'dist/lib/internal/runtime-support/processing-host-runtime.js',
         'dist/lib/internal/runtime-support/processing-worker.js',
+        'dist/lib/legacy-xslt/template-language.js',
         ...runtimeFiles.map((file) => `${vendorRelativeRoot}/${file}`),
     ];
 

@@ -40,12 +40,15 @@ the behavioral reference.
 | Scoped styles in templates | README styles section; `demo/scoped-css.html` | Supported for focused light-DOM containment | Generated `data-cem-scope` and payload-specific `data-cem-instance-scope` containment are covered by the scoped CSS demo fixture and processing-boundary tests |
 | Nested produced custom elements | README embedded CE rendering | Supported | Works when nested declarations are registered, including through local/external `src`; covered by material parity stories |
 | Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Supported for focused primitives | `module-url`, `http-request`, `local-storage`, and `location-element` resource slices are covered by executable demo fixtures; broad legacy XPath rewrites and progressive streaming remain deferred |
-| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported through shared engine | `LegacyBridgeTemplateParity`; accepted as a deprecated alias for the `legacy-xslt` engine path, with the browser-only projection branch retired |
+| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported through shared engine | `LegacyBridgeTemplateParity`; the exact annotation is the sole browser selector for the `legacy-xslt` engine path, with markup sniffing and the browser-only projection branch retired |
 
 ## Migration Decisions
 
 - XPath is not reimplemented as a browser host engine. The legacy-XSLT bridge lowers the fixture-bounded XPath subset to
   cem-ql over flat host bindings and the structured `datadom` record.
+- Browser templates enter the bridge only through exact
+  `lang="custom-element-v0"`; untyped legacy markup remains DOM, while
+  `custom-element-xslt` remains the native engine/CLI content-type identity.
 - Legacy DOM text interpolation `${$name}` remains only for DOM-parity templates; canonical CEM-ML uses `{$name}`.
 - `src`, `module-url`, and external dependency resolution are host-policy driven. `src` uses `loadSrcDocument`;
   `module-url` uses `resolveModuleUrl`; bare module specifiers require host-provided resolver hooks.
@@ -71,7 +74,7 @@ has adopted this implementation.
 
 Keep `@epa-wg/custom-element` as a thin adapter:
 
-- normalize untyped legacy templates to `lang="custom-element-xslt"`;
+- normalize untyped legacy templates to `lang="custom-element-v0"`;
 - delegate parsing/conversion/rendering to the shared engine path;
 - preserve copied demo/material modules as executable fixtures;
 - reject or explicitly hand off Tier 3 XSLT rather than expanding the bridge by accident.

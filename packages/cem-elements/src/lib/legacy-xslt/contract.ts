@@ -6,6 +6,7 @@
  * moving the converter behind the engine boundary.
  */
 
+/** Native converter/CLI input identity; browser templates opt in with `custom-element-v0`. */
 export const LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG = 'custom-element-xslt';
 
 export const LEGACY_XSLT_DIAGNOSTIC_CODES = {

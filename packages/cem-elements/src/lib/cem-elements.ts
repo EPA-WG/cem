@@ -39,7 +39,10 @@ import {
     type CemProcessingWorkerFactory,
 } from './internal/runtime-support/processing-host.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
-import { LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG } from './legacy-xslt/contract.js';
+import {
+    decideCemDeclarationTemplateLanguage,
+    type CemDeclarationTemplateLanguage,
+} from './legacy-xslt/template-language.js';
 import {
     CemDeclarationScopeError,
     assertCemDeclarationScopeActive,
@@ -94,7 +97,7 @@ export interface CemDeclarationRegistrationIdentity {
     registrationIdentity: string;
 }
 
-export type CemDeclarationTemplateLanguage = 'dom' | 'cem-ml' | 'legacy-xslt';
+export type { CemDeclarationTemplateLanguage } from './legacy-xslt/template-language.js';
 
 export interface DeclarationRegistrationIdentityInput {
     tag: string;
@@ -3761,38 +3764,11 @@ function readInlineTemplateSource(
 }
 
 function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'] {
-    const type = template.getAttribute('type');
-    if (type === 'text/cem-ml' || type === 'application/cem-ml') {
-        return 'cem-ml';
-    }
-    if (
-        template.getAttribute('lang') === 'custom-element-v0' ||
-        template.getAttribute('lang') === LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG ||
-        containsLegacyXsltConstructs(template)
-    ) {
-        return 'legacy-xslt';
-    }
-    const source = templateSourceText(template).trim();
-    if (source.startsWith('@doc') || source.startsWith('{')) {
-        return 'cem-ml';
-    }
-    return 'dom';
-}
-
-/**
- * Detect whether an untyped template is authored as legacy HTML+XSLT: the `xsl:` namespace prefix or
- * the bare XSLT control-flow spellings (`for-each`/`value-of`/`choose`/`when`/`otherwise`/`variable`,
- * and `<if>`). These tags do not exist in HTML, so their presence unambiguously marks the legacy
- * dialect. Explicit CEM-ML templates are decided first; `custom-element-v0` is accepted as a
- * deprecated alias for the shared engine-backed legacy-XSLT adapter.
- */
-function containsLegacyXsltConstructs(template: HTMLTemplateElement): boolean {
-    const raw = (template.innerHTML || templateSourceText(template)).toLowerCase();
-    return (
-        raw.includes('<xsl:') ||
-        /<\/?(?:for-each|value-of|choose|when|otherwise|variable)[\s/>]/.test(raw) ||
-        /<if[\s/>]/.test(raw)
-    );
+    return decideCemDeclarationTemplateLanguage({
+        type: template.getAttribute('type'),
+        lang: template.getAttribute('lang'),
+        source: templateSourceText(template),
+    });
 }
 
 /**

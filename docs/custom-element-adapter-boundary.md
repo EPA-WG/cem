@@ -129,17 +129,20 @@ Inline `<template>` children are passed to the substrate. During the migration
 window, legacy templates that do not declare `lang` or `type` are annotated as:
 
 ```html
-<template lang="custom-element-xslt">...</template>
+<template lang="custom-element-v0">...</template>
 ```
 
 That routes old HTML+XSLT-shaped authoring through the legacy-XSLT conversion
 path instead of the canonical CEM-ML parser. The conversion path parses the
 template DOM, lowers the fixture-bounded XSLT/XPath subset to canonical CEM-ML,
 and renders through `cem_ql` WASM. Templates that already declare
-`lang="custom-element-xslt"`, `lang="custom-element-v0"`, `type="text/cem-ml"`,
-or `type="application/cem-ml"` must be left unchanged. The `custom-element-v0`
-bridge remains an explicit DOM-projection compatibility path; it is not the
-default for untyped legacy templates.
+`lang="custom-element-v0"`, `type="text/cem-ml"`, or
+`type="application/cem-ml"` must be left unchanged. The
+`custom-element-xslt` identity belongs to the converter/CLI content-type boundary,
+not browser authoring. The `custom-element-v0` bridge remains an explicit
+engine-backed compatibility path; `<cem-element>` never infers it from markup,
+while the future `<custom-element>` adapter may add the annotation to its own
+untyped legacy inputs during the migration window.
 
 ### Data Islands And Payload
 

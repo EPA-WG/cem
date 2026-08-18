@@ -2478,7 +2478,10 @@ export const LocalSrcDeclarationLoadingParity: Story = {
 };
 
 export const LegacyBridgeTemplateParity: Story = {
-    render: () => storyPanel('Legacy bridge template', 'custom-element-v0 routes through the shared legacy-xslt engine'),
+    render: () => storyPanel(
+        'Legacy bridge template',
+        'only explicit custom-element-v0 routes through the shared legacy-xslt engine'
+    ),
     play: async ({ canvasElement }) => {
         const root = document.createElement('section');
         canvasElement.appendChild(root);
@@ -2497,10 +2500,28 @@ export const LegacyBridgeTemplateParity: Story = {
         runtime.registerDeclaration(declaration);
         assertEqual(runtime.diagnosticsFor(declaration).length, 0, 'legacy bridge declarations register without diagnostics');
 
+        const implicitDeclaration = buildDeclaration({
+            tag: 'story-legacy-implicit-dom',
+            templates: [{
+                html: '<if test="$label"><span class="implicit-marker">untyped DOM</span></if>',
+            }],
+        });
+        const engineLanguageDeclaration = buildDeclaration({
+            tag: 'story-legacy-engine-language-dom',
+            templates: [{
+                lang: 'custom-element-xslt',
+                html: '<if test="$label"><span class="engine-language-marker">engine language DOM</span></if>',
+            }],
+        });
+        runtime.registerDeclaration(implicitDeclaration);
+        runtime.registerDeclaration(engineLanguageDeclaration);
+
         const instance = document.createElement('story-legacy-bridge');
         instance.setAttribute('title', 'Bridge');
         instance.innerHTML = '<p slot="description">projected</p>';
-        root.appendChild(instance);
+        const implicitInstance = document.createElement('story-legacy-implicit-dom');
+        const engineLanguageInstance = document.createElement('story-legacy-engine-language-dom');
+        root.append(instance, implicitInstance, engineLanguageInstance);
 
         await runtime.whenRenderSettled(instance);
         const button = await waitForElement(instance, 'button');
@@ -2508,6 +2529,16 @@ export const LegacyBridgeTemplateParity: Story = {
         assertEqual(button.getAttribute('title'), 'Bridge', 'legacy attribute value templates resolve host attributes');
         assertEqual(requiredElement(instance, '.label').textContent, 'Legacy', 'legacy if test renders through the engine');
         assertEqual(requiredElement(instance, 'p[slot="description"]').textContent, 'projected', 'legacy slots project payload');
+        assertEqual(
+            requiredElement(implicitInstance, 'if .implicit-marker').textContent,
+            'untyped DOM',
+            'an untyped XSLT-shaped template remains on the DOM path'
+        );
+        assertEqual(
+            requiredElement(engineLanguageInstance, 'if .engine-language-marker').textContent,
+            'engine language DOM',
+            'the custom-element-xslt engine identity is not a browser legacy selector'
+        );
     },
 };
 
