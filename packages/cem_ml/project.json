@@ -112,6 +112,7 @@
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ml-platform-release.test.mjs",
                 "{workspaceRoot}/.github/workflows/cem-ml-release.yml",
+                "{workspaceRoot}/.github/workflows/cem-ml-native-release.yml",
                 "{workspaceRoot}/.github/workflows/publish.yml",
                 "{workspaceRoot}/packages/cem_ml/project.json",
                 "{workspaceRoot}/packages/cem-ml-npm/project.json",
@@ -120,10 +121,15 @@
                 "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/deployment.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs",
                 "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/publish.mjs",
                 "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/project.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/deployment.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/scripts/finalize.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/scripts/publish.mjs",
                 "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/project.json",
-                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/deployment.json"
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/deployment.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/scripts/finalize.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/scripts/publish.mjs"
             ],
             "outputs": []
         },
@@ -133,7 +139,7 @@
             "options": {
                 "commands": [
                     "node --check tools/scripts/cem-ml-nx-version-actions.cjs",
-                    "yarn eslint tools/scripts/cem-ml-npm-release-evidence.mjs tools/scripts/cem-ml-platform-version.mjs tools/scripts/cem-ml-platform-version.test.mjs tools/scripts/cem-ml-platform-release.mjs tools/scripts/cem-ml-platform-release.test.mjs tools/scripts/cem-ml-phase25-native-gates.mjs packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs"
+                    "yarn eslint tools/scripts/cem-ml-npm-release-evidence.mjs tools/scripts/cem-ml-platform-version.mjs tools/scripts/cem-ml-platform-version.test.mjs tools/scripts/cem-ml-platform-release.mjs tools/scripts/cem-ml-platform-release.test.mjs tools/scripts/cem-ml-phase25-native-gates.mjs packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs packages/cem-ml-cli-native-linux-amd64/scripts/publish.mjs packages/cem-ml-cli-native-brew-arm64/scripts/finalize.mjs packages/cem-ml-cli-native-brew-arm64/scripts/publish.mjs packages/cem-ml-cli-native-windows-amd64/scripts/finalize.mjs packages/cem-ml-cli-native-windows-amd64/scripts/publish.mjs"
                 ],
                 "cwd": "{workspaceRoot}",
                 "parallel": false
@@ -152,7 +158,12 @@
                 "{workspaceRoot}/packages/cem-ml-cli-npm/project.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/project.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs",
-                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs"
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/publish.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/scripts/finalize.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/scripts/publish.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/scripts/finalize.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/scripts/publish.mjs"
             ],
             "outputs": []
         },

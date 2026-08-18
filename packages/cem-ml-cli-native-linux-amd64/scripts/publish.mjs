@@ -1,16 +1,17 @@
-import { readdirSync } from 'node:fs';
+import { uploadImmutableDraftAssetSet } from '../../../tools/scripts/cem-ml-platform-release.mjs';
 
 import {
     artifactPath,
     artifactRoot,
     assetNames,
     authoritativeVersion,
-    capture,
     deployment,
+    projectRoot,
     readJson,
     releaseTag,
     requireFile,
     run,
+    workspaceRoot,
 } from './lib.mjs';
 
 if (process.env.CEM_ML_NATIVE_PUBLISH !== '1') {
@@ -23,17 +24,19 @@ if (signing.publicationReady !== true) {
     throw new Error('native publication requires a publication-ready signing record');
 }
 const tag = releaseTag(version);
-const release = JSON.parse(capture('gh', ['release', 'view', tag, '--json', 'isDraft,tagName']));
-if (release.tagName !== tag || release.isDraft !== true) {
-    throw new Error(`${tag} must already exist as a draft GitHub Release`);
-}
-
-const assets = readdirSync(artifactRoot)
-    .filter((filename) => filename.startsWith(`${names.base}.`))
-    .sort()
-    .map((filename) => artifactPath(filename));
-for (const asset of assets) requireFile(asset);
-run('gh', ['release', 'upload', tag, ...assets]);
+run('node', ['scripts/verify.mjs'], {
+    cwd: projectRoot,
+    env: { CEM_ML_RELEASE_VERIFY: '1' },
+});
+const result = uploadImmutableDraftAssetSet({
+    workspaceRoot,
+    identity: deployment.runtimeIdentity,
+    version,
+    releaseTag: tag,
+    assetRoot: artifactRoot,
+    ownedBase: names.base,
+});
 console.log(
-    `Uploaded ${assets.length} immutable ${deployment.runtimeIdentity} assets to draft release ${tag}; APT consumes ${names.apt}.`,
+    `Verified ${result.filenames.length} immutable ${deployment.runtimeIdentity} assets in draft release ${tag}; ` +
+        `uploaded ${result.uploaded.length} missing assets and APT consumes ${names.apt}.`,
 );

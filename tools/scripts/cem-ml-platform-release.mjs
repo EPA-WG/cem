@@ -740,6 +740,90 @@ export function uploadPlatformReleaseUnits({
     };
 }
 
+export function uploadImmutableDraftAssetSet({
+    workspaceRoot = defaultWorkspaceRoot,
+    identity,
+    version,
+    releaseTag,
+    assetRoot,
+    ownedBase,
+    github = createGithubAssetClient(workspaceRoot),
+    verifyDownloaded = () => undefined,
+} = {}) {
+    assert.match(identity ?? '', /^native-(?:linux|macos|windows)-/, 'invalid native release identity');
+    assert.match(
+        version ?? '',
+        /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,
+        'invalid native release version',
+    );
+    assert.equal(releaseTag, `cem-ml-v${version}`, `${identity} release tag drift`);
+    assert.ok(ownedBase?.startsWith(`cem-ml-${version}-`), `${identity} asset base is not version-qualified`);
+
+    const filenames = listFiles(assetRoot);
+    assert.ok(filenames.length > 0, `${identity} has no local release assets`);
+    const unexpectedLocal = filenames.filter((filename) => !filename.startsWith(`${ownedBase}.`));
+    assert.deepEqual(unexpectedLocal, [], `${identity} artifact root contains stale or foreign assets`);
+    const localAssets = new Map(filenames.map((filename) => [filename, resolve(assetRoot, filename)]));
+
+    const release = github.view(releaseTag);
+    assert.ok(release, `required GitHub draft ${releaseTag} does not exist`);
+    assert.equal(release.tagName, releaseTag, 'GitHub draft release tag drift');
+    assert.equal(release.isDraft, true, `${releaseTag} must remain a draft during ${identity} upload`);
+    assert.ok(Array.isArray(release.assets), 'GitHub draft asset listing is missing');
+    const remoteOwned = release.assets
+        .map(({ name }) => name)
+        .filter((filename) => filename.startsWith(`${ownedBase}.`))
+        .sort();
+    const unexpectedOwned = remoteOwned.filter((filename) => !localAssets.has(filename));
+    assert.deepEqual(unexpectedOwned, [], `GitHub draft contains unexpected assets owned by ${identity}`);
+
+    const existingRoot = mkdtempSync(resolve(tmpdir(), `${ownedBase}-existing-`));
+    try {
+        for (const filename of remoteOwned) {
+            github.download(releaseTag, filename, existingRoot);
+            assert.equal(
+                sha256File(resolve(existingRoot, filename)),
+                sha256File(localAssets.get(filename)),
+                `existing ${identity} draft asset is not immutable: ${filename}`,
+            );
+        }
+    } finally {
+        rmSync(existingRoot, { recursive: true, force: true });
+    }
+
+    const uploaded = filenames.filter((filename) => !remoteOwned.includes(filename));
+    if (uploaded.length > 0) github.upload(releaseTag, uploaded.map((filename) => localAssets.get(filename)));
+
+    const finalRelease = github.view(releaseTag);
+    assert.equal(finalRelease?.tagName, releaseTag, 'GitHub draft release tag drift after native upload');
+    assert.equal(finalRelease?.isDraft, true, `${releaseTag} was published during ${identity} upload`);
+    const finalOwned = (finalRelease?.assets ?? [])
+        .map(({ name }) => name)
+        .filter((filename) => filename.startsWith(`${ownedBase}.`))
+        .sort();
+    assert.deepEqual(finalOwned, filenames, `${identity} remote asset set drift after upload`);
+
+    const downloadRoot = mkdtempSync(resolve(tmpdir(), `${ownedBase}-final-`));
+    try {
+        const paths = new Map();
+        for (const [filename, localPath] of localAssets) {
+            github.download(releaseTag, filename, downloadRoot);
+            const downloadedPath = resolve(downloadRoot, filename);
+            assert.equal(
+                sha256File(downloadedPath),
+                sha256File(localPath),
+                `downloaded ${identity} draft asset drift: ${filename}`,
+            );
+            paths.set(filename, downloadedPath);
+        }
+        verifyDownloaded({ downloadRoot, paths });
+    } finally {
+        rmSync(downloadRoot, { recursive: true, force: true });
+    }
+
+    return { identity, releaseTag, filenames, uploaded };
+}
+
 export function uploadPlatformReleaseDraft({ workspaceRoot = defaultWorkspaceRoot } = {}) {
     if (process.env.CEM_ML_PLATFORM_UPLOAD !== '1') {
         throw new Error('draft upload is disabled; set CEM_ML_PLATFORM_UPLOAD=1 in the protected release job');

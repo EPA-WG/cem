@@ -22,18 +22,23 @@ yarn nx run cem_ml_cli_native_brew_arm64:smoke:upgrade
 yarn nx run cem_ml_cli_native_brew_arm64:smoke:uninstall
 ```
 
-GitHub Actions intentionally skips this native executable. All lifecycle and
-release targets run on an authorized local Apple Silicon host. To publish the
-local build, export the Apple signing/notarization variables and the GitHub
-artifact-attestation bundle, then run:
+Generic CI intentionally skips this native executable. Lifecycle and release
+targets run on an authorized Apple Silicon host through the protected manual
+workflow. To publish the local build, use the operator sequence in
+[`docs/cem-ml-native-release.md`](../../docs/cem-ml-native-release.md). It keeps
+the Apple credentials in the runner keychain, obtains the GitHub attestation in
+the same protected job, and preserves the exact finalized bytes for a separate
+publisher job.
+
+For native target development without publication, export the Apple
+signing/notarization variables and run:
 
 ```bash
 CEM_ML_RELEASE_SIGNING=required \
-CEM_ML_NATIVE_PUBLISH=1 \
-yarn nx run cem_ml_cli_native_brew_arm64:publish
+yarn nx run cem_ml_cli_native_brew_arm64:smoke:release
 ```
 
-`publish` remains inert until the release controls are present and
-`cem-ml-v<version>` exists as a draft GitHub Release. The generated formula
+`publish` remains inert until the release controls and finalized attestation are
+present and `cem-ml-v<version>` exists as a draft GitHub Release. The generated formula
 points at that immutable release archive; `EPA-WG/homebrew-cem` consumes the
 projection and never rebuilds the executable.

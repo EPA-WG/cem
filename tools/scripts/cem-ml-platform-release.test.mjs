@@ -28,6 +28,7 @@ import {
     preflightNativeHostRelease,
     recordCiProducerEvidence,
     stagePlatformRelease,
+    uploadImmutableDraftAssetSet,
     uploadPlatformReleaseUnits,
     uploadPlatformReleaseDraft,
     validateCiProducerEvidence,
@@ -333,7 +334,97 @@ test('all native publishers require the shared uncached exact-tag preflight', ()
         assert.ok(preflight.inputs.includes(`{workspaceRoot}/${projectPath}`));
         assert.ok(preflight.inputs.some((input) => input.runtime === 'git rev-parse HEAD'));
         assert.ok(preflight.inputs.some((input) => input.env === 'CEM_ML_RELEASE_TAG'));
-        assert.deepEqual(project.targets.publish.dependsOn, ['preflight:release', 'verify']);
+        assert.deepEqual(project.targets.publish.dependsOn, ['preflight:release']);
+    }
+});
+
+test('macOS and Windows expose one signed lifecycle gate before native publication', () => {
+    for (const [identity, projectPath] of [...nativeDeploymentPaths].slice(1)) {
+        const project = readProject(projectPath.replace('/deployment.json', '/project.json'));
+        const smoke = project.targets['smoke:release'];
+        assert.ok(smoke, `${identity} is missing smoke:release`);
+        assert.deepEqual(smoke.dependsOn, ['verify']);
+        assert.equal(smoke.options.parallel, false);
+        assert.deepEqual(smoke.options.commands, [
+            'node scripts/smoke.mjs install',
+            'node scripts/smoke.mjs upgrade',
+            'node scripts/smoke.mjs uninstall',
+        ]);
+        const finalize = project.targets['finalize:release'];
+        assert.ok(finalize, `${identity} is missing finalize:release`);
+        assert.equal(finalize.cache, false);
+        assert.deepEqual(finalize.dependsOn, undefined, `${identity} finalization must not rebuild signed bytes`);
+        assert.ok(finalize.inputs.some((input) => input.env === 'CEM_ML_GITHUB_ATTESTATION_BUNDLE'));
+    }
+});
+
+test('protected native workflow binds exact self-hosted runners, lifecycle gates, attestations, and publishers', () => {
+    const workflow = readFileSync(resolve(workspaceRoot, '.github/workflows/cem-ml-native-release.yml'), 'utf8');
+
+    assert.match(workflow, /workflow_dispatch:/);
+    assert.match(workflow, /type: choice/);
+    assert.match(workflow, /runs-on: \[self-hosted, macOS, ARM64, local-macos-arm64\]/);
+    assert.match(workflow, /runs-on: \[self-hosted, Windows, X64, local-windows-amd64\]/);
+    assert.ok(workflow.match(/environment:\s*\n\s+name: cem-ml-release/g)?.length === 4);
+    assert.ok(workflow.match(/id-token: write/g)?.length === 2);
+    assert.ok(workflow.match(/artifact-metadata: write/g)?.length === 2);
+    assert.ok(workflow.match(/uses: actions\/attest@v4/g)?.length === 2);
+    assert.match(workflow, /cem_ml_cli_native_brew_arm64:preflight:release/);
+    assert.match(workflow, /cem_ml_cli_native_brew_arm64:smoke:release/);
+    assert.match(workflow, /cem_ml_cli_native_brew_arm64:finalize:release/);
+    assert.match(workflow, /cem_ml_cli_native_brew_arm64:publish/);
+    assert.match(workflow, /cem_ml_cli_native_windows_amd64:preflight:release/);
+    assert.match(workflow, /cem_ml_cli_native_windows_amd64:smoke:release/);
+    assert.match(workflow, /cem_ml_cli_native_windows_amd64:finalize:release/);
+    assert.match(workflow, /cem_ml_cli_native_windows_amd64:publish/);
+    assert.ok(workflow.match(/CEM_ML_GITHUB_ATTESTATION_BUNDLE: \$\{\{ steps\.attestation\.outputs\.bundle-path \}\}/g)?.length === 2);
+    assert.ok(workflow.match(/uses: actions\/upload-artifact@v4/g)?.length >= 2);
+    assert.ok(workflow.match(/uses: actions\/download-artifact@v5/g)?.length === 2);
+    const macosProducer = workflow.slice(
+        workflow.indexOf('  macos-arm64-producer:'),
+        workflow.indexOf('  macos-arm64-publisher:'),
+    );
+    const macosPublisher = workflow.slice(
+        workflow.indexOf('  macos-arm64-publisher:'),
+        workflow.indexOf('  windows-amd64-producer:'),
+    );
+    const windowsProducer = workflow.slice(
+        workflow.indexOf('  windows-amd64-producer:'),
+        workflow.indexOf('  windows-amd64-publisher:'),
+    );
+    const windowsPublisher = workflow.slice(workflow.indexOf('  windows-amd64-publisher:'));
+    for (const producer of [macosProducer, windowsProducer]) {
+        assert.match(producer, /contents: read/);
+        assert.doesNotMatch(producer, /contents: write/);
+        assert.match(producer, /id-token: write/);
+    }
+    for (const publisher of [macosPublisher, windowsPublisher]) {
+        assert.match(publisher, /contents: write/);
+        assert.doesNotMatch(publisher, /id-token: write/);
+        assert.doesNotMatch(publisher, /actions\/attest/);
+    }
+    assert.doesNotMatch(workflow, /push:\s*\n\s+tags:/);
+    assert.doesNotMatch(workflow, /--clobber/);
+});
+
+test('native publishers delegate to the shared immutable uploader and never request clobbering', () => {
+    for (const projectPath of nativeDeploymentPaths.values()) {
+        const publisherPath = projectPath.replace('/deployment.json', '/scripts/publish.mjs');
+        const publisher = readFileSync(resolve(workspaceRoot, publisherPath), 'utf8');
+        assert.match(publisher, /uploadImmutableDraftAssetSet/);
+        assert.match(publisher, /CEM_ML_RELEASE_VERIFY/);
+        assert.doesNotMatch(publisher, /--clobber/);
+    }
+});
+
+test('native finalizers verify the GitHub attestation for every checksum-listed subject', () => {
+    for (const projectPath of [...nativeDeploymentPaths.values()].slice(1)) {
+        const finalizerPath = projectPath.replace('/deployment.json', '/scripts/finalize.mjs');
+        const finalizer = readFileSync(resolve(workspaceRoot, finalizerPath), 'utf8');
+        assert.match(finalizer, /readFileSync\(checksum, 'utf8'\)\.trim\(\)\.split/);
+        assert.match(finalizer, /'attestation',\s*\n\s*'verify'/);
+        assert.match(finalizer, /artifactPath\(match\[1\]\)/);
+        assert.match(finalizer, /CEM_ML_RELEASE_VERIFY/);
     }
 });
 
@@ -572,6 +663,94 @@ test('CI-owned unit upload rejects remote byte drift without clobbering', () => 
         assert.equal(github.uploadCalls, 0);
     } finally {
         fixture.dispose();
+    }
+});
+
+test('native draft upload preserves foreign units, uploads only missing assets, and is idempotent', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'cem-ml-native-upload-'));
+    const base = `cem-ml-${version}-macos-arm64`;
+    try {
+        writeFileSync(resolve(root, `${base}.tar.gz`), 'native archive bytes');
+        writeFileSync(resolve(root, `${base}.sha256`), 'native checksum bytes');
+        const github = createFakeGithubAssetClient({
+            [`${base}.tar.gz`]: 'native archive bytes',
+            [`cem-ml-${version}-windows-amd64-msvc.zip`]: 'foreign unit bytes',
+        });
+        const verified = [];
+
+        const first = uploadImmutableDraftAssetSet({
+            identity: 'native-macos-arm64',
+            version,
+            releaseTag,
+            assetRoot: root,
+            ownedBase: base,
+            github,
+            verifyDownloaded: ({ paths }) => verified.push([...paths.keys()].sort()),
+        });
+        assert.deepEqual(first.uploaded, [`${base}.sha256`]);
+        assert.equal(github.assets.has(`cem-ml-${version}-windows-amd64-msvc.zip`), true);
+        assert.deepEqual(verified, [[`${base}.sha256`, `${base}.tar.gz`]]);
+
+        const second = uploadImmutableDraftAssetSet({
+            identity: 'native-macos-arm64',
+            version,
+            releaseTag,
+            assetRoot: root,
+            ownedBase: base,
+            github,
+        });
+        assert.deepEqual(second.uploaded, []);
+        assert.equal(github.uploadCalls, 1);
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('native draft upload rejects an unexpected owned remote asset without mutation', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'cem-ml-native-upload-'));
+    const base = `cem-ml-${version}-windows-amd64-msvc`;
+    try {
+        writeFileSync(resolve(root, `${base}.zip`), 'native archive bytes');
+        const github = createFakeGithubAssetClient({ [`${base}.unexpected`]: 'unexpected bytes' });
+        assert.throws(
+            () =>
+                uploadImmutableDraftAssetSet({
+                    identity: 'native-windows-amd64',
+                    version,
+                    releaseTag,
+                    assetRoot: root,
+                    ownedBase: base,
+                    github,
+                }),
+            /unexpected assets owned by native-windows-amd64/,
+        );
+        assert.equal(github.uploadCalls, 0);
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('native draft upload rejects existing byte drift without clobbering', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'cem-ml-native-upload-'));
+    const base = `cem-ml-${version}-linux-amd64-gnu`;
+    try {
+        writeFileSync(resolve(root, `${base}.tar.gz`), 'local native bytes');
+        const github = createFakeGithubAssetClient({ [`${base}.tar.gz`]: 'drifted remote bytes' });
+        assert.throws(
+            () =>
+                uploadImmutableDraftAssetSet({
+                    identity: 'native-linux-amd64',
+                    version,
+                    releaseTag,
+                    assetRoot: root,
+                    ownedBase: base,
+                    github,
+                }),
+            /existing native-linux-amd64 draft asset is not immutable/,
+        );
+        assert.equal(github.uploadCalls, 0);
+    } finally {
+        rmSync(root, { recursive: true, force: true });
     }
 });
 

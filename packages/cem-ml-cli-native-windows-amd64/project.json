@@ -98,10 +98,27 @@
             ],
             "outputs": []
         },
+        "finalize:release": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/finalize.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/deployment.json",
+                "{projectRoot}/scripts/finalize.mjs",
+                "{projectRoot}/scripts/lib.mjs",
+                "{workspaceRoot}/dist/packages/cem-ml-cli-native-windows-amd64/artifacts/**/*",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "CEM_ML_GITHUB_ATTESTATION_BUNDLE" }
+            ],
+            "outputs": ["{workspaceRoot}/dist/packages/cem-ml-cli-native-windows-amd64/artifacts"]
+        },
         "publish": {
             "cache": false,
             "executor": "nx:run-commands",
-            "dependsOn": ["preflight:release", "verify"],
+            "dependsOn": ["preflight:release"],
             "options": {
                 "command": "node scripts/publish.mjs",
                 "cwd": "{projectRoot}"
@@ -169,6 +186,27 @@
                 "{projectRoot}/scripts/lib.mjs",
                 "{projectRoot}/scripts/sandbox.mjs",
                 "{projectRoot}/scripts/sandbox-lifecycle.ps1",
+                "{projectRoot}/tests/smoke-input.cem"
+            ],
+            "outputs": []
+        },
+        "smoke:release": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify"],
+            "options": {
+                "commands": [
+                    "node scripts/smoke.mjs install",
+                    "node scripts/smoke.mjs upgrade",
+                    "node scripts/smoke.mjs uninstall"
+                ],
+                "parallel": false,
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/installer.mjs",
+                "{projectRoot}/scripts/lib.mjs",
+                "{projectRoot}/scripts/smoke.mjs",
                 "{projectRoot}/tests/smoke-input.cem"
             ],
             "outputs": []

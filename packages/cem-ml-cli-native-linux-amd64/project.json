@@ -164,7 +164,7 @@
     "publish": {
       "cache": false,
       "executor": "nx:run-commands",
-      "dependsOn": ["preflight:release", "verify"],
+      "dependsOn": ["preflight:release"],
       "options": {
         "command": "node scripts/publish.mjs",
         "cwd": "{projectRoot}"

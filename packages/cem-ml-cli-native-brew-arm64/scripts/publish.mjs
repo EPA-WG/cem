@@ -1,4 +1,4 @@
-import { copyFileSync, readdirSync } from 'node:fs';
+import { uploadImmutableDraftAssetSet } from '../../../tools/scripts/cem-ml-platform-release.mjs';
 
 import {
     artifactPath,
@@ -6,14 +6,13 @@ import {
     assetNames,
     assertNativeHost,
     authoritativeVersion,
-    capture,
     deployment,
+    projectRoot,
     readJson,
     releaseTag,
     requireFile,
     run,
-    sha256File,
-    writeJson,
+    workspaceRoot,
 } from './lib.mjs';
 
 assertNativeHost();
@@ -23,46 +22,24 @@ if (process.env.CEM_ML_NATIVE_PUBLISH !== '1') {
 const version = authoritativeVersion();
 const names = assetNames(version);
 const signing = readJson(requireFile(artifactPath(names.signing)));
-if (signing.appleReady !== true) {
-    throw new Error('native macOS publication requires Developer ID signing and accepted notarization');
+if (signing.publicationReady !== true) {
+    throw new Error('native macOS publication requires a finalized attested signing record');
 }
-const suppliedAttestation = process.env.CEM_ML_GITHUB_ATTESTATION_BUNDLE;
-if (suppliedAttestation === undefined) {
-    throw new Error('native macOS publication requires CEM_ML_GITHUB_ATTESTATION_BUNDLE');
-}
-requireFile(suppliedAttestation, 'GitHub artifact-attestation bundle');
-run('gh', [
-    'attestation',
-    'verify',
-    artifactPath(names.archive),
-    '--repo',
-    'EPA-WG/cem',
-    '--bundle',
-    suppliedAttestation,
-]);
-copyFileSync(suppliedAttestation, artifactPath(names.attestation));
-signing.githubArtifactAttestation = {
-    status: 'verified',
-    bundle: names.attestation,
-    sha256: sha256File(artifactPath(names.attestation)),
-};
-signing.publicationReady = true;
-signing.mode = 'release';
-writeJson(artifactPath(names.signing), signing);
 
 const tag = releaseTag(version);
-const release = JSON.parse(capture('gh', ['release', 'view', tag, '--json', 'isDraft,tagName']));
-if (release.tagName !== tag || release.isDraft !== true) {
-    throw new Error(`${tag} must already exist as a draft GitHub Release`);
-}
-
-const assets = readdirSync(artifactRoot)
-    .filter((filename) => filename.startsWith(`${names.base}.`))
-    .sort()
-    .map((filename) => artifactPath(filename));
-for (const asset of assets) requireFile(asset);
-run('gh', ['release', 'upload', tag, ...assets]);
+run('node', ['scripts/verify.mjs'], {
+    cwd: projectRoot,
+    env: { CEM_ML_RELEASE_VERIFY: '1' },
+});
+const result = uploadImmutableDraftAssetSet({
+    workspaceRoot,
+    identity: deployment.runtimeIdentity,
+    version,
+    releaseTag: tag,
+    assetRoot: artifactRoot,
+    ownedBase: names.base,
+});
 console.log(
-    `Uploaded ${assets.length} immutable ${deployment.runtimeIdentity} assets to draft release ${tag}; ` +
-        `${deployment.homebrew.repository} consumes ${names.formula}.`,
+    `Verified ${result.filenames.length} immutable ${deployment.runtimeIdentity} assets in draft release ${tag}; ` +
+        `uploaded ${result.uploaded.length} missing assets and ${deployment.homebrew.repository} consumes ${names.formula}.`,
 );

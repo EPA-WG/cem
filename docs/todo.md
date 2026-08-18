@@ -108,8 +108,27 @@ only to the final promotion step.
     - [ ] Document and exercise each host's package → sign → verify → lifecycle
           smoke → immutable publish sequence, including required credentials and
           attestation-bundle handoff.
-    - [ ] Make each native publisher retain identical assets, upload only missing
+    - Prepared 2026-08-17: the protected, manual
+      `cem-ml-native-release.yml` lane now targets exact dedicated macOS ARM64
+      and Windows AMD64 runner labels. Separate least-privilege producer and
+      publisher jobs execute the Nx lifecycle graph once, attest the signed
+      checksum subjects, finalize and preserve the complete unit through Actions
+      artifact transport, then publish those same bytes. The operator runbook
+      documents runner isolation, signing credentials, protected variables,
+      dispatch, attestation handoff, retry, and Linux recovery. The leaf remains
+      open until the two self-hosted runners are registered and successful run
+      IDs are recorded; no repository-scoped runners are currently registered.
+    - [x] Make each native publisher retain identical assets, upload only missing
           names, reject remote extras or byte drift, and never use `--clobber`.
+    - Completed 2026-08-17: Linux, macOS, and Windows publishers share one
+      no-clobber draft synchronizer. It rejects stale local files and unexpected
+      remote assets in the unit namespace, byte-verifies existing names before
+      mutation, uploads only missing paths, then redownloads and verifies the
+      exact final set while preserving foreign units. Windows additionally
+      rechecks downloaded ZIP/MSI Authenticode state. Producer/publisher job
+      separation makes retry reuse the preserved finalized bytes instead of
+      rebuilding timestamped artifacts. Synthetic drift, idempotence, workflow,
+      target, and publisher coverage passes 60 platform-release/version tests.
     - [ ] Record authorized host, signing/notarization/Authenticode evidence,
           target/toolchain identity, smoke results, and uploaded digests.
 
