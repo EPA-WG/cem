@@ -19,6 +19,7 @@ import {
     finalizeCiProducerEvidence,
     githubDraftCreateArguments,
     preflightNativeHostRelease,
+    promotePlatformRelease,
     recordCiProducerEvidence,
     stagePlatformRelease,
     uploadImmutableDraftAssetSet,
@@ -313,6 +314,8 @@ test('CEM-ML workflow owns its tag family and generic publishing excludes it', (
     assert.match(workflow, /cem_ml:release:stage --configuration=publication/);
     assert.match(workflow, /cem_ml:release:verify --configuration=publication/);
     assert.match(workflow, /cem_ml:release:upload-draft/);
+    assert.match(workflow, /cem_ml:release:promote/);
+    assert.match(workflow, /CEM_ML_PLATFORM_PROMOTE: \$\{\{ vars\.CEM_ML_PLATFORM_PROMOTE \}\}/);
     assert.ok(workflow.match(/uses: actions\/attest@v4/g)?.length >= 4);
     assert.match(workflow, /artifact-metadata: write/);
     assert.match(workflow, /CEM_ML_RELEASE_GPG_PRIVATE_KEY_BASE64: \$\{\{ secrets\./);
@@ -328,7 +331,8 @@ test('CEM-ML workflow owns its tag family and generic publishing excludes it', (
     assert.doesNotMatch(producerJobs, /contents: write/);
     assert.match(workflow, /CEM_ML_PLATFORM_DRAFT: \$\{\{ vars\.CEM_ML_PLATFORM_DRAFT \}\}/);
     assert.doesNotMatch(workflow, /CEM_ML_PLATFORM_DRAFT: ['"]?1/);
-    assert.doesNotMatch(workflow, /release edit|draft=false|nx release publish/);
+    const beforePromotion = workflow.slice(0, workflow.indexOf('Promote the remotely verified draft'));
+    assert.doesNotMatch(beforePromotion, /release edit|draft=false|nx release publish/);
     assert.match(generic, /- '!cem-ml-v\*'/);
 });
 
@@ -356,6 +360,17 @@ test('CI producer Nx targets are explicit and package evidence is keyed by the s
         '{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts',
         '{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts',
     ]);
+    const promote = coordinator.targets['release:promote'];
+    assert.equal(promote.cache, false);
+    assert.deepEqual(promote.dependsOn, ['verify:platform-version']);
+    assert.deepEqual(promote.outputs, []);
+    assert.equal(promote.options.command, 'node tools/scripts/cem-ml-platform-release.mjs promote');
+    assert.equal(
+        promote.inputs.some((input) => typeof input === 'string' && input.includes('/dist/')),
+        false,
+    );
+    assert.ok(promote.inputs.some((input) => input.env === 'CEM_ML_PLATFORM_PROMOTE'));
+    assert.ok(promote.inputs.some((input) => input.env === 'GITHUB_RUN_ID'));
     assert.deepEqual(
         coordinator.targets['release:stage'].inputs.filter(
             (input) =>
@@ -853,6 +868,7 @@ test('aggregate draft upload adds only aggregate evidence and is idempotent acro
             publication: true,
             sourceTreeStatus: '',
             attestationVerifier: () => true,
+            promotionWorkflow: finalizerWorkflow(),
         });
 
         uploadPlatformReleaseDraft({
@@ -866,6 +882,7 @@ test('aggregate draft upload adds only aggregate evidence and is idempotent acro
             outputRoot: staged.outputRoot,
             github,
             attestationVerifier: () => true,
+            promotionWorkflow: finalizerWorkflow(),
         });
         assert.deepEqual(github.uploadedFilenames, [
             `cem-ml-${version}.SHA256SUMS`,
@@ -891,6 +908,7 @@ test('aggregate draft upload adds only aggregate evidence and is idempotent acro
             publication: true,
             sourceTreeStatus: '',
             attestationVerifier: () => true,
+            promotionWorkflow: finalizerWorkflow(),
         });
         uploadPlatformReleaseDraft({
             workspaceRoot: fixture.root,
@@ -903,6 +921,7 @@ test('aggregate draft upload adds only aggregate evidence and is idempotent acro
             outputRoot: staged.outputRoot,
             github,
             attestationVerifier: () => true,
+            promotionWorkflow: finalizerWorkflow(),
         });
         assert.equal(github.uploadCalls, 1);
     } finally {
@@ -922,6 +941,7 @@ test('aggregate draft upload rejects existing aggregate byte drift and remote ex
             publication: true,
             sourceTreeStatus: '',
             attestationVerifier: () => true,
+            promotionWorkflow: finalizerWorkflow(),
         });
         const aggregateName = `cem-ml-${version}.release-index.json`;
         const remoteAssets = releaseUnitAssets(fixture.root);
@@ -944,6 +964,7 @@ test('aggregate draft upload rejects existing aggregate byte drift and remote ex
                     outputRoot: staged.outputRoot,
                     github: drifted,
                     attestationVerifier: () => true,
+                    promotionWorkflow: finalizerWorkflow(),
                 }),
             /existing draft asset is not immutable/,
         );
@@ -965,6 +986,7 @@ test('aggregate draft upload rejects existing aggregate byte drift and remote ex
                     outputRoot: staged.outputRoot,
                     github: extra,
                     attestationVerifier: () => true,
+                    promotionWorkflow: finalizerWorkflow(),
                 }),
             /assets outside the immutable stage/,
         );
@@ -986,6 +1008,7 @@ test('aggregate draft upload resumes after one aggregate asset was already uploa
             publication: true,
             sourceTreeStatus: '',
             attestationVerifier: () => true,
+            promotionWorkflow: finalizerWorkflow(),
         });
         const indexName = `cem-ml-${version}.release-index.json`;
         const remoteAssets = releaseUnitAssets(fixture.root);
@@ -1003,11 +1026,228 @@ test('aggregate draft upload resumes after one aggregate asset was already uploa
             outputRoot: staged.outputRoot,
             github,
             attestationVerifier: () => true,
+            promotionWorkflow: finalizerWorkflow(),
         });
         assert.deepEqual(github.uploadedFilenames, [`cem-ml-${version}.SHA256SUMS`]);
     } finally {
         fixture.dispose();
     }
+});
+
+test('protected promotion publishes a complete verified draft once and re-verifies an identical published release', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const workflow = finalizerWorkflow();
+        const staged = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+            promotionWorkflow: workflow,
+        });
+        const github = createFakeGithubAssetClient(directoryAssets(staged.assetsRoot));
+
+        const first = promotePlatformRelease({
+            workspaceRoot: fixture.root,
+            authorized: true,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            github,
+            attestationVerifier: () => true,
+            promotionWorkflow: workflow,
+        });
+        assert.equal(first.action, 'published');
+        assert.equal(github.publishCalls, 1);
+        assert.equal(github.uploadCalls, 0, 'promotion must never upload or overwrite release assets');
+        assert.equal(github.verifyImmutableCalls, 1);
+        assert.deepEqual(
+            first.index.packageChannels.map(({ identity, channel, publication }) => ({
+                identity,
+                channel,
+                publication,
+            })),
+            [
+                {
+                    identity: '@epa-wg/cem-ml',
+                    channel: 'npm',
+                    publication: { input: 'published-github-release-asset', rebuild: false, repack: false },
+                },
+                {
+                    identity: '@epa-wg/cem-ml-cli',
+                    channel: 'npm',
+                    publication: { input: 'published-github-release-asset', rebuild: false, repack: false },
+                },
+                {
+                    identity: 'native-linux-amd64',
+                    channel: 'apt',
+                    publication: { input: 'published-github-release-asset', rebuild: false, repack: false },
+                },
+            ],
+        );
+
+        const retry = promotePlatformRelease({
+            workspaceRoot: fixture.root,
+            authorized: true,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            github,
+            attestationVerifier: () => true,
+            promotionWorkflow: workflow,
+        });
+        assert.equal(retry.action, 'already-published');
+        assert.equal(github.publishCalls, 1, 'matching published retry must not publish again');
+        assert.equal(github.uploadCalls, 0);
+        assert.equal(github.verifyImmutableCalls, 2);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('promotion rejects incomplete and drifted remote releases before publication', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const workflow = finalizerWorkflow();
+        const staged = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+            promotionWorkflow: workflow,
+        });
+        const complete = directoryAssets(staged.assetsRoot);
+        const incompleteAssets = new Map(complete);
+        incompleteAssets.delete(`cem-ml-${version}.SHA256SUMS`);
+        const incomplete = createFakeGithubAssetClient(incompleteAssets);
+        assert.throws(
+            () =>
+                promotePlatformRelease({
+                    workspaceRoot: fixture.root,
+                    authorized: true,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    github: incomplete,
+                    attestationVerifier: () => true,
+                    promotionWorkflow: workflow,
+                }),
+            /checksum|missing|unindexed/i,
+        );
+        assert.equal(incomplete.publishCalls, 0);
+
+        const driftedAssets = new Map(complete);
+        const tarball = [...driftedAssets.keys()].find((filename) => filename.endsWith('.tgz'));
+        assert.ok(tarball);
+        driftedAssets.set(tarball, Buffer.from('drifted package bytes'));
+        const drifted = createFakeGithubAssetClient(driftedAssets);
+        assert.throws(
+            () =>
+                promotePlatformRelease({
+                    workspaceRoot: fixture.root,
+                    authorized: true,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    github: drifted,
+                    attestationVerifier: () => true,
+                    promotionWorkflow: workflow,
+                }),
+            /digest|drift/i,
+        );
+        assert.equal(drifted.publishCalls, 0);
+        assert.equal(drifted.uploadCalls, 0);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('promotion rejects a fresh dispatch after run-bound aggregate evidence exists', () => {
+    const fixture = createFixture();
+    try {
+        makePublicationReady(fixture.root, expectedReleaseUnits);
+        makeProducerEvidenceReady(fixture.root, expectedReleaseUnits);
+        const recordedWorkflow = finalizerWorkflow();
+        const staged = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+            promotionWorkflow: recordedWorkflow,
+        });
+        const recordedAssets = directoryAssets(staged.assetsRoot);
+        const freshWorkflow = finalizerWorkflow({ runId: '975318642' });
+        const freshStage = stagePlatformRelease({
+            workspaceRoot: fixture.root,
+            version,
+            sourceCommit,
+            publication: true,
+            sourceTreeStatus: '',
+            attestationVerifier: () => true,
+            promotionWorkflow: freshWorkflow,
+        });
+        const github = createFakeGithubAssetClient(recordedAssets);
+        assert.throws(
+            () =>
+                uploadPlatformReleaseDraft({
+                    workspaceRoot: fixture.root,
+                    authorized: true,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    outputRoot: freshStage.outputRoot,
+                    github,
+                    attestationVerifier: () => true,
+                    promotionWorkflow: freshWorkflow,
+                }),
+            /different GitHub workflow run; rerun the recorded run instead/,
+        );
+        assert.equal(github.uploadCalls, 0);
+        assert.throws(
+            () =>
+                promotePlatformRelease({
+                    workspaceRoot: fixture.root,
+                    authorized: true,
+                    version,
+                    sourceCommit,
+                    releaseTag,
+                    taggedCommit: sourceCommit,
+                    sourceTreeStatus: '',
+                    github,
+                    attestationVerifier: () => true,
+                    promotionWorkflow: freshWorkflow,
+                }),
+            /different GitHub workflow run; rerun the recorded run instead/,
+        );
+        assert.equal(github.publishCalls, 0);
+        assert.equal(github.uploadCalls, 0);
+    } finally {
+        fixture.dispose();
+    }
+});
+
+test('GitHub Release promotion remains inert without the protected finalizer opt-in', () => {
+    assert.throws(() => promotePlatformRelease(), /release promotion is disabled/);
 });
 
 test('native draft upload preserves foreign units, uploads only missing assets, and is idempotent', () => {
@@ -1278,17 +1518,23 @@ function nativePreflightArguments(overrides = {}) {
     };
 }
 
-function createFakeGithubAssetClient(initialAssets = {}) {
+function createFakeGithubAssetClient(initialAssets = {}, releaseOverrides = {}) {
     const entries = initialAssets instanceof Map ? initialAssets : new Map(Object.entries(initialAssets));
     const assets = new Map([...entries].map(([name, content]) => [name, Buffer.from(content)]));
+    let isDraft = releaseOverrides.isDraft ?? true;
+    const immutable = releaseOverrides.immutable ?? true;
     return {
         assets,
         uploadCalls: 0,
         uploadedFilenames: [],
+        publishCalls: 0,
+        verifyImmutableCalls: 0,
         view(tag) {
             return {
                 tagName: tag,
-                isDraft: true,
+                name: releaseOverrides.name ?? releaseTitle,
+                isDraft,
+                isPrerelease: releaseOverrides.isPrerelease ?? false,
                 assets: [...assets.keys()].sort().map((name) => ({ name })),
             };
         },
@@ -1298,6 +1544,7 @@ function createFakeGithubAssetClient(initialAssets = {}) {
             writeFileSync(resolve(destinationRoot, filename), content);
         },
         upload(_tag, paths) {
+            if (!isDraft) throw new Error('fake immutable release rejects asset upload');
             this.uploadCalls += 1;
             for (const path of paths) {
                 const filename = basename(path);
@@ -1306,6 +1553,16 @@ function createFakeGithubAssetClient(initialAssets = {}) {
                 this.uploadedFilenames.push(filename);
             }
             this.uploadedFilenames.sort();
+        },
+        publish() {
+            if (!isDraft) throw new Error('fake release was already published');
+            this.publishCalls += 1;
+            isDraft = false;
+        },
+        verifyImmutable() {
+            this.verifyImmutableCalls += 1;
+            assert.equal(isDraft, false, 'fake immutable verification requires a published release');
+            assert.equal(immutable, true, 'fake release is not immutable');
         },
     };
 }
@@ -1363,6 +1620,10 @@ function releaseUnitAssets(workspaceRoot) {
     return assets;
 }
 
+function directoryAssets(root) {
+    return new Map(readdirSync(root).map((filename) => [filename, readFileSync(resolve(root, filename))]));
+}
+
 function snapshotReleaseUnitRoots(workspaceRoot) {
     return Object.fromEntries(
         expectedReleaseUnits.map((unit) => {
@@ -1390,6 +1651,20 @@ function producerWorkflow(unit) {
         actor: 'release-operator',
         triggeringActor: 'release-operator',
         url: 'https://github.com/EPA-WG/cem/actions/runs/123456789/attempts/2',
+    };
+}
+
+function finalizerWorkflow(overrides = {}) {
+    const runId = overrides.runId ?? '246813579';
+    return {
+        repository: 'EPA-WG/cem',
+        workflowRef: 'EPA-WG/cem/.github/workflows/cem-ml-release.yml@refs/tags/cem-ml-v3.4.5',
+        workflowSha: sourceCommit,
+        runId,
+        job: 'aggregate-draft',
+        actor: 'release-operator',
+        url: `https://github.com/EPA-WG/cem/actions/runs/${runId}`,
+        ...overrides,
     };
 }
 

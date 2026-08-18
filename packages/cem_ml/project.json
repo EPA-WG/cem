@@ -281,6 +281,24 @@
             ],
             "outputs": []
         },
+        "release:promote": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:platform-version"],
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs promote",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "CEM_ML_RELEASE_TAG" },
+                { "env": "CEM_ML_PLATFORM_PROMOTE" },
+                { "env": "GITHUB_RUN_ID" }
+            ],
+            "outputs": []
+        },
         "build": {
             "executor": "@monodon/rust:check",
             "dependsOn": ["build:docs"],

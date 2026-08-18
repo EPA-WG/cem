@@ -358,8 +358,13 @@ export function stagePlatformRelease({
     outputRoot = resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version),
     attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
     sourceTreeStatus,
+    promotionWorkflow,
 } = {}) {
-    if (publication) assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
+    if (publication) {
+        assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
+        promotionWorkflow ??= finalizerWorkflowFromEnvironment();
+        validateFinalizerWorkflow(promotionWorkflow);
+    }
     const releaseTag = `cem-ml-v${version}`;
     const validated = units.map((unit) => {
         const root = resolve(workspaceRoot, unit.root);
@@ -409,6 +414,27 @@ export function stagePlatformRelease({
         sourceCommit,
         releaseTag,
         publicationState: publication ? 'publication-ready' : 'verified-staged',
+        ...(publication
+            ? {
+                  promotion: {
+                      authority: {
+                          environment: 'cem-ml-release',
+                          nxTarget: 'cem_ml:release:promote',
+                      },
+                      workflow: promotionWorkflow,
+                      retry: {
+                          identity: 'github-run-id',
+                          sameRunRequired: true,
+                      },
+                      mutation: {
+                          release: 'draft-to-published',
+                          assets: 'forbidden',
+                          rebuild: 'forbidden',
+                          repack: 'forbidden',
+                      },
+                  },
+              }
+            : {}),
         units: validated
             .map(({ entry, entryFilename, identity, producerEvidence }) => ({
                 identity,
@@ -423,6 +449,9 @@ export function stagePlatformRelease({
                       }
                     : {}),
             }))
+            .sort((left, right) => left.identity.localeCompare(right.identity)),
+        packageChannels: validated
+            .map((releaseUnit) => packageChannelConsumer(releaseUnit, releaseTag))
             .sort((left, right) => left.identity.localeCompare(right.identity)),
         assets: [...copied.values()].sort((left, right) => left.filename.localeCompare(right.filename)),
     };
@@ -441,6 +470,7 @@ export function stagePlatformRelease({
         units,
         attestationVerifier,
         sourceTreeStatus,
+        promotionWorkflow,
     });
     return { outputRoot, assetsRoot, indexName, checksumName, index };
 }
@@ -454,6 +484,7 @@ export function verifyPlatformRelease({
     units = expectedReleaseUnits,
     attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
     sourceTreeStatus,
+    promotionWorkflow,
 } = {}) {
     if (publication) assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
     const releaseRoot = outputRoot ?? resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version);
@@ -467,6 +498,7 @@ export function verifyPlatformRelease({
     assert.equal(index.sourceCommit, sourceCommit, 'aggregate release index source-commit drift');
     assert.equal(index.releaseTag, `cem-ml-v${version}`, 'aggregate release tag drift');
     assert.equal(index.publicationState, publication ? 'publication-ready' : 'verified-staged');
+    if (publication) validatePromotionEvidence(index.promotion, promotionWorkflow);
     assert.deepEqual(
         index.units.map(({ identity }) => identity).sort(),
         units.map(({ identity }) => identity).sort(),
@@ -512,7 +544,10 @@ export function verifyPlatformRelease({
             );
         }
     }
-    const checksumEntries = readChecksumManifest(resolve(assetsRoot, checksumName));
+    validatePackageChannelConsumers({ index, assetsRoot, units });
+    const checksumEntries = readChecksumManifest(
+        requireFile(resolve(assetsRoot, checksumName), 'aggregate checksum manifest'),
+    );
     const expectedChecksummed = [...expectedAssets.keys(), indexName].sort();
     assert.deepEqual([...checksumEntries.keys()].sort(), expectedChecksummed, 'aggregate checksum asset set drift');
     for (const [filename, digest] of checksumEntries) {
@@ -940,6 +975,7 @@ export function uploadPlatformReleaseDraft({
     outputRoot,
     github,
     attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
+    promotionWorkflow,
 } = {}) {
     if (!authorized) {
         throw new Error('draft upload is disabled; set CEM_ML_PLATFORM_UPLOAD=1 in the protected release job');
@@ -951,6 +987,8 @@ export function uploadPlatformReleaseDraft({
     assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML aggregate release tag drift');
     assert.equal(taggedCommit, sourceCommit, 'CEM-ML aggregate tagged source-commit drift');
     assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
+    promotionWorkflow ??= finalizerWorkflowFromEnvironment();
+    validateFinalizerWorkflow(promotionWorkflow);
     outputRoot ??= resolve(workspaceRoot, 'dist/releases/cem-ml-platform', version);
     const assetsRoot = resolve(outputRoot, 'assets');
     const index = verifyPlatformRelease({
@@ -961,6 +999,7 @@ export function uploadPlatformReleaseDraft({
         publication: true,
         attestationVerifier,
         sourceTreeStatus,
+        promotionWorkflow,
     });
     assert.equal(index.releaseTag, releaseTag, 'aggregate stage release tag drift');
     github ??= createGithubAssetClient(workspaceRoot);
@@ -982,6 +1021,16 @@ export function uploadPlatformReleaseDraft({
         try {
             for (const filename of remoteNames) github.download(releaseTag, filename, existingRoot);
             assert.deepEqual(listFiles(existingRoot), remoteNames, 'GitHub draft asset listing/download drift');
+            const remoteIndexName = `cem-ml-${version}.release-index.json`;
+            if (remoteNames.includes(remoteIndexName)) {
+                let remoteIndex;
+                try {
+                    remoteIndex = readJson(resolve(existingRoot, remoteIndexName));
+                } catch (error) {
+                    if (!(error instanceof SyntaxError)) throw error;
+                }
+                if (remoteIndex) validatePromotionEvidence(remoteIndex.promotion, promotionWorkflow);
+            }
             for (const filename of remoteNames) {
                 assert.equal(
                     sha256File(resolve(existingRoot, filename)),
@@ -1027,10 +1076,213 @@ export function uploadPlatformReleaseDraft({
             publication: true,
             attestationVerifier,
             sourceTreeStatus,
+            promotionWorkflow,
         });
     } finally {
         rmSync(remoteOutputRoot, { recursive: true, force: true });
     }
+}
+
+export function promotePlatformRelease({
+    workspaceRoot = defaultWorkspaceRoot,
+    authorized = process.env.CEM_ML_PLATFORM_PROMOTE === '1',
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+    sourceTreeStatus,
+    github,
+    attestationVerifier = createGithubAttestationVerifier(workspaceRoot),
+    promotionWorkflow,
+} = {}) {
+    if (!authorized) {
+        throw new Error('release promotion is disabled; set CEM_ML_PLATFORM_PROMOTE=1 in the protected finalizer');
+    }
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= process.env.CEM_ML_RELEASE_TAG ?? `cem-ml-v${version}`;
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML promotion release tag drift');
+    assert.equal(taggedCommit, sourceCommit, 'CEM-ML promotion tagged source-commit drift');
+    assertCleanSourceTree(workspaceRoot, sourceTreeStatus);
+    promotionWorkflow ??= finalizerWorkflowFromEnvironment();
+    validateFinalizerWorkflow(promotionWorkflow);
+    github ??= createGithubAssetClient(workspaceRoot);
+
+    const before = verifyRemotePlatformRelease({
+        workspaceRoot,
+        github,
+        releaseTag,
+        version,
+        sourceCommit,
+        sourceTreeStatus,
+        attestationVerifier,
+        promotionWorkflow,
+    });
+    const action = before.release.isDraft ? 'published' : 'already-published';
+    if (before.release.isDraft) github.publish(releaseTag);
+
+    const after = verifyRemotePlatformRelease({
+        workspaceRoot,
+        github,
+        releaseTag,
+        version,
+        sourceCommit,
+        sourceTreeStatus,
+        attestationVerifier,
+        promotionWorkflow,
+    });
+    assert.equal(after.release.isDraft, false, `${releaseTag} promotion did not publish the verified draft`);
+    assert.deepEqual(after.filenames, before.filenames, 'published GitHub Release asset set drift');
+    github.verifyImmutable(releaseTag);
+    return { action, releaseTag, sourceCommit, index: after.index, filenames: after.filenames };
+}
+
+function verifyRemotePlatformRelease({
+    workspaceRoot,
+    github,
+    releaseTag,
+    version,
+    sourceCommit,
+    sourceTreeStatus,
+    attestationVerifier,
+    promotionWorkflow,
+}) {
+    const release = github.view(releaseTag);
+    assert.ok(release, `required GitHub Release ${releaseTag} does not exist`);
+    assert.equal(release.tagName, releaseTag, 'GitHub Release tag drift during promotion');
+    assert.equal(release.name, `CEM-ML ${version}`, 'GitHub Release title drift during promotion');
+    assert.equal(release.isPrerelease, version.includes('-'), 'GitHub Release prerelease drift during promotion');
+    assert.ok(Array.isArray(release.assets), 'GitHub Release asset listing is missing during promotion');
+    const filenames = release.assets.map(({ name }) => name).sort();
+    assert.equal(new Set(filenames).size, filenames.length, 'GitHub Release contains duplicate asset names');
+
+    const remoteOutputRoot = mkdtempSync(resolve(tmpdir(), `cem-ml-${version}-promotion-`));
+    const remoteAssetsRoot = resolve(remoteOutputRoot, 'assets');
+    try {
+        mkdirSync(remoteAssetsRoot, { recursive: true });
+        for (const filename of filenames) github.download(releaseTag, filename, remoteAssetsRoot);
+        assert.deepEqual(listFiles(remoteAssetsRoot), filenames, 'GitHub Release asset listing/download drift');
+        const index = verifyPlatformRelease({
+            workspaceRoot,
+            outputRoot: remoteOutputRoot,
+            version,
+            sourceCommit,
+            publication: true,
+            attestationVerifier,
+            sourceTreeStatus,
+            promotionWorkflow,
+        });
+        return { release, filenames, index };
+    } finally {
+        rmSync(remoteOutputRoot, { recursive: true, force: true });
+    }
+}
+
+function packageChannelConsumer(releaseUnit, releaseTag) {
+    const { root, entry, identity } = releaseUnit;
+    let channel;
+    let metadata;
+    let immutableSource;
+    if (entry.npmIdentity) {
+        const archives = entry.artifacts.filter(({ filename }) => filename.endsWith('.tgz'));
+        assert.equal(archives.length, 1, `${identity} must provide exactly one npm tarball`);
+        const [archive] = archives;
+        channel = 'npm';
+        immutableSource = {
+            releaseTag,
+            filename: archive.filename,
+            url: `https://github.com/EPA-WG/cem/releases/download/${releaseTag}/${archive.filename}`,
+            sha256: archive.sha256,
+        };
+    } else {
+        const channelArtifacts = entry.artifacts.filter(({ filename }) => filename.endsWith('.apt.json'));
+        assert.equal(channelArtifacts.length, 1, `${identity} must provide exactly one APT channel record`);
+        metadata = channelArtifacts[0].filename;
+        const document = readJson(resolve(root, metadata));
+        channel = 'apt';
+        immutableSource = document.immutableSource;
+    }
+    return {
+        identity,
+        channel,
+        ...(metadata ? { metadata } : {}),
+        immutableSource,
+        publication: {
+            input: 'published-github-release-asset',
+            rebuild: false,
+            repack: false,
+        },
+    };
+}
+
+function validatePackageChannelConsumers({ index, assetsRoot, units }) {
+    assert.ok(Array.isArray(index.packageChannels), 'aggregate package-channel consumers are missing');
+    assert.deepEqual(
+        index.packageChannels.map(({ identity }) => identity).sort(),
+        units.map(({ identity }) => identity).sort(),
+        'aggregate package-channel consumer identity drift',
+    );
+    for (const unit of units) {
+        const summary = index.units.find(({ identity }) => identity === unit.identity);
+        const entry = readJson(resolve(assetsRoot, summary.releaseEntry));
+        const expected = packageChannelConsumer({ root: assetsRoot, entry, identity: unit.identity }, index.releaseTag);
+        const consumer = index.packageChannels.find(({ identity }) => identity === unit.identity);
+        assert.deepEqual(consumer, expected, `${unit.identity} package-channel consumer drift`);
+        assert.equal(consumer.publication.input, 'published-github-release-asset');
+        assert.equal(consumer.publication.rebuild, false, `${unit.identity} package channel may rebuild release bytes`);
+        assert.equal(consumer.publication.repack, false, `${unit.identity} package channel may repack release bytes`);
+        const source = index.assets.find(({ filename }) => filename === consumer.immutableSource.filename);
+        assert.ok(source, `${unit.identity} package-channel source is not in the aggregate release index`);
+        assert.equal(consumer.immutableSource.sha256, source.sha256, `${unit.identity} package-channel source drift`);
+    }
+}
+
+function validatePromotionEvidence(evidence, expectedWorkflow) {
+    assert.ok(evidence, 'aggregate promotion evidence is missing');
+    assert.deepEqual(evidence.authority, {
+        environment: 'cem-ml-release',
+        nxTarget: 'cem_ml:release:promote',
+    });
+    validateFinalizerWorkflow(evidence.workflow);
+    if (expectedWorkflow) {
+        validateFinalizerWorkflow(expectedWorkflow);
+        assert.deepEqual(
+            evidence.workflow,
+            expectedWorkflow,
+            'aggregate promotion evidence belongs to a different GitHub workflow run; rerun the recorded run instead',
+        );
+    }
+    assert.deepEqual(evidence.retry, { identity: 'github-run-id', sameRunRequired: true });
+    assert.deepEqual(evidence.mutation, {
+        release: 'draft-to-published',
+        assets: 'forbidden',
+        rebuild: 'forbidden',
+        repack: 'forbidden',
+    });
+}
+
+function validateFinalizerWorkflow(workflow) {
+    assert.deepEqual(
+        Object.keys(workflow ?? {}).sort(),
+        ['actor', 'job', 'repository', 'runId', 'url', 'workflowRef', 'workflowSha'].sort(),
+        'finalizer workflow evidence field drift',
+    );
+    assert.equal(workflow.repository, 'EPA-WG/cem', 'finalizer workflow repository drift');
+    assert.match(
+        workflow.workflowRef,
+        /^EPA-WG\/cem\/\.github\/workflows\/cem-ml-release\.yml@refs\/(?:heads|tags)\/\S+$/,
+        'finalizer workflow ref drift',
+    );
+    assert.match(workflow.workflowSha, /^[a-f0-9]{40,64}$/, 'finalizer workflow SHA is invalid');
+    assert.match(workflow.runId, /^\d+$/, 'finalizer workflow run ID is invalid');
+    assert.equal(workflow.job, 'aggregate-draft', 'promotion authority is not the protected finalizer job');
+    assert.match(workflow.actor, /^\S+$/, 'finalizer workflow actor is missing');
+    assert.equal(
+        workflow.url,
+        `https://github.com/EPA-WG/cem/actions/runs/${workflow.runId}`,
+        'finalizer workflow run URL drift',
+    );
 }
 
 export function validateReleaseUnit({
@@ -1407,7 +1659,11 @@ function createGithubAssetClient(workspaceRoot) {
     return {
         view(releaseTag) {
             return JSON.parse(
-                capture('gh', ['release', 'view', releaseTag, '--json', 'assets,isDraft,tagName'], workspaceRoot),
+                capture(
+                    'gh',
+                    ['release', 'view', releaseTag, '--json', 'assets,isDraft,isPrerelease,name,tagName'],
+                    workspaceRoot,
+                ),
             );
         },
         download(releaseTag, filename, destinationRoot) {
@@ -1419,6 +1675,17 @@ function createGithubAssetClient(workspaceRoot) {
         },
         upload(releaseTag, paths) {
             run('gh', ['release', 'upload', releaseTag, ...paths], workspaceRoot);
+        },
+        publish(releaseTag) {
+            run('gh', ['release', 'edit', releaseTag, '--draft=false', '--verify-tag'], workspaceRoot);
+        },
+        verifyImmutable(releaseTag) {
+            const release = JSON.parse(
+                capture('gh', ['api', `repos/EPA-WG/cem/releases/tags/${releaseTag}`], workspaceRoot),
+            );
+            assert.equal(release.tag_name, releaseTag, 'published immutable release tag drift');
+            assert.equal(release.draft, false, `${releaseTag} remains a draft after promotion`);
+            assert.equal(release.immutable, true, `${releaseTag} is not protected by GitHub release immutability`);
         },
     };
 }
@@ -1442,6 +1709,20 @@ function producerWorkflowFromEnvironment() {
         actor: requiredEnvironment('GITHUB_ACTOR'),
         triggeringActor: requiredEnvironment('GITHUB_TRIGGERING_ACTOR'),
         url: `${requiredEnvironment('GITHUB_SERVER_URL')}/${repository}/actions/runs/${runId}/attempts/${runAttempt}`,
+    };
+}
+
+function finalizerWorkflowFromEnvironment() {
+    const repository = requiredEnvironment('GITHUB_REPOSITORY');
+    const runId = requiredEnvironment('GITHUB_RUN_ID');
+    return {
+        repository,
+        workflowRef: requiredEnvironment('GITHUB_WORKFLOW_REF'),
+        workflowSha: requiredEnvironment('GITHUB_WORKFLOW_SHA'),
+        runId,
+        job: requiredEnvironment('GITHUB_JOB'),
+        actor: requiredEnvironment('GITHUB_ACTOR'),
+        url: `${requiredEnvironment('GITHUB_SERVER_URL')}/${repository}/actions/runs/${runId}`,
     };
 }
 
@@ -1564,6 +1845,7 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
         'verify',
         'upload-draft',
         'upload-ci-units',
+        'promote',
     ].includes(command);
     const unitCommand = [
         'preflight-native-host',
@@ -1574,7 +1856,7 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     const validUnitCommand = unitCommand && args.length === 1;
     if ((!standardCommand && !validUnitCommand) || (standardCommand && args.some((arg) => arg !== '--publication'))) {
         throw new Error(
-            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|collect-draft|stage|verify|upload-draft|upload-ci-units> [--publication] | <preflight-native-host|verify-unit|record-producer-evidence|finalize-producer-evidence> <identity>',
+            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|collect-draft|stage|verify|upload-draft|upload-ci-units|promote> [--publication] | <preflight-native-host|verify-unit|record-producer-evidence|finalize-producer-evidence> <identity>',
         );
     }
     if (command === 'create-draft') {
@@ -1605,6 +1887,12 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
         if (publication) throw new Error('upload-ci-units validates publication-ready units implicitly');
         const result = uploadPlatformReleaseUnits();
         console.log(`Uploaded ${result.uploaded.length} missing assets for ${result.identities.join(', ')}.`);
+    } else if (command === 'promote') {
+        if (publication) throw new Error('promote validates publication-ready remote evidence implicitly');
+        const result = promotePlatformRelease();
+        console.log(
+            `${result.action === 'published' ? 'Published' : 'Reverified'} immutable GitHub Release ${result.releaseTag}.`,
+        );
     } else if (command === 'preflight-native-host') {
         const result = preflightNativeHostRelease({ identity: args[0] });
         console.log(

@@ -461,12 +461,24 @@ asset coordinate. It rejects missing, extra, duplicate, or misclassified files
 before replacing local generated roots. Publication-mode staging then generates
 the aggregate release index and `SHA256SUMS`; the protected workflow uploads
 only missing aggregate files and redownloads and verifies the complete remote
-draft. This finalizer never publishes the release or replaces an asset.
+draft. The aggregate uploader never publishes the release or replaces an asset.
+
+The final protected step runs the uncached, remote-only
+`cem_ml:release:promote` target. The aggregate index binds promotion authority
+to the stable `GITHUB_RUN_ID` of that `cem-ml-release` finalizer and deliberately
+omits the attempt number so **Re-run jobs** can recover the same run without
+changing immutable evidence. A new dispatch cannot promote an index recorded by
+a different run. The target redownloads and publication-verifies the entire
+remote set, changes only a matching draft to published, redownloads and verifies
+the published set again, and requires GitHub to report the release immutable.
+An identical already-published release is a successful no-op.
 
 No package-channel job rebuilds an executable. APT records only immutable Linux
-release artifacts. Homebrew and WinGet records are local validation projections
-and are not published. A packaging correction that changes release bytes
-requires a new common CEM-ML version.
+release artifacts. The aggregate index also records both npm tarballs and the
+APT Debian package as exact published GitHub Release inputs, with rebuild and
+repack explicitly forbidden. Homebrew and WinGet records are local validation
+projections and are not published. A packaging correction that changes release
+bytes requires a new common CEM-ML version.
 
 ## Verification and promotion
 

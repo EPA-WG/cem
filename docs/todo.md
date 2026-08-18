@@ -133,16 +133,28 @@ promotion step.
       clobbering; 68 platform-release/version tests cover collection, drift,
       classification, remote extras, and idempotence.
 
-- [ ] Add protected, exactly-once GitHub Release promotion.
-    - [ ] Add synthetic promotion tests covering incomplete drafts, remote drift,
+- [x] Add protected, exactly-once GitHub Release promotion.
+    - [x] Add synthetic promotion tests covering incomplete drafts, remote drift,
           already-published matching releases, and forbidden overwrite/rebuild
           paths.
-    - [ ] Add an Nx promotion target that consumes only remotely verified evidence
+    - [x] Add an Nx promotion target that consumes only remotely verified evidence
           and changes the matching draft to published exactly once.
-    - [ ] Restrict promotion authority to the protected finalizer and record the
+    - [x] Restrict promotion authority to the protected finalizer and record the
           final workflow run and complete producer evidence in the release index.
-    - [ ] Prove APT and npm publication consume the published immutable assets
+    - [x] Prove APT and npm publication consume the published immutable assets
           and cannot repack or rebuild them.
+    - Completed 2026-08-17: added uncached, remote-only
+      `cem_ml:release:promote` behind the protected
+      `CEM_ML_PLATFORM_PROMOTE` gate. The aggregate index records the stable
+      finalizer `GITHUB_RUN_ID`, complete per-unit producer evidence, and exact
+      npm/APT release-asset inputs with rebuild/repack forbidden. Promotion
+      redownloads and publication-verifies every remote byte before and after
+      the single draft transition, accepts an identical published retry, and
+      requires GitHub to report the result immutable. Interrupted aggregate
+      finalization must use **Re-run jobs** on the recorded workflow run; a new
+      dispatch cannot replace its run-bound evidence. The 72
+      platform-release/version tests cover incomplete/drifted drafts,
+      already-published idempotence, run drift, and forbidden asset mutation.
 
 - [ ] Rehearse, document, and close Phase 2.6.
     - [ ] Run one protected release rehearsal across the three CI-owned units,

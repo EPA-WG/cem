@@ -407,3 +407,10 @@ jobs:
                   CEM_ML_PLATFORM_UPLOAD: ${{ vars.CEM_ML_PLATFORM_UPLOAD }}
                   CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
                   GH_TOKEN: ${{ github.token }}
+
+            - name: Promote the remotely verified draft exactly once through Nx
+              run: yarn nx run cem_ml:release:promote --parallel=false
+              env:
+                  CEM_ML_PLATFORM_PROMOTE: ${{ vars.CEM_ML_PLATFORM_PROMOTE }}
+                  CEM_ML_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+                  GH_TOKEN: ${{ github.token }}
