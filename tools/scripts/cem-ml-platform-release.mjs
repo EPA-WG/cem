@@ -35,21 +35,9 @@ export const expectedReleaseUnits = Object.freeze([
         target: 'x86_64-unknown-linux-gnu',
         channel: 'apt',
     },
-    {
-        identity: 'native-macos-arm64',
-        root: 'dist/packages/cem-ml-cli-native-brew-arm64/artifacts',
-        target: 'aarch64-apple-darwin',
-        channel: 'homebrew',
-    },
-    {
-        identity: 'native-windows-amd64',
-        root: 'dist/packages/cem-ml-cli-native-windows-amd64/artifacts',
-        target: 'x86_64-pc-windows-msvc',
-        channel: 'winget',
-    },
 ]);
 
-export const ciReleaseUnits = Object.freeze(expectedReleaseUnits.slice(0, 3));
+export const ciReleaseUnits = expectedReleaseUnits;
 
 const nativeHostReleaseProfiles = Object.freeze({
     'native-linux-amd64': {
@@ -107,10 +95,7 @@ const ciProducerProfiles = Object.freeze({
     },
     'native-linux-amd64': {
         job: 'linux-producer',
-        nxTargets: [
-            'cem_ml_cli_native_linux_amd64:package',
-            'cem_ml_cli_native_linux_amd64:smoke:release',
-        ],
+        nxTargets: ['cem_ml_cli_native_linux_amd64:package', 'cem_ml_cli_native_linux_amd64:smoke:release'],
         gates: [
             {
                 name: 'publication-unit-verification',
@@ -230,11 +215,7 @@ export function preflightNativeHostRelease({
     assert.equal(deployment.runtimeIdentity, identity, `${identity} deployment runtime identity drift`);
     assert.equal(deployment.rustTarget, unit.target, `${identity} deployment Rust target drift`);
     assert.equal(deployment.host?.platform, profile.platform, `${identity} deployment host platform drift`);
-    assert.equal(
-        deployment.host?.architecture,
-        profile.architecture,
-        `${identity} deployment host architecture drift`,
-    );
+    assert.equal(deployment.host?.architecture, profile.architecture, `${identity} deployment host architecture drift`);
     assert.match(deployment.host?.runner ?? '', /\S/, `${identity} deployment runner identity is missing`);
     assert.equal(platform, profile.platform, `${identity} host platform drift`);
     assert.equal(architecture, profile.architecture, `${identity} host architecture drift`);
@@ -713,7 +694,11 @@ export function uploadPlatformReleaseUnits({
     }
 
     const uploaded = [...localAssets.keys()].filter((filename) => !remoteNames.includes(filename));
-    if (uploaded.length > 0) github.upload(releaseTag, uploaded.map((filename) => localAssets.get(filename)));
+    if (uploaded.length > 0)
+        github.upload(
+            releaseTag,
+            uploaded.map((filename) => localAssets.get(filename)),
+        );
 
     const finalRelease = github.view(releaseTag);
     assert.equal(finalRelease.isDraft, true, `${releaseTag} was published during CI unit upload`);
@@ -751,6 +736,9 @@ export function uploadImmutableDraftAssetSet({
     verifyDownloaded = () => undefined,
 } = {}) {
     assert.match(identity ?? '', /^native-(?:linux|macos|windows)-/, 'invalid native release identity');
+    if (!expectedReleaseUnits.some((unit) => unit.identity === identity)) {
+        throw new Error(`${identity} is not in the CEM-ML GitHub Release contract`);
+    }
     assert.match(
         version ?? '',
         /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,
@@ -792,7 +780,11 @@ export function uploadImmutableDraftAssetSet({
     }
 
     const uploaded = filenames.filter((filename) => !remoteOwned.includes(filename));
-    if (uploaded.length > 0) github.upload(releaseTag, uploaded.map((filename) => localAssets.get(filename)));
+    if (uploaded.length > 0)
+        github.upload(
+            releaseTag,
+            uploaded.map((filename) => localAssets.get(filename)),
+        );
 
     const finalRelease = github.view(releaseTag);
     assert.equal(finalRelease?.tagName, releaseTag, 'GitHub draft release tag drift after native upload');
@@ -876,7 +868,11 @@ export function uploadPlatformReleaseDraft({ workspaceRoot = defaultWorkspaceRoo
     const downloadRoot = mkdtempSync(resolve(tmpdir(), `cem-ml-${version}-draft-`));
     try {
         run('gh', ['release', 'download', index.releaseTag, '--dir', downloadRoot], workspaceRoot);
-        assert.deepEqual(listFiles(downloadRoot), filenames, 'draft GitHub Release asset set is incomplete or contains extras');
+        assert.deepEqual(
+            listFiles(downloadRoot),
+            filenames,
+            'draft GitHub Release asset set is incomplete or contains extras',
+        );
         for (const filename of filenames) {
             assert.equal(
                 sha256File(resolve(downloadRoot, filename)),
@@ -1003,14 +999,13 @@ function validateCiProducerEvidenceDocument({ evidence, unit, profile, version, 
     );
     assert.match(workflow?.workflowSha ?? '', /^[a-f0-9]{40,64}$/, `${unit.identity} workflow SHA is invalid`);
     assert.match(workflow?.runId ?? '', /^\d+$/, `${unit.identity} workflow run ID is invalid`);
-    assert.ok(Number.isInteger(workflow?.runAttempt) && workflow.runAttempt > 0, `${unit.identity} run attempt is invalid`);
+    assert.ok(
+        Number.isInteger(workflow?.runAttempt) && workflow.runAttempt > 0,
+        `${unit.identity} run attempt is invalid`,
+    );
     assert.equal(workflow?.job, profile.job, `${unit.identity} producer job drift`);
     assert.match(workflow?.actor ?? '', /^\S+$/, `${unit.identity} workflow actor is missing`);
-    assert.match(
-        workflow?.triggeringActor ?? '',
-        /^\S+$/,
-        `${unit.identity} workflow triggering actor is missing`,
-    );
+    assert.match(workflow?.triggeringActor ?? '', /^\S+$/, `${unit.identity} workflow triggering actor is missing`);
     assert.equal(
         workflow?.url,
         `https://github.com/EPA-WG/cem/actions/runs/${workflow.runId}/attempts/${workflow.runAttempt}`,
@@ -1036,7 +1031,10 @@ function validateCiProducerEvidenceDocument({ evidence, unit, profile, version, 
 
     for (const [name, artifact] of Object.entries(evidence.releaseUnit ?? {})) {
         assert.match(artifact?.filename ?? '', /^[^/\\]+$/, `${unit.identity} ${name} filename is invalid`);
-        assert.ok(Number.isInteger(artifact?.byteLength) && artifact.byteLength > 0, `${unit.identity} ${name} is empty`);
+        assert.ok(
+            Number.isInteger(artifact?.byteLength) && artifact.byteLength > 0,
+            `${unit.identity} ${name} is empty`,
+        );
         assert.match(artifact?.sha256 ?? '', /^[a-f0-9]{64}$/, `${unit.identity} ${name} digest is invalid`);
     }
     assert.deepEqual(
@@ -1216,7 +1214,11 @@ function createGithubAssetClient(workspaceRoot) {
             );
         },
         download(releaseTag, filename, destinationRoot) {
-            run('gh', ['release', 'download', releaseTag, '--pattern', filename, '--dir', destinationRoot], workspaceRoot);
+            run(
+                'gh',
+                ['release', 'download', releaseTag, '--pattern', filename, '--dir', destinationRoot],
+                workspaceRoot,
+            );
         },
         upload(releaseTag, paths) {
             run('gh', ['release', 'upload', releaseTag, ...paths], workspaceRoot);
@@ -1374,11 +1376,13 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     } else if (command === 'stage') {
         const result = stagePlatformRelease({ publication });
         console.log(
-            `Staged ${result.index.assets.length} CEM-ML ${result.index.commonVersion} assets from five deployments.`,
+            `Staged ${result.index.assets.length} CEM-ML ${result.index.commonVersion} assets from ${result.index.units.length} GitHub Release units.`,
         );
     } else if (command === 'verify') {
         const index = verifyPlatformRelease({ publication });
-        console.log(`Verified immutable CEM-ML ${index.commonVersion} release stage across five deployments.`);
+        console.log(
+            `Verified immutable CEM-ML ${index.commonVersion} release stage across ${index.units.length} GitHub Release units.`,
+        );
     } else if (command === 'upload-draft') {
         if (publication) throw new Error('upload-draft is always publication mode; omit --publication');
         const index = uploadPlatformReleaseDraft();

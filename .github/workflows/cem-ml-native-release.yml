@@ -1,322 +1,325 @@
-name: CEM-ML Native Release
+# Deferred: GitHub Releases contain only the WASM/npm and Linux AMD64 units.
+# Keep these self-hosted recipes visible for a future scope decision, but do not
+# schedule any of their producer or publisher jobs.
+name: CEM-ML Native Release (deferred)
 
 on:
-  workflow_dispatch:
-    inputs:
-      native_host:
-        description: Authorized native release host to run
-        required: true
-        type: choice
-        options:
-          - macos-arm64
-          - windows-amd64
-      release_tag:
-        description: Exact existing CEM-ML tag and protected draft to extend
-        required: true
-        type: string
+    workflow_dispatch:
+        inputs:
+            native_host:
+                description: Authorized native release host to run
+                required: true
+                type: choice
+                options:
+                    - macos-arm64
+                    - windows-amd64
+            release_tag:
+                description: Exact existing CEM-ML tag and protected draft to extend
+                required: true
+                type: string
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: cem-ml-native-release-${{ inputs.release_tag }}-${{ inputs.native_host }}
-  cancel-in-progress: false
+    group: cem-ml-native-release-${{ inputs.release_tag }}-${{ inputs.native_host }}
+    cancel-in-progress: false
 
 jobs:
-  macos-arm64-producer:
-    name: Produce native macOS ARM64 release unit
-    if: inputs.native_host == 'macos-arm64'
-    runs-on: [self-hosted, macOS, ARM64, local-macos-arm64]
-    timeout-minutes: 90
-    environment:
-      name: cem-ml-release
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
+    macos-arm64-producer:
+        name: Produce native macOS ARM64 release unit
+        if: ${{ false }}
+        runs-on: [self-hosted, macOS, ARM64, local-macos-arm64]
+        timeout-minutes: 90
+        environment:
+            name: cem-ml-release
+        permissions:
+            contents: read
+            id-token: write
+            attestations: write
+            artifact-metadata: write
 
-    steps:
-      - name: Checkout exact release tag
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.release_tag }}
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ inputs.release_tag }}
 
-      - name: Use Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          package-manager-cache: false
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  package-manager-cache: false
 
-      - name: Enable Corepack
-        run: corepack enable
+            - name: Enable Corepack
+              run: corepack enable
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: aarch64-apple-darwin
 
-      - name: Install dependencies
-        run: yarn install --immutable
+            - name: Install dependencies
+              run: yarn install --immutable
 
-      - name: Verify protected Apple signing configuration
-        shell: bash
-        env:
-          CEM_ML_APPLE_SIGNING_IDENTITY: ${{ vars.CEM_ML_APPLE_SIGNING_IDENTITY }}
-          CEM_ML_APPLE_NOTARY_PROFILE: ${{ vars.CEM_ML_APPLE_NOTARY_PROFILE }}
-        run: |
-          test -n "$CEM_ML_APPLE_SIGNING_IDENTITY"
-          test -n "$CEM_ML_APPLE_NOTARY_PROFILE"
-          security find-identity -v -p codesigning | grep -F "$CEM_ML_APPLE_SIGNING_IDENTITY"
+            - name: Verify protected Apple signing configuration
+              shell: bash
+              env:
+                  CEM_ML_APPLE_SIGNING_IDENTITY: ${{ vars.CEM_ML_APPLE_SIGNING_IDENTITY }}
+                  CEM_ML_APPLE_NOTARY_PROFILE: ${{ vars.CEM_ML_APPLE_NOTARY_PROFILE }}
+              run: |
+                  test -n "$CEM_ML_APPLE_SIGNING_IDENTITY"
+                  test -n "$CEM_ML_APPLE_NOTARY_PROFILE"
+                  security find-identity -v -p codesigning | grep -F "$CEM_ML_APPLE_SIGNING_IDENTITY"
 
-      - name: Verify exact tag, source, host, and protected draft
-        run: yarn nx run cem_ml_cli_native_brew_arm64:preflight:release --parallel=false
-        env:
-          CEM_ML_RELEASE_TAG: ${{ inputs.release_tag }}
-          GH_TOKEN: ${{ github.token }}
+            - name: Verify exact tag, source, host, and protected draft
+              run: yarn nx run cem_ml_cli_native_brew_arm64:preflight:release --parallel=false
+              env:
+                  CEM_ML_RELEASE_TAG: ${{ inputs.release_tag }}
+                  GH_TOKEN: ${{ github.token }}
 
-      - name: Package, Developer ID sign, notarize, verify, and run Homebrew lifecycle
-        run: yarn nx run cem_ml_cli_native_brew_arm64:smoke:release --parallel=false
-        env:
-          CEM_ML_APPLE_SIGNING_IDENTITY: ${{ vars.CEM_ML_APPLE_SIGNING_IDENTITY }}
-          CEM_ML_APPLE_NOTARY_PROFILE: ${{ vars.CEM_ML_APPLE_NOTARY_PROFILE }}
-          CEM_ML_RELEASE_SIGNING: required
+            - name: Package, Developer ID sign, notarize, verify, and run Homebrew lifecycle
+              run: yarn nx run cem_ml_cli_native_brew_arm64:smoke:release --parallel=false
+              env:
+                  CEM_ML_APPLE_SIGNING_IDENTITY: ${{ vars.CEM_ML_APPLE_SIGNING_IDENTITY }}
+                  CEM_ML_APPLE_NOTARY_PROFILE: ${{ vars.CEM_ML_APPLE_NOTARY_PROFILE }}
+                  CEM_ML_RELEASE_SIGNING: required
 
-      - name: Resolve signed checksum manifest
-        id: checksum
-        shell: bash
-        run: |
-          mapfile -t manifests < <(find dist/packages/cem-ml-cli-native-brew-arm64/artifacts -maxdepth 1 -type f -name '*.sha256' -print)
-          test "${#manifests[@]}" -eq 1
-          echo "path=${manifests[0]}" >> "$GITHUB_OUTPUT"
+            - name: Resolve signed checksum manifest
+              id: checksum
+              shell: bash
+              run: |
+                  mapfile -t manifests < <(find dist/packages/cem-ml-cli-native-brew-arm64/artifacts -maxdepth 1 -type f -name '*.sha256' -print)
+                  test "${#manifests[@]}" -eq 1
+                  echo "path=${manifests[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate GitHub artifact attestation for signed subjects
-        id: attestation
-        uses: actions/attest@v4
-        with:
-          subject-checksums: ${{ steps.checksum.outputs.path }}
+            - name: Generate GitHub artifact attestation for signed subjects
+              id: attestation
+              uses: actions/attest@v4
+              with:
+                  subject-checksums: ${{ steps.checksum.outputs.path }}
 
-      - name: Verify attestation and finalize release unit
-        run: yarn nx run cem_ml_cli_native_brew_arm64:finalize:release --parallel=false
-        env:
-          CEM_ML_GITHUB_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
-          CEM_ML_RELEASE_SIGNING: required
-          GH_TOKEN: ${{ github.token }}
+            - name: Verify attestation and finalize release unit
+              run: yarn nx run cem_ml_cli_native_brew_arm64:finalize:release --parallel=false
+              env:
+                  CEM_ML_GITHUB_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
+                  CEM_ML_RELEASE_SIGNING: required
+                  GH_TOKEN: ${{ github.token }}
 
-      - name: Preserve exact finalized release unit
-        uses: actions/upload-artifact@v4
-        with:
-          name: cem-ml-native-macos-arm64-release-unit
-          path: dist/packages/cem-ml-cli-native-brew-arm64/artifacts
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
+            - name: Preserve exact finalized release unit
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cem-ml-native-macos-arm64-release-unit
+                  path: dist/packages/cem-ml-cli-native-brew-arm64/artifacts
+                  if-no-files-found: error
+                  compression-level: 0
+                  retention-days: 7
 
-      - name: Retain failed native diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cem-ml-native-macos-arm64-release-diagnostics
-          path: dist/packages/cem-ml-cli-native-brew-arm64
-          if-no-files-found: ignore
-          retention-days: 3
+            - name: Retain failed native diagnostics
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cem-ml-native-macos-arm64-release-diagnostics
+                  path: dist/packages/cem-ml-cli-native-brew-arm64
+                  if-no-files-found: ignore
+                  retention-days: 3
 
-  macos-arm64-publisher:
-    name: Publish preserved native macOS ARM64 release unit
-    if: inputs.native_host == 'macos-arm64'
-    needs: macos-arm64-producer
-    runs-on: [self-hosted, macOS, ARM64, local-macos-arm64]
-    timeout-minutes: 30
-    environment:
-      name: cem-ml-release
-    permissions:
-      contents: write
+    macos-arm64-publisher:
+        name: Publish preserved native macOS ARM64 release unit
+        if: ${{ false }}
+        needs: macos-arm64-producer
+        runs-on: [self-hosted, macOS, ARM64, local-macos-arm64]
+        timeout-minutes: 30
+        environment:
+            name: cem-ml-release
+        permissions:
+            contents: write
 
-    steps:
-      - name: Checkout exact release tag
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.release_tag }}
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ inputs.release_tag }}
 
-      - name: Use Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          package-manager-cache: false
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  package-manager-cache: false
 
-      - name: Enable Corepack
-        run: corepack enable
+            - name: Enable Corepack
+              run: corepack enable
 
-      - name: Install dependencies
-        run: yarn install --immutable
+            - name: Install dependencies
+              run: yarn install --immutable
 
-      - name: Restore exact finalized release unit
-        uses: actions/download-artifact@v5
-        with:
-          name: cem-ml-native-macos-arm64-release-unit
-          path: dist/packages/cem-ml-cli-native-brew-arm64/artifacts
+            - name: Restore exact finalized release unit
+              uses: actions/download-artifact@v5
+              with:
+                  name: cem-ml-native-macos-arm64-release-unit
+                  path: dist/packages/cem-ml-cli-native-brew-arm64/artifacts
 
-      - name: Publish only missing immutable assets
-        run: yarn nx run cem_ml_cli_native_brew_arm64:publish --parallel=false
-        env:
-          CEM_ML_NATIVE_PUBLISH: ${{ vars.CEM_ML_NATIVE_PUBLISH }}
-          CEM_ML_RELEASE_TAG: ${{ inputs.release_tag }}
-          GH_TOKEN: ${{ github.token }}
+            - name: Publish only missing immutable assets
+              run: yarn nx run cem_ml_cli_native_brew_arm64:publish --parallel=false
+              env:
+                  CEM_ML_NATIVE_PUBLISH: ${{ vars.CEM_ML_NATIVE_PUBLISH }}
+                  CEM_ML_RELEASE_TAG: ${{ inputs.release_tag }}
+                  GH_TOKEN: ${{ github.token }}
 
-  windows-amd64-producer:
-    name: Produce native Windows AMD64 release unit
-    if: inputs.native_host == 'windows-amd64'
-    runs-on: [self-hosted, Windows, X64, local-windows-amd64]
-    timeout-minutes: 120
-    environment:
-      name: cem-ml-release
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
+    windows-amd64-producer:
+        name: Produce native Windows AMD64 release unit
+        if: ${{ false }}
+        runs-on: [self-hosted, Windows, X64, local-windows-amd64]
+        timeout-minutes: 120
+        environment:
+            name: cem-ml-release
+        permissions:
+            contents: read
+            id-token: write
+            attestations: write
+            artifact-metadata: write
 
-    steps:
-      - name: Checkout exact release tag
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.release_tag }}
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ inputs.release_tag }}
 
-      - name: Use Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          package-manager-cache: false
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  package-manager-cache: false
 
-      - name: Enable Corepack
-        run: corepack enable
+            - name: Enable Corepack
+              run: corepack enable
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: x86_64-pc-windows-msvc
 
-      - name: Install dependencies
-        run: yarn install --immutable
+            - name: Install dependencies
+              run: yarn install --immutable
 
-      - name: Verify protected Artifact Signing configuration
-        shell: pwsh
-        env:
-          CEM_ML_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.CEM_ML_ARTIFACT_SIGNING_ENDPOINT }}
-          CEM_ML_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.CEM_ML_ARTIFACT_SIGNING_ACCOUNT }}
-          CEM_ML_ARTIFACT_SIGNING_PROFILE: ${{ vars.CEM_ML_ARTIFACT_SIGNING_PROFILE }}
-        run: |
-          $PSNativeCommandUseErrorActionPreference = $true
-          foreach ($name in @(
-            'CEM_ML_ARTIFACT_SIGNING_ENDPOINT',
-            'CEM_ML_ARTIFACT_SIGNING_ACCOUNT',
-            'CEM_ML_ARTIFACT_SIGNING_PROFILE'
-          )) {
-            if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) {
-              throw "$name is required in the protected cem-ml-release environment"
-            }
-          }
+            - name: Verify protected Artifact Signing configuration
+              shell: pwsh
+              env:
+                  CEM_ML_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.CEM_ML_ARTIFACT_SIGNING_ENDPOINT }}
+                  CEM_ML_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.CEM_ML_ARTIFACT_SIGNING_ACCOUNT }}
+                  CEM_ML_ARTIFACT_SIGNING_PROFILE: ${{ vars.CEM_ML_ARTIFACT_SIGNING_PROFILE }}
+              run: |
+                  $PSNativeCommandUseErrorActionPreference = $true
+                  foreach ($name in @(
+                    'CEM_ML_ARTIFACT_SIGNING_ENDPOINT',
+                    'CEM_ML_ARTIFACT_SIGNING_ACCOUNT',
+                    'CEM_ML_ARTIFACT_SIGNING_PROFILE'
+                  )) {
+                    if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) {
+                      throw "$name is required in the protected cem-ml-release environment"
+                    }
+                  }
 
-      - name: Verify exact tag, source, host, and protected draft
-        run: yarn nx run cem_ml_cli_native_windows_amd64:preflight:release --parallel=false
-        env:
-          CEM_ML_RELEASE_TAG: ${{ inputs.release_tag }}
-          GH_TOKEN: ${{ github.token }}
+            - name: Verify exact tag, source, host, and protected draft
+              run: yarn nx run cem_ml_cli_native_windows_amd64:preflight:release --parallel=false
+              env:
+                  CEM_ML_RELEASE_TAG: ${{ inputs.release_tag }}
+                  GH_TOKEN: ${{ github.token }}
 
-      - name: Package, Authenticode sign, verify, and run MSI lifecycle
-        run: yarn nx run cem_ml_cli_native_windows_amd64:smoke:release --parallel=false
-        env:
-          CEM_ML_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.CEM_ML_ARTIFACT_SIGNING_ENDPOINT }}
-          CEM_ML_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.CEM_ML_ARTIFACT_SIGNING_ACCOUNT }}
-          CEM_ML_ARTIFACT_SIGNING_PROFILE: ${{ vars.CEM_ML_ARTIFACT_SIGNING_PROFILE }}
-          CEM_ML_SIGNTOOL: ${{ vars.CEM_ML_SIGNTOOL }}
-          CEM_ML_ARTIFACT_SIGNING_DLIB: ${{ vars.CEM_ML_ARTIFACT_SIGNING_DLIB }}
-          CEM_ML_RELEASE_SIGNING: required
+            - name: Package, Authenticode sign, verify, and run MSI lifecycle
+              run: yarn nx run cem_ml_cli_native_windows_amd64:smoke:release --parallel=false
+              env:
+                  CEM_ML_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.CEM_ML_ARTIFACT_SIGNING_ENDPOINT }}
+                  CEM_ML_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.CEM_ML_ARTIFACT_SIGNING_ACCOUNT }}
+                  CEM_ML_ARTIFACT_SIGNING_PROFILE: ${{ vars.CEM_ML_ARTIFACT_SIGNING_PROFILE }}
+                  CEM_ML_SIGNTOOL: ${{ vars.CEM_ML_SIGNTOOL }}
+                  CEM_ML_ARTIFACT_SIGNING_DLIB: ${{ vars.CEM_ML_ARTIFACT_SIGNING_DLIB }}
+                  CEM_ML_RELEASE_SIGNING: required
 
-      - name: Resolve signed checksum manifest
-        id: checksum
-        shell: pwsh
-        run: |
-          $PSNativeCommandUseErrorActionPreference = $true
-          $manifests = @(Get-ChildItem 'dist/packages/cem-ml-cli-native-windows-amd64/artifacts' -Filter '*.sha256' -File)
-          if ($manifests.Count -ne 1) {
-            throw "Expected exactly one checksum manifest, found $($manifests.Count)"
-          }
-          "path=$($manifests[0].FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            - name: Resolve signed checksum manifest
+              id: checksum
+              shell: pwsh
+              run: |
+                  $PSNativeCommandUseErrorActionPreference = $true
+                  $manifests = @(Get-ChildItem 'dist/packages/cem-ml-cli-native-windows-amd64/artifacts' -Filter '*.sha256' -File)
+                  if ($manifests.Count -ne 1) {
+                    throw "Expected exactly one checksum manifest, found $($manifests.Count)"
+                  }
+                  "path=$($manifests[0].FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Generate GitHub artifact attestation for signed subjects
-        id: attestation
-        uses: actions/attest@v4
-        with:
-          subject-checksums: ${{ steps.checksum.outputs.path }}
+            - name: Generate GitHub artifact attestation for signed subjects
+              id: attestation
+              uses: actions/attest@v4
+              with:
+                  subject-checksums: ${{ steps.checksum.outputs.path }}
 
-      - name: Verify attestation and finalize release unit
-        run: yarn nx run cem_ml_cli_native_windows_amd64:finalize:release --parallel=false
-        env:
-          CEM_ML_GITHUB_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
-          CEM_ML_RELEASE_SIGNING: required
-          GH_TOKEN: ${{ github.token }}
+            - name: Verify attestation and finalize release unit
+              run: yarn nx run cem_ml_cli_native_windows_amd64:finalize:release --parallel=false
+              env:
+                  CEM_ML_GITHUB_ATTESTATION_BUNDLE: ${{ steps.attestation.outputs.bundle-path }}
+                  CEM_ML_RELEASE_SIGNING: required
+                  GH_TOKEN: ${{ github.token }}
 
-      - name: Preserve exact finalized release unit
-        uses: actions/upload-artifact@v4
-        with:
-          name: cem-ml-native-windows-amd64-release-unit
-          path: dist/packages/cem-ml-cli-native-windows-amd64/artifacts
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
+            - name: Preserve exact finalized release unit
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cem-ml-native-windows-amd64-release-unit
+                  path: dist/packages/cem-ml-cli-native-windows-amd64/artifacts
+                  if-no-files-found: error
+                  compression-level: 0
+                  retention-days: 7
 
-      - name: Retain failed native diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cem-ml-native-windows-amd64-release-diagnostics
-          path: dist/packages/cem-ml-cli-native-windows-amd64
-          if-no-files-found: ignore
-          retention-days: 3
+            - name: Retain failed native diagnostics
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cem-ml-native-windows-amd64-release-diagnostics
+                  path: dist/packages/cem-ml-cli-native-windows-amd64
+                  if-no-files-found: ignore
+                  retention-days: 3
 
-  windows-amd64-publisher:
-    name: Publish preserved native Windows AMD64 release unit
-    if: inputs.native_host == 'windows-amd64'
-    needs: windows-amd64-producer
-    runs-on: [self-hosted, Windows, X64, local-windows-amd64]
-    timeout-minutes: 30
-    environment:
-      name: cem-ml-release
-    permissions:
-      contents: write
+    windows-amd64-publisher:
+        name: Publish preserved native Windows AMD64 release unit
+        if: ${{ false }}
+        needs: windows-amd64-producer
+        runs-on: [self-hosted, Windows, X64, local-windows-amd64]
+        timeout-minutes: 30
+        environment:
+            name: cem-ml-release
+        permissions:
+            contents: write
 
-    steps:
-      - name: Checkout exact release tag
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.release_tag }}
+        steps:
+            - name: Checkout exact release tag
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  ref: ${{ inputs.release_tag }}
 
-      - name: Use Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          package-manager-cache: false
+            - name: Use Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+                  package-manager-cache: false
 
-      - name: Enable Corepack
-        run: corepack enable
+            - name: Enable Corepack
+              run: corepack enable
 
-      - name: Install dependencies
-        run: yarn install --immutable
+            - name: Install dependencies
+              run: yarn install --immutable
 
-      - name: Restore exact finalized release unit
-        uses: actions/download-artifact@v5
-        with:
-          name: cem-ml-native-windows-amd64-release-unit
-          path: dist/packages/cem-ml-cli-native-windows-amd64/artifacts
+            - name: Restore exact finalized release unit
+              uses: actions/download-artifact@v5
+              with:
+                  name: cem-ml-native-windows-amd64-release-unit
+                  path: dist/packages/cem-ml-cli-native-windows-amd64/artifacts
 
-      - name: Publish only missing immutable assets
-        run: yarn nx run cem_ml_cli_native_windows_amd64:publish --parallel=false
-        env:
-          CEM_ML_NATIVE_PUBLISH: ${{ vars.CEM_ML_NATIVE_PUBLISH }}
-          CEM_ML_RELEASE_TAG: ${{ inputs.release_tag }}
-          GH_TOKEN: ${{ github.token }}
+            - name: Publish only missing immutable assets
+              run: yarn nx run cem_ml_cli_native_windows_amd64:publish --parallel=false
+              env:
+                  CEM_ML_NATIVE_PUBLISH: ${{ vars.CEM_ML_NATIVE_PUBLISH }}
+                  CEM_ML_RELEASE_TAG: ${{ inputs.release_tag }}
+                  GH_TOKEN: ${{ github.token }}

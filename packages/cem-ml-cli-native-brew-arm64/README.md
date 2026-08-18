@@ -22,13 +22,11 @@ yarn nx run cem_ml_cli_native_brew_arm64:smoke:upgrade
 yarn nx run cem_ml_cli_native_brew_arm64:smoke:uninstall
 ```
 
-Generic CI intentionally skips this native executable. Lifecycle and release
-targets run on an authorized Apple Silicon host through the protected manual
-workflow. To publish the local build, use the operator sequence in
-[`docs/cem-ml-native-release.md`](../../docs/cem-ml-native-release.md). It keeps
-the Apple credentials in the runner keychain, obtains the GitHub attestation in
-the same protected job, and preserves the exact finalized bytes for a separate
-publisher job.
+Generic CI intentionally skips this native executable. macOS ARM64 is excluded
+from the current GitHub Release contract, and every job in the retained
+[self-hosted native recipe](../../docs/cem-ml-native-release.md) is disabled.
+The local Nx lifecycle remains available for platform development and package
+validation only.
 
 For native target development without publication, export the Apple
 signing/notarization variables and run:
@@ -38,7 +36,6 @@ CEM_ML_RELEASE_SIGNING=required \
 yarn nx run cem_ml_cli_native_brew_arm64:smoke:release
 ```
 
-`publish` remains inert until the release controls and finalized attestation are
-present and `cem-ml-v<version>` exists as a draft GitHub Release. The generated formula
-points at that immutable release archive; `EPA-WG/homebrew-cem` consumes the
-projection and never rebuilds the executable.
+`preflight:release` and `publish` reject macOS while the platform is outside the
+tested release-unit set. The generated Homebrew projection is validation output
+only and is not published to `EPA-WG/homebrew-cem`.

@@ -221,8 +221,6 @@
                 "{workspaceRoot}/dist/packages/cem-ml-npm/artifacts/**/*",
                 "{workspaceRoot}/dist/packages/cem-ml-cli-npm/artifacts/**/*",
                 "{workspaceRoot}/dist/packages/cem-ml-cli-native-linux-amd64/artifacts/**/*",
-                "{workspaceRoot}/dist/packages/cem-ml-cli-native-brew-arm64/artifacts/**/*",
-                "{workspaceRoot}/dist/packages/cem-ml-cli-native-windows-amd64/artifacts/**/*",
                 { "runtime": "git rev-parse HEAD" }
             ],
             "outputs": ["{workspaceRoot}/dist/releases/cem-ml-platform"]
@@ -284,11 +282,7 @@
                 "{projectRoot}/schema/**/*.json",
                 "{workspaceRoot}/tools/scripts/compile-markdown.mjs"
             ],
-            "outputs": [
-                "{projectRoot}/dist/**/*.md",
-                "{projectRoot}/dist/**/*.xhtml",
-                "{projectRoot}/dist/**/*.json"
-            ]
+            "outputs": ["{projectRoot}/dist/**/*.md", "{projectRoot}/dist/**/*.xhtml", "{projectRoot}/dist/**/*.json"]
         },
         "build:schema-artifacts": {
             "executor": "nx:run-commands",
@@ -303,18 +297,12 @@
                 "{projectRoot}/src/schema/compiler/**/*.rs",
                 "{projectRoot}/src/bin/cem-ml-schema-emit.rs"
             ],
-            "outputs": [
-                "{projectRoot}/dist/lib/schema/**"
-            ]
+            "outputs": ["{projectRoot}/dist/lib/schema/**"]
         },
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",
-            "dependsOn": [
-                "test:observability-schema",
-                "test:cli-schema-artifacts",
-                "test:command-types"
-            ],
+            "dependsOn": ["test:observability-schema", "test:cli-schema-artifacts", "test:command-types"],
             "outputs": [],
             "options": {
                 "package": "cem-ml",
@@ -514,9 +502,7 @@
                 "command": "tree-sitter generate",
                 "cwd": "packages/cem_ml/grammar/tree-sitter-cem"
             },
-            "inputs": [
-                "{projectRoot}/grammar/tree-sitter-cem/grammar.js"
-            ],
+            "inputs": ["{projectRoot}/grammar/tree-sitter-cem/grammar.js"],
             "outputs": [
                 "{projectRoot}/grammar/tree-sitter-cem/src/parser.c",
                 "{projectRoot}/grammar/tree-sitter-cem/src/grammar.json",

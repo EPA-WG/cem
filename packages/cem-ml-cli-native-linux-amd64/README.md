@@ -25,7 +25,9 @@ the signing record is publication-ready, and `cem-ml-v<version>` already exists
 as a draft GitHub Release. The APT record points at that immutable release; the
 separate `EPA-WG/cem-apt` repository consumes it and never rebuilds the binary.
 Protected CI publication and optional Linux recovery are documented in
-[`docs/cem-ml-native-release.md`](../../docs/cem-ml-native-release.md).
+the protected [CEM-ML release workflow](../../.github/workflows/cem-ml-release.yml).
+The separate [self-hosted native recipe](../../docs/cem-ml-native-release.md)
+is deferred and does not own Linux publication.
 
 The `build` target separates the expensive Rust compilation from the lightweight
 release-provenance stamp. Nx keys the `compile` dependency by Rust sources and

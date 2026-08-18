@@ -1,6 +1,7 @@
 # CEM-ML Deployment Contract
 
-**Status:** Canonical Phase 2.5 deployment contract, accepted 2026-08-11.
+**Status:** Canonical Phase 2.5 deployment contract, accepted 2026-08-11;
+GitHub Release scope amended 2026-08-17.
 
 This document fixes the deployment, version, platform, capability, host-wire,
 signing, and promotion boundaries that Phase 2.5 implementation must follow.
@@ -21,15 +22,15 @@ policy; they do not copy parser, validator, query, transform, or report logic.
 
 ## Project identities and ownership
 
-| Responsibility | Workspace root | Nx project | Public identity |
-| --- | --- | --- | --- |
-| Common engine and version authority | `packages/cem_ml` | `cem_ml` | Rust crate `cem-ml` |
-| Common native CLI source/adapter | `packages/cem_ml_cli` | `cem_ml_cli` | Rust crate/binary `cem-ml-cli` / `cem-ml` |
-| Low-level WASM npm deployment | `packages/cem-ml-npm` | `@epa-wg/cem-ml` | npm `@epa-wg/cem-ml` |
-| Universal browser/Node CLI npm deployment | `packages/cem-ml-cli-npm` | `@epa-wg/cem-ml-cli` | npm `@epa-wg/cem-ml-cli`; bin `cem-ml` |
-| Linux AMD64 native deployment | `packages/cem-ml-cli-native-linux-amd64` | `cem_ml_cli_native_linux_amd64` | runtime `native-linux-amd64` |
-| macOS ARM64/Homebrew deployment | `packages/cem-ml-cli-native-brew-arm64` | `cem_ml_cli_native_brew_arm64` | runtime `native-macos-arm64` |
-| Windows AMD64 native deployment | `packages/cem-ml-cli-native-windows-amd64` | `cem_ml_cli_native_windows_amd64` | runtime `native-windows-amd64` |
+| Responsibility                            | Workspace root                             | Nx project                        | Public identity                           |
+| ----------------------------------------- | ------------------------------------------ | --------------------------------- | ----------------------------------------- |
+| Common engine and version authority       | `packages/cem_ml`                          | `cem_ml`                          | Rust crate `cem-ml`                       |
+| Common native CLI source/adapter          | `packages/cem_ml_cli`                      | `cem_ml_cli`                      | Rust crate/binary `cem-ml-cli` / `cem-ml` |
+| Low-level WASM npm deployment             | `packages/cem-ml-npm`                      | `@epa-wg/cem-ml`                  | npm `@epa-wg/cem-ml`                      |
+| Universal browser/Node CLI npm deployment | `packages/cem-ml-cli-npm`                  | `@epa-wg/cem-ml-cli`              | npm `@epa-wg/cem-ml-cli`; bin `cem-ml`    |
+| Linux AMD64 native deployment             | `packages/cem-ml-cli-native-linux-amd64`   | `cem_ml_cli_native_linux_amd64`   | runtime `native-linux-amd64`              |
+| macOS ARM64/Homebrew deployment           | `packages/cem-ml-cli-native-brew-arm64`    | `cem_ml_cli_native_brew_arm64`    | runtime `native-macos-arm64`              |
+| Windows AMD64 native deployment           | `packages/cem-ml-cli-native-windows-amd64` | `cem_ml_cli_native_windows_amd64` | runtime `native-windows-amd64`            |
 
 Folder names identify deployment concerns and may differ from the public npm
 name. The two existing underscore-named Rust roots remain unchanged. Each new
@@ -77,10 +78,10 @@ The release sequence is:
 4. Run Nx Release for only `cem-ml-platform`, supplying the exact authoritative
    Cargo version rather than deriving another value from conventional commits
    or an independent version plan.
-5. Build and verify Linux and WASM/npm artifacts from the tagged commit in
-   CI/CD. Build macOS and Windows executables from the same commit on authorized
-   local native hosts, upload them through their Nx `publish` targets, and
-   publish the draft GitHub Release only after every artifact verifies.
+5. Build and verify the two WASM/npm units and Linux AMD64 unit from the tagged
+   commit in CI/CD, then publish the draft GitHub Release only after those three
+   units verify. macOS and Windows remain local build/package/verification
+   targets and are not uploaded to the GitHub Release.
 
 The sync target may write during an intentional version-preparation change. The
 verification and release gates never repair drift. Failed publication may retry
@@ -96,21 +97,22 @@ EOL Node lines from the production contract even when they happen to run. See
 the [Node release table](https://nodejs.org/en/about/previous-releases) and
 [Nx Node compatibility matrix](https://nx.dev/docs/technologies/node/introduction).
 
-| Distribution | Required verification hosts | Runtime identity |
-| --- | --- | --- |
-| Universal npm CLI | Ubuntu x64 on Node 22 and 24; macOS ARM64 and Windows x64 on Node 24 | `wasm-node` |
-| Browser API | Current project Playwright Chromium plus a real dedicated worker | `wasm-browser-worker` |
-| Linux native | Ubuntu 24.04 x64; `x86_64-unknown-linux-gnu` | `native-linux-amd64` |
-| Homebrew native | Authorized local Apple Silicon macOS host; `aarch64-apple-darwin` | `native-macos-arm64` |
-| Windows native build/package | Authorized local Windows 11 x64 host; `x86_64-pc-windows-msvc` | `native-windows-amd64` |
+| Distribution                 | Required verification hosts                                           | Runtime identity       |
+| ---------------------------- | --------------------------------------------------------------------- | ---------------------- |
+| Universal npm CLI            | Ubuntu x64 on Node 22 and 24; macOS ARM64 and Windows x64 on Node 24  | `wasm-node`            |
+| Browser API                  | Current project Playwright Chromium plus a real dedicated worker      | `wasm-browser-worker`  |
+| Linux native                 | Ubuntu 24.04 x64; `x86_64-unknown-linux-gnu`                          | `native-linux-amd64`   |
+| Homebrew native              | Authorized local Apple Silicon macOS host; `aarch64-apple-darwin`     | `native-macos-arm64`   |
+| Windows native build/package | Authorized local Windows 11 x64 host; `x86_64-pc-windows-msvc`        | `native-windows-amd64` |
 | Windows native Sandbox smoke | The local Windows 11 Pro/Enterprise release host with Windows Sandbox | `native-windows-amd64` |
 
 The current automation policy keeps Linux native and WASM/npm builds in CI/CD
 while intentionally excluding the macOS and Windows native executable projects.
-Those two projects retain their complete Nx build, package, sign, verify, smoke,
-and publish targets and run on authorized local native hosts. The Windows local
-release host also runs the installer lifecycle inside a fresh Windows Sandbox
-with nested virtualization and an interactive session.
+Those two projects retain their Nx build, package, sign, verify, and smoke
+targets for local platform development. Their self-hosted release workflow and
+publication paths are disabled. Windows lifecycle validation may still run
+locally inside a fresh Windows Sandbox with nested virtualization and an
+interactive session.
 
 Node support is reviewed at each CEM-ML minor release. A newly promoted Node LTS
 line is not claimed until the complete npm/browser matrix passes; an EOL line is
@@ -150,19 +152,19 @@ Availability means the operation reaches the same common engine request and
 result contract. Host I/O and presentation may differ only where the capability
 manifest says so.
 
-| Operation | Native CLI | Node/WASM CLI | Browser API | First-release rule |
-| --- | --- | --- | --- | --- |
-| `parse` | Required | Required | Required | Same typed parse result and source maps |
-| `validate` / `check` | Required | Required | Required | Same diagnostics, fail policy, and report result |
-| `inspect` | Required | Required | Required | Same projections; host chooses display/export |
-| `convert` | Required | Required | Required | Same registered adapters; host resolver differences explicit |
-| `query` | Required | Required | Required | CSS selector, CEM-QL, and XPath only when advertised |
-| `transform` | Required | Required | Required | Only implemented CEMT/CEM-QL/XSLT compatibility capabilities advertised |
-| `trace` | Required | Required | Required | Same bounded event model; terminal rendering is host-owned |
-| version/capabilities | Required | Required | Required | Exact common version plus runtime/target/ABI identity |
-| `bench` | Native only | Unavailable | Unavailable | Results are host-specific and cannot satisfy parity |
-| `fixture *` | Development targets only | Development targets only | Unavailable | Not a public consumer capability |
-| `schema *` / `plugin *` mutation | Unavailable | Unavailable | Unavailable | Reserved commands stay explicit capability gaps |
+| Operation                        | Native CLI               | Node/WASM CLI            | Browser API | First-release rule                                                      |
+| -------------------------------- | ------------------------ | ------------------------ | ----------- | ----------------------------------------------------------------------- |
+| `parse`                          | Required                 | Required                 | Required    | Same typed parse result and source maps                                 |
+| `validate` / `check`             | Required                 | Required                 | Required    | Same diagnostics, fail policy, and report result                        |
+| `inspect`                        | Required                 | Required                 | Required    | Same projections; host chooses display/export                           |
+| `convert`                        | Required                 | Required                 | Required    | Same registered adapters; host resolver differences explicit            |
+| `query`                          | Required                 | Required                 | Required    | CSS selector, CEM-QL, and XPath only when advertised                    |
+| `transform`                      | Required                 | Required                 | Required    | Only implemented CEMT/CEM-QL/XSLT compatibility capabilities advertised |
+| `trace`                          | Required                 | Required                 | Required    | Same bounded event model; terminal rendering is host-owned              |
+| version/capabilities             | Required                 | Required                 | Required    | Exact common version plus runtime/target/ABI identity                   |
+| `bench`                          | Native only              | Unavailable              | Unavailable | Results are host-specific and cannot satisfy parity                     |
+| `fixture *`                      | Development targets only | Development targets only | Unavailable | Not a public consumer capability                                        |
+| `schema *` / `plugin *` mutation | Unavailable              | Unavailable              | Unavailable | Reserved commands stay explicit capability gaps                         |
 
 Native local-file resolution is built in. Node local-file and HTTPS resolution
 are built in with the existing policy boundary. Browser requests use supplied
@@ -186,17 +188,17 @@ status, that later focused design is authoritative.
 
 The first protocol family has these messages:
 
-| Message | Required fields |
-| --- | --- |
-| `initialize` | protocol range, host/runtime identity, requested capabilities, resolver-policy identity, transfer limits |
+| Message       | Required fields                                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `initialize`  | protocol range, host/runtime identity, requested capabilities, resolver-policy identity, transfer limits                                              |
 | `initialized` | selected protocol, common version, WASM ABI, report/schema-package versions, runtime/target identity, supported operations and gaps, effective limits |
-| `run` | request id, project/input revision, operation, normalized run request, input/output specs, policy/budget stamp |
-| `progress` | request id, monotonic sequence, stage, completed/total where knowable, bounded message/details |
-| `event` | request id, monotonic sequence, versioned observability event |
-| `result` | request id, status, typed result/artifact handles, diagnostics, report, source maps, effective identity/version stamps |
-| `cancel` | request id and reason |
-| `cancelled` | request id, terminal status, retained/discarded artifact statement |
-| `fatal` | protocol/runtime failure, restartability, bounded diagnostics |
+| `run`         | request id, project/input revision, operation, normalized run request, input/output specs, policy/budget stamp                                        |
+| `progress`    | request id, monotonic sequence, stage, completed/total where knowable, bounded message/details                                                        |
+| `event`       | request id, monotonic sequence, versioned observability event                                                                                         |
+| `result`      | request id, status, typed result/artifact handles, diagnostics, report, source maps, effective identity/version stamps                                |
+| `cancel`      | request id and reason                                                                                                                                 |
+| `cancelled`   | request id, terminal status, retained/discarded artifact statement                                                                                    |
+| `fatal`       | protocol/runtime failure, restartability, bounded diagnostics                                                                                         |
 
 Required rules:
 
@@ -232,16 +234,16 @@ structured-clone/JSON projection for protocol version 1.
 
 `CommandServiceRequestV1` has these required fields:
 
-| Field | Type and rule |
-| --- | --- |
-| `protocolVersion` | The integer `1`. |
-| `requestId` | Non-empty session-unique identity, at most `MAX_IDENTITY_BYTES` UTF-8 bytes. |
-| `project` | `{ projectId, revision }`; `projectId` has the identity bound and `revision` is an integer from `0` through `9007199254740991`. |
-| `resourceVersions` | URI-keyed map of `{ revision, sha256 }` for every resource the operation may read. Revisions use the same safe-integer range and `sha256` is exactly 64 lower-case hexadecimal characters. |
-| `operation` | The discriminated `PortableOperationRequestV1` union below. |
-| `runPlan` | The common `NormalizedRunPlan`, or `null` only for `version-capabilities`. It owns input/output specs, resolver declarations, scheduler policy, budgets, diagnostics mode, and report destinations. |
-| `resources` | URI-keyed map of `VirtualResourceV1` values containing `bytes: Uint8Array` and optional common `FormatIdentity`. Every entry must have an identical key in `resourceVersions`; the SHA-256 of `bytes` must match before execution. |
-| `policyStamp` | `{ resolver, safety, budget }`; each value is a non-empty bounded identity for the effective host policy, not executable policy text. |
+| Field              | Type and rule                                                                                                                                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `protocolVersion`  | The integer `1`.                                                                                                                                                                                                                   |
+| `requestId`        | Non-empty session-unique identity, at most `MAX_IDENTITY_BYTES` UTF-8 bytes.                                                                                                                                                       |
+| `project`          | `{ projectId, revision }`; `projectId` has the identity bound and `revision` is an integer from `0` through `9007199254740991`.                                                                                                    |
+| `resourceVersions` | URI-keyed map of `{ revision, sha256 }` for every resource the operation may read. Revisions use the same safe-integer range and `sha256` is exactly 64 lower-case hexadecimal characters.                                         |
+| `operation`        | The discriminated `PortableOperationRequestV1` union below.                                                                                                                                                                        |
+| `runPlan`          | The common `NormalizedRunPlan`, or `null` only for `version-capabilities`. It owns input/output specs, resolver declarations, scheduler policy, budgets, diagnostics mode, and report destinations.                                |
+| `resources`        | URI-keyed map of `VirtualResourceV1` values containing `bytes: Uint8Array` and optional common `FormatIdentity`. Every entry must have an identical key in `resourceVersions`; the SHA-256 of `bytes` must match before execution. |
+| `policyStamp`      | `{ resolver, safety, budget }`; each value is a non-empty bounded identity for the effective host policy, not executable policy text.                                                                                              |
 
 Resource URI keys are non-empty and no longer than `MAX_SOURCE_URI_BYTES`.
 `resources` contains at most the negotiated
@@ -256,17 +258,17 @@ entry fails admission before engine state is created.
 `resourceVersions`; live engine contexts, abort signals, resolver functions,
 scheduler scope ids, and native handles are never request fields.
 
-| `kind` | Additional fields | Common operation projection |
-| --- | --- | --- |
-| `parse` | `inputId`, `projection`, `preserveSourceOffsets` | `ParseRequest` |
-| `validate` | `inputIds`, `projection` | `ValidateRequest` |
-| `check` | `inputIds`, `projection`, `zeroHardViolations` | `CheckRequest` |
-| `inspect` | `inputId`, `show` | `InspectRequest` |
-| `convert` | `inputId`, `toFormat`, `preserveSourceOffsets` | `ConvertRequest` |
-| `query` | `dataInputId`, `queryUri`, `output` | `QueryRunRequest` and its registered exporter |
-| `transform` | `source`, `params`, `templateEntrypoint`, `preserveSourceOffsets`; `source` is either `{ kind: "direct", dataInputId, templateUri }` or `{ kind: "graph", configUri }` | `TransformRequest` or `TransformGraphRequest` |
-| `trace` | `inputId`, `projection` | `TraceRequest` |
-| `version-capabilities` | No additional fields | `ProductVersion` and `CapabilityManifest` |
+| `kind`                 | Additional fields                                                                                                                                                      | Common operation projection                   |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `parse`                | `inputId`, `projection`, `preserveSourceOffsets`                                                                                                                       | `ParseRequest`                                |
+| `validate`             | `inputIds`, `projection`                                                                                                                                               | `ValidateRequest`                             |
+| `check`                | `inputIds`, `projection`, `zeroHardViolations`                                                                                                                         | `CheckRequest`                                |
+| `inspect`              | `inputId`, `show`                                                                                                                                                      | `InspectRequest`                              |
+| `convert`              | `inputId`, `toFormat`, `preserveSourceOffsets`                                                                                                                         | `ConvertRequest`                              |
+| `query`                | `dataInputId`, `queryUri`, `output`                                                                                                                                    | `QueryRunRequest` and its registered exporter |
+| `transform`            | `source`, `params`, `templateEntrypoint`, `preserveSourceOffsets`; `source` is either `{ kind: "direct", dataInputId, templateUri }` or `{ kind: "graph", configUri }` | `TransformRequest` or `TransformGraphRequest` |
+| `trace`                | `inputId`, `projection`                                                                                                                                                | `TraceRequest`                                |
+| `version-capabilities` | No additional fields                                                                                                                                                   | `ProductVersion` and `CapabilityManifest`     |
 
 For a direct transform source, `params` and `templateEntrypoint` configure the
 projected `TransformRequest`. For a graph source, `params` MUST be empty and
@@ -282,19 +284,19 @@ duplicate them. Only the nine portable capability paths are admitted by v1.
 
 `CommandServiceResultV1` has these fields:
 
-| Field | Type and rule |
-| --- | --- |
-| `protocolVersion`, `requestId`, `project`, `resourceVersions` | Exact echoes of the admitted request identity and snapshot. |
-| `operation` | The admitted operation `kind`. |
-| `status` | `succeeded`, `failed`, `cancelled`, `fatal`, or `stale`. Exactly one terminal result is emitted. |
-| `exitCode` | `0`, `1`, `2`, `3`, `6`, `7`, or `130` under the existing CLI policy; `null` for `stale`. It is data until the npm or native executable projects it to a process exit. |
-| `result` | Optional `CommandPayloadV1<T>` containing the typed common operation result. |
-| `diagnostics` | Common `BoundedList<Diagnostic>`. |
-| `report` | Optional `CommandPayloadV1<Report>`. Terminal text is a host presentation derived from this report, never the report model. |
-| `artifacts` | Common `BoundedList<CommandArtifactHandleV1>` for outputs, reports, traces, graphs, and other retained payloads. |
-| `sourceMaps` | Common `BoundedList<CommandSourceMapReferenceV1>` associated with result or artifact handles. |
-| `identity` | Effective common version, runtime, target, ABI, schema-package, resolver-policy, safety-policy, and budget-policy stamps. |
-| `stale` | Required only when `status` is `stale`: `{ currentProjectRevision, changedResources }`, where each changed resource carries its current `{ uri, revision, sha256 }`. |
+| Field                                                         | Type and rule                                                                                                                                                          |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `protocolVersion`, `requestId`, `project`, `resourceVersions` | Exact echoes of the admitted request identity and snapshot.                                                                                                            |
+| `operation`                                                   | The admitted operation `kind`.                                                                                                                                         |
+| `status`                                                      | `succeeded`, `failed`, `cancelled`, `fatal`, or `stale`. Exactly one terminal result is emitted.                                                                       |
+| `exitCode`                                                    | `0`, `1`, `2`, `3`, `6`, `7`, or `130` under the existing CLI policy; `null` for `stale`. It is data until the npm or native executable projects it to a process exit. |
+| `result`                                                      | Optional `CommandPayloadV1<T>` containing the typed common operation result.                                                                                           |
+| `diagnostics`                                                 | Common `BoundedList<Diagnostic>`.                                                                                                                                      |
+| `report`                                                      | Optional `CommandPayloadV1<Report>`. Terminal text is a host presentation derived from this report, never the report model.                                            |
+| `artifacts`                                                   | Common `BoundedList<CommandArtifactHandleV1>` for outputs, reports, traces, graphs, and other retained payloads.                                                       |
+| `sourceMaps`                                                  | Common `BoundedList<CommandSourceMapReferenceV1>` associated with result or artifact handles.                                                                          |
+| `identity`                                                    | Effective common version, runtime, target, ABI, schema-package, resolver-policy, safety-policy, and budget-policy stamps.                                              |
+| `stale`                                                       | Required only when `status` is `stale`: `{ currentProjectRevision, changedResources }`, where each changed resource carries its current `{ uri, revision, sha256 }`.   |
 
 `CommandPayloadV1<T>` is exactly either `{ storage: "inline", value: T }` or
 `{ storage: "artifact", handle: CommandArtifactHandleV1 }`. Inline values must
@@ -398,11 +400,11 @@ the SBOM describes shipped bytes rather than only source manifests.
   executable.
 - Sign the binary with an EPA-WG Apple Developer ID, notarize the versioned
   archive, and verify both before promotion.
-- Publish a versioned `.tar.gz`, SHA-256 manifest, SPDX JSON SBOM, GitHub
-  artifact attestation, and release-index entry.
-- Publish formula `cem-ml` from dedicated tap `EPA-WG/homebrew-cem`; it resolves
-  the immutable release archive and SHA-256, installs `cem-ml`, and runs a
-  functional conversion/validation smoke test rather than only `--version`.
+- Package a versioned `.tar.gz`, SHA-256 manifest, SPDX JSON SBOM, and
+  release-index entry for local validation.
+- Keep the generated `cem-ml` formula projection as validation output only.
+  `EPA-WG/homebrew-cem` publication is deferred because macOS is not a GitHub
+  Release unit.
 
 Homebrew formulae are URL/checksum package definitions with executable test
 blocks, and taps are normally Git repositories. See the
@@ -414,16 +416,17 @@ blocks, and taps are normally Git repositories. See the
   an authorized Windows 11 x64 host for `x86_64-pc-windows-msvc` through
   `cem_ml_cli_native_windows_amd64` Nx targets; CI/CD must exclude this
   executable.
-- Publish a portable `.zip` and a WiX v4 `.msi` with silent install/uninstall,
-  plus SHA-256 manifest, SPDX JSON SBOM, GitHub artifact attestation, and
-  release-index entry.
+- Package a portable `.zip` and a WiX v4 `.msi` with silent
+  install/uninstall, plus SHA-256 manifest, SPDX JSON SBOM, and release-index
+  entry for local validation.
 - Authenticode-sign the executable and MSI through Microsoft Artifact Signing
   using an EPA-WG public-trust profile; verify signature and timestamp before
   packaging and after download.
-- Publish versioned WinGet manifests to `microsoft/winget-pkgs` that resolve the
-  immutable MSI and validate with `winget validate`.
+- Generate versioned WinGet manifests and validate them with `winget validate`,
+  but do not publish them to `microsoft/winget-pkgs` while Windows is outside
+  the GitHub Release contract.
 - Run the same MSI install/fixture-upgrade/uninstall lifecycle locally inside a
-  fresh Windows Sandbox before uploading the Windows release assets.
+  fresh Windows Sandbox as platform validation.
 
 WinGet supports MSI and portable packages and validates public manifest
 submissions; see the [WinGet overview](https://learn.microsoft.com/en-us/windows/package-manager/winget/)
@@ -433,10 +436,11 @@ signing; see its [service overview](https://learn.microsoft.com/en-us/azure/arti
 
 ## Release assets and supply-chain evidence
 
-Every release publishes one machine-readable index covering all npm and native
-artifacts. Each record contains version, source commit, runtime/target identity,
-filename or npm identity, byte size, SHA-256, signature/attestation reference,
-SBOM filename, capability-manifest digest, and publication state.
+Every release publishes one machine-readable index covering the two WASM/npm
+units and Linux AMD64 unit. Each record contains version, source commit,
+runtime/target identity, filename or npm identity, byte size, SHA-256,
+signature/attestation reference, SBOM filename, capability-manifest digest, and
+publication state.
 
 GitHub artifact attestations are the common provenance mechanism for executable
 archives, installers, npm tarballs, checksum manifests, SBOMs, and the release
@@ -451,9 +455,10 @@ before the first public Phase 2.5 release. GitHub recommends attaching all
 assets to a draft before publication when immutability is enabled; see
 [release management](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
 
-No package-channel job rebuilds an executable. APT, Homebrew, and WinGet records
-only project immutable release artifacts. A packaging correction that changes
-bytes requires a new common CEM-ML version.
+No package-channel job rebuilds an executable. APT records only immutable Linux
+release artifacts. Homebrew and WinGet records are local validation projections
+and are not published. A packaging correction that changes release bytes
+requires a new common CEM-ML version.
 
 ## Verification and promotion
 
@@ -471,10 +476,11 @@ on:
 - version, dependency, tag, source-commit, checksum, signature, SBOM,
   attestation, capability, and release-index drift verification.
 
-Unavailable credentials or hosted toolchains skip publication, never artifact
-correctness. Pull requests run deterministic unsigned package-shape and
-verification fixtures; protected release jobs add real platform signatures,
-attestations, channel validation, and immutable publication.
+Unavailable local platform credentials skip the corresponding macOS/Windows
+validation, never artifact correctness. Pull requests run deterministic
+unsigned package-shape and verification fixtures; protected release jobs add
+the Linux signature, attestations, APT validation, and immutable publication
+for the three release-scoped units.
 
 ## Accepted decisions
 

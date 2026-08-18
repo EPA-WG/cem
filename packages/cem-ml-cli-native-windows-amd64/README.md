@@ -33,18 +33,14 @@ through the EPA-WG Microsoft Artifact Signing public-trust profile, verifies
 the signatures before and after packaging, and regenerates all dependent
 integrity metadata.
 
-`publish` is deliberately inert unless `CEM_ML_NATIVE_PUBLISH=1` is present,
-the signing record is finalized with a verified GitHub artifact attestation,
-and `cem-ml-v<version>` already exists as a draft GitHub Release. It uploads
-only missing immutable assets, downloads the complete Windows unit again, and
-rechecks its digests and Authenticode timestamps before completing.
+Windows AMD64 is excluded from the current GitHub Release contract.
+`preflight:release` and `publish` therefore reject Windows release publication,
+and the generated WinGet projections remain validation output only.
 
 Generic CI intentionally skips this native executable. Build, package,
-`winget validate`, direct MSI lifecycle checks, and publication run through the
-Nx targets on an authorized Windows AMD64 host. The protected self-hosted
-workflow, required runner state, credential boundaries, attestation handoff, and
-retry procedure are documented in
-[`docs/cem-ml-native-release.md`](../../docs/cem-ml-native-release.md).
+`winget validate`, and direct MSI lifecycle checks remain local Nx development
+surfaces. The retained [self-hosted recipe](../../docs/cem-ml-native-release.md)
+is deferred and all of its jobs are disabled.
 
 For signed native target development without publication, export the Artifact
 Signing variables and run:

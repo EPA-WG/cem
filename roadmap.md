@@ -170,13 +170,14 @@ Deliverables:
   `@epa-wg/cem-ml`, browser and Node exports, and the npm `cem-ml` executable. The supported portable CLI target is
   WASM for Node; the browser export is a programmatic Studio/IDE surface rather than another shell platform.
 - Create exactly three initial native deployment subprojects: Linux AMD64, macOS ARM64 distributed through Homebrew,
-  and Windows AMD64. Each project builds, packages, signs, verifies, and publishes only its platform artifact.
-- Preserve every versioned native CLI archive/binary as an asset on the matching tagged GitHub Release. Upload
-  target-qualified checksums, signatures, SBOMs, and provenance alongside the binaries; Homebrew, APT, and Windows
-  package metadata must resolve those version-qualified release assets rather than a mutable build URL. Stage the
-  complete asset set before publication, enable immutable releases where available, and never replace or delete a
-  published binary; corrections require a new common version. Promoted semi-native SEA executables follow the same
-  rule.
+  and Windows AMD64. Each project builds, packages, signs, and verifies only its platform artifact; the release scope
+  below currently publishes Linux only.
+- Preserve the Linux AMD64 CLI archives and both WASM/npm units as assets on the matching tagged GitHub Release. Upload
+  target-qualified checksums, signatures, SBOMs, and provenance alongside the release-scoped artifacts; APT metadata
+  must resolve those version-qualified release assets rather than a mutable build URL. macOS/Homebrew and Windows/
+  WinGet outputs remain local validation projections until a later roadmap decision adds them to the release contract.
+  Stage the complete three-unit asset set before publication and never replace or delete published bytes; corrections
+  require a new common version.
 - Make `packages/cem_ml/Cargo.toml` the authoritative version source and add a fixed `cem-ml-platform` release family.
   Synchronize the exact version into the CLI crate, npm manifests and exact internal dependencies, native package
   metadata, capability/version output, checksums, SBOMs, provenance, and release index.
@@ -196,22 +197,22 @@ Exit criteria:
   the `cem-ml` npm executable, and it resolves exactly one same-version WASM runtime.
 - Linux AMD64, Homebrew ARM64, and Windows AMD64 are separate Nx deployment projects and are the complete initial
   native support matrix.
-- Every supported native CLI binary remains downloadable from its tagged GitHub Release with matching checksum,
-  signature, SBOM, provenance, source commit, target identity, and common version metadata.
+- The release-scoped Linux CLI remains downloadable from its tagged GitHub Release with matching checksum, signature,
+  SBOM, provenance, source commit, target identity, and common version metadata; macOS and Windows publication is
+  deferred.
 - Release verification fails on any version, dependency, source-commit, checksum, SBOM, provenance, or capability
   manifest drift from the common `cem_ml` version.
 
 ## Phase 2.6 - CEM-ML GitHub Release Artifact Promotion
 
 Goal: turn the Phase 2.5 artifact generators and guarded upload targets into one resumable release path. CI/CD owns the
-WASM/npm and Linux AMD64 artifacts, authorized native hosts own macOS ARM64 and Windows AMD64 artifacts, and a protected
-coordinator publishes one immutable GitHub Release only after the complete five-deployment set verifies.
+two WASM/npm units and Linux AMD64 unit, and a protected coordinator publishes one immutable GitHub Release only after
+that complete three-unit set verifies. macOS ARM64/Homebrew and Windows AMD64/WinGet release publication is deferred.
 
 Current foundation: the fixed `cem-ml-platform` Nx group, both WASM/npm `package` and `sign` targets, all three native
-`build`/`package`/`sign`/`verify`/`publish` lifecycles, and aggregate `cem_ml:release:stage`, `release:verify`, and
-`release:upload-draft` targets already exist. The current generic publish workflow does not invoke that graph, cannot
-write GitHub Releases, and does not collect the local-only native artifacts. Phase 2.6 wires those existing contracts
-without moving macOS or Windows compilation onto an unauthorized runner.
+development lifecycles, and aggregate `cem_ml:release:stage`, `release:verify`, and `release:upload-draft` targets exist.
+Phase 2.6 limits the GitHub Release graph to the three CI-owned units. The macOS and Windows Nx projects remain local
+platform-development surfaces; their retained self-hosted workflow recipe is disabled and cannot publish release assets.
 
 Deliverables:
 
@@ -226,40 +227,40 @@ Deliverables:
   targets. Run package, signing/attestation, verification, clean-consumer, parity, and Linux lifecycle gates before
   uploading their version-qualified unit assets. GitHub Actions artifacts are job-to-job transport only; the draft
   GitHub Release is the durable release boundary.
-- Preserve authorized native-host ownership for macOS ARM64 and Windows AMD64. A documented manual lane checks out the
-  exact release tag and source commit, verifies the synchronized version, and runs each deployment project's Nx
-  `package` → `sign` → `verify` → install/upgrade/uninstall smoke → `publish` sequence. Retain the same manual lane as a
-  recovery path for Linux without making manually rebuilt bytes interchangeable with already-uploaded CI bytes.
+- Keep the reviewed macOS ARM64 and Windows AMD64 self-hosted workflow recipe in-tree but hard-disable every job. Their
+  release preflight and uploader must reject those identities while they are outside the tested release-unit contract.
+  Retain exact-tag manual dispatch of the protected CI workflow as the Linux recovery path without making rebuilt bytes
+  interchangeable with already-uploaded CI bytes.
 - Make every unit upload resumable and immutable. An absent asset may be uploaded, an identical existing asset may be
   retained, and an unexpected name or changed byte must stop the release. Failed runs leave the release in draft state;
   they never delete, replace, or silently supersede an uploaded artifact.
-- Add an Nx-owned collection step that downloads the complete draft asset set, materializes the five expected release
+- Add an Nx-owned collection step that downloads the complete draft asset set, materializes the three expected release
   units, and runs the aggregate publication-mode stage and verification. It generates and uploads the aggregate release
   index and `SHA256SUMS`, then redownloads every remote asset and proves filename, byte size, digest, version, source
   commit, target identity, capability, SBOM, provenance, signature/attestation, and package-channel URL integrity.
 - Add an explicit protected promotion target after remote verification. Promotion changes the verified draft to a
-  published GitHub Release exactly once; APT, Homebrew, WinGet, and npm publication may consume only the immutable
-  assets from that published tag and may not rebuild binaries or WASM payloads.
-- Record producer and promotion evidence for each deployment: tagged source commit, Nx target identity, CI workflow run
-  or authorized native-host identity, toolchain and target identity, signing/attestation references, smoke result, and
-  final promotion run. Keep platform signing credentials on their authorized hosts and use protected GitHub
-  environments for `contents: write`, `id-token: write`, and `attestations: write` authority.
+  published GitHub Release exactly once; APT and npm publication may consume only the immutable assets from that
+  published tag and may not rebuild binaries or WASM payloads.
+- Record producer and promotion evidence for each release unit: tagged source commit, Nx target identity, CI workflow
+  run, toolchain and target identity, signing/attestation references, smoke result, and final promotion run. Use the
+  protected GitHub environment for `contents: write`, `id-token: write`, and `attestations: write` authority.
 
 Exit criteria:
 
 - Pushing an exact CEM-ML release tag creates or resumes one draft and CI/CD uploads verified WASM/browser, WASM/Node,
   and Linux AMD64 release assets from that commit without publishing the draft.
-- Authorized macOS ARM64 and Windows AMD64 hosts can independently prove their full lifecycle and idempotently upload
-  their artifacts to the same draft; the release remains blocked while either native unit is absent.
+- The retained macOS/Windows self-hosted workflow schedules no jobs, and both identities are rejected before any GitHub
+  Release mutation while they remain deferred.
 - The finalizer rejects missing, extra, mismatched, unsigned/unattested, wrong-version, wrong-commit, or wrong-target
-  assets and publishes only after all five deployment units plus the aggregate index and checksum manifest redownload
+  assets and publishes only after all three release units plus the aggregate index and checksum manifest redownload
   byte-identically.
 - A retry after interruption preserves identical assets, uploads only missing assets, and cannot overwrite a released
   version. Any byte-changing correction requires a new common CEM-ML version and tag.
-- The published GitHub Release is the sole binary/WASM artifact origin referenced by APT, Homebrew, and WinGet metadata;
-  npm registry publication uses the same verified tarballs and exact common version rather than repacking them.
-- One protected release rehearsal records the complete CI/manual handoff and proves that the generic `cem` npm release
-  workflow, CEM-ML workflow, and native local-host lanes cannot publish one another's groups or tags.
+- The published GitHub Release is the sole binary/WASM artifact origin referenced by APT metadata; npm registry
+  publication uses the same verified tarballs and exact common version rather than repacking them. Homebrew and WinGet
+  projections are not published.
+- One protected release rehearsal records the complete CI-owned path and proves that the generic `cem` npm workflow,
+  CEM-ML workflow, and disabled native local-host recipe cannot publish one another's groups or tags.
 
 ## Phase 3 - Custom-Element Runtime
 
@@ -582,10 +583,10 @@ Deliverables:
 - CI gates for build, lint, token reports, component tests, docs links, examples, and native compilation.
 - Package export maps and published artifacts for stable public contracts.
 - `cem-ml` CLI public distribution: separate `@epa-wg/cem-ml` WASM runtime and `@epa-wg/cem-ml-cli` Node/WASM CLI npm
-  packages, plus separate Linux AMD64, Homebrew ARM64, and Windows AMD64 native deployment projects. Preserve native
-  binaries as non-replaced assets on the matching tagged GitHub Release with checksums, signatures, SBOMs,
-  provenance, install docs, and smoke tests for each install path; publish the release only after its complete asset
-  set is staged and verified.
+  packages plus Linux AMD64 archives. Preserve those three release units as non-replaced assets on the matching tagged
+  GitHub Release with checksums, signatures, SBOMs, provenance, install docs, and smoke tests; publish only after the
+  complete release-scoped asset set is staged and verified. Keep Homebrew ARM64 and Windows AMD64 deployment projects
+  as local validation surfaces until separately promoted into distribution scope.
 - `@epa-wg/cem-studio` npm/PWA publication from the same fixed CEM-ML version and release commit, including static
   deployment assets, capability/build metadata, service-worker update checks, and clean-consumer verification.
 - Contribution guidelines for token specs, components, docs, and design kit updates.
@@ -593,9 +594,9 @@ Deliverables:
 Exit criteria:
 
 - A release can be cut with confidence that token, web, native, Figma, docs, and demo contracts are coherent.
-- Users can install `cem-ml` as WASM for Node or from Linux AMD64, Homebrew ARM64, and Windows AMD64 native packages and
-  run the same portable CLI smoke test on each platform.
-- Every native binary remains recoverable from the version's GitHub Release, and all CEM-ML npm, native, and Studio
+- Users can install `cem-ml` as WASM for Node or from the Linux AMD64 native package and run the same portable CLI smoke
+  test on each published runtime.
+- Every release-scoped binary remains recoverable from the version's GitHub Release, and all CEM-ML npm, native, and Studio
   artifacts report the exact version originating from common `cem_ml`.
 
 ## Suggested Milestone Sequence
@@ -615,7 +616,7 @@ Exit criteria:
 | M6.5      | CEM Studio PWA                                            | The browser workbench composes the stable CLI/WASM contract and parity-complete components; only UI absent from Angular Material may begin as Studio-specific.    |
 | M7        | Figma site demo plus matching web fixtures                | Full-flow demo proves the system across design and implementation.                                                                                                |
 | M8        | Native package hardening                                  | Native artifacts become product-grade once token/component semantics are stable.                                                                                  |
-| M9        | Release governance, CLI artifacts, and Studio publication | Formalize compatibility, preserve native binaries on tagged GitHub Releases, and publish the fixed-version npm/CLI/native/Studio family.                          |
+| M9        | Release governance, CLI artifacts, and Studio publication | Formalize compatibility, preserve release-scoped WASM/Linux assets on tagged GitHub Releases, and publish the fixed-version npm/CLI/native/Studio family.         |
 
 ## Near-Term Backlog
 

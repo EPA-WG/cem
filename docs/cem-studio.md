@@ -32,8 +32,8 @@ The recommended product shape is:
 - a deliberately small CLI platform matrix: WASM for Node, native Linux AMD64,
   native macOS ARM64 distributed through Homebrew, and native Windows AMD64;
 - a separate Nx subproject and deployment package for each of those three
-  native platform targets, with binaries preserved as tagged GitHub Release
-  assets;
+  native platform targets; only Linux is currently a tagged GitHub Release
+  unit, while macOS and Windows remain local validation targets;
 - a project/subproject explorer that owns data sets, resources, run
   configurations, conversions, queries, transformations, and transformation
   graphs;
@@ -59,7 +59,8 @@ The recommended product shape is:
 The common `cem_ml` project owns the authoritative product version. The WASM
 runtime npm package, CLI npm package, Studio npm/PWA package, and every native
 platform deployment package must be built from the same release commit and
-publish that exact CEM-ML version. Any semi-native package promoted from the
+report that exact CEM-ML version. Published units use the same version; macOS
+and Windows publication is deferred. Any semi-native package promoted from the
 wishlist joins the same release family. They do not version independently.
 
 The phrase “WASM version of the CLI” means portable browser and Node-hosted
@@ -108,16 +109,16 @@ without creating another semantic engine.
 
 ## Existing Workspace Foundation and Gaps
 
-| Existing asset                                                                                                                                    | Value to Studio                                                                      | Required gap work                                                                                                                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The `cem_ml` Rust crate is built as `cdylib` and `rlib`, and `@epa-wg/cem-ml` packages synchronized browser/Node bindings.                       | One semantic implementation reaches native and WASM through a policy-free deployment. | Extend the common WASM request surface to accepted operation parity; Studio must consume this package rather than bundle a private runtime.                                           |
-| The current WASM API exposes observers, resolver adapters, run-config normalization, input/output spec parsing, and bounded legacy conversion.    | Browser hosts already have event and resource-resolution seams.                      | Add typed parse, validate, inspect, convert, query, transform, trace, cancellation, and capability entry points. The current surface is not full CLI parity.                          |
-| `cem_ml_cli` implements parse, validate, check, inspect, convert, trace, bench, fixtures, transform, and query dispatch.                          | Defines proven user workflows and report projections.                                | Extract CLI-independent request execution into the library; do not import CLI arguments, terminal streams, or filesystem assumptions into WASM.                                       |
-| CEM-ML reports include diagnostics, parser stages, scheduler trace, conversion results, transform results, and transformation-graph results.      | Supplies rich browser result models.                                                 | Version the browser wire contract, bound payload sizes, and add incremental progress/cancellation semantics.                                                                          |
-| Schema packages register content types, examples, formatters, colorizers, queries, schemas, and transformations.                                  | Can generate the Feature Tour and capability catalog instead of hard-coding samples. | Emit a browser-consumable package/capability manifest and bundle only WASM-compatible artifacts.                                                                                      |
-| `@epa-wg/cem-components` supplies reusable TypeScript/light-DOM components and already depends on `@epa-wg/cem-elements` and `@epa-wg/cem-theme`. | Natural UI frame for the application.                                                | Add explicit package subpaths and Studio components without making application state or routing part of the component API.                                                            |
-| `@epa-wg/cem-theme` publishes semantic token CSS and theme modes.                                                                                 | Canonical visual system for Studio.                                                  | Add only genuinely reusable missing semantic tokens; keep Studio-only aliases in the Studio component stylesheet.                                                                     |
-| The current Nx fixed `cem` release group contains the theme/component/browser packages but not the proposed CEM-ML deployment projects.           | Existing fixed-version release automation is a useful pattern.                       | Add a distinct fixed `cem-ml-platform` release family whose version originates from `cem_ml` and is copied exactly to Studio, CLI npm, WASM npm, and every native deployment package. |
+| Existing asset                                                                                                                                    | Value to Studio                                                                       | Required gap work                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The `cem_ml` Rust crate is built as `cdylib` and `rlib`, and `@epa-wg/cem-ml` packages synchronized browser/Node bindings.                        | One semantic implementation reaches native and WASM through a policy-free deployment. | Extend the common WASM request surface to accepted operation parity; Studio must consume this package rather than bundle a private runtime.                                           |
+| The current WASM API exposes observers, resolver adapters, run-config normalization, input/output spec parsing, and bounded legacy conversion.    | Browser hosts already have event and resource-resolution seams.                       | Add typed parse, validate, inspect, convert, query, transform, trace, cancellation, and capability entry points. The current surface is not full CLI parity.                          |
+| `cem_ml_cli` implements parse, validate, check, inspect, convert, trace, bench, fixtures, transform, and query dispatch.                          | Defines proven user workflows and report projections.                                 | Extract CLI-independent request execution into the library; do not import CLI arguments, terminal streams, or filesystem assumptions into WASM.                                       |
+| CEM-ML reports include diagnostics, parser stages, scheduler trace, conversion results, transform results, and transformation-graph results.      | Supplies rich browser result models.                                                  | Version the browser wire contract, bound payload sizes, and add incremental progress/cancellation semantics.                                                                          |
+| Schema packages register content types, examples, formatters, colorizers, queries, schemas, and transformations.                                  | Can generate the Feature Tour and capability catalog instead of hard-coding samples.  | Emit a browser-consumable package/capability manifest and bundle only WASM-compatible artifacts.                                                                                      |
+| `@epa-wg/cem-components` supplies reusable TypeScript/light-DOM components and already depends on `@epa-wg/cem-elements` and `@epa-wg/cem-theme`. | Natural UI frame for the application.                                                 | Add explicit package subpaths and Studio components without making application state or routing part of the component API.                                                            |
+| `@epa-wg/cem-theme` publishes semantic token CSS and theme modes.                                                                                 | Canonical visual system for Studio.                                                   | Add only genuinely reusable missing semantic tokens; keep Studio-only aliases in the Studio component stylesheet.                                                                     |
+| The current Nx fixed `cem` release group contains the theme/component/browser packages but not the proposed CEM-ML deployment projects.           | Existing fixed-version release automation is a useful pattern.                        | Add a distinct fixed `cem-ml-platform` release family whose version originates from `cem_ml` and is copied exactly to Studio, CLI npm, WASM npm, and every native deployment package. |
 
 Relevant local contracts include the
 [`cem-ml` CLI feature summary](./cem-ml-cli-contract.md),
@@ -409,30 +410,29 @@ fixed-version platform release.
 The common `cem_ml_cli` project owns platform-neutral native CLI source and
 dispatch, but it is not itself a deployment package. Each of the three supported
 native targets has an explicit Nx deployment subproject that cross-compiles or
-natively compiles, packages, signs, verifies, and publishes only that target's
-artifacts.
+natively compiles, packages, signs, and verifies only that target's artifacts.
+Publication scope is narrower than the development matrix.
 
-| Deployment subproject             | Rust target                | Required artifacts/channel inputs                                                                       |
-| --------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `cem_ml_cli_native_linux_amd64`   | `x86_64-unknown-linux-gnu` | Tagged GitHub Release archive, `.deb`, APT metadata, checksum/signature, SBOM, and provenance.          |
-| `cem_ml_cli_native_brew_arm64`    | `aarch64-apple-darwin`     | Tagged GitHub Release archive, Homebrew formula/tap metadata, checksum/signature, SBOM, and provenance. |
-| `cem_ml_cli_native_windows_amd64` | `x86_64-pc-windows-msvc`   | Tagged GitHub Release `.zip`, installer/package metadata, checksum/signature, SBOM, and provenance.     |
+| Deployment subproject             | Rust target                | Required artifacts/channel inputs                                                              |
+| --------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- |
+| `cem_ml_cli_native_linux_amd64`   | `x86_64-unknown-linux-gnu` | Tagged GitHub Release archive, `.deb`, APT metadata, checksum/signature, SBOM, and provenance. |
+| `cem_ml_cli_native_brew_arm64`    | `aarch64-apple-darwin`     | Local archive and Homebrew projection validation; release publication deferred.                |
+| `cem_ml_cli_native_windows_amd64` | `x86_64-pc-windows-msvc`   | Local ZIP/MSI and WinGet projection validation; release publication deferred.                  |
 
-Each platform project owns or produces the immutable inputs for its distribution
-channel. An APT repository index or Homebrew tap may be a thin aggregation
-project, but it consumes the corresponding platform project's artifact and exact
-common version; it must not rebuild the binary or introduce another version.
+Each platform project owns or produces the inputs for its potential distribution
+channel. The active APT repository is a thin aggregation project that consumes
+the Linux artifact and exact common version; it must not rebuild the binary or
+introduce another version. Homebrew and WinGet outputs are validation-only.
 
-Every published native CLI binary/archive must also be preserved as an asset on
-the tagged GitHub Release for the common CEM-ML version. Asset names include the
-version, operating system, architecture, and ABI where relevant. Checksums,
-signatures, SBOMs, provenance, and a release index are uploaded beside the
-binaries. Package-manager definitions resolve these immutable versioned assets,
-not a mutable “latest” build URL. The complete asset set is staged before the
-release is published; immutable releases should be enabled where available, and
-a published binary is never replaced or deleted. Corrections use a new common
-version. GitHub Releases are explicitly designed to package tagged software with
-downloadable binary assets
+The published Linux CLI binary/archive is preserved as an asset on the tagged
+GitHub Release for the common CEM-ML version. Asset names include the version,
+operating system, architecture, and ABI where relevant. Checksums, signatures,
+SBOMs, provenance, and a release index are uploaded beside it and the WASM/npm
+units. APT resolves these immutable versioned assets, not a mutable “latest”
+build URL. The complete three-unit set is staged before publication, and a
+published binary is never replaced or deleted. Corrections use a new common
+version. GitHub Releases are explicitly designed to package tagged software
+with downloadable binary assets
 ([GitHub Releases documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases));
 GitHub's release-management guidance describes staging assets in a draft before
 making a release immutable
@@ -508,8 +508,9 @@ projects must preserve:
 - parity fixtures and explicit expected native-only capability differences;
 - immutable checksums/provenance linking every deployment artifact to the same
   source commit and common version;
-- durable tagged GitHub Release assets for every native and promoted semi-native
-  binary, with package channels resolving those versioned assets;
+- durable tagged GitHub Release assets for every release-scoped native or
+  promoted semi-native binary, with active package channels resolving those
+  versioned assets;
 - no automatic fallback between native, npm/WASM, and semi-native runtime
   families; and
 - no use of runtime-specific output as an undocumented interchange contract.
@@ -1262,8 +1263,9 @@ service merely for telemetry, installation, or account login.
     Homebrew ARM64, and Windows AMD64 deployment subprojects independently;
     verify target identity, archive/package contents, checksums/signatures,
     machine version/capability output, and install/upgrade/uninstall on that
-    exact OS/architecture/ABI. Verify every binary and its integrity/provenance
-    companions appear on the matching tagged GitHub Release.
+    exact OS/architecture/ABI. Verify the release-scoped Linux binary and its
+    integrity/provenance companions appear on the matching tagged GitHub
+    Release; macOS and Windows remain local validation targets.
 11. **Release-family tests:** before promotion, verify that every npm package,
     native target artifact, package-manager projection, capability manifest,
     service-worker build id, checksum, SBOM, and provenance record contains the
@@ -1298,9 +1300,9 @@ or todo list by itself.
 6. **Native target deployment projects.** Establish exactly three initial Nx
    subprojects: Linux AMD64, macOS ARM64 through Homebrew, and Windows AMD64.
    Produce independently signed/checksummed artifacts and platform package
-   metadata, preserve the binaries and integrity/provenance companions on the
-   tagged GitHub Release, and use thin APT or Homebrew index aggregation where
-   required.
+   metadata. Preserve Linux plus its integrity/provenance companions on the
+   tagged GitHub Release and use thin APT aggregation; keep macOS/Homebrew and
+   Windows/WinGet projections local until their distribution scope is promoted.
 7. **Worker engine client.** Implement initialization, request/progress/result,
    transfers, cancellation, stale-result rejection, lazy payloads, restart, and
    JS resolver adapters in `@epa-wg/cem-ml-cli/browser`.
@@ -1369,9 +1371,10 @@ or todo list by itself.
   subproject and deployment package, all stamped with the exact common version.
 - The initial CLI support matrix contains only WASM for Node, Linux AMD64,
   Homebrew ARM64, and Windows AMD64.
-- Every native binary is preserved as a versioned asset on the tagged GitHub
-  Release with its checksum, signature, SBOM, provenance, and target identity;
-  package-manager projections resolve those immutable assets.
+- The Linux native binary is preserved as a versioned asset on the tagged
+  GitHub Release with its checksum, signature, SBOM, provenance, and target
+  identity. macOS and Windows release publication is deferred, and their
+  package-manager projections remain local validation output.
 - Target-specific executables that bundle Node plus WASM through Node SEA are a
   wishlist item and remain `wasm-node`-derived rather than native Rust. Archived,
   deprecated `pkg` is only a comparison or migration reference.
