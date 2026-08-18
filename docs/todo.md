@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Lock the package-private Phase 3A processing-host API before moving canonical
-CEM-ML/CEM-QL compilation and rendering from main-thread WASM into the selected
-single dedicated worker with deterministic fallback.
+Implement the smallest worker-backed Phase 3A browser vertical slice behind the
+locked package-private processing-host API, with deterministic main-thread fallback
+and commit-safe retry behavior.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -102,22 +102,30 @@ registration identities may reuse an inherited or existing definition.
       inherited reuse, incompatible inherited/CEM/foreign browser collisions, and
       missing behavior identity without registry mutation.
 
-- [ ] Lock the Phase 3A processing-host and worker/fallback transition API.
-    - [ ] Decide whether the single dedicated worker is owned per logical root scope,
+- [x] Lock the Phase 3A processing-host and worker/fallback transition API.
+    - [x] Decide whether the single dedicated worker is owned per logical root scope,
           per `CemElementRuntime`, or per browser `Document`. Recommended: per logical
           root scope so explicit child scopes share retained compatible artifacts and
           independent roots remain isolated.
-    - [ ] Define versioned structured-clone request/response envelopes with monotonic
+    - [x] Define versioned structured-clone request/response envelopes with monotonic
           job IDs, full render revisions, diagnostics, retained artifact/plan handles,
           and explicit cancel/dispose messages.
-    - [ ] Define the worker construction seam for bundlers, CSP hosts, and browser
+    - [x] Define the worker construction seam for bundlers, CSP hosts, and browser
           tests. Recommended: an injectable module-worker factory with a package
           default, not a public worker instance or ambient global override.
-    - [ ] Define deterministic startup-failure and post-handshake execution-failure
+    - [x] Define deterministic startup-failure and post-handshake execution-failure
           transitions to the same main-thread host interface, including which jobs
           may be retried and how duplicate commits are prevented.
-    - [ ] Promote the accepted host lifecycle and transition table into the design
+    - [x] Promote the accepted host lifecycle and transition table into the design
           before creating the worker/fallback browser fixture.
+    - Completed 2026-08-18: adopted one package-private host per logical root,
+      `cem-processing-host-v1` clone-safe envelopes with monotonic IDs and retained
+      handles, the shared compile/render-diff/cancel/dispose interface, and an
+      injectable module-worker factory with a package default. The pure transition
+      core retries compile and pre-commit render work exactly once through fallback,
+      aborts begun transactions under a fresh `renderAttempt`, preserves committed
+      jobs without replay, and suppresses late worker results; 9 focused cases pass
+      within all 109 `cem-elements:test:unit` tests.
 
 - [ ] Implement the smallest tests-first Phase 3A browser vertical slice.
     - [x] Register one inline `<cem-element>` declaration under the locked name

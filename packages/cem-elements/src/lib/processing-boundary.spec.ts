@@ -68,6 +68,7 @@ describe('host processing boundary contracts', () => {
             },
         });
         expectPlainBoundaryValue(exported);
+        expect(exported.renderAttempt).toBe(2);
         expect((exported.formData as Record<string, unknown>).signin).toEqual({ username: 'ada' });
         expect((exported.slices as Record<string, unknown>).date).toBe('2026-06-17T00:00:00.000Z');
         expect((exported.slices as Record<string, unknown>).klass).toEqual({ value: 'class-value' });
@@ -476,6 +477,7 @@ function snapshotFixture(): DataIslandSnapshot {
         declarationTag: 'cem-element-boundary',
         templateArtifactId: 'boundary-template-1',
         dataRevision: '1',
+        renderAttempt: 2,
         outputTarget: 'light-dom',
         sourceMapMode: 'dev',
         scopePolicyStamp: 'boundary-scope',

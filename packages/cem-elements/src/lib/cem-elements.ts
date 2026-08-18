@@ -192,6 +192,7 @@ export interface DataIslandSnapshot {
     declarationTag: string;
     templateArtifactId: string;
     dataRevision: string;
+    renderAttempt?: number;
     outputTarget: 'light-dom';
     /** Optional during the expand phase: older SSR snapshots predate source-map-mode hydration checks. */
     sourceMapMode?: SourceMapMode;
@@ -225,6 +226,7 @@ export type ExportedDataIslandSnapshot = Pick<
     | 'declarationTag'
     | 'templateArtifactId'
     | 'dataRevision'
+    | 'renderAttempt'
     | 'outputTarget'
     | 'sourceMapMode'
     | 'scopePolicyStamp'
@@ -952,6 +954,7 @@ export function exportDataIslandSnapshotForEdge(
         privacyPolicyStamp: policy.privacyPolicyStamp ?? snapshot.privacyPolicyStamp,
     };
     if (snapshot.version !== undefined) exported.version = snapshot.version;
+    if (snapshot.renderAttempt !== undefined) exported.renderAttempt = snapshot.renderAttempt;
     if (snapshot.sourceMapMode !== undefined) exported.sourceMapMode = snapshot.sourceMapMode;
     for (const field of DATA_ISLAND_EXPORT_FIELDS) {
         const decision = policy.fields?.[field] ?? 'omit';

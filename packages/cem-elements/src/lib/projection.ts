@@ -102,6 +102,7 @@ export interface RenderPlan {
     instanceId: string;
     templateArtifactId: string;
     dataRevision: string;
+    renderAttempt?: number;
     outputTarget: 'light-dom';
     scopePolicyStamp: string;
     nodes: RenderPlanNode[];
@@ -183,6 +184,7 @@ export interface RenderRevision {
     templateArtifactId: string;
     scopePolicyStamp: string;
     outputTarget: 'light-dom';
+    renderAttempt?: number;
 }
 
 export interface RenderPlanIdentity extends RenderRevision {
@@ -390,6 +392,7 @@ export interface TemplateProjectionSnapshot {
     producedTag: string;
     templateArtifactId: string;
     dataRevision: string;
+    renderAttempt?: number;
     outputTarget: 'light-dom';
     scopePolicyStamp: string;
     hostAttributes: Record<string, string | boolean | null>;
@@ -474,6 +477,7 @@ export function renderPlanIdentity(plan: RenderPlan): RenderPlanIdentity {
         templateArtifactId: plan.templateArtifactId,
         scopePolicyStamp: plan.scopePolicyStamp,
         outputTarget: plan.outputTarget,
+        ...(plan.renderAttempt === undefined ? {} : { renderAttempt: plan.renderAttempt }),
     };
 }
 
@@ -850,6 +854,7 @@ function projectTemplateWith(
         instanceId: input.snapshot.instanceId,
         templateArtifactId: input.snapshot.templateArtifactId,
         dataRevision: input.snapshot.dataRevision,
+        ...(input.snapshot.renderAttempt === undefined ? {} : { renderAttempt: input.snapshot.renderAttempt }),
         outputTarget: input.snapshot.outputTarget,
         scopePolicyStamp: input.snapshot.scopePolicyStamp,
         nodes,
@@ -2212,6 +2217,7 @@ function renderRevisionKey(revision: RenderRevision): string {
         revision.templateArtifactId,
         revision.scopePolicyStamp,
         revision.outputTarget,
+        revision.renderAttempt ?? 0,
     ].join(':');
 }
 
@@ -2222,6 +2228,7 @@ function patchTransactionId(plan: RenderPlan): string {
         plan.templateArtifactId,
         plan.dataRevision,
         plan.scopePolicyStamp,
+        plan.renderAttempt ?? 0,
     ].join(':');
 }
 

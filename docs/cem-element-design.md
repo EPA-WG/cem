@@ -912,6 +912,61 @@ non-threaded dedicated worker path; when workers are unavailable or fail startup
 runtime falls back to main-thread WASM. Worker-backed and main-thread fallback modes
 MUST share the same observable behavior.
 
+### 4.4 Phase 3A processing-host lifecycle
+
+The package-private Phase 3A host contract lives in
+`packages/cem-elements/src/lib/internal/runtime-support/processing-host.ts`. It is
+not exported from the package entry point. The worker primary and main-thread WASM
+fallback implement the same `compile`, `renderDiff`, `cancel`, and `dispose`
+interface, and both return the same artifact handles, render-plan handles,
+diagnostics, revisions, and patch frames.
+
+One processing host is owned by each logical **root** `CemDeclarationScope`. An
+explicit child scope resolves its nearest declarations as specified in §3, but shares
+its root's host and retained compatible artifacts. Two independent roots remain
+isolated even when they belong to the same `Document`; a `CemElementRuntime` does not
+own an additional worker. Disposing the root cancels its pending work, releases its
+retained handles, sends the host `dispose` operation, and terminates the worker after
+the dispose response or transport failure.
+
+Every control message uses the `cem-processing-host-v1` structured-clone envelope.
+Requests carry a positive, monotonically increasing, host-assigned `jobId`; responses
+echo that ID. The ID is correlation and duplicate-suppression state, not render order.
+A retry always receives a new job ID. Render requests and successful responses carry
+the complete `RenderRevision`, including `renderAttempt` when present, while retained
+state crosses as a `CemProcessingArtifactHandle` or
+`CemProcessingRenderPlanHandle`. `cancel` names its target job ID; `dispose` is itself
+an ordered job. Messages that have the wrong protocol version, invalid job ID, unknown
+operation, or non-plain transport value fail before engine execution.
+
+Worker construction is an injection seam rather than a public worker instance or
+ambient override. The package default calls `new Worker(scriptUrl, { type: "module",
+name })`; bundlers, CSP-constrained hosts, and browser fixtures may inject the same
+factory signature with their resolved module URL. The injected value creates a worker
+and does not replace the semantic processing host.
+
+The host moves through `worker-starting`, `worker-ready`, `main-thread-ready`, and
+`disposed`. A startup or post-handshake worker failure selects the main-thread host at
+most once, ignores all later responses from the failed worker generation, and emits
+one stable transition diagnostic (`cem.processing_host.worker_startup_fallback` or
+`cem.processing_host.worker_execution_fallback`). A failure of the fallback host is
+reported to the caller; it never re-enters the failed worker.
+
+| Failed worker work | Main-thread transition | Replay rule |
+|---|---|---|
+| Startup or execution-time `compile` | Select fallback and allocate a new job ID. | Retry because compilation has no UI commit. |
+| `renderDiff` before a patch transaction begins | Select fallback and allocate a new job ID. | Retry the same full revision and attempt. |
+| `renderDiff` after `begin`/`ops`, before `commit` | Abort the buffered UI-adapter transaction, select fallback, allocate a new job ID, and increment `renderAttempt`. | Retry as a fresh attempt; no partial DOM mutation exists before commit. |
+| `renderDiff` after the UI adapter commits | Select fallback for later work and preserve the committed result. | Never replay the committed job. |
+| `cancel` | Select fallback for later work and complete the failed control request locally. | Never replay the control request. |
+| `dispose` | Terminate the failed worker and enter `disposed`. | Never recreate a host or replay disposal for that root. |
+| Any late failure/response after fallback selection | Ignore the failed worker generation. | Never emit a second transition diagnostic or retry twice. |
+
+This table is the duplicate-commit boundary. Patch frames remain buffered on the main
+thread until commit as specified in §4.2; a begun transaction can therefore be
+aborted without rolling back DOM. Once commit mutates the owned light-DOM range, the
+job is terminal even if its worker completion notification is subsequently lost.
+
 ## 5. Data-island isolation guarantees
 
 The declaration `<template>` wrapper makes template source inert. The produced

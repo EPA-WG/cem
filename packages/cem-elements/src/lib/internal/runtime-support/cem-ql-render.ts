@@ -57,6 +57,7 @@ export interface CemMlTemplateProcessingIdentity {
     instanceId: string;
     templateArtifactId: string;
     dataRevision: string;
+    renderAttempt?: number;
     outputTarget: 'light-dom';
     scopePolicyStamp: string;
 }
