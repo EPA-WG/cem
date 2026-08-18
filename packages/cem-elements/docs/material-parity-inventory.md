@@ -106,6 +106,12 @@ the manifest dependencies, exercise local and external declarations, module URL 
 slots, data payloads, and migrated slice interactions, and keep the legacy/CEM behavior assertions one-to-one. The
 material fixture directory is an explicit `cem-elements:test` and `build-storybook` Nx input.
 
+Every legacy and CEM-ML side also passes the shared Phase 3 runtime accessibility audit. The input and autocomplete
+cases exercise their existing named-input extension point with an explicitly named native input, so the unchanged
+legacy fixture sources meet the accessible-name contract. The action and dropdown cases activate their native button
+and prove the migrated state before the audit checks names, native roles, focus/tab-stop ownership, ID and ARIA
+references, reflected ARIA values, and image alternatives.
+
 **Recommended sequencing implied by this inventory:**
 
 1. Scoped-style containment remains bridge/adoption work; keep the production gate pinned to explicit light-DOM,

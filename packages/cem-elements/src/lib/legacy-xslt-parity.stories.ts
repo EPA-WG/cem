@@ -24,6 +24,7 @@ import sliceEventsCemFixture from '../../tests/parity/legacy/slice-events.cem.ht
 import sliceEventsLegacyFixture from '../../tests/parity/legacy/slice-events.legacy.html?raw';
 import slotsCemFixture from '../../tests/parity/legacy/slots.cem.html?raw';
 import slotsLegacyFixture from '../../tests/parity/legacy/slots.legacy.html?raw';
+import { assertPhase3Accessibility } from '../../.storybook/accessibility-contract.js';
 import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 
 /**
@@ -571,6 +572,8 @@ function assertFileParity(
     }
     assertFileExpectations(state.legacy, expectations, `${state.id} legacy ${phase}`);
     assertFileExpectations(state.cemMl, expectations, `${state.id} CEM-ML ${phase}`);
+    assertPhase3Accessibility(state.legacy.instances, `${state.id} legacy ${phase}`);
+    assertPhase3Accessibility(state.cemMl.instances, `${state.id} CEM-ML ${phase}`);
 }
 
 function assertFileExpectations(

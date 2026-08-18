@@ -227,8 +227,18 @@ registration identities may reuse an inherited or existing definition.
               rendered projection. Worker, startup-fallback, and
               execution-fallback rerenders preserve the same island boundary;
               Storybook Chromium passes all 118 tests.
-        - [ ] Enforce the Phase 3 accessibility contract across the complete
+        - [x] Enforce the Phase 3 accessibility contract across the complete
               legacy and material browser inventories.
+              Completed 2026-08-18: one cross-document browser audit now runs
+              over all 12 legacy/CEM pairs and all 8 isolated material/CEM
+              pairs (40 rendered sides), including every legacy post-mutation
+              and post-event checkpoint. It enforces accessible names, native
+              roles and focusability, single-tab-stop ownership, unique IDs,
+              resolved label/ARIA references, valid reflected ARIA state, and
+              image alternatives. Material action/disclosure cases additionally
+              exercise native activation and reflected state; named authored
+              inputs keep the unchanged legacy input/autocomplete fixture bytes
+              conformant. Storybook Chromium passes all 118 tests.
         - [ ] Include every parity fixture in the Phase 2 CLI validation,
               end-to-end, and benchmark aggregate gates.
     - [ ] Add the Phase 3B scope-policy worker pool, content-addressed cache, and

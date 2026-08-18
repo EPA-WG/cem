@@ -71,6 +71,11 @@ CEM-ML light DOM one-to-one, exercise the fixture's invalidation/event action wh
 declaration-shape rejection cases. The fixture directory is an explicit `cem-elements:test` and `build-storybook`
 Nx input, so an HTML fixture edit invalidates the browser evidence cache.
 
+Each legacy and CEM-ML side passes the same Phase 3 runtime accessibility audit at initial render and again after
+the fixture's mutation or event checkpoint. Across the inventory it enforces accessible names, native roles and
+focusability, single-tab-stop ownership, unique IDs, resolved label/ARIA references, valid reflected ARIA values,
+and image alternatives.
+
 The current bridge proves that fixture-bounded legacy HTML+XSLT can be compiled through the shared CEM engine path to
 canonical CEM-ML and rendered through `cem_ql` WASM. Passing the aggregate gate means the `<cem-element>` browser
 substrate is eligible for the Phase 3.5 Edge/SSR follow-up; it does not mean the old `@epa-wg/custom-element` package

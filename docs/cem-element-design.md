@@ -1101,7 +1101,10 @@ not silently dropped.
    under the same `nx run cem_ml:bench` discipline.
 6. **A11y.** The accessibility contract from
    [`packages/cem-components/docs/accessibility.md`](../packages/cem-components/docs/accessibility.md)
-   is verified end-to-end on the material parity fixtures.
+   is verified end-to-end on the material parity fixtures. The file-backed
+   Storybook harness runs the applicable runtime contract over all 40 rendered
+   legacy/CEM and material/CEM sides, including post-mutation and post-event
+   states; Chromium currently passes all 118 browser cases.
 
 When (1)–(6) are green, the `cem-element` browser substrate is ready for the separate
 Edge/SSR follow-up phase. The next-major `@epa-wg/custom-element` adoption waits until

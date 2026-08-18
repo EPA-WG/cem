@@ -15,6 +15,10 @@ import inputCemFixture from '../../tests/parity/material/input.cem.html?raw';
 import inputLegacyFixture from '../../tests/parity/material/input.legacy.html?raw';
 import menuCemFixture from '../../tests/parity/material/menu.cem.html?raw';
 import menuLegacyFixture from '../../tests/parity/material/menu.legacy.html?raw';
+import {
+    accessibleName,
+    assertPhase3Accessibility,
+} from '../../.storybook/accessibility-contract.js';
 import { CemElementRuntime } from './cem-elements.js';
 
 /**
@@ -209,7 +213,7 @@ const materialFixtures: Record<MaterialId, MaterialFixtureDefinition> = {
         },
         async assertMigration(instance, mode) {
             if (mode !== 'cem-ml') return;
-            requiredElement(instance, 'button').dispatchEvent(new Event('click', { bubbles: true }));
+            (requiredElement(instance, 'button') as HTMLButtonElement).click();
             await waitForCondition(
                 () => instance.querySelector('.state')?.textContent?.trim() === 'on',
                 'CEM-ML action migration updates its pressed slice'
@@ -235,7 +239,7 @@ const materialFixtures: Record<MaterialId, MaterialFixtureDefinition> = {
             }
             const button = await waitForElement(instance, 'button');
             assertEqual(button.getAttribute('aria-expanded'), 'false', 'migrated dropdown starts closed');
-            button.dispatchEvent(new Event('click', { bubbles: true }));
+            (button as HTMLButtonElement).click();
             const panel = await waitForElement(instance, '.panel');
             assertEqual(panel.querySelector('a')?.textContent?.trim(), 'New', 'migrated dropdown opens its items');
             assertEqual(
@@ -249,11 +253,14 @@ const materialFixtures: Record<MaterialId, MaterialFixtureDefinition> = {
         id: 'input',
         ...fixtureSources.input,
         attributes: { type: 'email', value: 'a@b.com' },
-        payload: '<span slot="label">Email</span>',
+        payload:
+            '<span slot="label">Email</span>' +
+            '<input slot="input" type="email" aria-label="Email" value="a@b.com" />',
         async assertShared(instance) {
             const input = await waitForElement(instance, 'input');
             assertEqual(input.getAttribute('type'), 'email', 'input forwards its type');
             assertEqual(input.getAttribute('value'), 'a@b.com', 'input forwards its value');
+            assertEqual(accessibleName(input), 'Email', 'input exposes its accessible name');
             assert(instance.textContent?.includes('Email'), 'input projects its named label slot');
         },
     },
@@ -261,10 +268,16 @@ const materialFixtures: Record<MaterialId, MaterialFixtureDefinition> = {
         id: 'autocomplete',
         ...fixtureSources.autocomplete,
         attributes: { value: 'a', label: 'Search fruit' },
-        payload: '<data value="apple">Apple</data><data value="banana">Banana</data>',
+        payload:
+            '<cem-input slot="input" label="Search fruit" value="a">' +
+            '<span slot="label">Search fruit</span>' +
+            '<input slot="input" type="text" aria-label="Search fruit" value="a" />' +
+            '</cem-input>' +
+            '<data value="apple">Apple</data><data value="banana">Banana</data>',
         async assertShared(instance) {
-            await waitForElement(instance, 'cem-input input');
-            assert(instance.textContent !== null, 'autocomplete composes its input dependency');
+            const input = await waitForElement(instance, 'cem-input input');
+            assertEqual(input.getAttribute('value'), 'a', 'autocomplete projects its authored input value');
+            assertEqual(accessibleName(input), 'Search fruit', 'autocomplete exposes its input name');
         },
         async assertMigration(instance, mode) {
             if (mode !== 'cem-ml') return;
@@ -314,6 +327,8 @@ function materialFileStory(fixture: MaterialFixtureDefinition): Story {
             await fixture.assertShared(cemMl.instance, 'cem-ml');
             await fixture.assertMigration?.(legacy.instance, 'legacy');
             await fixture.assertMigration?.(cemMl.instance, 'cem-ml');
+            assertPhase3Accessibility([legacy.instance], `${fixture.id} legacy material parity`);
+            assertPhase3Accessibility([cemMl.instance], `${fixture.id} CEM-ML material parity`);
 
             assert(
                 legacy.document.defaultView?.customElements.get(fixture.tag),

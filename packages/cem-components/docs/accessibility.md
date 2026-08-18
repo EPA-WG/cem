@@ -374,6 +374,11 @@ strip it.
   the runtime side through browser-backed assertions for light-DOM output,
   component events, accessible names, ARIA/reference integrity, focus indicators,
   deterministic visual snapshots, and a Chromium screenshot smoke path.
+- The file-backed Phase 3 parity harness applies one cross-document runtime audit
+  to all 12 legacy/CEM pairs and both isolated documents for all 8 material/CEM
+  pairs. It checks the applicable name, native-role, focus, tab-stop, ID/reference,
+  reflected-ARIA, and image-alternative rules after rendering and again after any
+  fixture mutation or event-driven state change.
 
 ## 12. AC and design references
 
