@@ -1,4 +1,12 @@
 export * from './lib/cem-elements.js';
+export {
+    CemDeclarationScopeError,
+    createCemDeclarationScope,
+    getDefaultCemDeclarationScope,
+    type CemDeclarationScope,
+    type CemDeclarationScopeErrorCode,
+    type CemDeclarationScopeOptions,
+} from './lib/declaration-scope.js';
 export * from './lib/legacy-xslt/contract.js';
 // The CEM-owned legacy HTML+XSLT compiler (cem_ml engine via the cem_ql WASM module), shared by the
 // browser runtime, SSR, and fixture gates.

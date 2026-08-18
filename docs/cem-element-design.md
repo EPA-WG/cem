@@ -112,6 +112,36 @@ pure so duplicate and collision decisions can be verified before the browser
 registry is mutated. The Phase 3 substrate audit must wire runtime registration to
 that accepted decision core rather than maintaining a second policy.
 
+The logical-scope host API is `CemDeclarationScope` plus
+`createCemDeclarationScope()` and `getDefaultCemDeclarationScope()`:
+
+- A scope is an opaque object. Its object identity is its scope identity; callers do
+  not provide or serialize an ID.
+- `getDefaultCemDeclarationScope(document)` returns one weakly held root per
+  `Document`. A disposed default root is replaced on the next request.
+- `createCemDeclarationScope({ document, parent })` creates an explicit root or
+  child. Parentage is immutable, the optional parent must own the same `Document`,
+  and no scope relationship is inferred from declaration-element or arbitrary DOM
+  ancestry.
+- Inline and external declarations use the same selected runtime scope. Logical
+  lookup reports a same-scope binding separately from the nearest inherited binding
+  so `analyzeDeclarationRegistration()` remains the only collision-policy decision
+  core. A compatible inherited declaration is committed to the child as an alias of
+  the inherited declaration and constructor, not as a second compiled definition.
+- `dispose()` is idempotent. It clears that scope's logical declaration ownership
+  and makes the scope, plus descendants that still name it as an ancestor, invalid
+  for future lookup or registration. It does not and cannot remove a constructor
+  from the document-global `customElements` registry; already-defined constructors
+  and upgraded instances retain normal browser lifetime.
+- `scopePolicyStamp` is not a scope identifier. It remains independently versioned
+  processing, resolver, privacy, and cache-policy metadata.
+
+The construction, ancestry, lookup, and disposal contract is executable in the
+pure declaration-scope tests. Runtime association is intentionally not implicit:
+`CemElementRuntime` wiring must first finish stable registration-identity derivation
+for the optional browser behavior adapter, whose function callbacks cannot be
+content-addressed safely by inspecting JavaScript source text.
+
 A `<cem-element>` declaration has one direct child: the WHATWG `<template>` that
 contains the declaration's CEM-ML template source. This declaration template is not
 the mutable runtime data island. The custom element instances produced by the

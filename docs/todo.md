@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Define the logical declaration-scope host API identified by the completed
-[`Phase 3 substrate audit`](cem-elements-phase3-substrate-audit.md) before wiring
-the locked registration decision core into `CemElementRuntime`.
+Lock the stable identity of registrations carrying opt-in browser behavior before
+wiring the completed logical declaration-scope host foundation and registration
+decision core into `CemElementRuntime`.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -72,21 +72,33 @@ registration identities may reuse an inherited or existing definition.
       creating any new fixture.
 
 - [ ] Lock the logical declaration-scope host API required by runtime registration.
-    - [ ] Decide how a host creates an explicit scope, supplies its optional parent,
-          and associates inline and external declarations with it. Recommended:
-          runtime-owned scope objects, one default root per `Document`, explicit
-          host/parser parents, and no inference from arbitrary DOM ancestry.
-    - [ ] Define scope identity, document ownership, parent compatibility, lifetime,
+    - [x] Decide how a host creates an explicit scope and supplies its optional
+          parent: opaque runtime-owned scope objects, one default root per
+          `Document`, explicit same-document host/parser parents, and no inference
+          from arbitrary DOM ancestry.
+    - [ ] Associate both inline and external runtime declarations with the selected
+          explicit scope or their document's default root.
+    - [x] Define scope identity, document ownership, parent compatibility, lifetime,
           and disposal without conflating the scope with `scopePolicyStamp`.
-    - [ ] Define how identical inherited registrations reuse the parent declaration
+    - [x] Define how identical inherited registrations reuse the parent declaration
           and document-global constructor while same-scope duplicates and
           incompatible shadows fail before browser mutation.
-    - [ ] Promote the accepted API and lifecycle into
+    - [x] Promote the accepted API and lifecycle into
           `docs/cem-element-design.md` and focused pure contract tests.
+    - [ ] Lock registration-identity derivation for `CemProducedElementBehavior`.
+          Recommended: require a non-empty host `behaviorIdentity` when behavior is
+          supplied, include it with tag/source/language in the content address, and
+          reject callback-source hashing or implicit object-identity reuse.
     - [ ] Add the audit-identified browser registration-scope fixture only after the
           API is locked; prove same-scope failure, identical inherited reuse, and
           incompatible inherited/browser collisions without adding unrelated parity
           fixtures.
+    - Completed foundation 2026-08-18: `CemDeclarationScope`,
+      `createCemDeclarationScope()`, and `getDefaultCemDeclarationScope()` now lock
+      opaque identity, weakly held document roots, explicit immutable parents,
+      nearest inherited lookup, alias binding, and idempotent logical disposal in 4
+      focused cases (98 total `cem-elements:test:unit` tests). Runtime association
+      stops at the behavior-identity decision above.
 
 - [ ] Implement the smallest tests-first Phase 3A browser vertical slice.
     - [ ] Register one inline `<cem-element>` declaration under the locked name
