@@ -1007,6 +1007,14 @@ inert. Together they make the following true without author effort:
   upgrade that payload is captured into the instance data-island template and stops
   affecting the UI directly.
 
+Executable browser evidence lives in `DeclarationAndDataIslandIsolationMatrix`.
+It places declaration source and captured payload inside a live form, then verifies
+selector/tag-collection, layout/style, visible-text, form-data, and focus/document
+exclusion while the rendered projection remains active. The
+`ProcessingWorkerAndMainThreadFallback` story additionally proves that worker,
+startup-fallback, and execution-fallback patches preserve the same island boundary
+node.
+
 ## 6. Compatibility & migration
 
 ### 6.1 `@epa-wg/custom-element` adoption sequencing

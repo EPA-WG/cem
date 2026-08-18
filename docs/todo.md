@@ -218,8 +218,15 @@ registration identities may reuse an inherited or existing definition.
               manifest-ordered dependencies, local/external declarations,
               module URLs, composition, slots, data payloads, and migrated
               slice interactions pass within Storybook Chromium 117/117.
-        - [ ] Prove raw declaration templates and captured data islands remain
+        - [x] Prove raw declaration templates and captured data islands remain
               inert to layout, selectors, forms, accessibility, and visible text.
+              Completed 2026-08-18: the browser isolation matrix places both
+              raw sources inside a live form and proves query/tag collections,
+              layout boxes, active styles, visible text, form ownership/data,
+              focus, and document/accessibility exposure contain only the
+              rendered projection. Worker, startup-fallback, and
+              execution-fallback rerenders preserve the same island boundary;
+              Storybook Chromium passes all 118 tests.
         - [ ] Enforce the Phase 3 accessibility contract across the complete
               legacy and material browser inventories.
         - [ ] Include every parity fixture in the Phase 2 CLI validation,

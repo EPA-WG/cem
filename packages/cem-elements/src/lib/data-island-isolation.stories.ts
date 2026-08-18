@@ -172,6 +172,153 @@ export const DeclarationElementRendersNoVisibleContent: Story = {
     },
 };
 
+export const DeclarationAndDataIslandIsolationMatrix: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'complete declaration and data island isolation matrix');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-iso-matrix' });
+        const declaration = document.createElement('cem-element-iso-matrix');
+        declaration.setAttribute('tag', 'iso-matrix-el');
+        declaration.setAttribute('data-iso', 'matrix-declaration');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<style data-iso="source-style">',
+            '.iso-source-sentinel { --iso-source-projected: yes; }',
+            '</style>',
+            '<div class="iso-source-sentinel" data-iso="source-layout" style="height:24px">',
+            '<span data-iso="source-text">rendered-source-text</span>',
+            '<label>Rendered field <input data-iso="source-input" name="source-field" value="ok" /></label>',
+            '<button data-iso="source-button" type="button" aria-label="Rendered source control">Rendered source control</button>',
+            '</div>',
+        ].join('');
+        declaration.appendChild(template);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('iso-matrix-el');
+        instance.innerHTML = [
+            '<style data-iso="island-style">',
+            '.iso-island-sentinel { --iso-island-leak: leaked; }',
+            '</style>',
+            '<div data-iso="island-layout" style="height:5000px">',
+            '<span>island-secret-text</span>',
+            '<input name="island-secret" value="leak" />',
+            '<button data-iso="island-button" type="button" aria-label="Island ghost">Island ghost</button>',
+            '</div>',
+        ].join('');
+
+        const islandSentinel = document.createElement('div');
+        islandSentinel.className = 'iso-island-sentinel';
+        islandSentinel.dataset.iso = 'island-sentinel';
+
+        const form = document.createElement('form');
+        form.dataset.iso = 'matrix-form';
+        form.append(declaration, instance, islandSentinel);
+        root.appendChild(form);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const root = requiredElement(
+            canvasElement,
+            'section[aria-label="complete declaration and data island isolation matrix"]'
+        ) as HTMLElement;
+        const declaration = requiredElement(root, '[data-iso="matrix-declaration"]');
+        const declarationTemplate = requiredElement(declaration, ':scope > template') as HTMLTemplateElement;
+        const instance = requiredElement(root, 'iso-matrix-el') as HTMLElement;
+        const island = requiredElement(
+            instance,
+            ':scope > template[data-cem-island="instance"]'
+        ) as HTMLTemplateElement;
+        const form = requiredElement(root, 'form[data-iso="matrix-form"]') as HTMLFormElement;
+
+        const rawSourceLayout = requiredFragmentElement(declarationTemplate.content, '[data-iso="source-layout"]');
+        const rawSourceInput = requiredFragmentElement(declarationTemplate.content, '[data-iso="source-input"]');
+        const rawSourceButton = requiredFragmentElement(
+            declarationTemplate.content,
+            '[data-iso="source-button"]'
+        ) as HTMLButtonElement;
+        const rawSourceStyle = requiredFragmentElement(
+            declarationTemplate.content,
+            'style[data-iso="source-style"]'
+        ) as HTMLStyleElement;
+        const islandLayout = requiredFragmentElement(island.content, '[data-iso="island-layout"]');
+        const islandButton = requiredFragmentElement(
+            island.content,
+            '[data-iso="island-button"]'
+        ) as HTMLButtonElement;
+        const islandStyle = requiredFragmentElement(
+            island.content,
+            'style[data-iso="island-style"]'
+        ) as HTMLStyleElement;
+
+        // Selector APIs stop at both template boundaries. Only the rendered projection
+        // is visible to live-tree queries and tag collections.
+        assertEqual(declaration.querySelector('[data-iso="source-input"]'), null, 'declaration selectors stay inert');
+        assertEqual(instance.querySelector('[data-iso="island-button"]'), null, 'instance selectors stay outside the island');
+        assertEqual(root.querySelectorAll('[data-iso="source-button"]').length, 1, 'only the rendered source button matches');
+        assertEqual(root.getElementsByTagName('button').length, 1, 'tag collections exclude raw and island controls');
+        assertEqual(root.getElementsByTagName('input').length, 1, 'tag collections expose only the rendered field');
+        assert(!rawSourceInput.isConnected, 'raw declaration controls remain disconnected');
+        assert(!islandButton.isConnected, 'captured island controls remain disconnected');
+
+        // Neither boundary contributes its raw text, layout boxes, or styles. The
+        // deliberately rendered source projection remains the sole visible effect.
+        assert(!root.textContent?.includes('island-secret-text'), 'island text is absent from live textContent');
+        assert(!root.innerText.includes('island-secret-text'), 'island text is absent from visible innerText');
+        assertEqual(countOccurrences(root.textContent ?? '', 'rendered-source-text'), 1, 'source text appears once via rendering');
+        assertEqual(rawSourceLayout.getBoundingClientRect().height, 0, 'raw declaration content has no layout box');
+        assertEqual(islandLayout.getBoundingClientRect().height, 0, 'island content has no layout box');
+        assert(
+            requiredElement(instance, '[data-iso="source-layout"]').getBoundingClientRect().height > 0,
+            'the rendered projection has a layout box'
+        );
+        assertEqual(getComputedStyle(declarationTemplate).display, 'none', 'the declaration template is not displayed');
+        assertEqual(getComputedStyle(island).display, 'none', 'the instance island template is not displayed');
+        assertEqual(rawSourceStyle.sheet, null, 'raw declaration styles do not create a stylesheet');
+        assertEqual(islandStyle.sheet, null, 'island styles do not create a stylesheet');
+        assert(
+            requiredElement(instance, 'style[data-iso="source-style"]') instanceof HTMLStyleElement,
+            'the explicit rendered style is materialized in live output'
+        );
+        assertEqual(
+            getComputedStyle(requiredElement(instance, '[data-iso="source-layout"]')).getPropertyValue(
+                '--iso-source-projected'
+            ).trim(),
+            'yes',
+            'only the rendered declaration projection affects computed style'
+        );
+        assertEqual(
+            getComputedStyle(requiredElement(root, '[data-iso="island-sentinel"]')).getPropertyValue(
+                '--iso-island-leak'
+            ).trim(),
+            '',
+            'captured island styles do not affect computed style'
+        );
+
+        // Form ownership sees the one rendered control and neither inert source.
+        const data = new FormData(form);
+        assertEqual(data.getAll('source-field').join('|'), 'ok', 'the rendered field submits exactly once');
+        assert(!data.has('island-secret'), 'captured island controls do not submit');
+        assert(form.elements.namedItem('source-field') !== null, 'the rendered field belongs to the form');
+        assertEqual(form.elements.namedItem('island-secret'), null, 'island controls are absent from form.elements');
+
+        // Disconnected controls cannot join focus navigation or the accessibility tree.
+        // The following accessibility item separately validates semantics of the live output.
+        const renderedButton = requiredElement(instance, '[data-iso="source-button"]') as HTMLButtonElement;
+        renderedButton.focus();
+        assertEqual(document.activeElement, renderedButton, 'the rendered control receives focus');
+        assert(!rawSourceButton.matches(':focus'), 'raw declaration controls are absent from document focus state');
+        assert(!islandButton.matches(':focus'), 'island controls are absent from document focus state');
+        assert(document.activeElement !== rawSourceButton, 'raw declaration controls cannot be document focus targets');
+        assert(document.activeElement !== islandButton, 'island controls cannot be document focus targets');
+        assert(!document.contains(rawSourceButton), 'raw declaration controls are outside the document tree');
+        assert(!document.contains(islandButton), 'island controls are outside the document tree');
+        assertEqual(root.querySelector('[aria-label="Island ghost"]'), null, 'island roles and names are absent live');
+    },
+};
+
 export const DeclarationShapeGuardrailsPreventLiveData: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -282,6 +429,14 @@ function requiredElement(root: ParentNode, selector: string): Element {
     const element = root.querySelector(selector);
     assert(element, `expected ${selector} to exist`);
     return element;
+}
+
+function requiredFragmentElement(root: ParentNode, selector: string): HTMLElement {
+    return requiredElement(root, selector) as HTMLElement;
+}
+
+function countOccurrences(value: string, needle: string): number {
+    return value.split(needle).length - 1;
 }
 
 function buildShapeDeclaration(label: string, html: string, src?: string): HTMLElement {

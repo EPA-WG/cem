@@ -930,21 +930,40 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
             state.executionFallbackRuntime.diagnosticsFor(state.executionFallbackDeclaration),
             'cem.processing_host.worker_execution_fallback'
         );
+        const workerIsland = requiredElement(
+            workerInstance,
+            ':scope > template[data-cem-island="instance"]'
+        );
+        const fallbackIsland = requiredElement(
+            fallbackInstance,
+            ':scope > template[data-cem-island="instance"]'
+        );
+        const executionFallbackIsland = requiredElement(
+            executionFallbackInstance,
+            ':scope > template[data-cem-island="instance"]'
+        );
 
         const workerInput = requiredElement(workerInstance, 'input') as HTMLInputElement;
         workerInput.focus();
         workerInput.setSelectionRange(2, 6);
         workerInstance.setAttribute('label', 'After');
         fallbackInstance.setAttribute('label', 'After');
+        executionFallbackInstance.setAttribute('label', 'After');
         await nextFrame();
         await state.workerRuntime.whenRenderSettled(workerInstance);
         await state.fallbackRuntime.whenRenderSettled(fallbackInstance);
+        await state.executionFallbackRuntime.whenRenderSettled(executionFallbackInstance);
 
         assertEqual(requiredElement(workerInstance, 'span').textContent, 'After', 'worker rerender commits its text patch');
         assertEqual(
             requiredElement(fallbackInstance, 'span').textContent,
             'After',
             'fallback rerender commits the same text patch'
+        );
+        assertEqual(
+            requiredElement(executionFallbackInstance, 'span').textContent,
+            'After',
+            'execution fallback rerender commits the same text patch'
         );
         assert(requiredElement(workerInstance, 'input') === workerInput, 'worker patch preserves light-DOM node identity');
         assertEqual(document.activeElement, workerInput, 'worker patch preserves focus');
@@ -954,6 +973,21 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
             workerInstance.querySelectorAll(':scope > template[data-cem-island="instance"]').length,
             1,
             'worker patch stays outside the inert data island'
+        );
+        assertEqual(
+            requiredElement(workerInstance, ':scope > template[data-cem-island="instance"]'),
+            workerIsland,
+            'worker patch preserves the data-island boundary node'
+        );
+        assertEqual(
+            requiredElement(fallbackInstance, ':scope > template[data-cem-island="instance"]'),
+            fallbackIsland,
+            'startup fallback patch preserves the data-island boundary node'
+        );
+        assertEqual(
+            requiredElement(executionFallbackInstance, ':scope > template[data-cem-island="instance"]'),
+            executionFallbackIsland,
+            'execution fallback patch preserves the data-island boundary node'
         );
 
         const transport = state.workerTransport;
