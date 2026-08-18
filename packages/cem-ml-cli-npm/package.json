@@ -1,6 +1,6 @@
 {
     "name": "@epa-wg/cem-ml-cli",
-    "version": "0.1.0-rc.2",
+    "version": "0.1.0",
     "description": "Universal Node and browser hosts for the CEM-ML WebAssembly runtime",
     "author": {
         "name": "Sasha Firsov",
@@ -39,7 +39,7 @@
         "node": "^22.12.0 || ^24.0.0"
     },
     "dependencies": {
-        "@epa-wg/cem-ml": "0.1.0-rc.2"
+        "@epa-wg/cem-ml": "0.1.0"
     },
     "devDependencies": {
         "@types/node": "25.6.0",

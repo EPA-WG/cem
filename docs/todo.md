@@ -7,167 +7,97 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Execute
-[`Phase 2.6 - CEM-ML GitHub Release Artifact Promotion`](../roadmap.md#phase-26---cem-ml-github-release-artifact-promotion).
-Connect the two WASM/npm and Linux AMD64 CI artifact generators, complete
-three-unit draft collection, remote verification, and protected GitHub Release
-promotion without allowing any lane to rebuild or overwrite an already uploaded
-release unit. macOS and Windows native releases are explicitly deferred.
+Begin
+[`Phase 3 - Custom-Element Runtime`](../roadmap.md#phase-3---custom-element-runtime)
+by locking the declaration/registration contract for the
+`@epa-wg/cem-elements` substrate before extending its browser runtime.
 
-Phase 2.5 is complete. Its full deployment checklist, rationale, platform
-lifecycle evidence, and verification commands are preserved in
-[`archive/todo-completed-2026-08-17.md`](archive/todo-completed-2026-08-17.md).
+Phase 2.6 is complete. Its checklist is archived in
+[`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
+and the protected `0.1.0-rc.2` release, remote-byte verification, lane isolation,
+and same-run recovery evidence are recorded in
+[`cem-ml-release-rehearsal-0.1.0-rc.2.md`](cem-ml-release-rehearsal-0.1.0-rc.2.md).
 
-Recommended execution order: keep release policy in tested Nx-owned scripts,
-then make GitHub Actions thin producers around those targets. Establish the
-draft boundary first, add the three independent CI-owned units, collect and
-remotely verify them, and grant publication authority only to the final
-promotion step.
+The Phase 3 WASM topology is already decided: Option B, one dedicated browser
+worker, is primary; Option A, main-thread WASM, is the required fallback. The
+remaining immediate ambiguity is the relationship between the logical scoped
+CEM template registry and the browser custom-elements registry, plus the
+uniqueness/collision rules for produced tag names. Do not implement registration
+behavior until the first checklist item resolves that boundary.
 
-## Phase 2.6 Checklist
+## Phase 3 Checklist
 
-- [x] Promote Phase 2.6 and audit the Phase 2.5 release foundation.
-    - [x] Confirm the resolved Nx graph exposes package/sign/verify surfaces for
-          both WASM/npm units and package/sign/verify/publish plus lifecycle
-          smoke surfaces for Linux AMD64, macOS ARM64, and Windows AMD64.
-    - [x] Confirm the original aggregate stage/verify/upload implementation
-          enforced publication signing state, immutable existing bytes,
-          missing-only upload, and post-upload redownload verification before
-          applying the narrower three-unit release decision below.
-    - [x] Confirm the remaining boundary gaps: the generic npm publish workflow
-          is not contractually isolated from `cem-ml-v{version}` tags, no
-          protected CEM-ML workflow creates/resumes the draft, CI does not
-          produce/upload its three units, and no final promotion target exists.
-    - Completed 2026-08-17: the roadmap phase is now active and the verified
-      foundation/gap inventory above defines the execution boundary.
+- [ ] Lock the `<cem-element>` declaration and registration contract.
+    - [ ] Decide whether CEM declarations use a scoped, inherited logical template
+          registry while produced browser custom elements remain registered in the
+          document's global `customElements` registry.
+    - [ ] Decide which names are globally unique, which references may be
+          scope-local, and how duplicate declarations, inherited shadowing, and
+          collisions with legacy `<custom-element>` declarations fail.
+    - [ ] Reconcile the decision with `AC-R-1` through `AC-R-3`, the reserved
+          `cem-` component namespace, and the coexistence rule that browser tag
+          names must not collide.
+    - [ ] Promote the accepted rules into `docs/cem-element-design.md` and
+          executable contract tests; remove the two blocking `TBD` statements.
+    - Recommended direction: scope and inherit CEM template/declaration lookup,
+      keep browser `customElements` registration global, require globally unique
+      public produced tag names, and make same-scope duplicates or incompatible
+      inherited shadowing deterministic errors. This preserves the scoped CEM
+      model without pretending the default browser registry is scoped.
 
-- [x] Establish the protected draft coordinator and release-workflow isolation.
-    - [x] Add synthetic coordinator tests for absent-draft creation, identical
-          draft resumption, wrong-tag/non-draft rejection, and the no-publish
-          invariant before adding workflow wiring.
-    - [x] Add an Nx-owned create/resume-draft target that validates the exact
-          `cem-ml-v{version}` tag and tagged source commit and never publishes,
-          deletes, replaces, or supersedes a release.
-    - [x] Add the dedicated CEM-ML workflow scaffold with exact tag and manual
-          retry inputs, per-tag concurrency, the `cem-ml-release` environment
-          reference, and job-scoped minimal `contents` permission for draft
-          creation. Producer jobs add `id-token` and `attestations` only when
-          their later checklist item requires them.
-    - [x] Configure the `cem-ml-release` repository environment with required
-          reviewer `sashafirsov`, solo-maintainer self-review, administrator
-          bypass disabled, the `cem-ml-v*` tag-only deployment restriction, and
-          environment variable `CEM_ML_PLATFORM_DRAFT=1`.
-    - [x] Prove the generic `{version}` npm-family workflow rejects CEM-ML tags
-          before it can invoke the `cem` Nx release group.
-    - Completed 2026-08-17: applied the approved deterministic `CEM-ML {version}`
-      title, generated notes bounded by the preceding reachable CEM-ML tag,
-      environment name `cem-ml-release`, and required `release_tag` manual input.
-      The Nx-owned coordinator is opt-in, creates or resumes drafts only, and
-      reads the created release back before success.
+- [ ] Audit the existing Phase 3 substrate against the locked contract.
+    - [ ] Classify current `cem-elements` declaration-shape, data-document,
+          disposition, projection, processing-boundary, runtime-support, Storybook,
+          legacy, material, and edge/SSR fixtures as implemented, partial,
+          placeholder, or deferred.
+    - [ ] Map every current resolved Nx target to the Phase 3A/3B/3C roadmap and
+          move edge/SSR-only acceptance out of the Phase 3 browser gate where
+          necessary.
+    - [ ] Add an explicit todo checkitem before adding any new parity or browser
+          fixture discovered by the audit.
 
-- [x] Add CI-owned production and upload for the two WASM/npm units and Linux AMD64.
-    - [x] Build each unit from the checked-out tag through its Nx package/sign/
-          verify targets and run clean-consumer, platform-parity, and Linux
-          install/upgrade/uninstall gates.
-    - [x] Generate GitHub artifact attestations and publication-ready signing
-          evidence without granting any producer permission to publish the draft.
-    - [x] Upload version-qualified unit assets idempotently to the existing draft;
-          use GitHub Actions artifacts only for job-to-job transport.
-    - [x] Record source commit, Nx target, workflow run, toolchain/target identity,
-          attestation, and smoke evidence for each CI-owned unit.
-    - Completed 2026-08-17: added independent Nx-owned npm/WASM and Linux AMD64
-      producer lanes, checksum-subject GitHub attestations, protected Linux GPG
-      signing, publication-mode unit verification, Linux lifecycle smoke gates,
-      Actions-artifact transport, and byte-verifying no-clobber upload to the
-      existing draft. The protected `cem-ml-release` environment owns the GPG
-      secret material, signing fingerprint, and both draft/upload opt-ins;
-      producer jobs have no `contents: write` authority.
-    - Completed 2026-08-17: each CI unit now emits an authoritative,
-      version-qualified `*.producer-evidence.json` sidecar after its gates pass.
-      The sidecar binds the exact workflow run/attempt, actors, runner image,
-      source/workflow commits, Nx targets and gate results, captured toolchain and
-      target identities, release-entry/checksum/signing records, and original
-      artifact-attestation ID, URL, bundle, and digest. A separate
-      `actions/attest@v4` invocation signs the immutable sidecar; Nx verifies that
-      detached bundle before Actions transport, draft upload, and aggregate-index
-      inclusion. Synthetic coordinator, signing, schema, target-contract, drift,
-      aggregate, and idempotence coverage passes 38 tests.
+- [ ] Implement the smallest tests-first Phase 3A browser vertical slice.
+    - [ ] Register one inline `<cem-element>` declaration under the locked name
+          rules and capture one produced instance's author payload into an inert
+          WHATWG template data island.
+    - [ ] Compile/render through the existing CEM-ML/CEM-QL WASM boundary using
+          one dedicated worker, with the same semantic result through the required
+          main-thread fallback.
+    - [ ] Apply revision-checked patch frames on the main thread while preserving
+          light-DOM identity, focus/selection state, and data-island isolation.
+    - [ ] Prove the vertical slice in Rust-first contract tests, TypeScript unit
+          tests, and one executable Storybook/browser fixture.
 
-- [x] Restrict GitHub Releases to WASM/npm and Linux AMD64; defer self-hosted native lanes.
-    - [x] Make the tested aggregate contract contain exactly
-          `@epa-wg/cem-ml`, `@epa-wg/cem-ml-cli`, and `native-linux-amd64`.
-    - [x] Remove macOS and Windows artifact roots from the Nx aggregate release
-          target and reject their release preflight/upload paths before GitHub
-          mutation.
-    - [x] Keep the reviewed macOS/Windows self-hosted workflow recipe in-tree,
-          but hard-disable all four producer/publisher jobs and remove its
-          publication opt-in from the protected environment.
-    - [x] Update the roadmap, deployment docs, and native project READMEs so
-          Homebrew/WinGet outputs are local validation artifacts, not release
-          promises.
-    - Completed 2026-08-17: the release contract is now wholly CI-owned. The
-      self-hosted runner recipes remain reviewable for a future scope decision,
-      but dispatch schedules no jobs and the shared uploader accepts Linux only.
-      No macOS/Windows runner registration or release credential setup is needed;
-      62 platform-release/version tests verify the narrowed contract.
+- [ ] Add URI declarations and the Phase 1 `<http-request>` resource slice.
+    - [ ] Support declaration `src` for document-relative, fragment-only, absolute,
+          and module-map identities under the host resolver and scope policy.
+    - [ ] Add remote/local streaming, abort/stale-response protection, JSON/XML
+          projections, and the fixture-backed `cem:for-each` flow.
+    - [ ] Preserve the same artifact identity, worker/fallback semantics, source
+          maps, diagnostics, and patch protocol as inline declarations.
 
-- [x] Collect the complete draft and generate aggregate release evidence.
-    - [x] Add an Nx-owned collection target that downloads the draft into the three
-          expected unit roots and rejects missing, extra, duplicate, or
-          misclassified assets.
-    - [x] Run publication-mode aggregate stage/verification over the downloaded
-          units, upload the aggregate release index and `SHA256SUMS` idempotently,
-          and redownload the complete remote set.
-    - [x] Verify every remote filename, size, digest, version, source commit,
-          runtime/target/capability identity, SBOM, provenance, signature/
-          attestation, and immutable package-channel URL.
-    - Completed 2026-08-17: added uncached `cem_ml:release:collect-draft`
-      classification by the three exact asset coordinates. Collection validates
-      the exact tag, clean source commit, draft state, complete per-unit file set,
-      checksums, GPG-signature record, GitHub attestations, producer evidence,
-      SBOM, provenance, capabilities, and APT URL before replacing any local
-      artifact root. The protected aggregate job then runs publication-mode
-      stage/verify, uploads only missing aggregate evidence, redownloads the
-      complete draft, and verifies the remote bytes again. Retry preserves
-      identical assets and repairs a one-file aggregate interruption without
-      clobbering; 68 platform-release/version tests cover collection, drift,
-      classification, remote extras, and idempotence.
+- [ ] Complete Phase 3A/3B/3C substrate parity.
+    - [ ] Prove legacy compatibility only through opt-in
+          `lang="custom-element-v0"` fixtures.
+    - [ ] Prove the full legacy and material parity inventories plus browser
+          data-island isolation and accessibility gates.
+    - [ ] Add the Phase 3B scope-policy worker pool, content-addressed cache, and
+          deterministic scheduling traces behind the stable host API.
+    - [ ] Add Phase 3C precompiled component-template artifacts without removing
+          the source-driven runtime path.
 
-- [x] Add protected, exactly-once GitHub Release promotion.
-    - [x] Add synthetic promotion tests covering incomplete drafts, remote drift,
-          already-published matching releases, and forbidden overwrite/rebuild
-          paths.
-    - [x] Add an Nx promotion target that consumes only remotely verified evidence
-          and changes the matching draft to published exactly once.
-    - [x] Restrict promotion authority to the protected finalizer and record the
-          final workflow run and complete producer evidence in the release index.
-    - [x] Prove APT and npm publication consume the published immutable assets
-          and cannot repack or rebuild them.
-    - Completed 2026-08-17: added uncached, remote-only
-      `cem_ml:release:promote` behind the protected
-      `CEM_ML_PLATFORM_PROMOTE` gate. The aggregate index records the stable
-      finalizer `GITHUB_RUN_ID`, complete per-unit producer evidence, and exact
-      npm/APT release-asset inputs with rebuild/repack forbidden. Promotion
-      redownloads and publication-verifies every remote byte before and after
-      the single draft transition, accepts an identical published retry, and
-      requires GitHub to report the result immutable. Interrupted aggregate
-      finalization must use **Re-run jobs** on the recorded workflow run; a new
-      dispatch cannot replace its run-bound evidence. The 72
-      platform-release/version tests cover incomplete/drifted drafts,
-      already-published idempotence, run drift, and forbidden asset mutation.
-
-- [ ] Rehearse, document, and close Phase 2.6.
-    - [ ] Run one protected release rehearsal across the three CI-owned units,
-          interruption/resume paths, complete remote verification, and promotion.
-    - [ ] Prove generic `cem`, CEM-ML, and disabled native local-host lanes cannot
-          trigger or publish one another's release groups/tags.
-    - [ ] Record the exact commands, workflow runs, CI producer evidence,
-          disabled-native behavior, and any operator recovery steps.
-    - [ ] Archive the completed checklist and promote the next roadmap goal.
+- [ ] Author the Phase 3 primitive set exclusively on the accepted substrate.
+    - [ ] Extend the existing component test harness for substrate rendering,
+          events, forms, accessibility, and visual snapshots.
+    - [ ] Wire action, field, surface, text, icon, stack, grid, list, nav, and
+          dialog shell primitives through `<cem-element>` with no legacy runtime
+          dependency.
+    - [ ] Run the substrate, component, CEM-ML fixture, and accessibility aggregate
+          gates before closing Phase 3.
 
 ## Deferred Roadmap Work
 
-The externally reviewed Figma UI Kit work remains owned by roadmap Phase 5.
-Swift/Xcode and Kotlin/Compose compile gates remain owned by roadmap Phase 8.
-Their prior detailed deferred checklists are preserved in the Phase 2.5 archive;
-neither is an active workspace task in this file.
+The Edge/SSR host fixtures belong to Phase 3.5 after the browser substrate is
+stable. Moving `@epa-wg/custom-element` into the monorepo and deciding final
+legacy XSLT preservation belong to Phase 3.6. Figma UI Kit work remains Phase 5,
+and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.

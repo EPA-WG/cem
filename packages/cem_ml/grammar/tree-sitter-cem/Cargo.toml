@@ -1,6 +1,6 @@
 [package]
 name = "tree-sitter-cem"
-version = "0.1.0-rc.2"
+version = "0.1.0"
 authors = ["Sasha Firsov <sasha@firsov.net>"]
 edition = "2021"
 description = "Tree-sitter grammar binding for canonical CEM-ML"

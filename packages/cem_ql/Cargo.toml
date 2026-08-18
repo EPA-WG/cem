@@ -1,6 +1,6 @@
 [package]
 name = "cem-ql"
-version = "0.1.0-rc.2"
+version = "0.1.0"
 authors = ["Sasha Firsov <sasha@firsov.net>"]
 edition = "2021"
 description = "CEM query language compiler and evaluator"
@@ -16,7 +16,7 @@ default = ["debug-control"]
 debug-control = ["cem-ml/debug-control"]
 
 [dependencies]
-cem-ml = { version = "=0.1.0-rc.2", path = "../cem_ml", default-features = false }
+cem-ml = { version = "=0.1.0", path = "../cem_ml", default-features = false }
 serde_json = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
