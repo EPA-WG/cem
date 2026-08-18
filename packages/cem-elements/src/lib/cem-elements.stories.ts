@@ -618,10 +618,8 @@ export const CanonicalCemMlRenderLoop: Story = {
         return root;
     },
     play: async ({ canvasElement }) => {
-        await nextFrame();
-
         const instance = requiredElement(canvasElement, 'story-cem-button');
-        const button = requiredElement(instance, 'button');
+        const button = await waitForElement(instance, 'button');
 
         assertEqual(button.textContent?.trim(), 'Submit', 'canonical CEM-ML text projection should use host value');
         assertEqual(button.getAttribute('type'), 'button', 'canonical CEM-ML bare attribute values should render');

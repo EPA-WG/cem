@@ -98,6 +98,14 @@ That target runs `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, `cem_ml:bench
 browser-substrate production-ready trigger for Phase 3.5 Edge/SSR. It is not the Phase 3.6 `@epa-wg/custom-element`
 adoption trigger.
 
+Each of the eight checked-in legacy/CEM pairs also runs directly in a named `FileMaterial*Parity` Storybook case.
+The two sides use separate same-origin documents so their unchanged `cem-*` names have independent browser
+registries. At ingestion, the legacy side applies the documented thin adapter (`<custom-element>` declaration handoff
+plus exact `lang="custom-element-v0"` template opt-in); the source fixture bytes remain unchanged. The cases register
+the manifest dependencies, exercise local and external declarations, module URL resolution, nested composition,
+slots, data payloads, and migrated slice interactions, and keep the legacy/CEM behavior assertions one-to-one. The
+material fixture directory is an explicit `cem-elements:test` and `build-storybook` Nx input.
+
 **Recommended sequencing implied by this inventory:**
 
 1. Scoped-style containment remains bridge/adoption work; keep the production gate pinned to explicit light-DOM,

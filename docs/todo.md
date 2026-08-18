@@ -209,8 +209,15 @@ registration identities may reuse an inherited or existing definition.
               invalidation, slots, slice events, datadom migration,
               conditionals, and the exact legacy bridge; Storybook Chromium
               passes all 109 tests.
-        - [ ] Promote all 8 material/CEM fixture pairs into one-to-one
+        - [x] Promote all 8 material/CEM fixture pairs into one-to-one
               executable Storybook browser cases.
+              Completed 2026-08-18: each checked-in material source pair now
+              runs in isolated same-origin documents so both sides retain the
+              real `cem-*` browser names. The legacy side uses the documented
+              thin adapter and exact v0 opt-in without modifying fixture bytes;
+              manifest-ordered dependencies, local/external declarations,
+              module URLs, composition, slots, data payloads, and migrated
+              slice interactions pass within Storybook Chromium 117/117.
         - [ ] Prove raw declaration templates and captured data islands remain
               inert to layout, selectors, forms, accessibility, and visible text.
         - [ ] Enforce the Phase 3 accessibility contract across the complete
