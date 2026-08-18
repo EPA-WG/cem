@@ -51,6 +51,27 @@ export const expectedReleaseUnits = Object.freeze([
 
 export const ciReleaseUnits = Object.freeze(expectedReleaseUnits.slice(0, 3));
 
+const nativeHostReleaseProfiles = Object.freeze({
+    'native-linux-amd64': {
+        deploymentPath: 'packages/cem-ml-cli-native-linux-amd64/deployment.json',
+        nxProject: 'cem_ml_cli_native_linux_amd64',
+        platform: 'linux',
+        architecture: 'x64',
+    },
+    'native-macos-arm64': {
+        deploymentPath: 'packages/cem-ml-cli-native-brew-arm64/deployment.json',
+        nxProject: 'cem_ml_cli_native_brew_arm64',
+        platform: 'darwin',
+        architecture: 'arm64',
+    },
+    'native-windows-amd64': {
+        deploymentPath: 'packages/cem-ml-cli-native-windows-amd64/deployment.json',
+        nxProject: 'cem_ml_cli_native_windows_amd64',
+        platform: 'win32',
+        architecture: 'x64',
+    },
+});
+
 const ciProducerProfiles = Object.freeze({
     '@epa-wg/cem-ml': {
         job: 'npm-producers',
@@ -164,6 +185,77 @@ export function githubDraftCreateArguments({ tag, title, draft, prerelease, gene
     if (notesStartTag !== undefined) args.push('--notes-start-tag', notesStartTag);
     if (prerelease) args.push('--prerelease');
     return args;
+}
+
+export function preflightNativeHostRelease({
+    workspaceRoot = defaultWorkspaceRoot,
+    identity,
+    version,
+    sourceCommit,
+    releaseTag,
+    taggedCommit,
+    sourceTreeStatus,
+    platform = process.platform,
+    architecture = process.arch,
+    deployment,
+    github,
+} = {}) {
+    const profile = nativeHostReleaseProfiles[identity];
+    if (!profile) throw new Error(`${identity ?? 'missing identity'} is not an authorized native release host`);
+    const unit = expectedReleaseUnits.find((candidate) => candidate.identity === identity);
+    assert.ok(unit?.target, `${identity} native release-unit contract is missing`);
+
+    version ??= authoritativeVersion(workspaceRoot);
+    sourceCommit ??= gitSourceCommit(workspaceRoot);
+    releaseTag ??= process.env.CEM_ML_RELEASE_TAG;
+    if (!releaseTag?.trim()) {
+        throw new Error('CEM_ML_RELEASE_TAG is required for native-host release preflight');
+    }
+    assert.equal(releaseTag, `cem-ml-v${version}`, 'CEM-ML release tag drift');
+    assert.match(sourceCommit, /^[a-f0-9]{40,64}$/, 'invalid checked-out source commit');
+
+    taggedCommit ??= gitTagSourceCommit(workspaceRoot, releaseTag);
+    assert.equal(taggedCommit, sourceCommit, 'CEM-ML tagged source-commit drift');
+    sourceTreeStatus ??= gitSourceTreeStatus(workspaceRoot);
+    assert.equal(
+        sourceTreeStatus.trim(),
+        '',
+        `${identity} release preflight requires a clean source tree at the tagged commit`,
+    );
+
+    deployment ??= readJson(resolve(workspaceRoot, profile.deploymentPath));
+    assert.equal(deployment.schemaVersion, 1, `${identity} deployment schema drift`);
+    assert.equal(deployment.commonVersion, version, `${identity} deployment common-version drift`);
+    assert.equal(deployment.nxProject, profile.nxProject, `${identity} deployment Nx project drift`);
+    assert.equal(deployment.runtimeIdentity, identity, `${identity} deployment runtime identity drift`);
+    assert.equal(deployment.rustTarget, unit.target, `${identity} deployment Rust target drift`);
+    assert.equal(deployment.host?.platform, profile.platform, `${identity} deployment host platform drift`);
+    assert.equal(
+        deployment.host?.architecture,
+        profile.architecture,
+        `${identity} deployment host architecture drift`,
+    );
+    assert.match(deployment.host?.runner ?? '', /\S/, `${identity} deployment runner identity is missing`);
+    assert.equal(platform, profile.platform, `${identity} host platform drift`);
+    assert.equal(architecture, profile.architecture, `${identity} host architecture drift`);
+
+    github ??= createGithubReleaseClient(workspaceRoot);
+    const release = github.view(releaseTag);
+    assert.ok(release, `required GitHub draft ${releaseTag} does not exist`);
+    assert.equal(release.tagName, releaseTag, 'GitHub release tag drift');
+    assert.equal(release.name, `CEM-ML ${version}`, 'GitHub release title drift');
+    assert.equal(release.isDraft, true, `${releaseTag} must remain a draft until protected promotion`);
+    assert.equal(release.isPrerelease, version.includes('-'), 'GitHub release prerelease drift');
+    assert.ok(Array.isArray(release.assets), 'GitHub draft asset listing is missing');
+
+    return {
+        identity,
+        releaseTag,
+        sourceCommit,
+        deployment: profile.deploymentPath,
+        host: { platform, architecture },
+        release,
+    };
 }
 
 export function stagePlatformRelease({
@@ -1120,13 +1212,19 @@ function capture(command, args, cwd) {
 }
 
 function assertCleanSourceTree(workspaceRoot) {
+    if (gitSourceTreeStatus(workspaceRoot).trim()) {
+        throw new Error('publication staging requires a clean source tree at the tagged commit');
+    }
+}
+
+function gitSourceTreeStatus(workspaceRoot) {
     const result = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], {
         cwd: workspaceRoot,
         encoding: 'utf8',
         stdio: 'pipe',
     });
     if (result.status !== 0) throw new Error(`git status failed: ${result.stderr}`);
-    if (result.stdout.trim()) throw new Error('publication staging requires a clean source tree at the tagged commit');
+    return result.stdout;
 }
 
 function assertGeneratedOutput(workspaceRoot, outputRoot) {
@@ -1171,11 +1269,16 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     const args = process.argv.slice(3);
     const publication = args.includes('--publication');
     const standardCommand = ['create-draft', 'stage', 'verify', 'upload-draft', 'upload-ci-units'].includes(command);
-    const unitCommand = ['verify-unit', 'record-producer-evidence', 'finalize-producer-evidence'].includes(command);
+    const unitCommand = [
+        'preflight-native-host',
+        'verify-unit',
+        'record-producer-evidence',
+        'finalize-producer-evidence',
+    ].includes(command);
     const validUnitCommand = unitCommand && args.length === 1;
     if ((!standardCommand && !validUnitCommand) || (standardCommand && args.some((arg) => arg !== '--publication'))) {
         throw new Error(
-            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|stage|verify|upload-draft|upload-ci-units> [--publication] | <verify-unit|record-producer-evidence|finalize-producer-evidence> <identity>',
+            'usage: node tools/scripts/cem-ml-platform-release.mjs <create-draft|stage|verify|upload-draft|upload-ci-units> [--publication] | <preflight-native-host|verify-unit|record-producer-evidence|finalize-producer-evidence> <identity>',
         );
     }
     if (command === 'create-draft') {
@@ -1200,6 +1303,11 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
         if (publication) throw new Error('upload-ci-units validates publication-ready units implicitly');
         const result = uploadPlatformReleaseUnits();
         console.log(`Uploaded ${result.uploaded.length} missing assets for ${result.identities.join(', ')}.`);
+    } else if (command === 'preflight-native-host') {
+        const result = preflightNativeHostRelease({ identity: args[0] });
+        console.log(
+            `Preflight passed for ${result.identity} at ${result.releaseTag} (${result.sourceCommit}) on ${result.host.platform}/${result.host.architecture}.`,
+        );
     } else if (command === 'verify-unit') {
         const result = verifyPlatformReleaseUnit({ identity: args[0] });
         console.log(`Verified publication-ready CEM-ML release unit ${result.identity}.`);

@@ -82,10 +82,26 @@
             },
             "outputs": []
         },
+        "preflight:release": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/cem-ml-platform-release.mjs preflight-native-host native-windows-amd64",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/deployment.json",
+                { "runtime": "git rev-parse HEAD" },
+                { "env": "CEM_ML_RELEASE_TAG" }
+            ],
+            "outputs": []
+        },
         "publish": {
             "cache": false,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify"],
+            "dependsOn": ["preflight:release", "verify"],
             "options": {
                 "command": "node scripts/publish.mjs",
                 "cwd": "{projectRoot}"

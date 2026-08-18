@@ -94,8 +94,17 @@ only to the final promotion step.
       aggregate, and idempotence coverage passes 38 tests.
 
 - [ ] Document and verify authorized native-host publication and recovery lanes.
-    - [ ] Add one exact-tag/source-commit preflight shared by macOS ARM64,
+    - [x] Add one exact-tag/source-commit preflight shared by macOS ARM64,
           Windows AMD64, and optional Linux recovery execution.
+    - Completed 2026-08-17: all three native deployment projects expose an
+      uncached `preflight:release` target and require it before `publish`. The
+      shared read-only coordinator requires an explicit exact version tag, the
+      tag and clean checkout at the same source commit, the declared native
+      OS/architecture and deployment/Nx/Rust identities, and an existing exact
+      GitHub draft with matching title and prerelease state. Local failures stop
+      before GitHub access, the preflight has no mutation path, and 53
+      platform-release/version tests cover the three accepted hosts plus tag,
+      commit, checkout, host, deployment, and remote-release drift.
     - [ ] Document and exercise each host's package → sign → verify → lifecycle
           smoke → immutable publish sequence, including required credentials and
           attestation-bundle handoff.

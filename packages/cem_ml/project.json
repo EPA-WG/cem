@@ -117,8 +117,13 @@
                 "{workspaceRoot}/packages/cem-ml-npm/project.json",
                 "{workspaceRoot}/packages/cem-ml-cli-npm/project.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/deployment.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/lib.mjs",
-                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs"
+                "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/scripts/sign.mjs",
+                "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/deployment.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/project.json",
+                "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/deployment.json"
             ],
             "outputs": []
         },

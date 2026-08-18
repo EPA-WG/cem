@@ -25,6 +25,7 @@ import {
     expectedReleaseUnits,
     finalizeCiProducerEvidence,
     githubDraftCreateArguments,
+    preflightNativeHostRelease,
     recordCiProducerEvidence,
     stagePlatformRelease,
     uploadPlatformReleaseUnits,
@@ -39,6 +40,11 @@ const version = '3.4.5';
 const sourceCommit = '1234567890abcdef1234567890abcdef12345678';
 const releaseTag = `cem-ml-v${version}`;
 const releaseTitle = `CEM-ML ${version}`;
+const nativeDeploymentPaths = new Map([
+    ['native-linux-amd64', 'packages/cem-ml-cli-native-linux-amd64/deployment.json'],
+    ['native-macos-arm64', 'packages/cem-ml-cli-native-brew-arm64/deployment.json'],
+    ['native-windows-amd64', 'packages/cem-ml-cli-native-windows-amd64/deployment.json'],
+]);
 
 test('absent GitHub release creates one notes-bounded draft without a publish path', () => {
     const github = createFakeGithubReleaseClient();
@@ -186,6 +192,80 @@ test('draft coordinator remains inert without protected release authorization', 
     assert.deepEqual(github.createRequests, []);
 });
 
+for (const [identity, platform, architecture] of [
+    ['native-linux-amd64', 'linux', 'x64'],
+    ['native-macos-arm64', 'darwin', 'arm64'],
+    ['native-windows-amd64', 'win32', 'x64'],
+]) {
+    test(`${identity} release preflight accepts only its exact tagged source and draft`, () => {
+        const github = createFakeGithubReleaseClient(githubDraft());
+        const result = preflightNativeHostRelease({
+            identity,
+            version,
+            sourceCommit,
+            releaseTag,
+            taggedCommit: sourceCommit,
+            sourceTreeStatus: '',
+            platform,
+            architecture,
+            deployment: nativeDeployment(identity),
+            github,
+        });
+
+        assert.equal(result.identity, identity);
+        assert.equal(result.releaseTag, releaseTag);
+        assert.equal(result.sourceCommit, sourceCommit);
+        assert.equal(result.release.isDraft, true);
+        assert.deepEqual(github.viewRequests, [releaseTag]);
+        assert.deepEqual(github.createRequests, []);
+        assert.equal(github.publishCalls, 0);
+    });
+}
+
+for (const [label, overrides, message] of [
+    ['missing requested tag', { releaseTag: '' }, /CEM_ML_RELEASE_TAG is required/],
+    ['wrong requested tag', { releaseTag: `${releaseTag}-unexpected` }, /release tag drift/],
+    ['different tagged commit', { taggedCommit: 'f'.repeat(40) }, /tagged source-commit drift/],
+    ['dirty source tree', { sourceTreeStatus: ' M docs/todo.md' }, /clean source tree/],
+    ['wrong host architecture', { architecture: 'arm64' }, /host architecture drift/],
+]) {
+    test(`native-host release preflight rejects ${label} before reading GitHub`, () => {
+        const github = createFakeGithubReleaseClient(githubDraft());
+        assert.throws(() => preflightNativeHostRelease(nativePreflightArguments({ ...overrides, github })), message);
+        assert.deepEqual(github.viewRequests, []);
+        assert.deepEqual(github.createRequests, []);
+        assert.equal(github.publishCalls, 0);
+    });
+}
+
+for (const [label, release, message] of [
+    ['an absent draft', null, /does not exist/],
+    ['a published release', githubDraft({ isDraft: false }), /must remain a draft/],
+    ['release tag drift', githubDraft({ tagName: 'cem-ml-v3.4.4' }), /release tag drift/],
+    ['release title drift', githubDraft({ name: 'Unexpected title' }), /release title drift/],
+    ['release prerelease drift', githubDraft({ isPrerelease: true }), /release prerelease drift/],
+]) {
+    test(`native-host release preflight rejects ${label} without mutation`, () => {
+        const github = createFakeGithubReleaseClient(release);
+        assert.throws(() => preflightNativeHostRelease(nativePreflightArguments({ github })), message);
+        assert.deepEqual(github.viewRequests, [releaseTag]);
+        assert.deepEqual(github.createRequests, []);
+        assert.equal(github.publishCalls, 0);
+    });
+}
+
+test('native-host release preflight rejects deployment identity drift before reading GitHub', () => {
+    const github = createFakeGithubReleaseClient(githubDraft());
+    const deployment = nativeDeployment('native-linux-amd64');
+    deployment.rustTarget = 'aarch64-unknown-linux-gnu';
+    assert.throws(
+        () => preflightNativeHostRelease(nativePreflightArguments({ deployment, github })),
+        /deployment Rust target drift/,
+    );
+    assert.deepEqual(github.viewRequests, []);
+    assert.deepEqual(github.createRequests, []);
+});
+
 test('CEM-ML workflow owns its tag family and generic publishing excludes it', () => {
     const workflow = readFileSync(resolve(workspaceRoot, '.github/workflows/cem-ml-release.yml'), 'utf8');
     const generic = readFileSync(resolve(workspaceRoot, '.github/workflows/publish.yml'), 'utf8');
@@ -236,6 +316,25 @@ test('CI producer Nx targets are explicit and package evidence is keyed by the s
     assert.ok(linux.targets['record:producer-evidence']);
     assert.ok(linux.targets['verify:producer-evidence']);
     assert.ok(coordinator.targets['release:upload-ci-units']);
+});
+
+test('all native publishers require the shared uncached exact-tag preflight', () => {
+    for (const [identity, projectPath] of nativeDeploymentPaths) {
+        const project = readProject(projectPath.replace('/deployment.json', '/project.json'));
+        const preflight = project.targets['preflight:release'];
+        assert.ok(preflight, `${identity} is missing preflight:release`);
+        assert.equal(preflight.cache, false);
+        assert.equal(preflight.options.cwd, '{workspaceRoot}');
+        assert.equal(
+            preflight.options.command,
+            `node tools/scripts/cem-ml-platform-release.mjs preflight-native-host ${identity}`,
+        );
+        assert.ok(preflight.inputs.includes('{workspaceRoot}/tools/scripts/cem-ml-platform-release.mjs'));
+        assert.ok(preflight.inputs.includes(`{workspaceRoot}/${projectPath}`));
+        assert.ok(preflight.inputs.some((input) => input.runtime === 'git rev-parse HEAD'));
+        assert.ok(preflight.inputs.some((input) => input.env === 'CEM_ML_RELEASE_TAG'));
+        assert.deepEqual(project.targets.publish.dependsOn, ['preflight:release', 'verify']);
+    }
 });
 
 test('npm release attestations cover every checksum-listed subject', () => {
@@ -605,7 +704,9 @@ function createFakeGithubReleaseClient(initialRelease = null) {
     const client = {
         createRequests: [],
         publishCalls: 0,
-        view() {
+        viewRequests: [],
+        view(tag) {
+            client.viewRequests.push(tag);
             return release;
         },
         create(request) {
@@ -614,6 +715,28 @@ function createFakeGithubReleaseClient(initialRelease = null) {
         },
     };
     return client;
+}
+
+function nativeDeployment(identity) {
+    const path = nativeDeploymentPaths.get(identity);
+    assert.ok(path, `missing native deployment fixture for ${identity}`);
+    return { ...readProject(path), commonVersion: version };
+}
+
+function nativePreflightArguments(overrides = {}) {
+    return {
+        identity: 'native-linux-amd64',
+        version,
+        sourceCommit,
+        releaseTag,
+        taggedCommit: sourceCommit,
+        sourceTreeStatus: '',
+        platform: 'linux',
+        architecture: 'x64',
+        deployment: nativeDeployment('native-linux-amd64'),
+        github: createFakeGithubReleaseClient(githubDraft()),
+        ...overrides,
+    };
 }
 
 function createFakeGithubAssetClient(initialAssets = {}) {
