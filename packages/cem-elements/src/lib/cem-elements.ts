@@ -1,6 +1,7 @@
 import {
     DATA_CEM_INSTANCE_SCOPE_ATTR,
     DATA_CEM_SCOPE_ATTR,
+    applyPatchFramesToRange,
     applyRenderPlanToRange,
     edgeContentAddress,
     materializeRenderPlan,
@@ -22,10 +23,16 @@ import {
 import {
     compileCemMlTemplate,
     convertLegacyTemplate,
-    ensureRuntimeReady,
     processCemMlTemplate,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
+import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
+import type {
+    CemProcessingCompileResult,
+    CemProcessingHost,
+    CemProcessingRenderPlanHandle,
+    CemProcessingWorkerFactory,
+} from './internal/runtime-support/processing-host.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
 import { LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG } from './legacy-xslt/contract.js';
 import {
@@ -400,6 +407,11 @@ export interface CemElementRuntimeOptions {
      * runtime can leave this off and rely on host-provided `uid-seed` uniqueness.
      */
     validateGeneratedIds?: boolean;
+    /**
+     * Construct the package-owned module worker. Bundlers, CSP hosts, and browser
+     * tests may inject worker construction without replacing the processing host.
+     */
+    processingWorkerFactory?: CemProcessingWorkerFactory;
 }
 
 /** Browser-only lifecycle adapter for a produced custom element.
@@ -491,6 +503,7 @@ interface CompiledDeclaration {
     occurrencePath: string;
     sourceHash: string;
     registrationIdentity: string | null;
+    declarationScope: CemDeclarationScope;
     scopeUid: string;
     artifactId: string;
     template: HTMLTemplateElement;
@@ -525,6 +538,13 @@ interface CemBrowserTagRegistrationLookup {
 interface RenderBounds {
     start: Comment;
     end: Comment;
+}
+
+class CemPatchCommitError extends Error {
+    constructor(readonly status: 'stale' | 'aborted') {
+        super(`the CEM patch transaction was ${status}`);
+        this.name = 'CemPatchCommitError';
+    }
 }
 
 interface InstanceState {
@@ -997,6 +1017,9 @@ export class CemElementRuntime {
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
     /** Dedupes the async engine lowering of a legacy-xslt declaration across its instances. */
     private readonly legacyConversions = new WeakMap<CompiledDeclaration, Promise<void>>();
+    private readonly processingArtifacts = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileResult>>();
+    private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
+    private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
     private readonly srcDocuments = new Map<string, Promise<Document>>();
     private readonly moduleUrls = new Map<string, Promise<string>>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
@@ -1026,10 +1049,7 @@ export class CemElementRuntime {
         this.uidSeedOption = options.uidSeed;
         this.uidSeedFallback = options.uidSeedFallback ?? (this.runMode === 'build-ssr' ? 'source-hash' : 'runtime');
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
-        // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can render
-        // through the authoritative boundary as soon as possible. Failures surface
-        // per-instance at render time.
-        void ensureRuntimeReady().catch(() => undefined);
+        this.processingWorkerFactory = options.processingWorkerFactory;
     }
 
     /**
@@ -1172,6 +1192,7 @@ export class CemElementRuntime {
         const registrationOptions = this.registrationOptions.get(declarationElement);
         const compiled = compileInlineDeclaration(declarationElement, tag, template, {
             declarationTag: this.declarationTag,
+            declarationScope,
             uidSeed: this.uidSeedOption,
             uidSeedFallback: this.uidSeedFallback,
             behavior: registrationOptions?.behavior,
@@ -1358,7 +1379,9 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration
     ): Promise<void> {
         try {
-            const diagnostics = await compileCemMlTemplate(compiled.cemMlSource ?? '');
+            const diagnostics = this.usesProcessingHost(compiled)
+                ? (await this.ensureProcessingArtifact(compiled)).diagnostics
+                : await compileCemMlTemplate(compiled.cemMlSource ?? '');
             if (diagnostics.length > 0) {
                 this.recordDiagnostics(
                     declarationElement,
@@ -1608,9 +1631,22 @@ export class CemElementRuntime {
         const snapshot = this.createSnapshot(instance, compiled, island);
         const token = this.nextRenderToken(instance);
 
+        if (this.usesProcessingHost(compiled)) {
+            this.renderSettled.set(
+                instance,
+                this.renderViaProcessingHost(instance, compiled, snapshot, token).then(() => {
+                    if (this.renderTokens.get(instance) === token) {
+                        compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+                    }
+                })
+            );
+            return;
+        }
+
         if (compiled.wasmEligible && (compiled.cemMlSource !== null || compiled.legacySource !== null)) {
-            // Canonical CEM-ML — and legacy HTML+XSLT (lowered by the engine on first render) —
-            // render through the authoritative `cem_ql` WASM boundary.
+            // URI/resource-bearing canonical CEM-ML stays on the established path until
+            // its streaming protocol is wired; legacy HTML+XSLT is lowered on first render.
+            // Both still use the authoritative `cem_ql` WASM boundary.
             this.renderSettled.set(
                 instance,
                 this.renderViaWasm(instance, compiled, snapshot, token).then(() => {
@@ -1725,6 +1761,191 @@ export class CemElementRuntime {
                 ),
             ]);
         }
+    }
+
+    private usesProcessingHost(compiled: CompiledDeclaration): boolean {
+        return compiled.mode === 'cem-ml'
+            && compiled.cemMlSource !== null
+            && !compiled.declarationElement.hasAttribute('src')
+            && !containsRuntimeResourceDirective(compiled.cemMlSource);
+    }
+
+    private processingHost(compiled: CompiledDeclaration): CemProcessingHost {
+        return cemProcessingHostForScope(compiled.declarationScope, {
+            workerScriptUrl: new URL('./internal/runtime-support/processing-worker.js', import.meta.url),
+            workerFactory: this.processingWorkerFactory,
+        });
+    }
+
+    private ensureProcessingArtifact(compiled: CompiledDeclaration): Promise<CemProcessingCompileResult> {
+        let pending = this.processingArtifacts.get(compiled);
+        if (!pending) {
+            const registrationIdentity = compiled.registrationIdentity;
+            if (!registrationIdentity) {
+                return Promise.reject(new Error('a canonical CEM-ML declaration requires a registration identity'));
+            }
+            pending = this.processingHost(compiled).compile({
+                language: 'cem-ml',
+                producedTag: compiled.producedTag,
+                templateArtifactId: compiled.artifactId,
+                registrationIdentity,
+                source: compiled.cemMlSource ?? '',
+                sourceRef: { kind: 'inline', value: compiled.producedTag },
+                resolverIdentity: `document:${compiled.declarationElement.ownerDocument.baseURI}`,
+                scopePolicyStamp: this.scopePolicyStamp,
+                sourceMapMode: 'dev',
+            }).result;
+            this.processingArtifacts.set(compiled, pending);
+        }
+        return pending;
+    }
+
+    private async renderViaProcessingHost(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        snapshot: DataIslandSnapshot,
+        token: number
+    ): Promise<void> {
+        try {
+            const compile = await this.ensureProcessingArtifact(compiled);
+            if (this.renderTokens.get(instance) !== token) {
+                return;
+            }
+            const revision = {
+                instanceId: snapshot.instanceId,
+                dataRevision: snapshot.dataRevision,
+                templateArtifactId: snapshot.templateArtifactId,
+                scopePolicyStamp: snapshot.scopePolicyStamp,
+                outputTarget: snapshot.outputTarget,
+                ...(snapshot.renderAttempt === undefined ? {} : { renderAttempt: snapshot.renderAttempt }),
+            };
+            let result = await this.processingHost(compiled).renderDiff({
+                artifact: compile.artifact,
+                revision,
+                snapshot,
+                data: wasmTemplateData(snapshot, compiled.declaredAttributes),
+                scopeUid: this.currentScopeUid(instance, compiled),
+                instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
+                previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,
+            }).result;
+            if (this.renderTokens.get(instance) !== token) {
+                return;
+            }
+            const resultDiagnostics = this.validateGeneratedIds
+                ? result.diagnostics
+                : result.diagnostics.filter(
+                    (diagnostic) => !diagnostic.code.startsWith('cem.render_plan.generated_')
+                );
+            if (resultDiagnostics.length > 0) {
+                this.recordDiagnostics(
+                    instance,
+                    resultDiagnostics.map((diagnostic) => runtimeSupportDiagnostic(diagnostic, compiled.producedTag))
+                );
+            }
+            const island = this.ensureDataIsland(instance);
+            let committedRevision = revision;
+            let resourcesSettled: Promise<void>;
+            try {
+                resourcesSettled = this.commitProcessingFrames(
+                    instance,
+                    compiled,
+                    island,
+                    result.frames,
+                    committedRevision,
+                    token
+                );
+            } catch (error) {
+                if (!(error instanceof CemPatchCommitError) || error.status !== 'aborted') {
+                    throw error;
+                }
+                const renderAttempt = (snapshot.renderAttempt ?? 0) + 1;
+                const recoverySnapshot = { ...snapshot, renderAttempt };
+                committedRevision = { ...revision, renderAttempt };
+                result = await this.processingHost(compiled).renderDiff({
+                    artifact: compile.artifact,
+                    revision: committedRevision,
+                    snapshot: recoverySnapshot,
+                    data: wasmTemplateData(recoverySnapshot, compiled.declaredAttributes),
+                    scopeUid: this.currentScopeUid(instance, compiled),
+                    instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
+                    previousRenderPlan: null,
+                }).result;
+                if (this.renderTokens.get(instance) !== token) {
+                    return;
+                }
+                const recoveryDiagnostics = this.validateGeneratedIds
+                    ? result.diagnostics
+                    : result.diagnostics.filter(
+                        (diagnostic) => !diagnostic.code.startsWith('cem.render_plan.generated_')
+                    );
+                if (recoveryDiagnostics.length > 0) {
+                    this.recordDiagnostics(
+                        instance,
+                        recoveryDiagnostics.map((diagnostic) =>
+                            runtimeSupportDiagnostic(diagnostic, compiled.producedTag)
+                        )
+                    );
+                }
+                resourcesSettled = this.commitProcessingFrames(
+                    instance,
+                    compiled,
+                    island,
+                    result.frames,
+                    committedRevision,
+                    token
+                );
+            }
+            this.processingRenderPlans.set(instance, result.nextRenderPlan);
+            await resourcesSettled;
+        } catch (error) {
+            if (this.renderTokens.get(instance) !== token) {
+                return;
+            }
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.processing_host_render_failed',
+                    error instanceof Error ? error.message : 'the CEM processing host render failed',
+                    compiled.producedTag
+                ),
+            ]);
+        }
+    }
+
+    private commitProcessingFrames(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        island: HTMLTemplateElement,
+        frames: Parameters<typeof applyPatchFramesToRange>[1],
+        revision: Parameters<typeof applyPatchFramesToRange>[2],
+        token: number
+    ): Promise<void> {
+        const behavior = compiled.behavior;
+        const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
+        const bounds = this.ensureRenderBounds(instance, island);
+        const result = applyPatchFramesToRange(bounds, frames, revision, instance.ownerDocument, {
+            preserveElementAttribute: preserveRenderedAttribute
+                ? (current, desired, attribute) => preserveRenderedAttribute(instance, current, desired, attribute)
+                : undefined,
+            preserveElementChildren: (current) =>
+                (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false)
+                && directDataIsland(current) !== undefined,
+            transientElementTags: ['module-url', 'http-request', 'local-storage', 'location-element'],
+        });
+        if (result.status !== 'applied') {
+            this.recordDiagnostics(
+                instance,
+                result.diagnostics.map((diagnostic) => renderDiagnostic(
+                    diagnostic.code,
+                    diagnostic.message,
+                    compiled.producedTag
+                ))
+            );
+            throw new CemPatchCommitError(result.status);
+        }
+        this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
+        this.bindRenderedCustomValidityInRange(bounds);
+        this.bindRenderedFormEventsInRange(instance, compiled, bounds);
+        return this.bindRenderedResourceSlicesInRange(instance, compiled, bounds, token);
     }
 
     private nextRenderToken(instance: HTMLElement): number {
@@ -3257,6 +3478,7 @@ function compileInlineDeclaration(
         occurrencePath,
         sourceHash,
         registrationIdentity: registration.registrationIdentity,
+        declarationScope: options.declarationScope,
         scopeUid: generateScopeUid({ producedTag, uidSeed: uidSeedResolution.seed, occurrencePath }),
         artifactId: `template-artifact-${++artifactSequence}`,
         template,
@@ -3274,6 +3496,7 @@ function compileInlineDeclaration(
 
 interface InlineDeclarationCompileOptions {
     declarationTag: string;
+    declarationScope: CemDeclarationScope;
     uidSeed?: CemElementRuntimeOptions['uidSeed'];
     uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
     behavior?: CemProducedElementBehavior;
@@ -4903,6 +5126,10 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
         );
     };
     return plan.nodes.some(visit);
+}
+
+function containsRuntimeResourceDirective(source: string): boolean {
+    return /\{\s*(?:module-url|http-request|local-storage|location-element)(?=\s|@|\||\})/.test(source);
 }
 
 function templateValues(

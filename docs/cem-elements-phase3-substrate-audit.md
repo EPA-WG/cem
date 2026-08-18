@@ -18,22 +18,23 @@ production trigger is complete.
 - **Deferred:** the code may contain exploratory evidence, but the roadmap does not
   accept it in the current phase.
 
-No placeholder-only substrate was found. The main risk is substantial main-thread
-and post-browser implementation being mistaken for the selected worker-backed
-Phase 3A topology.
+No placeholder-only substrate was found. The canonical inline vertical slice now
+uses the selected worker-backed Phase 3A topology; the main sequencing risk has moved
+to extending that boundary to URI/resource work without bypassing its identities,
+cancellation, or retained-plan protocol.
 
 ## Implementation and fixture inventory
 
 | Area | Status | Existing evidence | Missing or incorrectly sequenced work |
 |---|---|---|---|
-| Declaration shape and registration | Implemented | `analyzeDeclarationShape()` enforces inline/source shape. The opaque `CemDeclarationScope` API locks default roots, explicit same-document parents, nearest inherited lookup, aliases, and disposal. `CemElementRuntime` selects explicit/default scopes for inline and external declarations, derives source/language/behavior-version registration identities, calls the pure decision core, and marks CEM-owned document-global constructors. Unit and browser fixtures cover missing behavior identity, same-scope rejection, identical inherited reuse, incompatible inherited/CEM-browser collisions, and foreign browser collisions before mutation. | Worker artifact ownership must preserve the same registration identity, but that is processing-host work rather than a missing declaration-registry rule. |
+| Declaration shape and registration | Implemented | `analyzeDeclarationShape()` enforces inline/source shape. The opaque `CemDeclarationScope` API locks default roots, explicit same-document parents, nearest inherited lookup, aliases, and disposal. `CemElementRuntime` selects explicit/default scopes for inline and external declarations, derives source/language/behavior-version registration identities, calls the pure decision core, and marks CEM-owned document-global constructors. Unit and browser fixtures cover missing behavior identity, same-scope rejection, identical inherited reuse, incompatible inherited/CEM-browser collisions, and foreign browser collisions before mutation. Retained worker artifacts carry that registration identity. | URI artifact identity must add resolver/source identity in the next bounded extension without changing declaration-registry rules. |
 | Data document | Implemented, bounded helper | `data-document.ts` provides DOM-record and table-row projections with executable Storybook assertions. The runtime stories separately exercise CEM-QL `/datadom` selection. | The helper is story-local rather than the general worker data-AST transport; it must not be treated as that transport. |
-| Disposition | Implemented | `disposition.ts`, `disposition.spec.ts`, and `projection.disposition.spec.ts` provide tested run-mode and contract-version decisions. | Worker startup/fallback diagnostics do not yet flow through this policy because the worker host does not exist. |
-| Browser projection and DOM ownership | Partial | `projection.ts` implements serializable render plans, deterministic node identities, scoped CSS, materialization, identity-aware range merge, revision metadata, and patch-frame generation/application. Browser stories cover focus and runtime-owned attribute preservation. | Patch frames are produced in the same browser thread; there is no dedicated-worker producer/consumer protocol, startup failure recovery, or stale worker-job cancellation. |
-| Processing boundary | Partial | Structured-clone guards, snapshots, render-plan identity, revisions, diff frames, privacy/export behavior, and edge-state primitives have focused unit coverage. The package-private `cem-processing-host-v1` request/response types, monotonic job sequence, root-owner resolver, injected module-worker factory, and pure failure-transition table now lock the worker/fallback boundary. | There is no transport-wired `Worker` host, transferable/binary chunk flow, or browser parity proof between worker and fallback execution. |
-| Runtime support | Partial | The package-private `cem-ql-render.ts` initializes the generated `cem_ql` WASM module and compiles/renders canonical CEM-ML; `cem-ql-query.ts` maps query bindings and results. The cached package build vendors byte-identical CEM-QL ESM/declaration/WASM assets, rewrites built imports package-locally, and verifies the real npm archive plus a clean-consumer import. | WASM still runs directly on the main thread. The locked single dedicated worker is absent, so Option B is not primary and Option A is not an observable fallback transition. Local/remote streaming and retained worker artifacts are also absent. |
-| Browser runtime and resources | Partial | `CemElementRuntime` implements scoped inline and `src` declarations, inert instance islands, CEM-QL rendering, light-DOM patching, events/forms, diagnostics, module URLs, and completed-response JSON/XML/local/location resource slices. | Processing still calls the main-thread WASM support directly. Resource support precedes the worker/artifact boundary and therefore cannot yet prove URI identity and worker/fallback equivalence required by the later URI slice. |
-| Storybook/browser evidence | Partial | Browser tests cover declaration guardrails, the focused logical-scope/global-registry contract, data-island isolation, canonical CEM-ML/WASM rendering, payload/slice/form flows, URI/resources, DOM identity, diagnostics, legacy behavior, and eight material examples. | Phase 3A and the six Edge/SSR stories share `cem-elements.stories.ts`; the broad browser target can execute them together even though explicit Edge/SSR acceptance is deferred. The worker/fallback fixture is the next missing focused browser evidence. |
+| Disposition | Implemented | `disposition.ts`, `disposition.spec.ts`, and `projection.disposition.spec.ts` provide tested run-mode and contract-version decisions. Stable worker startup/execution fallback diagnostics now surface through the normal declaration/render diagnostic channel. | URI/resource policy disposition remains part of the next bounded extension, not a missing inline-worker rule. |
+| Browser projection and DOM ownership | Implemented for the inline vertical slice | `projection.ts` implements serializable render plans, deterministic node identities, scoped CSS, materialization, identity-aware range merge, revision metadata, buffered patch-frame validation/application, focus/selection restoration, desired-attribute reconciliation, and atomic target-mismatch recovery. | URI/resource transient controls and explicit superseded-job cancellation still need the same transaction guarantees. |
+| Processing boundary | Partial | Structured-clone guards, snapshots, render-plan identity, revisions, diff frames, privacy/export behavior, and edge-state primitives have focused unit coverage. The package-private `cem-processing-host-v1` transport now wires one module worker per logical root to the same retained compile/render-diff engine as main-thread fallback; monotonic requests, root ownership, injected construction, fallback, and scope disposal are executable. | URI source streams, transferable/binary chunks, and runtime-driven cancellation of superseded work remain. |
+| Runtime support | Implemented for canonical inline CEM-ML | `processing-engine.ts` retains artifacts/plans around the generated `cem_ql` WASM module in both worker and fallback modes; `cem-ql-query.ts` maps query bindings/results. The cached package build vendors byte-identical CEM-QL assets and includes the engine, host runtime, and worker entry in a verified 53-file npm archive. | Local/remote streaming and URI/resource artifact retention are intentionally not routed through the worker yet. |
+| Browser runtime and resources | Partial | `CemElementRuntime` routes canonical inline CEM-ML through the scope-owned worker host, consumes committed patch frames on the main thread, and retains its existing scoped `src`, resource, legacy, event, form, and diagnostic behavior. | URI declarations and transient resource directives stay on the established path until the next item adds their source/abort protocol without regressing stale-response behavior. |
+| Storybook/browser evidence | Implemented for the inline vertical slice | The focused fixture constructs a real module worker, a separately rooted throwing-factory startup fallback, and a post-handshake execution failure, compares semantic output, rerenders through patches, and proves identity, focus/selection, and inert-island preservation. All 97 Chromium stories remain green. | Phase 3A and the six Edge/SSR stories still share `cem-elements.stories.ts`; phase-specific Edge/SSR selection remains deferred until Phase 3.5 activates. |
 | Legacy parity | Partial | Twelve manifest-backed legacy/CEM-ML file pairs, six executable legacy-XSLT stories, runtime bridge stories, and Rust/TypeScript contract-alignment tests exist. `custom-element-v0` routes through the bounded `custom-element-xslt` compatibility adapter. | `verify-legacy-fixtures` verifies inventory and markers, not rendered equivalence of every paired file. Full browser behavior and accessibility parity remain production-trigger work. |
 | Material parity | Partial | Eight manifest-backed pairs cover action, autocomplete, badge, dropdown, icon, icon-link, input, and menu; executable stories cover the eight examples plus scoped-style policy and first paint. | `verify-material-fixtures` is structural. It does not by itself prove all paired-file output, interaction, keyboard, and accessibility equivalence. |
 | Edge/SSR | Deferred | Snapshot hydration, rejection/fallback, edge patch frames, export policy, hybrid render-state storage, and supporting unit primitives already exist. | Roadmap Phase 3.5 begins only after the browser worker substrate is stable. These prototypes remain useful but are not a Phase 3A release prerequisite. |
@@ -66,21 +67,23 @@ There are no resolved Phase 3B worker-pool/cache/scheduler targets and no Phase 
 precompiled-template targets. Adding either before the Phase 3A worker/fallback
 contract is green would reverse the accepted sequence.
 
-## Ordered gaps and next decision
+## Ordered gaps and next work
 
-1. Add the one-dedicated-worker processing host and deterministic main-thread
-   fallback behind one semantic result/diagnostic/patch contract.
-2. Prove startup failure, pre-commit execution failure, committed-job suppression,
-   cancellation, and worker/fallback semantic parity in the one focused browser fixture.
-3. Separate Phase 3.5 story/unit selection before Phase 3.5 becomes active; until
+1. Move resolved URI declaration sources through the retained processing host while
+   preserving source-ref, resolver, scope-policy, artifact, and source-map identity.
+2. Define transient resource-control handling at the worker diff boundary, then prove
+   remote/local streaming, abort/stale-response protection, JSON/XML projections, and
+   the fixture-backed `cem:for-each` flow without transporting live browser handles.
+3. Wire superseded render jobs to the locked cancel operation and preserve the same
+   no-partial-commit recovery behavior already proven by the inline slice.
+4. Separate Phase 3.5 story/unit selection before Phase 3.5 becomes active; until
    then keep `verify-edge-ssr` opt-in and outside `verify`.
-4. Turn the structural legacy/material inventories into full rendered and
+5. Turn the structural legacy/material inventories into full rendered and
    accessibility acceptance after the Phase 3A architecture is authoritative.
-5. Leave the Phase 3B pool/cache/scheduler and Phase 3C precompiled path deferred.
+6. Leave the Phase 3B pool/cache/scheduler and Phase 3C precompiled path deferred.
 
-The declaration-scope, registration-identity, and processing-host API decisions are
-implemented. The next work item is the smallest worker-backed browser vertical slice.
-It should move only canonical inline CEM-ML compile/render/diff work behind the locked
-host first, keep DOM projection and legacy compatibility on their existing paths, and
-prove the required main-thread fallback with the same handles, diagnostics, full
-revision, and patch-frame result before expanding to URI streaming.
+The declaration-scope, registration-identity, processing-host API, and canonical
+inline worker vertical slice are implemented. The next work item is the bounded URI
+declaration and `<http-request>` extension: reuse the same handles, full revisions,
+diagnostics, fallback, and patch transactions while adding source streaming and
+abort/stale-response semantics. Legacy compatibility remains on its established path.

@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Implement the smallest worker-backed Phase 3A browser vertical slice behind the
-locked package-private processing-host API, with deterministic main-thread fallback
-and commit-safe retry behavior.
+Extend the stable Phase 3A worker substrate to URI-backed declarations and the
+Phase 1 `<http-request>` resource slice while preserving resolver/policy identity,
+streaming cancellation, and the same worker/fallback patch semantics as inline CEM-ML.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -127,7 +127,7 @@ registration identities may reuse an inherited or existing definition.
       jobs without replay, and suppresses late worker results; 9 focused cases pass
       within all 109 `cem-elements:test:unit` tests.
 
-- [ ] Implement the smallest tests-first Phase 3A browser vertical slice.
+- [x] Implement the smallest tests-first Phase 3A browser vertical slice.
     - [x] Register one inline `<cem-element>` declaration under the locked name
           rules and capture one produced instance's author payload into an inert
           WHATWG template data island.
@@ -135,18 +135,27 @@ registration identities may reuse an inherited or existing definition.
           package-private runtime support, rewrite built imports package-locally,
           declare the assets as cached Nx outputs, and verify the npm archive
           inventory before adding the module-worker entry.
-          Completed 2026-08-18: `cem-elements:verify-package` packs 44 files,
+          Completed 2026-08-18: `cem-elements:verify-package` packs 53 files,
           verifies the exact 31,092,853-byte WASM artifact and local ESM imports,
-          excludes sources/build metadata, and imports the tarball from a clean
-          temporary consumer; its build and verification targets restore from Nx
-          cache.
-    - [ ] Compile/render through the existing CEM-ML/CEM-QL WASM boundary using
+          includes the processing engine/host/worker entries, excludes sources/build
+          metadata, and imports the tarball from a clean temporary consumer; its
+          build and verification targets restore from Nx cache.
+    - [x] Compile/render through the existing CEM-ML/CEM-QL WASM boundary using
           one dedicated worker, with the same semantic result through the required
           main-thread fallback.
-    - [ ] Apply revision-checked patch frames on the main thread while preserving
+    - [x] Apply revision-checked patch frames on the main thread while preserving
           light-DOM identity, focus/selection state, and data-island isolation.
-    - [ ] Prove the vertical slice in Rust-first contract tests, TypeScript unit
+    - [x] Prove the vertical slice in Rust-first contract tests, TypeScript unit
           tests, and one executable Storybook/browser fixture.
+    - Completed 2026-08-18: canonical inline CEM-ML now compiles/renders/diffs in
+      one module worker per logical root, with retained artifact/render-plan handles
+      and deterministic startup/execution fallback to the same main-thread engine.
+      The main thread validates complete revisions and buffered transactions before
+      DOM mutation, preserves render identity/focus/selection and behavior-owned
+      attributes, retries target mismatch as a fresh `replaceScope` attempt, and
+      leaves URI/resource and legacy declarations on their established paths. The
+      accepted evidence is Rust-first parity 3/3, TypeScript unit 111/111, Storybook
+      Chromium 97/97, typecheck/lint, and the 53-file clean-consumer package probe.
 
 - [ ] Add URI declarations and the Phase 1 `<http-request>` resource slice.
     - [ ] Support declaration `src` for document-relative, fragment-only, absolute,

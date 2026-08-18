@@ -97,6 +97,8 @@ export const RENDER_ENGINE_VERSION = '1.0.0';
 /** Edge render-state record schema version (FF-6 SemVer axis, BR-VC-5). */
 export const EDGE_RENDER_STATE_VERSION = '1.0.0';
 
+const renderedAttributeNames = new WeakMap<Element, Set<string>>();
+
 export interface RenderPlan {
     producedTag: string;
     instanceId: string;
@@ -140,6 +142,17 @@ export interface RenderPlanApplyDiagnostic {
 export interface RenderPlanApplyResult {
     mode: 'patch' | 'replaceScope';
     diagnostics: RenderPlanApplyDiagnostic[];
+}
+
+export interface PatchFramesApplyDiagnostic {
+    code: string;
+    severity: 'warning' | 'error';
+    message: string;
+}
+
+export interface PatchFramesApplyResult {
+    status: 'applied' | 'stale' | 'aborted';
+    diagnostics: PatchFramesApplyDiagnostic[];
 }
 
 export interface ScopedCssRewriteDiagnostic {
@@ -1356,12 +1369,270 @@ export function applyRenderPlanToRange(
     }
 }
 
+/**
+ * Validate and atomically apply one complete worker patch transaction. Frames are
+ * buffered by the caller/transport; no DOM mutation occurs until a matching commit
+ * and all patch targets have been validated.
+ */
+export function applyPatchFramesToRange(
+    bounds: RenderPlanDomRange,
+    frames: readonly PatchFrame[],
+    expectedRevision: RenderRevision,
+    document: Document,
+    options: RenderPlanApplyOptions = {}
+): PatchFramesApplyResult {
+    const parsed = parseCommittedPatchFrames(frames);
+    if (!parsed.ok) {
+        return { status: 'aborted', diagnostics: [parsed.diagnostic] };
+    }
+    if (renderRevisionKey(parsed.revision) !== renderRevisionKey(expectedRevision)) {
+        return {
+            status: 'stale',
+            diagnostics: [{
+                code: 'cem.patch_frame.stale_revision',
+                severity: 'warning',
+                message: 'the committed patch transaction did not match the latest requested render revision',
+            }],
+        };
+    }
+
+    const replaceScope = parsed.ops.filter(
+        (operation): operation is Extract<DomPatchOp, { op: 'replaceScope' }> => operation.op === 'replaceScope'
+    );
+    if (replaceScope.length > 0) {
+        if (replaceScope.length !== parsed.ops.length) {
+            return abortedPatch('a replaceScope transaction cannot mix scope replacement with targeted operations');
+        }
+        const plan: RenderPlan = {
+            ...parsed.commit.nextRenderPlan,
+            nodes: replaceScope.map((operation) => deserializePatchNode(operation.node.node)),
+        };
+        applyRenderPlanToRange(bounds, plan, document, options);
+        return { status: 'applied', diagnostics: [] };
+    }
+
+    const resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' }>; target: Node }> = [];
+    for (const operation of parsed.ops) {
+        if (operation.op === 'replaceScope') {
+            continue;
+        }
+        const target = findNodeByRenderIdentityInRange(bounds, operation.target.id);
+        if (!target || (operation.op === 'setAttribute' && target.nodeType !== 1)) {
+            return abortedPatch(`patch target \`${operation.target.id}\` was not present in the rendered range`);
+        }
+        resolved.push({ operation, target });
+    }
+    const focus = captureRenderRangeFocus(bounds);
+    try {
+        for (const { operation, target } of resolved) {
+            if (operation.op === 'setText') {
+                target.textContent = operation.value;
+            } else if (operation.op === 'setAttribute') {
+                const element = target as Element;
+                const names = renderedAttributeNames.get(element) ?? authoredAttributeNames(element);
+                if (operation.value === null) {
+                    names.delete(operation.name);
+                    const currentAttribute = element.getAttributeNode(operation.name);
+                    const desired = element.cloneNode(false) as Element;
+                    desired.removeAttribute(operation.name);
+                    if (
+                        !currentAttribute
+                        || !options.preserveElementAttribute?.(element, desired, currentAttribute)
+                    ) {
+                        element.removeAttribute(operation.name);
+                    }
+                } else {
+                    names.add(operation.name);
+                    element.setAttribute(operation.name, operation.value);
+                }
+                renderedAttributeNames.set(element, names);
+            } else {
+                target.parentNode?.replaceChild(
+                    materializeSerializedNode(operation.node.node, parsed.commit.nextRenderPlan, document),
+                    target
+                );
+            }
+        }
+        if (parsed.ops.length > 0) {
+            reconcileRenderedAttributes(bounds, options);
+            updateCommittedRenderMetadata(bounds, parsed.commit.nextRenderPlan, options);
+        }
+    } finally {
+        restoreRenderRangeFocus(focus);
+    }
+    return { status: 'applied', diagnostics: [] };
+}
+
+function parseCommittedPatchFrames(frames: readonly PatchFrame[]):
+    | {
+          ok: true;
+          revision: RenderRevision;
+          ops: DomPatchOp[];
+          commit: Extract<PatchFrame, { type: 'commit' }>;
+      }
+    | { ok: false; diagnostic: PatchFramesApplyDiagnostic } {
+    const begin = frames[0];
+    const commit = frames.at(-1);
+    if (!begin || begin.type !== 'begin' || !commit || commit.type !== 'commit') {
+        return invalidPatch('a patch transaction requires begin and commit frames');
+    }
+    if (begin.transactionId !== commit.transactionId) {
+        return invalidPatch('patch begin and commit transaction IDs must match');
+    }
+    if (renderRevisionKey(begin.revision) !== renderRevisionKey(commit.nextRenderPlan)) {
+        return invalidPatch('patch begin and commit revisions must match');
+    }
+    const ops: DomPatchOp[] = [];
+    let nextBatchIndex = 0;
+    for (const frame of frames.slice(1, -1)) {
+        if (
+            frame.type !== 'ops'
+            || frame.transactionId !== begin.transactionId
+            || frame.batchIndex !== nextBatchIndex
+        ) {
+            return invalidPatch('patch operation batches must be contiguous and ordered from zero');
+        }
+        nextBatchIndex += 1;
+        ops.push(...frame.ops);
+    }
+    return { ok: true, revision: begin.revision, ops, commit };
+}
+
+function invalidPatch(message: string): { ok: false; diagnostic: PatchFramesApplyDiagnostic } {
+    return {
+        ok: false,
+        diagnostic: { code: 'cem.patch_frame.invalid_transaction', severity: 'error', message },
+    };
+}
+
+function abortedPatch(message: string): PatchFramesApplyResult {
+    return {
+        status: 'aborted',
+        diagnostics: [{ code: 'cem.patch_frame.target_mismatch', severity: 'error', message }],
+    };
+}
+
+function deserializePatchNode(node: SerializedNode): RenderPlanNode {
+    if (node.kind === 'text' || node.kind === 'comment') {
+        return { kind: node.kind, text: node.text, sourceMapRef: node.sourceMapRef };
+    }
+    return {
+        kind: 'element',
+        namespace: null,
+        tag: node.tagName,
+        attributes: Object.entries(node.attributes).map(([name, value]) => ({ name, value })),
+        renderNodeId: node.renderNodeId,
+        children: node.children.map(deserializePatchNode),
+        sourceMapRef: node.sourceMapRef,
+    };
+}
+
+function materializeSerializedNode(
+    node: SerializedNode,
+    identity: RenderPlanIdentity,
+    document: Document
+): Node {
+    return materializeNode(deserializePatchNode(node), { ...identity, nodes: [] }, document);
+}
+
+function updateCommittedRenderMetadata(
+    bounds: RenderPlanDomRange,
+    identity: RenderPlanIdentity,
+    options: RenderPlanApplyOptions
+): void {
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        updateNodeRenderMetadata(current, identity, options);
+        current = current.nextSibling;
+    }
+}
+
+function reconcileRenderedAttributes(bounds: RenderPlanDomRange, options: RenderPlanApplyOptions): void {
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        reconcileNodeRenderedAttributes(current, options);
+        current = current.nextSibling;
+    }
+}
+
+function reconcileNodeRenderedAttributes(node: Node, options: RenderPlanApplyOptions): void {
+    let preserveChildren = false;
+    if (node.nodeType === 1) {
+        const element = node as Element;
+        const names = renderedAttributeNames.get(element);
+        if (names) {
+            const desired = element.cloneNode(false) as Element;
+            for (const attribute of Array.from(desired.attributes)) {
+                if (!names.has(attribute.name) && !isRenderMetadataAttribute(attribute.name)) {
+                    desired.removeAttribute(attribute.name);
+                }
+            }
+            for (const attribute of Array.from(element.attributes)) {
+                if (
+                    !names.has(attribute.name)
+                    && !isRenderMetadataAttribute(attribute.name)
+                    && !options.preserveElementAttribute?.(element, desired, attribute)
+                ) {
+                    element.removeAttribute(attribute.name);
+                }
+            }
+        }
+        preserveChildren = options.preserveElementChildren?.(element, element.cloneNode(false) as Element) ?? false;
+    }
+    if (preserveChildren) {
+        return;
+    }
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+        reconcileNodeRenderedAttributes(child, options);
+    }
+}
+
+function authoredAttributeNames(element: Element): Set<string> {
+    return new Set(
+        Array.from(element.attributes)
+            .map((attribute) => attribute.name)
+            .filter((name) => !isRenderMetadataAttribute(name))
+    );
+}
+
+function isRenderMetadataAttribute(name: string): boolean {
+    return name === RENDER_NODE_ID_ATTR
+        || name === TEMPLATE_ARTIFACT_ID_ATTR
+        || name === DATA_REVISION_ATTR
+        || name === SOURCE_FIDELITY_ATTR
+        || name === SOURCE_FRAME_ATTR;
+}
+
+function updateNodeRenderMetadata(
+    node: Node,
+    identity: RenderPlanIdentity,
+    options: RenderPlanApplyOptions
+): void {
+    let preserveChildren = false;
+    if (node.nodeType === 1) {
+        const element = node as Element;
+        element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, identity.templateArtifactId);
+        element.setAttribute(DATA_REVISION_ATTR, identity.dataRevision);
+        preserveChildren = options.preserveElementChildren?.(element, element.cloneNode(false) as Element) ?? false;
+    }
+    if (preserveChildren) {
+        return;
+    }
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+        updateNodeRenderMetadata(child, identity, options);
+    }
+}
+
 function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Document): Node {
     if (node.kind === 'text') {
-        return document.createTextNode(node.text);
+        const text = document.createTextNode(node.text) as Text & { cemRenderNodeId?: string };
+        text.cemRenderNodeId = textNodePatchId(node);
+        return text;
     }
     if (node.kind === 'comment') {
-        return document.createComment(node.text);
+        const comment = document.createComment(node.text) as Comment & { cemRenderNodeId?: string };
+        comment.cemRenderNodeId = textNodePatchId(node);
+        return comment;
     }
 
     const element = node.namespace
@@ -1370,6 +1641,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
     for (const attribute of node.attributes) {
         element.setAttribute(attribute.name, attribute.value);
     }
+    renderedAttributeNames.set(element, new Set(node.attributes.map((attribute) => attribute.name)));
     element.setAttribute(RENDER_NODE_ID_ATTR, node.renderNodeId);
     (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = node.renderNodeId;
     element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
@@ -1594,6 +1866,7 @@ function mergeRenderPlanNode(match: RenderPlanNodeMatch, desired: RenderPlanNode
     }
 
     const element = match.first as Element;
+    renderedAttributeNames.set(element, new Set(desired.attributes.map((attribute) => attribute.name)));
     mirrorRenderIdentity(element, desired.renderNodeId);
     const preserveElementAttribute = context.options.preserveElementAttribute;
     const preserveElementChildren = context.options.preserveElementChildren;
@@ -1654,7 +1927,9 @@ function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApply
 }
 
 function createTextLikeNode(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>, document: Document): Node {
-    return node.kind === 'text' ? document.createTextNode(node.text) : document.createComment(node.text);
+    const created = node.kind === 'text' ? document.createTextNode(node.text) : document.createComment(node.text);
+    (created as Node & { cemRenderNodeId?: string }).cemRenderNodeId = textNodePatchId(node);
+    return created;
 }
 
 function createRenderPlanElement(
@@ -1666,6 +1941,7 @@ function createRenderPlanElement(
         ? document.createElementNS(node.namespace, node.tag)
         : document.createElement(node.tag);
     syncAttributes(element, renderPlanElementAttributes(node, plan));
+    renderedAttributeNames.set(element, new Set(node.attributes.map((attribute) => attribute.name)));
     mirrorRenderIdentity(element, node.renderNodeId);
     return element;
 }
@@ -1968,6 +2244,33 @@ function findElementByRenderIdentityInRange(bounds: RenderPlanDomRange, id: stri
             return found;
         }
         current = current.nextSibling;
+    }
+    return null;
+}
+
+function findNodeByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string): Node | null {
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        const found = findNodeByRenderIdentity(current, id);
+        if (found) {
+            return found;
+        }
+        current = current.nextSibling;
+    }
+    return null;
+}
+
+function findNodeByRenderIdentity(node: Node, id: string): Node | null {
+    const identity = (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId
+        ?? (node.nodeType === 1 ? renderIdentity(node) : null);
+    if (identity === id) {
+        return node;
+    }
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+        const found = findNodeByRenderIdentity(child, id);
+        if (found) {
+            return found;
+        }
     }
     return null;
 }

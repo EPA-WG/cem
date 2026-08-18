@@ -39,6 +39,7 @@ export interface CemProcessingSourceRef {
 export interface CemProcessingCompileInput {
     language: 'cem-ml';
     producedTag: string;
+    templateArtifactId: string;
     registrationIdentity: string;
     source: string;
     sourceRef: CemProcessingSourceRef;
@@ -79,6 +80,11 @@ export interface CemProcessingRenderDiffInput {
     artifact: CemProcessingArtifactHandle;
     revision: RenderRevision;
     snapshot: DataIslandSnapshot;
+    /** Host-neutral bindings derived from the complete data-island snapshot. */
+    data: Record<string, unknown>;
+    /** Deterministic CSS scope identities applied before the retained-plan diff. */
+    scopeUid: string;
+    instanceScopeUid: string;
     previousRenderPlan?: CemProcessingRenderPlanHandle | null;
     patchBatchSize?: number;
 }

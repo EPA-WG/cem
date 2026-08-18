@@ -50,7 +50,10 @@ try {
     const packResults = JSON.parse(packOutput);
     const packedFiles = packResults[0]?.files?.map(({ path }) => path) ?? [];
     const requiredFiles = [
+        'dist/lib/internal/runtime-support/processing-engine.js',
         'dist/lib/internal/runtime-support/processing-host.js',
+        'dist/lib/internal/runtime-support/processing-host-runtime.js',
+        'dist/lib/internal/runtime-support/processing-worker.js',
         ...runtimeFiles.map((file) => `${vendorRelativeRoot}/${file}`),
     ];
 

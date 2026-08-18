@@ -57,6 +57,7 @@ interface CemDeclarationScopeState {
     parent: CemDeclarationScope | null;
     disposed: boolean;
     registrations: Map<string, CemDeclarationScopeRegistration>;
+    disposeListeners: Set<() => void>;
 }
 
 const scopeStates = new WeakMap<CemDeclarationScope, CemDeclarationScopeState>();
@@ -82,6 +83,10 @@ class LogicalCemDeclarationScope implements CemDeclarationScope {
         }
         state.registrations.clear();
         state.disposed = true;
+        for (const listener of state.disposeListeners) {
+            listener();
+        }
+        state.disposeListeners.clear();
     }
 }
 
@@ -117,6 +122,7 @@ export function createCemDeclarationScope(options: CemDeclarationScopeOptions): 
         parent,
         disposed: false,
         registrations: new Map(),
+        disposeListeners: new Set(),
     });
     return scope;
 }
@@ -213,6 +219,17 @@ export function unbindCemDeclarationScopeRegistration<TDeclaration>(
 /** @internal Fail closed when a scope or any explicitly supplied ancestor was disposed. */
 export function assertCemDeclarationScopeActive(scope: CemDeclarationScope): void {
     assertScopeChainActive(scope);
+}
+
+/** @internal Observe explicit scope lifetime without exposing processing-host state publicly. */
+export function onCemDeclarationScopeDispose(scope: CemDeclarationScope, listener: () => void): () => void {
+    const state = scopeState(scope);
+    if (state.disposed) {
+        listener();
+        return () => undefined;
+    }
+    state.disposeListeners.add(listener);
+    return () => state.disposeListeners.delete(listener);
 }
 
 function assertScopeChainActive(scope: CemDeclarationScope): void {

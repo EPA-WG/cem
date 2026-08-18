@@ -45,6 +45,7 @@ describe('Phase 3A processing-host contract', () => {
         const compile = createCemProcessingRequestEnvelope(sequence, 'compile', {
             language: 'cem-ml',
             producedTag: 'cem-card',
+            templateArtifactId: REVISION.templateArtifactId,
             registrationIdentity: 'cem-registration-v1:card',
             source: '<template><p>{$title}</p></template>',
             sourceRef: { kind: 'inline', value: 'cem-card' },
@@ -87,6 +88,9 @@ describe('Phase 3A processing-host contract', () => {
             artifact,
             revision: REVISION,
             snapshot: snapshotFixture(),
+            data: { title: 'Card' },
+            scopeUid: 'card-scope',
+            instanceScopeUid: 'card-instance-scope',
             previousRenderPlan,
             patchBatchSize: 16,
         });

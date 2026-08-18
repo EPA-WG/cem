@@ -45,7 +45,9 @@ import {
     runtimeVersion,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
+import { createCemProcessingReadyEnvelope } from './internal/runtime-support/processing-host.js';
 import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
+import { createCemDeclarationScope } from './declaration-scope.js';
 
 const meta: Meta = {
     title: 'CEM Elements/Runtime',
@@ -795,6 +797,190 @@ export const CemQlWasmRenderLoopUpgrade: Story = {
     },
 };
 
+interface WorkerFallbackStoryState {
+    workerRuntime: CemElementRuntime;
+    fallbackRuntime: CemElementRuntime;
+    executionFallbackRuntime: CemElementRuntime;
+    workerDeclaration: HTMLElement;
+    fallbackDeclaration: HTMLElement;
+    executionFallbackDeclaration: HTMLElement;
+    workerFactoryCalls: number;
+}
+
+const workerFallbackStoryStates = new WeakMap<HTMLElement, WorkerFallbackStoryState>();
+
+export const ProcessingWorkerAndMainThreadFallback: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'processing worker and fallback story');
+        const workerScope = createCemDeclarationScope({ document });
+        const fallbackScope = createCemDeclarationScope({ document });
+        const state: WorkerFallbackStoryState = {
+            workerRuntime: undefined as unknown as CemElementRuntime,
+            fallbackRuntime: undefined as unknown as CemElementRuntime,
+            executionFallbackRuntime: undefined as unknown as CemElementRuntime,
+            workerDeclaration: document.createElement('cem-element-story-processing-worker'),
+            fallbackDeclaration: document.createElement('cem-element-story-processing-fallback'),
+            executionFallbackDeclaration: document.createElement('cem-element-story-processing-execution-fallback'),
+            workerFactoryCalls: 0,
+        };
+        state.workerRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-processing-worker',
+            declarationScope: workerScope,
+            processingWorkerFactory: ({ scriptUrl, name, type }) => {
+                state.workerFactoryCalls += 1;
+                return new Worker(scriptUrl, { name, type });
+            },
+        });
+        state.fallbackRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-processing-fallback',
+            declarationScope: fallbackScope,
+            processingWorkerFactory: () => {
+                throw new Error('fixture blocks dedicated workers');
+            },
+        });
+        state.executionFallbackRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-processing-execution-fallback',
+            declarationScope: createCemDeclarationScope({ document }),
+            processingWorkerFactory: () => new StoryExecutionFailingWorker() as unknown as Worker,
+        });
+        state.workerRuntime.install(window);
+        state.fallbackRuntime.install(window);
+        state.executionFallbackRuntime.install(window);
+
+        configureProcessingStoryDeclaration(
+            state.workerDeclaration,
+            'story-processing-worker-card'
+        );
+        configureProcessingStoryDeclaration(
+            state.fallbackDeclaration,
+            'story-processing-fallback-card'
+        );
+        configureProcessingStoryDeclaration(
+            state.executionFallbackDeclaration,
+            'story-processing-execution-fallback-card'
+        );
+        root.append(
+            state.workerDeclaration,
+            state.fallbackDeclaration,
+            state.executionFallbackDeclaration
+        );
+        state.workerRuntime.registerDeclaration(state.workerDeclaration);
+        state.fallbackRuntime.registerDeclaration(state.fallbackDeclaration);
+        state.executionFallbackRuntime.registerDeclaration(state.executionFallbackDeclaration);
+
+        const workerInstance = document.createElement('story-processing-worker-card');
+        workerInstance.setAttribute('label', 'Before');
+        workerInstance.setAttribute('value', 'selection');
+        const fallbackInstance = document.createElement('story-processing-fallback-card');
+        fallbackInstance.setAttribute('label', 'Before');
+        fallbackInstance.setAttribute('value', 'selection');
+        const executionFallbackInstance = document.createElement('story-processing-execution-fallback-card');
+        executionFallbackInstance.setAttribute('label', 'Before');
+        executionFallbackInstance.setAttribute('value', 'selection');
+        root.append(workerInstance, fallbackInstance, executionFallbackInstance);
+        workerFallbackStoryStates.set(root, state);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const storyRoot = requiredElement(canvasElement, 'section[aria-label="processing worker and fallback story"]') as HTMLElement;
+        const state = workerFallbackStoryStates.get(storyRoot);
+        assert(state, 'worker/fallback fixture state should be retained for the story root');
+        const workerInstance = requiredElement(canvasElement, 'story-processing-worker-card') as HTMLElement;
+        const fallbackInstance = requiredElement(canvasElement, 'story-processing-fallback-card') as HTMLElement;
+        const executionFallbackInstance = requiredElement(
+            canvasElement,
+            'story-processing-execution-fallback-card'
+        ) as HTMLElement;
+        const workerLabel = await waitForElement(workerInstance, 'span');
+        const fallbackLabel = await waitForElement(fallbackInstance, 'span');
+        const executionFallbackLabel = await waitForElement(executionFallbackInstance, 'span');
+        await state.workerRuntime.whenRenderSettled(workerInstance);
+        await state.fallbackRuntime.whenRenderSettled(fallbackInstance);
+        await state.executionFallbackRuntime.whenRenderSettled(executionFallbackInstance);
+
+        assertEqual(state.workerFactoryCalls, 1, 'the logical worker root constructs exactly one dedicated worker');
+        assert(
+            !state.workerRuntime.diagnosticsFor(state.workerDeclaration).some(
+                (diagnostic) => diagnostic.code.includes('worker_startup_fallback')
+            ),
+            'the real module-worker fixture stays on the worker host'
+        );
+        assertEqual(workerLabel.textContent, 'Before', 'the worker host renders canonical CEM-ML');
+        assertEqual(
+            fallbackLabel.textContent,
+            workerLabel.textContent,
+            'main-thread fallback has the same initial semantic result as the worker host'
+        );
+        assertDiagnostic(
+            state.fallbackRuntime.diagnosticsFor(state.fallbackDeclaration),
+            'cem.processing_host.worker_startup_fallback'
+        );
+        assertEqual(
+            executionFallbackLabel.textContent,
+            workerLabel.textContent,
+            'post-handshake execution fallback has the same semantic result as the worker host'
+        );
+        assertDiagnostic(
+            state.executionFallbackRuntime.diagnosticsFor(state.executionFallbackDeclaration),
+            'cem.processing_host.worker_execution_fallback'
+        );
+
+        const workerInput = requiredElement(workerInstance, 'input') as HTMLInputElement;
+        workerInput.focus();
+        workerInput.setSelectionRange(2, 6);
+        workerInstance.setAttribute('label', 'After');
+        fallbackInstance.setAttribute('label', 'After');
+        await nextFrame();
+        await state.workerRuntime.whenRenderSettled(workerInstance);
+        await state.fallbackRuntime.whenRenderSettled(fallbackInstance);
+
+        assertEqual(requiredElement(workerInstance, 'span').textContent, 'After', 'worker rerender commits its text patch');
+        assertEqual(
+            requiredElement(fallbackInstance, 'span').textContent,
+            'After',
+            'fallback rerender commits the same text patch'
+        );
+        assert(requiredElement(workerInstance, 'input') === workerInput, 'worker patch preserves light-DOM node identity');
+        assertEqual(document.activeElement, workerInput, 'worker patch preserves focus');
+        assertEqual(workerInput.selectionStart, 2, 'worker patch preserves the selection start');
+        assertEqual(workerInput.selectionEnd, 6, 'worker patch preserves the selection end');
+        assertEqual(
+            workerInstance.querySelectorAll(':scope > template[data-cem-island="instance"]').length,
+            1,
+            'worker patch stays outside the inert data island'
+        );
+    },
+};
+
+function configureProcessingStoryDeclaration(declaration: HTMLElement, producedTag: string): void {
+    declaration.setAttribute('tag', producedTag);
+    const template = document.createElement('template');
+    template.setAttribute('type', 'text/cem-ml');
+    template.textContent = '{article | {span | {$label}} {input @value={$value}}}';
+    declaration.appendChild(template);
+}
+
+class StoryExecutionFailingWorker extends EventTarget {
+    constructor() {
+        super();
+        queueMicrotask(() => this.dispatchEvent(new MessageEvent('message', {
+            data: createCemProcessingReadyEnvelope('worker'),
+        })));
+    }
+
+    postMessage(): void {
+        queueMicrotask(() => this.dispatchEvent(new ErrorEvent('error', {
+            cancelable: true,
+            message: 'fixture worker fails after its ready handshake',
+        })));
+    }
+
+    terminate(): void {
+        // The fixture has no underlying browser worker to release.
+    }
+}
+
 export const Phase2CanonicalLoginRuntimeFixture: Story = {
     render: () =>
         renderInstanceStory({
@@ -1234,6 +1420,7 @@ export const ProducedTagLifecycleBehavior: Story = {
         const instance = document.createElement('story-lifecycle-parent');
         root.appendChild(instance);
         await waitForElement(instance, 'article.card');
+        await waitForElement(instance, 'story-lifecycle-child strong');
         assertEqual(requiredElement(instance, '.label').textContent?.trim(), 'Initial', 'declared defaults render first');
         assertEqual(
             requiredElement(instance, 'story-lifecycle-child strong').textContent?.trim(),

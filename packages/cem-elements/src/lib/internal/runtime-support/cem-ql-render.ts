@@ -11,9 +11,9 @@
  * (C2.2 exports) and mapping its JSON plan into the projection-layer shape so the
  * existing `materializeRenderPlan` can commit it unchanged.
  *
- * Topology: Phase 3A runs `cem_ml`/`cem_ql` WASM on the main thread. The async
- * surface here is deliberately worker-ready — a worker-backed primary path
- * (design §4.3) can replace the body without changing callers.
+ * Topology: the Phase 3A processing engine calls this boundary inside one dedicated
+ * module worker per logical root. The same module is instantiated on the main thread
+ * only after the processing host selects its deterministic fallback (design §4.3).
  */
 
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
