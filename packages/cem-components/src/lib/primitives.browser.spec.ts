@@ -11,18 +11,34 @@ import {
     assertLightDomRendered,
     captureVisualSnapshot,
     createComponentHarness,
+    createSubstrateComponentHarness,
     nextRenderFrame,
     type ComponentHarness,
+    type SubstrateComponentHarness,
     type VisualSnapshot,
 } from './testing/component-harness.js';
+
+const PHASE3_MINIMAL_PRIMITIVE_TAGS = [
+    'cem-action',
+    'cem-field',
+    'cem-surface',
+    'cem-text',
+    'cem-icon',
+    'cem-stack',
+    'cem-grid',
+    'cem-list',
+    'cem-nav',
+    'cem-dialog-shell',
+] as const;
 
 describe('CEM component primitives', () => {
     let harness: ComponentHarness;
     let installResult: CemComponentPrimitiveInstallResult;
+    let runtime: CemElementRuntime;
 
-    beforeAll(() => {
-        const runtime = new CemElementRuntime({ declarationTag: 'cem-components-primitive-declaration' });
-        installResult = installCemComponentPrimitives(runtime);
+    beforeAll(async () => {
+        runtime = new CemElementRuntime({ declarationTag: 'cem-components-primitive-declaration' });
+        installResult = await installCemComponentPrimitives(runtime);
 
         expect(installResult.diagnostics).toEqual([]);
         expect([...installResult.registered, ...installResult.skipped].sort()).toEqual(
@@ -34,15 +50,54 @@ describe('CEM component primitives', () => {
         harness?.cleanup();
     });
 
-    it('reports deterministic primitive install results', () => {
+    it('reports deterministic primitive install results', async () => {
         const primitiveTags = CEM_COMPONENT_PRIMITIVES.map((primitive) => primitive.tag);
         expect([...installResult.registered, ...installResult.skipped]).toEqual(primitiveTags);
 
         const runtime = new CemElementRuntime({ declarationTag: 'cem-components-primitive-reinstall-declaration' });
-        const reinstallResult = installCemComponentPrimitives(runtime);
+        const reinstallResult = await installCemComponentPrimitives(runtime);
         expect(reinstallResult.registered).toEqual([]);
         expect(reinstallResult.skipped).toEqual(primitiveTags);
         expect(reinstallResult.diagnostics).toEqual([]);
+    });
+
+    it('registers and renders the exact minimal Phase 3 set through the accepted substrate', async () => {
+        expect(PHASE3_MINIMAL_PRIMITIVE_TAGS.every((tag) => Boolean(customElements.get(tag)))).toBe(true);
+
+        const substrateHarness: SubstrateComponentHarness = createSubstrateComponentHarness(runtime);
+        harness = substrateHarness;
+        await substrateHarness.render(`
+            <div data-phase3-minimal-primitives>
+                <cem-action>Save</cem-action>
+                <cem-field name="email" label="Email" value="ada@example.test"></cem-field>
+                <cem-surface label="Workspace"><span>Surface content</span></cem-surface>
+                <cem-text>Ready</cem-text>
+                <cem-icon name="check" label="Complete"></cem-icon>
+                <cem-stack gap="sm"><span>Stack content</span></cem-stack>
+                <cem-grid columns="2"><span>Grid content</span></cem-grid>
+                <cem-list label="Tasks"><li>Review</li></cem-list>
+                <cem-nav label="Sections"><a href="#profile">Profile</a></cem-nav>
+                <cem-dialog-shell label="Confirm"><p>Submit?</p></cem-dialog-shell>
+            </div>
+        `);
+        const hosts = PHASE3_MINIMAL_PRIMITIVE_TAGS.map((tag) => substrateHarness.query<HTMLElement>(tag));
+        await Promise.all(hosts.map((host) => substrateHarness.settle(host)));
+
+        for (const host of hosts) {
+            assertLightDomRendered(host);
+            expect(host.shadowRoot).toBeNull();
+            expect(host.querySelector(':scope > template[data-cem-island]')).not.toBeNull();
+            expect(substrateHarness.snapshot(host).outputTarget).toBe('light-dom');
+        }
+
+        expect(assertAccessibleName(substrateHarness.query('cem-action button'), 'Save')).toBe('Save');
+        expect(assertAccessibleName(substrateHarness.query('cem-field input'), 'Email')).toBe('Email');
+        expect(assertAccessibleName(substrateHarness.query('cem-surface section'), 'Workspace')).toBe('Workspace');
+        expect(assertAccessibleName(substrateHarness.query('cem-icon [role="img"]'), 'Complete')).toBe('Complete');
+        expect(assertAccessibleName(substrateHarness.query('cem-list ul'), 'Tasks')).toBe('Tasks');
+        expect(assertAccessibleName(substrateHarness.query('cem-nav nav'), 'Sections')).toBe('Sections');
+        expect(assertAccessibleName(substrateHarness.query('cem-dialog-shell [role="dialog"]'), 'Confirm')).toBe('Confirm');
+        expect(() => assertAriaReferenceIntegrity(substrateHarness.root)).not.toThrow();
     });
 
     it('renders action-family primitives as accessible light DOM', async () => {
@@ -421,6 +476,7 @@ describe('CEM component primitives', () => {
         `);
         await waitForPrimitive(root, 'cem-alert [role="alert"]');
         await waitForPrimitive(root, 'cem-card section');
+        await waitForPrimitive(root, 'cem-badge .cem-badge');
 
         assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-action button')), {
             family: 'action controls',

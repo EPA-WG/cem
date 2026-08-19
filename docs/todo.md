@@ -7,10 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Wire the minimal Phase 3 action, field, surface, text, icon, stack, grid, list,
-navigation, and dialog-shell primitives exclusively through the accepted
-`<cem-element>` substrate, with stable registration identities and no legacy
-runtime dependency.
+Run the Phase 3 substrate, component, CEM-ML fixture, and accessibility
+aggregate gates. First restore the behavior-backed component contracts now
+that settlement-aware installation exposes their real runtime output.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -306,11 +305,29 @@ registration identities may reuse an inherited or existing definition.
           `verify-phase3-harness` target runs package lint/typecheck plus the focused
           fixture, and the full component test target sequences it before starting
           its own browser run.
-    - [ ] Wire action, field, surface, text, icon, stack, grid, list, nav, and
+    - [x] Wire action, field, surface, text, icon, stack, grid, list, nav, and
           dialog shell primitives through `<cem-element>` with no legacy runtime
           dependency.
+        - [x] Give every behavior-backed primitive a stable versioned host identity
+              and make primitive installation await declaration settlement before
+              reporting registered/skipped tags or diagnostics.
+        - [x] Extend the Chromium primitive fixture to prove the exact ten minimal
+              Phase 3 tags register and render as accessible light DOM through the
+              accepted substrate.
+        - Completed 2026-08-19: all 16 behavior-backed declarations now supply
+          stable versioned host identities, the public installer resolves only
+          after every accepted declaration settles, and its ordered result reports
+          only browser-registered tags plus complete diagnostics. The static gate
+          verifies all 48 manifest entries, while the focused Chromium fixture's
+          10 tests prove the exact minimal set renders accessible light DOM with
+          inert data islands and no shadow or legacy runtime dependency.
     - [ ] Run the substrate, component, CEM-ML fixture, and accessibility aggregate
           gates before closing Phase 3.
+        - [ ] Repair stable native-owner reconciliation for behavior-backed CEM-ML
+              re-renders and migrate their browser fixtures to explicit runtime
+              settlement. Truthful behavior registration currently exposes 38
+              failing component assertions across native identity, focus, ARIA,
+              interaction state, and nested workflow projection.
 
 ## Deferred Roadmap Work
 

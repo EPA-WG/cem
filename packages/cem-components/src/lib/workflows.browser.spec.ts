@@ -32,9 +32,9 @@ const workflowFixtures = [
 describe('CEM component workflow fixtures', () => {
     let harness: ComponentHarness;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         const runtime = new CemElementRuntime({ declarationTag: 'cem-components-workflow-declaration' });
-        const result = installCemComponentPrimitives(runtime);
+        const result = await installCemComponentPrimitives(runtime);
         expect(result.diagnostics).toEqual([]);
     });
 

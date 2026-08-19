@@ -25,8 +25,13 @@ import { CemElementRuntime } from '@epa-wg/cem-elements';
 import { installCemComponentPrimitives } from '@epa-wg/cem-components';
 
 const runtime = new CemElementRuntime();
-installCemComponentPrimitives(runtime);
+const result = await installCemComponentPrimitives(runtime);
 ```
+
+The promise resolves after every accepted declaration settles. Inspect
+`result.registered`, `result.skipped`, and `result.diagnostics` before rendering
+application content. Behavior-backed primitives supply stable versioned host
+identities as part of their registration contract.
 
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,

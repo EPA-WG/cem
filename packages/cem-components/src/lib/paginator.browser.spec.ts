@@ -18,9 +18,9 @@ describe('paginator contract fixture', () => {
     let harness: ComponentHarness;
     let runtime: CemElementRuntime;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         runtime = new CemElementRuntime({ declarationTag: 'cem-components-paginator-declaration' });
-        const result = installCemComponentPrimitives(runtime);
+        const result = await installCemComponentPrimitives(runtime);
         expect(result.diagnostics).toEqual([]);
     });
 

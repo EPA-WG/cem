@@ -18,9 +18,9 @@ describe('sort header contract fixture', () => {
     let harness: ComponentHarness;
     let runtime: CemElementRuntime;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         runtime = new CemElementRuntime({ declarationTag: 'cem-components-sort-header-declaration' });
-        const result = installCemComponentPrimitives(runtime);
+        const result = await installCemComponentPrimitives(runtime);
         expect(result.diagnostics).toEqual([]);
     });
 

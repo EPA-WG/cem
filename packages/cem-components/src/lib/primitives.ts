@@ -23,6 +23,7 @@ export interface CemComponentPrimitiveDeclaration {
     readonly description: string;
     readonly cemMl: string;
     readonly behavior?: CemProducedElementBehavior;
+    readonly behaviorIdentity?: string;
 }
 
 export interface CemComponentPrimitiveInstallResult {
@@ -94,6 +95,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-autocomplete',
         description: 'Form-associated editable combobox with declarative suggestions.',
         behavior: CEM_AUTOCOMPLETE_BEHAVIOR,
+        behaviorIdentity: 'cem-components-autocomplete-behavior-v1',
         cemMl:
             '{module |' +
             ' {attribute @name=label | Autocomplete}' +
@@ -132,6 +134,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-timepicker',
         description: 'Time-of-day picker retaining one authored native text-input form owner.',
         behavior: CEM_TIMEPICKER_BEHAVIOR,
+        behaviorIdentity: 'cem-components-timepicker-behavior-v1',
         cemMl:
             '{module |' +
             ' {slice @name=options}' +
@@ -151,6 +154,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-datepicker',
         description: 'Single-date calendar retaining one authored native text-input form owner.',
         behavior: CEM_DATEPICKER_BEHAVIOR,
+        behaviorIdentity: 'cem-components-datepicker-behavior-v1',
         cemMl:
             '{module |' +
             ' {slice @name=weekdays}' +
@@ -189,6 +193,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-select',
         description: 'Form-associated custom select with rich cem-option content.',
         behavior: CEM_SELECT_BEHAVIOR,
+        behaviorIdentity: 'cem-components-select-behavior-v1',
         cemMl:
             '{module |' +
             ' {attribute @name=label | Select}' +
@@ -282,6 +287,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-slider',
         description: 'Single-value or range slider retaining native range-input and form ownership.',
         behavior: CEM_SLIDER_BEHAVIOR,
+        behaviorIdentity: 'cem-components-slider-behavior-v1',
         cemMl:
             '{attribute @name=min | 0}' +
             '{attribute @name=max | 100}' +
@@ -388,6 +394,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-expansion',
         description: 'Independent general-purpose disclosure panel with a native header button.',
         behavior: CEM_EXPANSION_BEHAVIOR,
+        behaviorIdentity: 'cem-components-expansion-behavior-v1',
         cemMl:
             '{attribute @name=label | Expansion}' +
             '{div @class=cem-expansion |' +
@@ -410,6 +417,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-sort-header',
         description: 'Sortable column header with native button activation and external data ownership.',
         behavior: CEM_SORT_HEADER_BEHAVIOR,
+        behaviorIdentity: 'cem-components-sort-header-behavior-v1',
         cemMl:
             '{attribute @name=label | Column}' +
             '{div @class=cem-sort-header @role=columnheader @aria-sort={if datadom.slices.direction == "none" { null } else { datadom.slices.direction }} |' +
@@ -457,6 +465,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-tree',
         description: 'Labeled generic expandable hierarchy with application-owned selection and loading.',
         behavior: CEM_TREE_BEHAVIOR,
+        behaviorIdentity: 'cem-components-tree-behavior-v1',
         cemMl:
             '{module |' +
             ' {attribute @name=label | }' +
@@ -497,6 +506,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-nav',
         description: 'Labeled navigation landmark with an opt-in disclosure mode.',
         behavior: CEM_NAVIGATION_BEHAVIOR,
+        behaviorIdentity: 'cem-components-navigation-behavior-v1',
         cemMl:
             '{attribute @name=label | Navigation}' +
             '{cem:choose |' +
@@ -514,6 +524,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-tabs',
         description: 'MVP tablist container for local view switching.',
         behavior: CEM_NAVIGATION_BEHAVIOR,
+        behaviorIdentity: 'cem-components-navigation-behavior-v1',
         cemMl:
             '{attribute @name=label | Tabs}' +
             '{div @class=cem-tabs @role=tablist @aria-label="{$label}" | {slot | {button @type=button @role=tab @aria-selected=true | Tab}}}',
@@ -522,6 +533,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-stepper',
         description: 'Labeled linear or nonlinear workflow navigation with persistent panels.',
         behavior: CEM_STEPPER_BEHAVIOR,
+        behaviorIdentity: 'cem-components-stepper-behavior-v1',
         cemMl:
             '{module |' +
             ' {attribute @name=label | Steps}' +
@@ -558,6 +570,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-paginator',
         description: 'Labeled paged-content navigation with external data ownership.',
         behavior: CEM_PAGINATOR_BEHAVIOR,
+        behaviorIdentity: 'cem-components-paginator-behavior-v1',
         cemMl:
             '{attribute @name=label | Pagination}' +
             '{attribute @name=items-per-page-label | Items per page}' +
@@ -586,6 +599,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-tooltip',
         description: 'Supplemental plain-text tooltip retaining one authored native trigger owner.',
         behavior: CEM_TOOLTIP_BEHAVIOR,
+        behaviorIdentity: 'cem-components-tooltip-behavior-v1',
         cemMl:
             '{attribute @name=message | }' +
             '{attribute @name=position | below}' +
@@ -600,6 +614,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-dialog',
         description: 'MVP modal decision or focused task surface.',
         behavior: CEM_FEEDBACK_DIALOG_BEHAVIOR,
+        behaviorIdentity: 'cem-components-feedback-dialog-behavior-v1',
         cemMl:
             '{attribute @name=label | Dialog}' +
             '{cem:choose |' +
@@ -610,6 +625,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-dialog-shell',
         description: 'Dialog shell with labeled light-DOM content.',
         behavior: CEM_FEEDBACK_DIALOG_BEHAVIOR,
+        behaviorIdentity: 'cem-components-feedback-dialog-behavior-v1',
         cemMl:
             '{attribute @name=label | Dialog}' +
             '{cem:choose |' +
@@ -644,6 +660,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-progress-spinner',
         description: 'Non-interactive circular determinate or indeterminate progress indicator.',
         behavior: CEM_PROGRESS_SPINNER_BEHAVIOR,
+        behaviorIdentity: 'cem-components-progress-spinner-behavior-v1',
         cemMl:
             '{attribute @name=label | Progress}' +
             '{span @class=cem-progress-spinner @role=progressbar @data-mode="{$datadom.slices.mode}" @aria-label="{$label}" @aria-describedby={datadom.attributes.describedby} @aria-valuemin={if datadom.slices.indeterminate { null } else { 0 }} @aria-valuemax={if datadom.slices.indeterminate { null } else { datadom.slices.max }} @aria-valuenow={if datadom.slices.indeterminate { null } else { datadom.slices.value }} |' +
@@ -684,10 +701,17 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
 ] as const satisfies readonly CemComponentPrimitiveDeclaration[];
 
-export function installCemComponentPrimitives(runtime: CemElementRuntime): CemComponentPrimitiveInstallResult {
+export async function installCemComponentPrimitives(
+    runtime: CemElementRuntime
+): Promise<CemComponentPrimitiveInstallResult> {
     const registered: string[] = [];
     const skipped: string[] = [];
     const diagnostics: CemElementDiagnostic[] = [];
+    const pending: Array<{
+        readonly declaration: HTMLElement;
+        readonly tag: string;
+        readonly accepted: boolean;
+    }> = [];
 
     for (const primitive of CEM_COMPONENT_PRIMITIVES) {
         const declaration = createPrimitiveDeclaration(primitive);
@@ -699,10 +723,22 @@ export function installCemComponentPrimitives(runtime: CemElementRuntime): CemCo
         }
 
         const behavior = 'behavior' in primitive ? primitive.behavior : undefined;
-        if (runtime.registerDeclaration(declaration, { behavior })) {
-            registered.push(primitive.tag);
-        } else {
-            diagnostics.push(...runtime.diagnosticsFor(declaration));
+        const behaviorIdentity = 'behaviorIdentity' in primitive ? primitive.behaviorIdentity : undefined;
+        const accepted = runtime.registerDeclaration(declaration, { behavior, behaviorIdentity });
+        pending.push({ declaration, tag: primitive.tag, accepted });
+    }
+
+    await Promise.all(pending.map(({ declaration }) => runtime.whenDeclarationSettled(declaration)));
+
+    for (const { declaration, tag, accepted } of pending) {
+        const declarationDiagnostics = [...runtime.diagnosticsFor(declaration)];
+        const hasHardDiagnostics = declarationDiagnostics.some(
+            ({ severity }) => severity === 'error' || severity === 'fatal'
+        );
+        diagnostics.push(...declarationDiagnostics);
+
+        if (accepted && !hasHardDiagnostics && declaration.ownerDocument.defaultView?.customElements.get(tag)) {
+            registered.push(tag);
         }
     }
 

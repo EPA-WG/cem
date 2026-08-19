@@ -7,6 +7,11 @@ This document describes the installable MVP declaration set registered by
 [`light-dom-rendering.md`](./light-dom-rendering.md), [`accessibility.md`](./accessibility.md), and
 [`../../../docs/component-mvp.md`](../../../docs/component-mvp.md).
 
+`installCemComponentPrimitives()` is asynchronous: its result is reported only
+after declaration parsing and browser registration settle. Behavior-backed
+declarations include stable versioned `behaviorIdentity` values so compatible
+registrations can be reused without relying on callback source or object identity.
+
 ## Authoring Contract
 
 - Components render in light DOM through the `<cem-element>` substrate. Authors provide semantic fallback content first;

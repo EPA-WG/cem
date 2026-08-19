@@ -112,6 +112,8 @@ function parsePrimitiveElement(element, index) {
     const tag = propertyString(element, 'tag');
     const description = propertyString(element, 'description');
     const cemMl = propertyString(element, 'cemMl');
+    const hasBehavior = hasProperty(element, 'behavior');
+    const behaviorIdentity = propertyString(element, 'behaviorIdentity');
 
     if (!tag) {
         fail(`primitive at index ${index} is missing tag`);
@@ -122,8 +124,23 @@ function parsePrimitiveElement(element, index) {
     if (!cemMl) {
         fail(`${tag ?? `primitive ${index}`}: missing CEM-ML declaration`);
     }
+    if (hasBehavior && !/^cem-components-[a-z0-9-]+-behavior-v[1-9][0-9]*$/.test(behaviorIdentity)) {
+        fail(`${tag ?? `primitive ${index}`}: behavior requires a stable versioned behaviorIdentity`);
+    }
+    if (!hasBehavior && behaviorIdentity) {
+        fail(`${tag ?? `primitive ${index}`}: behaviorIdentity requires a behavior`);
+    }
 
-    return { tag, description, cemMl };
+    return { tag, description, cemMl, hasBehavior, behaviorIdentity };
+}
+
+function hasProperty(object, name) {
+    return object.properties.some(
+        (entry) =>
+            ts.isPropertyAssignment(entry) &&
+            ((ts.isIdentifier(entry.name) && entry.name.text === name) ||
+                (ts.isStringLiteral(entry.name) && entry.name.text === name))
+    );
 }
 
 function propertyString(object, name) {

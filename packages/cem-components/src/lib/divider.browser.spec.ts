@@ -10,9 +10,9 @@ import { createComponentHarness, nextRenderFrame, type ComponentHarness } from '
 describe('CEM divider contract', () => {
     let harness: ComponentHarness;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         const runtime = new CemElementRuntime({ declarationTag: 'cem-divider-contract-declaration' });
-        const result = installCemComponentPrimitives(runtime);
+        const result = await installCemComponentPrimitives(runtime);
         expect(result.diagnostics).toEqual([]);
     });
 
