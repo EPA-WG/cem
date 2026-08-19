@@ -38,6 +38,10 @@ import {
     type CemProcessingRenderPlanHandle,
     type CemProcessingWorkerFactory,
 } from './internal/runtime-support/processing-host.js';
+import type {
+    CemProcessingPoolPolicy,
+    CemProcessingSchedulingTraceEvent,
+} from './internal/runtime-support/processing-scheduler.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
 import {
     decideCemDeclarationTemplateLanguage,
@@ -54,6 +58,11 @@ import {
 } from './declaration-scope.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
+
+export type {
+    CemProcessingPoolPolicy,
+    CemProcessingSchedulingTraceEvent,
+} from './internal/runtime-support/processing-scheduler.js';
 
 export interface CemElementDiagnostic {
     code: string;
@@ -442,6 +451,10 @@ export interface CemElementRuntimeOptions {
      * tests may inject worker construction without replacing the processing host.
      */
     processingWorkerFactory?: CemProcessingWorkerFactory;
+    /** Phase 3B bounds for the lazily allocated, fair root-scope worker pool. */
+    processingPoolPolicy?: CemProcessingPoolPolicy;
+    /** Sequence-only scheduling decisions; observer failures never affect rendering. */
+    onProcessingTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
 }
 
 /** Browser-only lifecycle adapter for a produced custom element.
@@ -1072,6 +1085,8 @@ export class CemElementRuntime {
     private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
+    private readonly processingPoolPolicy?: CemProcessingPoolPolicy;
+    private readonly onProcessingTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
     private readonly srcDocuments = new Map<string, Promise<LoadedSrcDocument>>();
     private readonly moduleUrls = new Map<string, Promise<string>>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
@@ -1102,6 +1117,8 @@ export class CemElementRuntime {
         this.uidSeedFallback = options.uidSeedFallback ?? (this.runMode === 'build-ssr' ? 'source-hash' : 'runtime');
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         this.processingWorkerFactory = options.processingWorkerFactory;
+        this.processingPoolPolicy = options.processingPoolPolicy;
+        this.onProcessingTrace = options.onProcessingTrace;
     }
 
     /**
@@ -1866,6 +1883,8 @@ export class CemElementRuntime {
         return cemProcessingHostForScope(compiled.declarationScope, {
             workerScriptUrl: new URL('./internal/runtime-support/processing-worker.js', import.meta.url),
             workerFactory: this.processingWorkerFactory,
+            poolPolicy: this.processingPoolPolicy,
+            onTrace: this.onProcessingTrace,
         });
     }
 

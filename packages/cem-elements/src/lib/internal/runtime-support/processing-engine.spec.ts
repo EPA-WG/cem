@@ -53,6 +53,7 @@ vi.mock('./cem-ql-render.js', () => ({
 }));
 
 import { CemProcessingEngine } from './processing-engine.js';
+import { compileCemMlTemplate } from './cem-ql-render.js';
 import { createCemProcessingTextSource } from './processing-host.js';
 
 describe('Phase 3A retained processing engine', () => {
@@ -179,6 +180,70 @@ describe('Phase 3A retained processing engine', () => {
 
         expect(rechunked.artifact.cacheKey).toBe(first.artifact.cacheKey);
         expect(anotherResolver.artifact.cacheKey).not.toBe(first.artifact.cacheKey);
+    });
+
+    it('reuses compiled content by address and evicts the least-recently-used entry at the bound', async () => {
+        const compile = vi.mocked(compileCemMlTemplate);
+        compile.mockClear();
+        const engine = new CemProcessingEngine({ maxArtifactEntries: 2 });
+        const input = (templateArtifactId: string, source: string) => ({
+            language: 'cem-ml' as const,
+            producedTag: 'cem-cache-card',
+            templateArtifactId,
+            registrationIdentity: 'cem-registration-v1:cache-card',
+            source: createCemProcessingTextSource(source),
+            sourceRef: { kind: 'inline' as const, value: 'cem-cache-card' },
+            resolverIdentity: 'document:https://example.test/',
+            scopePolicyStamp: 'scope-policy-v1',
+            sourceMapMode: 'dev' as const,
+        });
+
+        await engine.compile(input('artifact-a-1', '{span | A}'));
+        await engine.compile(input('artifact-b-1', '{span | B}'));
+        await engine.compile(input('artifact-a-2', '{span | A}'));
+        await engine.compile(input('artifact-c-1', '{span | C}'));
+        await engine.compile(input('artifact-b-2', '{span | B}'));
+
+        expect(compile).toHaveBeenCalledTimes(4);
+    });
+
+    it('falls back to a full replacement when an old content-addressed plan was evicted', async () => {
+        const engine = new CemProcessingEngine({ maxRenderPlanEntries: 2 });
+        const compiled = await engine.compile({
+            language: 'cem-ml',
+            producedTag: 'cem-plan-cache',
+            templateArtifactId: 'template-plan-cache-1',
+            registrationIdentity: 'cem-registration-v1:plan-cache',
+            source: createCemProcessingTextSource('{span | {$label}}'),
+            sourceRef: { kind: 'inline', value: 'cem-plan-cache' },
+            resolverIdentity: 'document:https://example.test/',
+            scopePolicyStamp: 'scope-policy-v1',
+            sourceMapMode: 'dev',
+        });
+        const render = async (
+            dataRevision: string,
+            previousRenderPlan: Awaited<ReturnType<typeof engine.renderDiff>>['nextRenderPlan'] | null
+        ) => {
+            const snapshot = snapshotFixture(dataRevision, compiled.artifact.artifactId, 'cem-plan-cache');
+            return engine.renderDiff({
+                artifact: compiled.artifact,
+                revision: revision(snapshot),
+                snapshot,
+                data: { label: dataRevision },
+                scopeUid: 'plan-cache-scope',
+                instanceScopeUid: 'plan-cache-instance-scope',
+                previousRenderPlan,
+            });
+        };
+
+        const first = await render('1', null);
+        const second = await render('2', first.nextRenderPlan);
+        await render('3', second.nextRenderPlan);
+        const afterEviction = await render('4', first.nextRenderPlan);
+
+        expect(afterEviction.frames.flatMap((frame) => frame.type === 'ops' ? frame.ops : [])).toContainEqual(
+            expect.objectContaining({ op: 'replaceScope' })
+        );
     });
 
     it('lowers interpolated HTTP declarations to clone-safe controls before retained-plan diffing', async () => {

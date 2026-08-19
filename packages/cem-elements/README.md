@@ -16,6 +16,14 @@ a complete string, or return `{ body, resolvedUrl, resolverIdentity }`, where `b
 `AsyncIterable<Uint8Array>`. The stream form preserves module-map/resolver identity and
 makes the imported URL the base for relative resource controls inside that declaration.
 
+Phase 3B shares lazily allocated worker slots across compatible logical roots without
+changing the `compile` / `renderDiff` / `cancel` / `dispose` host contract. The default
+pool uses browser hardware concurrency capped at eight workers, a 64-operation queue per
+slot, FIFO ordering per root, and round-robin cross-root dispatch. Compiled artifacts and
+render plans use bounded content-addressed LRU retention; an evicted previous plan safely
+falls back to a full scope replacement. `processingPoolPolicy` can lower the worker and
+queue limits, while `onProcessingTrace` observes sequence-only scheduling decisions.
+
 `<http-request>` is lowered by CEM-QL to a clone-safe host-control descriptor before the
 worker render plan is diffed. URL resolution, policy, response streaming, `AbortSignal`,
 and stale-resource revisions remain main-thread host responsibilities. Template-visible

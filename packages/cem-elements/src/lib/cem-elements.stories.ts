@@ -9,6 +9,7 @@ import {
     exportDataIslandSnapshotForEdge,
     isValidCustomElementName,
     type CemElementDiagnostic,
+    type CemProcessingSchedulingTraceEvent,
     type DataIslandSnapshot,
     type SerializedEventPayload,
 } from './cem-elements.js';
@@ -49,6 +50,7 @@ import {
     createCemProcessingReadyEnvelope,
     type CemProcessingRequestEnvelope,
     type CemProcessingResponseEnvelope,
+    type CemProcessingWorkerFactory,
 } from './internal/runtime-support/processing-host.js';
 import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
@@ -801,13 +803,16 @@ export const CemQlWasmRenderLoopUpgrade: Story = {
 
 interface WorkerFallbackStoryState {
     workerRuntime: CemElementRuntime;
+    pooledWorkerRuntime: CemElementRuntime;
     fallbackRuntime: CemElementRuntime;
     executionFallbackRuntime: CemElementRuntime;
     workerDeclaration: HTMLElement;
+    pooledWorkerDeclaration: HTMLElement;
     fallbackDeclaration: HTMLElement;
     executionFallbackDeclaration: HTMLElement;
     workerFactoryCalls: number;
     workerTransport: StoryControllableWorker | null;
+    processingTrace: CemProcessingSchedulingTraceEvent[];
 }
 
 const workerFallbackStoryStates = new WeakMap<HTMLElement, WorkerFallbackStoryState>();
@@ -820,22 +825,35 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
         const fallbackScope = createCemDeclarationScope({ document });
         const state: WorkerFallbackStoryState = {
             workerRuntime: undefined as unknown as CemElementRuntime,
+            pooledWorkerRuntime: undefined as unknown as CemElementRuntime,
             fallbackRuntime: undefined as unknown as CemElementRuntime,
             executionFallbackRuntime: undefined as unknown as CemElementRuntime,
             workerDeclaration: document.createElement('cem-element-story-processing-worker'),
+            pooledWorkerDeclaration: document.createElement('cem-element-story-processing-pooled-worker'),
             fallbackDeclaration: document.createElement('cem-element-story-processing-fallback'),
             executionFallbackDeclaration: document.createElement('cem-element-story-processing-execution-fallback'),
             workerFactoryCalls: 0,
             workerTransport: null,
+            processingTrace: [],
+        };
+        const workerFactory: CemProcessingWorkerFactory = ({ scriptUrl, name, type }) => {
+            state.workerFactoryCalls += 1;
+            state.workerTransport = new StoryControllableWorker(new Worker(scriptUrl, { name, type }));
+            return state.workerTransport as unknown as Worker;
         };
         state.workerRuntime = new CemElementRuntime({
             declarationTag: 'cem-element-story-processing-worker',
             declarationScope: workerScope,
-            processingWorkerFactory: ({ scriptUrl, name, type }) => {
-                state.workerFactoryCalls += 1;
-                state.workerTransport = new StoryControllableWorker(new Worker(scriptUrl, { name, type }));
-                return state.workerTransport as unknown as Worker;
-            },
+            processingWorkerFactory: workerFactory,
+            processingPoolPolicy: { workerCount: 1, maxWorkers: 1 },
+            onProcessingTrace: (event) => state.processingTrace.push(event),
+        });
+        state.pooledWorkerRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-processing-pooled-worker',
+            declarationScope: createCemDeclarationScope({ document }),
+            processingWorkerFactory: workerFactory,
+            processingPoolPolicy: { workerCount: 1, maxWorkers: 1 },
+            onProcessingTrace: (event) => state.processingTrace.push(event),
         });
         state.fallbackRuntime = new CemElementRuntime({
             declarationTag: 'cem-element-story-processing-fallback',
@@ -850,12 +868,17 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
             processingWorkerFactory: () => new StoryExecutionFailingWorker() as unknown as Worker,
         });
         state.workerRuntime.install(window);
+        state.pooledWorkerRuntime.install(window);
         state.fallbackRuntime.install(window);
         state.executionFallbackRuntime.install(window);
 
         configureProcessingStoryDeclaration(
             state.workerDeclaration,
             'story-processing-worker-card'
+        );
+        configureProcessingStoryDeclaration(
+            state.pooledWorkerDeclaration,
+            'story-processing-pooled-worker-card'
         );
         configureProcessingStoryDeclaration(
             state.fallbackDeclaration,
@@ -867,10 +890,12 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
         );
         root.append(
             state.workerDeclaration,
+            state.pooledWorkerDeclaration,
             state.fallbackDeclaration,
             state.executionFallbackDeclaration
         );
         state.workerRuntime.registerDeclaration(state.workerDeclaration);
+        state.pooledWorkerRuntime.registerDeclaration(state.pooledWorkerDeclaration);
         state.fallbackRuntime.registerDeclaration(state.fallbackDeclaration);
         state.executionFallbackRuntime.registerDeclaration(state.executionFallbackDeclaration);
 
@@ -883,7 +908,10 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
         const executionFallbackInstance = document.createElement('story-processing-execution-fallback-card');
         executionFallbackInstance.setAttribute('label', 'Before');
         executionFallbackInstance.setAttribute('value', 'selection');
-        root.append(workerInstance, fallbackInstance, executionFallbackInstance);
+        const pooledWorkerInstance = document.createElement('story-processing-pooled-worker-card');
+        pooledWorkerInstance.setAttribute('label', 'Pooled');
+        pooledWorkerInstance.setAttribute('value', 'selection');
+        root.append(workerInstance, pooledWorkerInstance, fallbackInstance, executionFallbackInstance);
         workerFallbackStoryStates.set(root, state);
         return root;
     },
@@ -893,18 +921,40 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
         assert(state, 'worker/fallback fixture state should be retained for the story root');
         const workerInstance = requiredElement(canvasElement, 'story-processing-worker-card') as HTMLElement;
         const fallbackInstance = requiredElement(canvasElement, 'story-processing-fallback-card') as HTMLElement;
+        const pooledWorkerInstance = requiredElement(
+            canvasElement,
+            'story-processing-pooled-worker-card'
+        ) as HTMLElement;
         const executionFallbackInstance = requiredElement(
             canvasElement,
             'story-processing-execution-fallback-card'
         ) as HTMLElement;
         const workerLabel = await waitForElement(workerInstance, 'span');
         const fallbackLabel = await waitForElement(fallbackInstance, 'span');
+        const pooledWorkerLabel = await waitForElement(pooledWorkerInstance, 'span');
         const executionFallbackLabel = await waitForElement(executionFallbackInstance, 'span');
         await state.workerRuntime.whenRenderSettled(workerInstance);
         await state.fallbackRuntime.whenRenderSettled(fallbackInstance);
+        await state.pooledWorkerRuntime.whenRenderSettled(pooledWorkerInstance);
         await state.executionFallbackRuntime.whenRenderSettled(executionFallbackInstance);
 
-        assertEqual(state.workerFactoryCalls, 1, 'the logical worker root constructs exactly one dedicated worker');
+        assertEqual(state.workerFactoryCalls, 1, 'two logical roots share one policy-bounded worker slot');
+        assertEqual(pooledWorkerLabel.textContent, 'Pooled', 'the shared worker slot renders the second root');
+        const poolDispatch = state.processingTrace.filter((event) => event.kind === 'dispatch');
+        assertEqual(
+            new Set(poolDispatch.map((event) => event.ownerScopeId)).size,
+            2,
+            'the scheduling trace distinguishes both logical roots'
+        );
+        assert(
+            poolDispatch.every((event) => event.workerSlot === 1),
+            'the bounded pool dispatches both roots through the configured slot'
+        );
+        assertEqual(
+            state.processingTrace.map((event) => event.sequence).join(','),
+            state.processingTrace.map((_event, index) => index + 1).join(','),
+            'the scheduling trace uses one deterministic monotonic sequence'
+        );
         assert(
             !state.workerRuntime.diagnosticsFor(state.workerDeclaration).some(
                 (diagnostic) => diagnostic.code.includes('worker_startup_fallback')

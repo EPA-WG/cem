@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Complete the full legacy and material acceptance inventories on the stable Phase 3A
-worker/fallback boundary, including browser data-island isolation and accessibility,
-before Phase 3B scheduling or Phase 3C precompilation.
+Add Phase 3C precompiled component-template artifacts alongside the now-green
+source-driven Phase 3B pool/cache path, preserving the same render, diff,
+cancellation, fallback, and browser acceptance contracts.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -254,8 +254,20 @@ registration identities may reuse an inherited or existing definition.
                   manifest, schema, valid and invalid examples, generated README,
                   Nx verification target, Rust manifest-index test, and CLI
                   pass/fail validation coverage.
-    - [ ] Add the Phase 3B scope-policy worker pool, content-addressed cache, and
+    - [x] Add the Phase 3B scope-policy worker pool, content-addressed cache, and
           deterministic scheduling traces behind the stable host API.
+          Completed 2026-08-19: compatible logical roots share lazily allocated
+          worker slots bounded by hardware concurrency and an eight-worker host cap,
+          with a 64-operation per-slot queue, FIFO-per-root ordering, round-robin
+          cross-root dispatch, pool-global job IDs, and preemptive cancel controls.
+          Template compilations and render plans use 64-entry content-addressed LRU
+          retention in both worker and main-thread modes; artifact aliases refresh
+          before rendering and evicted plans safely degrade to `replaceScope`.
+          Clone-safe sequence-only traces expose enqueue, dispatch, cancellation,
+          overflow, and fallback decisions without affecting execution. Accepted
+          evidence is typecheck/lint, 132/132 unit tests, 118/118 Storybook Chromium
+          tests, the 62-file clean package probe, and the 48-task
+          `verify:phase3b` aggregate.
     - [ ] Add Phase 3C precompiled component-template artifacts without removing
           the source-driven runtime path.
 

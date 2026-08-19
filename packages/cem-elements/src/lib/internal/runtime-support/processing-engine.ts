@@ -25,6 +25,7 @@ import type {
     CemProcessingRenderPlanHandle,
     CemProcessingResourceControl,
 } from './processing-host.js';
+import { CemProcessingLruCache } from './processing-cache.js';
 
 interface RetainedTemplateArtifact {
     input: CemProcessingCompileInput;
@@ -32,15 +33,38 @@ interface RetainedTemplateArtifact {
     diagnostics: CemProcessingDiagnostic[];
 }
 
+interface CachedTemplateCompilation {
+    diagnostics: CemProcessingDiagnostic[];
+}
+
+export interface CemProcessingEngineOptions {
+    maxArtifactEntries?: number;
+    maxRenderPlanEntries?: number;
+}
+
+const DEFAULT_ARTIFACT_CACHE_ENTRIES = 64;
+const DEFAULT_RENDER_PLAN_CACHE_ENTRIES = 64;
+
 /** Shared semantic implementation used inside the worker and by main-thread fallback. */
 export class CemProcessingEngine {
-    private readonly artifacts = new Map<string, RetainedTemplateArtifact>();
-    private readonly renderPlans = new Map<string, RenderPlan>();
+    private readonly artifacts: CemProcessingLruCache<string, RetainedTemplateArtifact>;
+    private readonly compiledArtifacts: CemProcessingLruCache<string, CachedTemplateCompilation>;
+    private readonly renderPlans: CemProcessingLruCache<string, RenderPlan>;
     private disposed = false;
+
+    constructor(options: CemProcessingEngineOptions = {}) {
+        const maxArtifactEntries = options.maxArtifactEntries ?? DEFAULT_ARTIFACT_CACHE_ENTRIES;
+        this.artifacts = new CemProcessingLruCache(maxArtifactEntries);
+        this.compiledArtifacts = new CemProcessingLruCache(maxArtifactEntries);
+        this.renderPlans = new CemProcessingLruCache(
+            options.maxRenderPlanEntries ?? DEFAULT_RENDER_PLAN_CACHE_ENTRIES
+        );
+    }
 
     async compile(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
         this.assertActive();
-        const retained = this.artifacts.get(input.templateArtifactId);
+        const artifactKey = retainedArtifactKey(input.scopePolicyStamp, input.templateArtifactId);
+        const retained = this.artifacts.get(artifactKey);
         if (retained) {
             if (!sameCompileIdentity(retained.input, input)) {
                 throw new Error(`template artifact \`${input.templateArtifactId}\` was already retained with another identity`);
@@ -49,8 +73,6 @@ export class CemProcessingEngine {
         }
 
         const source = processingSourceText(input);
-        const diagnostics = await compileCemMlTemplate(source);
-        this.assertActive();
         const handle: CemProcessingArtifactHandle = {
             kind: 'template-artifact-handle',
             artifactId: input.templateArtifactId,
@@ -66,14 +88,23 @@ export class CemProcessingEngine {
             scopePolicyStamp: input.scopePolicyStamp,
             sourceMapMode: input.sourceMapMode,
         };
-        const artifact = { input, handle, diagnostics };
-        this.artifacts.set(handle.artifactId, artifact);
+        let compilation = this.compiledArtifacts.get(handle.cacheKey);
+        if (!compilation) {
+            const diagnostics = await compileCemMlTemplate(source);
+            this.assertActive();
+            compilation = { diagnostics };
+            this.compiledArtifacts.set(handle.cacheKey, compilation);
+        }
+        const artifact = { input, handle, diagnostics: compilation.diagnostics };
+        this.artifacts.set(artifactKey, artifact);
         return compileResult(artifact);
     }
 
     async renderDiff(input: CemProcessingRenderDiffInput): Promise<CemProcessingRenderDiffResult> {
         this.assertActive();
-        const artifact = this.artifacts.get(input.artifact.artifactId);
+        const artifact = this.artifacts.get(
+            retainedArtifactKey(input.artifact.scopePolicyStamp, input.artifact.artifactId)
+        );
         if (!artifact || !sameArtifactHandle(artifact.handle, input.artifact)) {
             throw new Error(`template artifact \`${input.artifact.artifactId}\` is not retained by this processing host`);
         }
@@ -131,6 +162,7 @@ export class CemProcessingEngine {
 
     dispose(_input: CemProcessingDisposeInput): CemProcessingDisposeResult {
         this.artifacts.clear();
+        this.compiledArtifacts.clear();
         this.renderPlans.clear();
         this.disposed = true;
         return { disposed: true };
@@ -141,6 +173,10 @@ export class CemProcessingEngine {
             throw new Error('the CEM processing engine is disposed');
         }
     }
+}
+
+function retainedArtifactKey(scopePolicyStamp: string, artifactId: string): string {
+    return `${scopePolicyStamp}\u0000${artifactId}`;
 }
 
 function compileResult(artifact: RetainedTemplateArtifact): CemProcessingCompileResult {
@@ -253,7 +289,7 @@ function sameArtifactHandle(left: CemProcessingArtifactHandle, right: CemProcess
 }
 
 function retainedPreviousPlan(
-    renderPlans: Map<string, RenderPlan>,
+    renderPlans: CemProcessingLruCache<string, RenderPlan>,
     handle: CemProcessingRenderPlanHandle | null | undefined,
     artifact: CemProcessingArtifactHandle
 ): RenderPlan | null {
@@ -265,7 +301,7 @@ function retainedPreviousPlan(
     }
     const plan = renderPlans.get(handle.renderPlanId);
     if (!plan) {
-        throw new Error(`render plan \`${handle.renderPlanId}\` is not retained by this processing host`);
+        return null;
     }
     return plan;
 }

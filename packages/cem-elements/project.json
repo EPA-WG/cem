@@ -263,11 +263,20 @@
             },
             "outputs": []
         },
-        "verify": {
+        "verify:phase3b": {
             "executor": "nx:run-commands",
             "dependsOn": ["verify:phase3a"],
             "options": {
-                "command": "echo \"cem-elements verification passed through the current Phase 3A browser gate; invoke verify-edge-ssr separately only for deferred Phase 3.5 evidence.\"",
+                "command": "echo \"Phase 3B browser verification gate green: the Phase 3A aggregate plus bounded worker-pool, content-addressed LRU cache, fair scheduling, control-preemption, and deterministic trace evidence all passed.\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        },
+        "verify": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:phase3b"],
+            "options": {
+                "command": "echo \"cem-elements verification passed through the current Phase 3B browser gate; invoke verify-edge-ssr separately only for deferred Phase 3.5 evidence.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

@@ -887,21 +887,24 @@ fall back to `replaceScope` until a fuller move/insert/remove planner lands.
 
 ### 4.3 Phase 3 MVP topology
 
-The Phase 3 MVP topology is browser-local processing with a worker-backed primary path
-and a main-thread fallback:
+The Phase 3 topology is browser-local processing with a policy-bounded worker-pool
+primary path and a main-thread fallback:
 
-- **Primary path:** the host runtime support layer runs `cem_ml` WASM in one dedicated
-  browser worker by default. Declaration sources and `DataIslandSnapshot` records cross
-  the serializable boundary; template artifacts and retained render plans stay in
-  worker/WASM memory when possible. The worker returns diagnostics, source maps,
-  `DomPatchPlan` objects, or `PatchFrame` streams.
+- **Primary path:** the host runtime support layer runs `cem_ml` WASM in lazily created
+  dedicated-worker slots. The accepted browser default is hardware concurrency capped
+  at eight workers, with explicit lower host bounds. Declaration sources and
+  `DataIslandSnapshot` records cross the serializable boundary; template artifacts and
+  retained render plans stay in worker/WASM memory when possible. Workers return
+  diagnostics, source maps, `DomPatchPlan` objects, or `PatchFrame` streams.
 - **Fallback path:** the same host runtime API can run `cem_ml` WASM on the main thread
   when workers are unavailable, disabled by policy, or not useful in a test host. This
   fallback is a compatibility path, not the performance target, and MUST preserve the
   same template, data, render, diff, and patch semantics as the worker-backed path.
-- **Pool promotion path:** a scope-policy worker pool is deferred until Phase 3B. The
-  pool MUST be an optimization behind the same host runtime API, not a separate
-  template/render contract.
+- **Pool path:** Phase 3B shares bounded worker slots across logical roots while
+  preserving one semantic host per root. Work remains FIFO within a root and is
+  dispatched round-robin across roots assigned to the same slot. `cancel` is a control
+  operation and may preempt queued work so superseded in-flight renders cannot block
+  their own cancellation.
 - **UI ownership:** the main-thread `cem-element` adapter always owns custom-element
   lifecycle, browser events, instance data-island capture, focus/form behavior, and
   final browser DOM patch application.
@@ -911,17 +914,16 @@ source streaming where the platform provides stream bodies, retained render-plan
 identity, patch-frame transport, and per-instance patch transactions with batched
 main-thread flush.
 
-The MVP does not require edge/SSR execution, threaded WASM with `SharedArrayBuffer`,
-precompiled template artifacts, service-worker artifact registries, or a production
-multi-worker cache. It does require cache identities and optional registry hooks to stay
-compatible with a later service-worker registry. Those paths remain valid deployment
-targets after the browser-worker contract is stable. `SharedArrayBuffer` availability
+The browser topology does not require edge/SSR execution, threaded WASM with
+`SharedArrayBuffer`, precompiled template artifacts, or service-worker artifact
+registries. Phase 3B adds bounded in-memory content-addressed LRU retention; persistent
+registries remain later deployment targets. `SharedArrayBuffer` availability
 MUST NOT affect Phase 3A behavior: when it is unavailable, the runtime uses the same
 non-threaded dedicated worker path; when workers are unavailable or fail startup, the
 runtime falls back to main-thread WASM. Worker-backed and main-thread fallback modes
 MUST share the same observable behavior.
 
-### 4.4 Phase 3A processing-host lifecycle
+### 4.4 Phase 3A/3B processing-host lifecycle
 
 The package-private Phase 3A host contract lives in
 `packages/cem-elements/src/lib/internal/runtime-support/processing-host.ts`. It is
@@ -932,11 +934,29 @@ diagnostics, revisions, and patch frames.
 
 One processing host is owned by each logical **root** `CemDeclarationScope`. An
 explicit child scope resolves its nearest declarations as specified in §3, but shares
-its root's host and retained compatible artifacts. Two independent roots remain
-isolated even when they belong to the same `Document`; a `CemElementRuntime` does not
-own an additional worker. Disposing the root cancels its pending work, releases its
-retained handles, sends the host `dispose` operation, and terminates the worker after
-the dispose response or transport failure.
+its root's host and retained compatible artifacts. Independent roots retain separate
+host/job/cancellation state even when they share a policy-compatible worker slot in the
+same `Document`; a `CemElementRuntime` does not own an additional worker. Disposing a
+root cancels and removes its queued work, clears its retained handle sources, and
+releases its pool lease. The last released root terminates the pool's worker slots.
+
+The Phase 3B pool accepts `workerCount`, `maxWorkers`, and per-slot `queueSize` bounds.
+Defaults reuse the established browser cap of eight workers and the native scheduler's
+64-entry queue. Slots are allocated lazily and roots stay on one slot so retained
+artifacts remain local. Positive job IDs are pool-global, preventing correlation or
+cancellation collisions when roots share a worker. Queue overflow fails closed rather
+than silently dropping work.
+
+Compiled templates are retained by the existing content address, independent of source
+chunk boundaries, and render plans by `renderPlanId`. Both caches are bounded LRU maps.
+Each render refreshes its artifact before diffing; if an older plan was evicted, the
+engine safely emits a full `replaceScope` transaction rather than failing or using stale
+state. The main-thread fallback uses the same cache implementation and limits.
+
+Hosts may observe clone-safe `cem-processing-schedule-v1` events for enqueue, dispatch,
+cancel, fallback, and overflow decisions. Events carry only a monotonic sequence,
+logical owner, policy stamp, worker slot, job ID, and operation—never wall-clock time.
+Observer failures are ignored and cannot perturb scheduling or rendering.
 
 Every control message uses the `cem-processing-host-v1` structured-clone envelope.
 Requests carry a positive, monotonically increasing, host-assigned `jobId`; responses

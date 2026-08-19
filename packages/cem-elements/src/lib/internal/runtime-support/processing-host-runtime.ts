@@ -30,10 +30,21 @@ import {
     type CemProcessingSuccessEnvelope,
     type CemProcessingWorkerFactory,
 } from './processing-host.js';
+import {
+    CemProcessingFairScheduler,
+    CemProcessingSchedulingTrace,
+    resolveCemProcessingPoolPolicy,
+    type CemProcessingPoolPolicy,
+    type CemProcessingSchedulingTraceEvent,
+    type CemProcessingSchedulingTraceKind,
+    type ResolvedCemProcessingPoolPolicy,
+} from './processing-scheduler.js';
 
 export interface CemProcessingHostRuntimeOptions {
     workerScriptUrl: string | URL;
     workerFactory?: CemProcessingWorkerFactory;
+    poolPolicy?: CemProcessingPoolPolicy;
+    onTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
 }
 
 interface PendingWorkerRequest {
@@ -162,6 +173,34 @@ class CemProcessingWorkerTransportError extends Error {
     }
 }
 
+interface CemProcessingWorkerConnection {
+    readonly ready: Promise<CemProcessingReadyEnvelope>;
+    request(request: CemProcessingRequestEnvelope): Promise<CemProcessingSuccessEnvelope>;
+    terminate(): void;
+}
+
+class FailedCemProcessingWorkerTransport implements CemProcessingWorkerConnection {
+    readonly ready: Promise<CemProcessingReadyEnvelope>;
+
+    private readonly error: CemProcessingWorkerTransportError;
+
+    constructor(cause: unknown) {
+        this.error = new CemProcessingWorkerTransportError(
+            'startup',
+            cause instanceof Error ? cause.message : 'the CEM processing worker could not be constructed'
+        );
+        this.ready = Promise.reject(this.error);
+    }
+
+    request(_request: CemProcessingRequestEnvelope): Promise<CemProcessingSuccessEnvelope> {
+        return Promise.reject(this.error);
+    }
+
+    terminate(): void {
+        // No worker was constructed.
+    }
+}
+
 class CemProcessingOperationError extends Error {
     constructor(readonly response: CemProcessingResponseEnvelope) {
         super(
@@ -180,26 +219,288 @@ class CemProcessingJobCancelledError extends Error {
     }
 }
 
+interface PooledWorkerRequest {
+    request: CemProcessingRequestEnvelope;
+    scopePolicyStamp: string;
+    resolve(response: CemProcessingSuccessEnvelope): void;
+    reject(error: unknown): void;
+}
+
+interface PooledRootOwner {
+    id: number;
+    slot: CemProcessingWorkerSlot;
+    observers: Set<(event: CemProcessingSchedulingTraceEvent) => void>;
+    released: boolean;
+}
+
+interface CemProcessingWorkerLease {
+    readonly sequence: CemProcessingJobSequence;
+    readonly ready: Promise<CemProcessingReadyEnvelope>;
+    addTraceObserver(observer: ((event: CemProcessingSchedulingTraceEvent) => void) | undefined): void;
+    request(
+        request: CemProcessingRequestEnvelope,
+        scopePolicyStamp: string
+    ): Promise<CemProcessingSuccessEnvelope>;
+    cancelQueued(targetJobId: number, scopePolicyStamp: string): void;
+    record(
+        kind: CemProcessingSchedulingTraceKind,
+        request: CemProcessingRequestEnvelope,
+        scopePolicyStamp: string
+    ): void;
+    release(reason?: unknown): void;
+}
+
+class CemProcessingWorkerSlot {
+    readonly transport: CemProcessingWorkerConnection;
+    private readonly scheduler: CemProcessingFairScheduler<PooledWorkerRequest>;
+    private readonly owners = new Set<number>();
+    private draining = false;
+
+    constructor(
+        readonly slotId: number,
+        options: CemProcessingHostRuntimeOptions,
+        policy: ResolvedCemProcessingPoolPolicy,
+        private readonly pool: CemProcessingWorkerPool
+    ) {
+        try {
+            this.transport = new CemProcessingWorkerTransport(
+                options,
+                `cem-processing-pool-${pool.poolId}-slot-${slotId}`
+            );
+        } catch (error) {
+            this.transport = new FailedCemProcessingWorkerTransport(error);
+        }
+        this.scheduler = new CemProcessingFairScheduler(policy.queueSize);
+    }
+
+    get ownerCount(): number {
+        return this.owners.size;
+    }
+
+    register(owner: PooledRootOwner): void {
+        this.owners.add(owner.id);
+        this.scheduler.registerOwner(owner.id);
+    }
+
+    enqueue(owner: PooledRootOwner, pending: PooledWorkerRequest): void {
+        if (pending.request.operation === 'cancel') {
+            this.pool.record(owner, 'enqueue', pending.request, pending.scopePolicyStamp);
+            this.pool.record(owner, 'dispatch', pending.request, pending.scopePolicyStamp);
+            void this.transport.request(pending.request).then(pending.resolve, pending.reject);
+            return;
+        }
+        try {
+            this.scheduler.enqueue(owner.id, pending);
+        } catch (error) {
+            this.pool.record(owner, 'overflow', pending.request, pending.scopePolicyStamp);
+            pending.reject(error);
+            return;
+        }
+        this.pool.record(owner, 'enqueue', pending.request, pending.scopePolicyStamp);
+        this.drain();
+    }
+
+    cancelQueued(owner: PooledRootOwner, targetJobId: number, scopePolicyStamp: string): void {
+        const removed = this.scheduler.cancel(
+            (entry) => entry.ownerId === owner.id && entry.value.request.jobId === targetJobId
+        );
+        for (const entry of removed) {
+            entry.value.reject(new CemProcessingJobCancelledError(targetJobId));
+        }
+        if (removed.length > 0) {
+            const cancelled = removed[0].value.request;
+            this.pool.record(owner, 'cancel', cancelled, scopePolicyStamp);
+        }
+    }
+
+    release(
+        owner: PooledRootOwner,
+        reason: unknown = new Error('the CEM processing root was released')
+    ): void {
+        this.owners.delete(owner.id);
+        for (const entry of this.scheduler.removeOwner(owner.id)) {
+            entry.value.reject(reason);
+        }
+    }
+
+    terminate(): void {
+        this.transport.terminate();
+    }
+
+    private drain(): void {
+        if (this.draining) {
+            return;
+        }
+        this.draining = true;
+        void this.drainQueued();
+    }
+
+    private async drainQueued(): Promise<void> {
+        try {
+            for (let entry = this.scheduler.dequeue(); entry; entry = this.scheduler.dequeue()) {
+                const owner = this.pool.owner(entry.ownerId);
+                if (!owner || owner.released) {
+                    entry.value.reject(new Error('the CEM processing root was released'));
+                    continue;
+                }
+                this.pool.record(owner, 'dispatch', entry.value.request, entry.value.scopePolicyStamp);
+                try {
+                    entry.value.resolve(await this.transport.request(entry.value.request));
+                } catch (error) {
+                    entry.value.reject(error);
+                }
+            }
+        } finally {
+            this.draining = false;
+        }
+    }
+}
+
+class CemProcessingWorkerPool {
+    readonly sequence = new CemProcessingJobSequence();
+    readonly poolId: number;
+
+    private readonly trace = new CemProcessingSchedulingTrace();
+    private readonly slots: CemProcessingWorkerSlot[] = [];
+    private readonly owners = new Map<number, PooledRootOwner>();
+    private ownerSequence = 0;
+    private closed = false;
+
+    constructor(
+        private readonly options: CemProcessingHostRuntimeOptions,
+        private readonly policy: ResolvedCemProcessingPoolPolicy,
+        poolId: number,
+        private readonly onEmpty: () => void
+    ) {
+        this.poolId = poolId;
+    }
+
+    acquire(observer?: (event: CemProcessingSchedulingTraceEvent) => void): CemProcessingWorkerLease {
+        if (this.closed) {
+            throw new Error('the CEM processing worker pool is closed');
+        }
+        const slot = this.selectSlot();
+        const owner: PooledRootOwner = {
+            id: ++this.ownerSequence,
+            slot,
+            observers: new Set(observer ? [observer] : []),
+            released: false,
+        };
+        this.owners.set(owner.id, owner);
+        slot.register(owner);
+        let released = false;
+        return {
+            sequence: this.sequence,
+            ready: slot.transport.ready,
+            addTraceObserver: (next) => {
+                if (next) {
+                    owner.observers.add(next);
+                }
+            },
+            request: (request, scopePolicyStamp) => new Promise((resolve, reject) => {
+                if (released || owner.released) {
+                    reject(new Error('the CEM processing root was released'));
+                    return;
+                }
+                slot.enqueue(owner, { request, scopePolicyStamp, resolve, reject });
+            }),
+            cancelQueued: (targetJobId, scopePolicyStamp) => {
+                slot.cancelQueued(owner, targetJobId, scopePolicyStamp);
+            },
+            record: (kind, request, scopePolicyStamp) => {
+                this.record(owner, kind, request, scopePolicyStamp);
+            },
+            release: (reason) => {
+                if (released) {
+                    return;
+                }
+                released = true;
+                this.release(owner, reason);
+            },
+        };
+    }
+
+    owner(ownerId: number): PooledRootOwner | undefined {
+        return this.owners.get(ownerId);
+    }
+
+    record(
+        owner: PooledRootOwner,
+        kind: CemProcessingSchedulingTraceKind,
+        request: CemProcessingRequestEnvelope,
+        scopePolicyStamp: string
+    ): void {
+        const event = this.trace.record({
+            kind,
+            ownerScopeId: owner.id,
+            scopePolicyStamp,
+            workerSlot: owner.slot.slotId,
+            jobId: request.jobId,
+            operation: request.operation,
+        });
+        for (const observer of owner.observers) {
+            try {
+                observer(event);
+            } catch {
+                // Observability is never allowed to perturb scheduling semantics.
+            }
+        }
+    }
+
+    private selectSlot(): CemProcessingWorkerSlot {
+        if (this.slots.length < this.policy.workerCount) {
+            const slot = new CemProcessingWorkerSlot(
+                this.slots.length + 1,
+                this.options,
+                this.policy,
+                this
+            );
+            this.slots.push(slot);
+            return slot;
+        }
+        return this.slots.reduce((selected, candidate) =>
+            candidate.ownerCount < selected.ownerCount ? candidate : selected
+        );
+    }
+
+    private release(owner: PooledRootOwner, reason?: unknown): void {
+        owner.released = true;
+        owner.slot.release(owner, reason);
+        this.owners.delete(owner.id);
+        if (this.owners.size !== 0 || this.closed) {
+            return;
+        }
+        this.closed = true;
+        for (const slot of this.slots) {
+            slot.terminate();
+        }
+        this.onEmpty();
+    }
+}
+
 class RootCemProcessingHost implements CemProcessingHost {
-    private readonly sequence = new CemProcessingJobSequence();
+    private readonly sequence: CemProcessingJobSequence;
     private readonly jobs = new CemProcessingCancellationRegistry();
     private readonly engine = new CemProcessingEngine();
     private readonly compileInputs = new Map<string, CemProcessingCompileInput>();
+    private readonly jobPolicies = new Map<number, string>();
     private readonly initialReady: Promise<CemProcessingReadyEnvelope>;
-    private worker?: CemProcessingWorkerTransport;
+    private readonly lease: CemProcessingWorkerLease;
     private fallbackSelected = false;
+    private fallbackTracePending = false;
     private pendingTransitionDiagnostic?: CemProcessingDiagnostic;
     private disposed = false;
     private removeDisposeListener: () => void;
 
     constructor(
         readonly ownerScope: CemDeclarationScope,
-        options: CemProcessingHostRuntimeOptions,
-        workerName: string
+        pool: CemProcessingWorkerPool,
+        observer?: (event: CemProcessingSchedulingTraceEvent) => void
     ) {
+        this.lease = pool.acquire(observer);
+        this.sequence = this.lease.sequence;
         try {
-            this.worker = new CemProcessingWorkerTransport(options, workerName);
-            this.initialReady = this.worker.ready.catch((error) => this.selectFallback(error).ready);
+            this.initialReady = this.lease.ready.catch((error) => this.selectFallback(error).ready);
         } catch (error) {
             this.initialReady = this.selectFallback(
                 new CemProcessingWorkerTransportError(
@@ -213,6 +514,10 @@ class RootCemProcessingHost implements CemProcessingHost {
         });
     }
 
+    addTraceObserver(observer: ((event: CemProcessingSchedulingTraceEvent) => void) | undefined): void {
+        this.lease.addTraceObserver(observer);
+    }
+
     get mode(): 'worker' | 'main-thread' {
         return this.fallbackSelected ? 'main-thread' : 'worker';
     }
@@ -222,16 +527,27 @@ class RootCemProcessingHost implements CemProcessingHost {
     }
 
     compile(input: CemProcessingCompileInput): CemProcessingJob<CemProcessingCompileResult> {
-        this.compileInputs.set(input.templateArtifactId, input);
+        this.compileInputs.set(compileInputKey(input.scopePolicyStamp, input.templateArtifactId), input);
         return this.submit('compile', input);
     }
 
     renderDiff(input: CemProcessingRenderDiffInput): CemProcessingJob<CemProcessingRenderDiffResult> {
-        return this.submit('render-diff', input);
+        const compileInput = this.compileInputs.get(
+            compileInputKey(input.artifact.scopePolicyStamp, input.artifact.artifactId)
+        );
+        const preflight = compileInput
+            ? createCemProcessingRequestEnvelope(this.sequence, 'compile', compileInput)
+            : undefined;
+        return this.submit('render-diff', input, false, preflight);
     }
 
     cancel(input: CemProcessingCancelInput): CemProcessingJob<CemProcessingCancelResult> {
-        return this.submit('cancel', input, false, this.jobs.cancel(input.targetJobId));
+        const scopePolicyStamp = this.jobPolicies.get(input.targetJobId) ?? 'host-control';
+        const accepted = this.jobs.cancel(input.targetJobId);
+        if (accepted) {
+            this.lease.cancelQueued(input.targetJobId, scopePolicyStamp);
+        }
+        return this.submit('cancel', input, accepted);
     }
 
     dispose(input: CemProcessingDisposeInput): CemProcessingJob<CemProcessingDisposeResult> {
@@ -241,36 +557,52 @@ class RootCemProcessingHost implements CemProcessingHost {
         }
         this.disposed = true;
         this.removeDisposeListener?.();
-        const job = this.submit('dispose', input, true);
-        void job.result.then(
-            () => this.worker?.terminate(),
-            () => this.worker?.terminate()
-        );
-        return job;
+        const request = createCemProcessingRequestEnvelope(this.sequence, 'dispose', input);
+        this.jobs.start(request.jobId);
+        const result = Promise.resolve().then(() => {
+            this.lease.release();
+            this.compileInputs.clear();
+            this.jobPolicies.clear();
+            return this.engine.dispose(input);
+        }).finally(() => this.jobs.finish(request.jobId));
+        return { jobId: request.jobId, result };
     }
 
     private submit<TOperation extends CemProcessingOperation>(
         operation: TOperation,
         payload: Parameters<typeof createCemProcessingRequestEnvelope<TOperation>>[2],
-        allowDisposed = false,
-        cancellationAccepted = false
+        cancellationAccepted = false,
+        preflight?: CemProcessingRequestEnvelope<'compile'>
     ): CemProcessingJob<OperationResult<TOperation>> {
         const request = createCemProcessingRequestEnvelope(this.sequence, operation, payload);
+        const scopePolicyStamp = requestScopePolicyStamp(request, this.jobPolicies);
         this.jobs.start(request.jobId);
+        this.jobPolicies.set(request.jobId, scopePolicyStamp);
         const result = Promise.resolve().then(async () => {
-            if (this.disposed && !allowDisposed) {
+            if (this.disposed) {
                 throw new Error('the CEM processing host is disposed');
             }
             await this.ready;
             this.assertNotCancelled(request);
-            if (this.fallbackSelected || !this.worker) {
+            if (this.fallbackSelected) {
+                this.recordPendingFallback(request, scopePolicyStamp);
                 return this.addPendingTransitionDiagnostic(
-                    await this.executeMainThread(request, cancellationAccepted)
+                    await this.executeMainThreadWithArtifact(request, cancellationAccepted)
                 );
             }
             try {
-                const response = await this.worker.request(request);
+                if (preflight) {
+                    await this.lease.request(preflight, preflight.payload.scopePolicyStamp);
+                    this.assertNotCancelled(request);
+                }
+                const response = await this.lease.request(request, scopePolicyStamp);
                 this.assertNotCancelled(request);
+                if (request.operation === 'cancel' && cancellationAccepted) {
+                    return {
+                        targetJobId: request.payload.targetJobId,
+                        accepted: true,
+                    } as OperationResult<TOperation>;
+                }
                 return responseResult<TOperation>(response, operation);
             } catch (error) {
                 this.assertNotCancelled(request);
@@ -284,29 +616,35 @@ class RootCemProcessingHost implements CemProcessingHost {
                         accepted: cancellationAccepted,
                     } as OperationResult<TOperation>;
                 }
-                if (request.operation === 'dispose') {
-                    return { disposed: true } as OperationResult<TOperation>;
-                }
                 const retry = createCemProcessingRequestEnvelope(this.sequence, operation, payload);
-                const retried = await this.executeMainThreadWithArtifact(retry);
+                const retried = await this.executeMainThreadWithArtifact(retry, cancellationAccepted);
                 this.assertNotCancelled(request);
                 return this.addPendingTransitionDiagnostic(retried);
             }
-        }).finally(() => this.jobs.finish(request.jobId));
+        }).finally(() => {
+            this.jobs.finish(request.jobId);
+            this.jobPolicies.delete(request.jobId);
+        });
         return { jobId: request.jobId, result };
     }
 
     private async executeMainThreadWithArtifact<TOperation extends CemProcessingOperation>(
-        request: CemProcessingRequestEnvelope<TOperation>
+        request: CemProcessingRequestEnvelope<TOperation>,
+        cancellationAccepted = false
     ): Promise<OperationResult<TOperation>> {
         if (request.operation === 'render-diff') {
-            const input = this.compileInputs.get(request.payload.artifact.artifactId);
+            const input = this.compileInputs.get(
+                compileInputKey(
+                    request.payload.artifact.scopePolicyStamp,
+                    request.payload.artifact.artifactId
+                )
+            );
             if (!input) {
                 throw new Error('the main-thread fallback is missing the worker template source');
             }
             await this.engine.compile(input);
         }
-        return this.executeMainThread(request);
+        return this.executeMainThread(request, cancellationAccepted);
     }
 
     private async executeMainThread<TOperation extends CemProcessingOperation>(
@@ -358,7 +696,11 @@ class RootCemProcessingHost implements CemProcessingHost {
                 operation: request?.operation ?? 'compile',
             });
         this.fallbackSelected = true;
-        this.worker?.terminate();
+        this.lease.release(error);
+        this.fallbackTracePending = request === undefined;
+        if (request) {
+            this.lease.record('fallback', request, requestScopePolicyStamp(request, this.jobPolicies));
+        }
         this.pendingTransitionDiagnostic = 'diagnostic' in decision ? decision.diagnostic : {
             code: 'cem.processing_host.worker_startup_fallback',
             severity: 'warning',
@@ -369,6 +711,17 @@ class RootCemProcessingHost implements CemProcessingHost {
         };
     }
 
+    private recordPendingFallback(
+        request: CemProcessingRequestEnvelope,
+        scopePolicyStamp: string
+    ): void {
+        if (!this.fallbackTracePending) {
+            return;
+        }
+        this.fallbackTracePending = false;
+        this.lease.record('fallback', request, scopePolicyStamp);
+    }
+
     private addPendingTransitionDiagnostic<TOperation extends CemProcessingOperation>(
         result: OperationResult<TOperation>
     ): OperationResult<TOperation> {
@@ -376,6 +729,26 @@ class RootCemProcessingHost implements CemProcessingHost {
         this.pendingTransitionDiagnostic = undefined;
         return diagnostic ? addDiagnostic(result, diagnostic) : result;
     }
+}
+
+function compileInputKey(scopePolicyStamp: string, artifactId: string): string {
+    return `${scopePolicyStamp}\u0000${artifactId}`;
+}
+
+function requestScopePolicyStamp(
+    request: CemProcessingRequestEnvelope,
+    jobPolicies: ReadonlyMap<number, string>
+): string {
+    if (request.operation === 'compile') {
+        return request.payload.scopePolicyStamp;
+    }
+    if (request.operation === 'render-diff') {
+        return request.payload.artifact.scopePolicyStamp;
+    }
+    if (request.operation === 'cancel') {
+        return jobPolicies.get(request.payload.targetJobId) ?? 'host-control';
+    }
+    return 'host-control';
 }
 
 type OperationResult<TOperation extends CemProcessingOperation> =
@@ -405,7 +778,11 @@ function addDiagnostic<TOperation extends CemProcessingOperation>(
 }
 
 const hostsByRoot = new WeakMap<CemDeclarationScope, RootCemProcessingHost>();
-let workerSequence = 0;
+const poolsByDocument = new WeakMap<
+    Document,
+    Map<CemProcessingWorkerFactory, Map<string, CemProcessingWorkerPool>>
+>();
+let poolSequence = 0;
 
 /** Return the one lazy worker/fallback host owned by a logical root declaration scope. */
 export function cemProcessingHostForScope(
@@ -415,9 +792,46 @@ export function cemProcessingHostForScope(
     const ownerScope = cemProcessingHostOwnerScope(scope);
     const existing = hostsByRoot.get(ownerScope);
     if (existing) {
+        existing.addTraceObserver(options.onTrace);
         return existing;
     }
-    const host = new RootCemProcessingHost(ownerScope, options, `cem-processing-root-${++workerSequence}`);
+    const host = new RootCemProcessingHost(
+        ownerScope,
+        workerPoolForDocument(ownerScope.document, options),
+        options.onTrace
+    );
     hostsByRoot.set(ownerScope, host);
     return host;
+}
+
+function workerPoolForDocument(
+    document: Document,
+    options: CemProcessingHostRuntimeOptions
+): CemProcessingWorkerPool {
+    const workerFactory = options.workerFactory ?? defaultCemProcessingWorkerFactory;
+    const policy = resolveCemProcessingPoolPolicy(options.poolPolicy);
+    let byFactory = poolsByDocument.get(document);
+    if (!byFactory) {
+        byFactory = new Map();
+        poolsByDocument.set(document, byFactory);
+    }
+    let byPolicy = byFactory.get(workerFactory);
+    if (!byPolicy) {
+        byPolicy = new Map();
+        byFactory.set(workerFactory, byPolicy);
+    }
+    const key = `${String(options.workerScriptUrl)}\u0000${policy.workerCount}\u0000${policy.maxWorkers}\u0000${policy.queueSize}`;
+    const existing = byPolicy.get(key);
+    if (existing) {
+        return existing;
+    }
+    const normalizedOptions = { ...options, workerFactory };
+    const pool = new CemProcessingWorkerPool(normalizedOptions, policy, ++poolSequence, () => {
+        byPolicy?.delete(key);
+        if (byPolicy?.size === 0) {
+            byFactory?.delete(workerFactory);
+        }
+    });
+    byPolicy.set(key, pool);
+    return pool;
 }
