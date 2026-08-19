@@ -346,6 +346,8 @@ export type EdgeRenderStateWriteResult =
 
 export interface EdgeRenderStateWriteOptions {
     expectedEtag?: string;
+    /** Create-only pointer precondition. Returns the current record when one already exists. */
+    ifAbsent?: true;
 }
 
 export interface EdgeRenderStateAdvanceOptions extends EdgeRenderStateWriteOptions {
@@ -825,7 +827,10 @@ export class InMemoryEdgeRenderStateStore implements EdgeRenderStateStore {
         options: EdgeRenderStateWriteOptions = {}
     ): EdgeRenderStateWriteResult {
         const current = this.records.get(record.stateKey);
-        if (options.expectedEtag !== undefined && current?.etag !== options.expectedEtag) {
+        if (
+            (options.ifAbsent === true && current !== undefined)
+            || (options.expectedEtag !== undefined && current?.etag !== options.expectedEtag)
+        ) {
             return {
                 ok: false,
                 reason: 'etag-mismatch',

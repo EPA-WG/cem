@@ -672,6 +672,9 @@ version.
   the current record without advancing on mismatch. Writing immutable blobs before a
   failed comparison MAY leave unreachable content; bounded retention or garbage
   collection is a deployment concern and MUST NOT change pointer correctness.
+- Initial pointer creation uses the atomic `ifAbsent` precondition. A concurrent or
+  duplicate creator receives the current record and MUST NOT replace it; read-then-write
+  absence checks are not a conforming substitute.
 - The contract describes storage semantics, not a provider. Memory, filesystem,
   object-store, KV, or document adapters MAY implement it when they preserve content
   immutability, address verification, atomic pointer comparison, and structured-clone
@@ -726,6 +729,17 @@ focus/selection/composition state, credentials, and other host-owned objects nev
 the payload. The host receives and returns the exact sanitized snapshot; it MUST NOT
 reconstruct policy-omitted fields. If that snapshot lacks metadata required by a client
 hydration build, the client rejects adoption and performs its normal fresh-render path.
+
+The Phase 3.5 Node-only reference fixture implements `render-initial` from serialized
+template source without reading or constructing DOM. It validates all duplicated
+identity fields before projection, requires the sanitized snapshot fields needed for
+hydration-safe output, applies deterministic scope and source-map policy, and serializes
+the render plan with the same render-node, artifact, revision, and source metadata as
+browser materialization. Its serializer escapes text and attributes and rejects unsafe
+names, null characters, invalid comments, executable/raw-text elements, closing-style
+terminators, and children of HTML void elements. The fixture rereads and verifies the
+stored plan before returning hydration metadata, and atomically creates the initial
+pointer with the `ifAbsent` precondition.
 
 Patch transport uses internal frames, never browser DOM events. The normative Phase 3
 contract is stable render-node-id patching with a constrained scope-replacement

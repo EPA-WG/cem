@@ -7,10 +7,10 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Add a non-browser SSR host fixture for the locked `render-initial` envelope. It
-must emit owned-range HTML plus `cem-ssr-hydration-v1` metadata from a sanitized
-snapshot and validate every template, revision, source-map, and retained-plan
-identity before returning committed render state.
+Add a DOM-free edge processing fixture for the locked `render-update` envelope.
+It must accept a sanitized snapshot plus the previous state key, ETag, content
+address, and render-plan identity, then emit the same deterministic patch-frame
+stream as the browser reference path without accessing live DOM.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -359,8 +359,9 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       registers exactly the three hydration, edge-patch, privacy-export, and hybrid
       state cases (6/6), while a focused unit configuration owns the three
       structured-clone, default-deny/redaction, and host-value rejection cases plus
-      the accepted hybrid storage and external host-envelope contracts (5/5). The
-      default Phase 3 lanes exclude those deferred cases and pass at
+      the accepted hybrid storage and external host-envelope contracts, plus three
+      Node-only initial SSR host cases across two focused files (8/8). The default
+      Phase 3 lanes exclude those deferred cases and pass at
       114/114 Storybook and 133/133 unit tests. The uncached five-dependency
       `cem-elements:verify-edge-ssr` aggregate passes without depending on either
       broad test target; lint and typecheck are also green.
@@ -395,10 +396,20 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           checked for plain structured-clone transport. The host can accept serialized
           source, a compiled artifact transfer, or a content-addressed artifact, but
           cannot reconstruct policy-omitted snapshot fields.
-- [ ] Add a non-browser SSR host fixture that emits initial HTML plus hydration
+- [x] Add a non-browser SSR host fixture that emits initial HTML plus hydration
       metadata from a serialized `DataIslandSnapshot` and validates template
       artifact identity, `RenderRevision`, source-map mode, and retained render-plan
       identity before hydration.
+      Completed 2026-08-19: a Node-environment `render-initial` reference host now
+      projects serialized template source and a complete sanitized snapshot without
+      DOM globals, applies deterministic scope and dev/prod source-map policy,
+      serializes escaped identity-bearing owned-range HTML, writes the hybrid state,
+      and rereads the retained plan before returning `cem-ssr-hydration-v1` metadata.
+      It rejects mismatched template/revision/source-map/scope identities before
+      storage, fails closed when privacy policy omitted render-required fields,
+      reports unresolved artifact forms without guessing, rejects unsafe raw HTML,
+      and uses an atomic `ifAbsent` precondition so duplicate or concurrent initial
+      renders cannot replace the existing pointer.
 - [ ] Add a DOM-free edge processing fixture that accepts a serialized snapshot plus
       previous render-plan identity and emits the same deterministic patch-frame
       stream as the browser reference runtime.

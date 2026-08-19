@@ -26,9 +26,11 @@ prerequisite before Phase 3.5 is active.
 `cem-elements:verify-edge-ssr` aggregates:
 
 - `cem-elements:verify-substrate` for the browser substrate roundtrip path.
-- `cem-elements:test:unit` for structured-clone-safe processing-boundary fixtures.
-- `cem-elements:test` for Storybook runtime fixtures covering SSR hydration, hydration rejection/fallback, edge patch
-  frames, browser-to-edge export policy, and hybrid edge render-state storage.
+- `cem-elements:test:edge-ssr-unit` for the focused processing-boundary, host-envelope,
+  hybrid render-state, and Node-only initial SSR host fixtures.
+- `cem-elements:test:edge-ssr` for dedicated Storybook runtime fixtures covering SSR
+  hydration, hydration rejection/fallback, edge patch frames, browser-to-edge export
+  policy, and hybrid edge render-state storage.
 
 ## Handoff
 

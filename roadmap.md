@@ -352,6 +352,7 @@ Deliverables:
   updates stream patch-frame progress and expose a commit only after expected-ETag pointer advancement succeeds.
 - SSR host fixture that emits initial HTML plus hydration metadata from a serialized `DataIslandSnapshot` and validates
   hydration against template artifact identity, `RenderRevision`, source-map mode, and retained render-plan identity.
+  The Node-only reference fixture implements this path with fail-closed identity, privacy, storage, and HTML checks.
 - Edge processing fixture that accepts a serialized snapshot plus previous render-plan identity and produces a
   patch-frame stream without access to live browser DOM.
 - Privacy/export policy fixtures proving that denied data-island fields are omitted or redacted before leaving the
