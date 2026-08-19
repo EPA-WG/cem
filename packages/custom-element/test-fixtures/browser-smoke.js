@@ -64,6 +64,11 @@ export async function runCustomElementSmoke(importBase) {
 
     const instance = document.querySelector('fixture-card');
     check('legacy declaration registers produced tag', customElements.get('fixture-card') !== undefined);
+    check(
+        'untyped legacy declaration uses the browser compatibility selector',
+        document.querySelector('custom-element[tag="fixture-card"] > template')?.getAttribute('lang') ===
+            'custom-element-v0'
+    );
     // The adapter now transpiles the legacy template to CEM-ML and renders it through the cem_ql
     // WASM boundary, which is asynchronous — wait for the rendered output rather than asserting it
     // synchronously (the old DOM-projection bridge rendered synchronously).
@@ -165,7 +170,7 @@ export async function runCustomElementSmoke(importBase) {
     const externalXhtmlTreeDeclaration = document.querySelector('custom-element.inline-external-xhtml-tree-fixture');
     const externalXhtmlTreeTag = externalXhtmlTreeDeclaration?.getAttribute('tag');
     await waitFor(
-        'anonymous external XHTML CEM-ML src creates an inline produced instance',
+        'anonymous external XHTML CEM-ML src renders the recursive produced tree',
         () =>
             Boolean(
                 externalXhtmlTreeTag &&
@@ -175,6 +180,20 @@ export async function runCustomElementSmoke(importBase) {
             )
     );
     const externalXhtmlTree = externalXhtmlTreeDeclaration?.querySelector(externalXhtmlTreeTag);
+    if (!externalXhtmlTree?.querySelector('.data-island-tree details details details details')) {
+        const diagnostics = [
+            ...customElementModule.diagnosticsFor(externalXhtmlTreeDeclaration),
+            ...(externalXhtmlTree ? customElementModule.diagnosticsFor(externalXhtmlTree) : []),
+        ];
+        errors.push(
+            `anonymous external XHTML CEM-ML state: tag=${externalXhtmlTreeTag ?? '<missing>'}; ` +
+                `instance=${externalXhtmlTree ? 'present' : 'missing'}; diagnostics=${
+                    diagnostics.length > 0
+                        ? diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join('; ')
+                        : '<none>'
+                }`
+        );
+    }
     const externalXhtmlTreeText = externalXhtmlTree?.textContent ?? '';
     check(
         'anonymous external XHTML CEM-ML src renders host attributes',

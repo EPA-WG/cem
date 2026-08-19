@@ -73,7 +73,16 @@ async function verifyRoot(root) {
     assertIncludes(customElementSource, 'window.customElements.define(', `${root}: custom-element registration`);
     assertIncludes(customElementSource, "'custom-element'", `${root}: custom-element tag literal`);
     assertIncludes(customElementSource, 'CemElementRuntime', `${root}: substrate runtime import`);
-    assertIncludes(customElementSource, 'LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG', `${root}: legacy bridge import`);
+    assertIncludes(
+        customElementSource,
+        "const LEGACY_TEMPLATE_LANG = 'custom-element-v0'",
+        `${root}: browser legacy selector`
+    );
+    assertNotIncludes(
+        customElementSource,
+        'LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG',
+        `${root}: native converter identity must not select browser legacy mode`
+    );
     assertNotIncludes(customElementSource, 'XSLTProcessor', `${root}: adapter must not use XSLTProcessor`);
     assertNotIncludes(customElementSource, 'createXsltFromDom', `${root}: adapter must not keep XSLT compiler`);
     assertNotIncludes(customElementSource, 'class DceElement', `${root}: adapter must not define legacy produced class`);
