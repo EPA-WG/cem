@@ -359,6 +359,8 @@ Deliverables:
   compare-and-swap, and emits the browser reference path's exact frames only after the commit is verified.
 - Privacy/export policy fixtures proving that denied data-island fields are omitted or redacted before leaving the
   browser context.
+  The browser request factory now applies policy into an owned export before envelope creation; initial and update
+  fixtures prove default omission, canonical redaction, mutation isolation, and exact host retention.
 - Edge render-state storage uses both content-addressed immutable blobs and a revisioned per-instance pointer record.
   The locked `content-addressed-cache-with-revision-pointer-v1` contract verifies blob addresses on read and advances
   pointers through expected-ETag compare-and-swap; storage providers remain adapter choices.

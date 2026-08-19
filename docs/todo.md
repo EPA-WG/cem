@@ -7,9 +7,8 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Prove privacy/export policy is applied before a serialized snapshot crosses the
-browser boundary. Cover omission and redaction in both the initial SSR and edge
-update host fixtures, and prove neither host reconstructs policy-denied fields.
+Run the current Phase 3 browser reference gates and the opt-in Edge/SSR aggregate,
+reconcile their evidence, and close Phase 3.5 only if both lanes pass together.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -358,9 +357,9 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       registers exactly the three hydration, edge-patch, privacy-export, and hybrid
       state cases (6/6), while a focused unit configuration owns the three
       structured-clone, default-deny/redaction, and host-value rejection cases plus
-      the accepted hybrid storage and external host-envelope contracts, plus seven
-      Node-only initial SSR and edge-update host cases across three focused files
-      (12/12). The default
+      the accepted hybrid storage and external host-envelope contracts, plus eleven
+      Node-only initial SSR, edge-update, and browser-export boundary cases across
+      four focused files (16/16). The default
       Phase 3 lanes exclude those deferred cases and pass at
       114/114 Storybook and 133/133 unit tests. The uncached five-dependency
       `cem-elements:verify-edge-ssr` aggregate passes without depending on either
@@ -422,8 +421,17 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       frame parity plus fail-closed missing-state, stale-ETag, address, identity, and
       unavailable-content outcomes; each failure emits one typed terminal response,
       no progress or commit, and leaves the pointer unchanged.
-- [ ] Prove privacy/export policy is applied before the serialized snapshot crosses
+- [x] Prove privacy/export policy is applied before the serialized snapshot crosses
       the browser boundary, including omission and redaction cases in both host
       fixtures.
+      Completed 2026-08-19: the public browser request factory accepts a raw
+      `DataIslandSnapshot` plus export policy, applies default-deny or canonical
+      redaction into an owned clone, removes the policy, and only then creates the
+      structured-clone host envelope. Initial and update evidence proves omitted
+      secrets never enter requests, redacted requests remain isolated from later
+      browser mutations, and hosts retain or return exactly the exported snapshot
+      without reconstructing denied fields. Omitted render-required input terminates
+      as `privacy-policy-rejected`; initial storage remains absent and update storage
+      and progress remain unchanged.
 - [ ] Run the Phase 3 browser reference gates and the opt-in `verify-edge-ssr`
       aggregate before closing Phase 3.5.

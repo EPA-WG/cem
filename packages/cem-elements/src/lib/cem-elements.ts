@@ -61,6 +61,14 @@ import {
     unbindCemDeclarationScopeRegistration,
     type CemDeclarationScope,
 } from './declaration-scope.js';
+import {
+    createCemEdgeSsrHostRequestEnvelope,
+    type CemEdgeSsrHostOperation,
+    type CemEdgeSsrHostRequestEnvelope,
+    type CemEdgeSsrInitialRenderInput,
+    type CemEdgeSsrRenderUpdateInput,
+    type CemEdgeSsrJobSequence,
+} from './edge-ssr-host.js';
 
 export * from './edge-ssr-host.js';
 
@@ -1070,6 +1078,49 @@ export function exportDataIslandSnapshotForEdge(
         }
     }
     return exported;
+}
+
+export type CemEdgeSsrBrowserInitialRenderInput = Omit<CemEdgeSsrInitialRenderInput, 'snapshot'> & {
+    snapshot: DataIslandSnapshot;
+    exportPolicy?: DataIslandSnapshotExportPolicy;
+};
+
+export type CemEdgeSsrBrowserRenderUpdateInput = Omit<CemEdgeSsrRenderUpdateInput, 'snapshot'> & {
+    snapshot: DataIslandSnapshot;
+    exportPolicy?: DataIslandSnapshotExportPolicy;
+};
+
+/**
+ * Browser-to-host request boundary. Snapshot policy is applied and removed before
+ * the clone-safe host envelope is created, so raw data-island fields cannot cross.
+ */
+export function createCemEdgeSsrBrowserRequestEnvelope(
+    sequence: CemEdgeSsrJobSequence,
+    operation: 'render-initial',
+    input: CemEdgeSsrBrowserInitialRenderInput
+): CemEdgeSsrHostRequestEnvelope<'render-initial'>;
+export function createCemEdgeSsrBrowserRequestEnvelope(
+    sequence: CemEdgeSsrJobSequence,
+    operation: 'render-update',
+    input: CemEdgeSsrBrowserRenderUpdateInput
+): CemEdgeSsrHostRequestEnvelope<'render-update'>;
+export function createCemEdgeSsrBrowserRequestEnvelope(
+    sequence: CemEdgeSsrJobSequence,
+    operation: CemEdgeSsrHostOperation,
+    input: CemEdgeSsrBrowserInitialRenderInput | CemEdgeSsrBrowserRenderUpdateInput
+): CemEdgeSsrHostRequestEnvelope {
+    const { snapshot, exportPolicy, ...hostInput } = input;
+    const exportedSnapshot = exportDataIslandSnapshotForEdge(snapshot, exportPolicy);
+    if (operation === 'render-initial') {
+        return createCemEdgeSsrHostRequestEnvelope(sequence, operation, {
+            ...hostInput,
+            snapshot: exportedSnapshot,
+        } as CemEdgeSsrInitialRenderInput);
+    }
+    return createCemEdgeSsrHostRequestEnvelope(sequence, operation, {
+        ...hostInput,
+        snapshot: exportedSnapshot,
+    } as CemEdgeSsrRenderUpdateInput);
 }
 
 export class CemElementRuntime {

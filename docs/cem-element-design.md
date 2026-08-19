@@ -650,6 +650,16 @@ focus/selection state, raw browser events, credentials, and policy-denied payloa
 remain in the UI adapter. Edge/server hosts receive redacted or omitted fields rather
 than implicit access.
 
+Browser adapters MUST create external requests through
+`createCemEdgeSsrBrowserRequestEnvelope`. It accepts the live `DataIslandSnapshot` and
+its `DataIslandSnapshotExportPolicy`, calls `exportDataIslandSnapshotForEdge` into an
+owned clone, removes the policy, and only then creates the structured-clone host
+envelope. The low-level host-envelope creator accepts only `ExportedDataIslandSnapshot`;
+it is not a policy boundary. Later browser mutations cannot change an exported request.
+Hosts preserve the exact exported snapshot and fail closed when omitted fields are
+required for rendering; they never recover denied fields from browser state or retained
+unsanitized input.
+
 #### Phase 3.5 edge render-state storage decision
 
 Phase 3.5 uses both content-addressed immutable blobs and a revisioned mutable pointer.
