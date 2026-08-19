@@ -7,10 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Resolve the Phase 3.5 render-state storage contract before adding external host
-fixtures. The runtime already implements and tests a hybrid content-addressed
-cache plus revision-pointer record, while the roadmap still presents cache-only,
-revisioned KV/document records, or both as an open decision.
+Lock clone-safe Phase 3.5 host requests and results for initial SSR output,
+hydration metadata, previous render-plan identity, and streamed edge patch
+frames before adding the external host fixtures.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -358,8 +357,9 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       Completed 2026-08-19: a dedicated Edge/SSR Storybook configuration now
       registers exactly the three hydration, edge-patch, privacy-export, and hybrid
       state cases (6/6), while a focused unit configuration owns the three
-      structured-clone, default-deny/redaction, and host-value rejection cases
-      (3/3). The default Phase 3 lanes exclude those deferred cases and pass at
+      structured-clone, default-deny/redaction, and host-value rejection cases plus
+      the accepted hybrid storage contract (4/4). The default Phase 3 lanes exclude
+      those deferred cases and pass at
       114/114 Storybook and 133/133 unit tests. The uncached five-dependency
       `cem-elements:verify-edge-ssr` aggregate passes without depending on either
       broad test target; lint and typecheck are also green.
@@ -367,10 +367,19 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
 ## Phase 3.5 Checklist
 
 - [ ] Lock the external Edge/SSR host and render-state contract.
-    - [ ] Decide whether the existing
+    - [x] Decide whether the existing
           `content-addressed-cache-with-revision-pointer-v1` model is the accepted
           roadmap "both" option, or whether cache-only or revisioned KV/document
           storage replaces it.
+          Completed 2026-08-19: accepted the existing hybrid model without changing
+          the `edge-render-state` 1.0.0 wire format. Immutable template artifacts,
+          render plans, sanitized snapshots, and rendered HTML remain independently
+          content-addressed and verified on read; one stable per-instance pointer
+          record carries current addresses, revision/policy identity, and an ETag.
+          Pointer writes use expected-ETag compare-and-swap, retain the current record
+          on mismatch, and may leave unreachable immutable blobs for adapter-managed
+          retention. The normative design and roadmap now reject cache-only and
+          pointer-only storage for this version.
     - [ ] Lock clone-safe host requests/results for initial SSR output, hydration
           metadata, previous render-plan identity, and streamed edge patch frames.
 - [ ] Add a non-browser SSR host fixture that emits initial HTML plus hydration

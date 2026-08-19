@@ -26,6 +26,67 @@ class BrowserHandleLike {
 }
 
 describe('Edge/SSR processing boundary contracts', () => {
+    it('locks hybrid content-addressed blobs behind an optimistic revision pointer', () => {
+        const previousPlan = projectTemplate(PROCESSING_BOUNDARY_TEMPLATE_SOURCE, {
+            snapshot: processingBoundarySnapshotFixture(),
+            values: { label: 'Before' },
+        });
+        const nextPlan: RenderPlan = {
+            ...previousPlan,
+            dataRevision: '2',
+            nodes: [{
+                ...previousPlan.nodes[0] as Extract<RenderPlan['nodes'][number], { kind: 'element' }>,
+                attributes: [{ name: 'data-label', value: 'After' }],
+            }],
+        };
+        const store = new InMemoryEdgeRenderStateStore();
+        const initial = store.writeRenderState({
+            renderPlan: previousPlan,
+            templateArtifact: PROCESSING_BOUNDARY_TEMPLATE_SOURCE,
+            sanitizedSnapshot: { label: 'Before' },
+            renderedHtml: '<article data-label="Before"></article>',
+            privacyPolicyStamp: 'edge-policy-v1',
+        });
+        expect(initial.ok).toBe(true);
+        if (!initial.ok) return;
+
+        expect(initial.record.storageModel).toBe('content-addressed-cache-with-revision-pointer-v1');
+        expect(initial.record.currentTemplateArtifact?.kind).toBe('template-artifact');
+        expect(initial.record.currentRenderPlan.kind).toBe('render-plan');
+        expect(initial.record.currentSnapshot?.kind).toBe('sanitized-snapshot');
+        expect(initial.record.currentHtml?.kind).toBe('rendered-html');
+
+        const stale = store.writeRenderState(
+            {
+                renderPlan: nextPlan,
+                stateKey: initial.record.stateKey,
+                privacyPolicyStamp: 'edge-policy-v1',
+            },
+            { expectedEtag: 'stale-etag' }
+        );
+        expect(stale.ok).toBe(false);
+        if (stale.ok) return;
+        expect(stale.reason).toBe('etag-mismatch');
+        expect(stale.current?.etag).toBe(initial.record.etag);
+        expect(store.readRecord(initial.record.stateKey)?.etag).toBe(initial.record.etag);
+
+        const advanced = store.writeRenderState(
+            {
+                renderPlan: nextPlan,
+                stateKey: initial.record.stateKey,
+                privacyPolicyStamp: 'edge-policy-v1',
+            },
+            { expectedEtag: initial.record.etag }
+        );
+        expect(advanced.ok).toBe(true);
+        if (!advanced.ok) return;
+        expect(advanced.record.stateKey).toBe(initial.record.stateKey);
+        expect(advanced.record.etag).not.toBe(initial.record.etag);
+        expect(store.readRecord(initial.record.stateKey)?.etag).toBe(advanced.record.etag);
+        expect(store.getContent<RenderPlan>(initial.record.currentRenderPlan)).toEqual(previousPlan);
+        expect(store.getContent<RenderPlan>(advanced.record.currentRenderPlan)).toEqual(nextPlan);
+    });
+
     it('keeps snapshots, render plans, patch frames, and edge records plain structured-clone data', () => {
         const snapshot = processingBoundarySnapshotFixture();
         const exported = exportDataIslandSnapshotForEdge(snapshot, {

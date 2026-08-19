@@ -353,8 +353,9 @@ Deliverables:
   patch-frame stream without access to live browser DOM.
 - Privacy/export policy fixtures proving that denied data-island fields are omitted or redacted before leaving the
   browser context.
-- First render-state storage decision for edge processing: content-addressed cache only, revisioned KV/document
-  records, or both.
+- Edge render-state storage uses both content-addressed immutable blobs and a revisioned per-instance pointer record.
+  The locked `content-addressed-cache-with-revision-pointer-v1` contract verifies blob addresses on read and advances
+  pointers through expected-ETag compare-and-swap; storage providers remain adapter choices.
 
 Exit criteria:
 

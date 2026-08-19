@@ -650,6 +650,38 @@ focus/selection state, raw browser events, credentials, and policy-denied payloa
 remain in the UI adapter. Edge/server hosts receive redacted or omitted fields rather
 than implicit access.
 
+#### Phase 3.5 edge render-state storage decision
+
+Phase 3.5 uses both content-addressed immutable blobs and a revisioned mutable pointer.
+The normative model identifier is
+`content-addressed-cache-with-revision-pointer-v1`, carried by every
+`EdgeRenderStateRecord` under the independently governed `edge-render-state` 1.0.0
+schema. Cache-only and pointer-only storage are not conforming alternatives for this
+version.
+
+- Template artifacts, render plans, sanitized snapshots, and rendered HTML are stored
+  as immutable content addressed by their kind and stable digest. Reads MUST recompute
+  and verify the address before trusting content. Old blobs remain readable after a
+  pointer advances so retries, diffs, and concurrent readers can use the revision they
+  observed.
+- One stable `stateKey` per produced instance selects a mutable pointer record. The
+  record carries the current blob addresses, complete `RenderRevision`, scope and
+  privacy policy stamps, schema version, and an ETag derived from the record contents.
+- Pointer advancement uses optimistic compare-and-swap. After first write, an adapter
+  MUST compare `expectedEtag` with the current record and return `etag-mismatch` plus
+  the current record without advancing on mismatch. Writing immutable blobs before a
+  failed comparison MAY leave unreachable content; bounded retention or garbage
+  collection is a deployment concern and MUST NOT change pointer correctness.
+- The contract describes storage semantics, not a provider. Memory, filesystem,
+  object-store, KV, or document adapters MAY implement it when they preserve content
+  immutability, address verification, atomic pointer comparison, and structured-clone
+  values.
+
+This hybrid model keeps large immutable values deduplicated and integrity-addressed
+while giving each instance one authoritative current revision with explicit concurrency
+control. A cache-only model cannot authoritatively select the current revision, and a
+pointer-only record would duplicate large values and discard their reusable identities.
+
 Patch transport uses internal frames, never browser DOM events. The normative Phase 3
 contract is stable render-node-id patching with a constrained scope-replacement
 fallback. Normal diffs target `renderNodeId` values from the retained render plan.

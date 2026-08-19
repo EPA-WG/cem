@@ -278,7 +278,7 @@
                 "test:edge-ssr"
             ],
             "options": {
-                "command": "echo \"Edge/SSR focused evidence gate green: substrate roundtrips, 3 processing-boundary unit cases, and 6 dedicated Storybook cases passed; external Phase 3.5 host fixtures remain roadmap work.\"",
+                "command": "echo \"Edge/SSR focused evidence gate green: substrate roundtrips, 4 processing-boundary unit cases, and 6 dedicated Storybook cases passed; external Phase 3.5 host fixtures remain roadmap work.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
