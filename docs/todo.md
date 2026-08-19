@@ -7,9 +7,10 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Phase 3 is complete. Before activating deferred Phase 3.5, isolate its six
-Edge/SSR Storybook cases and processing-boundary selections so the follow-up
-has phase-specific evidence instead of relying on the broad browser gates.
+Resolve the Phase 3.5 render-state storage contract before adding external host
+fixtures. The runtime already implements and tests a hybrid content-addressed
+cache plus revision-pointer record, while the roadmap still presents cache-only,
+revisioned KV/document records, or both as an open decision.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -350,7 +351,37 @@ stable. Moving `@epa-wg/custom-element` into the monorepo and deciding final
 legacy XSLT preservation belong to Phase 3.6. Figma UI Kit work remains Phase 5,
 and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
 
-- [ ] Before activating Phase 3.5, split its six Storybook cases and supporting
+- [x] Before activating Phase 3.5, split its six Storybook cases and supporting
       processing-boundary selections from the shared Phase 3A files so
       `verify-edge-ssr` has phase-specific evidence instead of relying on the broad
       browser and unit targets.
+      Completed 2026-08-19: a dedicated Edge/SSR Storybook configuration now
+      registers exactly the three hydration, edge-patch, privacy-export, and hybrid
+      state cases (6/6), while a focused unit configuration owns the three
+      structured-clone, default-deny/redaction, and host-value rejection cases
+      (3/3). The default Phase 3 lanes exclude those deferred cases and pass at
+      114/114 Storybook and 133/133 unit tests. The uncached five-dependency
+      `cem-elements:verify-edge-ssr` aggregate passes without depending on either
+      broad test target; lint and typecheck are also green.
+
+## Phase 3.5 Checklist
+
+- [ ] Lock the external Edge/SSR host and render-state contract.
+    - [ ] Decide whether the existing
+          `content-addressed-cache-with-revision-pointer-v1` model is the accepted
+          roadmap "both" option, or whether cache-only or revisioned KV/document
+          storage replaces it.
+    - [ ] Lock clone-safe host requests/results for initial SSR output, hydration
+          metadata, previous render-plan identity, and streamed edge patch frames.
+- [ ] Add a non-browser SSR host fixture that emits initial HTML plus hydration
+      metadata from a serialized `DataIslandSnapshot` and validates template
+      artifact identity, `RenderRevision`, source-map mode, and retained render-plan
+      identity before hydration.
+- [ ] Add a DOM-free edge processing fixture that accepts a serialized snapshot plus
+      previous render-plan identity and emits the same deterministic patch-frame
+      stream as the browser reference runtime.
+- [ ] Prove privacy/export policy is applied before the serialized snapshot crosses
+      the browser boundary, including omission and redaction cases in both host
+      fixtures.
+- [ ] Run the Phase 3 browser reference gates and the opt-in `verify-edge-ssr`
+      aggregate before closing Phase 3.5.

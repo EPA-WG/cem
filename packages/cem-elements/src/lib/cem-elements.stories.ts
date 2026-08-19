@@ -61,6 +61,7 @@ import { createCemDeclarationScope } from './declaration-scope.js';
 const meta: Meta = {
     title: 'CEM Elements/Runtime',
     tags: ['test'],
+    excludeStories: ['edgeSsrStories'],
 };
 
 export default meta;
@@ -4298,7 +4299,7 @@ export const ScopeUidDuplicateDiagnostics: Story = {
     },
 };
 
-export const SsrHydrationFromSerializedSnapshot: Story = {
+const SsrHydrationFromSerializedSnapshot: Story = {
     render: () => {
         const root = document.createElement('section');
         root.setAttribute('aria-label', 'SSR hydration fixture');
@@ -4429,7 +4430,7 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
     },
 };
 
-export const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
+const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
     render: () =>
         storyPanel(
             'SSR hydration version gate',
@@ -4503,7 +4504,7 @@ export const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
     },
 };
 
-export const SsrHydrationRejectsIncompleteMarkup: Story = {
+const SsrHydrationRejectsIncompleteMarkup: Story = {
     render: () =>
         storyPanel(
             'SSR hydration incomplete markup',
@@ -4655,7 +4656,7 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
     },
 };
 
-export const EdgePatchFramesFromSerializedSnapshot: Story = {
+const EdgePatchFramesFromSerializedSnapshot: Story = {
     render: () => storyPanel('Edge patch frames', 'serialized snapshot + previous render-plan identity → patch stream'),
     play: () => {
         const templateHtml =
@@ -4766,7 +4767,7 @@ export const EdgePatchFramesFromSerializedSnapshot: Story = {
     },
 };
 
-export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
+const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
     render: () => storyPanel('Edge snapshot privacy', 'policy-denied data is omitted or redacted before export'),
     play: () => {
         const snapshot = edgeProjectionSnapshot('Sensitive Label', '13');
@@ -4858,7 +4859,7 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
     },
 };
 
-export const EdgeRenderStateHybridStorageModel: Story = {
+const EdgeRenderStateHybridStorageModel: Story = {
     render: () =>
         storyPanel(
             'Edge render-state storage',
@@ -5304,6 +5305,16 @@ export const EdgeRenderStateHybridStorageModel: Story = {
         );
     },
 };
+
+/** Deferred Phase 3.5 cases are registered by the dedicated Edge/SSR CSF. */
+export const edgeSsrStories = {
+    SsrHydrationFromSerializedSnapshot,
+    SsrHydrationRejectsUnsupportedSnapshotVersion,
+    SsrHydrationRejectsIncompleteMarkup,
+    EdgePatchFramesFromSerializedSnapshot,
+    BrowserToEdgeSnapshotPrivacyPolicy,
+    EdgeRenderStateHybridStorageModel,
+} as const;
 
 export const ProducedElementBehaviorAndFormAssociation: Story = {
     render: () => {

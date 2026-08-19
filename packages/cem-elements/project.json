@@ -227,15 +227,58 @@
                 "cwd": "{projectRoot}"
             }
         },
+        "test:edge-ssr-unit": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem_ql"],
+                    "target": "build:wasm"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.edge-ssr.unit.config.mts --run"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/vitest.edge-ssr.unit.config.mts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        },
+        "test:edge-ssr": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem_ql"],
+                    "target": "build:wasm"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.edge-ssr.config.mts --project=edge-ssr-storybook --run"
+            },
+            "inputs": [
+                "{projectRoot}/.storybook-edge-ssr/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/vitest.edge-ssr.config.mts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        },
         "verify-edge-ssr": {
             "executor": "nx:run-commands",
             "dependsOn": [
                 "verify-substrate",
-                "test:unit",
-                "test"
+                "test:edge-ssr-unit",
+                "test:edge-ssr"
             ],
             "options": {
-                "command": "echo \"Phase 3.5 Edge/SSR verification gate green: browser substrate, processing-boundary unit fixtures, SSR hydration stories, edge patch stories, and privacy/export policy stories all passed.\"",
+                "command": "echo \"Edge/SSR focused evidence gate green: substrate roundtrips, 3 processing-boundary unit cases, and 6 dedicated Storybook cases passed; external Phase 3.5 host fixtures remain roadmap work.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

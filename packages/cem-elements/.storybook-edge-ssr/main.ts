@@ -1,7 +1,7 @@
 import type { StorybookConfig } from '@storybook/web-components-vite';
 
 const config: StorybookConfig = {
-    stories: ['../src/**/!(*.edge-ssr).stories.@(js|jsx|mjs|ts|tsx)'],
+    stories: ['../src/**/*.edge-ssr.stories.@(js|jsx|mjs|ts|tsx)'],
     addons: ['@storybook/addon-vitest'],
     framework: {
         name: '@storybook/web-components-vite',
