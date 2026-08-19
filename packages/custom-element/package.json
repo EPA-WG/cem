@@ -5,12 +5,37 @@
     "browser": "custom-element.js",
     "module": "custom-element.js",
     "exports": {
-        ".": "./index.js",
+        ".": {
+            "types": "./custom-element.d.ts",
+            "import": "./index.js",
+            "default": "./index.js"
+        },
         "./package.json": "./package.json",
-        "./CustomElement": "./custom-element.js"
+        "./CustomElement": {
+            "types": "./custom-element.d.ts",
+            "import": "./custom-element.js",
+            "default": "./custom-element.js"
+        }
     },
     "files": [
-        "*"
+        "LICENSE",
+        "README.md",
+        "bin",
+        "custom-element.d.ts",
+        "custom-element.js",
+        "datasource.md",
+        "demo",
+        "docs",
+        "http-request.js",
+        "ide",
+        "index.html",
+        "index.js",
+        "local-storage.js",
+        "location-element.js",
+        "material",
+        "module-url.js",
+        "package.json",
+        "vendor"
     ],
     "scripts": {
         "build": "yarn nx run @epa-wg/custom-element:build",

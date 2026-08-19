@@ -32,6 +32,7 @@
                 "{projectRoot}/*.md",
                 "{projectRoot}/LICENSE",
                 "{projectRoot}/package.json",
+                "{projectRoot}/package-archive.json",
                 "{projectRoot}/scripts/build-package.mjs",
                 "{workspaceRoot}/packages/cem-elements/src/**/*",
                 "{workspaceRoot}/packages/cem-elements/package.json",
@@ -46,6 +47,7 @@
         "test": {
             "dependsOn": [
                 "verify-reference-corpus",
+                "verify-packed-archive",
                 "build",
                 { "projects": ["@epa-wg/cem-theme"], "target": "build:html" }
             ],
@@ -75,7 +77,10 @@
                 "{projectRoot}/material/**/*",
                 "{projectRoot}/package.json"
             ],
-            "outputs": ["{projectRoot}/dist/reports/xslt-compat-inventory.json", "{projectRoot}/dist/reports/xslt-compat-inventory.md"]
+            "outputs": [
+                "{projectRoot}/dist/reports/xslt-compat-inventory.json",
+                "{projectRoot}/dist/reports/xslt-compat-inventory.md"
+            ]
         },
         "verify-reference-corpus": {
             "executor": "nx:run-commands",
@@ -100,6 +105,24 @@
             ],
             "outputs": []
         },
+        "verify-packed-archive": {
+            "dependsOn": ["build"],
+            "executor": "nx:run-commands",
+            "cache": true,
+            "options": {
+                "command": "node scripts/verify-packed-archive.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "inputs": [
+                "{projectRoot}/dist/**/*",
+                "{projectRoot}/package.json",
+                "{projectRoot}/package-archive.json",
+                "{projectRoot}/scripts/verify-packed-archive.mjs",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        },
         "xslt:inventory": {
             "executor": "nx:run-commands",
             "options": {
@@ -112,7 +135,10 @@
                 "{projectRoot}/demo/**/*",
                 "{projectRoot}/material/**/*"
             ],
-            "outputs": ["{projectRoot}/dist/reports/xslt-compat-inventory.json", "{projectRoot}/dist/reports/xslt-compat-inventory.md"]
+            "outputs": [
+                "{projectRoot}/dist/reports/xslt-compat-inventory.json",
+                "{projectRoot}/dist/reports/xslt-compat-inventory.md"
+            ]
         },
         "verify-history": {
             "executor": "nx:run-commands",
@@ -139,7 +165,7 @@
             }
         },
         "verify": {
-            "dependsOn": ["build", "test", "lint", "verify-history"],
+            "dependsOn": ["build", "test", "lint", "verify-history", "verify-packed-archive"],
             "executor": "nx:run-commands",
             "options": {
                 "command": "echo \"custom-element package scaffold verified.\"",

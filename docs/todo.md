@@ -488,7 +488,7 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       and two permanent source-tip tags without changing the active package tree.
       The Git database, parent topology, path prefix, ref targets, and first-parent
       tree identity pass the package-owned provenance gate.
-- [ ] Add the inventory-discovered migration and parity fixtures before claiming
+- [x] Add the inventory-discovered migration and parity fixtures before claiming
       package adoption.
     - [x] Add a history-provenance gate for retained rewritten refs, namespaced
           tags, external-tip reachability, and connection to the existing adapter
@@ -520,9 +520,21 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           host-attribute rerenders. The external-reference gate now distinguishes
           the 20 package-adapter cases proved by this matrix from nine still-open
           helper, upward-propagation, and exported-attribute policy cases.
-    - [ ] Add an actual packed-archive clean-consumer gate for intentional files,
+    - [x] Add an actual packed-archive clean-consumer gate for intentional files,
           private/generated exclusions, root/subpath JS and type contracts, and
           browser loading from the packed artifact.
+        - Completed 2026-08-19: replaced the broad package wildcard with a
+          checked-in release-root allowlist and a 146-path SHA-256 inventory,
+          stripped workspace scripts from the generated consumer manifest, and
+          added cached `@epa-wg/custom-element:verify-packed-archive` ownership.
+          The gate injects representative private/generated sentinels into a
+          temporary copy of the actual `dist/` root, creates a real npm tarball,
+          proves exact contents and dependency-free/private-vendor exports,
+          installs it into a clean temporary consumer, compiles root and
+          `./CustomElement` imports with TypeScript 6, and renders canonical
+          CEM-ML from the installed archive in Chromium. Conditional `types`
+          exports repair the root/subpath resolution defect found by that gate
+          without changing either JavaScript target.
 - [ ] Rebuild the next-major `<custom-element>` implementation on the
       `cem-element` substrate without retaining a separate parser/render engine.
 - [ ] Keep or retire `<template lang="custom-element-v0">` only after the explicit

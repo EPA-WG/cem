@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const distRoot = join(projectRoot, 'dist');
 const roots = [projectRoot, distRoot];
+const archiveManifest = JSON.parse(await readFile(join(projectRoot, 'package-archive.json'), 'utf8'));
 
 const requiredFiles = [
     'LICENSE',
@@ -34,34 +35,51 @@ async function verifyProjectConfig() {
     assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'build', 'verify target dependsOn');
     assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'test', 'verify target dependsOn');
     assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'lint', 'verify target dependsOn');
+    assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'verify-packed-archive', 'verify target dependsOn');
     assertArrayIncludes(projectJson.targets?.test?.dependsOn, 'build', 'test target dependsOn');
-    assertArrayIncludes(
-        projectJson.targets?.test?.dependsOn,
-        'verify-reference-corpus',
-        'test target dependsOn'
-    );
-    assertEqual(
-        projectJson.targets?.['verify-reference-corpus']?.cache,
-        true,
-        'reference corpus target cache'
-    );
+    assertArrayIncludes(projectJson.targets?.test?.dependsOn, 'verify-packed-archive', 'test target dependsOn');
+    assertArrayIncludes(projectJson.targets?.test?.dependsOn, 'verify-reference-corpus', 'test target dependsOn');
+    assertEqual(projectJson.targets?.['verify-reference-corpus']?.cache, true, 'reference corpus target cache');
     assertEqual(
         projectJson.targets?.['verify-reference-corpus']?.options?.command,
         'node scripts/verify-external-reference-corpus.mjs',
-        'reference corpus target command'
+        'reference corpus target command',
     );
-    assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-browser-fixtures.mjs', 'test target commands');
-    assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-package-baseline.mjs', 'test target commands');
-    assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-theme-vendor-runtime.mjs', 'test target commands');
+    assertEqual(projectJson.targets?.['verify-packed-archive']?.cache, true, 'packed archive target cache');
+    assertEqual(
+        projectJson.targets?.['verify-packed-archive']?.options?.command,
+        'node scripts/verify-packed-archive.mjs',
+        'packed archive target command',
+    );
+    assertArrayIncludes(
+        projectJson.targets?.build?.inputs,
+        '{projectRoot}/package-archive.json',
+        'build target inputs',
+    );
+    assertCommandIncludes(
+        projectJson.targets?.test?.options?.commands,
+        'node scripts/verify-browser-fixtures.mjs',
+        'test target commands',
+    );
+    assertCommandIncludes(
+        projectJson.targets?.test?.options?.commands,
+        'node scripts/verify-package-baseline.mjs',
+        'test target commands',
+    );
+    assertCommandIncludes(
+        projectJson.targets?.test?.options?.commands,
+        'node scripts/verify-theme-vendor-runtime.mjs',
+        'test target commands',
+    );
     assertEqual(
         projectJson.targets?.['nx-release-publish']?.options?.packageRoot,
         'packages/custom-element/dist',
-        'release publish packageRoot'
+        'release publish packageRoot',
     );
     assertArrayIncludes(
         projectJson.release?.version?.manifestRootsToUpdate,
         'packages/custom-element/dist',
-        'release version manifestRootsToUpdate'
+        'release version manifestRootsToUpdate',
     );
 
     if (!dependsOnProjectTarget(projectJson.targets?.build?.dependsOn, 'cem-elements', 'build')) {
@@ -76,9 +94,29 @@ async function verifyRoot(root) {
     assertEqual(packageJson.browser, 'custom-element.js', `${root}: browser entrypoint`);
     assertEqual(packageJson.module, 'custom-element.js', `${root}: module entrypoint`);
     assertEqual(packageJson.types, './custom-element.d.ts', `${root}: types entrypoint`);
-    assertEqual(packageJson.exports?.['.'], './index.js', `${root}: root export`);
-    assertEqual(packageJson.exports?.['./CustomElement'], './custom-element.js', `${root}: CustomElement export`);
+    assertEqual(packageJson.exports?.['.']?.types, './custom-element.d.ts', `${root}: root types export`);
+    assertEqual(packageJson.exports?.['.']?.import, './index.js', `${root}: root import export`);
+    assertEqual(packageJson.exports?.['.']?.default, './index.js', `${root}: root default export`);
+    assertEqual(
+        packageJson.exports?.['./CustomElement']?.types,
+        './custom-element.d.ts',
+        `${root}: CustomElement types export`,
+    );
+    assertEqual(
+        packageJson.exports?.['./CustomElement']?.import,
+        './custom-element.js',
+        `${root}: CustomElement import export`,
+    );
+    assertEqual(
+        packageJson.exports?.['./CustomElement']?.default,
+        './custom-element.js',
+        `${root}: CustomElement default export`,
+    );
     assertEqual(packageJson.exports?.['./package.json'], './package.json', `${root}: package export`);
+    assertArrayEqual(packageJson.files, archiveManifest.packageFiles, `${root}: package files`);
+    if (root === distRoot) {
+        assertEqual(packageJson.scripts, undefined, `${root}: workspace scripts`);
+    }
 
     for (const file of requiredFiles) {
         await access(join(root, file));
@@ -91,43 +129,55 @@ async function verifyRoot(root) {
     assertIncludes(
         customElementSource,
         "const LEGACY_TEMPLATE_LANG = 'custom-element-v0'",
-        `${root}: browser legacy selector`
+        `${root}: browser legacy selector`,
     );
     assertNotIncludes(
         customElementSource,
         'LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG',
-        `${root}: native converter identity must not select browser legacy mode`
+        `${root}: native converter identity must not select browser legacy mode`,
     );
     assertNotIncludes(customElementSource, 'XSLTProcessor', `${root}: adapter must not use XSLTProcessor`);
     assertNotIncludes(customElementSource, 'createXsltFromDom', `${root}: adapter must not keep XSLT compiler`);
-    assertNotIncludes(customElementSource, 'class DceElement', `${root}: adapter must not define legacy produced class`);
+    assertNotIncludes(
+        customElementSource,
+        'class DceElement',
+        `${root}: adapter must not define legacy produced class`,
+    );
     if (root === distRoot) {
         assertIncludes(
             customElementSource,
             "from './vendor/@epa-wg/cem-elements/dist/index.js'",
-            `${root}: dist substrate import`
+            `${root}: dist substrate import`,
         );
         assertNotIncludes(
             customElementSource,
             "from '../cem-elements/dist/index.js'",
-            `${root}: dist must not reference workspace runtime path`
+            `${root}: dist must not reference workspace runtime path`,
         );
     } else {
-        assertIncludes(
-            customElementSource,
-            "from '../cem-elements/dist/index.js'",
-            `${root}: source substrate import`
-        );
+        assertIncludes(customElementSource, "from '../cem-elements/dist/index.js'", `${root}: source substrate import`);
     }
 
     const httpRequestSource = await readFile(join(root, 'http-request.js'), 'utf8');
-    assertIncludes(httpRequestSource, "window.customElements.define( 'http-request'", `${root}: http-request registration`);
+    assertIncludes(
+        httpRequestSource,
+        "window.customElements.define( 'http-request'",
+        `${root}: http-request registration`,
+    );
 
     const localStorageSource = await readFile(join(root, 'local-storage.js'), 'utf8');
-    assertIncludes(localStorageSource, "window.customElements.define( 'local-storage'", `${root}: local-storage registration`);
+    assertIncludes(
+        localStorageSource,
+        "window.customElements.define( 'local-storage'",
+        `${root}: local-storage registration`,
+    );
 
     const locationSource = await readFile(join(root, 'location-element.js'), 'utf8');
-    assertIncludes(locationSource, "window.customElements.define( 'location-element'", `${root}: location-element registration`);
+    assertIncludes(
+        locationSource,
+        "window.customElements.define( 'location-element'",
+        `${root}: location-element registration`,
+    );
 
     const moduleUrlSource = await readFile(join(root, 'module-url.js'), 'utf8');
     assertIncludes(moduleUrlSource, "window.customElements.define( 'module-url'", `${root}: module-url registration`);
@@ -172,6 +222,12 @@ function assertArrayIncludes(value, expected, label) {
     }
 }
 
+function assertArrayEqual(actual, expected, label) {
+    if (!Array.isArray(actual) || JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+    }
+}
+
 function assertCommandIncludes(value, expected, label) {
     if (!Array.isArray(value) || !value.includes(expected)) {
         throw new Error(`${label}: expected command ${expected}`);
@@ -179,10 +235,14 @@ function assertCommandIncludes(value, expected, label) {
 }
 
 function dependsOnProjectTarget(dependsOn, project, target) {
-    return Array.isArray(dependsOn) && dependsOn.some((entry) =>
-        typeof entry === 'object' &&
-        Array.isArray(entry.projects) &&
-        entry.projects.includes(project) &&
-        entry.target === target
+    return (
+        Array.isArray(dependsOn) &&
+        dependsOn.some(
+            (entry) =>
+                typeof entry === 'object' &&
+                Array.isArray(entry.projects) &&
+                entry.projects.includes(project) &&
+                entry.target === target,
+        )
     );
 }
