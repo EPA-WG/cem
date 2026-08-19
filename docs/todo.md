@@ -7,8 +7,8 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Run the current Phase 3 browser reference gates and the opt-in Edge/SSR aggregate,
-reconcile their evidence, and close Phase 3.5 only if both lanes pass together.
+Inventory the external `@epa-wg/custom-element` package and its repository history,
+then lock a history-preserving monorepo import plan before copying or rewriting source.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -433,5 +433,41 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       without reconstructing denied fields. Omitted render-required input terminates
       as `privacy-policy-rejected`; initial storage remains absent and update storage
       and progress remain unchanged.
-- [ ] Run the Phase 3 browser reference gates and the opt-in `verify-edge-ssr`
+- [x] Run the Phase 3 browser reference gates and the opt-in `verify-edge-ssr`
       aggregate before closing Phase 3.5.
+      Completed 2026-08-19: the uncached 51-dependent-task
+      `cem-elements:verify` aggregate passed through Phase 3A, Phase 3B, and Phase
+      3C with 114/114 browser cases, 133/133 unit cases, the clean 71-file npm
+      package, CEM-ML fixture/e2e/benchmark coverage, parity inventories, demos,
+      scheduling/cache evidence, and native template-artifact reload coverage.
+      The separate uncached five-dependent-task `verify-edge-ssr` aggregate passed
+      16/16 focused unit/host cases, 6/6 dedicated Storybook cases, and all four
+      substrate fixtures. Neither lane depends on the other's broad test targets,
+      so Phase 3.5 closes with the opt-in boundary intact.
+
+## Phase 3.6 Checklist
+
+- [ ] Inventory the external `@epa-wg/custom-element` package before migration.
+    - [ ] Record `~/aWork/custom-element/` repository cleanliness, branches,
+          remotes, tags, and history shape without mutating the external checkout.
+    - [ ] Record the published package identity, version, exports, packed files,
+          build/test/release targets, and current fixture surface.
+    - [ ] Map runtime responsibilities to reusable `cem-element` substrate
+          boundaries and identify package-specific public compatibility behavior.
+    - [ ] Add an explicit checklist item for every new migration or parity fixture
+          discovered by the inventory before creating that fixture.
+- [ ] Lock the history-preserving import mechanics and monorepo package boundary
+      from the inventory evidence before copying source.
+    - [ ] Select and document the Git history-import method, retained refs, and
+          rollback/check procedure.
+    - [ ] Define imported source, generated-output exclusions, npm identity,
+          package exports, and Nx ownership for `packages/custom-element/`.
+- [ ] Import `@epa-wg/custom-element` into `packages/custom-element/` with the
+      accepted history and published npm identity intact.
+- [ ] Rebuild the next-major `<custom-element>` implementation on the
+      `cem-element` substrate without retaining a separate parser/render engine.
+- [ ] Keep or retire `<template lang="custom-element-v0">` only after the explicit
+      migration fixtures provide compatibility evidence.
+- [ ] Run legacy, material, Edge/SSR, and custom-element package gates together
+      before closing Phase 3.6 and retiring `@epa-wg/cem-elements` as the staging
+      migration target.

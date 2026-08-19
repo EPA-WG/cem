@@ -1,7 +1,7 @@
 # CEM Elements Edge/SSR Gate
 
-This records the deferred Phase 3.5 Edge/SSR processing gate for `cem-elements`.
-It is intentionally separate from the current Phase 3A browser gate.
+This records the accepted Phase 3.5 Edge/SSR processing gate for `cem-elements`.
+It is intentionally separate from the current Phase 3C browser gate.
 
 ## Command
 
@@ -14,12 +14,12 @@ yarn nx run cem-elements:verify-edge-ssr
 Run the current browser gate independently through:
 
 ```bash
-yarn nx run cem-elements:verify:phase3a
+yarn nx run cem-elements:verify
 ```
 
-`cem-elements:verify` aliases the current Phase 3A gate and does not invoke
-`verify-edge-ssr`. Edge/SSR evidence must not become a browser-substrate release
-prerequisite before Phase 3.5 is active.
+`cem-elements:verify` chains the Phase 3A, Phase 3B, and Phase 3C browser gates. It
+does not invoke `verify-edge-ssr`; the accepted Edge/SSR evidence remains an
+independent opt-in lane rather than a browser-substrate release prerequisite.
 
 ## Coverage
 
@@ -36,7 +36,15 @@ prerequisite before Phase 3.5 is active.
 ## Handoff
 
 Phase 3.6 `@epa-wg/custom-element` adoption can consume the `cem-elements`
-processing boundary only after Phase 3.5 is active and both this target and the
-then-current broader package gate pass. The hydration contract serializes
+processing boundary because the uncached browser and Edge/SSR lanes passed
+together on 2026-08-19. The hydration contract serializes
 `DataIslandSnapshot.sourceMapMode`, so SSR adoption must preserve source-fidelity
 metadata for dev-mode snapshots or fail closed before client fallback.
+
+## Accepted Evidence
+
+The 2026-08-19 closure run passed the uncached 51-dependent-task
+`cem-elements:verify` aggregate and the uncached five-dependent-task
+`cem-elements:verify-edge-ssr` aggregate. The browser lane retained 114 Storybook
+cases and 133 unit cases; the isolated Edge/SSR lane retained 16 focused unit/host
+cases, six dedicated Storybook cases, and four substrate fixtures.

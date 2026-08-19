@@ -1268,8 +1268,10 @@ not silently dropped.
    states; Chromium currently passes all 118 browser cases.
 
 When (1)–(6) are green, the `cem-element` browser substrate is ready for the separate
-Edge/SSR follow-up phase. The next-major `@epa-wg/custom-element` adoption waits until
-that follow-up phase is complete.
+Edge/SSR follow-up phase. Phase 3.5 was accepted on 2026-08-19 after the uncached
+browser and isolated Edge/SSR aggregates passed together. Phase 3.6 may therefore
+begin the next-major `@epa-wg/custom-element` adoption; its history-preserving import
+method and compatibility choices remain Phase 3.6 decisions.
 
 ## 8. References
 

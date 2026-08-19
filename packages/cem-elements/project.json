@@ -278,7 +278,7 @@
                 "test:edge-ssr"
             ],
             "options": {
-                "command": "echo \"Edge/SSR focused evidence gate green: substrate roundtrips, 16 focused unit/host cases, and 6 dedicated Storybook cases passed; the Node-only initial SSR, edge-update, and browser privacy/export fixtures are green and final Phase 3.5 closure remains.\"",
+                "command": "echo \"Edge/SSR focused evidence gate green: substrate roundtrips, 16 focused unit/host cases, and 6 dedicated Storybook cases passed; the Node-only initial SSR, edge-update, and browser privacy/export fixtures are green, and this accepted lane remains isolated from browser verification.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
@@ -332,7 +332,7 @@
             "executor": "nx:run-commands",
             "dependsOn": ["verify:phase3c"],
             "options": {
-                "command": "echo \"cem-elements verification passed through the current Phase 3C browser gate; invoke verify-edge-ssr separately only for deferred Phase 3.5 evidence.\"",
+                "command": "echo \"cem-elements browser verification passed through Phase 3C; invoke verify-edge-ssr separately for the accepted isolated Edge/SSR lane.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

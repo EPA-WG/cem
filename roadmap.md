@@ -345,6 +345,9 @@ Exit criteria:
 Goal: prove server and edge processing against the same serializable boundary after the browser worker substrate is
 stable, without changing `<cem-element>` semantics.
 
+Status: completed 2026-08-19. The uncached 51-dependent-task browser aggregate and isolated
+five-dependent-task Edge/SSR aggregate passed together without adding the Edge/SSR lane to browser verification.
+
 Deliverables:
 
 - External host messages use the `cem-processing-host-v1` correlation envelope with host-only `render-initial` and
