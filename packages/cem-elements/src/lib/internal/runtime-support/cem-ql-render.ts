@@ -20,8 +20,13 @@
 import initCemQlWasm, {
     cemQlVersion,
     compileTemplate,
+    compileTemplateArtifact,
     convertLegacyCustomElementTemplate,
+    disposeTemplate,
+    importTemplateArtifact,
+    renderTemplate,
     renderTemplateSource,
+    templateArtifactPayloadKey,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 import {
     assertProcessingBoundaryValue,
@@ -70,6 +75,21 @@ export interface CemMlTemplateProcessingInput {
     previousRenderPlan?: RenderPlan | null;
     patchOptions?: EdgePatchOptions;
     renderNodeIdPrefix?: string;
+}
+
+export interface CemMlTemplateArtifactPayloadKey {
+    contentType: 'cem-template-artifact';
+    sourceHash: string;
+    cemMlVersion: string;
+    cemQlVersion: string;
+    sourceMapMode: 'dev' | 'prod';
+}
+
+export interface RetainedCemMlTemplate {
+    artifactId: number;
+    diagnostics: RuntimeSupportDiagnostic[];
+    contentHash?: string;
+    formatVersion?: string;
 }
 
 export interface CemMlTemplateProcessingResult {
@@ -121,6 +141,94 @@ export async function compileCemMlTemplate(source: string): Promise<RuntimeSuppo
         .map(mapDiagnostic);
 }
 
+/** Compute the portable registry key without compiling the template. */
+export async function cemMlTemplateArtifactPayloadKey(
+    source: string,
+    sourceMapMode: 'dev' | 'prod'
+): Promise<CemMlTemplateArtifactPayloadKey> {
+    await ensureRuntimeReady();
+    const parsed = JSON.parse(templateArtifactPayloadKey(source, sourceMapMode)) as
+        Partial<CemMlTemplateArtifactPayloadKey> & { diagnostics?: WasmDiagnostic[] };
+    if (
+        parsed.contentType !== 'cem-template-artifact'
+        || typeof parsed.sourceHash !== 'string'
+        || typeof parsed.cemMlVersion !== 'string'
+        || typeof parsed.cemQlVersion !== 'string'
+        || (parsed.sourceMapMode !== 'dev' && parsed.sourceMapMode !== 'prod')
+    ) {
+        throw new Error(parsed.diagnostics?.[0]?.message ?? 'CEM template artifact key creation failed');
+    }
+    return parsed as CemMlTemplateArtifactPayloadKey;
+}
+
+/** Build portable binary template IR for build pipelines and registry write-through. */
+export async function compileCemMlTemplateArtifact(
+    source: string,
+    hostBindings: readonly string[] = [],
+    sourceMapMode: 'dev' | 'prod' = 'dev'
+): Promise<Uint8Array> {
+    await ensureRuntimeReady();
+    return compileTemplateArtifact(source, JSON.stringify([...hostBindings]), sourceMapMode);
+}
+
+/** Retain a source-compiled template for compile-once/render-many execution. */
+export async function retainCemMlTemplateSource(
+    source: string,
+    hostBindings: readonly string[] = []
+): Promise<RetainedCemMlTemplate> {
+    await ensureRuntimeReady();
+    const result = JSON.parse(compileTemplate(source, JSON.stringify([...hostBindings]))) as {
+        artifactId?: number;
+        diagnostics?: WasmDiagnostic[];
+    };
+    if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
+        throw new Error(result.diagnostics?.[0]?.message ?? 'CEM template compilation did not retain an artifact');
+    }
+    return {
+        artifactId: result.artifactId as number,
+        diagnostics: (result.diagnostics ?? []).map(mapDiagnostic),
+    };
+}
+
+/** Validate binary identity against the active source/context and retain it. */
+export async function retainCemMlTemplateArtifact(
+    bytes: ArrayBuffer,
+    expectedContentHash: string,
+    source: string,
+    hostBindings: readonly string[] = [],
+    sourceMapMode: 'dev' | 'prod' = 'dev'
+): Promise<RetainedCemMlTemplate> {
+    await ensureRuntimeReady();
+    const result = JSON.parse(importTemplateArtifact(
+        new Uint8Array(bytes),
+        expectedContentHash,
+        source,
+        JSON.stringify([...hostBindings]),
+        sourceMapMode
+    )) as {
+        artifactId?: number | null;
+        contentHash?: string;
+        formatVersion?: string;
+        diagnostics?: WasmDiagnostic[];
+    };
+    if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
+        const diagnostic = result.diagnostics?.[0];
+        throw new Error(`${diagnostic?.code ?? 'cem.ql.template_artifact_unsupported'}: ${
+            diagnostic?.message ?? 'CEM template artifact import failed'
+        }`);
+    }
+    return {
+        artifactId: result.artifactId as number,
+        contentHash: result.contentHash,
+        formatVersion: result.formatVersion,
+        diagnostics: (result.diagnostics ?? []).map(mapDiagnostic),
+    };
+}
+
+export function disposeRetainedCemMlTemplate(artifactId: number): boolean {
+    return disposeTemplate(artifactId);
+}
+
 export interface LegacyConvertResult {
     /** Canonical CEM-ML source text for the cem_ql render boundary. */
     source: string;
@@ -163,6 +271,21 @@ export async function renderCemMlTemplate(
     assertProcessingBoundaryValue(data, 'CEM-ML render data');
     await ensureRuntimeReady();
     const planJson = renderTemplateSource(source, JSON.stringify(data ?? {}));
+    return mapWasmRenderPlan(planJson, options);
+}
+
+/** Render already-compiled template IR without parsing source again. */
+export async function renderRetainedCemMlTemplate(
+    artifactId: number,
+    data: Record<string, unknown>,
+    options: CemQlRenderOptions = {}
+): Promise<CemQlRenderResult> {
+    assertProcessingBoundaryValue(data, 'CEM-ML render data');
+    await ensureRuntimeReady();
+    return mapWasmRenderPlan(renderTemplate(artifactId, JSON.stringify(data ?? {})), options);
+}
+
+function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQlRenderResult {
     const plan = JSON.parse(planJson) as WasmRenderPlan;
 
     const prefix = options.renderNodeIdPrefix ?? 'cem-node';
@@ -211,6 +334,41 @@ export async function processCemMlTemplate(
     return {
         renderPlan,
         diagnostics: [...declarationDiagnostics, ...rendered.diagnostics],
+        patchFrames:
+            input.previousRenderPlan === undefined
+                ? undefined
+                : diffRenderPlansToPatchFrames(input.previousRenderPlan, renderPlan, input.patchOptions),
+    };
+}
+
+/** Processing path for a validated, retained component-template artifact. */
+export async function processRetainedCemMlTemplate(
+    artifactId: number,
+    input: CemMlTemplateProcessingInput
+): Promise<CemMlTemplateProcessingResult> {
+    assertProcessingBoundaryValue(input.data, 'CEM-ML processing data');
+    assertProcessingBoundaryValue(input.identity, 'CEM-ML processing identity');
+    if (input.payload !== undefined) {
+        assertProcessingBoundaryValue(input.payload, 'CEM-ML processing payload');
+    }
+    if (input.previousRenderPlan !== undefined && input.previousRenderPlan !== null) {
+        assertProcessingBoundaryValue(input.previousRenderPlan, 'previous render plan');
+    }
+
+    const rendered = await renderRetainedCemMlTemplate(artifactId, input.data, {
+        renderNodeIdPrefix: input.renderNodeIdPrefix ?? input.identity.producedTag,
+    });
+    const renderPlan = projectSlotsInRenderPlan(
+        {
+            ...input.identity,
+            nodes: rendered.nodes,
+        },
+        input.payload
+    );
+    assertProcessingBoundaryValue(renderPlan, 'CEM-ML render plan');
+    return {
+        renderPlan,
+        diagnostics: rendered.diagnostics,
         patchFrames:
             input.previousRenderPlan === undefined
                 ? undefined

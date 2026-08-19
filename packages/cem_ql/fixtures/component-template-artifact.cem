@@ -1,0 +1,10 @@
+{article @class="card {$tone}" |
+  {h2 | {$title}}
+  {cem:if @test="visible" |
+    {ul |
+      {cem:for-each @select="items" @as=item |
+        {li @data-position="{$position}" | {$item}}
+      }
+    }
+  }
+}

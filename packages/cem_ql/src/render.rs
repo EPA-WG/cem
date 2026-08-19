@@ -10,9 +10,7 @@ use std::collections::BTreeMap;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::interpreter::{OutputSpan, OutputTarget, TransformOutput};
-use cem_ml::operation_control::{
-    ExecutionScopeId, OperationControl, SafePointPoller,
-};
+use cem_ml::operation_control::{ExecutionScopeId, OperationControl, SafePointPoller};
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -63,7 +61,7 @@ pub struct TemplateArtifact {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TemplateNode {
     Element {
         tag: String,
@@ -110,33 +108,33 @@ pub enum TemplateNode {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ChooseBranch {
     pub test: Option<CompiledTemplateExpression>,
     pub children: Vec<TemplateNode>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TemplateAttribute {
     pub name: String,
     pub value: Option<TemplateAttributeValue>,
     pub source_map: SourceMapStack,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TemplateAttributeValue {
     Literal(String),
     Template(Vec<TemplateAttributePart>),
     Expression(CompiledTemplateExpression),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TemplateAttributePart {
     Literal(String),
     Expression(CompiledTemplateExpression),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CompiledTemplateExpression {
     pub source: String,
     pub query: Option<CompiledQuery>,
@@ -515,7 +513,12 @@ impl RenderPlanHtmlRenderer {
         if let Some(error) = self.control_error.clone() {
             return Err(error);
         }
-        match self.safe_points.as_mut().map(SafePointPoller::force).transpose() {
+        match self
+            .safe_points
+            .as_mut()
+            .map(SafePointPoller::force)
+            .transpose()
+        {
             Ok(_) => Ok(()),
             Err(error) => {
                 self.control_error = Some(error.clone());
@@ -638,11 +641,23 @@ impl RenderPlanHtmlRenderer {
     }
 
     fn escape_text(&mut self, value: &str) {
-        escape_controlled(&mut self.out, value, false, &mut self.safe_points, &mut self.control_error);
+        escape_controlled(
+            &mut self.out,
+            value,
+            false,
+            &mut self.safe_points,
+            &mut self.control_error,
+        );
     }
 
     fn escape_attr(&mut self, value: &str) {
-        escape_controlled(&mut self.out, value, true, &mut self.safe_points, &mut self.control_error);
+        escape_controlled(
+            &mut self.out,
+            value,
+            true,
+            &mut self.safe_points,
+            &mut self.control_error,
+        );
     }
 
     fn record_span(&mut self, start: u64, origin: &SourceMapStack) {
@@ -703,7 +718,12 @@ impl RenderPlanXmlRenderer {
         if let Some(error) = self.control_error.clone() {
             return Err(error);
         }
-        match self.safe_points.as_mut().map(SafePointPoller::force).transpose() {
+        match self
+            .safe_points
+            .as_mut()
+            .map(SafePointPoller::force)
+            .transpose()
+        {
             Ok(_) => Ok(()),
             Err(error) => {
                 self.control_error = Some(error.clone());
@@ -827,11 +847,23 @@ impl RenderPlanXmlRenderer {
     }
 
     fn escape_text(&mut self, value: &str) {
-        escape_controlled(&mut self.out, value, false, &mut self.safe_points, &mut self.control_error);
+        escape_controlled(
+            &mut self.out,
+            value,
+            false,
+            &mut self.safe_points,
+            &mut self.control_error,
+        );
     }
 
     fn escape_attr(&mut self, value: &str) {
-        escape_controlled(&mut self.out, value, true, &mut self.safe_points, &mut self.control_error);
+        escape_controlled(
+            &mut self.out,
+            value,
+            true,
+            &mut self.safe_points,
+            &mut self.control_error,
+        );
     }
 
     fn record_span(&mut self, start: u64, origin: &SourceMapStack) {
@@ -2472,7 +2504,10 @@ fn record_items(record: &BTreeMap<String, Vec<Item>>, name: &str) -> Vec<Item> {
     record.get(name).cloned().unwrap_or_default()
 }
 
-fn record_record<'a>(record: &'a BTreeMap<String, Vec<Item>>, name: &str) -> Option<&'a BTreeMap<String, Vec<Item>>> {
+fn record_record<'a>(
+    record: &'a BTreeMap<String, Vec<Item>>,
+    name: &str,
+) -> Option<&'a BTreeMap<String, Vec<Item>>> {
     record.get(name)?.first().and_then(|item| match item {
         Item::Record(value) => Some(value),
         _ => None,
@@ -2660,27 +2695,60 @@ mod tests {
     #[test]
     fn project_payload_materializes_serialized_rich_nodes() {
         let text = record([
-            ("kind", vec![Item::Atomic(AtomValue::String("text".to_owned()))]),
-            ("key", vec![Item::Atomic(AtomValue::String("0/0/0".to_owned()))]),
-            ("text", vec![Item::Atomic(AtomValue::String("Ada".to_owned()))]),
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("text".to_owned()))],
+            ),
+            (
+                "key",
+                vec![Item::Atomic(AtomValue::String("0/0/0".to_owned()))],
+            ),
+            (
+                "text",
+                vec![Item::Atomic(AtomValue::String("Ada".to_owned()))],
+            ),
         ]);
         let strong = record([
-            ("kind", vec![Item::Atomic(AtomValue::String("element".to_owned()))]),
-            ("key", vec![Item::Atomic(AtomValue::String("0/0".to_owned()))]),
-            ("tag", vec![Item::Atomic(AtomValue::String("strong".to_owned()))]),
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("element".to_owned()))],
+            ),
+            (
+                "key",
+                vec![Item::Atomic(AtomValue::String("0/0".to_owned()))],
+            ),
+            (
+                "tag",
+                vec![Item::Atomic(AtomValue::String("strong".to_owned()))],
+            ),
             ("namespace", vec![Item::Atomic(AtomValue::Null)]),
             ("attributes", vec![Item::Record(BTreeMap::new())]),
             ("children", vec![Item::Array(vec![text])]),
         ]);
         let comment = record([
-            ("kind", vec![Item::Atomic(AtomValue::String("comment".to_owned()))]),
-            ("key", vec![Item::Atomic(AtomValue::String("0/1".to_owned()))]),
-            ("text", vec![Item::Atomic(AtomValue::String("note".to_owned()))]),
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("comment".to_owned()))],
+            ),
+            (
+                "key",
+                vec![Item::Atomic(AtomValue::String("0/1".to_owned()))],
+            ),
+            (
+                "text",
+                vec![Item::Atomic(AtomValue::String("note".to_owned()))],
+            ),
         ]);
         let span = record([
-            ("kind", vec![Item::Atomic(AtomValue::String("element".to_owned()))]),
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("element".to_owned()))],
+            ),
             ("key", vec![Item::Atomic(AtomValue::String("0".to_owned()))]),
-            ("tag", vec![Item::Atomic(AtomValue::String("span".to_owned()))]),
+            (
+                "tag",
+                vec![Item::Atomic(AtomValue::String("span".to_owned()))],
+            ),
             ("namespace", vec![Item::Atomic(AtomValue::Null)]),
             (
                 "attributes",
@@ -2693,24 +2761,27 @@ mod tests {
         ]);
         let payload = record([("nodes", vec![Item::Array(vec![span])])]);
         let datadom = record([("payload", vec![payload])]);
-        let data = TemplateData::default()
-            .with_binding("datadom", ItemStream::once(datadom));
+        let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
         let rendered = render_template(
             r#"{div | {cem:project-payload @select="datadom.payload.nodes" | }}"#,
             &data,
         );
 
-        assert_eq!(rendered.rendered, r#"<div><span class="rich"><strong>Ada</strong><!--note--></span></div>"#);
-        assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+        assert_eq!(
+            rendered.rendered,
+            r#"<div><span class="rich"><strong>Ada</strong><!--note--></span></div>"#
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
     }
 
     #[test]
     fn project_payload_requires_select() {
-        let rendered = render_template(
-            "{cem:project-payload | }",
-            &TemplateData::default(),
-        );
+        let rendered = render_template("{cem:project-payload | }", &TemplateData::default());
         assert!(rendered
             .diagnostics
             .iter()

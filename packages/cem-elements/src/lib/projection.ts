@@ -564,6 +564,9 @@ function findProcessingBoundaryViolation(value: unknown, path: string): string |
         }
         return null;
     }
+    if (value instanceof ArrayBuffer) {
+        return null;
+    }
     if (typeof value === 'object') {
         const prototype = Object.getPrototypeOf(value);
         if (prototype !== Object.prototype && prototype !== null) {

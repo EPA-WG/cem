@@ -742,7 +742,10 @@ options stay post-MVP unless a later task explicitly promotes them.
    content-addressed artifact cache, deterministic scheduler traces, and parallel
    material parity fixture compilation.
 3. **Phase 3C:** add Option E for packaged `@epa-wg/cem-components` templates once
-   the source-driven path is stable.
+   the source-driven path is stable. Implemented 2026-08-19 as deterministic
+   `cem-template-artifact/1` MessagePack containing template IR plus lowered expression IR,
+   with native generation, transferable WASM import, optional registry hooks, strict
+   identity/policy rejection, and permanent source fallback.
 4. **Later performance tier:** add Option D only for deployments that can guarantee
    cross-origin isolation. Keep Option A/B fallback permanently.
 5. **Edge/SSR follow-up phase:** move Option G out of Phase 3. Add it only after the

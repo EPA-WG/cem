@@ -14,6 +14,10 @@ use crate::render::{
     compile_template, render_compiled_template, CompileTemplateOptions, RenderPlan, RenderPlanNode,
     TemplateArtifact, TemplateData,
 };
+use crate::template_artifact::{
+    compile_template_artifact, CompiledTemplateArtifact, TemplateArtifactLoadContext,
+    TemplateArtifactSourceMapMode, CEM_TEMPLATE_ARTIFACT_VERSION,
+};
 
 thread_local! {
     static ARTIFACTS: RefCell<Vec<Option<TemplateArtifact>>> = const { RefCell::new(Vec::new()) };
@@ -48,14 +52,101 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
         },
     );
     let diagnostics = diagnostics_json(&artifact.diagnostics);
-    let artifact_id = ARTIFACTS.with(|cell| {
-        let mut artifacts = cell.borrow_mut();
-        artifacts.push(Some(artifact));
-        artifacts.len() as u32
-    });
+    let artifact_id = retain_artifact(artifact);
     json!({
         "artifactId": artifact_id,
         "diagnostics": diagnostics
+    })
+    .to_string()
+}
+
+/// Compile a portable binary component-template artifact containing CEM-ML
+/// template IR and already-lowered CEM-QL expression IR.
+#[wasm_bindgen(js_name = "compileTemplateArtifact")]
+pub fn wasm_compile_template_artifact(
+    source: &str,
+    host_bindings_json: &str,
+    source_map_mode: &str,
+) -> Result<Vec<u8>, JsValue> {
+    let host_bindings =
+        parse_host_bindings(host_bindings_json).map_err(|message| JsValue::from_str(&message))?;
+    let source_map_mode =
+        parse_source_map_mode(source_map_mode).map_err(|message| JsValue::from_str(&message))?;
+    Ok(compile_template_artifact(
+        source,
+        &CompileTemplateOptions {
+            host_bindings,
+            ..CompileTemplateOptions::default()
+        },
+        source_map_mode,
+    )
+    .bytes)
+}
+
+/// Return the portable registry lookup key without compiling the template.
+#[wasm_bindgen(js_name = "templateArtifactPayloadKey")]
+pub fn wasm_template_artifact_payload_key(source: &str, source_map_mode: &str) -> String {
+    let source_map_mode = match parse_source_map_mode(source_map_mode) {
+        Ok(mode) => mode,
+        Err(message) => return artifact_error_json("cem.ql.wasm.invalid_source_map_mode", message),
+    };
+    json!({
+        "contentType": "cem-template-artifact",
+        "sourceHash": cem_ml::content_cache::ContentHash::from_blake3(source.as_bytes()).header_value(),
+        "cemMlVersion": cem_ml::VERSION,
+        "cemQlVersion": crate::VERSION,
+        "sourceMapMode": source_map_mode.as_str(),
+    })
+    .to_string()
+}
+
+/// Validate and retain binary template IR behind the same opaque handle used
+/// by source compilation. `source` participates only through its content hash.
+#[wasm_bindgen(js_name = "importTemplateArtifact")]
+pub fn wasm_import_template_artifact(
+    bytes: &[u8],
+    expected_content_hash: &str,
+    source: &str,
+    host_bindings_json: &str,
+    source_map_mode: &str,
+) -> String {
+    let host_bindings = match parse_host_bindings(host_bindings_json) {
+        Ok(bindings) => bindings,
+        Err(message) => return artifact_error_json("cem.ql.wasm.invalid_host_bindings", message),
+    };
+    let source_map_mode = match parse_source_map_mode(source_map_mode) {
+        Ok(mode) => mode,
+        Err(message) => return artifact_error_json("cem.ql.wasm.invalid_source_map_mode", message),
+    };
+    let artifact = match CompiledTemplateArtifact::from_bytes(bytes.to_vec()) {
+        Ok(artifact) => artifact,
+        Err(error) => return artifact_error_json(error.code, error.message),
+    };
+    if !expected_content_hash.is_empty()
+        && artifact.content_hash.header_value() != expected_content_hash
+    {
+        return artifact_error_json(
+            "cem.ql.template_artifact_hash_mismatch",
+            "component-template artifact bytes do not match the registry content hash",
+        );
+    }
+    let template = match artifact.reload(&TemplateArtifactLoadContext {
+        expected_source_hash: Some(cem_ml::content_cache::ContentHash::from_blake3(
+            source.as_bytes(),
+        )),
+        host_bindings,
+        source_map_mode,
+    }) {
+        Ok(template) => template,
+        Err(error) => return artifact_error_json(error.code, error.message),
+    };
+    let diagnostics = diagnostics_json(&template.diagnostics);
+    let artifact_id = retain_artifact(template);
+    json!({
+        "artifactId": artifact_id,
+        "contentHash": artifact.content_hash.header_value(),
+        "formatVersion": CEM_TEMPLATE_ARTIFACT_VERSION,
+        "diagnostics": diagnostics,
     })
     .to_string()
 }
@@ -134,6 +225,24 @@ fn parse_host_bindings(input: &str) -> Result<Vec<String>, String> {
         Value::Object(map) => Ok(map.keys().cloned().collect()),
         _ => Err("host bindings must be an array of strings or an object".to_owned()),
     }
+}
+
+fn parse_source_map_mode(input: &str) -> Result<TemplateArtifactSourceMapMode, String> {
+    match input {
+        "dev" => Ok(TemplateArtifactSourceMapMode::Dev),
+        "prod" => Ok(TemplateArtifactSourceMapMode::Prod),
+        _ => Err(format!(
+            "source-map mode must be `dev` or `prod`, received `{input}`"
+        )),
+    }
+}
+
+fn retain_artifact(artifact: TemplateArtifact) -> u32 {
+    ARTIFACTS.with(|cell| {
+        let mut artifacts = cell.borrow_mut();
+        artifacts.push(Some(artifact));
+        artifacts.len() as u32
+    })
 }
 
 fn parse_template_data(input: &str) -> Result<TemplateData, String> {
@@ -230,6 +339,18 @@ fn source_map_json(source_map: &cem_ml::source_map::SourceMapStack) -> Value {
 fn error_json(code: &str, message: impl Into<String>) -> String {
     json!({
         "nodes": [],
+        "diagnostics": [{
+            "code": code,
+            "severity": "error",
+            "message": message.into()
+        }]
+    })
+    .to_string()
+}
+
+fn artifact_error_json(code: &str, message: impl Into<String>) -> String {
+    json!({
+        "artifactId": null,
         "diagnostics": [{
             "code": code,
             "severity": "error",

@@ -272,11 +272,24 @@
             },
             "outputs": []
         },
+        "verify:phase3c": {
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:phase3b",
+                { "projects": ["cem_ql"], "target": "test:template-artifact-reload" },
+                { "projects": ["cem_ql"], "target": "build:template-artifact-fixture" }
+            ],
+            "options": {
+                "command": "echo \"Phase 3C browser verification gate green: the Phase 3B aggregate plus deterministic native component-template artifact generation, binary IR reload parity, fail-closed identity checks, optional registry loading/write-through, and source fallback evidence all passed.\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        },
         "verify": {
             "executor": "nx:run-commands",
-            "dependsOn": ["verify:phase3b"],
+            "dependsOn": ["verify:phase3c"],
             "options": {
-                "command": "echo \"cem-elements verification passed through the current Phase 3B browser gate; invoke verify-edge-ssr separately only for deferred Phase 3.5 evidence.\"",
+                "command": "echo \"cem-elements verification passed through the current Phase 3C browser gate; invoke verify-edge-ssr separately only for deferred Phase 3.5 evidence.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

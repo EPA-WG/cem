@@ -12,10 +12,12 @@ pub mod deserialize;
 pub mod lower;
 pub mod serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct IrId(pub u32);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IrTree {
     pub nodes: Vec<IrNode>,
     pub root: IrId,
@@ -34,7 +36,7 @@ impl IrTree {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum IrNode {
     LitString(String),
     LitInt(i64),
@@ -130,13 +132,13 @@ pub enum IrNode {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum IrRecordKey {
     Static(String),
     Computed(IrId),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum IrStep {
     Named {
         name: QName,
@@ -151,9 +153,35 @@ pub enum IrStep {
     Lambda(IrId),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CompiledQuery {
     pub tree: IrTree,
+    #[serde(
+        serialize_with = "serialize_policy_bindings",
+        deserialize_with = "deserialize_policy_bindings"
+    )]
     pub policy_bindings: HashMap<BindingId, String>,
     pub source: String,
+}
+
+fn serialize_policy_bindings<S>(
+    bindings: &HashMap<BindingId, String>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let mut ordered = bindings.iter().collect::<Vec<_>>();
+    ordered.sort_by_key(|(binding, _)| **binding);
+    serde::Serialize::serialize(&ordered, serializer)
+}
+
+fn deserialize_policy_bindings<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<BindingId, String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let entries = <Vec<(BindingId, String)> as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(entries.into_iter().collect())
 }

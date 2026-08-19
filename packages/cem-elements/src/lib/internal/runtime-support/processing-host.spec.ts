@@ -90,6 +90,39 @@ describe('Phase 3A processing-host contract', () => {
         expect(() => assertCemProcessingEnvelope({ ...compile, jobId: 0 })).toThrow(/positive safe-integer job ID/);
     });
 
+    it('accepts a versioned ArrayBuffer template artifact on the compile envelope', () => {
+        const sequence = new CemProcessingJobSequence();
+        const bytes = new Uint8Array([67, 69, 77]).buffer;
+        const compile = createCemProcessingRequestEnvelope(sequence, 'compile', {
+            language: 'cem-ml',
+            producedTag: 'cem-precompiled-card',
+            templateArtifactId: 'artifact-precompiled-v1',
+            registrationIdentity: 'cem-registration-v1:precompiled-card',
+            source: createCemProcessingTextSource('{span | artifact}'),
+            sourceRef: { kind: 'inline', value: 'cem-precompiled-card' },
+            resolverIdentity: 'document:https://example.test/components/',
+            scopePolicyStamp: REVISION.scopePolicyStamp,
+            sourceMapMode: 'dev',
+            precompiledArtifact: {
+                kind: 'template-artifact',
+                payloadKey: {
+                    contentType: 'cem-template-artifact',
+                    sourceHash: 'cem-bin/1+blake3:fixture-source',
+                    cemMlVersion: '0.1.0',
+                    cemQlVersion: '0.1.0',
+                    sourceMapMode: 'dev',
+                },
+                cacheKey: 'cem-bin/1+blake3:fixture',
+                formatVersion: 'cem-template-artifact/1',
+                policyStamp: REVISION.scopePolicyStamp,
+                bytes,
+            },
+        });
+
+        expect(() => assertCemProcessingEnvelope(compile)).not.toThrow();
+        expect(structuredClone(compile).payload.precompiledArtifact?.bytes).toEqual(bytes);
+    });
+
     it('carries the complete render revision and retained artifact/plan handles', () => {
         const sequence = new CemProcessingJobSequence();
         const artifact = artifactHandle();

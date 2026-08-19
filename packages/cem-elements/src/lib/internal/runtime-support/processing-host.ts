@@ -42,6 +42,43 @@ export interface CemProcessingTextSource {
     chunks: string[];
 }
 
+export interface CemTemplateArtifactPayloadKey {
+    contentType: 'cem-template-artifact';
+    sourceHash: string;
+    cemMlVersion: string;
+    cemQlVersion: string;
+    sourceMapMode: SourceMapMode;
+}
+
+export interface CemProcessingArtifactBinaryTransfer {
+    kind: 'template-artifact';
+    payloadKey: CemTemplateArtifactPayloadKey;
+    /** CEM-Hash of the complete immutable artifact envelope. */
+    cacheKey: string;
+    formatVersion: string;
+    policyStamp: string;
+    bytes: ArrayBuffer;
+    sourceMapSidecarHash?: string;
+}
+
+export interface CemArtifactRegistryNamespace {
+    namespace: 'cem-template-artifacts';
+    registryContractVersion: 'cem-artifact-registry-v1';
+    artifactFormatVersion: string;
+}
+
+export interface CemArtifactRegistryHooks {
+    getArtifact?(
+        namespace: CemArtifactRegistryNamespace,
+        key: CemTemplateArtifactPayloadKey
+    ): Promise<CemProcessingArtifactBinaryTransfer | undefined>;
+    putArtifact?(
+        namespace: CemArtifactRegistryNamespace,
+        artifact: CemProcessingArtifactBinaryTransfer
+    ): Promise<void>;
+    invalidateNamespace?(namespace: CemArtifactRegistryNamespace): Promise<void>;
+}
+
 /**
  * Adapt local text or a materialized Phase 1 remote stream to the same worker
  * source shape. Chunk boundaries are transport details and do not participate in
@@ -74,6 +111,10 @@ export interface CemProcessingCompileInput {
     resolverIdentity: string;
     scopePolicyStamp: string;
     sourceMapMode: SourceMapMode;
+    hostBindings?: string[];
+    precompiledArtifact?: CemProcessingArtifactBinaryTransfer;
+    /** Request binary write-through after a registry miss. Omitted on the normal source path. */
+    exportCompiledArtifact?: true;
 }
 
 /** A stable reference to an artifact retained by one root-scope processing host. */
@@ -102,6 +143,8 @@ export interface CemProcessingCompileResult {
     observedAttributes: string[];
     invalidationScopes: string[];
     diagnostics: CemProcessingDiagnostic[];
+    /** Present only after source compilation so a host registry can write through. */
+    compiledArtifact?: CemProcessingArtifactBinaryTransfer;
 }
 
 export interface CemProcessingRenderDiffInput {

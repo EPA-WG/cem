@@ -21,6 +21,7 @@ import {
     type TemplateValue,
 } from './projection.js';
 import {
+    cemMlTemplateArtifactPayloadKey,
     compileCemMlTemplate,
     convertLegacyTemplate,
     processCemMlTemplate,
@@ -29,6 +30,9 @@ import {
 import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
 import {
     createCemProcessingTextSource,
+    type CemArtifactRegistryHooks,
+    type CemArtifactRegistryNamespace,
+    type CemProcessingArtifactBinaryTransfer,
     type CemProcessingSourceRef,
     type CemProcessingCompileResult,
     type CemProcessingHost,
@@ -58,6 +62,13 @@ import {
 } from './declaration-scope.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
+
+export type {
+    CemArtifactRegistryHooks,
+    CemArtifactRegistryNamespace,
+    CemProcessingArtifactBinaryTransfer,
+    CemTemplateArtifactPayloadKey,
+} from './internal/runtime-support/processing-host.js';
 
 export type {
     CemProcessingPoolPolicy,
@@ -453,6 +464,8 @@ export interface CemElementRuntimeOptions {
     processingWorkerFactory?: CemProcessingWorkerFactory;
     /** Phase 3B bounds for the lazily allocated, fair root-scope worker pool. */
     processingPoolPolicy?: CemProcessingPoolPolicy;
+    /** Optional build/service-worker-compatible store for immutable template artifacts. */
+    artifactRegistry?: CemArtifactRegistryHooks;
     /** Sequence-only scheduling decisions; observer failures never affect rendering. */
     onProcessingTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
 }
@@ -721,6 +734,11 @@ const DEFAULT_DECLARATION_TAG = 'cem-element';
 const CEM_BROWSER_REGISTRATION_MARKER = Symbol.for('@epa-wg/cem-elements/browser-registration-v1');
 const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
 const DEFAULT_PRIVACY_POLICY_STAMP = 'local-only';
+const CEM_TEMPLATE_ARTIFACT_NAMESPACE: CemArtifactRegistryNamespace = {
+    namespace: 'cem-template-artifacts',
+    registryContractVersion: 'cem-artifact-registry-v1',
+    artifactFormatVersion: 'cem-template-artifact/1',
+};
 const DEFAULT_HTTP_RESOURCE_POLICY: CemHttpResourcePolicy = {
     allowCrossOrigin: false,
     maxResponseBytes: 1_048_576,
@@ -1086,6 +1104,7 @@ export class CemElementRuntime {
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
     private readonly processingPoolPolicy?: CemProcessingPoolPolicy;
+    private readonly artifactRegistry?: CemArtifactRegistryHooks;
     private readonly onProcessingTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
     private readonly srcDocuments = new Map<string, Promise<LoadedSrcDocument>>();
     private readonly moduleUrls = new Map<string, Promise<string>>();
@@ -1118,6 +1137,7 @@ export class CemElementRuntime {
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         this.processingWorkerFactory = options.processingWorkerFactory;
         this.processingPoolPolicy = options.processingPoolPolicy;
+        this.artifactRegistry = options.artifactRegistry;
         this.onProcessingTrace = options.onProcessingTrace;
     }
 
@@ -1488,9 +1508,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration
     ): Promise<void> {
         try {
-            const diagnostics = this.usesProcessingHost(compiled)
-                ? (await this.ensureProcessingArtifact(compiled)).diagnostics
-                : await compileCemMlTemplate(compiled.cemMlSource ?? '');
+            const diagnostics = await compileCemMlTemplate(compiled.cemMlSource ?? '');
             if (diagnostics.length > 0) {
                 this.recordDiagnostics(
                     declarationElement,
@@ -1888,27 +1906,98 @@ export class CemElementRuntime {
         });
     }
 
-    private ensureProcessingArtifact(compiled: CompiledDeclaration): Promise<CemProcessingCompileResult> {
+    private ensureProcessingArtifact(
+        compiled: CompiledDeclaration,
+        renderBindings: readonly string[]
+    ): Promise<CemProcessingCompileResult> {
         let pending = this.processingArtifacts.get(compiled);
         if (!pending) {
             const registrationIdentity = compiled.registrationIdentity;
             if (!registrationIdentity) {
                 return Promise.reject(new Error('a canonical CEM-ML declaration requires a registration identity'));
             }
-            pending = this.processingHost(compiled).compile({
-                language: 'cem-ml',
-                producedTag: compiled.producedTag,
-                templateArtifactId: compiled.artifactId,
-                registrationIdentity,
-                source: createCemProcessingTextSource(compiled.cemMlSource ?? ''),
-                sourceRef: compiled.sourceRef,
-                resolverIdentity: compiled.resolverIdentity,
-                scopePolicyStamp: this.scopePolicyStamp,
-                sourceMapMode: 'dev',
-            }).result;
+            pending = this.compileProcessingArtifact(compiled, registrationIdentity, renderBindings);
             this.processingArtifacts.set(compiled, pending);
         }
         return pending;
+    }
+
+    private async compileProcessingArtifact(
+        compiled: CompiledDeclaration,
+        registrationIdentity: string,
+        renderBindings: readonly string[]
+    ): Promise<CemProcessingCompileResult> {
+        const source = compiled.cemMlSource ?? '';
+        const sourceMapMode = 'dev' as const;
+        const hostBindings = [
+            ...compiled.declaredAttributes.map((attribute) => attribute.name),
+            ...compiled.declaredSlices.map((slice) => slice.name),
+            ...renderBindings,
+        ];
+        const payloadKey = await cemMlTemplateArtifactPayloadKey(source, sourceMapMode);
+        let precompiledArtifact: CemProcessingArtifactBinaryTransfer | undefined;
+        if (this.artifactRegistry?.getArtifact) {
+            try {
+                const loaded = await this.artifactRegistry.getArtifact(
+                    CEM_TEMPLATE_ARTIFACT_NAMESPACE,
+                    payloadKey
+                );
+                precompiledArtifact = loaded === undefined
+                    ? undefined
+                    : { ...loaded, bytes: loaded.bytes.slice(0) };
+            } catch (error) {
+                this.recordDiagnostics(compiled.declarationElement, [
+                    declarationRuntimeSupportDiagnostic({
+                        code: 'cem.processing_host.artifact_registry_read_failed',
+                        severity: 'warning',
+                        message: `${error instanceof Error ? error.message : 'template artifact registry read failed'}; source compilation was used`,
+                    }, compiled.producedTag),
+                ]);
+            }
+        }
+        const result = await this.processingHost(compiled).compile({
+            language: 'cem-ml',
+            producedTag: compiled.producedTag,
+            templateArtifactId: compiled.artifactId,
+            registrationIdentity,
+            source: createCemProcessingTextSource(source),
+            sourceRef: compiled.sourceRef,
+            resolverIdentity: compiled.resolverIdentity,
+            scopePolicyStamp: this.scopePolicyStamp,
+            sourceMapMode,
+            hostBindings,
+            ...(precompiledArtifact === undefined ? {} : { precompiledArtifact }),
+            ...(this.artifactRegistry?.putArtifact === undefined
+                ? {}
+                : { exportCompiledArtifact: true as const }),
+        }).result;
+        if (result.diagnostics.length > 0) {
+            this.recordDiagnostics(
+                compiled.declarationElement,
+                result.diagnostics.map((diagnostic) =>
+                    declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag)
+                )
+            );
+        }
+        if (result.compiledArtifact && this.artifactRegistry?.putArtifact) {
+            try {
+                await this.artifactRegistry.putArtifact(
+                    CEM_TEMPLATE_ARTIFACT_NAMESPACE,
+                    { ...result.compiledArtifact, bytes: result.compiledArtifact.bytes.slice(0) }
+                );
+            } catch (error) {
+                this.recordDiagnostics(compiled.declarationElement, [
+                    declarationRuntimeSupportDiagnostic({
+                        code: 'cem.processing_host.artifact_registry_write_failed',
+                        severity: 'warning',
+                        message: error instanceof Error
+                            ? error.message
+                            : 'template artifact registry write failed',
+                    }, compiled.producedTag),
+                ]);
+            }
+        }
+        return result;
     }
 
     private async renderViaProcessingHost(
@@ -1918,7 +2007,8 @@ export class CemElementRuntime {
         token: number
     ): Promise<void> {
         try {
-            const compile = await this.ensureProcessingArtifact(compiled);
+            const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
+            const compile = await this.ensureProcessingArtifact(compiled, Object.keys(data));
             if (this.renderTokens.get(instance) !== token) {
                 return;
             }
@@ -1935,7 +2025,7 @@ export class CemElementRuntime {
                 artifact: compile.artifact,
                 revision,
                 snapshot,
-                data: wasmTemplateData(snapshot, compiled.declaredAttributes),
+                data,
                 scopeUid: this.currentScopeUid(instance, compiled),
                 instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
                 previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,

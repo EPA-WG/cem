@@ -915,15 +915,16 @@ identity, patch-frame transport, and per-instance patch transactions with batche
 main-thread flush.
 
 The browser topology does not require edge/SSR execution, threaded WASM with
-`SharedArrayBuffer`, precompiled template artifacts, or service-worker artifact
-registries. Phase 3B adds bounded in-memory content-addressed LRU retention; persistent
-registries remain later deployment targets. `SharedArrayBuffer` availability
+`SharedArrayBuffer`, or a concrete service-worker artifact registry. Phase 3B adds
+bounded in-memory content-addressed LRU retention. Phase 3C adds portable precompiled
+component-template artifacts and optional registry hooks, while persistent registry
+implementations remain later deployment targets. `SharedArrayBuffer` availability
 MUST NOT affect Phase 3A behavior: when it is unavailable, the runtime uses the same
 non-threaded dedicated worker path; when workers are unavailable or fail startup, the
 runtime falls back to main-thread WASM. Worker-backed and main-thread fallback modes
 MUST share the same observable behavior.
 
-### 4.4 Phase 3A/3B processing-host lifecycle
+### 4.4 Phase 3A/3B/3C processing-host lifecycle
 
 The package-private Phase 3A host contract lives in
 `packages/cem-elements/src/lib/internal/runtime-support/processing-host.ts`. It is
@@ -952,6 +953,25 @@ chunk boundaries, and render plans by `renderPlanId`. Both caches are bounded LR
 Each render refreshes its artifact before diffing; if an older plan was evicted, the
 engine safely emits a full `replaceScope` transaction rather than failing or using stale
 state. The main-thread fallback uses the same cache implementation and limits.
+
+Phase 3C's `cem-template-artifact/1` envelope serializes the complete CEM-ML template
+IR and each embedded expression's lowered CEM-QL IR as deterministic MessagePack. The envelope
+stamps the source hash, `cem_ml`/`cem_ql` versions, source-map mode, compiler options,
+and canonical host-binding names; its external CEM content hash covers every envelope
+byte. Import validates those stamps plus the active scope-policy transfer stamp before
+retaining an opaque WASM handle. A mismatch never renders cached bytes: the host emits
+`cem.processing_host.precompiled_artifact_rejected` and compiles the still-required
+source path. Dev artifacts retain source maps, while prod artifacts retain the same IR
+with source-map frames removed.
+
+`CemElementRuntimeOptions.artifactRegistry` exposes the optional
+`cem-artifact-registry-v1` get/put hooks. Registry misses and hook failures do not make
+the runtime dependent on persistent storage. Source compilation produces the same
+binary transfer for write-through; successful registry imports avoid CEM-ML/CEM-QL
+reparsing and render through the same retained handle in worker and main-thread modes.
+The native `compile_template_artifact` example is the manual/build-pipeline entry point;
+the cached `cem_ql:build:template-artifact-fixture` Nx target demonstrates `.cem` to
+binary-plus-manifest generation.
 
 Hosts may observe clone-safe `cem-processing-schedule-v1` events for enqueue, dispatch,
 cancel, fallback, and overflow decisions. Events carry only a monotonic sequence,

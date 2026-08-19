@@ -1,7 +1,34 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./cem-ql-render.js', () => ({
-    compileCemMlTemplate: vi.fn(async () => []),
+    cemMlTemplateArtifactPayloadKey: vi.fn(async (_source: string, sourceMapMode: 'dev' | 'prod') => ({
+        contentType: 'cem-template-artifact',
+        sourceHash: 'cem-bin/1+blake3:fixture-source',
+        cemMlVersion: '0.1.0',
+        cemQlVersion: '0.1.0',
+        sourceMapMode,
+    })),
+    compileCemMlTemplateArtifact: vi.fn(async (source: string) => new TextEncoder().encode(source)),
+    retainCemMlTemplateSource: vi.fn(async () => ({ artifactId: 1, diagnostics: [] })),
+    retainCemMlTemplateArtifact: vi.fn(async () => ({
+        artifactId: 1,
+        contentHash: 'cem-bin/1+blake3:fixture',
+        formatVersion: 'cem-template-artifact/1',
+        diagnostics: [],
+    })),
+    disposeRetainedCemMlTemplate: vi.fn(() => true),
+    processRetainedCemMlTemplate: vi.fn(async () => ({
+        diagnostics: [],
+        renderPlan: {
+            producedTag: 'cem-fallback',
+            instanceId: 'fixture',
+            templateArtifactId: 'fixture',
+            dataRevision: '1',
+            outputTarget: 'light-dom',
+            scopePolicyStamp: 'scope-policy-v1',
+            nodes: [],
+        },
+    })),
 }));
 
 import { createCemDeclarationScope } from '../../declaration-scope.js';

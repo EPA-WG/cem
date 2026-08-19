@@ -9,6 +9,8 @@ import {
     exportDataIslandSnapshotForEdge,
     isValidCustomElementName,
     type CemElementDiagnostic,
+    type CemArtifactRegistryHooks,
+    type CemProcessingArtifactBinaryTransfer,
     type CemProcessingSchedulingTraceEvent,
     type DataIslandSnapshot,
     type SerializedEventPayload,
@@ -1075,6 +1077,126 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
                 (diagnostic) => diagnostic.code === 'cem-element.processing_host_render_failed'
             ),
             'superseded cancellation does not surface as an instance render failure'
+        );
+    },
+};
+
+interface ArtifactRegistryStoryState {
+    firstRuntime: CemElementRuntime;
+    registry: CemArtifactRegistryHooks;
+    storedArtifact?: CemProcessingArtifactBinaryTransfer;
+    getCalls: number;
+    putCalls: number;
+}
+
+const artifactRegistryStoryStates = new WeakMap<HTMLElement, ArtifactRegistryStoryState>();
+
+export const PrecompiledTemplateArtifactRegistryRoundTrip: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'precompiled template artifact registry story');
+        const state = {
+            firstRuntime: undefined as unknown as CemElementRuntime,
+            getCalls: 0,
+            putCalls: 0,
+        } as ArtifactRegistryStoryState;
+        state.registry = {
+            getArtifact: async (namespace) => {
+                state.getCalls += 1;
+                assertEqual(
+                    namespace.registryContractVersion,
+                    'cem-artifact-registry-v1',
+                    'registry reads use the versioned namespace contract'
+                );
+                return state.storedArtifact === undefined
+                    ? undefined
+                    : { ...state.storedArtifact, bytes: state.storedArtifact.bytes.slice(0) };
+            },
+            putArtifact: async (namespace, artifact) => {
+                state.putCalls += 1;
+                assertEqual(
+                    namespace.artifactFormatVersion,
+                    'cem-template-artifact/1',
+                    'registry writes declare the component-template artifact format'
+                );
+                state.storedArtifact = { ...artifact, bytes: artifact.bytes.slice(0) };
+            },
+        };
+        state.firstRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-artifact-source',
+            declarationScope: createCemDeclarationScope({ document }),
+            artifactRegistry: state.registry,
+            processingWorkerFactory: () => {
+                throw new Error('fixture selects an isolated main-thread processing engine');
+            },
+        });
+        state.firstRuntime.install(window);
+
+        const declaration = document.createElement('cem-element-story-artifact-source');
+        configureProcessingStoryDeclaration(declaration, 'story-artifact-source-card');
+        root.appendChild(declaration);
+        state.firstRuntime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-artifact-source-card');
+        instance.setAttribute('label', 'Source compiled');
+        instance.setAttribute('value', 'first');
+        root.appendChild(instance);
+        artifactRegistryStoryStates.set(root, state);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const storyRoot = requiredElement(
+            canvasElement,
+            'section[aria-label="precompiled template artifact registry story"]'
+        ) as HTMLElement;
+        const state = artifactRegistryStoryStates.get(storyRoot);
+        assert(state, 'artifact registry fixture state should be retained for the story root');
+        const sourceInstance = requiredElement(canvasElement, 'story-artifact-source-card') as HTMLElement;
+        await waitForElement(sourceInstance, 'span');
+        await state.firstRuntime.whenRenderSettled(sourceInstance);
+
+        assertEqual(state.getCalls, 1, 'the first isolated engine checks the registry');
+        assertEqual(state.putCalls, 1, 'a registry miss writes through the source-compiled artifact');
+        assert(state.storedArtifact !== undefined, 'the registry retains the compiled binary artifact');
+        assert(state.storedArtifact.bytes.byteLength > 0, 'the stored artifact contains binary bytes');
+        assertEqual(
+            requiredElement(sourceInstance, 'span').textContent,
+            'Source compiled',
+            'the registry miss renders through the source fallback'
+        );
+
+        const secondRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-artifact-import',
+            declarationScope: createCemDeclarationScope({ document }),
+            artifactRegistry: state.registry,
+            processingWorkerFactory: () => {
+                throw new Error('fixture selects a second isolated main-thread processing engine');
+            },
+        });
+        secondRuntime.install(window);
+        const secondDeclaration = document.createElement('cem-element-story-artifact-import');
+        configureProcessingStoryDeclaration(secondDeclaration, 'story-artifact-import-card');
+        storyRoot.appendChild(secondDeclaration);
+        secondRuntime.registerDeclaration(secondDeclaration);
+        const importedInstance = document.createElement('story-artifact-import-card');
+        importedInstance.setAttribute('label', 'Artifact imported');
+        importedInstance.setAttribute('value', 'second');
+        storyRoot.appendChild(importedInstance);
+        await waitForElement(importedInstance, 'span');
+        await secondRuntime.whenRenderSettled(importedInstance);
+
+        assertEqual(state.getCalls, 2, 'the second isolated engine reads the precompiled artifact');
+        assertEqual(state.putCalls, 1, 'a valid artifact hit does not compile and write through again');
+        assertEqual(
+            requiredElement(importedInstance, 'span').textContent,
+            'Artifact imported',
+            'the imported binary artifact renders with the active host bindings'
+        );
+        assert(
+            !secondRuntime.diagnosticsFor(secondDeclaration).some(
+                (diagnostic) => diagnostic.code === 'cem.processing_host.precompiled_artifact_rejected'
+            ),
+            'the matching precompiled artifact is accepted without fallback'
         );
     },
 };

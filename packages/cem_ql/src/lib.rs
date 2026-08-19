@@ -9,9 +9,9 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod api;
 pub mod artifact;
-pub mod diagnostics;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
+pub mod diagnostics;
 pub mod embedded;
 pub mod eval;
 pub mod ir;
@@ -22,6 +22,7 @@ pub mod resolve;
 pub mod semantic;
 pub mod stdlib;
 pub mod template;
+pub mod template_artifact;
 pub mod transport;
 pub mod types;
 pub mod xpath;

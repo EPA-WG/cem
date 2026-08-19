@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Add Phase 3C precompiled component-template artifacts alongside the now-green
-source-driven Phase 3B pool/cache path, preserving the same render, diff,
-cancellation, fallback, and browser acceptance contracts.
+Extend the existing `@epa-wg/cem-components` test harness for substrate-backed
+DOM rendering, events, forms, accessibility assertions, and visual snapshots so
+the Phase 3 primitive set can be authored exclusively with `<cem-element>`.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -268,8 +268,24 @@ registration identities may reuse an inherited or existing definition.
           evidence is typecheck/lint, 132/132 unit tests, 118/118 Storybook Chromium
           tests, the 62-file clean package probe, and the 48-task
           `verify:phase3b` aggregate.
-    - [ ] Add Phase 3C precompiled component-template artifacts without removing
+    - [x] Add Phase 3C precompiled component-template artifacts without removing
           the source-driven runtime path.
+          Completed 2026-08-19: deterministic `cem-template-artifact/1`
+          MessagePack envelopes retain compiled CEM-ML/CEM-QL IR across native
+          and WASM reloads and bind their source hash, host bindings, source-map
+          mode, compiler version, and IR version. The browser transfer binds the
+          active policy stamp, and all mismatches are rejected before rendering.
+          The browser host supports opt-in registry reads and write-through while
+          preserving source compilation as the warning-backed fallback. Two
+          isolated engines prove registry
+          miss/compile/store followed by byte-only import/render. Accepted
+          evidence is the 4/4 native artifact fixture, all 204 `cem_ql` tests,
+          135/135 unit tests, 119/119 Storybook Chromium tests, the 62-file clean
+          package probe, and the uncached 50-dependency `verify:phase3c`
+          aggregate.
+        - [x] Add a native component-template artifact fixture covering binary
+              compile/reload render parity plus hash, source, binding, mode, and
+              policy rejection.
 
 - [ ] Author the Phase 3 primitive set exclusively on the accepted substrate.
     - [ ] Extend the existing component test harness for substrate rendering,

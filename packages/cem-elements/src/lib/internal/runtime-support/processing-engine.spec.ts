@@ -2,9 +2,36 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { DataIslandSnapshot } from '../../cem-elements.js';
 
-vi.mock('./cem-ql-render.js', () => ({
-    compileCemMlTemplate: vi.fn(async () => []),
-    processCemMlTemplate: vi.fn(async (input: {
+vi.mock('./cem-ql-render.js', () => {
+    let nextArtifactId = 1;
+    const sources = new Map<number, string>();
+    return {
+    cemMlTemplateArtifactPayloadKey: vi.fn(async (source: string, sourceMapMode: 'dev' | 'prod') => ({
+        contentType: 'cem-template-artifact' as const,
+        sourceHash: `cem-bin/1+blake3:source-${source.length}`,
+        cemMlVersion: '0.1.0',
+        cemQlVersion: '0.1.0',
+        sourceMapMode,
+    })),
+    compileCemMlTemplateArtifact: vi.fn(async (source: string) => new TextEncoder().encode(source)),
+    retainCemMlTemplateSource: vi.fn(async (source: string) => {
+        const artifactId = nextArtifactId++;
+        sources.set(artifactId, source);
+        return { artifactId, diagnostics: [] };
+    }),
+    retainCemMlTemplateArtifact: vi.fn(async (bytes: ArrayBuffer) => {
+        const artifactId = nextArtifactId++;
+        const source = new TextDecoder().decode(bytes);
+        sources.set(artifactId, source);
+        return {
+            artifactId,
+            contentHash: `cem-bin/1+blake3:fixture-${source.length}`,
+            formatVersion: 'cem-template-artifact/1',
+            diagnostics: [],
+        };
+    }),
+    disposeRetainedCemMlTemplate: vi.fn(() => true),
+    processRetainedCemMlTemplate: vi.fn(async (artifactId: number, input: {
         source: string;
         data: Record<string, unknown>;
         identity: {
@@ -20,7 +47,7 @@ vi.mock('./cem-ql-render.js', () => ({
         renderPlan: {
             ...input.identity,
             nodes: [
-                ...(input.source.includes('http-request') ? [{
+                ...(sources.get(artifactId)?.includes('http-request') ? [{
                     kind: 'element' as const,
                     namespace: null,
                     tag: 'http-request',
@@ -50,10 +77,15 @@ vi.mock('./cem-ql-render.js', () => ({
             ],
         },
     })),
-}));
+    };
+});
 
 import { CemProcessingEngine } from './processing-engine.js';
-import { compileCemMlTemplate } from './cem-ql-render.js';
+import {
+    compileCemMlTemplateArtifact,
+    retainCemMlTemplateArtifact,
+    retainCemMlTemplateSource,
+} from './cem-ql-render.js';
 import { createCemProcessingTextSource } from './processing-host.js';
 
 describe('Phase 3A retained processing engine', () => {
@@ -183,7 +215,7 @@ describe('Phase 3A retained processing engine', () => {
     });
 
     it('reuses compiled content by address and evicts the least-recently-used entry at the bound', async () => {
-        const compile = vi.mocked(compileCemMlTemplate);
+        const compile = vi.mocked(retainCemMlTemplateSource);
         compile.mockClear();
         const engine = new CemProcessingEngine({ maxArtifactEntries: 2 });
         const input = (templateArtifactId: string, source: string) => ({
@@ -205,6 +237,85 @@ describe('Phase 3A retained processing engine', () => {
         await engine.compile(input('artifact-b-2', '{span | B}'));
 
         expect(compile).toHaveBeenCalledTimes(4);
+    });
+
+    it('imports matching precompiled template bytes without source compilation', async () => {
+        const compile = vi.mocked(compileCemMlTemplateArtifact);
+        const retain = vi.mocked(retainCemMlTemplateArtifact);
+        compile.mockClear();
+        retain.mockClear();
+        const engine = new CemProcessingEngine();
+        const source = '{span | precompiled}';
+        const bytes = new TextEncoder().encode(source).buffer as ArrayBuffer;
+
+        const result = await engine.compile({
+            language: 'cem-ml',
+            producedTag: 'cem-precompiled-card',
+            templateArtifactId: 'template-precompiled-card-1',
+            registrationIdentity: 'cem-registration-v1:precompiled-card',
+            source: createCemProcessingTextSource(source),
+            sourceRef: { kind: 'inline', value: 'cem-precompiled-card' },
+            resolverIdentity: 'document:https://example.test/',
+            scopePolicyStamp: 'scope-policy-v1',
+            sourceMapMode: 'dev',
+            exportCompiledArtifact: true,
+            precompiledArtifact: {
+                kind: 'template-artifact',
+                payloadKey: templatePayloadKey(source),
+                cacheKey: 'cem-bin/1+blake3:fixture-20',
+                formatVersion: 'cem-template-artifact/1',
+                policyStamp: 'scope-policy-v1',
+                bytes,
+            },
+        });
+
+        expect(compile).not.toHaveBeenCalled();
+        expect(retain).toHaveBeenCalledWith(
+            bytes,
+            'cem-bin/1+blake3:fixture-20',
+            source,
+            [],
+            'dev'
+        );
+        expect(result.compiledArtifact).toBeUndefined();
+    });
+
+    it('rejects a policy-mismatched artifact and deterministically falls back to source', async () => {
+        const compile = vi.mocked(compileCemMlTemplateArtifact);
+        compile.mockClear();
+        const engine = new CemProcessingEngine();
+        const source = '{span | fallback}';
+
+        const result = await engine.compile({
+            language: 'cem-ml',
+            producedTag: 'cem-rejected-card',
+            templateArtifactId: 'template-rejected-card-1',
+            registrationIdentity: 'cem-registration-v1:rejected-card',
+            source: createCemProcessingTextSource(source),
+            sourceRef: { kind: 'inline', value: 'cem-rejected-card' },
+            resolverIdentity: 'document:https://example.test/',
+            scopePolicyStamp: 'scope-policy-v2',
+            sourceMapMode: 'dev',
+            exportCompiledArtifact: true,
+            precompiledArtifact: {
+                kind: 'template-artifact',
+                payloadKey: templatePayloadKey(source),
+                cacheKey: 'cem-bin/1+blake3:fixture',
+                formatVersion: 'cem-template-artifact/1',
+                policyStamp: 'scope-policy-v1',
+                bytes: new TextEncoder().encode(source).buffer as ArrayBuffer,
+            },
+        });
+
+        expect(compile).toHaveBeenCalledWith(source, [], 'dev');
+        expect(result.compiledArtifact).toEqual(expect.objectContaining({
+            kind: 'template-artifact',
+            policyStamp: 'scope-policy-v2',
+        }));
+        expect(result.diagnostics).toContainEqual(expect.objectContaining({
+            code: 'cem.processing_host.precompiled_artifact_rejected',
+            severity: 'warning',
+        }));
     });
 
     it('falls back to a full replacement when an old content-addressed plan was evicted', async () => {
@@ -296,6 +407,16 @@ function revision(snapshot: DataIslandSnapshot) {
         templateArtifactId: snapshot.templateArtifactId,
         scopePolicyStamp: snapshot.scopePolicyStamp,
         outputTarget: snapshot.outputTarget,
+    };
+}
+
+function templatePayloadKey(source: string) {
+    return {
+        contentType: 'cem-template-artifact' as const,
+        sourceHash: `cem-bin/1+blake3:source-${source.length}`,
+        cemMlVersion: '0.1.0',
+        cemQlVersion: '0.1.0',
+        sourceMapMode: 'dev' as const,
     };
 }
 

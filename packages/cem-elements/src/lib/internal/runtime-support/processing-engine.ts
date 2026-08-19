@@ -10,10 +10,16 @@ import {
     type RenderPlanNode,
 } from '../../projection.js';
 import {
-    compileCemMlTemplate,
-    processCemMlTemplate,
+    compileCemMlTemplateArtifact,
+    cemMlTemplateArtifactPayloadKey,
+    disposeRetainedCemMlTemplate,
+    processRetainedCemMlTemplate,
+    retainCemMlTemplateArtifact,
+    retainCemMlTemplateSource,
+    type RetainedCemMlTemplate,
 } from './cem-ql-render.js';
 import type {
+    CemProcessingArtifactBinaryTransfer,
     CemProcessingArtifactHandle,
     CemProcessingCompileInput,
     CemProcessingCompileResult,
@@ -31,10 +37,14 @@ interface RetainedTemplateArtifact {
     input: CemProcessingCompileInput;
     handle: CemProcessingArtifactHandle;
     diagnostics: CemProcessingDiagnostic[];
+    wasmArtifactId: number;
+    compiledArtifact?: CemProcessingArtifactBinaryTransfer;
 }
 
 interface CachedTemplateCompilation {
     diagnostics: CemProcessingDiagnostic[];
+    wasmArtifactId: number;
+    compiledArtifact?: CemProcessingArtifactBinaryTransfer;
 }
 
 export interface CemProcessingEngineOptions {
@@ -50,6 +60,7 @@ export class CemProcessingEngine {
     private readonly artifacts: CemProcessingLruCache<string, RetainedTemplateArtifact>;
     private readonly compiledArtifacts: CemProcessingLruCache<string, CachedTemplateCompilation>;
     private readonly renderPlans: CemProcessingLruCache<string, RenderPlan>;
+    private readonly wasmArtifactIds = new Set<number>();
     private disposed = false;
 
     constructor(options: CemProcessingEngineOptions = {}) {
@@ -83,6 +94,7 @@ export class CemProcessingEngine {
                 resolverIdentity: input.resolverIdentity,
                 scopePolicyStamp: input.scopePolicyStamp,
                 sourceMapMode: input.sourceMapMode,
+                hostBindings: [...new Set(input.hostBindings ?? [])].sort(),
             }).key,
             registrationIdentity: input.registrationIdentity,
             scopePolicyStamp: input.scopePolicyStamp,
@@ -90,12 +102,19 @@ export class CemProcessingEngine {
         };
         let compilation = this.compiledArtifacts.get(handle.cacheKey);
         if (!compilation) {
-            const diagnostics = await compileCemMlTemplate(source);
+            const loaded = await this.compileOrImportTemplate(input, source);
             this.assertActive();
-            compilation = { diagnostics };
+            compilation = loaded;
+            this.wasmArtifactIds.add(loaded.wasmArtifactId);
             this.compiledArtifacts.set(handle.cacheKey, compilation);
         }
-        const artifact = { input, handle, diagnostics: compilation.diagnostics };
+        const artifact = {
+            input,
+            handle,
+            diagnostics: compilation.diagnostics,
+            wasmArtifactId: compilation.wasmArtifactId,
+            compiledArtifact: compilation.compiledArtifact,
+        };
         this.artifacts.set(artifactKey, artifact);
         return compileResult(artifact);
     }
@@ -110,7 +129,7 @@ export class CemProcessingEngine {
         }
         assertRenderRevision(input);
         const previous = retainedPreviousPlan(this.renderPlans, input.previousRenderPlan, input.artifact);
-        const processed = await processCemMlTemplate({
+        const processed = await processRetainedCemMlTemplate(artifact.wasmArtifactId, {
             source: processingSourceText(artifact.input),
             data: input.data,
             payload: input.snapshot.payload,
@@ -161,6 +180,10 @@ export class CemProcessingEngine {
     }
 
     dispose(_input: CemProcessingDisposeInput): CemProcessingDisposeResult {
+        for (const artifactId of this.wasmArtifactIds) {
+            disposeRetainedCemMlTemplate(artifactId);
+        }
+        this.wasmArtifactIds.clear();
         this.artifacts.clear();
         this.compiledArtifacts.clear();
         this.renderPlans.clear();
@@ -172,6 +195,73 @@ export class CemProcessingEngine {
         if (this.disposed) {
             throw new Error('the CEM processing engine is disposed');
         }
+    }
+
+    private async compileOrImportTemplate(
+        input: CemProcessingCompileInput,
+        source: string
+    ): Promise<CachedTemplateCompilation> {
+        const hostBindings = input.hostBindings ?? [];
+        const payloadKey = await cemMlTemplateArtifactPayloadKey(source, input.sourceMapMode);
+        let rejectionDiagnostic: CemProcessingDiagnostic | undefined;
+        if (input.precompiledArtifact) {
+            try {
+                assertPrecompiledTransfer(
+                    input.precompiledArtifact,
+                    input.scopePolicyStamp,
+                    payloadKey
+                );
+                const retained = await retainCemMlTemplateArtifact(
+                    input.precompiledArtifact.bytes,
+                    input.precompiledArtifact.cacheKey,
+                    source,
+                    hostBindings,
+                    input.sourceMapMode
+                );
+                return retainedCompilation(retained);
+            } catch (error) {
+                rejectionDiagnostic = {
+                    code: 'cem.processing_host.precompiled_artifact_rejected',
+                    severity: 'warning',
+                    message: `${error instanceof Error ? error.message : 'precompiled template artifact was rejected'}; source compilation was used`,
+                };
+            }
+        }
+
+        if (!input.exportCompiledArtifact) {
+            const retained = await retainCemMlTemplateSource(source, hostBindings);
+            const compilation = retainedCompilation(retained);
+            if (rejectionDiagnostic) {
+                compilation.diagnostics.unshift(rejectionDiagnostic);
+            }
+            return compilation;
+        }
+
+        const bytes = await compileCemMlTemplateArtifact(source, hostBindings, input.sourceMapMode);
+        const artifactBytes = exactArrayBuffer(bytes);
+        const retained = await retainCemMlTemplateArtifact(
+            artifactBytes,
+            '',
+            source,
+            hostBindings,
+            input.sourceMapMode
+        );
+        if (!retained.contentHash || !retained.formatVersion) {
+            throw new Error('source-compiled template artifact did not return stable binary identity');
+        }
+        const compiledArtifact: CemProcessingArtifactBinaryTransfer = {
+            kind: 'template-artifact',
+            payloadKey,
+            cacheKey: retained.contentHash,
+            formatVersion: retained.formatVersion,
+            policyStamp: input.scopePolicyStamp,
+            bytes: artifactBytes,
+        };
+        const compilation = retainedCompilation(retained, compiledArtifact);
+        if (rejectionDiagnostic) {
+            compilation.diagnostics.unshift(rejectionDiagnostic);
+        }
+        return compilation;
     }
 }
 
@@ -186,6 +276,9 @@ function compileResult(artifact: RetainedTemplateArtifact): CemProcessingCompile
         observedAttributes: [],
         invalidationScopes: ['host-attributes', 'payload', 'slices', 'forms', 'events'],
         diagnostics: artifact.diagnostics,
+        ...(artifact.compiledArtifact === undefined
+            ? {}
+            : { compiledArtifact: cloneArtifactTransfer(artifact.compiledArtifact) }),
     };
 }
 
@@ -193,10 +286,65 @@ function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessi
     return left.registrationIdentity === right.registrationIdentity
         && left.scopePolicyStamp === right.scopePolicyStamp
         && left.sourceMapMode === right.sourceMapMode
+        && left.exportCompiledArtifact === right.exportCompiledArtifact
+        && sameStrings(left.hostBindings ?? [], right.hostBindings ?? [])
         && processingSourceText(left) === processingSourceText(right)
         && left.sourceRef.kind === right.sourceRef.kind
         && left.sourceRef.value === right.sourceRef.value
         && left.resolverIdentity === right.resolverIdentity;
+}
+
+function retainedCompilation(
+    retained: RetainedCemMlTemplate,
+    compiledArtifact?: CemProcessingArtifactBinaryTransfer
+): CachedTemplateCompilation {
+    return {
+        wasmArtifactId: retained.artifactId,
+        diagnostics: retained.diagnostics.filter((diagnostic) =>
+            diagnostic.code.startsWith('cem.tokenizer.')
+        ),
+        compiledArtifact,
+    };
+}
+
+function assertPrecompiledTransfer(
+    artifact: CemProcessingArtifactBinaryTransfer,
+    scopePolicyStamp: string,
+    payloadKey: CemProcessingArtifactBinaryTransfer['payloadKey']
+): void {
+    if (artifact.formatVersion !== 'cem-template-artifact/1') {
+        throw new Error(`unsupported template artifact format ${artifact.formatVersion}`);
+    }
+    if (artifact.policyStamp !== scopePolicyStamp) {
+        throw new Error('cem.cc.policy_mismatch: template artifact policy stamp does not match the active scope');
+    }
+    if (JSON.stringify(artifact.payloadKey) !== JSON.stringify(payloadKey)) {
+        throw new Error('component-template artifact payload key does not match the active source or runtime versions');
+    }
+    if (!(artifact.bytes instanceof ArrayBuffer)) {
+        throw new TypeError('a precompiled template artifact requires ArrayBuffer bytes');
+    }
+}
+
+function exactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+function cloneArtifactTransfer(
+    artifact: CemProcessingArtifactBinaryTransfer
+): CemProcessingArtifactBinaryTransfer {
+    return {
+        ...artifact,
+        bytes: artifact.bytes.slice(0),
+    };
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+    const canonical = (values: readonly string[]) => [...new Set(values.filter(Boolean))].sort();
+    const leftCanonical = canonical(left);
+    const rightCanonical = canonical(right);
+    return leftCanonical.length === rightCanonical.length
+        && leftCanonical.every((value, index) => value === rightCanonical[index]);
 }
 
 function processingSourceText(input: CemProcessingCompileInput): string {

@@ -22,7 +22,7 @@ pub mod subtype;
 pub use lattice::TypeLattice;
 pub use subtype::SubtypeChecker;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Type {
     Node(NodeKind),
     SchemaElement(SchemaTypeId),
@@ -71,7 +71,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum AtomType {
     String,
     Integer,
@@ -84,7 +84,7 @@ pub enum AtomType {
     AnyUri,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum NodeKind {
     Node,
     Element(QNameKey),
@@ -95,13 +95,13 @@ pub enum NodeKind {
     DocumentNode,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RecordField {
     pub name: String,
     pub ty: Type,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ContentType(pub String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
