@@ -177,7 +177,7 @@ describe('progress spinner contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(progressSpinnerContractFixture);
         await waitForSelector(root, '#fallback-label-spinner > .cem-progress-spinner > svg');
         return root;

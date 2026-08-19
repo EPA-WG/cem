@@ -462,7 +462,7 @@ describe('autocomplete contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(autocompleteContractFixture);
         await waitFor(
             () => root.querySelectorAll('cem-autocomplete .cem-autocomplete__control').length === 7,

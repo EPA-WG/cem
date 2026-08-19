@@ -12,7 +12,7 @@ import {
     assertAccessibleName,
     assertAriaReferenceIntegrity,
     assertLightDomRendered,
-    createComponentHarness,
+    createComponentHarness as createBaseComponentHarness,
     nextRenderFrame,
     type ComponentHarness,
 } from './testing/component-harness.js';
@@ -31,9 +31,12 @@ const workflowFixtures = [
 
 describe('CEM component workflow fixtures', () => {
     let harness: ComponentHarness;
+    let runtime: CemElementRuntime;
+
+    const createComponentHarness = (): ComponentHarness => createBaseComponentHarness({ runtime });
 
     beforeAll(async () => {
-        const runtime = new CemElementRuntime({ declarationTag: 'cem-components-workflow-declaration' });
+        runtime = new CemElementRuntime({ declarationTag: 'cem-components-workflow-declaration' });
         const result = await installCemComponentPrimitives(runtime);
         expect(result.diagnostics).toEqual([]);
     });

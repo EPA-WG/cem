@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Run the Phase 3 substrate, component, CEM-ML fixture, and accessibility
-aggregate gates. First restore the behavior-backed component contracts now
-that settlement-aware installation exposes their real runtime output.
+Phase 3 is complete. Before activating deferred Phase 3.5, isolate its six
+Edge/SSR Storybook cases and processing-boundary selections so the follow-up
+has phase-specific evidence instead of relying on the broad browser gates.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -177,7 +177,7 @@ registration identities may reuse an inherited or existing definition.
       Storybook Chromium 97/97, all 15 executable demo pages, typecheck/lint, and
       the 53-file clean-consumer package probe.
 
-- [ ] Complete Phase 3A/3B/3C substrate parity.
+- [x] Complete Phase 3A/3B/3C substrate parity.
     - [x] Wire superseded processing-host render jobs to the locked `cancel`
           operation while preserving revision checks and atomic patch recovery.
           Completed 2026-08-18: each canonical instance now retains its active
@@ -287,7 +287,7 @@ registration identities may reuse an inherited or existing definition.
               compile/reload render parity plus hash, source, binding, mode, and
               policy rejection.
 
-- [ ] Author the Phase 3 primitive set exclusively on the accepted substrate.
+- [x] Author the Phase 3 primitive set exclusively on the accepted substrate.
     - [x] Extend the existing component test harness for substrate rendering,
           events, forms, accessibility, and visual snapshots.
         - [x] Add a Chromium action/field fixture that registers real CEM-ML
@@ -321,13 +321,27 @@ registration identities may reuse an inherited or existing definition.
           verifies all 48 manifest entries, while the focused Chromium fixture's
           10 tests prove the exact minimal set renders accessible light DOM with
           inert data islands and no shadow or legacy runtime dependency.
-    - [ ] Run the substrate, component, CEM-ML fixture, and accessibility aggregate
+    - [x] Run the substrate, component, CEM-ML fixture, and accessibility aggregate
           gates before closing Phase 3.
-        - [ ] Repair stable native-owner reconciliation for behavior-backed CEM-ML
+        - [x] Repair stable native-owner reconciliation for behavior-backed CEM-ML
               re-renders and migrate their browser fixtures to explicit runtime
               settlement. Truthful behavior registration currently exposes 38
               failing component assertions across native identity, focus, ARIA,
               interaction state, and nested workflow projection.
+            - [x] Add a focused `cem-elements` patch-frame regression proving a
+                  conditional child insertion preserves compatible native sibling
+                  identity and focus while updating the surrounding render plan.
+        - Completed 2026-08-19: render-engine patch transport `1.1.0` adds
+          namespace-preserving child reconciliation so conditional insertions retain
+          compatible native owners, focus, and state instead of replacing their
+          parent. Retained render-plan directive values keep slice event bindings
+          current after their visible attributes are consumed, and the component
+          harness now awaits nested runtime settlement before assertions. The focused
+          patch-frame unit and Storybook regressions pass; all 38 exposed component
+          failures are repaired. Accepted evidence is 136/136 `cem-elements` unit
+          tests, 120/120 Storybook Chromium tests, 125/125 component tests, the
+          uncached 51-dependency `cem-elements:verify` aggregate, and the uncached
+          41-dependency `@epa-wg/cem-components:verify` aggregate.
 
 ## Deferred Roadmap Work
 

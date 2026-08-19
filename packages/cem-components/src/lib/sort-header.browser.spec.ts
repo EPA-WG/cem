@@ -243,7 +243,7 @@ describe('sort header contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(sortHeaderContractFixture);
         await waitForSelector(root, '#invalid-sort > .cem-sort-header > .cem-sort-header__button');
         return root;

@@ -461,6 +461,70 @@ describe('host processing boundary contracts', () => {
         };
         expect(renderPlansHaveDomChanges(first, changedText)).toBe(true);
     });
+
+    it('reconciles conditional children without replacing a stable native sibling', () => {
+        const input = {
+            kind: 'element' as const,
+            namespace: null,
+            tag: 'input',
+            renderNodeId: 'behavior-field-input',
+            attributes: [{ name: 'aria-expanded', value: 'false' }],
+            children: [],
+        };
+        const help = {
+            kind: 'element' as const,
+            namespace: null,
+            tag: 'span',
+            renderNodeId: 'behavior-field-help',
+            attributes: [{ name: 'class', value: 'help' }],
+            children: [{ kind: 'text' as const, text: 'Help' }],
+        };
+        const previous: RenderPlan = {
+            producedTag: 'behavior-field',
+            instanceId: 'behavior-field-1',
+            templateArtifactId: 'behavior-field-template-1',
+            dataRevision: '1',
+            outputTarget: 'light-dom',
+            scopePolicyStamp: 'boundary-scope',
+            nodes: [{
+                kind: 'element',
+                namespace: null,
+                tag: 'div',
+                renderNodeId: 'behavior-field-root',
+                attributes: [],
+                children: [input, help],
+            }],
+        };
+        const next: RenderPlan = {
+            ...previous,
+            dataRevision: '2',
+            nodes: [{
+                ...previous.nodes[0] as Extract<RenderPlan['nodes'][number], { kind: 'element' }>,
+                children: [
+                    { ...input, attributes: [{ name: 'aria-expanded', value: 'true' }] },
+                    {
+                        kind: 'element',
+                        namespace: 'http://www.w3.org/2000/svg',
+                        tag: 'svg',
+                        renderNodeId: 'behavior-field-popup',
+                        attributes: [{ name: 'role', value: 'listbox' }],
+                        children: [],
+                    },
+                    help,
+                ],
+            }],
+        };
+
+        const frames = diffRenderPlansToPatchFrames(previous, next, { transactionId: 'conditional-child' });
+        const ops = frames.flatMap((frame) => frame.type === 'ops' ? frame.ops : []);
+
+        expect(ops.map((operation) => operation.op)).toContain('reconcileChildren');
+        expect(JSON.stringify(ops)).toContain('"namespace":"http://www.w3.org/2000/svg"');
+        expect(ops).not.toContainEqual(expect.objectContaining({
+            op: 'replace',
+            target: { kind: 'render-node', id: 'behavior-field-root' },
+        }));
+    });
 });
 
 function expectPlainBoundaryValue(value: unknown): void {

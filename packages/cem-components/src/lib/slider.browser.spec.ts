@@ -247,7 +247,7 @@ describe('slider contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(sliderContractFixture);
         await waitForSelector(root, '#single-slider > .cem-slider > .cem-slider__inputs > input[type="range"]');
         return root;

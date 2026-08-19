@@ -564,7 +564,7 @@ describe('feedback expanded acceptance fixture', () => {
     });
 
     function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         return harness.render(feedbackExpandedFixture).then(async (root) => {
             await waitForElement(root, '#feedback-transient-sheet aside');
             return root;

@@ -8,6 +8,7 @@ import {
     projectTemplate,
     readTemplateSource,
     renderInstanceScopeUid,
+    renderedPlanAttributeValue,
     renderPlansHaveDomChanges,
     scopeRenderPlan,
     validateRenderPlanGeneratedIds,
@@ -2417,7 +2418,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         rendered: ParentNode
     ): void {
-        for (const element of Array.from(rendered.querySelectorAll('[slice][slice-event]'))) {
+        for (const element of Array.from(rendered.querySelectorAll('*'))) {
             this.bindRenderedSliceEventElement(instance, compiled, element);
         }
     }
@@ -2427,7 +2428,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         bounds: RenderBounds
     ): void {
-        for (const element of renderedElementsBetween(bounds, '[slice][slice-event]')) {
+        for (const element of renderedElementsBetween(bounds, '*')) {
             this.bindRenderedSliceEventElement(instance, compiled, element);
         }
     }
@@ -2437,12 +2438,19 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         element: Element
     ): void {
-        const sliceNames = parseSliceTargets(element.getAttribute('slice') ?? '');
-        const eventNames = parseSliceEventNames(element.getAttribute('slice-event') ?? '');
+        const sliceNames = parseSliceTargets(renderedBindingAttribute(element, 'slice') ?? '');
+        const eventNames = parseSliceEventNames(renderedBindingAttribute(element, 'slice-event') ?? '');
+        const existing = this.sliceEventBindings.get(element);
         if (sliceNames.length === 0 || eventNames.length === 0) {
+            if (existing) {
+                for (const eventName of existing.eventNames) {
+                    element.removeEventListener(eventName, existing.listener);
+                }
+                this.sliceEventBindings.delete(element);
+            }
             return;
         }
-        const expression = element.getAttribute('slice-value') ?? '{$target.value}';
+        const expression = renderedBindingAttribute(element, 'slice-value') ?? '{$target.value}';
         if (element.localName === 'form') {
             this.formSliceNames.set(element, sliceNames);
         }
@@ -2450,7 +2458,6 @@ export class CemElementRuntime {
         element.removeAttribute('slice-event');
         element.removeAttribute('slice-value');
 
-        const existing = this.sliceEventBindings.get(element);
         if (
             existing &&
             existing.instance === instance &&
@@ -5996,6 +6003,11 @@ function evaluateSliceAtom(expression: string, event: Event, slices: Record<stri
         return toTemplateValue(slices[sliceReference]);
     }
     return parseLiteralValue(body);
+}
+
+function renderedBindingAttribute(element: Element, name: string): string | null {
+    const rendered = renderedPlanAttributeValue(element, name);
+    return rendered === undefined ? element.getAttribute(name) : rendered;
 }
 
 function parseSliceTargets(value: string): string[] {

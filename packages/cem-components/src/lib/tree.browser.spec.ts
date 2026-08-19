@@ -141,11 +141,13 @@ describe('tree contract fixture', () => {
         await userEvent.tab();
         expect(document.activeElement).toBe(treeNode(parts, 'web'));
         await userEvent.keyboard('{ArrowDown}');
+        await nextRenderFrame();
         parts = treeParts(root, '#project-tree');
         expect(document.activeElement).toBe(treeNode(parts, 'source'));
         expect(parts.host.getAttribute('selected-values')).toBe('readme web');
 
         await userEvent.keyboard('{ArrowRight}');
+        await nextRenderFrame();
         parts = treeParts(root, '#project-tree');
         expect(document.activeElement).toBe(treeNode(parts, 'components'));
         await userEvent.keyboard('{ArrowRight}');
@@ -153,25 +155,30 @@ describe('tree contract fixture', () => {
         parts = treeParts(root, '#project-tree');
         expect(document.activeElement).toBe(treeNode(parts, 'components'));
         await userEvent.keyboard('{ArrowRight}');
+        await nextRenderFrame();
         parts = treeParts(root, '#project-tree');
         expect(document.activeElement).toBe(treeNode(parts, 'button'));
         await userEvent.keyboard('{ArrowLeft}');
+        await nextRenderFrame();
         parts = treeParts(root, '#project-tree');
         expect(document.activeElement).toBe(treeNode(parts, 'components'));
         await userEvent.keyboard('{ArrowLeft}');
         await waitFor(() => treeNode(treeParts(root, '#project-tree'), 'components').getAttribute('aria-expanded') === 'false');
 
         await userEvent.keyboard('{Home}');
+        await nextRenderFrame();
         parts = treeParts(root, '#project-tree');
         expect(document.activeElement).toBe(treeNode(parts, 'apps'));
         await userEvent.keyboard('{ArrowUp}');
         expect(document.activeElement).toBe(treeNode(parts, 'apps'));
         await userEvent.keyboard('{End}');
+        await nextRenderFrame();
         parts = treeParts(root, '#project-tree');
         expect(document.activeElement).toBe(treeNode(parts, 'readme'));
         await userEvent.keyboard('{ArrowDown}');
         expect(document.activeElement).toBe(treeNode(parts, 'readme'));
         await userEvent.keyboard('so');
+        await nextRenderFrame();
         parts = treeParts(root, '#project-tree');
         expect(document.activeElement).toBe(treeNode(parts, 'source'));
         expect(parts.nodes.filter((node) => node.tabIndex === 0)).toEqual([treeNode(parts, 'source')]);
@@ -324,7 +331,7 @@ describe('tree contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(treeContractFixture);
         await waitFor(() => root.querySelectorAll('cem-tree > .cem-tree[role="tree"]').length === 4);
         return root;

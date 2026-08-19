@@ -92,12 +92,23 @@ export type RenderPlanNode =
       };
 
 /** Render-engine / patch-transport schema version (FF-6 SemVer axis, BR-VC-5). */
-export const RENDER_ENGINE_VERSION = '1.0.0';
+export const RENDER_ENGINE_VERSION = '1.1.0';
 
 /** Edge render-state record schema version (FF-6 SemVer axis, BR-VC-5). */
 export const EDGE_RENDER_STATE_VERSION = '1.0.0';
 
-const renderedAttributeNames = new WeakMap<Element, Set<string>>();
+const renderedAttributeValues = new WeakMap<Element, Map<string, string>>();
+
+/**
+ * Read the latest render-plan value for an attribute even when the UI adapter
+ * intentionally removes that attribute from the visible DOM after binding it.
+ * `undefined` means the element is not owned by a render plan; `null` means the
+ * current plan does not contain the attribute.
+ */
+export function renderedPlanAttributeValue(element: Element, name: string): string | null | undefined {
+    const attributes = renderedAttributeValues.get(element);
+    return attributes ? (attributes.get(name) ?? null) : undefined;
+}
 
 export interface RenderPlan {
     producedTag: string;
@@ -211,6 +222,7 @@ export type SerializedNode =
           kind: 'element';
           renderNodeId: string;
           tagName: string;
+          namespace?: string | null;
           attributes: Record<string, string>;
           children: SerializedNode[];
           sourceMapRef?: SourceMapRef;
@@ -225,6 +237,7 @@ export type PatchNodePayload = {
 
 export type DomPatchOp =
     | { op: 'replace'; target: DomPatchTarget; node: PatchNodePayload }
+    | { op: 'reconcileChildren'; target: DomPatchTarget; children: PatchNodePayload[] }
     | { op: 'setText'; target: DomPatchTarget; value: string }
     | { op: 'setAttribute'; target: DomPatchTarget; name: string; value: string | null }
     | {
@@ -1420,7 +1433,10 @@ export function applyPatchFramesToRange(
             continue;
         }
         const target = findNodeByRenderIdentityInRange(bounds, operation.target.id);
-        if (!target || (operation.op === 'setAttribute' && target.nodeType !== 1)) {
+        if (
+            !target
+            || ((operation.op === 'setAttribute' || operation.op === 'reconcileChildren') && target.nodeType !== 1)
+        ) {
             return abortedPatch(`patch target \`${operation.target.id}\` was not present in the rendered range`);
         }
         resolved.push({ operation, target });
@@ -1432,9 +1448,9 @@ export function applyPatchFramesToRange(
                 target.textContent = operation.value;
             } else if (operation.op === 'setAttribute') {
                 const element = target as Element;
-                const names = renderedAttributeNames.get(element) ?? authoredAttributeNames(element);
+                const attributes = renderedAttributeValues.get(element) ?? authoredAttributes(element);
                 if (operation.value === null) {
-                    names.delete(operation.name);
+                    attributes.delete(operation.name);
                     const currentAttribute = element.getAttributeNode(operation.name);
                     const desired = element.cloneNode(false) as Element;
                     desired.removeAttribute(operation.name);
@@ -1445,10 +1461,19 @@ export function applyPatchFramesToRange(
                         element.removeAttribute(operation.name);
                     }
                 } else {
-                    names.add(operation.name);
+                    attributes.set(operation.name, operation.value);
                     element.setAttribute(operation.name, operation.value);
                 }
-                renderedAttributeNames.set(element, names);
+                renderedAttributeValues.set(element, attributes);
+            } else if (operation.op === 'reconcileChildren') {
+                const element = target as Element;
+                const children = operation.children.map(({ node }) => deserializePatchNode(node));
+                const plan: RenderPlan = { ...parsed.commit.nextRenderPlan, nodes: children };
+                mergeRenderPlanChildNodes(element, element.firstChild as ChildNode | null, null, children, {
+                    plan,
+                    document,
+                    options,
+                });
             } else {
                 target.parentNode?.replaceChild(
                     materializeSerializedNode(operation.node.node, parsed.commit.nextRenderPlan, document),
@@ -1521,7 +1546,7 @@ function deserializePatchNode(node: SerializedNode): RenderPlanNode {
     }
     return {
         kind: 'element',
-        namespace: null,
+        namespace: node.namespace ?? null,
         tag: node.tagName,
         attributes: Object.entries(node.attributes).map(([name, value]) => ({ name, value })),
         renderNodeId: node.renderNodeId,
@@ -1562,8 +1587,9 @@ function reconcileNodeRenderedAttributes(node: Node, options: RenderPlanApplyOpt
     let preserveChildren = false;
     if (node.nodeType === 1) {
         const element = node as Element;
-        const names = renderedAttributeNames.get(element);
-        if (names) {
+        const renderedAttributes = renderedAttributeValues.get(element);
+        if (renderedAttributes) {
+            const names = new Set(renderedAttributes.keys());
             const desired = element.cloneNode(false) as Element;
             for (const attribute of Array.from(desired.attributes)) {
                 if (!names.has(attribute.name) && !isRenderMetadataAttribute(attribute.name)) {
@@ -1590,11 +1616,11 @@ function reconcileNodeRenderedAttributes(node: Node, options: RenderPlanApplyOpt
     }
 }
 
-function authoredAttributeNames(element: Element): Set<string> {
-    return new Set(
+function authoredAttributes(element: Element): Map<string, string> {
+    return new Map(
         Array.from(element.attributes)
-            .map((attribute) => attribute.name)
-            .filter((name) => !isRenderMetadataAttribute(name))
+            .filter((attribute) => !isRenderMetadataAttribute(attribute.name))
+            .map((attribute) => [attribute.name, attribute.value])
     );
 }
 
@@ -1644,7 +1670,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
     for (const attribute of node.attributes) {
         element.setAttribute(attribute.name, attribute.value);
     }
-    renderedAttributeNames.set(element, new Set(node.attributes.map((attribute) => attribute.name)));
+    renderedAttributeValues.set(element, new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])));
     element.setAttribute(RENDER_NODE_ID_ATTR, node.renderNodeId);
     (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = node.renderNodeId;
     element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
@@ -1869,7 +1895,10 @@ function mergeRenderPlanNode(match: RenderPlanNodeMatch, desired: RenderPlanNode
     }
 
     const element = match.first as Element;
-    renderedAttributeNames.set(element, new Set(desired.attributes.map((attribute) => attribute.name)));
+    renderedAttributeValues.set(
+        element,
+        new Map(desired.attributes.map((attribute) => [attribute.name, attribute.value]))
+    );
     mirrorRenderIdentity(element, desired.renderNodeId);
     const preserveElementAttribute = context.options.preserveElementAttribute;
     const preserveElementChildren = context.options.preserveElementChildren;
@@ -1944,7 +1973,7 @@ function createRenderPlanElement(
         ? document.createElementNS(node.namespace, node.tag)
         : document.createElement(node.tag);
     syncAttributes(element, renderPlanElementAttributes(node, plan));
-    renderedAttributeNames.set(element, new Set(node.attributes.map((attribute) => attribute.name)));
+    renderedAttributeValues.set(element, new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])));
     mirrorRenderIdentity(element, node.renderNodeId);
     return element;
 }
@@ -2396,14 +2425,21 @@ function diffRenderNode(previous: RenderPlanNode, next: RenderPlanNode, ops: Dom
     if (previous.kind === 'element' && next.kind === 'element') {
         if (
             previous.tag !== next.tag ||
-            previous.namespace !== next.namespace ||
-            previous.children.length !== next.children.length
+            previous.namespace !== next.namespace
         ) {
             ops.push({ op: 'replace', target: renderNodeTarget(previous), node: structuredPatchNode(next) });
             return;
         }
 
         diffAttributes(previous, next, ops);
+        if (previous.children.length !== next.children.length) {
+            ops.push({
+                op: 'reconcileChildren',
+                target: renderNodeTarget(previous),
+                children: next.children.map(structuredPatchNode),
+            });
+            return;
+        }
         for (let index = 0; index < next.children.length; index += 1) {
             diffRenderNode(previous.children[index], next.children[index], ops);
         }
@@ -2459,6 +2495,7 @@ function serializeRenderNode(node: RenderPlanNode): SerializedNode {
         kind: 'element',
         renderNodeId: node.renderNodeId,
         tagName: node.tag,
+        namespace: node.namespace,
         attributes: attributeRecord(node.attributes),
         children: node.children.map(serializeRenderNode),
         sourceMapRef: node.sourceMapRef,

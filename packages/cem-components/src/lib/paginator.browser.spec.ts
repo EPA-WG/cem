@@ -323,7 +323,7 @@ describe('paginator contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(paginatorContractFixture);
         await waitForSelector(root, '#compact-paginator > .cem-paginator > .cem-paginator__range-actions');
         return root;

@@ -11,6 +11,10 @@ export interface ComponentHarness {
     render(markup: string): Promise<HTMLElement>;
 }
 
+export interface ComponentHarnessOptions {
+    runtime?: CemElementRuntime;
+}
+
 export interface SubstrateComponentDeclaration {
     tag: string;
     cemMl: string;
@@ -100,16 +104,30 @@ const VOLATILE_RUNTIME_ATTRIBUTES = [
     'data-cem-template-artifact-id',
 ] as const;
 
-export function createComponentHarness(): ComponentHarness {
+interface RuntimeHarnessScope {
+    readonly root: HTMLElement;
+    readonly runtime: CemElementRuntime;
+}
+
+const runtimeHarnessScopes = new Set<RuntimeHarnessScope>();
+
+export function createComponentHarness(options: ComponentHarnessOptions = {}): ComponentHarness {
     assertBrowserDom();
 
     const root = document.createElement('div');
     root.setAttribute('data-cem-component-harness', '');
     document.body.append(root);
+    const runtimeScope = options.runtime ? { root, runtime: options.runtime } : undefined;
+    if (runtimeScope) {
+        runtimeHarnessScopes.add(runtimeScope);
+    }
 
     return {
         root,
         cleanup() {
+            if (runtimeScope) {
+                runtimeHarnessScopes.delete(runtimeScope);
+            }
             root.remove();
         },
         query<T extends Element = Element>(selector: string): T {
@@ -213,6 +231,25 @@ export function createSubstrateComponentHarness(
 }
 
 export async function nextRenderFrame(): Promise<void> {
+    if (runtimeHarnessScopes.size === 0) {
+        await nextAnimationFrame();
+        return;
+    }
+
+    let previousInstanceCount = -1;
+    for (let pass = 0; pass < 8; pass += 1) {
+        await nextAnimationFrame();
+        const instanceCount = await settleRuntimeHarnessScopes();
+        if (instanceCount === previousInstanceCount) {
+            return;
+        }
+        previousInstanceCount = instanceCount;
+    }
+
+    throw new Error('CEM component harness did not reach a stable nested runtime instance set');
+}
+
+async function nextAnimationFrame(): Promise<void> {
     await Promise.resolve();
 
     if (typeof requestAnimationFrame === 'function') {
@@ -220,6 +257,18 @@ export async function nextRenderFrame(): Promise<void> {
     }
 
     await Promise.resolve();
+}
+
+async function settleRuntimeHarnessScopes(): Promise<number> {
+    const instances = Array.from(runtimeHarnessScopes).flatMap(({ root, runtime }) =>
+        Array.from(root.querySelectorAll<HTMLElement>('[data-cem-instance-scope]')).map((instance) => ({
+            instance,
+            runtime,
+        }))
+    );
+    const settlements = instances.map(({ instance, runtime }) => runtime.whenRenderSettled(instance));
+    await Promise.all(settlements);
+    return instances.length;
 }
 
 export function assertLightDomRendered(host: HTMLElement): void {

@@ -108,11 +108,14 @@ describe('timepicker contract fixture', () => {
         expect(activeOption(parts)?.getAttribute('aria-selected')).toBe('true');
 
         await userEvent.keyboard('{ArrowDown}');
+        await nextRenderFrame();
         expect(activeOption(parts)?.dataset.value).toBe('10:00');
         await userEvent.keyboard('{ArrowDown}');
+        await nextRenderFrame();
         expect(activeOption(parts)?.dataset.value).toBe('11:00');
         await userEvent.keyboard('{Enter}');
         await waitForPopover(parts.popup, false);
+        await nextRenderFrame();
         expect(parts.input.value).toBe('11:00');
         expect(document.activeElement).toBe(parts.input);
         expect(events).toEqual(['input:true:false', 'change:true:false']);
@@ -122,6 +125,7 @@ describe('timepicker contract fixture', () => {
         const valueBeforeEscape = parts.input.value;
         await userEvent.keyboard('{Escape}');
         await waitForPopover(parts.popup, false);
+        await nextRenderFrame();
         expect(parts.input.value).toBe(valueBeforeEscape);
         expect(document.activeElement).toBe(parts.input);
     });
@@ -252,7 +256,7 @@ describe('timepicker contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(timepickerContractFixture);
         await waitForSelector(root, '#meeting-timepicker > .cem-timepicker > input[slot="input"]');
         await waitFor(() => optionValues(timepickerParts(root, '#meeting-timepicker')).length === 6, 'time options');

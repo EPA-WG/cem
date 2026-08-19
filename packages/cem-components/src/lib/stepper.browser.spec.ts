@@ -128,15 +128,18 @@ describe('stepper contract fixture', () => {
         let horizontal = stepperParts(root, '#workflow-stepper');
         horizontal.headers[1]?.focus();
         await userEvent.keyboard('{ArrowRight}');
+        await nextRenderFrame();
         horizontal = stepperParts(root, '#workflow-stepper');
         expect(document.activeElement).toBe(horizontal.headers[3]);
         expect(horizontal.host.selectedIndex).toBe(1);
         expect(horizontal.headers.filter((header) => header.tabIndex === 0)).toEqual([horizontal.headers[3]]);
 
         await userEvent.keyboard('{ArrowRight}');
+        await nextRenderFrame();
         horizontal = stepperParts(root, '#workflow-stepper');
         expect(document.activeElement).toBe(horizontal.headers[0]);
         await userEvent.keyboard('{End}');
+        await nextRenderFrame();
         horizontal = stepperParts(root, '#workflow-stepper');
         expect(document.activeElement).toBe(horizontal.headers[3]);
         await userEvent.keyboard('{Enter}');
@@ -149,6 +152,7 @@ describe('stepper contract fixture', () => {
         await userEvent.keyboard('{ArrowRight}');
         expect(document.activeElement).toBe(vertical.headers[0]);
         await userEvent.keyboard('{ArrowDown}');
+        await nextRenderFrame();
         vertical = stepperParts(root, '#vertical-stepper');
         expect(document.activeElement).toBe(vertical.headers[2]);
         expect(vertical.host.selectedIndex).toBe(0);
@@ -167,6 +171,7 @@ describe('stepper contract fixture', () => {
         expect(parts.headers[1]?.getAttribute('aria-disabled')).toBe('true');
         parts.headers[0]?.focus();
         await userEvent.keyboard('{ArrowRight}');
+        await nextRenderFrame();
         parts = stepperParts(root, '#linear-stepper');
         expect(document.activeElement).toBe(parts.headers[1]);
         await userEvent.keyboard('{Enter}');
@@ -252,7 +257,7 @@ describe('stepper contract fixture', () => {
             requiredItem(parts.items, 1),
         );
 
-        await userEvent.hover(wrapper);
+        await userEvent.hover(header);
         await nextRenderFrame();
         expect(wrapper.matches(':hover')).toBe(true);
         expect(header.matches(':hover')).toBe(true);
@@ -285,7 +290,7 @@ describe('stepper contract fixture', () => {
         expectStableTransient(active, focusBaseline);
         await userEvent.keyboard('[/Space]');
 
-        await userEvent.unhover(requiredItem(parts.items, 3));
+        await userEvent.unhover(requiredItem(parts.headers, 3));
         await nextRenderFrame();
         expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);
         expect(parts.host.selectedIndex).toBe(1);
@@ -293,7 +298,7 @@ describe('stepper contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(stepperContractFixture);
         await waitFor(() => root.querySelectorAll('cem-stepper > .cem-stepper > .cem-stepper__steps').length === 4);
         return root;

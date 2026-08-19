@@ -18,6 +18,7 @@ import {
 import {
     InMemoryEdgeRenderStateStore,
     advanceEdgeRenderState,
+    applyPatchFramesToRange,
     applyRenderPlanToRange,
     createEdgeRenderStateRecord,
     diffRenderPlansToPatchFrames,
@@ -3691,6 +3692,51 @@ export const DirectRenderPlanPatchPreservesFocusedControl: Story = {
     },
 };
 
+export const ConditionalChildPatchPreservesFocusedSibling: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __bounds?: { start: Comment; end: Comment };
+        };
+        root.setAttribute('aria-label', 'conditional child patch focus preservation story');
+        const host = document.createElement('div');
+        host.className = 'conditional-child-patch-host';
+        const start = document.createComment('cem-render-start');
+        const end = document.createComment('cem-render-end');
+        host.append(start, end);
+        root.__bounds = { start, end };
+        root.append(host);
+        return root;
+    },
+    play: ({ canvasElement }) => {
+        const root = requiredElement(
+            canvasElement,
+            '[aria-label="conditional child patch focus preservation story"]'
+        ) as HTMLElement & { __bounds?: { start: Comment; end: Comment } };
+        const bounds = root.__bounds;
+        assert(bounds !== undefined, 'conditional child patch render bounds are available');
+        const host = requiredElement(root, '.conditional-child-patch-host');
+
+        const collapsed = conditionalChildPatchPlan(false, 'one');
+        applyRenderPlanToRange(bounds, collapsed, document);
+        const input = requiredElement(host, 'input') as HTMLInputElement;
+        input.focus();
+
+        const expanded = conditionalChildPatchPlan(true, 'two');
+        const frames = diffRenderPlansToPatchFrames(collapsed, expanded, {
+            transactionId: 'conditional-child-focus',
+        });
+        const result = applyPatchFramesToRange(bounds, frames, renderPlanIdentity(expanded), document);
+        const retained = requiredElement(host, 'input') as HTMLInputElement;
+
+        assertEqual(result.status, 'applied', 'conditional child patch transaction applies atomically');
+        assertEqual(retained === input, true, 'conditional child insertion retains the compatible native sibling');
+        assertEqual(document.activeElement === retained, true, 'conditional child insertion preserves native focus');
+        assertEqual(retained.getAttribute('aria-expanded'), 'true', 'retained input receives the next attributes');
+        assert(requiredElement(host, '[role="listbox"]') !== null, 'conditional popup is inserted');
+        assertEqual(requiredElement(host, '.help').textContent, 'Help', 'the trailing sibling remains rendered');
+    },
+};
+
 export const DirectRenderPlanPatchPreservesClaimedRuntimeAttribute: Story = {
     render: () => {
         const root = document.createElement('section') as HTMLElement & {
@@ -6234,6 +6280,55 @@ function directInputPatchPlan(value: string, revision: string): RenderPlan {
                 sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct-focus:0/0' },
                 children: [],
             }],
+        }],
+    };
+}
+
+function conditionalChildPatchPlan(expanded: boolean, revision: string): RenderPlan {
+    return {
+        producedTag: 'conditional-child-patch-host',
+        instanceId: 'conditional-child-patch-instance',
+        templateArtifactId: 'conditional-child-patch-template',
+        dataRevision: revision,
+        outputTarget: 'light-dom',
+        scopePolicyStamp: 'conditional-child-patch-scope',
+        nodes: [{
+            kind: 'element',
+            namespace: null,
+            tag: 'div',
+            renderNodeId: 'conditional-child-root',
+            attributes: [],
+            children: [
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'input',
+                    renderNodeId: 'conditional-child-input',
+                    attributes: [
+                        { name: 'type', value: 'text' },
+                        { name: 'aria-expanded', value: String(expanded) },
+                    ],
+                    children: [],
+                },
+                ...(expanded
+                    ? [{
+                        kind: 'element' as const,
+                        namespace: null,
+                        tag: 'div',
+                        renderNodeId: 'conditional-child-popup',
+                        attributes: [{ name: 'role', value: 'listbox' }],
+                        children: [],
+                    }]
+                    : []),
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'span',
+                    renderNodeId: 'conditional-child-help',
+                    attributes: [{ name: 'class', value: 'help' }],
+                    children: [{ kind: 'text', text: 'Help' }],
+                },
+            ],
         }],
     };
 }

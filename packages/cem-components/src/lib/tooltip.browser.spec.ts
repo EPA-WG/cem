@@ -249,7 +249,7 @@ describe('tooltip contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(tooltipContractFixture);
         await waitForSelector(root, '#save-tooltip > .cem-tooltip > [slot="trigger"]');
         return root;

@@ -10,7 +10,7 @@ import {
     assertAriaReferenceIntegrity,
     assertFocusVisible,
     assertLightDomRendered,
-    createComponentHarness,
+    createComponentHarness as createBaseComponentHarness,
     nextRenderFrame,
     type ComponentHarness,
 } from './testing/component-harness.js';
@@ -50,6 +50,8 @@ type TestCemSelect = HTMLElement & {
 describe('CEM component primitive states and ARIA behavior', () => {
     let harness: ComponentHarness;
     let runtime: CemElementRuntime;
+
+    const createComponentHarness = (): ComponentHarness => createBaseComponentHarness({ runtime });
 
     beforeAll(async () => {
         runtime = new CemElementRuntime({ declarationTag: 'cem-components-state-declaration' });

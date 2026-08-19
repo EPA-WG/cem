@@ -121,6 +121,7 @@ describe('datepicker contract fixture', () => {
         expect(events).toEqual([]);
         await userEvent.click(parts.apply);
         await waitForDialog(parts.dialog, false);
+        await nextRenderFrame();
         expect(parts.input.value).toBe('2027-09-22');
         expect(document.activeElement).toBe(parts.input);
         expect(events).toEqual(['input:true:false', 'change:true:false']);
@@ -252,7 +253,7 @@ describe('datepicker contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(datepickerContractFixture);
         await waitForSelector(root, '#arrival-datepicker > .cem-datepicker > input[slot="input"]');
         await waitForSelector(root, '#arrival-datepicker > .cem-datepicker > dialog.cem-datepicker__dialog');

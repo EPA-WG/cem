@@ -192,7 +192,7 @@ describe('expansion contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness();
+        harness = createComponentHarness({ runtime });
         const root = await harness.render(expansionContractFixture);
         await waitForSelector(root, '#fallback-expansion > .cem-expansion .cem-expansion__panel');
         return root;
