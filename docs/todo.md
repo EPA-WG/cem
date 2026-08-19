@@ -7,8 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Inventory the external `@epa-wg/custom-element` package and its repository history,
-then lock a history-preserving monorepo import plan before copying or rewriting source.
+Lock a history-preserving import plan that joins the external
+`@epa-wg/custom-element` graph to the existing snapshot-based monorepo package
+without discarding either the published `0.0.39` lineage or the later adapter work.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -447,15 +448,22 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
 
 ## Phase 3.6 Checklist
 
-- [ ] Inventory the external `@epa-wg/custom-element` package before migration.
-    - [ ] Record `~/aWork/custom-element/` repository cleanliness, branches,
+- [x] Inventory the external `@epa-wg/custom-element` package before migration.
+    - [x] Record `~/aWork/custom-element/` repository cleanliness, branches,
           remotes, tags, and history shape without mutating the external checkout.
-    - [ ] Record the published package identity, version, exports, packed files,
+    - [x] Record the published package identity, version, exports, packed files,
           build/test/release targets, and current fixture surface.
-    - [ ] Map runtime responsibilities to reusable `cem-element` substrate
+    - [x] Map runtime responsibilities to reusable `cem-element` substrate
           boundaries and identify package-specific public compatibility behavior.
-    - [ ] Add an explicit checklist item for every new migration or parity fixture
+    - [x] Add an explicit checklist item for every new migration or parity fixture
           discovered by the inventory before creating that fixture.
+    - Completed 2026-08-19: recorded the clean but divergent source and distribution
+      repositories, the npm `0.0.39` package/archive contract, the 88-story plus
+      three-unit behavioral reference, and the runtime ownership map in
+      [`custom-element-phase3.6-inventory.md`](custom-element-phase3.6-inventory.md).
+      The audit also found that `packages/custom-element/` is an existing
+      snapshot-based adapter with no imported external Git objects, so the next
+      item must join two valuable histories rather than import into an empty path.
 - [ ] Lock the history-preserving import mechanics and monorepo package boundary
       from the inventory evidence before copying source.
     - [ ] Select and document the Git history-import method, retained refs, and
@@ -464,6 +472,20 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           package exports, and Nx ownership for `packages/custom-element/`.
 - [ ] Import `@epa-wg/custom-element` into `packages/custom-element/` with the
       accepted history and published npm identity intact.
+- [ ] Add the inventory-discovered migration and parity fixtures before claiming
+      package adoption.
+    - [ ] Add a history-provenance gate for retained rewritten refs, namespaced
+          tags, external-tip reachability, and connection to the existing adapter
+          history.
+    - [ ] Add an external-reference manifest and verifier mapping all 88 browser
+          stories and three real unit cases to accepted, package-adapter, or
+          explicitly rejected bridge evidence.
+    - [ ] Extend the existing source/dist public-adapter browser fixture with
+          multi-event/multi-slice updates, checkbox/radio coercion, form/custom
+          validity, scoped-style containment, and DOM identity/focus on rerender.
+    - [ ] Add an actual packed-archive clean-consumer gate for intentional files,
+          private/generated exclusions, root/subpath JS and type contracts, and
+          browser loading from the packed artifact.
 - [ ] Rebuild the next-major `<custom-element>` implementation on the
       `cem-element` substrate without retaining a separate parser/render engine.
 - [ ] Keep or retire `<template lang="custom-element-v0">` only after the explicit

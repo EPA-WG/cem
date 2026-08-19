@@ -1,5 +1,11 @@
 # `@epa-wg/custom-element` Package Baseline
 
+> Historical baseline: this document records the June 2026 snapshot-import
+> starting point. The active Phase 3.6 inventory was refreshed against current
+> Git refs, npm bytes, the behavioral-reference repository, and the already
+> migrated monorepo package on 2026-08-19 in
+> [`custom-element-phase3.6-inventory.md`](custom-element-phase3.6-inventory.md).
+
 This captures the Phase 3.6 pre-import baseline for `@epa-wg/custom-element`.
 It should be read with
 [`custom-element-migration-scope.md`](custom-element-migration-scope.md).
