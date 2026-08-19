@@ -47,8 +47,9 @@ use cem_ml::schema::document_model::{
     SCHEMA_BEHAVIOR_QUERY_INVALID_CODE, SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
 };
 use cem_ml::schema::registry::{
-    CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
-    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XSLT_SCHEMA_URI,
+    CEM_ELEMENT_TEMPLATE_CONTENT_TYPE, CEM_ELEMENT_TEMPLATE_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
+    CEM_ML_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+    XSLT_SCHEMA_URI,
 };
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -2850,10 +2851,20 @@ pub fn validate_cem_ql_template_embedding_source_bytes(
         return Vec::new();
     }
     if cem_ql_template_identity_is_transform(request.identity) {
-        return validate_context_aware_template_embedding_source_bytes(request, true);
+        return validate_context_aware_template_embedding_source_bytes(request, true, Vec::new());
+    }
+    if cem_ql_template_identity_is_cem_element(request.identity) {
+        let host_bindings = std::str::from_utf8(request.bytes)
+            .map(infer_cem_element_template_host_bindings)
+            .unwrap_or_default();
+        return validate_context_aware_template_embedding_source_bytes(
+            request,
+            false,
+            host_bindings,
+        );
     }
     if cem_ql_template_identity_is_native_template(request.identity) {
-        return validate_context_aware_template_embedding_source_bytes(request, false);
+        return validate_context_aware_template_embedding_source_bytes(request, false, Vec::new());
     }
     if cem_ql_template_identity_is_schema_definition(request.identity) {
         return Vec::new();
@@ -2922,12 +2933,13 @@ fn validate_raw_template_embedding_source_bytes(
 fn validate_context_aware_template_embedding_source_bytes(
     request: CemQlTemplateEmbeddingValidationRequest<'_>,
     skip_cemt_function_bodies: bool,
+    host_bindings: Vec<String>,
 ) -> Vec<Diagnostic> {
     let source = std::str::from_utf8(request.bytes).unwrap_or("");
     let artifact = compile_template(
         source,
         &CompileTemplateOptions {
-            host_bindings: Vec::new(),
+            host_bindings,
             skip_cemt_function_bodies,
         },
     );
@@ -2950,6 +2962,49 @@ fn cem_ql_template_identity_is_native_template(
                 cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_CONTENT_TYPE
             )
         })
+}
+
+fn cem_ql_template_identity_is_cem_element(identity: CemQlTemplateEmbeddingIdentity<'_>) -> bool {
+    identity
+        .schema
+        .is_some_and(|schema| schema.trim() == CEM_ELEMENT_TEMPLATE_SCHEMA_URI)
+        || identity.content_type.is_some_and(|content_type| {
+            content_type_essence(content_type) == CEM_ELEMENT_TEMPLATE_CONTENT_TYPE
+        })
+}
+
+fn infer_cem_element_template_host_bindings(source: &str) -> Vec<String> {
+    let chars = source.char_indices().collect::<Vec<_>>();
+    let mut bindings = BTreeSet::new();
+    let mut index = 0;
+    while index < chars.len() {
+        if chars[index].1 != '$' {
+            index += 1;
+            continue;
+        }
+        index += 1;
+        while index < chars.len() && chars[index].1.is_whitespace() {
+            index += 1;
+        }
+        let start = index;
+        if index >= chars.len() || !(chars[index].1.is_ascii_alphabetic() || chars[index].1 == '_')
+        {
+            continue;
+        }
+        index += 1;
+        while index < chars.len()
+            && (chars[index].1.is_ascii_alphanumeric() || matches!(chars[index].1, '_' | '-'))
+        {
+            index += 1;
+        }
+        let start_byte = chars[start].0;
+        let end_byte = chars
+            .get(index)
+            .map(|(offset, _)| *offset)
+            .unwrap_or(source.len());
+        bindings.insert(source[start_byte..end_byte].to_owned());
+    }
+    bindings.into_iter().collect()
 }
 
 fn cem_ql_template_identity_is_transform(identity: CemQlTemplateEmbeddingIdentity<'_>) -> bool {
@@ -7031,6 +7086,32 @@ count + 1"#,
         assert!(
             diagnostics.is_empty(),
             "context-aware CEMT validation should accept loop/call bindings: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn template_embedding_validator_accepts_cem_element_runtime_bindings() {
+        let diagnostics = validate_cem_ql_template_embedding_source_bytes(
+            CemQlTemplateEmbeddingValidationRequest {
+                bytes: br#"{attribute @name=label | Default}
+{slice @name=open | false}
+{button @aria-expanded="{$open}" @slice-value="{$target.value}" |
+    {$label} {$hostLabel} {$datadom.attributes.label}
+}"#,
+                from_format: InputFormat::Cem,
+                source_uri: Some("cem-element-template.cem"),
+                identity: CemQlTemplateEmbeddingIdentity {
+                    content_type: Some("application/vnd.cem.element-template+cem"),
+                    schema: Some("https://cem.dev/ns/template/cem-element/1"),
+                },
+            },
+        );
+
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:#?}"
         );
     }
 

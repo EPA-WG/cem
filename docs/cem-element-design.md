@@ -281,6 +281,15 @@ Rules:
 | Slices and slice events   | `slice="x"` + `slice-event="…"` + `slice-value="{ … }"` | Same surface, but `slice-value` carries a CEM-QL expression.                                                                    |
 | Validation / open-content | Implicit per the POC engine                             | Schema-governed; the cem-element substrate participates in `cem_ml` scope policy and Tier A semantic-validation catalog.        |
 
+The source-validation profile is the package-owned schema URI
+`https://cem.dev/ns/template/cem-element/1` with primary content type
+`application/vnd.cem.element-template+cem`. It declares the substrate
+instructions (`attribute`, `slice`, `module-url`, `data`, and `option`) while
+leaving output markup and embedded CEM-QL to their owning schemas/adapter. During
+validation the compiler models declared attributes, declared slices, `datadom`,
+event `$target`, and otherwise referenced host attributes as runtime bindings; it
+does not evaluate browser state.
+
 ## 4. Runtime model
 
 1. **Declaration upgrade.** When the browser upgrades `<cem-element tag="X">`, the
@@ -1093,12 +1102,14 @@ not silently dropped.
    `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*`
    elements, boolean attribute helper semantics, `module-url` resource slices,
    `data`/`option` payloads, slice events, and `slice-value`.
-4. **Cem-ml integration.** All `<cem-element>` templates parse cleanly through
-   `nx run cem_ml_cli:validate-fixtures` and round-trip through
-   `nx run cem_ml_cli:e2e` cross-surface conversion. The Phase 2 semantic-validation
-   catalog applies without exceptions.
-5. **Performance.** AC-N-1 first-paint budgets hold on the material parity fixtures
-   under the same `nx run cem_ml:bench` discipline.
+4. **Cem-ml integration.** Both manifests are executable engine inputs: all 40
+   legacy/CEM and material/CEM source sides parse cleanly through
+   `nx run cem_ml_cli:validate-fixtures` under the dedicated
+   `cem-element-template/v1` profile and round-trip through
+   `nx run cem_ml_cli:e2e`. The Phase 2 semantic-validation catalog applies
+   without hard exceptions.
+5. **Performance.** AC-N-1 first-paint budgets hold on all 40 manifest source
+   sides under the same `nx run cem_ml:bench` discipline.
 6. **A11y.** The accessibility contract from
    [`packages/cem-components/docs/accessibility.md`](../packages/cem-components/docs/accessibility.md)
    is verified end-to-end on the material parity fixtures. The file-backed

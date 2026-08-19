@@ -133,6 +133,135 @@ pub struct LegacyConversionResult {
     pub diagnostics: Vec<LegacyConversionDiagnostic>,
 }
 
+/// One inert `<template>` body extracted from an HTML fixture document.
+///
+/// The browser remains responsible for HTML declaration semantics. This
+/// representation exists so native validation and benchmark gates can consume
+/// the exact checked-in template bytes without treating the surrounding
+/// declaration document as rendered HTML.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HtmlTemplateFragment {
+    pub attributes: HashMap<String, String>,
+    pub body: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// Extract every balanced top-level `<template>` body from an HTML fixture
+/// document. Nested templates remain part of their outer template body.
+pub fn extract_html_template_fragments(html: &str) -> Vec<HtmlTemplateFragment> {
+    let mut templates = Vec::new();
+    let mut cursor = 0;
+    while let Some(start_offset) = html[cursor..].find("<template") {
+        let start = cursor + start_offset;
+        let Some(open_end_offset) = html[start..].find('>') else {
+            break;
+        };
+        let open_end = start + open_end_offset;
+        let open_tag = &html[start..=open_end];
+        let attributes = parse_html_tag_attributes(open_tag);
+
+        let mut depth = 1usize;
+        let mut search = open_end + 1;
+        let mut close_start = None;
+        let mut close_end = None;
+        while depth > 0 {
+            let next_open = html[search..]
+                .find("<template")
+                .map(|offset| search + offset);
+            let next_close = html[search..]
+                .find("</template>")
+                .map(|offset| search + offset);
+            match (next_open, next_close) {
+                (Some(open), Some(close)) if open < close => {
+                    depth += 1;
+                    search = open + "<template".len();
+                }
+                (_, Some(close)) => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close_start = Some(close);
+                        close_end = Some(close + "</template>".len());
+                        break;
+                    }
+                    search = close + "</template>".len();
+                }
+                _ => break,
+            }
+        }
+
+        let Some(close_start) = close_start else {
+            break;
+        };
+        let close_end = close_end.expect("balanced template close");
+        templates.push(HtmlTemplateFragment {
+            attributes,
+            body: html[open_end + 1..close_start].to_owned(),
+            start_byte: start,
+            end_byte: close_end,
+        });
+        cursor = close_end;
+    }
+    templates
+}
+
+fn parse_html_tag_attributes(tag: &str) -> HashMap<String, String> {
+    let mut attributes = HashMap::new();
+    let chars: Vec<char> = tag.chars().collect();
+    let mut cursor = tag.find(char::is_whitespace).unwrap_or(tag.len());
+    while cursor < chars.len() {
+        while cursor < chars.len() && chars[cursor].is_whitespace() {
+            cursor += 1;
+        }
+        if cursor >= chars.len() || matches!(chars[cursor], '>' | '/') {
+            break;
+        }
+        let name_start = cursor;
+        while cursor < chars.len()
+            && !chars[cursor].is_whitespace()
+            && !matches!(chars[cursor], '=' | '>' | '/')
+        {
+            cursor += 1;
+        }
+        let name: String = chars[name_start..cursor].iter().collect();
+        while cursor < chars.len() && chars[cursor].is_whitespace() {
+            cursor += 1;
+        }
+        let value = if cursor < chars.len() && chars[cursor] == '=' {
+            cursor += 1;
+            while cursor < chars.len() && chars[cursor].is_whitespace() {
+                cursor += 1;
+            }
+            if cursor < chars.len() && matches!(chars[cursor], '"' | '\'') {
+                let quote = chars[cursor];
+                cursor += 1;
+                let value_start = cursor;
+                while cursor < chars.len() && chars[cursor] != quote {
+                    cursor += 1;
+                }
+                let value: String = chars[value_start..cursor].iter().collect();
+                if cursor < chars.len() {
+                    cursor += 1;
+                }
+                decode_html_entities(&value)
+            } else {
+                let value_start = cursor;
+                while cursor < chars.len()
+                    && !chars[cursor].is_whitespace()
+                    && !matches!(chars[cursor], '>' | '/')
+                {
+                    cursor += 1;
+                }
+                decode_html_entities(&chars[value_start..cursor].iter().collect::<String>())
+            }
+        } else {
+            String::new()
+        };
+        attributes.insert(name, value);
+    }
+    attributes
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LegacyElementDisposition {
     /// Lower as legacy control flow or expression output.
@@ -3187,6 +3316,11 @@ impl XPathRewriter<'_, '_> {
     }
 
     fn rewrite_punct(&mut self, value: &str) -> String {
+        if value == "/" {
+            if let Some(path) = self.rewrite_absolute_datadom_path() {
+                return path;
+            }
+        }
         if value == "//" {
             if let Some(XToken::Name(next)) = self.peek().cloned() {
                 self.pos += 1;
@@ -3224,6 +3358,27 @@ impl XPathRewriter<'_, '_> {
             return "== ".to_owned();
         }
         format!("{value} ")
+    }
+
+    fn rewrite_absolute_datadom_path(&mut self) -> Option<String> {
+        let remaining = self.tokens.get(self.pos..)?;
+        let [XToken::Name(root), XToken::Punct(first_slash), XToken::Name(collection), XToken::Punct(second_slash), XToken::Name(member), ..] =
+            remaining
+        else {
+            return None;
+        };
+        if root != "datadom" || first_slash != "/" || second_slash != "/" {
+            return None;
+        }
+        let collection = match collection.as_str() {
+            "slice" | "slices" => "slices",
+            "attribute" | "attributes" => "attributes",
+            "data" => "data",
+            "dataset" => "dataset",
+            _ => return None,
+        };
+        self.pos += 5;
+        Some(format!("datadom.{collection}.{member} "))
     }
 
     fn rewrite_name(&mut self, value: &str) -> String {
@@ -3445,6 +3600,42 @@ mod tests {
 
     fn convert(input: &str) -> LegacyConversionResult {
         convert_template_source(input)
+    }
+
+    #[test]
+    fn extracts_html_template_bodies_and_identity_attributes() {
+        let fragments = extract_html_template_fragments(
+            r#"<cem-element><template type="text/cem-ml">{p | One}</template></cem-element>
+<template id="external" lang="custom-element-v0"><span>Two</span></template>"#,
+        );
+
+        assert_eq!(fragments.len(), 2);
+        assert_eq!(
+            fragments[0].attributes.get("type").map(String::as_str),
+            Some("text/cem-ml")
+        );
+        assert_eq!(fragments[0].body, "{p | One}");
+        assert_eq!(
+            fragments[1].attributes.get("id").map(String::as_str),
+            Some("external")
+        );
+        assert_eq!(
+            fragments[1].attributes.get("lang").map(String::as_str),
+            Some("custom-element-v0")
+        );
+        assert_eq!(fragments[1].body, "<span>Two</span>");
+        assert!(fragments[0].start_byte < fragments[0].end_byte);
+    }
+
+    #[test]
+    fn lowers_absolute_datadom_slice_paths_to_cem_ql_records() {
+        let result = convert(r#"<if test="/datadom/slice/is-checked = 'on'"><span>On</span></if>"#);
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        assert_eq!(
+            result.source,
+            r#"{cem:if @test='datadom.slices.is-checked == "on"' | {span | On}}"#
+        );
     }
 
     #[test]

@@ -29,6 +29,9 @@
                 "{workspaceRoot}/Cargo.lock",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/**/*.cem",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/**/*.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/**/*.cem-bin",
                 "{workspaceRoot}/packages/cem_ml/grammar/tree-sitter-cem/**/*",
                 "{workspaceRoot}/packages/cem_ql/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ql/Cargo.toml",
@@ -109,6 +112,7 @@
                         "cem_ml_schema_package_cem_events_projection_v1",
                         "cem_ml_schema_package_cem_ml_v1",
                         "cem_ml_schema_package_cem_native_template_v1",
+                        "cem_ml_schema_package_cem_element_template_v1",
                         "cem_ml_schema_package_cem_ql_v1",
                         "cem_ml_schema_package_cem_transform_v1",
                         "cem_ml_schema_package_css_v1",
@@ -264,7 +268,9 @@
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/examples/cem-ml/fixture-manifest.json",
                 "{workspaceRoot}/examples/cem-ml/**/*.cem",
-                "{workspaceRoot}/examples/semantic/**/*.html"
+                "{workspaceRoot}/examples/semantic/**/*.html",
+                "{workspaceRoot}/packages/cem-elements/tests/parity/legacy/**/*",
+                "{workspaceRoot}/packages/cem-elements/tests/parity/material/**/*"
             ],
             "outputs": [
                 "{projectRoot}/dist/cem-ml.report.cem",
@@ -282,6 +288,7 @@
                         "cem_ml_schema_package_cem_events_projection_v1",
                         "cem_ml_schema_package_cem_ml_v1",
                         "cem_ml_schema_package_cem_native_template_v1",
+                        "cem_ml_schema_package_cem_element_template_v1",
                         "cem_ml_schema_package_cem_ql_v1",
                         "cem_ml_schema_package_cem_transform_v1",
                         "cem_ml_schema_package_css_v1",
@@ -440,6 +447,7 @@
                         "cem_ml_schema_package_cem_events_projection_v1",
                         "cem_ml_schema_package_cem_ml_v1",
                         "cem_ml_schema_package_cem_native_template_v1",
+                        "cem_ml_schema_package_cem_element_template_v1",
                         "cem_ml_schema_package_cem_ql_v1",
                         "cem_ml_schema_package_cem_transform_v1",
                         "cem_ml_schema_package_css_v1",
@@ -488,7 +496,9 @@
                 "{workspaceRoot}/examples/cem-ml/**/*.cem",
                 "{workspaceRoot}/examples/cem-ml/**/*.xml",
                 "{workspaceRoot}/examples/cem-ml/**/*.html",
-                "{workspaceRoot}/examples/semantic/**/*.html"
+                "{workspaceRoot}/examples/semantic/**/*.html",
+                "{workspaceRoot}/packages/cem-elements/tests/parity/legacy/**/*",
+                "{workspaceRoot}/packages/cem-elements/tests/parity/material/**/*"
             ],
             "outputs": [
                 "{projectRoot}/dist/cem-ml.report.json",

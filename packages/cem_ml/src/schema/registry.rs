@@ -18,6 +18,7 @@ pub const CEM_ML_SCHEMA_URI: &str = "https://cem.dev/ns/cem-ml/1";
 pub const CEM_SCHEMA_URI: &str = "https://cem.dev/ns/schema/1";
 pub const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
 pub const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-native/1";
+pub const CEM_ELEMENT_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-element/1";
 pub const CEM_TRANSFORM_SCHEMA_URI: &str = "https://cem.dev/ns/transform/cem/1";
 pub const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
 pub const CEM_QL_EXPRESSION_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1#expression";
@@ -52,6 +53,7 @@ pub const CEM_ML_CONTENT_TYPE: &str = "application/cem";
 pub const CEM_SCHEMA_CONTENT_TYPE: &str = "application/vnd.cem.schema+cem";
 pub const CEM_SCHEMA_PACKAGE_CONTENT_TYPE: &str = "application/vnd.cem.schema-package+cem";
 pub const CEM_NATIVE_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.template+cem";
+pub const CEM_ELEMENT_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.element-template+cem";
 pub const CEM_TRANSFORM_CONTENT_TYPE: &str = "application/vnd.cem.transform+cem";
 pub const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
 pub const CEM_QL_EXPRESSION_CONTENT_TYPE: &str = "application/vnd.cem.query-expression+cem-ql";
@@ -1324,6 +1326,13 @@ mod tests {
                 .unwrap()
                 .schema_uri,
             CEM_NATIVE_TEMPLATE_SCHEMA_URI
+        );
+        assert_eq!(
+            registry
+                .resolve_content_type(CEM_ELEMENT_TEMPLATE_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            CEM_ELEMENT_TEMPLATE_SCHEMA_URI
         );
         assert_eq!(
             registry

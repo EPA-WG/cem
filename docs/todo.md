@@ -198,7 +198,7 @@ registration identities may reuse an inherited or existing definition.
           unannotated legacy template. Positive and negative browser evidence passes
           within Storybook Chromium 97/97, with selector coverage in unit 123/123;
           all 15 demos and the 56-file clean-consumer package probe also pass.
-    - [ ] Prove the full legacy and material parity inventories plus browser
+    - [x] Prove the full legacy and material parity inventories plus browser
           data-island isolation and accessibility gates.
         - [x] Promote all 12 file-backed legacy/CEM fixture pairs into
               one-to-one executable Storybook browser cases.
@@ -239,8 +239,21 @@ registration identities may reuse an inherited or existing definition.
               exercise native activation and reflected state; named authored
               inputs keep the unchanged legacy input/autocomplete fixture bytes
               conformant. Storybook Chromium passes all 118 tests.
-        - [ ] Include every parity fixture in the Phase 2 CLI validation,
+        - [x] Include every parity fixture in the Phase 2 CLI validation,
               end-to-end, and benchmark aggregate gates.
+              Completed 2026-08-18: the CLI now extracts both parity manifests,
+              resolves external fragments, and lowers legacy templates through the
+              Rust converter into 45 schema-profile inputs alongside the 10 Phase 2
+              base fixtures. Validation reports 55 inputs with no errors, fatals, or
+              hard violations; the CLI end-to-end gate passes, and the benchmark
+              asserts all 40 source sides while retaining the AC-N-1 budget.
+            - [x] Add package-owned pass/fail fixtures for the dedicated
+                  `cem-element-template/v1` schema profile before routing the
+                  parity manifests through it.
+                  Completed 2026-08-18: the registered schema package owns its
+                  manifest, schema, valid and invalid examples, generated README,
+                  Nx verification target, Rust manifest-index test, and CLI
+                  pass/fail validation coverage.
     - [ ] Add the Phase 3B scope-policy worker pool, content-addressed cache, and
           deterministic scheduling traces behind the stable host API.
     - [ ] Add Phase 3C precompiled component-template artifacts without removing

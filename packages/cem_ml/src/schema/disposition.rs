@@ -24,8 +24,8 @@
 
 use crate::schema::ir::CEM_CORE_NAMESPACE;
 use crate::schema::registry::{
-    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_SCHEMA_URI,
+    CEM_ELEMENT_TEMPLATE_SCHEMA_URI, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_SCHEMA_URI,
 };
 
 /// Namespaces the Tier A engine resolves natively — they need no host metadata,
@@ -37,6 +37,7 @@ pub const KNOWN_NAMESPACES: &[&str] = &[
     CEM_SCHEMA_URI,
     CEM_SCHEMA_PACKAGE_URI,
     CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_ELEMENT_TEMPLATE_SCHEMA_URI,
     CEM_TRANSFORM_SCHEMA_URI,
     "http://www.w3.org/1999/xhtml",
     "http://www.w3.org/2000/svg",

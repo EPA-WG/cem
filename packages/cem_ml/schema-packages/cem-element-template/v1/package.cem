@@ -1,0 +1,34 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-element-template" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/template/cem-element/1"
+        @source="schema/cem-element-template.cem"
+    }
+
+    {content-type @value="application/vnd.cem.element-template+cem" @primary=true}
+
+    {namespace @prefix="element" @uri="https://cem.dev/ns/template/cem-element/1"}
+    {namespace @prefix="cem" @uri="https://cem.dev/ns/core/1"}
+    {namespace @prefix="html" @uri="http://www.w3.org/1999/xhtml"}
+    {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg"}
+
+    {example
+        @id="basic-card"
+        @path="examples/basic-card.cem"
+        @content-type="application/vnd.cem.element-template+cem"
+        @schema="https://cem.dev/ns/template/cem-element/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-unknown-instruction"
+        @path="examples/invalid-unknown-instruction.cem"
+        @content-type="application/vnd.cem.element-template+cem"
+        @schema="https://cem.dev/ns/template/cem-element/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema.unknown_html_element"
+    }
+}

@@ -70,10 +70,9 @@ contract is green would reverse the accepted sequence.
 
 ## Ordered gaps and next work
 
-1. Turn the structural legacy/material inventories into full rendered, data-island,
-   and accessibility acceptance on the authoritative Phase 3A architecture.
-2. Add the Phase 3B scope-policy pool/cache/scheduler only after parity is green.
-3. Leave the Phase 3C precompiled path deferred until the source-driven path remains
+1. Add the Phase 3B scope-policy pool/cache/scheduler now that rendered parity,
+   isolation/accessibility, and all 40 CLI/e2e/benchmark source sides are green.
+2. Leave the Phase 3C precompiled path deferred until the source-driven path remains
    proven alongside it.
 
 The declaration-scope, registration-identity, processing-host API, canonical
@@ -81,4 +80,5 @@ inline/URI worker paths, Phase 1 `<http-request>` extension, and superseded rend
 cancellation are implemented without changing revision, fallback, or atomic patch
 semantics. Legacy conversion is strictly opt-in through
 `lang="custom-element-v0"` and remains off the canonical path. The next substrate gap
-is full rendered legacy/material parity with data-island and accessibility gates.
+is the Phase 3B scope-policy worker pool, content-addressed cache, and deterministic
+scheduling trace contract behind the stable host API.

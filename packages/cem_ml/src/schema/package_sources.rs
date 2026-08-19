@@ -795,6 +795,14 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         ),
     },
     BuiltinSchemaPackageSource {
+        package_id: "cem-element-template",
+        schema_path: "schema-packages/cem-element-template/v1/schema/cem-element-template.cem",
+        manifest_source: include_str!("../../schema-packages/cem-element-template/v1/package.cem"),
+        schema_source: include_str!(
+            "../../schema-packages/cem-element-template/v1/schema/cem-element-template.cem"
+        ),
+    },
+    BuiltinSchemaPackageSource {
         package_id: "cem-transform",
         schema_path: "schema-packages/cem-transform/v1/schema/cem-transform.cem",
         manifest_source: include_str!("../../schema-packages/cem-transform/v1/package.cem"),
@@ -944,6 +952,7 @@ mod tests {
         CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
         CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
         CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+        CEM_ELEMENT_TEMPLATE_CONTENT_TYPE, CEM_ELEMENT_TEMPLATE_SCHEMA_URI,
         CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_CONTENT_TYPE,
         CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
         CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE,
@@ -1617,6 +1626,39 @@ mod tests {
                 .unwrap_or_default();
             assert_eq!(example.expected_diagnostic_codes, expected_codes);
         }
+    }
+
+    #[test]
+    fn cem_element_template_package_examples_are_manifest_indexed() {
+        let examples = manifest_indexed_package_examples(
+            "cem-element-template",
+            CEM_ELEMENT_TEMPLATE_CONTENT_TYPE,
+            CEM_ELEMENT_TEMPLATE_SCHEMA_URI,
+        );
+
+        assert_eq!(examples.len(), 2);
+        let basic = examples
+            .iter()
+            .find(|example| example.id == "basic-card")
+            .expect("basic CEM Element template example");
+        assert_eq!(
+            basic.expected_result,
+            SchemaPackageExampleExpectedResult::Pass
+        );
+        assert!(basic.expected_diagnostic_codes.is_empty());
+
+        let invalid = examples
+            .iter()
+            .find(|example| example.id == "invalid-unknown-instruction")
+            .expect("invalid CEM Element template example");
+        assert_eq!(
+            invalid.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            invalid.expected_diagnostic_codes,
+            vec!["cem.schema.unknown_html_element".to_owned()]
+        );
     }
 
     #[test]

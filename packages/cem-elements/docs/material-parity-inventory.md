@@ -85,9 +85,12 @@ required for the Phase 3.1 production gate: template styles intentionally render
 `MaterialScopedStylePolicy` asserts that documented behavior. `hasBoolAttribute()` is supported in the legacy bridge as
 a compile-time boolean-attribute rewrite.
 
-**Production gate:** the Storybook parity set is green for the covered runtime behaviors. AC-N-1 material fixture
-performance proof runs through `yarn nx run cem_ml:bench`, and end-to-end accessibility-contract assertions plus the
-deterministic first-paint smoke run through `yarn nx run cem-elements:test`. The aggregate Phase 3.1 gate is:
+**Production gate:** the Storybook parity set is green for the covered runtime behaviors. All 16 material source
+sides are extracted from this manifest, validated and round-tripped under the
+package-owned `cem-element-template/v1` identity, and measured by the AC-N-1
+`yarn nx run cem_ml:bench` aggregate. End-to-end accessibility-contract assertions
+plus the deterministic first-paint smoke run through `yarn nx run cem-elements:test`.
+The aggregate Phase 3.1 gate is:
 
 ```bash
 yarn nx run cem-elements:verify

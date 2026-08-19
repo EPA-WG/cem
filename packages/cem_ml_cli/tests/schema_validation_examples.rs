@@ -1416,6 +1416,10 @@ schema_owned_package_validation_test!(
 );
 schema_owned_package_validation_test!(schema_owned_cem_ml_examples_validate_through_cli, "cem-ml");
 schema_owned_package_validation_test!(
+    schema_owned_cem_element_template_examples_validate_through_cli,
+    "cem-element-template"
+);
+schema_owned_package_validation_test!(
     schema_owned_cem_native_template_examples_validate_through_cli,
     "cem-native-template"
 );

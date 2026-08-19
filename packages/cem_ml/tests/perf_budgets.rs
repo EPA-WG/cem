@@ -1,11 +1,10 @@
 //! Performance budgets and memory-bounding proofs (AC-N-1 / AC-N-2).
 //!
 //! - AC-N-1 (Tier A): parse + validate + transform any canonical fixture
-//!   in `examples/cem-ml/` and any HTML parity fixture in
-//!   `examples/semantic/` under **150 ms**, single-thread, cold cache.
-//!   The `<cem-element>` material parity substrate fixtures in
-//!   `examples/cem-elements/material-*.cem` ride the same budget
-//!   discipline for the Phase 3.1 production-ready gate.
+//!   in `examples/cem-ml/`, any HTML parity fixture in
+//!   `examples/semantic/`, and all 40 source sides declared by the
+//!   `<cem-element>` legacy and material parity manifests under **150 ms**,
+//!   single-thread, cold cache.
 //!   CI tolerance is owned by [`cem_ml::benchmark::BenchmarkBudget`].
 //! - AC-N-2 (Tier A): tokenizer accumulators must scale with current
 //!   token / open-scope depth, not with document byte length. The proof
@@ -24,6 +23,10 @@
 
 use cem_ml::benchmark::{perf_suite_skipped, run_pipeline_iterations_bare, BenchmarkBudget};
 use cem_ml::engine::InputFormat;
+use cem_ml::legacy_custom_element::{
+    convert_template_source, extract_html_template_fragments, HtmlTemplateFragment,
+};
+use std::path::{Path, PathBuf};
 
 const ITERATIONS: u32 = 8;
 
@@ -48,15 +51,106 @@ fn list_fixtures(rel: &str, ext: &str) -> Vec<std::path::PathBuf> {
     paths
 }
 
-fn list_fixtures_with_prefix(rel: &str, ext: &str, prefix: &str) -> Vec<std::path::PathBuf> {
-    list_fixtures(rel, ext)
+fn external_template_reference(html: &str) -> Option<(String, String)> {
+    for marker in ["src=\"", "src='"] {
+        let mut cursor = 0;
+        while let Some(offset) = html[cursor..].find(marker) {
+            let value_start = cursor + offset + marker.len();
+            let quote = marker.chars().last()?;
+            let value_end = html[value_start..].find(quote)? + value_start;
+            let value = &html[value_start..value_end];
+            if let Some((source, fragment)) = value.split_once('#') {
+                if !source.trim().is_empty() && !fragment.trim().is_empty() {
+                    return Some((source.to_owned(), fragment.to_owned()));
+                }
+            }
+            cursor = value_end + quote.len_utf8();
+        }
+    }
+    None
+}
+
+fn parity_template_fragments(path: &Path, html: &str) -> Vec<HtmlTemplateFragment> {
+    let fragments = extract_html_template_fragments(html);
+    if !fragments.is_empty() {
+        return fragments;
+    }
+
+    let (source, fragment_id) = external_template_reference(html).unwrap_or_else(|| {
+        panic!(
+            "{} has neither an inline template nor an external fragment reference",
+            path.display()
+        )
+    });
+    let source_path = path.parent().unwrap_or_else(|| Path::new("")).join(source);
+    let source_html = std::fs::read_to_string(&source_path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", source_path.display()));
+    let fragment = extract_html_template_fragments(&source_html)
         .into_iter()
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with(prefix))
+        .find(|template| {
+            template.attributes.get("id").map(String::as_str) == Some(fragment_id.as_str())
         })
-        .collect()
+        .unwrap_or_else(|| {
+            panic!(
+                "{} does not contain referenced template `#{fragment_id}`",
+                source_path.display()
+            )
+        });
+    vec![fragment]
+}
+
+fn cem_element_parity_sources() -> Vec<(PathBuf, Vec<u8>)> {
+    let crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let inventories = [
+        "../../packages/cem-elements/tests/parity/legacy",
+        "../../packages/cem-elements/tests/parity/material",
+    ];
+    let mut sources = Vec::new();
+
+    for inventory in inventories {
+        let directory = crate_root.join(inventory);
+        let manifest_path = directory.join("manifest.json");
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(&manifest_path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", manifest_path.display())),
+        )
+        .unwrap_or_else(|error| panic!("parse {}: {error}", manifest_path.display()));
+        let fixtures = manifest["fixtures"]
+            .as_array()
+            .expect("parity manifest must contain a `fixtures` array");
+
+        for fixture in fixtures {
+            for (key, legacy) in [("legacy", true), ("cemMl", false)] {
+                let relative = fixture[key]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("parity fixture must declare `{key}`"));
+                let path = directory.join(relative);
+                let html = std::fs::read_to_string(&path)
+                    .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+                let mut aggregate = String::new();
+                for fragment in parity_template_fragments(&path, &html) {
+                    let source = if legacy {
+                        let lowered = convert_template_source(&fragment.body);
+                        assert!(
+                            lowered.diagnostics.is_empty(),
+                            "{} emitted legacy lowering diagnostics: {:?}",
+                            path.display(),
+                            lowered.diagnostics
+                        );
+                        lowered.source
+                    } else {
+                        fragment.body
+                    };
+                    aggregate.push_str(&source);
+                    aggregate.push('\n');
+                }
+                assert!(!aggregate.trim().is_empty(), "{} is empty", path.display());
+                sources.push((path, aggregate.into_bytes()));
+            }
+        }
+    }
+
+    sources
 }
 
 /// AC-N-1: every canonical CEM-ML fixture parses + validates under the
@@ -102,29 +196,28 @@ fn ac_n_1_html_parity_fixtures_under_budget() {
     }
 }
 
-/// AC-N-1 / Phase 3.1 production-ready gate: material parity substrate
-/// fixtures parse + validate + transform under the same budget envelope
-/// as the base canonical fixtures. These fixtures use `<cem-element>`
-/// render-time vocabulary, so semantic acceptance remains owned by
-/// `cem-elements:verify-substrate`; this test owns first-paint budget
-/// proof for the parser/schema-machine/AST-builder pipeline.
+/// AC-N-1 / Phase 3 aggregate gate: every file-backed legacy and material
+/// parity source side parses + validates + transforms under the same budget
+/// envelope as the base canonical fixtures. Semantic acceptance is owned by
+/// the scoped CLI fixture-validation gate; this test owns the parser/schema-
+/// machine/AST-builder first-paint budget proof.
 #[test]
-fn ac_n_1_cem_element_material_parity_fixtures_under_budget() {
+fn ac_n_1_cem_element_parity_fixtures_under_budget() {
     if perf_skipped_for_build() {
         return;
     }
     let budget = BenchmarkBudget::default_ac_n_1();
-    let paths = list_fixtures_with_prefix("../../examples/cem-elements", "cem", "material-");
-    assert!(
-        !paths.is_empty(),
-        "expected >= 1 material parity substrate fixture"
+    let sources = cem_element_parity_sources();
+    assert_eq!(
+        sources.len(),
+        40,
+        "12 legacy pairs plus 8 material pairs must contribute all 40 source sides"
     );
-    for path in &paths {
-        let bytes = std::fs::read(path).unwrap();
+    for (path, bytes) in &sources {
         let run = run_pipeline_iterations_bare(&bytes, InputFormat::Cem, ITERATIONS);
         assert!(
             run.within(&budget),
-            "AC-N-1 material parity fail for {path:?}: median {} ns > effective budget {} ns",
+            "AC-N-1 CEM Element parity fail for {path:?}: median {} ns > effective budget {} ns",
             run.median_ns,
             budget.effective_budget().as_nanos()
         );

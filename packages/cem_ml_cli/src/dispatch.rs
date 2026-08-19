@@ -21,6 +21,9 @@ use cem_ml::resolver::{
 use cem_ml::run_config::{
     self, InputSpec, OutputSpec, ResolverSpec, RunConfig, RunConfigDefaults, ScopeConfig,
 };
+use cem_ml::schema::registry::{
+    CEM_ELEMENT_TEMPLATE_CONTENT_TYPE, CEM_ELEMENT_TEMPLATE_SCHEMA_URI,
+};
 use cem_ml::transform_config::{self, TransformGraphConfig};
 use cem_ml::transform_graph_request::{
     lower_transform_graph_request, FilesystemTransformGraphResourceProvider,
@@ -924,7 +927,7 @@ fn infer_input_format(path: &Path) -> Option<cli::InputFormat> {
 const FIXTURE_MANIFEST_JSON: &str = include_str!("../../../examples/cem-ml/fixture-manifest.json");
 
 fn default_fixture_inputs(positional_defaults: &ScopeConfig) -> Vec<eng::EngineInput> {
-    fixture_manifest_pairs()
+    let mut inputs = fixture_manifest_pairs()
         .into_iter()
         .flat_map(|pair| {
             [
@@ -940,7 +943,143 @@ fn default_fixture_inputs(positional_defaults: &ScopeConfig) -> Vec<eng::EngineI
                 ),
             ]
         })
-        .collect()
+        .collect::<Vec<_>>();
+    inputs.extend(cem_element_parity_fixture_inputs(positional_defaults));
+    inputs
+}
+
+const CEM_ELEMENT_LEGACY_PARITY_MANIFEST_JSON: &str =
+    include_str!("../../cem-elements/tests/parity/legacy/manifest.json");
+const CEM_ELEMENT_MATERIAL_PARITY_MANIFEST_JSON: &str =
+    include_str!("../../cem-elements/tests/parity/material/manifest.json");
+fn cem_element_parity_fixture_inputs(positional_defaults: &ScopeConfig) -> Vec<eng::EngineInput> {
+    let inventories = [
+        (
+            "packages/cem-elements/tests/parity/legacy",
+            CEM_ELEMENT_LEGACY_PARITY_MANIFEST_JSON,
+        ),
+        (
+            "packages/cem-elements/tests/parity/material",
+            CEM_ELEMENT_MATERIAL_PARITY_MANIFEST_JSON,
+        ),
+    ];
+    let mut inputs = Vec::new();
+
+    for (directory, manifest_json) in inventories {
+        let manifest: serde_json::Value = serde_json::from_str(manifest_json)
+            .expect("CEM Element parity manifest JSON must parse");
+        let fixtures = manifest
+            .get("fixtures")
+            .and_then(serde_json::Value::as_array)
+            .expect("CEM Element parity manifest must contain a `fixtures` array");
+        for fixture in fixtures {
+            let fixture_id = manifest_string(fixture, "id");
+            for (side, key, legacy) in [("legacy", "legacy", true), ("cem", "cemMl", false)] {
+                let relative_path = manifest_string(fixture, key);
+                let path = PathBuf::from(directory).join(relative_path);
+                let html = fs::read_to_string(resolve_fixture_input_path(
+                    path.to_str().expect("parity fixture path is UTF-8"),
+                ))
+                .unwrap_or_else(|error| panic!("read parity fixture {}: {error}", path.display()));
+                let mut fragments =
+                    cem_ml::legacy_custom_element::extract_html_template_fragments(&html);
+                if fragments.is_empty() {
+                    fragments.push(resolve_external_parity_template(&path, &html));
+                }
+                for (ordinal, fragment) in fragments.into_iter().enumerate() {
+                    let source = if legacy {
+                        let lowered =
+                            cem_ml::legacy_custom_element::convert_template_source(&fragment.body);
+                        assert!(
+                            lowered.diagnostics.is_empty(),
+                            "{} `{fixture_id}` {side} template {} emitted unexpected legacy lowering diagnostics: {:?}",
+                            path.display(),
+                            ordinal + 1,
+                            lowered.diagnostics
+                        );
+                        lowered.source
+                    } else {
+                        fragment.body
+                    };
+                    let mut root_scope = positional_defaults.clone();
+                    root_scope.default_content_type =
+                        Some(CEM_ELEMENT_TEMPLATE_CONTENT_TYPE.to_owned());
+                    root_scope.schema = Some(CEM_ELEMENT_TEMPLATE_SCHEMA_URI.to_owned());
+                    inputs.push(eng::EngineInput {
+                        uri: format!(
+                            "{}#{}-{side}-template-{}.cem",
+                            path.display(),
+                            fixture_id,
+                            ordinal + 1
+                        ),
+                        bytes: source.into_bytes(),
+                        from_format: Some(eng::InputFormat::Cem),
+                        identity: root_scope.format_identity_option(),
+                        root_scope,
+                    });
+                }
+            }
+        }
+    }
+
+    inputs
+}
+
+fn resolve_external_parity_template(
+    declaration_path: &Path,
+    html: &str,
+) -> cem_ml::legacy_custom_element::HtmlTemplateFragment {
+    let (source, fragment_id) = external_template_reference(html).unwrap_or_else(|| {
+        panic!(
+            "{} has neither an inline template nor a fragment template reference",
+            declaration_path.display()
+        )
+    });
+    let source_path = declaration_path
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .join(source);
+    let source_html = fs::read_to_string(resolve_fixture_input_path(
+        source_path
+            .to_str()
+            .expect("external parity template path is UTF-8"),
+    ))
+    .unwrap_or_else(|error| {
+        panic!(
+            "read external parity template {}: {error}",
+            source_path.display()
+        )
+    });
+    cem_ml::legacy_custom_element::extract_html_template_fragments(&source_html)
+        .into_iter()
+        .find(|template| {
+            template.attributes.get("id").map(String::as_str) == Some(fragment_id.as_str())
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "{} does not contain referenced template `#{fragment_id}`",
+                source_path.display()
+            )
+        })
+}
+
+fn external_template_reference(html: &str) -> Option<(String, String)> {
+    for marker in ["src=\"", "src='"] {
+        let mut cursor = 0;
+        while let Some(offset) = html[cursor..].find(marker) {
+            let value_start = cursor + offset + marker.len();
+            let quote = marker.chars().last()?;
+            let value_end = html[value_start..].find(quote)? + value_start;
+            let value = &html[value_start..value_end];
+            if let Some((source, fragment)) = value.split_once('#') {
+                if !source.trim().is_empty() && !fragment.trim().is_empty() {
+                    return Some((source.to_owned(), fragment.to_owned()));
+                }
+            }
+            cursor = value_end + quote.len_utf8();
+        }
+    }
+    None
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19892,7 +20031,39 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK);
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         let count = v["summary"]["inputCount"].as_u64().unwrap();
-        assert_eq!(count, (fixture_manifest_pairs().len() * 2) as u64);
+        assert_eq!(
+            count,
+            default_fixture_inputs(&ScopeConfig::default()).len() as u64
+        );
+    }
+
+    #[test]
+    fn default_fixture_inputs_cover_every_cem_element_parity_side() {
+        let inputs = cem_element_parity_fixture_inputs(&ScopeConfig::default());
+        let covered_sources = inputs
+            .iter()
+            .filter_map(|input| input.uri.split('#').next())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            covered_sources.len(),
+            40,
+            "12 legacy pairs plus 8 material pairs must contribute all 40 source sides"
+        );
+        assert!(inputs.iter().all(|input| {
+            input.from_format == Some(eng::InputFormat::Cem)
+                && input
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.content_type.as_deref())
+                    == Some(CEM_ELEMENT_TEMPLATE_CONTENT_TYPE)
+                && input
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.schema.as_deref())
+                    == Some(CEM_ELEMENT_TEMPLATE_SCHEMA_URI)
+                && !input.bytes.is_empty()
+        }));
     }
 
     #[test]

@@ -43,7 +43,8 @@ use crate::schema::registry::{
     content_type_essence, SchemaDescriptor, SchemaRegistry, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
     CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
     CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ELEMENT_TEMPLATE_CONTENT_TYPE,
+    CEM_ELEMENT_TEMPLATE_SCHEMA_URI, CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
     CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
     CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
     CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
@@ -3003,6 +3004,7 @@ fn schema_package_example_tokenizer(
             | CEM_SCHEMA_CONTENT_TYPE
             | CEM_SCHEMA_PACKAGE_CONTENT_TYPE
             | CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+            | CEM_ELEMENT_TEMPLATE_CONTENT_TYPE
             | CEM_TRANSFORM_CONTENT_TYPE
     ) || matches!(
         schema_uri,
@@ -3010,6 +3012,7 @@ fn schema_package_example_tokenizer(
             | CEM_SCHEMA_URI
             | CEM_SCHEMA_PACKAGE_URI
             | CEM_NATIVE_TEMPLATE_SCHEMA_URI
+            | CEM_ELEMENT_TEMPLATE_SCHEMA_URI
             | CEM_TRANSFORM_SCHEMA_URI
     ) {
         return Some(SchemaPackageExampleTokenizer::Cem);
@@ -3233,6 +3236,11 @@ impl SemanticRule for OpenContentPolicyRule {
                     if is_schema_language_namespace(ns) {
                         continue;
                     }
+                    if is_cem_element_template_document(ctx)
+                        && KNOWN_CEM_ELEMENT_TEMPLATE_ELEMENTS.contains(&local)
+                    {
+                        continue;
+                    }
                     if ns == "cem" {
                         if !KNOWN_CEM_ELEMENTS.contains(&local) {
                             out.push(diag_at(
@@ -3308,13 +3316,26 @@ fn is_schema_language_document(ctx: &RuleContext<'_>) -> bool {
 fn is_template_family_language_document(ctx: &RuleContext<'_>) -> bool {
     matches!(
         ctx.schema_uri,
-        Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI | CEM_TRANSFORM_SCHEMA_URI)
+        Some(
+            CEM_NATIVE_TEMPLATE_SCHEMA_URI
+                | CEM_ELEMENT_TEMPLATE_SCHEMA_URI
+                | CEM_TRANSFORM_SCHEMA_URI
+        )
     ) || ctx.content_type.is_some_and(|content_type| {
         matches!(
             content_type_essence(content_type).as_str(),
-            CEM_NATIVE_TEMPLATE_CONTENT_TYPE | CEM_TRANSFORM_CONTENT_TYPE
+            CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+                | CEM_ELEMENT_TEMPLATE_CONTENT_TYPE
+                | CEM_TRANSFORM_CONTENT_TYPE
         )
     })
+}
+
+fn is_cem_element_template_document(ctx: &RuleContext<'_>) -> bool {
+    ctx.schema_uri == Some(CEM_ELEMENT_TEMPLATE_SCHEMA_URI)
+        || ctx.content_type.is_some_and(|content_type| {
+            content_type_essence(content_type) == CEM_ELEMENT_TEMPLATE_CONTENT_TYPE
+        })
 }
 
 fn is_schema_language_content_type(content_type: &str) -> bool {
@@ -3352,6 +3373,9 @@ const KNOWN_CEM_ELEMENTS: &[&str] = &[
     "variable",
 ];
 
+const KNOWN_CEM_ELEMENT_TEMPLATE_ELEMENTS: &[&str] =
+    &["attribute", "slice", "module-url", "data", "option"];
+
 const KNOWN_CEM_ATTRIBUTES: &[&str] = &[
     "screen",
     "form",
@@ -3376,11 +3400,11 @@ const KNOWN_CEM_ATTRIBUTES: &[&str] = &[
 ];
 
 const KNOWN_HTML_SVG_ELEMENTS: &[&str] = &[
-    "a", "article", "aside", "body", "button", "dd", "desc", "dialog", "div", "dl", "dt",
-    "fieldset", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "html",
-    "iframe", "img", "input", "label", "legend", "li", "main", "mark", "meta", "nav", "ol",
-    "option", "p", "path", "script", "section", "select", "small", "span", "strong", "svg",
-    "textarea", "title", "ul",
+    "a", "article", "aside", "b", "body", "button", "data", "dd", "desc", "dialog", "div", "dl",
+    "dt", "em", "fieldset", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header",
+    "html", "i", "iframe", "img", "input", "label", "legend", "li", "main", "mark", "meta", "nav",
+    "ol", "option", "output", "p", "path", "script", "section", "select", "slot", "small", "span",
+    "strong", "style", "svg", "textarea", "title", "ul",
 ];
 
 const KNOWN_HTML_SVG_ATTRIBUTES: &[&str] = &[

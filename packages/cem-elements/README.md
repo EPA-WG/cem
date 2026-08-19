@@ -48,6 +48,13 @@ The gate covers file-backed legacy fixtures in `tests/parity/legacy/`, material 
 `tests/parity/material/`, substrate CEM fixtures in `../../examples/cem-elements/`, unit coverage, Storybook browser
 parity stories, and a Playwright screenshot check for the CEMT formatter/coloring/writer pipeline story.
 
+The Phase 2 engine legs read both parity manifests directly. They extract every
+inline or external declaration template, lower legacy bodies through the shared
+Rust converter, and validate all 40 source sides under the package-owned
+`https://cem.dev/ns/template/cem-element/1` profile. The same inputs run through
+CLI roundtrip e2e, while `cem_ml:bench` applies the AC-N-1 aggregate budget to
+each source side.
+
 ## Fixture Locations
 
 - `tests/parity/legacy/` — legacy `<custom-element>` behavior mapped to CEM-ML/browser substrate fixtures.

@@ -63,7 +63,11 @@ the behavioral reference.
 Legacy parity is now part of the browser-substrate production gate. `yarn nx run cem-elements:verify` runs the
 file-backed legacy fixture manifest through `cem-elements:verify-legacy-fixtures`, the substrate roundtrip gate,
 Phase 2 CLI validation/e2e checks, the `cem_ml:bench` performance suite, unit tests, and Storybook browser parity
-stories.
+stories. The CLI and benchmark gates read this manifest directly, extract inline
+and external template bodies, lower each legacy side through the shared Rust
+converter, and validate/measure both sides of all 12 pairs. CLI validation uses
+the package-owned `cem-element-template/v1` schema/content-type identity rather
+than the generic CEM-ML profile.
 
 Each of the 12 manifest pairs is also imported directly into a named `File*Parity` Storybook case. Those cases
 register the declarations from the checked-in HTML, render every produced instance, compare normalized legacy and

@@ -1,0 +1,47 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="cem-element-template" @namespace="https://cem.dev/ns/template/cem-element/1" @version="1.0.0" |
+    {summary |
+        {text | CEM Element runtime-template authoring profile. It declares inert attribute, slice, data, option, and module resource instructions while delegating produced HTML, SVG, custom elements, and CEM-QL control flow to their registered schemas.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.element-template+cem" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="element" @uri="https://cem.dev/ns/template/cem-element/1"}
+        {namespace @prefix="cem" @uri="https://cem.dev/ns/core/1" @role="instruction"}
+        {namespace @prefix="html" @uri="http://www.w3.org/1999/xhtml"}
+        {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg"}
+    }
+
+    {elements |
+        {element @name="attribute" @required-attributes="name" @optional-attributes="select" @children="*"}
+        {element @name="slice" @required-attributes="name" @children="*"}
+        {element @name="module-url" @required-attributes="slice src"}
+        {element @name="data" @optional-attributes="value" @children="*"}
+        {element @name="option" @optional-attributes="value" @children="*"}
+    }
+
+    {attributes |
+        {attribute @name="name" @type="schema:identifier"}
+        {attribute @name="select" @type="schema:string"}
+        {attribute @name="slice" @type="schema:identifier"}
+        {attribute @name="src" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+    }
+
+    {open-content |
+        {accept @kind="template-output-element" @policy="delegate-to-active-schema"}
+        {accept @kind="template-output-attribute" @policy="delegate-to-active-schema"}
+        {accept @kind="template-expression" @policy="delegate-to-cem-ql-expression-schema"}
+    }
+}
