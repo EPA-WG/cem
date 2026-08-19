@@ -1,5 +1,12 @@
 # `@epa-wg/custom-element` Migration Scope
 
+> Historical scope: this June 2026 branch sketch predates the discovery that the
+> snapshot-based adapter already exists on the active monorepo line. The accepted,
+> rehearsed history topology and package boundary are now defined by
+> [`custom-element-history-import-plan.md`](custom-element-history-import-plan.md).
+> Its exact path rewrite, three-parent tree-neutral join, namespaced tags, and
+> atomic publication procedure supersede the subtree/read-tree suggestion below.
+
 This is the Phase 3.6 scope and branch strategy for moving the legacy
 `@epa-wg/custom-element` package from `/home/suns/aWork/custom-element/` into this
 workspace as `packages/custom-element/`.

@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Lock a history-preserving import plan that joins the external
-`@epa-wg/custom-element` graph to the existing snapshot-based monorepo package
-without discarding either the published `0.0.39` lineage or the later adapter work.
+Import the external `@epa-wg/custom-element` source history through the accepted
+tree-neutral three-parent join, preserving both source branches, all 32 namespaced
+tags, the published `0.0.39` lineage, and the existing monorepo adapter tree.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -464,12 +464,22 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       The audit also found that `packages/custom-element/` is an existing
       snapshot-based adapter with no imported external Git objects, so the next
       item must join two valuable histories rather than import into an empty path.
-- [ ] Lock the history-preserving import mechanics and monorepo package boundary
+- [x] Lock the history-preserving import mechanics and monorepo package boundary
       from the inventory evidence before copying source.
-    - [ ] Select and document the Git history-import method, retained refs, and
+    - [x] Select and document the Git history-import method, retained refs, and
           rollback/check procedure.
-    - [ ] Define imported source, generated-output exclusions, npm identity,
+    - [x] Define imported source, generated-output exclusions, npm identity,
           package exports, and Nx ownership for `packages/custom-element/`.
+    - Completed 2026-08-19: accepted and rehearsed the exact isolated
+      `filter-branch` path rewrite plus tree-neutral three-parent `ours` join in
+      [`custom-element-history-import-plan.md`](custom-element-history-import-plan.md).
+      The rehearsal retained all 282 commits, produced the pinned rewritten
+      main/develop/root hashes, namespaced all 32 real tags, kept the current
+      monorepo tree byte-identical, and passed ancestry and Git-integrity checks.
+      The boundary also locks the curated `dist/` publisher root, stable npm/tag
+      surface, next-major helper policy, canonical source manifest, and resolved
+      Nx build/test/release ownership. No external or product repository history
+      was changed by the rehearsal.
 - [ ] Import `@epa-wg/custom-element` into `packages/custom-element/` with the
       accepted history and published npm identity intact.
 - [ ] Add the inventory-discovered migration and parity fixtures before claiming
