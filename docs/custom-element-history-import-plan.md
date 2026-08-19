@@ -1,8 +1,9 @@
 # `@epa-wg/custom-element` History Import And Package Boundary
 
-Status: accepted Phase 3.6 decision as of 2026-08-19. This document locks the
-history topology, reversible execution procedure, active package boundary, and
-post-import checks before the import is executed.
+Status: accepted and executed on 2026-08-19. This document locks the history
+topology, reversible execution procedure, active package boundary, and
+post-import checks. The tree-neutral join is
+`dfe142be5dadd7d84010b3954c9532ff2f85ddcb`.
 
 It applies the recommendation from
 [`custom-element-phase3.6-inventory.md`](custom-element-phase3.6-inventory.md):

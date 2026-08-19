@@ -90,6 +90,15 @@
             ],
             "outputs": ["{projectRoot}/dist/reports/xslt-compat-inventory.json", "{projectRoot}/dist/reports/xslt-compat-inventory.md"]
         },
+        "verify-history": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "node scripts/verify-history-provenance.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "outputs": []
+        },
         "lint": {
             "dependsOn": ["test"],
             "executor": "nx:run-commands",
@@ -106,7 +115,7 @@
             }
         },
         "verify": {
-            "dependsOn": ["build", "test", "lint"],
+            "dependsOn": ["build", "test", "lint", "verify-history"],
             "executor": "nx:run-commands",
             "options": {
                 "command": "echo \"custom-element package scaffold verified.\"",

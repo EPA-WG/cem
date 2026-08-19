@@ -27,12 +27,26 @@ the behavior baseline because it contains browser fixes not present in the local
 and
 [`../../docs/custom-element-package-baseline.md`](../../docs/custom-element-package-baseline.md).
 
-Next migration steps:
+History import completed 2026-08-19:
 
-- reconcile the imported snapshot with a history-preserving graft when the branch is
-  ready for a dedicated import commit;
-- scaffold workspace/Nx package metadata;
-- replace the legacy implementation with a `<custom-element>` adapter over
-  `packages/cem-elements`;
-- keep or explicitly retire legacy browser entrypoints during the next-major package
-  plan.
+- tree-neutral three-parent join: `dfe142be5dadd7d84010b3954c9532ff2f85ddcb`;
+- rewritten source `main`: `32e1246f01ebc7e46303a1c52fea49d390a7e9f9`;
+- rewritten source `develop` / npm `0.0.39` lineage:
+  `c99632f04d4115c6a2eeec992fbd3003bc822d3d`;
+- all 282 source commits are reachable, with 32 release tags namespaced as
+  `custom-element-v*` plus two permanent source-tip tags;
+- the join tree is byte-identical to its monorepo first parent, preserving all
+  existing adapter work;
+- `test-fixtures/history-provenance.json` and the uncached Nx `verify-history`
+  target enforce the imported topology.
+
+See
+[`../../docs/custom-element-history-import-plan.md`](../../docs/custom-element-history-import-plan.md)
+for the accepted procedure and package boundary.
+
+Remaining migration steps:
+
+- reconcile the external reference corpus with the accepted substrate/package
+  fixtures;
+- complete the public adapter, clean archive, and next-major export/type gates;
+- keep or explicitly retire the legacy browser bridge from fixture evidence.

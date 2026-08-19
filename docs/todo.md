@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Import the external `@epa-wg/custom-element` source history through the accepted
-tree-neutral three-parent join, preserving both source branches, all 32 namespaced
-tags, the published `0.0.39` lineage, and the existing monorepo adapter tree.
+Map the external `custom-element-dist` behavioral reference corpus into an
+executable manifest covering all 88 browser stories and three real unit cases,
+with every case assigned to accepted, package-adapter, or rejected-bridge evidence.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -480,13 +480,24 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       surface, next-major helper policy, canonical source manifest, and resolved
       Nx build/test/release ownership. No external or product repository history
       was changed by the rehearsal.
-- [ ] Import `@epa-wg/custom-element` into `packages/custom-element/` with the
+- [x] Import `@epa-wg/custom-element` into `packages/custom-element/` with the
       accepted history and published npm identity intact.
+    - Completed 2026-08-19: joined the path-prefixed external source graph through
+      tree-neutral three-parent commit `dfe142be`, retaining all 282 commits,
+      rewritten `main` and npm-`0.0.39` `develop` tips, 32 namespaced release tags,
+      and two permanent source-tip tags without changing the active package tree.
+      The Git database, parent topology, path prefix, ref targets, and first-parent
+      tree identity pass the package-owned provenance gate.
 - [ ] Add the inventory-discovered migration and parity fixtures before claiming
       package adoption.
-    - [ ] Add a history-provenance gate for retained rewritten refs, namespaced
+    - [x] Add a history-provenance gate for retained rewritten refs, namespaced
           tags, external-tip reachability, and connection to the existing adapter
           history.
+        - Completed 2026-08-19: the uncached
+          `@epa-wg/custom-element:verify-history` Nx target validates the immutable
+          manifest's join/tree/parent identities, 282-commit graph, rewritten root
+          and tips, exact 32+2 tag targets, package path prefix, current-HEAD
+          reachability, and exclusion of the distribution repository graph.
     - [ ] Add an external-reference manifest and verifier mapping all 88 browser
           stories and three real unit cases to accepted, package-adapter, or
           explicitly rejected bridge evidence.

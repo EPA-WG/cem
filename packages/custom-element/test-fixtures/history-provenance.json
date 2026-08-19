@@ -1,0 +1,72 @@
+{
+    "schemaVersion": 1,
+    "source": {
+        "repository": "git@github.com:EPA-WG/custom-element.git",
+        "pathPrefix": "packages/custom-element/",
+        "commitCount": 282,
+        "original": {
+            "root": "e75c240156fb4585e1361016819407d24227a5ab",
+            "main": "0282a74fb2c79223f7f216627c7d0e997272ed99",
+            "develop": "3ce6f57c49e5f1e840c2eb3bdad0740838cad4f2"
+        },
+        "rewritten": {
+            "root": "d6ba98b2aa59b726092453cb08e395a831529c0f",
+            "main": "32e1246f01ebc7e46303a1c52fea49d390a7e9f9",
+            "develop": "c99632f04d4115c6a2eeec992fbd3003bc822d3d"
+        }
+    },
+    "join": {
+        "commit": "dfe142be5dadd7d84010b3954c9532ff2f85ddcb",
+        "tree": "d1f3ef5502137c705f944e24f653a40a38b4e80c",
+        "subject": "chore(custom-element): join legacy source history",
+        "parents": [
+            "1f17fc5f48d54ae3519d0f35a25d0a149b1256e2",
+            "32e1246f01ebc7e46303a1c52fea49d390a7e9f9",
+            "c99632f04d4115c6a2eeec992fbd3003bc822d3d"
+        ]
+    },
+    "tipTags": {
+        "custom-element-history-main": "32e1246f01ebc7e46303a1c52fea49d390a7e9f9",
+        "custom-element-history-develop": "c99632f04d4115c6a2eeec992fbd3003bc822d3d"
+    },
+    "versionTags": {
+        "custom-element-v0.0.1": "90f58cd02ff25e4d5e29e4030f66404fdd45afe1",
+        "custom-element-v0.0.2": "0cc9f4d13d94cf7030366b753bb2a8519c0047f2",
+        "custom-element-v0.0.3": "4240fa2303b8564570a941ad9b32b9e5fb89c066",
+        "custom-element-v0.0.4": "118f2fbd96039d553d7d9ca9ebdcc0ed79093021",
+        "custom-element-v0.0.6": "8a5bd40b5b030357ac16d40fe5c491674dbd9bc2",
+        "custom-element-v0.0.7": "68c2c55f0e03a0fd06e8c18c1248581ffbb786c6",
+        "custom-element-v0.0.8": "5e88e37c1ce90808261712a93095a725f7bd0af4",
+        "custom-element-v0.0.9": "e8073151517b78b41b1b7b108ade2126737ebce7",
+        "custom-element-v0.0.10": "aad197e1645500fa33361e245f7d1c91b6977a07",
+        "custom-element-v0.0.11": "76bdd375e421ced8e051a4569673872f9913578e",
+        "custom-element-v0.0.12": "a2fdd0cf0620c6c95e909f4bb71fdba72b36f498",
+        "custom-element-v0.0.13": "03a173cab114aff58addfb6ebb5b4aca2c5b663c",
+        "custom-element-v0.0.14": "33f56c145c8f9600777bb504b6ee391c8d5214aa",
+        "custom-element-v0.0.15": "408fe2ec3b6fdcd5fb13bb7e901d39cc4d6f66c1",
+        "custom-element-v0.0.16": "c20f9a99694c7abc5d718a041a23054b701fc363",
+        "custom-element-v0.0.17": "876c53004156217eb5a70e1f659f47a7d7b0b672",
+        "custom-element-v0.0.18": "0dddc9ad857bf490e1b19c36b6c7443748c5c498",
+        "custom-element-v0.0.19": "519f85231a2f49f648d374ef4f2739c0be5dc6ae",
+        "custom-element-v0.0.22": "75acc0692ad511e01e2983cb3838f69aaeffab4d",
+        "custom-element-v0.0.24": "671ad0f8b3522454e5efc6eeabf22a093de41be4",
+        "custom-element-v0.0.25": "bd3fc4bd2577f901e539ca4b95af9ed436210588",
+        "custom-element-v0.0.26": "764688e0f0c3d7b4ef5a11cbbe102eae3c85be7a",
+        "custom-element-v0.0.27": "764688e0f0c3d7b4ef5a11cbbe102eae3c85be7a",
+        "custom-element-v0.0.28": "41120bfa4ea0c805434b4a96e532c09126ad972c",
+        "custom-element-v0.0.29": "0697dfb2215f95717bba3816413d97169c17c258",
+        "custom-element-v0.0.31": "b414e845f8e02754f9c0458a07dba95827a7c5f1",
+        "custom-element-v0.0.32": "ef1afba2663df38114830a23282b881b97e5f577",
+        "custom-element-v0.0.34": "6a7bec10b240602d1997d1b08b7a061d9dc19b26",
+        "custom-element-v0.0.35": "e9f650875ce4be7f763da3bdbed4c6707ae9289f",
+        "custom-element-v0.0.36": "15de79bf60ed5cc21ba1af62cb2d9ac02982d4b0",
+        "custom-element-v0.0.37": "32e1246f01ebc7e46303a1c52fea49d390a7e9f9",
+        "custom-element-v0.05": "086626165e5ca721b9da0cccad217ad21833b433"
+    },
+    "excludedDistributionHistory": {
+        "repository": "git@github.com:EPA-WG/custom-element-dist.git",
+        "main": "9887eec720704ec33e5c37e73a07a7437b2ed0f1",
+        "develop": "49d20ab3d1faf9659eb57493eb81abc148a61ec4",
+        "npmGitHead": "63ef0cfd11f4cba027fc5e3da83b682aa210f42c"
+    }
+}
