@@ -17,21 +17,15 @@ export async function runCustomElementSmoke(importBase) {
         check(label, true);
     };
 
-    const [
-        indexModule,
-        customElementModule,
-        httpRequestModule,
-        localStorageModule,
-        locationModule,
-        moduleUrlModule,
-    ] = await Promise.all([
-        import(`${importBase}/index.js`),
-        import(`${importBase}/custom-element.js`),
-        import(`${importBase}/http-request.js`),
-        import(`${importBase}/local-storage.js`),
-        import(`${importBase}/location-element.js`),
-        import(`${importBase}/module-url.js`),
-    ]);
+    const [indexModule, customElementModule, httpRequestModule, localStorageModule, locationModule, moduleUrlModule] =
+        await Promise.all([
+            import(`${importBase}/index.js`),
+            import(`${importBase}/custom-element.js`),
+            import(`${importBase}/http-request.js`),
+            import(`${importBase}/local-storage.js`),
+            import(`${importBase}/location-element.js`),
+            import(`${importBase}/module-url.js`),
+        ]);
 
     const IndexCustomElement = indexModule.default;
     const CustomElement = customElementModule.default;
@@ -58,6 +52,44 @@ export async function runCustomElementSmoke(importBase) {
     check('location-element is registered', customElements.get('location-element') === LocationElement);
     check('module-url is registered', customElements.get('module-url') === ModuleUrl);
 
+    const declareAdapterFixture = async (tag, source) => {
+        const declaration = document.createElement('custom-element');
+        declaration.hidden = true;
+        declaration.setAttribute('tag', tag);
+        const template = document.createElement('template');
+        // The explicit HTML type selects the substrate's DOM-canonical compiler
+        // without triggering the adapter's untyped legacy-template normalization.
+        template.setAttribute('type', 'text/html');
+        template.innerHTML = source;
+        declaration.append(template);
+        document.body.append(declaration);
+        await customElementModule.whenDeclarationSettled(declaration);
+        await customElements.whenDefined(tag);
+        check(
+            `${tag} declaration compiles without diagnostics`,
+            customElementModule.diagnosticsFor(declaration).length === 0,
+        );
+        return declaration;
+    };
+    const appendAdapterInstance = async (tag, configure = () => undefined) => {
+        const instance = document.createElement(tag);
+        configure(instance);
+        document.body.append(instance);
+        await customElementModule.whenRenderSettled(instance);
+        return instance;
+    };
+    const dispatchAndSettle = async (instance, target, event) => {
+        target.dispatchEvent(event);
+        await customElementModule.whenRenderSettled(instance);
+    };
+    const mutateAndSettle = async (instance, mutate) => {
+        mutate();
+        // Attribute invalidation is observed asynchronously. Yield once so the
+        // public settlement helper sees the render scheduled by MutationObserver.
+        await Promise.resolve();
+        await customElementModule.whenRenderSettled(instance);
+    };
+
     await customElements.whenDefined('fixture-card');
     await new Promise((resolve) => requestAnimationFrame(resolve));
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -67,117 +99,107 @@ export async function runCustomElementSmoke(importBase) {
     check(
         'untyped legacy declaration uses the browser compatibility selector',
         document.querySelector('custom-element[tag="fixture-card"] > template')?.getAttribute('lang') ===
-            'custom-element-v0'
+            'custom-element-v0',
     );
     // The adapter now transpiles the legacy template to CEM-ML and renders it through the cem_ql
     // WASM boundary, which is asynchronous — wait for the rendered output rather than asserting it
     // synchronously (the old DOM-projection bridge rendered synchronously).
     await waitFor(
         'legacy fixture renders host attribute text',
-        () => instance?.querySelector('h3')?.textContent?.trim() === 'Smoke'
+        () => instance?.querySelector('h3')?.textContent?.trim() === 'Smoke',
     );
     await waitFor(
         'legacy fixture projects payload',
-        () => instance?.querySelector('p')?.textContent?.trim() === 'Payload'
+        () => instance?.querySelector('p')?.textContent?.trim() === 'Payload',
     );
     check(
         'adapter render uses substrate data island',
-        instance?.querySelector('template[data-cem-island="instance"]') !== null
+        instance?.querySelector('template[data-cem-island="instance"]') !== null,
     );
 
     const implicitInstance = document.querySelector('implicit-template-card');
     await waitFor(
         'legacy shorthand declaration renders implicit template content',
-        () => implicitInstance?.querySelector('a')?.textContent?.trim() === 'Implicit'
+        () => implicitInstance?.querySelector('a')?.textContent?.trim() === 'Implicit',
     );
     const implicitDeclaration = document.querySelector('custom-element[tag="implicit-template-card"]');
     check(
         'legacy shorthand declaration is normalized to one inert template',
-        implicitDeclaration?.querySelectorAll(':scope > template').length === 1
+        implicitDeclaration?.querySelectorAll(':scope > template').length === 1,
     );
     check(
         'legacy shorthand declaration keeps moved content in template',
         implicitDeclaration?.querySelector(':scope > template')?.content.querySelector('a')?.textContent?.trim() ===
-            'Implicit'
+            'Implicit',
     );
 
     const inlineDeclaration = document.querySelector('custom-element.inline-fixture');
     const inlineTag = inlineDeclaration?.getAttribute('tag');
-    await waitFor(
-        'omitted tag creates an inline produced instance',
-        () => Boolean(inlineTag && inlineDeclaration?.querySelector(inlineTag)?.querySelector('strong'))
+    await waitFor('omitted tag creates an inline produced instance', () =>
+        Boolean(inlineTag && inlineDeclaration?.querySelector(inlineTag)?.querySelector('strong')),
     );
     check(
         'inline produced instance renders declaration attributes',
-        inlineDeclaration?.querySelector(inlineTag)?.querySelector('strong')?.textContent?.trim() === 'inline-fixture'
+        inlineDeclaration?.querySelector(inlineTag)?.querySelector('strong')?.textContent?.trim() === 'inline-fixture',
     );
 
     const inlineSrcDeclaration = document.querySelector('custom-element.inline-src-fixture');
     const inlineSrcTag = inlineSrcDeclaration?.getAttribute('tag');
-    await waitFor(
-        'anonymous src declaration creates an inline produced instance',
-        () => Boolean(inlineSrcTag && inlineSrcDeclaration?.querySelector(inlineSrcTag)?.querySelector('article'))
+    await waitFor('anonymous src declaration creates an inline produced instance', () =>
+        Boolean(inlineSrcTag && inlineSrcDeclaration?.querySelector(inlineSrcTag)?.querySelector('article')),
     );
     check(
         'anonymous src declaration projects template payload',
-        inlineSrcDeclaration
-            ?.querySelector(inlineSrcTag)
-            ?.querySelector('p')
-            ?.textContent?.trim() === 'Inline src payload'
+        inlineSrcDeclaration?.querySelector(inlineSrcTag)?.querySelector('p')?.textContent?.trim() ===
+            'Inline src payload',
     );
     check(
         'anonymous src payload template remains inert on declaration',
         inlineSrcDeclaration?.querySelector(':scope > template')?.content.querySelector('span')?.textContent?.trim() ===
-            'Inline src payload'
+            'Inline src payload',
     );
 
     const externalDocumentDeclaration = document.querySelector('custom-element.inline-external-document-fixture');
     const externalDocumentTag = externalDocumentDeclaration?.getAttribute('tag');
-    await waitFor(
-        'anonymous external document src creates an inline produced instance',
-        () =>
-            Boolean(
-                externalDocumentTag &&
-                    externalDocumentDeclaration?.querySelector(externalDocumentTag)?.querySelector('.external-document')
-            )
+    await waitFor('anonymous external document src creates an inline produced instance', () =>
+        Boolean(
+            externalDocumentTag &&
+            externalDocumentDeclaration?.querySelector(externalDocumentTag)?.querySelector('.external-document'),
+        ),
     );
     check(
         'anonymous external document src projects live payload',
         externalDocumentDeclaration
             ?.querySelector(externalDocumentTag)
             ?.querySelector('.external-document p')
-            ?.textContent?.trim() === 'External document payload'
+            ?.textContent?.trim() === 'External document payload',
     );
 
     const externalFragmentDeclaration = document.querySelector('custom-element.inline-external-fragment-fixture');
     const externalFragmentTag = externalFragmentDeclaration?.getAttribute('tag');
-    await waitFor(
-        'anonymous external fragment src creates an inline produced instance',
-        () =>
-            Boolean(
-                externalFragmentTag &&
-                    externalFragmentDeclaration?.querySelector(externalFragmentTag)?.querySelector('.external-fragment')
-            )
+    await waitFor('anonymous external fragment src creates an inline produced instance', () =>
+        Boolean(
+            externalFragmentTag &&
+            externalFragmentDeclaration?.querySelector(externalFragmentTag)?.querySelector('.external-fragment'),
+        ),
     );
     check(
         'anonymous external fragment src renders subtree',
         externalFragmentDeclaration
             ?.querySelector(externalFragmentTag)
             ?.querySelector('.external-fragment strong')
-            ?.textContent?.trim() === 'External fragment'
+            ?.textContent?.trim() === 'External fragment',
     );
 
     const externalXhtmlTreeDeclaration = document.querySelector('custom-element.inline-external-xhtml-tree-fixture');
     const externalXhtmlTreeTag = externalXhtmlTreeDeclaration?.getAttribute('tag');
-    await waitFor(
-        'anonymous external XHTML CEM-ML src renders the recursive produced tree',
-        () =>
-            Boolean(
-                externalXhtmlTreeTag &&
-                    externalXhtmlTreeDeclaration
-                        ?.querySelector(externalXhtmlTreeTag)
-                        ?.querySelector('.data-island-tree details details details details')
-            )
+    await waitFor('anonymous external XHTML CEM-ML src renders the recursive produced tree', () =>
+        Boolean(
+            externalXhtmlTreeTag &&
+            externalXhtmlTreeDeclaration
+                ?.querySelector(externalXhtmlTreeTag)
+                ?.querySelector('.data-island-tree details details details details'),
+        ),
     );
     const externalXhtmlTree = externalXhtmlTreeDeclaration?.querySelector(externalXhtmlTreeTag);
     if (!externalXhtmlTree?.querySelector('.data-island-tree details details details details')) {
@@ -191,7 +213,7 @@ export async function runCustomElementSmoke(importBase) {
                     diagnostics.length > 0
                         ? diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join('; ')
                         : '<none>'
-                }`
+                }`,
         );
     }
     const externalXhtmlTreeText = externalXhtmlTree?.textContent ?? '';
@@ -199,7 +221,7 @@ export async function runCustomElementSmoke(importBase) {
         'anonymous external XHTML CEM-ML src renders host attributes',
         externalXhtmlTreeText.includes('Anonymous DCE data island') &&
             externalXhtmlTreeText.includes('data-demo=') &&
-            externalXhtmlTreeText.includes('custom-element')
+            externalXhtmlTreeText.includes('custom-element'),
     );
     check(
         'anonymous external XHTML CEM-ML src renders recursive payload attributes',
@@ -208,11 +230,232 @@ export async function runCustomElementSmoke(importBase) {
             externalXhtmlTreeText.includes('data-level=') &&
             externalXhtmlTreeText.includes('3') &&
             externalXhtmlTreeText.includes('code=') &&
-            externalXhtmlTreeText.includes('a1')
+            externalXhtmlTreeText.includes('a1'),
     );
     check(
         'anonymous external XHTML CEM-ML src renders recursive payload text',
-        externalXhtmlTreeText.includes('Leaf text from custom-element data island')
+        externalXhtmlTreeText.includes('Leaf text from custom-element data island'),
+    );
+
+    await declareAdapterFixture(
+        'adapter-slice-matrix',
+        [
+            '<slice name="count">0</slice>',
+            '<slice name="left"></slice>',
+            '<slice name="right"></slice>',
+            '<slice name="checked">false</slice>',
+            '<slice name="radio"></slice>',
+            '<button type="button" data-role="increment" slice="count" slice-event="click tap" slice-value="//count + 1">+</button>',
+            '<input data-role="fanout" slice="left|right" slice-event="input" slice-value="$target.value" />',
+            '<input data-role="checkbox" type="checkbox" slice="checked" slice-event="change" slice-value="$target.checked" />',
+            '<input data-role="radio-one" type="radio" name="adapter-radio" value="one" slice="radio" slice-event="change" slice-value="$target.value" />',
+            '<input data-role="radio-two" type="radio" name="adapter-radio" value="two" slice="radio" slice-event="change" slice-value="$target.value" />',
+            '<output data-role="count">${$count}</output>',
+            '<output data-role="left">${$left}</output>',
+            '<output data-role="right">${$right}</output>',
+            '<output data-role="checked">${$checked}</output>',
+            '<output data-role="radio">${$radio}</output>',
+        ].join(''),
+    );
+    const sliceMatrix = await appendAdapterInstance('adapter-slice-matrix');
+    const increment = sliceMatrix.querySelector('[data-role="increment"]');
+    increment.click();
+    await customElementModule.whenRenderSettled(sliceMatrix);
+    check(
+        'public adapter handles the first event in a multi-event slice binding',
+        sliceMatrix.querySelector('[data-role="count"]')?.textContent === '1',
+    );
+    await dispatchAndSettle(sliceMatrix, increment, new Event('tap', { bubbles: true }));
+    check(
+        'public adapter handles the second event in a multi-event slice binding',
+        sliceMatrix.querySelector('[data-role="count"]')?.textContent === '2',
+    );
+
+    const fanout = sliceMatrix.querySelector('[data-role="fanout"]');
+    fanout.value = 'mirrored';
+    await dispatchAndSettle(sliceMatrix, fanout, new Event('input', { bubbles: true }));
+    check(
+        'public adapter writes one event value to multiple slices',
+        sliceMatrix.querySelector('[data-role="left"]')?.textContent === 'mirrored' &&
+            sliceMatrix.querySelector('[data-role="right"]')?.textContent === 'mirrored',
+    );
+
+    const checkbox = sliceMatrix.querySelector('[data-role="checkbox"]');
+    checkbox.checked = true;
+    await dispatchAndSettle(sliceMatrix, checkbox, new Event('change', { bubbles: true }));
+    check(
+        'public adapter coerces a checked checkbox to true',
+        sliceMatrix.querySelector('[data-role="checked"]')?.textContent === 'true',
+    );
+    checkbox.checked = false;
+    await dispatchAndSettle(sliceMatrix, checkbox, new Event('change', { bubbles: true }));
+    check(
+        'public adapter coerces an unchecked checkbox to false',
+        sliceMatrix.querySelector('[data-role="checked"]')?.textContent === 'false',
+    );
+
+    const radioOne = sliceMatrix.querySelector('[data-role="radio-one"]');
+    const radioTwo = sliceMatrix.querySelector('[data-role="radio-two"]');
+    radioOne.checked = true;
+    await dispatchAndSettle(sliceMatrix, radioOne, new Event('change', { bubbles: true }));
+    check(
+        'public adapter projects the first radio value',
+        sliceMatrix.querySelector('[data-role="radio"]')?.textContent === 'one',
+    );
+    radioTwo.checked = true;
+    await dispatchAndSettle(sliceMatrix, radioTwo, new Event('change', { bubbles: true }));
+    check(
+        'public adapter projects the second radio value',
+        sliceMatrix.querySelector('[data-role="radio"]')?.textContent === 'two',
+    );
+
+    await declareAdapterFixture(
+        'adapter-form-matrix',
+        [
+            '<slice name="username"></slice>',
+            '<slice name="password"></slice>',
+            '<form slice="signin" custom-validity="string-length(/datadom/slice/signin/form-data/username) &gt; 2 and string-length(//form-data/password) &gt; 3 ?? \'enter username and password\'">',
+            '<input name="username" required value="{$username}" slice="username" slice-event="input" slice-value="$target.value" />',
+            '<input name="password" type="password" required custom-validity="string-length(//form-data/password) &gt; 3 ?? \'password is too short\'" value="{$password}" slice="password" slice-event="input" slice-value="$target.value" />',
+            '<output data-role="form-username">${$datadom.formData.signin.username}</output>',
+            '<output data-role="mirror-username">${$datadom.slices.signin.formData.username}</output>',
+            '<output data-role="form-valid">${$datadom.validationState.signin.valid}</output>',
+            '<output data-role="form-message">${$datadom.validationState.signin.validationMessage}</output>',
+            '<output data-role="password-valid">${$datadom.validationState.signin.controls.password.valid}</output>',
+            '<output data-role="password-message">${$datadom.validationState.signin.controls.password.validationMessage}</output>',
+            '</form>',
+        ].join(''),
+    );
+    const formMatrix = await appendAdapterInstance('adapter-form-matrix');
+    const username = formMatrix.querySelector('input[name="username"]');
+    const password = formMatrix.querySelector('input[name="password"]');
+    username.value = 'ada';
+    await dispatchAndSettle(formMatrix, username, new Event('input', { bubbles: true }));
+    check(
+        'public adapter exposes live form data',
+        formMatrix.querySelector('[data-role="form-username"]')?.textContent === 'ada',
+    );
+    check(
+        'public adapter mirrors form data into its named slice',
+        formMatrix.querySelector('[data-role="mirror-username"]')?.textContent === 'ada',
+    );
+    check(
+        'public adapter exposes invalid form state',
+        formMatrix.querySelector('[data-role="form-valid"]')?.textContent === 'false',
+    );
+    check(
+        'public adapter applies a form custom-validity message',
+        formMatrix.querySelector('[data-role="form-message"]')?.textContent === 'enter username and password',
+    );
+    check(
+        'public adapter applies a control custom-validity message',
+        password.validationMessage === 'password is too short',
+    );
+    password.value = 'secret';
+    await dispatchAndSettle(formMatrix, password, new Event('input', { bubbles: true }));
+    check(
+        'public adapter exposes valid form state after correction',
+        formMatrix.querySelector('[data-role="form-valid"]')?.textContent === 'true',
+    );
+    check(
+        'public adapter clears form custom validity after correction',
+        formMatrix.querySelector('[data-role="form-message"]')?.textContent === '',
+    );
+    check('public adapter clears native control custom validity after correction', password.validationMessage === '');
+    check(
+        'public adapter exposes valid control state after correction',
+        formMatrix.querySelector('[data-role="password-valid"]')?.textContent === 'true',
+    );
+
+    await declareAdapterFixture(
+        'adapter-style-matrix',
+        [
+            '<style>:host { --adapter-color: rgb(0, 128, 0); } .adapter-style-target { color: var(--adapter-color); }</style>',
+            '<section><slot></slot></section>',
+        ].join(''),
+    );
+    const styledFirst = await appendAdapterInstance('adapter-style-matrix', (element) => {
+        element.innerHTML =
+            '<style>.adapter-style-target { color: rgb(255, 0, 0) !important; }</style><span class="adapter-style-target">first</span>';
+    });
+    const styledSecond = await appendAdapterInstance('adapter-style-matrix', (element) => {
+        element.innerHTML = '<span class="adapter-style-target">second</span>';
+    });
+    const outsideStyled = document.createElement('span');
+    outsideStyled.className = 'adapter-style-target';
+    outsideStyled.textContent = 'outside';
+    document.body.append(outsideStyled);
+    const firstStyleTarget = styledFirst.querySelector('.adapter-style-target');
+    const secondStyleTarget = styledSecond.querySelector('.adapter-style-target');
+    const declarationScope = styledFirst.getAttribute('data-cem-scope');
+    const firstInstanceScope = styledFirst.getAttribute('data-cem-instance-scope');
+    const secondInstanceScope = styledSecond.getAttribute('data-cem-instance-scope');
+    check('public adapter stamps a declaration style scope', Boolean(declarationScope));
+    check(
+        'public adapter shares one declaration style scope across instances',
+        styledSecond.getAttribute('data-cem-scope') === declarationScope,
+    );
+    check(
+        'public adapter stamps distinct payload scopes per instance',
+        Boolean(firstInstanceScope && secondInstanceScope && firstInstanceScope !== secondInstanceScope),
+    );
+    const firstStyleColor = getComputedStyle(firstStyleTarget).color;
+    const secondStyleColor = getComputedStyle(secondStyleTarget).color;
+    check('public adapter applies declaration CSS inside each instance', secondStyleColor === 'rgb(0, 128, 0)');
+    check('public adapter lets payload CSS override its own instance', firstStyleColor === 'rgb(255, 0, 0)');
+    check(
+        'public adapter contains declaration and payload CSS outside the instances',
+        !['rgb(0, 128, 0)', 'rgb(255, 0, 0)'].includes(getComputedStyle(outsideStyled).color),
+    );
+    check(
+        'public adapter emits declaration and instance scope selectors',
+        styledFirst.querySelector('style')?.textContent?.includes(`data-cem-scope="${declarationScope}"`) &&
+            styledFirst
+                .querySelectorAll('style')[1]
+                ?.textContent?.includes(`data-cem-instance-scope="${firstInstanceScope}"`),
+    );
+
+    await declareAdapterFixture(
+        'adapter-dom-matrix',
+        [
+            '<attribute name="label">Initial</attribute>',
+            '<slice name="value">retained</slice>',
+            '<label><span data-role="label">${$label}</span><input data-role="control" aria-label="{$label}" value="{$value}" slice="value" slice-event="input" slice-value="$target.value" /></label>',
+            '<output data-role="value">${$value}</output>',
+        ].join(''),
+    );
+    const domMatrix = await appendAdapterInstance('adapter-dom-matrix');
+    const retainedControl = domMatrix.querySelector('[data-role="control"]');
+    retainedControl.focus();
+    retainedControl.value = 'retained value';
+    retainedControl.setSelectionRange(2, 7);
+    await dispatchAndSettle(domMatrix, retainedControl, new Event('input', { bubbles: true }));
+    const afterSliceRender = domMatrix.querySelector('[data-role="control"]');
+    check('public adapter retains control DOM identity after a slice rerender', afterSliceRender === retainedControl);
+    check('public adapter retains focus after a slice rerender', document.activeElement === retainedControl);
+    check(
+        'public adapter retains selection after a slice rerender',
+        retainedControl.selectionStart === 2 && retainedControl.selectionEnd === 7,
+    );
+    check(
+        'public adapter updates output inside the retained DOM',
+        domMatrix.querySelector('[data-role="value"]')?.textContent === 'retained value',
+    );
+    await mutateAndSettle(domMatrix, () => domMatrix.setAttribute('label', 'Updated'));
+    check(
+        'public adapter retains control DOM identity after an attribute rerender',
+        domMatrix.querySelector('[data-role="control"]') === retainedControl,
+    );
+    check(
+        'public adapter updates host attributes through the retained DOM',
+        domMatrix.querySelector('[data-role="label"]')?.textContent === 'Updated' &&
+            retainedControl.getAttribute('aria-label') === 'Updated',
+    );
+    check(
+        'public adapter retains focus and selection after an attribute rerender',
+        document.activeElement === retainedControl &&
+            retainedControl.selectionStart === 2 &&
+            retainedControl.selectionEnd === 7,
     );
 
     const request = document.createElement('http-request');
@@ -234,7 +477,7 @@ export async function runCustomElementSmoke(importBase) {
     check(
         'http-request parses XML payload',
         [...(xmlRequest.value?.data?.querySelectorAll('item') ?? [])].map((item) => item.textContent).join(',') ===
-            'alpha,beta'
+            'alpha,beta',
     );
 
     localStorage.removeItem('fixture-key');
@@ -257,9 +500,12 @@ export async function runCustomElementSmoke(importBase) {
     moduleUrl.setAttribute('src', './browser-smoke.html');
     document.body.appendChild(moduleUrl);
     await waitFor('module-url resolves relative specifiers', () =>
-        moduleUrl.value?.endsWith('/test-fixtures/browser-smoke.html')
+        moduleUrl.value?.endsWith('/test-fixtures/browser-smoke.html'),
     );
-    check('module-url writes value attribute', moduleUrl.getAttribute('value')?.endsWith('/test-fixtures/browser-smoke.html'));
+    check(
+        'module-url writes value attribute',
+        moduleUrl.getAttribute('value')?.endsWith('/test-fixtures/browser-smoke.html'),
+    );
 
     return { done: true, errors };
 }

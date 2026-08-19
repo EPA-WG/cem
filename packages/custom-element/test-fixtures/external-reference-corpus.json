@@ -56,10 +56,7 @@
         "package-helper-surface": {
             "disposition": "package-adapter",
             "state": "required",
-            "paths": [
-                "packages/custom-element/custom-element.js",
-                "docs/custom-element-history-import-plan.md"
-            ],
+            "paths": ["packages/custom-element/custom-element.js", "docs/custom-element-history-import-plan.md"],
             "nxTargets": ["@epa-wg/custom-element:test"],
             "summary": "Preserve or explicitly alias the accepted non-engine helper surface and prove it through the public package."
         },
@@ -72,14 +69,21 @@
         },
         "package-attribute-updates": {
             "disposition": "package-adapter",
-            "state": "required",
+            "state": "verified",
             "paths": ["packages/custom-element/test-fixtures/browser-smoke.js"],
             "nxTargets": ["@epa-wg/custom-element:test"],
-            "summary": "Prove runtime attribute updates and legacy upward propagation at the public adapter boundary."
+            "summary": "The source/dist public adapter gate proves runtime host-attribute updates through retained rendered DOM."
+        },
+        "package-upward-attribute-propagation": {
+            "disposition": "package-adapter",
+            "state": "required",
+            "paths": ["docs/custom-element-phase3.6-inventory.md"],
+            "nxTargets": ["@epa-wg/custom-element:test"],
+            "summary": "Decide and prove or explicitly retire legacy child-to-instance attribute propagation at the next-major boundary."
         },
         "package-scoped-style": {
             "disposition": "package-adapter",
-            "state": "required",
+            "state": "verified",
             "paths": [
                 "packages/custom-element/test-fixtures/browser-smoke.js",
                 "packages/cem-elements/src/lib/processing-boundary.spec.ts"
@@ -89,13 +93,20 @@
         },
         "package-dom-reconciliation": {
             "disposition": "package-adapter",
-            "state": "required",
+            "state": "verified",
             "paths": [
                 "packages/custom-element/test-fixtures/browser-smoke.js",
                 "packages/cem-elements/src/lib/cem-elements.stories.ts"
             ],
             "nxTargets": ["@epa-wg/custom-element:test", "cem-elements:test"],
-            "summary": "Prove DOM identity, focus, control state, and retained exported attributes across adapter rerenders."
+            "summary": "The source/dist public adapter gate proves DOM identity, focus, selection, control state, and updated output across rerenders."
+        },
+        "package-exported-attributes": {
+            "disposition": "package-adapter",
+            "state": "required",
+            "paths": ["docs/custom-element-phase3.6-inventory.md"],
+            "nxTargets": ["@epa-wg/custom-element:test"],
+            "summary": "Decide and prove or explicitly retire the legacy retained exported-attribute merge policy at the next-major boundary."
         },
         "accepted-source-resolution": {
             "disposition": "accepted",
@@ -109,7 +120,7 @@
         },
         "package-form-validity": {
             "disposition": "package-adapter",
-            "state": "required",
+            "state": "verified",
             "paths": [
                 "packages/custom-element/test-fixtures/browser-smoke.js",
                 "packages/cem-elements/src/lib/cem-elements.stories.ts"
@@ -136,7 +147,7 @@
         },
         "package-slice-matrix": {
             "disposition": "package-adapter",
-            "state": "required",
+            "state": "verified",
             "paths": [
                 "packages/custom-element/test-fixtures/browser-smoke.js",
                 "packages/cem-elements/src/lib/cem-elements.stories.ts"
@@ -157,10 +168,7 @@
         "rejected-storybook-version-switcher": {
             "disposition": "rejected-bridge",
             "state": "rejected",
-            "paths": [
-                "docs/custom-element-phase3.6-inventory.md",
-                "docs/custom-element-history-import-plan.md"
-            ],
+            "paths": ["docs/custom-element-phase3.6-inventory.md", "docs/custom-element-history-import-plan.md"],
             "nxTargets": [],
             "summary": "The distribution Storybook's remote-registry version navigator is not package runtime compatibility behavior.",
             "rationale": "It couples a fixture to the npm registry, mutates page location, and selects historical distribution deployments; the adopted package preserves package identity and runtime APIs, not this distribution-only harness."
@@ -195,12 +203,12 @@
                 { "symbol": "CloneAs", "evidence": "package-helper-surface" },
                 { "symbol": "Mix", "evidence": "package-helper-surface" },
                 { "symbol": "MergeAttr", "evidence": "package-helper-surface" },
-                { "symbol": "dceExportedAttributes", "evidence": "package-dom-reconciliation" },
-                { "symbol": "dceExportedAttributes_attr", "evidence": "package-dom-reconciliation" },
+                { "symbol": "dceExportedAttributes", "evidence": "package-exported-attributes" },
+                { "symbol": "dceExportedAttributes_attr", "evidence": "package-exported-attributes" },
                 { "symbol": "AttributeDefaults", "evidence": "accepted-declaration-runtime" },
                 { "symbol": "AttributesRuntimeChange", "evidence": "package-attribute-updates" },
                 { "symbol": "InstanceAttributes", "evidence": "accepted-declaration-runtime" },
-                { "symbol": "AttributesPropagationUp", "evidence": "package-attribute-updates" }
+                { "symbol": "AttributesPropagationUp", "evidence": "package-upward-attribute-propagation" }
             ]
         },
         {
@@ -342,9 +350,7 @@
             "id": "version-selection",
             "source": "src/stories/version-select.test.stories.ts",
             "sourceKind": "storybook",
-            "cases": [
-                { "symbol": "VersionsSelect", "evidence": "rejected-storybook-version-switcher" }
-            ]
+            "cases": [{ "symbol": "VersionsSelect", "evidence": "rejected-storybook-version-switcher" }]
         },
         {
             "id": "xslt-conditionals",
@@ -382,17 +388,13 @@
             "id": "xslt-if-regression",
             "source": "src/stories/xslt-if.test.stories.ts",
             "sourceKind": "storybook",
-            "cases": [
-                { "symbol": "MultipleIfOrderingIssue", "evidence": "accepted-legacy-control-flow" }
-            ]
+            "cases": [{ "symbol": "MultipleIfOrderingIssue", "evidence": "accepted-legacy-control-flow" }]
         },
         {
             "id": "import-map-frame",
             "source": "bin/vitest/vitest-browser-importmaps.mjs",
             "sourceKind": "browser-harness",
-            "cases": [
-                { "symbol": "vitest-browser-import-map-frame", "evidence": "accepted-import-map-resolution" }
-            ]
+            "cases": [{ "symbol": "vitest-browser-import-map-frame", "evidence": "accepted-import-map-resolution" }]
         }
     ],
     "unitCases": [

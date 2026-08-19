@@ -18,7 +18,9 @@ const server = createServer(async (request, response) => {
     try {
         const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
         const pathname = decodeURIComponent(
-            requestUrl.pathname === '/' ? '/packages/custom-element/test-fixtures/browser-smoke.html' : requestUrl.pathname
+            requestUrl.pathname === '/'
+                ? '/packages/custom-element/test-fixtures/browser-smoke.html'
+                : requestUrl.pathname,
         );
         const filePath = normalize(join(workspaceRoot, pathname));
         if (!filePath.startsWith(workspaceRoot + sep)) {
@@ -58,7 +60,13 @@ try {
         });
 
         await page.goto(`http://127.0.0.1:${port}${fixturePath}`);
-        await page.waitForFunction(() => globalThis.__customElementFixture?.done === true);
+        try {
+            await page.waitForFunction(() => globalThis.__customElementFixture?.done === true);
+        } catch (error) {
+            const details =
+                pageErrors.length > 0 ? `\n${pageErrors.map((pageError) => `- ${pageError}`).join('\n')}` : '';
+            throw new Error(`${fixturePath} did not complete: ${error.message}${details}`);
+        }
         const result = await page.evaluate(() => globalThis.__customElementFixture);
         const errors = [...pageErrors, ...(result.errors ?? [])];
         await page.close();

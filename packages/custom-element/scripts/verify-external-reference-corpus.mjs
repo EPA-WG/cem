@@ -7,7 +7,7 @@ const scriptRoot = dirname(fileURLToPath(import.meta.url));
 const projectRoot = dirname(scriptRoot);
 const workspaceRoot = resolve(projectRoot, '../..');
 const manifest = JSON.parse(
-    await readFile(resolve(projectRoot, 'test-fixtures/external-reference-corpus.json'), 'utf8')
+    await readFile(resolve(projectRoot, 'test-fixtures/external-reference-corpus.json'), 'utf8'),
 );
 
 const expectedSource = {
@@ -42,7 +42,13 @@ const expectedDispositionCounts = {
     'package-adapter': 29,
     'rejected-bridge': 1,
 };
-const expectedInventoryDigest = '1e34cf6c782a36f87e0f6b3ac0d32b47d4fe7b49c79425f1a4dda665bb9d737e';
+const expectedEvidenceStateCounts = {
+    'accepted:verified': 61,
+    'package-adapter:required': 9,
+    'package-adapter:verified': 20,
+    'rejected-bridge:rejected': 1,
+};
+const expectedInventoryDigest = 'cdfbb0effed3e4549d8859acb388a24716a685a4b8cab58d2f562b535fb9dcd9';
 const projectConfigPaths = {
     '@epa-wg/custom-element': 'packages/custom-element/project.json',
     'cem-elements': 'packages/cem-elements/project.json',
@@ -59,7 +65,7 @@ assertEqual(manifest.expected?.sourceFiles, 18, 'expected source files');
 assertObjectEqual(
     manifest.expected?.browserCategoryCounts,
     expectedBrowserCategoryCounts,
-    'expected browser category counts'
+    'expected browser category counts',
 );
 
 const sourceFiles = manifest.source?.sourceFiles;
@@ -77,7 +83,7 @@ for (const [id, item] of Object.entries(evidence)) {
     assert(/^[a-z][a-z0-9-]*$/u.test(id), `invalid evidence id ${id}`);
     assert(
         ['accepted', 'package-adapter', 'rejected-bridge'].includes(item.disposition),
-        `${id}: invalid disposition ${item.disposition}`
+        `${id}: invalid disposition ${item.disposition}`,
     );
     const allowedStates = {
         accepted: ['verified'],
@@ -107,31 +113,25 @@ const categoryIds = new Set();
 const caseIds = new Set();
 const referencedSources = new Set();
 const dispositionCounts = { accepted: 0, 'package-adapter': 0, 'rejected-bridge': 0 };
+const evidenceStateCounts = {};
 let browserCaseCount = 0;
 
 for (const category of manifest.browserCategories) {
     assertNonEmptyString(category.id, 'browser category id');
     assert(!categoryIds.has(category.id), `duplicate browser category ${category.id}`);
     categoryIds.add(category.id);
-    assert(
-        Object.hasOwn(expectedBrowserCategoryCounts, category.id),
-        `unexpected browser category ${category.id}`
-    );
+    assert(Object.hasOwn(expectedBrowserCategoryCounts, category.id), `unexpected browser category ${category.id}`);
     assert(['storybook', 'browser-harness'].includes(category.sourceKind), `${category.id}: invalid sourceKind`);
     assertSourceRegistered(category.source, sourceFiles, `${category.id}: source`);
     referencedSources.add(category.source);
     assert(Array.isArray(category.cases), `${category.id}: cases must be an array`);
-    assertEqual(
-        category.cases.length,
-        expectedBrowserCategoryCounts[category.id],
-        `${category.id}: case count`
-    );
+    assertEqual(category.cases.length, expectedBrowserCategoryCounts[category.id], `${category.id}: case count`);
     for (const item of category.cases) {
         assertNonEmptyString(item.symbol, `${category.id}: case symbol`);
         const caseId = `browser:${category.id}:${item.symbol}`;
         assert(!caseIds.has(caseId), `duplicate case ${caseId}`);
         caseIds.add(caseId);
-        countEvidence(item.evidence, caseId, evidence, dispositionCounts);
+        countEvidence(item.evidence, caseId, evidence, dispositionCounts, evidenceStateCounts);
         browserCaseCount += 1;
     }
 }
@@ -152,27 +152,34 @@ for (const item of manifest.unitCases) {
     for (const helper of item.helpers) {
         assertNonEmptyString(helper, `${caseId}: helper`);
     }
-    countEvidence(item.evidence, caseId, evidence, dispositionCounts);
+    countEvidence(item.evidence, caseId, evidence, dispositionCounts, evidenceStateCounts);
 }
 assertEqual(manifest.unitCases.length, manifest.expected.unitCases, 'unit case count');
 assertArrayEqual([...referencedSources].sort(), Object.keys(sourceFiles).sort(), 'referenced external source files');
 assertObjectEqual(dispositionCounts, expectedDispositionCounts, 'evidence disposition counts');
+assertObjectEqual(evidenceStateCounts, expectedEvidenceStateCounts, 'evidence state counts');
 
-const inventoryDigest = createHash('sha256').update(JSON.stringify(stableValue(manifest))).digest('hex');
+const inventoryDigest = createHash('sha256')
+    .update(JSON.stringify(stableValue(manifest)))
+    .digest('hex');
 assertEqual(inventoryDigest, expectedInventoryDigest, 'locked inventory digest');
 
 console.log(
     `Verified external custom-element reference corpus: ${browserCaseCount} browser cases, ` +
         `${manifest.unitCases.length} unit cases, ${dispositionCounts.accepted} accepted, ` +
         `${dispositionCounts['package-adapter']} package-adapter, ` +
-        `${dispositionCounts['rejected-bridge']} rejected-bridge.`
+        `${dispositionCounts['rejected-bridge']} rejected-bridge; ` +
+        `${evidenceStateCounts['package-adapter:verified']} package-adapter cases verified and ` +
+        `${evidenceStateCounts['package-adapter:required']} still required.`,
 );
 
-function countEvidence(evidenceId, caseId, catalog, counts) {
+function countEvidence(evidenceId, caseId, catalog, counts, stateCounts) {
     assertNonEmptyString(evidenceId, `${caseId}: evidence`);
     const item = catalog[evidenceId];
     assert(item !== undefined, `${caseId}: unknown evidence ${evidenceId}`);
     counts[item.disposition] += 1;
+    const stateKey = `${item.disposition}:${item.state}`;
+    stateCounts[stateKey] = (stateCounts[stateKey] ?? 0) + 1;
 }
 
 function assertSourceRegistered(path, registered, label) {
@@ -183,10 +190,7 @@ function assertSourceRegistered(path, registered, label) {
 async function assertWorkspacePathExists(path, label) {
     assertSafeRelativePath(path, label);
     const absolute = resolve(workspaceRoot, path);
-    assert(
-        absolute.startsWith(`${workspaceRoot}${sep}`),
-        `${label}: ${path} resolves outside the workspace`
-    );
+    assert(absolute.startsWith(`${workspaceRoot}${sep}`), `${label}: ${path} resolves outside the workspace`);
     await access(absolute);
 }
 
@@ -219,7 +223,7 @@ function stableValue(value) {
         return Object.fromEntries(
             Object.keys(value)
                 .sort()
-                .map((key) => [key, stableValue(value[key])])
+                .map((key) => [key, stableValue(value[key])]),
         );
     }
     return value;

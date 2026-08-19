@@ -509,9 +509,17 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           case to resolve to existing evidence or an explicit adapter requirement,
           and records 61 accepted, 29 package-adapter, and one rejected-bridge
           mapping without importing the distribution repository history.
-    - [ ] Extend the existing source/dist public-adapter browser fixture with
+    - [x] Extend the existing source/dist public-adapter browser fixture with
           multi-event/multi-slice updates, checkbox/radio coercion, form/custom
           validity, scoped-style containment, and DOM identity/focus on rerender.
+        - Completed 2026-08-19: the shared source/dist browser fixture now drives
+          the public settlement APIs through multi-event arithmetic, slice
+          fan-out, explicit checkbox/radio values, live form-data mirrors,
+          form/control custom validity, declaration and per-instance payload CSS
+          containment, and retained identity/focus/selection across slice and
+          host-attribute rerenders. The external-reference gate now distinguishes
+          the 20 package-adapter cases proved by this matrix from nine still-open
+          helper, upward-propagation, and exported-attribute policy cases.
     - [ ] Add an actual packed-archive clean-consumer gate for intentional files,
           private/generated exclusions, root/subpath JS and type contracts, and
           browser loading from the packed artifact.
