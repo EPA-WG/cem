@@ -1,0 +1,418 @@
+{
+    "schemaVersion": 1,
+    "source": {
+        "repository": "git@github.com:EPA-WG/custom-element-dist.git",
+        "main": "9887eec720704ec33e5c37e73a07a7437b2ed0f1",
+        "develop": "49d20ab3d1faf9659eb57493eb81abc148a61ec4",
+        "npmGitHead": "63ef0cfd11f4cba027fc5e3da83b682aa210f42c",
+        "inventoryCommit": "49d20ab3d1faf9659eb57493eb81abc148a61ec4",
+        "inventoryTree": "fcc5992c2b6a8b38fcc6a41c35ede81311b1511f",
+        "sourceFiles": {
+            "bin/vitest/vitest-browser-importmaps.mjs": "48ba3bc00bbdcb9ec4a99e70e6779f4acaffae07",
+            "src/custom-element.test.ts": "4aba9a46bcf2c946e950af062e591f356a65dc56",
+            "src/stories/attributes.test.stories.ts": "ee4c21d0883d9e7a83c91c87ab9895cca5d47997",
+            "src/stories/css.test.stories.ts": "ba368aa929a51661a5a25f9156bfd526a4eb06e3",
+            "src/stories/dom-merge.test.stories.ts": "7cc42ce53e74c6810679f6c03f5b26c41c64c640",
+            "src/stories/external-template.test.stories.ts": "6a743293640a4a84e9d07dc57f68f3675761cef9",
+            "src/stories/form.test.stories.ts": "a70da80c3b7835436b1c274c08ed4a68552b429a",
+            "src/stories/http-request.stories.ts": "696a4e1ad7eeaf1dd047eedae5caeca5e247d38b",
+            "src/stories/local-storage.test.stories.ts": "e9f17988069661c71ef2c0fe195cfed4b7036249",
+            "src/stories/location-element.test.stories.ts": "6857607555976675de3e0f0e55b4b098df567bc6",
+            "src/stories/module-url.test.stories.ts": "fc9816be966c3ad5e53ff5561e19584fcc773442",
+            "src/stories/set-url.test.stories.ts": "fdcd20dd904c1e5414ecce4a1f35c8460a07a03d",
+            "src/stories/slice-events.test.stories.ts": "8b23b7ab1ca0884113935e2688be1df22671f24d",
+            "src/stories/slots.test.stories.ts": "958dfbd185fae75821f35177473a3c11ac138df7",
+            "src/stories/version-select.test.stories.ts": "6d34b5303aa97784c35a5b410033f2f6c8bc0fbb",
+            "src/stories/xslt-conditionals.test.stories.ts": "c614324ca40b500bbff4e3b7324b4e4733514384",
+            "src/stories/xslt-for-each.test.stories.ts": "40ee23efc482088f252abe18e9bf60f3e50f6724",
+            "src/stories/xslt-if.test.stories.ts": "5b352d3660da5d7251a60caeffe1b23f51036d08"
+        }
+    },
+    "expected": {
+        "browserCases": 88,
+        "unitCases": 3,
+        "sourceFiles": 18,
+        "browserCategoryCounts": {
+            "attributes": 9,
+            "scoped-css": 3,
+            "dom-merge": 5,
+            "external-templates": 12,
+            "form-validity": 5,
+            "http-request": 5,
+            "local-storage": 4,
+            "location": 2,
+            "module-url": 4,
+            "set-url": 2,
+            "slice-events": 9,
+            "slots": 7,
+            "version-selection": 1,
+            "xslt-conditionals": 15,
+            "xslt-for-each": 3,
+            "xslt-if-regression": 1,
+            "import-map-frame": 1
+        }
+    },
+    "evidence": {
+        "package-helper-surface": {
+            "disposition": "package-adapter",
+            "state": "required",
+            "paths": [
+                "packages/custom-element/custom-element.js",
+                "docs/custom-element-history-import-plan.md"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test"],
+            "summary": "Preserve or explicitly alias the accepted non-engine helper surface and prove it through the public package."
+        },
+        "accepted-declaration-runtime": {
+            "disposition": "accepted",
+            "state": "verified",
+            "paths": ["packages/cem-elements/src/lib/cem-elements.stories.ts"],
+            "nxTargets": ["cem-elements:test"],
+            "summary": "The substrate owns declared/default instance attributes and nested declaration composition."
+        },
+        "package-attribute-updates": {
+            "disposition": "package-adapter",
+            "state": "required",
+            "paths": ["packages/custom-element/test-fixtures/browser-smoke.js"],
+            "nxTargets": ["@epa-wg/custom-element:test"],
+            "summary": "Prove runtime attribute updates and legacy upward propagation at the public adapter boundary."
+        },
+        "package-scoped-style": {
+            "disposition": "package-adapter",
+            "state": "required",
+            "paths": [
+                "packages/custom-element/test-fixtures/browser-smoke.js",
+                "packages/cem-elements/src/lib/processing-boundary.spec.ts"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test", "cem-elements:test:unit"],
+            "summary": "Prove scoped-style containment through the public light-DOM adapter."
+        },
+        "package-dom-reconciliation": {
+            "disposition": "package-adapter",
+            "state": "required",
+            "paths": [
+                "packages/custom-element/test-fixtures/browser-smoke.js",
+                "packages/cem-elements/src/lib/cem-elements.stories.ts"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test", "cem-elements:test"],
+            "summary": "Prove DOM identity, focus, control state, and retained exported attributes across adapter rerenders."
+        },
+        "accepted-source-resolution": {
+            "disposition": "accepted",
+            "state": "verified",
+            "paths": [
+                "packages/custom-element/test-fixtures/browser-smoke.js",
+                "packages/cem-elements/src/lib/cem-elements.stories.ts"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test", "cem-elements:test"],
+            "summary": "The package smoke and substrate cover inline, fragment, document, typed CEM-ML, and diagnosed missing external sources."
+        },
+        "package-form-validity": {
+            "disposition": "package-adapter",
+            "state": "required",
+            "paths": [
+                "packages/custom-element/test-fixtures/browser-smoke.js",
+                "packages/cem-elements/src/lib/cem-elements.stories.ts"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test", "cem-elements:test"],
+            "summary": "Prove form data and native/custom validity semantics through the public adapter."
+        },
+        "accepted-companion-resources": {
+            "disposition": "accepted",
+            "state": "verified",
+            "paths": [
+                "packages/custom-element/test-fixtures/browser-smoke.js",
+                "packages/cem-elements/src/lib/cem-elements.stories.ts"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test", "cem-elements:test"],
+            "summary": "The public shims and substrate resource lifecycle cover HTTP, storage, location, URL writes, and module-map resolution."
+        },
+        "accepted-slice-runtime": {
+            "disposition": "accepted",
+            "state": "verified",
+            "paths": ["packages/cem-elements/src/lib/cem-elements.stories.ts"],
+            "nxTargets": ["cem-elements:test"],
+            "summary": "The substrate owns initial and live single-event slice state."
+        },
+        "package-slice-matrix": {
+            "disposition": "package-adapter",
+            "state": "required",
+            "paths": [
+                "packages/custom-element/test-fixtures/browser-smoke.js",
+                "packages/cem-elements/src/lib/cem-elements.stories.ts"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test", "cem-elements:test"],
+            "summary": "Prove multi-event/multi-slice updates and checkbox/radio coercion through the public adapter."
+        },
+        "accepted-slot-projection": {
+            "disposition": "accepted",
+            "state": "verified",
+            "paths": [
+                "packages/custom-element/test-fixtures/browser-smoke.js",
+                "packages/cem-elements/src/lib/material-parity.stories.ts"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test", "cem-elements:test"],
+            "summary": "Default, named, repeated, fallback, and conditional payload projection are substrate-owned and package-smoke connected."
+        },
+        "rejected-storybook-version-switcher": {
+            "disposition": "rejected-bridge",
+            "state": "rejected",
+            "paths": [
+                "docs/custom-element-phase3.6-inventory.md",
+                "docs/custom-element-history-import-plan.md"
+            ],
+            "nxTargets": [],
+            "summary": "The distribution Storybook's remote-registry version navigator is not package runtime compatibility behavior.",
+            "rationale": "It couples a fixture to the npm registry, mutates page location, and selects historical distribution deployments; the adopted package preserves package identity and runtime APIs, not this distribution-only harness."
+        },
+        "accepted-legacy-control-flow": {
+            "disposition": "accepted",
+            "state": "verified",
+            "paths": [
+                "packages/cem-elements/src/lib/legacy-xslt-parity.stories.ts",
+                "packages/cem-elements/src/lib/cem-elements.stories.ts"
+            ],
+            "nxTargets": ["cem-elements:test"],
+            "summary": "Opt-in legacy conditionals and iteration lower to canonical CEM-ML and execute on the shared CEM-QL engine."
+        },
+        "accepted-import-map-resolution": {
+            "disposition": "accepted",
+            "state": "verified",
+            "paths": [
+                "packages/cem-elements/src/lib/cem-elements.stories.ts",
+                "packages/cem-elements/src/lib/material-parity.stories.ts"
+            ],
+            "nxTargets": ["cem-elements:test"],
+            "summary": "Host-controlled module-map resolution replaces mutation of the test runner's HTML frame."
+        }
+    },
+    "browserCategories": [
+        {
+            "id": "attributes",
+            "source": "src/stories/attributes.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "CloneAs", "evidence": "package-helper-surface" },
+                { "symbol": "Mix", "evidence": "package-helper-surface" },
+                { "symbol": "MergeAttr", "evidence": "package-helper-surface" },
+                { "symbol": "dceExportedAttributes", "evidence": "package-dom-reconciliation" },
+                { "symbol": "dceExportedAttributes_attr", "evidence": "package-dom-reconciliation" },
+                { "symbol": "AttributeDefaults", "evidence": "accepted-declaration-runtime" },
+                { "symbol": "AttributesRuntimeChange", "evidence": "package-attribute-updates" },
+                { "symbol": "InstanceAttributes", "evidence": "accepted-declaration-runtime" },
+                { "symbol": "AttributesPropagationUp", "evidence": "package-attribute-updates" }
+            ]
+        },
+        {
+            "id": "scoped-css",
+            "source": "src/stories/css.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "StyleDoesNotLeak", "evidence": "package-scoped-style" },
+                { "symbol": "StyleIn2Instances", "evidence": "package-scoped-style" },
+                { "symbol": "OverrideInPayload", "evidence": "package-scoped-style" }
+            ]
+        },
+        {
+            "id": "dom-merge",
+            "source": "src/stories/dom-merge.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "CharsCountInTextarea", "evidence": "package-dom-reconciliation" },
+                { "symbol": "WordCountOnType", "evidence": "package-dom-reconciliation" },
+                { "symbol": "OrderPreservingOn2ndTransform", "evidence": "package-dom-reconciliation" },
+                { "symbol": "ReadSystemValidityMessage", "evidence": "package-dom-reconciliation" },
+                { "symbol": "EmbedDCE", "evidence": "accepted-declaration-runtime" }
+            ]
+        },
+        {
+            "id": "external-templates",
+            "source": "src/stories/external-template.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "TemplateInPage", "evidence": "accepted-source-resolution" },
+                { "symbol": "NoTag", "evidence": "accepted-source-resolution" },
+                { "symbol": "ExternalSvg", "evidence": "accepted-source-resolution" },
+                { "symbol": "ExternalXsltFile", "evidence": "accepted-source-resolution" },
+                { "symbol": "ExternalHtmlFile", "evidence": "accepted-source-resolution" },
+                { "symbol": "ExternalHtmlFileInline", "evidence": "accepted-source-resolution" },
+                { "symbol": "HtmlWithinHtmlFile", "evidence": "accepted-source-resolution" },
+                { "symbol": "SvgWithinHtmlFile", "evidence": "accepted-source-resolution" },
+                { "symbol": "MathMLWithinHtmlFile", "evidence": "accepted-source-resolution" },
+                { "symbol": "ByIdWithinXsltFile", "evidence": "accepted-source-resolution" },
+                { "symbol": "MissingIdWithinXsltFile", "evidence": "accepted-source-resolution" },
+                { "symbol": "EmbeddingInAnotherFile", "evidence": "accepted-source-resolution" }
+            ]
+        },
+        {
+            "id": "form-validity",
+            "source": "src/stories/form.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "SystemMessage", "evidence": "package-form-validity" },
+                { "symbol": "FormData", "evidence": "package-form-validity" },
+                { "symbol": "SetValidityMessage", "evidence": "package-form-validity" },
+                { "symbol": "FormCustomValidityBoolean", "evidence": "package-form-validity" },
+                { "symbol": "FormCustomValidityString", "evidence": "package-form-validity" }
+            ]
+        },
+        {
+            "id": "http-request",
+            "source": "src/stories/http-request.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "Demo", "evidence": "accepted-companion-resources" },
+                { "symbol": "UrlChange", "evidence": "accepted-companion-resources" },
+                { "symbol": "Http404", "evidence": "accepted-companion-resources" },
+                { "symbol": "LifecycleInitialized", "evidence": "accepted-companion-resources" },
+                { "symbol": "RequestResponseHeaders", "evidence": "accepted-companion-resources" }
+            ]
+        },
+        {
+            "id": "local-storage",
+            "source": "src/stories/local-storage.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "Demo", "evidence": "accepted-companion-resources" },
+                { "symbol": "AlwaysOverride", "evidence": "accepted-companion-resources" },
+                { "symbol": "FromStorageWithDefault", "evidence": "accepted-companion-resources" },
+                { "symbol": "TypeAttribute", "evidence": "accepted-companion-resources" }
+            ]
+        },
+        {
+            "id": "location",
+            "source": "src/stories/location-element.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "Demo", "evidence": "accepted-companion-resources" },
+                { "symbol": "SrcAttribute", "evidence": "accepted-companion-resources" }
+            ]
+        },
+        {
+            "id": "module-url",
+            "source": "src/stories/module-url.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "RelativeToPagePath", "evidence": "accepted-companion-resources" },
+                { "symbol": "MissingImportmapEntry", "evidence": "accepted-companion-resources" },
+                { "symbol": "ModuleByName", "evidence": "accepted-companion-resources" },
+                { "symbol": "HashWithinLib", "evidence": "accepted-companion-resources" }
+            ]
+        },
+        {
+            "id": "set-url",
+            "source": "src/stories/set-url.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "DynamicSrc", "evidence": "accepted-companion-resources" },
+                { "symbol": "DynamicMethod", "evidence": "accepted-companion-resources" }
+            ]
+        },
+        {
+            "id": "slice-events",
+            "source": "src/stories/slice-events.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "SliceInitChangeEvent", "evidence": "accepted-slice-runtime" },
+                { "symbol": "RealtimeEventInSlice", "evidence": "accepted-slice-runtime" },
+                { "symbol": "DoubleEventInSlice", "evidence": "package-slice-matrix" },
+                { "symbol": "MultipleSlices", "evidence": "package-slice-matrix" },
+                { "symbol": "SlicesInAttrAndName", "evidence": "package-slice-matrix" },
+                { "symbol": "CheckboxChecked", "evidence": "package-slice-matrix" },
+                { "symbol": "CheckboxUnchecked", "evidence": "package-slice-matrix" },
+                { "symbol": "CheckboxSliceValue", "evidence": "package-slice-matrix" },
+                { "symbol": "RadiogroupSliceValue", "evidence": "package-slice-matrix" }
+            ]
+        },
+        {
+            "id": "slots",
+            "source": "src/stories/slots.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "Regular", "evidence": "accepted-slot-projection" },
+                { "symbol": "NamedSlot", "evidence": "accepted-slot-projection" },
+                { "symbol": "DoubleSlot", "evidence": "accepted-slot-projection" },
+                { "symbol": "NamedUnnamedDefaultSlot", "evidence": "accepted-slot-projection" },
+                { "symbol": "NamedDefaultSlot", "evidence": "accepted-slot-projection" },
+                { "symbol": "DefaultSlot", "evidence": "accepted-slot-projection" },
+                { "symbol": "TemplateWithAttributesAndCondition", "evidence": "accepted-slot-projection" }
+            ]
+        },
+        {
+            "id": "version-selection",
+            "source": "src/stories/version-select.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "VersionsSelect", "evidence": "rejected-storybook-version-switcher" }
+            ]
+        },
+        {
+            "id": "xslt-conditionals",
+            "source": "src/stories/xslt-conditionals.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "IfTrue", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "IfFalse", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "IfNotExists", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "ChooseWhenOtherwise", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "ChooseSecondWhen", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "ChooseOtherwise", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "ChooseNoAttribute", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "NestedConditions", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "NestedConditionsInactive", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "NumericComparison", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "NumericComparisonLow", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "BooleanAndCondition", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "BooleanOrCondition", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "MultipleInstances", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "MultipleIfOrderingIssue", "evidence": "accepted-legacy-control-flow" }
+            ]
+        },
+        {
+            "id": "xslt-for-each",
+            "source": "src/stories/xslt-for-each.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "ForEach", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "ForEach_0_2_N", "evidence": "accepted-legacy-control-flow" },
+                { "symbol": "ForEach_Table_3x3", "evidence": "accepted-legacy-control-flow" }
+            ]
+        },
+        {
+            "id": "xslt-if-regression",
+            "source": "src/stories/xslt-if.test.stories.ts",
+            "sourceKind": "storybook",
+            "cases": [
+                { "symbol": "MultipleIfOrderingIssue", "evidence": "accepted-legacy-control-flow" }
+            ]
+        },
+        {
+            "id": "import-map-frame",
+            "source": "bin/vitest/vitest-browser-importmaps.mjs",
+            "sourceKind": "browser-harness",
+            "cases": [
+                { "symbol": "vitest-browser-import-map-frame", "evidence": "accepted-import-map-resolution" }
+            ]
+        }
+    ],
+    "unitCases": [
+        {
+            "symbol": "deepEqual",
+            "source": "src/custom-element.test.ts",
+            "helpers": ["deepEqual"],
+            "evidence": "package-helper-surface"
+        },
+        {
+            "symbol": "xml2dom",
+            "source": "src/custom-element.test.ts",
+            "helpers": ["xml2dom", "xmlString"],
+            "evidence": "package-helper-surface"
+        },
+        {
+            "symbol": "obj2node",
+            "source": "src/custom-element.test.ts",
+            "helpers": ["obj2node"],
+            "evidence": "package-helper-surface"
+        }
+    ]
+}

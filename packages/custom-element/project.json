@@ -45,6 +45,7 @@
         },
         "test": {
             "dependsOn": [
+                "verify-reference-corpus",
                 "build",
                 { "projects": ["@epa-wg/cem-theme"], "target": "build:html" }
             ],
@@ -75,6 +76,29 @@
                 "{projectRoot}/package.json"
             ],
             "outputs": ["{projectRoot}/dist/reports/xslt-compat-inventory.json", "{projectRoot}/dist/reports/xslt-compat-inventory.md"]
+        },
+        "verify-reference-corpus": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "options": {
+                "command": "node scripts/verify-external-reference-corpus.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-external-reference-corpus.mjs",
+                "{projectRoot}/test-fixtures/external-reference-corpus.json",
+                "{projectRoot}/project.json",
+                "{projectRoot}/custom-element.js",
+                "{projectRoot}/test-fixtures/browser-smoke.js",
+                "{workspaceRoot}/packages/cem-elements/project.json",
+                "{workspaceRoot}/packages/cem-elements/src/lib/cem-elements.stories.ts",
+                "{workspaceRoot}/packages/cem-elements/src/lib/legacy-xslt-parity.stories.ts",
+                "{workspaceRoot}/packages/cem-elements/src/lib/material-parity.stories.ts",
+                "{workspaceRoot}/packages/cem-elements/src/lib/processing-boundary.spec.ts",
+                "{workspaceRoot}/docs/custom-element-phase3.6-inventory.md",
+                "{workspaceRoot}/docs/custom-element-history-import-plan.md"
+            ],
+            "outputs": []
         },
         "xslt:inventory": {
             "executor": "nx:run-commands",

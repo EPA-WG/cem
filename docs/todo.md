@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Map the external `custom-element-dist` behavioral reference corpus into an
-executable manifest covering all 88 browser stories and three real unit cases,
-with every case assigned to accepted, package-adapter, or rejected-bridge evidence.
+Extend the source/dist `<custom-element>` public-adapter browser fixture with
+multi-event and multi-slice updates, checkbox/radio coercion, form/custom
+validity, scoped-style containment, and DOM identity/focus across rerender.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -498,9 +498,17 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           manifest's join/tree/parent identities, 282-commit graph, rewritten root
           and tips, exact 32+2 tag targets, package path prefix, current-HEAD
           reachability, and exclusion of the distribution repository graph.
-    - [ ] Add an external-reference manifest and verifier mapping all 88 browser
+    - [x] Add an external-reference manifest and verifier mapping all 88 browser
           stories and three real unit cases to accepted, package-adapter, or
           explicitly rejected bridge evidence.
+        - Completed 2026-08-19: pinned the distribution `develop` tree and all 18
+          contributing blob IDs in a CI-local manifest covering 87 exported
+          Storybook cases, one import-map browser harness, and three real helper
+          unit cases. The cached `@epa-wg/custom-element:verify-reference-corpus`
+          Nx gate locks the 88+3 identities and category counts, requires every
+          case to resolve to existing evidence or an explicit adapter requirement,
+          and records 61 accepted, 29 package-adapter, and one rejected-bridge
+          mapping without importing the distribution repository history.
     - [ ] Extend the existing source/dist public-adapter browser fixture with
           multi-event/multi-slice updates, checkbox/radio coercion, form/custom
           validity, scoped-style containment, and DOM identity/focus on rerender.

@@ -35,6 +35,21 @@ async function verifyProjectConfig() {
     assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'test', 'verify target dependsOn');
     assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'lint', 'verify target dependsOn');
     assertArrayIncludes(projectJson.targets?.test?.dependsOn, 'build', 'test target dependsOn');
+    assertArrayIncludes(
+        projectJson.targets?.test?.dependsOn,
+        'verify-reference-corpus',
+        'test target dependsOn'
+    );
+    assertEqual(
+        projectJson.targets?.['verify-reference-corpus']?.cache,
+        true,
+        'reference corpus target cache'
+    );
+    assertEqual(
+        projectJson.targets?.['verify-reference-corpus']?.options?.command,
+        'node scripts/verify-external-reference-corpus.mjs',
+        'reference corpus target command'
+    );
     assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-browser-fixtures.mjs', 'test target commands');
     assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-package-baseline.mjs', 'test target commands');
     assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-theme-vendor-runtime.mjs', 'test target commands');

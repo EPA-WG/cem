@@ -40,13 +40,22 @@ History import completed 2026-08-19:
 - `test-fixtures/history-provenance.json` and the uncached Nx `verify-history`
   target enforce the imported topology.
 
+Reference-corpus mapping completed 2026-08-19:
+
+- `test-fixtures/external-reference-corpus.json` pins the excluded distribution
+  repository's `develop` tree and all 18 contributing blob IDs;
+- its 87 Storybook exports, one import-map harness, and three helper unit cases
+  are individually mapped to accepted, package-adapter, or rejected-bridge
+  evidence;
+- the cached Nx `verify-reference-corpus` target enforces the immutable 88+3
+  inventory without an external checkout or network access.
+
 See
 [`../../docs/custom-element-history-import-plan.md`](../../docs/custom-element-history-import-plan.md)
 for the accepted procedure and package boundary.
 
 Remaining migration steps:
 
-- reconcile the external reference corpus with the accepted substrate/package
-  fixtures;
-- complete the public adapter, clean archive, and next-major export/type gates;
+- complete the public-adapter parity matrix and clean packed-archive gate;
+- complete the next-major export/type gates;
 - keep or explicitly retire the legacy browser bridge from fixture evidence.
