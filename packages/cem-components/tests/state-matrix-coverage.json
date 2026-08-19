@@ -140,7 +140,7 @@
                     "test": "keeps one direct native text input and optional native toggle as the exact owners",
                     "assertions": [
                         "expect(parts.input.getAttribute('role')).toBe('combobox');",
-                        "expect(new FormData(requiredElement(root, '#timepicker-form')).get('meeting-time')).toBe('09:30');"
+                        "expect(new FormData(requiredElement<HTMLFormElement>(root, '#timepicker-form')).get('meeting-time')).toBe('09:30');"
                     ]
                 },
                 {
@@ -149,7 +149,7 @@
                     "test": "keeps one direct native text input and optional native toggle as the exact owners",
                     "assertions": [
                         "expect(parts.input.getAttribute('role')).toBe('combobox');",
-                        "expect(new FormData(requiredElement(root, '#datepicker-form')).get('arrival-date')).toBe('2026-08-11');"
+                        "expect(new FormData(requiredElement<HTMLFormElement>(root, '#datepicker-form')).get('arrival-date')).toBe('2026-08-11');"
                     ]
                 },
                 {

@@ -1,8 +1,44 @@
+import {
+    CemElementRuntime,
+    type CemProducedElementBehavior,
+    type DataIslandSnapshot,
+} from '@epa-wg/cem-elements';
+
 export interface ComponentHarness {
     readonly root: HTMLElement;
     cleanup(): void;
     query<T extends Element = Element>(selector: string): T;
     render(markup: string): Promise<HTMLElement>;
+}
+
+export interface SubstrateComponentDeclaration {
+    tag: string;
+    cemMl: string;
+    behavior?: CemProducedElementBehavior;
+    behaviorIdentity?: string;
+}
+
+export interface CapturedFormFile {
+    kind: 'file';
+    lastModified: number;
+    name: string;
+    size: number;
+    type: string;
+}
+
+export type CapturedFormValue = string | CapturedFormFile;
+
+export interface FormSnapshot {
+    entries: Array<[string, CapturedFormValue]>;
+    valid: boolean;
+}
+
+export interface SubstrateComponentHarness extends ComponentHarness {
+    readonly runtime: CemElementRuntime;
+    register(declaration: SubstrateComponentDeclaration): Promise<HTMLElement>;
+    resetForm(form: HTMLFormElement, instances?: readonly HTMLElement[]): Promise<FormSnapshot>;
+    settle(instance: HTMLElement): Promise<void>;
+    snapshot(instance: HTMLElement): DataIslandSnapshot;
 }
 
 export interface ComponentEventOptions<TDetail> {
@@ -53,6 +89,17 @@ const DEFAULT_VISUAL_STYLE_PROPERTIES = [
     'width',
 ] as const;
 
+const VOLATILE_RUNTIME_ATTRIBUTES = [
+    'data-cem-data-revision',
+    'data-cem-hydration',
+    'data-cem-instance-scope',
+    'data-cem-render-node-id',
+    'data-cem-scope',
+    'data-cem-source-fidelity',
+    'data-cem-source-frame',
+    'data-cem-template-artifact-id',
+] as const;
+
 export function createComponentHarness(): ComponentHarness {
     assertBrowserDom();
 
@@ -85,6 +132,82 @@ export function createComponentHarness(): ComponentHarness {
             }
 
             return element;
+        },
+    };
+}
+
+/**
+ * Browser harness for real CEM-ML declarations rendered by the production
+ * `<cem-element>` substrate. Registered produced tags remain document-global,
+ * so fixture tags must be unique within a browser test document.
+ */
+export function createSubstrateComponentHarness(
+    runtime = new CemElementRuntime(),
+): SubstrateComponentHarness {
+    const base = createComponentHarness();
+    const registeredTags = new Set<string>();
+
+    const settle = async (instance: HTMLElement): Promise<void> => {
+        // Attribute observers and event-driven slice updates schedule work in a
+        // microtask before replacing the runtime's current settlement promise.
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(instance);
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(instance);
+    };
+
+    return {
+        ...base,
+        runtime,
+        async register(declaration) {
+            if (declaration.behavior && !declaration.behaviorIdentity) {
+                throw new Error(`Behavior-backed fixture ${declaration.tag} requires behaviorIdentity`);
+            }
+
+            const element = document.createElement('cem-element');
+            element.setAttribute('tag', declaration.tag);
+            const template = document.createElement('template');
+            template.setAttribute('type', 'text/cem-ml');
+            template.textContent = declaration.cemMl;
+            element.append(template);
+
+            const accepted = runtime.registerDeclaration(element, {
+                behavior: declaration.behavior,
+                behaviorIdentity: declaration.behaviorIdentity,
+            });
+            await runtime.whenDeclarationSettled(element);
+            const hardDiagnostics = runtime
+                .diagnosticsFor(element)
+                .filter(({ severity }) => severity === 'error' || severity === 'fatal');
+
+            if (!accepted || hardDiagnostics.length > 0 || !customElements.get(declaration.tag)) {
+                const summary = runtime
+                    .diagnosticsFor(element)
+                    .map(({ code, message }) => `${code}: ${message}`)
+                    .join('; ');
+                throw new Error(`CEM substrate fixture ${declaration.tag} did not register${summary ? `: ${summary}` : ''}`);
+            }
+
+            registeredTags.add(declaration.tag);
+            return element;
+        },
+        async render(markup) {
+            const root = await base.render(markup);
+            const instances = Array.from(registeredTags).flatMap((tag) => {
+                const matches = root.matches(tag) ? [root] : [];
+                return [...matches, ...Array.from(root.querySelectorAll<HTMLElement>(tag))];
+            });
+            await Promise.all(instances.map(settle));
+            return root;
+        },
+        async resetForm(form, instances = []) {
+            form.reset();
+            await Promise.all(instances.map(settle));
+            return captureFormSnapshot(form);
+        },
+        settle,
+        snapshot(instance) {
+            return runtime.snapshotInstance(instance);
         },
     };
 }
@@ -269,7 +392,7 @@ export function captureVisualSnapshot(
     }
 
     return {
-        html: normalizeHtml(element.outerHTML),
+        html: normalizeVisualHtml(element),
         rect: {
             height: round(rect.height),
             width: round(rect.width),
@@ -277,6 +400,25 @@ export function captureVisualSnapshot(
         styles,
         tagName: element.tagName.toLowerCase(),
         text: normalizeText(element.textContent ?? ''),
+    };
+}
+
+/** Capture the browser-owned successful-controls and constraint-validity view. */
+export function captureFormSnapshot(form: HTMLFormElement): FormSnapshot {
+    return {
+        entries: Array.from(new FormData(form).entries(), ([name, value]) => [
+            name,
+            typeof value === 'string'
+                ? value
+                : {
+                    kind: 'file' as const,
+                    lastModified: value.lastModified,
+                    name: value.name,
+                    size: value.size,
+                    type: value.type,
+                },
+        ]),
+        valid: form.checkValidity(),
     };
 }
 
@@ -312,8 +454,19 @@ function elementsUnder(root: ParentNode): Element[] {
     return elements;
 }
 
-function normalizeHtml(html: string): string {
-    return html.replace(/\s+/g, ' ').replace(/> </g, '><').trim();
+function normalizeVisualHtml(element: HTMLElement): string {
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    for (const current of elementsUnder(clone)) {
+        for (const attribute of VOLATILE_RUNTIME_ATTRIBUTES) {
+            current.removeAttribute(attribute);
+        }
+    }
+    for (const template of clone.querySelectorAll('template[data-cem-island]')) {
+        template.remove();
+    }
+
+    return clone.outerHTML.replace(/\s+/g, ' ').replace(/> </g, '><').trim();
 }
 
 function labelTextWithoutControl(label: HTMLLabelElement, control: Element): string {

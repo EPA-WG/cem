@@ -52,7 +52,7 @@ describe('timepicker contract fixture', () => {
         expect(assertAccessibleName(parts.input, 'Meeting time')).toBe('Meeting time');
         expect(assertAccessibleName(requiredToggle(parts), 'Choose meeting time')).toBe('Choose meeting time');
         expect(parts.host.hasAttribute('name')).toBe(false);
-        expect(new FormData(requiredElement(root, '#timepicker-form')).get('meeting-time')).toBe('09:30');
+        expect(new FormData(requiredElement<HTMLFormElement>(root, '#timepicker-form')).get('meeting-time')).toBe('09:30');
         expect(() => assertAriaReferenceIntegrity(root)).not.toThrow();
     });
 
@@ -84,7 +84,7 @@ describe('timepicker contract fixture', () => {
         meeting.input.value = '';
         meeting.input.dispatchEvent(new Event('input', { bubbles: true }));
         expect(meeting.input.validity.valueMissing).toBe(true);
-        expect(new FormData(requiredElement(root, '#timepicker-form')).get('meeting-time')).toBe('');
+        expect(new FormData(requiredElement<HTMLFormElement>(root, '#timepicker-form')).get('meeting-time')).toBe('');
         requiredElement<HTMLButtonElement>(root, '#timepicker-reset').click();
         await waitForValue(meeting.input, '09:30');
         expect(meeting.input.validity.valid).toBe(true);
@@ -252,7 +252,7 @@ describe('timepicker contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness(runtime);
+        harness = createComponentHarness();
         const root = await harness.render(timepickerContractFixture);
         await waitForSelector(root, '#meeting-timepicker > .cem-timepicker > input[slot="input"]');
         await waitFor(() => optionValues(timepickerParts(root, '#meeting-timepicker')).length === 6, 'time options');

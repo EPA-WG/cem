@@ -52,6 +52,7 @@ The aggregate gate includes:
 | Content hover/focus forced colors | `yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors` | Launches Chromium with forced colors active; proves exact content-owner keyboard order and `CanvasText` rings alongside checkable-chip system fills, native-listbox hover boundary color, selected/checked coexistence, disabled skipping, restoration, and passive wrapper isolation. |
 | Feedback focus forced colors | `yarn nx run @epa-wg/cem-components:verify-feedback-focus-forced-colors` | Launches Chromium with forced colors active; proves both transient native-dialog fallback owners retain the D5 width/offset with `CanvasText` and automatic color adjustment while static wrappers, hosts, sheets, and authored descendants remain outside component focus paint. |
 | Stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Builds the canonical component stylesheet byte-for-byte into `dist`, verifies the side-effect-free `./styles.css` export, and checks the dry-run npm file inventory. |
+| Phase 3 substrate harness | `yarn nx run @epa-wg/cem-components:verify-phase3-harness` | Typechecks and lints the package, then proves real CEM-ML action/field registration, render settlement and re-rendering, slice-driven events, native form data/reset/validity, light-DOM accessibility, a reviewed structural/computed-style baseline, and Chromium screenshot capture. |
 | Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
 
 Executable fixture locations:
@@ -87,9 +88,18 @@ Executable fixture locations:
 | Declarative stepper fixture | `../tests/stepper/contract.html` |
 | Declarative tree fixture | `../tests/tree/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
+| Phase 3 action/field substrate harness fixture | `../src/lib/testing/component-harness.browser.spec.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
 | Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-tooltip-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-datepicker-forced-colors.mjs`, `../scripts/verify-tree-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
+
+The Phase 3 visual baseline is the inline Vitest snapshot produced by the
+headless Chromium project used on Linux CI. It records normalized visible HTML,
+geometry, and selected computed styles while removing runtime-generated
+`data-cem-*` identity/source-map attributes and inert data-island templates.
+Baseline updates therefore appear as reviewed source diffs. The accompanying
+PNG capture is a browser-paint smoke assertion and is not stored as a second,
+platform-sensitive golden file.
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,

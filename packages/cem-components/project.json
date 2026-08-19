@@ -8,6 +8,7 @@
             "dependsOn": ["^build", "build:styles"]
         },
         "test": {
+            "dependsOn": ["^build", "verify-phase3-harness"],
             "options": {
                 "command": "vitest --no-file-parallelism"
             }
@@ -438,6 +439,20 @@
                     "transitive": false
                 }
             ],
+            "outputs": []
+        },
+        "verify-phase3-harness": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "lint",
+                "typecheck",
+                "test-ci--src/lib/testing/component-harness.browser.spec.ts"
+            ],
+            "options": {
+                "command": "echo \"Phase 3 component harness green: real CEM-ML substrate rendering/re-rendering, events, native forms, accessibility, deterministic Chromium visual baseline, and screenshot capture passed.\"",
+                "cwd": "{workspaceRoot}"
+            },
             "outputs": []
         },
         "verify": {

@@ -35,6 +35,7 @@ describe('tooltip contract fixture', () => {
         const save = tooltipParts(root, '#save-tooltip');
         const link = tooltipParts(root, '#link-tooltip');
         const malformed = tooltipParts(root, '#malformed-tooltip', false);
+        if (!save.trigger || !link.trigger) throw new Error('Expected valid tooltip fixtures to have triggers');
 
         expect(save.owner.dataset.mode).toBe('valid');
         expect(save.owner.dataset.position).toBe('above');
@@ -248,7 +249,7 @@ describe('tooltip contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness(runtime);
+        harness = createComponentHarness();
         const root = await harness.render(tooltipContractFixture);
         await waitForSelector(root, '#save-tooltip > .cem-tooltip > [slot="trigger"]');
         return root;

@@ -51,7 +51,7 @@ describe('datepicker contract fixture', () => {
         expect(assertAccessibleName(parts.input, 'Arrival date')).toBe('Arrival date');
         expect(assertAccessibleName(requiredToggle(parts), 'Choose arrival date')).toBe('Choose arrival date');
         expect(parts.host.hasAttribute('name')).toBe(false);
-        expect(new FormData(requiredElement(root, '#datepicker-form')).get('arrival-date')).toBe('2026-08-11');
+        expect(new FormData(requiredElement<HTMLFormElement>(root, '#datepicker-form')).get('arrival-date')).toBe('2026-08-11');
         expect(() => assertAriaReferenceIntegrity(root)).not.toThrow();
     });
 
@@ -88,7 +88,7 @@ describe('datepicker contract fixture', () => {
         arrival.input.value = '';
         arrival.input.dispatchEvent(new Event('input', { bubbles: true }));
         expect(arrival.input.validity.valueMissing).toBe(true);
-        expect(new FormData(requiredElement(root, '#datepicker-form')).get('arrival-date')).toBe('');
+        expect(new FormData(requiredElement<HTMLFormElement>(root, '#datepicker-form')).get('arrival-date')).toBe('');
         requiredElement<HTMLButtonElement>(root, '#datepicker-reset').click();
         await waitForValue(arrival.input, '2026-08-11');
         expect(arrival.input.validity.valid).toBe(true);
@@ -252,7 +252,7 @@ describe('datepicker contract fixture', () => {
     });
 
     async function renderFixture(): Promise<HTMLElement> {
-        harness = createComponentHarness(runtime);
+        harness = createComponentHarness();
         const root = await harness.render(datepickerContractFixture);
         await waitForSelector(root, '#arrival-datepicker > .cem-datepicker > input[slot="input"]');
         await waitForSelector(root, '#arrival-datepicker > .cem-datepicker > dialog.cem-datepicker__dialog');
@@ -278,9 +278,9 @@ function datepickerParts(root: ParentNode, selector: string, requireSingleInput 
     const inputs = [...owner.querySelectorAll<HTMLInputElement>(':scope > input[slot="input"]')];
     if (requireSingleInput && inputs.length !== 1) throw new Error(`Expected one datepicker input: ${selector}`);
     return {
-        apply: requiredElement(owner, '[data-datepicker-action="apply"]'),
-        cancel: requiredElement(owner, '[data-datepicker-action="cancel"]'),
-        dialog: requiredElement(owner, ':scope > dialog.cem-datepicker__dialog'),
+        apply: requiredElement<HTMLButtonElement>(owner, '[data-datepicker-action="apply"]'),
+        cancel: requiredElement<HTMLButtonElement>(owner, '[data-datepicker-action="cancel"]'),
+        dialog: requiredElement<HTMLDialogElement>(owner, ':scope > dialog.cem-datepicker__dialog'),
         heading: requiredElement(owner, '.cem-datepicker__heading'),
         host,
         input: inputs[0] ?? document.createElement('input'),

@@ -7,9 +7,10 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Extend the existing `@epa-wg/cem-components` test harness for substrate-backed
-DOM rendering, events, forms, accessibility assertions, and visual snapshots so
-the Phase 3 primitive set can be authored exclusively with `<cem-element>`.
+Wire the minimal Phase 3 action, field, surface, text, icon, stack, grid, list,
+navigation, and dialog-shell primitives exclusively through the accepted
+`<cem-element>` substrate, with stable registration identities and no legacy
+runtime dependency.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -288,8 +289,23 @@ registration identities may reuse an inherited or existing definition.
               policy rejection.
 
 - [ ] Author the Phase 3 primitive set exclusively on the accepted substrate.
-    - [ ] Extend the existing component test harness for substrate rendering,
+    - [x] Extend the existing component test harness for substrate rendering,
           events, forms, accessibility, and visual snapshots.
+        - [x] Add a Chromium action/field fixture that registers real CEM-ML
+              declarations, proves render and re-render settlement, slice-driven
+              events, native form data/reset/validity, accessibility assertions,
+              a deterministic structural/visual baseline, and screenshot capture.
+        - Completed 2026-08-19: `createSubstrateComponentHarness()` now owns
+          runtime-aware declaration registration, rejects missing behavior
+          identities and hard diagnostics, awaits declaration/render/re-render
+          settlement, exposes data-island and native-form snapshots, and normalizes
+          volatile runtime metadata out of reviewed visual baselines. The real
+          action/field Chromium fixture proves light-DOM accessibility, custom
+          event details, slice updates, native form data/reset/validity, focus,
+          geometry/computed styles, and browser screenshot capture. The cached
+          `verify-phase3-harness` target runs package lint/typecheck plus the focused
+          fixture, and the full component test target sequences it before starting
+          its own browser run.
     - [ ] Wire action, field, surface, text, icon, stack, grid, list, nav, and
           dialog shell primitives through `<cem-element>` with no legacy runtime
           dependency.
