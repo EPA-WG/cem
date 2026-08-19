@@ -347,6 +347,9 @@ stable, without changing `<cem-element>` semantics.
 
 Deliverables:
 
+- External host messages use the `cem-processing-host-v1` correlation envelope with host-only `render-initial` and
+  `render-update` operations. Initial results return range HTML, hydration metadata, and committed render state;
+  updates stream patch-frame progress and expose a commit only after expected-ETag pointer advancement succeeds.
 - SSR host fixture that emits initial HTML plus hydration metadata from a serialized `DataIslandSnapshot` and validates
   hydration against template artifact identity, `RenderRevision`, source-map mode, and retained render-plan identity.
 - Edge processing fixture that accepts a serialized snapshot plus previous render-plan identity and produces a

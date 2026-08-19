@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { exportDataIslandSnapshotForEdge } from './cem-elements.js';
 import {
+    CemEdgeSsrJobSequence,
+    assertCemEdgeSsrHostEnvelope,
+    createCemEdgeSsrHostFailureEnvelope,
+    createCemEdgeSsrHostProgressEnvelope,
+    createCemEdgeSsrHostRequestEnvelope,
+    createCemEdgeSsrHostSuccessEnvelope,
+} from './edge-ssr-host.js';
+import {
     InMemoryEdgeRenderStateStore,
     assertProcessingBoundaryValue,
     createEdgeRenderStateRecord,
@@ -26,6 +34,166 @@ class BrowserHandleLike {
 }
 
 describe('Edge/SSR processing boundary contracts', () => {
+    it('locks correlated initial-render and streamed edge-update host envelopes', () => {
+        const snapshot = processingBoundarySnapshotFixture();
+        const exported = exportDataIslandSnapshotForEdge(snapshot, {
+            fields: {
+                hostAttributes: 'allow',
+                dataset: 'allow',
+                payload: 'allow',
+                slices: 'allow',
+                formData: 'allow',
+                validationState: 'allow',
+                eventPayloads: 'allow',
+            },
+        });
+        const revision = {
+            instanceId: snapshot.instanceId,
+            dataRevision: snapshot.dataRevision,
+            templateArtifactId: snapshot.templateArtifactId,
+            scopePolicyStamp: snapshot.scopePolicyStamp,
+            outputTarget: snapshot.outputTarget,
+            renderAttempt: snapshot.renderAttempt,
+        };
+        const previousPlan = projectTemplate(PROCESSING_BOUNDARY_TEMPLATE_SOURCE, {
+            snapshot,
+            values: { label: 'Before' },
+        });
+        const store = new InMemoryEdgeRenderStateStore();
+        const seeded = store.writeRenderState({
+            renderPlan: previousPlan,
+            templateArtifact: PROCESSING_BOUNDARY_TEMPLATE_SOURCE,
+            sanitizedSnapshot: exported,
+            renderedHtml: '<article data-label="Before"></article>',
+            privacyPolicyStamp: exported.privacyPolicyStamp,
+        });
+        expect(seeded.ok).toBe(true);
+        if (!seeded.ok || !seeded.record.currentTemplateArtifact) return;
+
+        const sequence = new CemEdgeSsrJobSequence();
+        const initialRequest = createCemEdgeSsrHostRequestEnvelope(sequence, 'render-initial', {
+            template: {
+                kind: 'serialized-template-source-v1',
+                templateArtifactId: snapshot.templateArtifactId,
+                source: PROCESSING_BOUNDARY_TEMPLATE_SOURCE,
+            },
+            snapshot: exported,
+            revision,
+            sourceMapMode: 'dev',
+            scopeUid: 'boundary-scope-uid',
+            instanceScopeUid: 'boundary-instance-scope-uid',
+        });
+        const initialResponse = createCemEdgeSsrHostSuccessEnvelope(initialRequest, {
+            kind: 'initial-render',
+            renderedHtml: '<article data-label="Before"></article>',
+            hydrationMetadata: {
+                kind: 'cem-ssr-hydration-v1',
+                snapshot: exported,
+                revision,
+                renderPlanIdentity: renderPlanIdentity(previousPlan),
+                sourceMapMode: 'dev',
+            },
+            renderState: seeded.record,
+            diagnostics: [],
+        });
+
+        const nextSnapshot = { ...snapshot, dataRevision: '2' };
+        const nextExported = { ...exported, dataRevision: '2' };
+        const nextPlan = projectTemplate(PROCESSING_BOUNDARY_TEMPLATE_SOURCE, {
+            snapshot: nextSnapshot,
+            values: { label: 'After' },
+        });
+        const updateRequest = createCemEdgeSsrHostRequestEnvelope(sequence, 'render-update', {
+            template: {
+                kind: 'content-addressed-template-artifact-v1',
+                templateArtifactId: snapshot.templateArtifactId,
+                address: seeded.record.currentTemplateArtifact,
+            },
+            snapshot: nextExported,
+            revision: { ...revision, dataRevision: '2' },
+            sourceMapMode: 'dev',
+            scopeUid: 'boundary-scope-uid',
+            instanceScopeUid: 'boundary-instance-scope-uid',
+            previousRenderPlan: {
+                stateKey: seeded.record.stateKey,
+                expectedEtag: seeded.record.etag,
+                identity: renderPlanIdentity(previousPlan),
+                address: seeded.record.currentRenderPlan,
+            },
+        });
+        const frames = diffRenderPlansToPatchFrames(previousPlan, nextPlan, {
+            transactionId: 'edge-update-2',
+            batchSize: 1,
+        });
+        const advanced = store.writeRenderState(
+            {
+                renderPlan: nextPlan,
+                templateArtifact: PROCESSING_BOUNDARY_TEMPLATE_SOURCE,
+                sanitizedSnapshot: nextExported,
+                renderedHtml: '<article data-label="After"></article>',
+                privacyPolicyStamp: nextExported.privacyPolicyStamp,
+                stateKey: seeded.record.stateKey,
+            },
+            { expectedEtag: seeded.record.etag }
+        );
+        expect(advanced.ok).toBe(true);
+        if (!advanced.ok) return;
+        const progress = frames.map((frame) => createCemEdgeSsrHostProgressEnvelope(updateRequest, frame));
+        const complete = createCemEdgeSsrHostSuccessEnvelope(updateRequest, {
+            kind: 'render-update-complete',
+            renderPlanIdentity: renderPlanIdentity(nextPlan),
+            renderState: advanced.record,
+            diagnostics: [],
+        });
+        const conflictRequest = createCemEdgeSsrHostRequestEnvelope(sequence, 'render-update', {
+            ...updateRequest.payload,
+            previousRenderPlan: {
+                ...updateRequest.payload.previousRenderPlan,
+                expectedEtag: seeded.record.etag,
+            },
+        });
+        const conflict = createCemEdgeSsrHostFailureEnvelope(
+            conflictRequest,
+            'failure',
+            'render-state-conflict',
+            [{
+                code: 'cem.edge_ssr.render_state_conflict',
+                severity: 'error',
+                message: 'the expected render-state ETag is stale',
+            }],
+            advanced.record
+        );
+
+        expect(initialRequest.jobId).toBe(1);
+        expect(updateRequest.jobId).toBe(2);
+        expect(conflictRequest.jobId).toBe(3);
+        expect(initialResponse.jobId).toBe(initialRequest.jobId);
+        expect(progress.every((envelope) => envelope.jobId === updateRequest.jobId)).toBe(true);
+        expect(progress.map((envelope) => envelope.result.frame.type)).toEqual(frames.map((frame) => frame.type));
+        expect(progress.at(-1)?.result.frame.type).toBe('commit');
+        expect(complete.result.renderState.etag).toBe(advanced.record.etag);
+        expect(conflict.currentRenderState?.etag).toBe(advanced.record.etag);
+        for (const envelope of [
+            initialRequest,
+            initialResponse,
+            updateRequest,
+            ...progress,
+            complete,
+            conflictRequest,
+            conflict,
+        ]) {
+            assertCemEdgeSsrHostEnvelope(envelope);
+            expectPlainBoundaryValue(envelope);
+        }
+        expect(() => assertCemEdgeSsrHostEnvelope({ ...initialRequest, jobId: 0 })).toThrow(
+            /positive safe-integer job ID/
+        );
+        expect(() => assertCemEdgeSsrHostEnvelope({
+            ...initialResponse,
+            outcome: 'progress',
+        })).toThrow(/only render-update patch-frame results/);
+    });
+
     it('locks hybrid content-addressed blobs behind an optimistic revision pointer', () => {
         const previousPlan = projectTemplate(PROCESSING_BOUNDARY_TEMPLATE_SOURCE, {
             snapshot: processingBoundarySnapshotFixture(),

@@ -62,6 +62,8 @@ import {
     type CemDeclarationScope,
 } from './declaration-scope.js';
 
+export * from './edge-ssr-host.js';
+
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
 export type {

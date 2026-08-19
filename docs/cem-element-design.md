@@ -682,6 +682,51 @@ while giving each instance one authoritative current revision with explicit conc
 control. A cache-only model cannot authoritatively select the current revision, and a
 pointer-only record would duplicate large values and discard their reusable identities.
 
+#### Phase 3.5 external host envelope decision
+
+Edge and SSR hosts use a host-only profile of the existing
+`cem-processing-host-v1` structured-clone envelope. The profile reuses its positive,
+monotonic host-assigned `jobId`, request/response correlation, diagnostics, and terminal
+failure lifecycle. It does not add Edge/SSR operations to the browser worker's advertised
+capabilities. Edge/SSR endpoints accept exactly `render-initial` and `render-update` and
+validate messages with the Edge/SSR profile assertion before executing host work.
+
+Both request payloads carry an exported, policy-sanitized `DataIslandSnapshot`, complete
+`RenderRevision`, source-map mode, template input, and deterministic scope identities.
+Template input is one of three explicit clone-safe forms: serialized template source,
+a versioned compiled artifact transfer, or a content address for a retained template
+artifact. The template, snapshot, and revision artifact IDs, instance IDs, revisions,
+scope-policy stamps, and output target MUST agree. A mismatch is `invalid-request`; a
+host MUST NOT guess which duplicate identity is authoritative.
+
+- `render-initial` returns the HTML for the owned light-DOM render range separately from
+  `cem-ssr-hydration-v1` metadata. The metadata carries the exact exported snapshot,
+  complete revision, retained `RenderPlanIdentity`, and source-map mode. The result also
+  returns the committed `EdgeRenderStateRecord`. An HTML adapter owns render-boundary,
+  instance-wrapper, and metadata-script serialization and MUST escape each output for
+  its destination context.
+- `render-update` additionally carries the stable state key, expected ETag, previous
+  `RenderPlanIdentity`, and content address of that previous plan. The host verifies all
+  four against the current pointer and addressed plan before diffing. It emits one
+  `outcome: "progress"` response per `PatchFrame`, preserving the request job ID, then
+  one terminal `render-update-complete` response containing the next plan identity and
+  committed render-state record.
+- Update hosts MAY stream `begin` and `ops` while work is in progress because the UI
+  adapter buffers them. The pointer compare-and-swap MUST succeed before the host emits
+  `commit`. A state conflict terminates with `render-state-conflict`, the current record,
+  and no `commit`; buffered frames are discarded. No progress response is valid after a
+  terminal success, failure, or cancellation.
+- Failures are terminal and typed as `invalid-request`, `privacy-policy-rejected`,
+  `render-state-not-found`, `render-state-conflict`, `content-unavailable`,
+  `render-failed`, or `cancelled`. A cancelled outcome and reason MUST occur together.
+
+All envelopes and nested values MUST pass the same plain structured-clone boundary as
+the browser processing host. DOM nodes, browser events, functions, resolver hooks,
+focus/selection/composition state, credentials, and other host-owned objects never enter
+the payload. The host receives and returns the exact sanitized snapshot; it MUST NOT
+reconstruct policy-omitted fields. If that snapshot lacks metadata required by a client
+hydration build, the client rejects adoption and performs its normal fresh-render path.
+
 Patch transport uses internal frames, never browser DOM events. The normative Phase 3
 contract is stable render-node-id patching with a constrained scope-replacement
 fallback. Normal diffs target `renderNodeId` values from the retained render plan.

@@ -7,9 +7,10 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Lock clone-safe Phase 3.5 host requests and results for initial SSR output,
-hydration metadata, previous render-plan identity, and streamed edge patch
-frames before adding the external host fixtures.
+Add a non-browser SSR host fixture for the locked `render-initial` envelope. It
+must emit owned-range HTML plus `cem-ssr-hydration-v1` metadata from a sanitized
+snapshot and validate every template, revision, source-map, and retained-plan
+identity before returning committed render state.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -358,15 +359,15 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       registers exactly the three hydration, edge-patch, privacy-export, and hybrid
       state cases (6/6), while a focused unit configuration owns the three
       structured-clone, default-deny/redaction, and host-value rejection cases plus
-      the accepted hybrid storage contract (4/4). The default Phase 3 lanes exclude
-      those deferred cases and pass at
+      the accepted hybrid storage and external host-envelope contracts (5/5). The
+      default Phase 3 lanes exclude those deferred cases and pass at
       114/114 Storybook and 133/133 unit tests. The uncached five-dependency
       `cem-elements:verify-edge-ssr` aggregate passes without depending on either
       broad test target; lint and typecheck are also green.
 
 ## Phase 3.5 Checklist
 
-- [ ] Lock the external Edge/SSR host and render-state contract.
+- [x] Lock the external Edge/SSR host and render-state contract.
     - [x] Decide whether the existing
           `content-addressed-cache-with-revision-pointer-v1` model is the accepted
           roadmap "both" option, or whether cache-only or revisioned KV/document
@@ -380,8 +381,20 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           on mismatch, and may leave unreachable immutable blobs for adapter-managed
           retention. The normative design and roadmap now reject cache-only and
           pointer-only storage for this version.
-    - [ ] Lock clone-safe host requests/results for initial SSR output, hydration
+    - [x] Lock clone-safe host requests/results for initial SSR output, hydration
           metadata, previous render-plan identity, and streamed edge patch frames.
+          Completed 2026-08-19: the public Edge/SSR profile now reuses the
+          `cem-processing-host-v1` protocol version, monotonic job IDs, correlation,
+          and diagnostic lifecycle without expanding browser-worker capabilities.
+          `render-initial` returns owned-range HTML, versioned hydration metadata,
+          and committed render state. `render-update` requires the previous state
+          key, ETag, plan identity, and content address; it streams one progress
+          envelope per patch frame and returns the next plan and pointer only at the
+          terminal result. Compare-and-swap succeeds before `commit`, conflicts
+          terminate without `commit`, failures are typed, and every nested value is
+          checked for plain structured-clone transport. The host can accept serialized
+          source, a compiled artifact transfer, or a content-addressed artifact, but
+          cannot reconstruct policy-omitted snapshot fields.
 - [ ] Add a non-browser SSR host fixture that emits initial HTML plus hydration
       metadata from a serialized `DataIslandSnapshot` and validates template
       artifact identity, `RenderRevision`, source-map mode, and retained render-plan
