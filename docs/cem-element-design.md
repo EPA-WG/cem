@@ -741,6 +741,15 @@ terminators, and children of HTML void elements. The fixture rereads and verifie
 stored plan before returning hydration metadata, and atomically creates the initial
 pointer with the `ifAbsent` precondition.
 
+The same reference fixture implements `render-update` as an ordered async response
+stream without DOM globals. It verifies the current state key and expected ETag, the
+supplied previous plan address and identity, the retained plan contents, and the next
+template contents before projecting. It uses the browser reference diff path to produce
+identical patch frames, advances the pointer with compare-and-swap, rereads and verifies
+the committed state, and only then exposes `begin`, `ops`, and `commit` progress followed
+by the terminal result. Missing, stale, mismatched, unavailable, or rejected input ends
+in one typed failure with no progress or commit and leaves the current pointer unchanged.
+
 Patch transport uses internal frames, never browser DOM events. The normative Phase 3
 contract is stable render-node-id patching with a constrained scope-replacement
 fallback. Normal diffs target `renderNodeId` values from the retained render plan.

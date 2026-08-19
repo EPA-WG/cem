@@ -3,11 +3,16 @@ import type {
     SerializedPayloadElement,
 } from './cem-elements.js';
 import {
+    advanceEdgeRenderState,
+    edgeContentAddress,
     projectTemplate,
     readEdgeRenderStateContents,
     renderPlanIdentity,
     scopeRenderPlan,
     validateRenderPlanGeneratedIds,
+    type EdgeContentAddress,
+    type EdgeRenderStateRecord,
+    type EdgeRenderStateAdvanceResult,
     type EdgeRenderStateStore,
     type RenderPlan,
     type RenderPlanIdentity,
@@ -19,10 +24,15 @@ import {
 import {
     assertCemEdgeSsrHostEnvelope,
     createCemEdgeSsrHostFailureEnvelope,
+    createCemEdgeSsrHostProgressEnvelope,
     createCemEdgeSsrHostSuccessEnvelope,
     type CemEdgeSsrHostFailureEnvelope,
+    type CemEdgeSsrHostProgressEnvelope,
     type CemEdgeSsrHostRequestEnvelope,
     type CemEdgeSsrHostSuccessEnvelope,
+    type CemEdgeSsrPreviousRenderPlan,
+    type CemEdgeSsrRenderInput,
+    type CemEdgeSsrTemplateInput,
 } from './edge-ssr-host.js';
 
 const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
@@ -72,7 +82,7 @@ export function executeNonBrowserSsrInitialRenderFixture(
 ): NonBrowserSsrInitialRenderFixtureResult {
     assertCemEdgeSsrHostEnvelope(request);
 
-    const identityFailure = initialRenderIdentityFailure(request);
+    const identityFailure = renderInputIdentityFailure(request.payload);
     if (identityFailure) {
         return fixtureFailure(request, 'invalid-request', 'cem.edge_ssr.initial_identity_invalid', identityFailure);
     }
@@ -200,15 +210,228 @@ export function executeNonBrowserSsrInitialRenderFixture(
     }
 }
 
+export type NonBrowserEdgeRenderUpdateFixtureResponse =
+    | CemEdgeSsrHostProgressEnvelope
+    | CemEdgeSsrHostSuccessEnvelope<'render-update'>
+    | CemEdgeSsrHostFailureEnvelope<'render-update'>;
+
+/**
+ * DOM-free Phase 3.5 edge-update evidence host. State is committed and verified
+ * before the commit frame becomes observable on the returned response stream.
+ */
+export async function* executeNonBrowserEdgeRenderUpdateFixture(
+    request: CemEdgeSsrHostRequestEnvelope<'render-update'>,
+    store: EdgeRenderStateStore
+): AsyncGenerator<NonBrowserEdgeRenderUpdateFixtureResponse, void, void> {
+    assertCemEdgeSsrHostEnvelope(request);
+
+    const identityFailure = renderInputIdentityFailure(request.payload);
+    if (identityFailure) {
+        yield updateFixtureFailure(
+            request,
+            'invalid-request',
+            'cem.edge_ssr.update_identity_invalid',
+            identityFailure
+        );
+        return;
+    }
+    const previousFailure = previousRenderPlanIdentityFailure(request.payload.previousRenderPlan);
+    if (previousFailure) {
+        yield updateFixtureFailure(
+            request,
+            'invalid-request',
+            'cem.edge_ssr.previous_render_plan_invalid',
+            previousFailure
+        );
+        return;
+    }
+    if (!isCompleteRenderSnapshot(request.payload.snapshot)) {
+        yield updateFixtureFailure(
+            request,
+            'privacy-policy-rejected',
+            'cem.edge_ssr.snapshot_fields_unavailable',
+            'the sanitized snapshot omits fields required to produce an edge update'
+        );
+        return;
+    }
+
+    const previous = request.payload.previousRenderPlan;
+    const current = store.readRecord(previous.stateKey);
+    if (!current) {
+        yield updateFixtureFailure(
+            request,
+            'render-state-not-found',
+            'cem.edge_ssr.render_state_not_found',
+            `render state ${previous.stateKey} was not found`
+        );
+        return;
+    }
+    if (current.etag !== previous.expectedEtag) {
+        yield updateFixtureFailure(
+            request,
+            'render-state-conflict',
+            'cem.edge_ssr.render_state_conflict',
+            'the expected render-state ETag is stale',
+            current
+        );
+        return;
+    }
+    if (!sameContentAddress(current.currentRenderPlan, previous.address)) {
+        yield updateFixtureFailure(
+            request,
+            'invalid-request',
+            'cem.edge_ssr.previous_render_plan_address_invalid',
+            'the supplied previous render-plan address does not match the current pointer',
+            current
+        );
+        return;
+    }
+    if (!sameRenderPlanIdentity({
+        producedTag: current.producedTag,
+        ...current.renderRevision,
+    }, previous.identity)) {
+        yield updateFixtureFailure(
+            request,
+            'invalid-request',
+            'cem.edge_ssr.previous_render_plan_identity_invalid',
+            'the supplied previous render-plan identity does not match the current pointer',
+            current
+        );
+        return;
+    }
+
+    const retainedPrevious = readEdgeRenderStateContents(store, current);
+    if (!retainedPrevious.ok) {
+        yield updateFixtureFailure(
+            request,
+            'content-unavailable',
+            'cem.edge_ssr.previous_render_state_unavailable',
+            `the previous render state could not be verified: ${retainedPrevious.reason}`,
+            current
+        );
+        return;
+    }
+    if (!sameRenderPlanIdentity(
+        renderPlanIdentity(retainedPrevious.contents.renderPlan),
+        previous.identity
+    )) {
+        yield updateFixtureFailure(
+            request,
+            'invalid-request',
+            'cem.edge_ssr.retained_previous_identity_invalid',
+            'the retained previous plan does not match the supplied previous identity',
+            current
+        );
+        return;
+    }
+
+    const templateSource = resolveTemplateSource(request.payload.template, store);
+    if (!templateSource.ok) {
+        yield updateFixtureFailure(
+            request,
+            'content-unavailable',
+            'cem.edge_ssr.template_source_unavailable',
+            templateSource.message,
+            current
+        );
+        return;
+    }
+
+    try {
+        const snapshot = request.payload.snapshot;
+        const projected = projectTemplate(templateSource.source, {
+            snapshot,
+            values: templateValues(snapshot, templateSource.source),
+        });
+        const sourceMapped = request.payload.sourceMapMode === 'dev'
+            ? projected
+            : stripRenderPlanSourceMaps(projected);
+        const scoped = scopeRenderPlan(sourceMapped, request.payload.scopeUid, {
+            instanceScopeUid: request.payload.instanceScopeUid,
+        });
+        const plan = scoped.renderPlan;
+        const identity = renderPlanIdentity(plan);
+        if (!sameRenderPlanIdentity(identity, {
+            producedTag: snapshot.producedTag,
+            ...request.payload.revision,
+        })) {
+            yield updateFixtureFailure(
+                request,
+                'render-failed',
+                'cem.edge_ssr.render_plan_identity_invalid',
+                'the projected render-plan identity did not match the validated update request',
+                current
+            );
+            return;
+        }
+
+        const renderedHtml = serializeRenderPlanToHtmlFixture(plan);
+        const advanced = advanceEdgeRenderState(
+            store,
+            {
+                renderPlan: plan,
+                templateArtifact: templateSource.source,
+                sanitizedSnapshot: snapshot,
+                renderedHtml,
+                privacyPolicyStamp: snapshot.privacyPolicyStamp,
+                stateKey: previous.stateKey,
+            },
+            { expectedEtag: previous.expectedEtag }
+        );
+        if (!advanced.ok) {
+            yield advanceFailureEnvelope(request, advanced);
+            return;
+        }
+
+        const retainedNext = readEdgeRenderStateContents(store, advanced.record);
+        if (!retainedNext.ok) {
+            yield updateFixtureFailure(
+                request,
+                'content-unavailable',
+                'cem.edge_ssr.retained_render_state_unavailable',
+                `the committed render state could not be verified: ${retainedNext.reason}`,
+                advanced.record
+            );
+            return;
+        }
+        if (!sameRenderPlanIdentity(renderPlanIdentity(retainedNext.contents.renderPlan), identity)) {
+            yield updateFixtureFailure(
+                request,
+                'render-failed',
+                'cem.edge_ssr.retained_render_plan_identity_invalid',
+                'the retained render plan did not preserve the edge-update identity',
+                advanced.record
+            );
+            return;
+        }
+
+        for (const frame of advanced.frames) {
+            yield createCemEdgeSsrHostProgressEnvelope(request, frame);
+        }
+        yield createCemEdgeSsrHostSuccessEnvelope(request, {
+            kind: 'render-update-complete',
+            renderPlanIdentity: identity,
+            renderState: advanced.record,
+            diagnostics: renderPlanDiagnostics(scoped.diagnostics, plan),
+        });
+    } catch (error) {
+        yield updateFixtureFailure(
+            request,
+            'render-failed',
+            'cem.edge_ssr.render_update_failed',
+            error instanceof Error ? error.message : String(error),
+            current
+        );
+    }
+}
+
 /** Serialize the owned render range without constructing or reading browser DOM. */
 export function serializeRenderPlanToHtmlFixture(plan: RenderPlan): string {
     return plan.nodes.map((node) => serializeRenderNode(node, plan)).join('');
 }
 
-function initialRenderIdentityFailure(
-    request: CemEdgeSsrHostRequestEnvelope<'render-initial'>
-): string | undefined {
-    const { revision, snapshot, sourceMapMode, template, scopeUid, instanceScopeUid } = request.payload;
+function renderInputIdentityFailure(input: CemEdgeSsrRenderInput): string | undefined {
+    const { revision, snapshot, sourceMapMode, template, scopeUid, instanceScopeUid } = input;
     if (
         !isPlainRecord(revision)
         || !isPlainRecord(snapshot)
@@ -230,14 +453,14 @@ function initialRenderIdentityFailure(
         || typeof scopeUid !== 'string'
         || typeof instanceScopeUid !== 'string'
     ) {
-        return 'the initial-render request is missing required identity fields';
+        return 'the render request is missing required identity fields';
     }
     if (
         template.kind !== 'serialized-template-source-v1'
         && template.kind !== 'compiled-template-artifact-v1'
         && template.kind !== 'content-addressed-template-artifact-v1'
     ) {
-        return 'the initial-render request names an unsupported template input kind';
+        return 'the render request names an unsupported template input kind';
     }
     if (template.templateArtifactId !== snapshot.templateArtifactId) {
         return 'template input and snapshot template artifact identities differ';
@@ -276,6 +499,67 @@ function initialRenderIdentityFailure(
         return 'snapshot and request scope identities differ';
     }
     return undefined;
+}
+
+function previousRenderPlanIdentityFailure(previous: CemEdgeSsrPreviousRenderPlan): string | undefined {
+    if (
+        !isPlainRecord(previous)
+        || !isPlainRecord(previous.identity)
+        || !isPlainRecord(previous.address)
+        || typeof previous.stateKey !== 'string'
+        || previous.stateKey.length === 0
+        || typeof previous.expectedEtag !== 'string'
+        || previous.expectedEtag.length === 0
+        || previous.address.kind !== 'render-plan'
+        || previous.address.algorithm !== 'stable-json-fnv1a64-v1'
+        || typeof previous.address.digest !== 'string'
+        || typeof previous.address.key !== 'string'
+        || !isRenderPlanIdentity(previous.identity)
+    ) {
+        return 'the update request is missing a complete previous state, ETag, address, or identity';
+    }
+    return undefined;
+}
+
+function isRenderPlanIdentity(value: RenderPlanIdentity): boolean {
+    return (
+        typeof value.producedTag === 'string'
+        && value.producedTag.length > 0
+        && typeof value.instanceId === 'string'
+        && typeof value.dataRevision === 'string'
+        && typeof value.templateArtifactId === 'string'
+        && typeof value.scopePolicyStamp === 'string'
+        && value.outputTarget === 'light-dom'
+        && (value.renderAttempt === undefined || typeof value.renderAttempt === 'number')
+    );
+}
+
+function resolveTemplateSource(
+    template: CemEdgeSsrTemplateInput,
+    store: EdgeRenderStateStore
+): { ok: true; source: TemplateSourceNode[] } | { ok: false; message: string } {
+    if (template.kind === 'serialized-template-source-v1') {
+        return Array.isArray(template.source)
+            ? { ok: true, source: template.source }
+            : { ok: false, message: 'the serialized template source is not an array' };
+    }
+    if (template.kind === 'compiled-template-artifact-v1') {
+        return {
+            ok: false,
+            message: 'the DOM-parity edge fixture does not execute compiled template artifacts',
+        };
+    }
+    const value = store.getContent<unknown>(template.address);
+    if (value === undefined) {
+        return { ok: false, message: `template artifact ${template.address.key} was not found` };
+    }
+    const actual = contentAddressForTemplate(value);
+    if (!sameContentAddress(actual, template.address)) {
+        return { ok: false, message: `template artifact ${template.address.key} failed address verification` };
+    }
+    return Array.isArray(value)
+        ? { ok: true, source: value as TemplateSourceNode[] }
+        : { ok: false, message: 'the addressed template artifact is not serialized template source' };
 }
 
 function isCompleteRenderSnapshot(value: unknown): value is DataIslandSnapshot {
@@ -529,6 +813,77 @@ function sameRenderRevision(left: RenderRevision, right: RenderRevision): boolea
     );
 }
 
+function sameContentAddress(left: EdgeContentAddress, right: EdgeContentAddress): boolean {
+    return (
+        left.kind === right.kind
+        && left.algorithm === right.algorithm
+        && left.digest === right.digest
+        && left.key === right.key
+    );
+}
+
+function contentAddressForTemplate(value: unknown): EdgeContentAddress {
+    return edgeContentAddress('template-artifact', value);
+}
+
+function renderPlanDiagnostics(
+    scopedDiagnostics: ReadonlyArray<{ code: string; severity: 'warning'; message: string }>,
+    plan: RenderPlan
+) {
+    return [
+        ...scopedDiagnostics.map((diagnostic) => ({
+            code: diagnostic.code,
+            severity: diagnostic.severity,
+            message: diagnostic.message,
+        })),
+        ...validateRenderPlanGeneratedIds(plan).map((diagnostic) => ({
+            code: diagnostic.code,
+            severity: diagnostic.severity,
+            message: diagnostic.message,
+        })),
+    ];
+}
+
+function advanceFailureEnvelope(
+    request: CemEdgeSsrHostRequestEnvelope<'render-update'>,
+    result: Exclude<EdgeRenderStateAdvanceResult, { ok: true }>
+): CemEdgeSsrHostFailureEnvelope<'render-update'> {
+    if (result.reason === 'etag-mismatch') {
+        return updateFixtureFailure(
+            request,
+            'render-state-conflict',
+            'cem.edge_ssr.render_state_conflict',
+            'the render-state pointer changed before the edge update committed',
+            result.current
+        );
+    }
+    if (result.reason === 'missing-render-plan') {
+        return updateFixtureFailure(
+            request,
+            'content-unavailable',
+            'cem.edge_ssr.previous_render_plan_missing',
+            `the previous render plan ${result.address.key} is unavailable`,
+            result.current
+        );
+    }
+    if (result.reason === 'content-address-mismatch') {
+        return updateFixtureFailure(
+            request,
+            'content-unavailable',
+            'cem.edge_ssr.previous_render_plan_corrupt',
+            `the previous render plan ${result.expected.key} failed address verification`,
+            result.current
+        );
+    }
+    return updateFixtureFailure(
+        request,
+        'content-unavailable',
+        'cem.edge_ssr.previous_render_plan_revision_invalid',
+        'the retained previous render plan does not match its pointer revision',
+        result.current
+    );
+}
+
 function fixtureFailure(
     request: CemEdgeSsrHostRequestEnvelope<'render-initial'>,
     reason: Exclude<CemEdgeSsrHostFailureEnvelope<'render-initial'>['reason'], 'cancelled'>,
@@ -540,6 +895,22 @@ function fixtureFailure(
         'failure',
         reason,
         [fixtureDiagnostic(code, message)]
+    );
+}
+
+function updateFixtureFailure(
+    request: CemEdgeSsrHostRequestEnvelope<'render-update'>,
+    reason: Exclude<CemEdgeSsrHostFailureEnvelope<'render-update'>['reason'], 'cancelled'>,
+    code: string,
+    message: string,
+    currentRenderState?: EdgeRenderStateRecord
+): CemEdgeSsrHostFailureEnvelope<'render-update'> {
+    return createCemEdgeSsrHostFailureEnvelope(
+        request,
+        'failure',
+        reason,
+        [fixtureDiagnostic(code, message)],
+        currentRenderState
     );
 }
 

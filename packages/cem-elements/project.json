@@ -278,7 +278,7 @@
                 "test:edge-ssr"
             ],
             "options": {
-                "command": "echo \"Edge/SSR focused evidence gate green: substrate roundtrips, 8 focused unit/host cases, and 6 dedicated Storybook cases passed; the Node-only initial SSR fixture is green and DOM-free edge-update/privacy fixtures remain roadmap work.\"",
+                "command": "echo \"Edge/SSR focused evidence gate green: substrate roundtrips, 12 focused unit/host cases, and 6 dedicated Storybook cases passed; the Node-only initial SSR and edge-update fixtures are green and privacy fixtures remain roadmap work.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

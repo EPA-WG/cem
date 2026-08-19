@@ -355,6 +355,8 @@ Deliverables:
   The Node-only reference fixture implements this path with fail-closed identity, privacy, storage, and HTML checks.
 - Edge processing fixture that accepts a serialized snapshot plus previous render-plan identity and produces a
   patch-frame stream without access to live browser DOM.
+  The Node-only reference fixture now verifies retained state and content, advances it by expected-ETag
+  compare-and-swap, and emits the browser reference path's exact frames only after the commit is verified.
 - Privacy/export policy fixtures proving that denied data-island fields are omitted or redacted before leaving the
   browser context.
 - Edge render-state storage uses both content-addressed immutable blobs and a revisioned per-instance pointer record.

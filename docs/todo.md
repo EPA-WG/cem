@@ -7,10 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Add a DOM-free edge processing fixture for the locked `render-update` envelope.
-It must accept a sanitized snapshot plus the previous state key, ETag, content
-address, and render-plan identity, then emit the same deterministic patch-frame
-stream as the browser reference path without accessing live DOM.
+Prove privacy/export policy is applied before a serialized snapshot crosses the
+browser boundary. Cover omission and redaction in both the initial SSR and edge
+update host fixtures, and prove neither host reconstructs policy-denied fields.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -359,8 +358,9 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       registers exactly the three hydration, edge-patch, privacy-export, and hybrid
       state cases (6/6), while a focused unit configuration owns the three
       structured-clone, default-deny/redaction, and host-value rejection cases plus
-      the accepted hybrid storage and external host-envelope contracts, plus three
-      Node-only initial SSR host cases across two focused files (8/8). The default
+      the accepted hybrid storage and external host-envelope contracts, plus seven
+      Node-only initial SSR and edge-update host cases across three focused files
+      (12/12). The default
       Phase 3 lanes exclude those deferred cases and pass at
       114/114 Storybook and 133/133 unit tests. The uncached five-dependency
       `cem-elements:verify-edge-ssr` aggregate passes without depending on either
@@ -410,9 +410,18 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       reports unresolved artifact forms without guessing, rejects unsafe raw HTML,
       and uses an atomic `ifAbsent` precondition so duplicate or concurrent initial
       renders cannot replace the existing pointer.
-- [ ] Add a DOM-free edge processing fixture that accepts a serialized snapshot plus
+- [x] Add a DOM-free edge processing fixture that accepts a serialized snapshot plus
       previous render-plan identity and emits the same deterministic patch-frame
       stream as the browser reference runtime.
+      Completed 2026-08-19: the Node-environment `render-update` reference host
+      validates the state key, expected ETag, retained plan address, previous plan
+      identity, and content-addressed template before projecting without DOM globals.
+      Its async response stream emits the exact reference `begin`, `ops`, and
+      `commit` patch frames only after compare-and-swap advancement and a verified
+      state reread, followed by one terminal result. Focused evidence proves exact
+      frame parity plus fail-closed missing-state, stale-ETag, address, identity, and
+      unavailable-content outcomes; each failure emits one typed terminal response,
+      no progress or commit, and leaves the pointer unchanged.
 - [ ] Prove privacy/export policy is applied before the serialized snapshot crosses
       the browser boundary, including omission and redaction cases in both host
       fixtures.
