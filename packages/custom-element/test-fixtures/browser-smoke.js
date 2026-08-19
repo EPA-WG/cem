@@ -46,6 +46,88 @@ export async function runCustomElementSmoke(importBase) {
     check('location-element named/default exports match', NamedLocationElement === LocationElement);
     check('module-url named/default exports match', NamedModuleUrl === ModuleUrl);
 
+    const helperNames = ['cloneAs', 'deepEqual', 'mergeAttr', 'mix', 'obj2node', 'tagUid', 'xml2dom', 'xmlString'];
+    for (const helperName of helperNames) {
+        check(`index re-exports ${helperName}`, indexModule[helperName] === customElementModule[helperName]);
+    }
+
+    check('deepEqual accepts equal primitives', customElementModule.deepEqual(1, 1));
+    check('deepEqual rejects unlike object values', !customElementModule.deepEqual({}, null));
+    check('deepEqual rejects objects with different keys', !customElementModule.deepEqual({ a: 1 }, { a: 1, b: 2 }));
+    check('deepEqual rejects objects with different values', !customElementModule.deepEqual({ a: 1 }, { a: 2 }));
+    check(
+        'deepEqual accepts nested objects and arrays',
+        customElementModule.deepEqual({ a: 1, b: [2, { c: 3 }] }, { a: 1, b: [2, { c: 3 }] }),
+    );
+
+    const mixedTarget = { retained: true };
+    check(
+        'mix mutates and returns its target',
+        customElementModule.mix(mixedTarget, { added: 1 }) === mixedTarget &&
+            mixedTarget.retained === true &&
+            mixedTarget.added === 1,
+    );
+
+    const cloneSource = document.createElement('section');
+    cloneSource.setAttribute('data-source', 'clone');
+    cloneSource.append('cloned text');
+    const clone = customElementModule.cloneAs(cloneSource, 'article');
+    check(
+        'cloneAs changes the tag while preserving attributes and children',
+        clone.localName === 'article' &&
+            clone.getAttribute('data-source') === 'clone' &&
+            clone.textContent === 'cloned text' &&
+            clone !== cloneSource,
+    );
+
+    const mergeSource = document.createElement('input');
+    mergeSource.setAttribute('id', 'merged');
+    mergeSource.setAttribute('readonly', '');
+    mergeSource.setAttribute('title', 'source');
+    mergeSource.setAttribute('value', 'source value');
+    const mergeTarget = document.createElement('input');
+    mergeTarget.setAttribute('data-stale', 'remove');
+    mergeTarget.value = 'dirty value';
+    customElementModule.mergeAttr(mergeSource, mergeTarget);
+    check(
+        'mergeAttr synchronizes the complete attribute set and value property',
+        [...mergeTarget.attributes]
+            .map(({ name }) => name)
+            .sort()
+            .join(',') === 'id,readonly,title,value' &&
+            mergeTarget.id === 'merged' &&
+            mergeTarget.readOnly &&
+            mergeTarget.title === 'source' &&
+            mergeTarget.value === 'source value',
+    );
+
+    const parsedXml = customElementModule.xml2dom('<a/>');
+    check('xml2dom parses an XML document', parsedXml.documentElement.localName === 'a');
+    check('xmlString serializes an XML document', customElementModule.xmlString(parsedXml).includes('<a'));
+    check(
+        'obj2node represents a function with an empty element',
+        customElementModule.obj2node(() => undefined, 'f', document).outerHTML === '<f></f>',
+    );
+    check(
+        'obj2node represents numeric and string values as text',
+        customElementModule.obj2node(9, 'a', document).outerHTML === '<a>9</a>' &&
+            customElementModule.obj2node('abc', 's', document).outerHTML === '<s>abc</s>',
+    );
+    check(
+        'obj2node represents primitive properties as attributes and nested objects as elements',
+        customElementModule.obj2node({ a: 1, b: { c: 'abc' } }, 's', document).outerHTML ===
+            '<s a="1"><b c="abc"></b></s>',
+    );
+
+    const uidRoot = document.createElement('div');
+    uidRoot.innerHTML = '<span><strong></strong></span>';
+    check(
+        'tagUid assigns stable descendant identifiers and returns its root',
+        customElementModule.tagUid(uidRoot) === uidRoot &&
+            uidRoot.querySelector('span')?.getAttribute('data-dce-id') === '1' &&
+            uidRoot.querySelector('strong')?.getAttribute('data-dce-id') === '2',
+    );
+
     check('custom-element is registered', customElements.get('custom-element') === CustomElement);
     check('http-request is registered', customElements.get('http-request') === HttpRequestElement);
     check('local-storage is registered', customElements.get('local-storage') === LocalStorageElement);

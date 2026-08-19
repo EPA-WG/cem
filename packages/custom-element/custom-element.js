@@ -9,12 +9,28 @@ const runtimeByHost = new WeakMap();
 const registeredDeclarations = new WeakSet();
 const inlineInstances = new WeakMap();
 let inlineTagSequence = 0;
+const VALID_OBJECT_NODE_TAG = /^[_a-zA-Z][-_:a-zA-Z0-9]*$/;
 
 export function mix(objTo, objFrom) {
     for (const key of Object.keys(objFrom)) {
         objTo[key] = objFrom[key];
     }
     return objTo;
+}
+
+export function deepEqual(a, b) {
+    if (a === b) {
+        return true;
+    }
+    if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) {
+        return false;
+    }
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) {
+        return false;
+    }
+    return aKeys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && deepEqual(a[key], b[key]));
 }
 
 export function cloneAs(sourceNode, tag) {
@@ -28,6 +44,35 @@ export function cloneAs(sourceNode, tag) {
     return clone;
 }
 
+export function mergeAttr(from, to) {
+    for (const attribute of from.attributes) {
+        if (attribute.name.startsWith('xmlns')) {
+            continue;
+        }
+        if (attribute.namespaceURI) {
+            to.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
+        } else {
+            to.setAttribute(attribute.name, attribute.value);
+        }
+        if (attribute.localName === 'value' && 'value' in to) {
+            to.value = attribute.value;
+        }
+    }
+
+    for (const attribute of [...to.attributes]) {
+        const sourceHasAttribute = attribute.namespaceURI
+            ? from.hasAttributeNS(attribute.namespaceURI, attribute.localName)
+            : from.hasAttribute(attribute.name);
+        if (!sourceHasAttribute) {
+            if (attribute.namespaceURI) {
+                to.removeAttributeNS(attribute.namespaceURI, attribute.localName);
+            } else {
+                to.removeAttribute(attribute.name);
+            }
+        }
+    }
+}
+
 export function xml2dom(xmlString) {
     return new DOMParser().parseFromString(xmlString, 'application/xml');
 }
@@ -37,20 +82,48 @@ export function xmlString(node) {
 }
 
 export function obj2node(value, tag, doc = document) {
-    const node = doc.createElement(tag);
+    const ownerDocument = doc.ownerDocument ?? doc;
+    const node = createObjectNode(tag, ownerDocument);
     if (value === null || value === undefined) {
         return node;
     }
-    if (typeof value !== 'object') {
+    if (['string', 'number', 'boolean', 'bigint'].includes(typeof value)) {
         node.textContent = String(value);
         return node;
     }
-    if (value instanceof Node) {
+    if (typeof value === 'function' || typeof value === 'symbol') {
+        return node;
+    }
+    if (isNode(value)) {
         node.append(value);
         return node;
     }
+    if (Array.isArray(value)) {
+        const arrayNode = ownerDocument.createElement('array');
+        for (const item of value) {
+            arrayNode.append(obj2node(item, tag, ownerDocument));
+        }
+        return arrayNode;
+    }
+    if (typeof FormData !== 'undefined' && value instanceof FormData) {
+        const formDataNode = ownerDocument.createElement('form-data');
+        for (const [name, entryValue] of value) {
+            formDataNode.append(obj2node(entryValue, name, ownerDocument));
+        }
+        return formDataNode;
+    }
     for (const [key, childValue] of Object.entries(value)) {
-        node.append(obj2node(childValue, key, doc));
+        if (typeof childValue === 'function' || (typeof Window !== 'undefined' && childValue instanceof Window)) {
+            continue;
+        }
+        if (isNode(childValue) && !['data', 'value'].includes(key)) {
+            continue;
+        }
+        if (typeof childValue !== 'object' && VALID_OBJECT_NODE_TAG.test(key)) {
+            node.setAttribute(key, String(childValue));
+        } else {
+            node.append(obj2node(childValue, key, ownerDocument));
+        }
     }
     return node;
 }
@@ -163,6 +236,19 @@ function directTemplateChildren(element) {
     return Array.from(element.children).filter((child) => child.localName === 'template');
 }
 
+function createObjectNode(tag, doc) {
+    if (VALID_OBJECT_NODE_TAG.test(tag)) {
+        return doc.createElement(tag);
+    }
+    const node = doc.createElement('dce-object');
+    node.setAttribute('dce-object-name', tag);
+    return node;
+}
+
+function isNode(value) {
+    return value !== null && typeof value === 'object' && typeof value.nodeType === 'number';
+}
+
 function detachSrcPayloadNodes(nodes) {
     return nodes.map((node) => {
         const marker = node.ownerDocument.createComment('custom-element src payload');
@@ -235,7 +321,7 @@ function payloadNodeContent(node) {
 }
 
 if (typeof window !== 'undefined' && window.customElements && !window.customElements.get(CUSTOM_ELEMENT_TAG)) {
-    window.customElements.define( CUSTOM_ELEMENT_TAG, CustomElement );
+    window.customElements.define(CUSTOM_ELEMENT_TAG, CustomElement);
 }
 
 export default CustomElement;

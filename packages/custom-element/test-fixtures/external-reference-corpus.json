@@ -55,10 +55,15 @@
     "evidence": {
         "package-helper-surface": {
             "disposition": "package-adapter",
-            "state": "required",
-            "paths": ["packages/custom-element/custom-element.js", "docs/custom-element-history-import-plan.md"],
-            "nxTargets": ["@epa-wg/custom-element:test"],
-            "summary": "Preserve or explicitly alias the accepted non-engine helper surface and prove it through the public package."
+            "state": "verified",
+            "paths": [
+                "packages/custom-element/custom-element.js",
+                "packages/custom-element/custom-element.d.ts",
+                "packages/custom-element/test-fixtures/browser-smoke.js",
+                "packages/custom-element/scripts/verify-packed-archive.mjs"
+            ],
+            "nxTargets": ["@epa-wg/custom-element:test", "@epa-wg/custom-element:verify-packed-archive"],
+            "summary": "The accepted non-engine helpers are proven through source/dist browser imports and a clean packed TypeScript consumer."
         },
         "accepted-declaration-runtime": {
             "disposition": "accepted",

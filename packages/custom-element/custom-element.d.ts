@@ -1,10 +1,12 @@
-export function cloneAs(sourceNode: HTMLElement, tag:string): HTMLElement;
-export function mix(objTo: any, objFrom:any): any;
+export function deepEqual(a: unknown, b: unknown): boolean;
+export function cloneAs(sourceNode: Element, tag: string): Element;
+export function mix<T extends object, U extends object>(objTo: T, objFrom: U): T & U;
+export function mergeAttr(fromEl: Element, toEl: Element): void;
 
-export function xml2dom(xmlString:string): Document;
-export function xmlString(doc:Node|Document): string;
-export function obj2node(o:any, tag:string, doc:Document): HTMLElement;
-export function tagUid(node:HTMLElement): HTMLElement;
+export function xml2dom(xmlString: string): Document;
+export function xmlString(doc: Node | Document): string;
+export function obj2node(value: unknown, tag: string, doc?: Document): HTMLElement;
+export function tagUid<T extends Element>(node: T): T;
 
 export function getCustomElementRuntime(host?: Window, options?: Record<string, unknown>): unknown;
 export const customElementRuntime: unknown;
@@ -44,6 +46,6 @@ export function normalizeLegacyDeclaration(declaration: HTMLElement): HTMLElemen
  *
  */
 export class CustomElement extends HTMLElement {
-    static observedAttributes : string[];
+    static observedAttributes: string[];
 }
 export default CustomElement;

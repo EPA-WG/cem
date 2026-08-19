@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Extend the source/dist `<custom-element>` public-adapter browser fixture with
-multi-event and multi-slice updates, checkbox/radio coercion, form/custom
-validity, scoped-style containment, and DOM identity/focus across rerender.
+Decide the next-major `<custom-element>` policy for the final three external
+reference cases: upward child-to-instance attribute propagation and retained
+exported attributes selected by either the legacy property or content attribute.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -537,6 +537,17 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           without changing either JavaScript target.
 - [ ] Rebuild the next-major `<custom-element>` implementation on the
       `cem-element` substrate without retaining a separate parser/render engine.
+    - [x] Preserve and prove the accepted non-engine helper surface through the
+          public source, built package, and clean archive consumer.
+        - Completed 2026-08-19: restored and typed `cloneAs`, `deepEqual`,
+          `mergeAttr`, `mix`, `obj2node`, `tagUid`, `xml2dom`, and `xmlString` on
+          both public entry points. The shared browser smoke fixture proves their
+          behavior against source and `dist/`, while the packed-archive gate
+          compiles all eight imports in a clean TypeScript consumer. The locked
+          external corpus now records 26 verified package-adapter cases and 3
+          remaining policy cases without adding a parser or rendering path.
+    - [ ] Decide the next-major policy for upward attribute propagation and
+          retained exported attributes before changing either behavior.
 - [ ] Keep or retire `<template lang="custom-element-v0">` only after the explicit
       migration fixtures provide compatibility evidence.
 - [ ] Run legacy, material, Edge/SSR, and custom-element package gates together

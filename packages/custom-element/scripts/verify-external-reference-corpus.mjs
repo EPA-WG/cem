@@ -44,11 +44,11 @@ const expectedDispositionCounts = {
 };
 const expectedEvidenceStateCounts = {
     'accepted:verified': 61,
-    'package-adapter:required': 9,
-    'package-adapter:verified': 20,
+    'package-adapter:required': 3,
+    'package-adapter:verified': 26,
     'rejected-bridge:rejected': 1,
 };
-const expectedInventoryDigest = 'cdfbb0effed3e4549d8859acb388a24716a685a4b8cab58d2f562b535fb9dcd9';
+const expectedInventoryDigest = 'c1e80110591fcfa9478011836eaa53ce2179d19cff53c9349a0d35bd18428434';
 const projectConfigPaths = {
     '@epa-wg/custom-element': 'packages/custom-element/project.json',
     'cem-elements': 'packages/cem-elements/project.json',

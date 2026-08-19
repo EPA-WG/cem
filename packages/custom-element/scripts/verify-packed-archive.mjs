@@ -160,7 +160,7 @@ async function verifyTypeContracts() {
     await writeFile(
         join(consumerRoot, 'probe.ts'),
         [
-            "import RootDefault, { CustomElement, diagnosticsFor, normalizeLegacyDeclaration, whenDeclarationSettled, whenRenderSettled } from '@epa-wg/custom-element';",
+            "import RootDefault, { CustomElement, cloneAs, deepEqual, diagnosticsFor, mergeAttr, mix, normalizeLegacyDeclaration, obj2node, tagUid, whenDeclarationSettled, whenRenderSettled, xml2dom, xmlString } from '@epa-wg/custom-element';",
             "import SubpathDefault, { CustomElement as SubpathNamed } from '@epa-wg/custom-element/CustomElement';",
             '',
             'const rootDefault: typeof CustomElement = RootDefault;',
@@ -172,7 +172,15 @@ async function verifyTypeContracts() {
             'const renderSettled: Promise<void> = whenRenderSettled(instance);',
             'const normalized: HTMLElement = normalizeLegacyDeclaration(declaration);',
             'const diagnostics: readonly unknown[] = diagnosticsFor(instance);',
-            'void [rootDefault, subpathDefault, subpathNamed, declarationSettled, renderSettled, normalized, diagnostics];',
+            "const clone: Element = cloneAs(instance, 'packed-helper-clone');",
+            'const equal: boolean = deepEqual({ value: 1 }, { value: 1 });',
+            'const mixed: { retained: boolean } & { added: number } = mix({ retained: true }, { added: 1 });',
+            'mergeAttr(declaration, instance);',
+            "const objectNode: HTMLElement = obj2node({ value: 1 }, 'packed-helper-object');",
+            'const tagged: HTMLElement = tagUid(instance);',
+            "const xml: Document = xml2dom('<packed-helper/>');",
+            'const serialized: string = xmlString(xml);',
+            'void [rootDefault, subpathDefault, subpathNamed, declarationSettled, renderSettled, normalized, diagnostics, clone, equal, mixed, objectNode, tagged, xml, serialized];',
             '',
         ].join('\n'),
     );
