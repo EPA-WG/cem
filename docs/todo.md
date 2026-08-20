@@ -629,13 +629,33 @@ The remaining Phase 5 work is reviewed canvas work in the canonical CEM UI Kit.
           validated 252 consistent tokens across all five modes, theme lint
           passed, and `@epa-wg/cem-components:verify-figma-inventory` passed its
           eight-task graph with the 48-entry inventory still at zero reviewed and
-          48 planned. Shadow recipes and easing curves remain deliberately
-          excluded pending the following representation decision; no live Figma
-          update was claimed.
-    - [ ] Decide how canonical layering shadow recipes and easing curves are
-          represented in Figma before defining the `02 Foundations` review
-          inventory; native Import mode does not accept those composite DTCG
-          token types.
+          48 planned. Shadow recipes and easing curves remained deliberately
+          excluded until the following representation contract was adopted; no
+          live Figma update was claimed.
+    - [x] Adopt derived composite Effect Styles for canonical layering shadows
+          and derived motion specimens for canonical easing curves; keep both
+          families outside native Figma variable import.
+        - [x] Add a checked-in `02 Foundations` composite-style and motion-review
+              inventory plus deliberate-rejection fixture before live canvas
+              construction.
+        - [x] Add a credential-free Nx verifier that derives composite values
+              from canonical tokens, rejects raw values in the inventory, and
+              emits review evidence.
+        - Completed 2026-08-19: canonical export now emits six real layering
+          recipes as DTCG `shadow` composites and all eight easing tokens as
+          `cubicBezier` arrays. Base remains the explicit string `none` because a
+          valid DTCG shadow array must be non-empty; five semantic layer aliases
+          preserve their owning rung's type. The checked-in 15-entry Foundations
+          inventory defines six Effect Styles, one no-effect specimen, five alias
+          annotations, and eight motion specimens without raw values. The new
+          `@epa-wg/cem-theme:verify:figma-foundations` gate passed and emitted
+          JSON/Markdown review reports, `build:token-platforms` retained all 445
+          tokens across five modes, theme lint passed, and the nine-task
+          `@epa-wg/cem-components:verify-figma-inventory` graph passed with eight
+          tasks restored from cache. Native import remains at 252 consistent
+          tokens per mode, the component inventory remains at zero reviewed and
+          48 planned, and the Foundations inventory remains at zero reviewed and
+          15 planned. No live canvas or publication claim was made.
     - [ ] Record the starting CEM UI Kit revision and confirm that the native
           `CEM Tokens` collection has the accepted Light, Dark, Contrast Light,
           Contrast Dark, and Native modes before editing the canvas.

@@ -132,8 +132,29 @@
                 "{projectRoot}/dist/lib/token-platforms/android"
             ]
         },
-        "test:figma": {
+        "verify:figma-foundations": {
             "dependsOn": ["build:tokens"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-figma-foundations.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/verify-figma-foundations.mjs",
+                "{projectRoot}/src/lib/tokens/cem-layering.md",
+                "{projectRoot}/src/lib/tokens/cem-timing.md",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.json",
+                "{workspaceRoot}/examples/figma/foundations-library.json",
+                "{workspaceRoot}/examples/figma/foundations-library-fixture.md"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/reports/cem-foundations-report.json",
+                "{projectRoot}/dist/reports/cem-foundations-report.md"
+            ]
+        },
+        "test:figma": {
+            "dependsOn": ["verify:figma-foundations"],
             "executor": "nx:run-commands",
             "options": {
                 "commands": ["node scripts/validate-figma.mjs", "node scripts/smoke-figma-propagation.mjs"],

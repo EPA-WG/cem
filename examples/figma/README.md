@@ -36,8 +36,28 @@ yarn nx run @epa-wg/cem-theme:test:figma
 ```
 
 The target validates the five generated mode files, representative native alias bindings, source CSS token metadata for
-Figma WEB code syntax, the zero-error Figma report, and this checked-in native-library evidence. It does not call the
-Figma REST API; API-backed live validation remains governed by the REST API sync policy below.
+Figma WEB code syntax, the zero-error Figma report, and the checked-in Foundations evidence. It does not call the Figma
+REST API; API-backed live validation remains governed by the REST API sync policy below.
+
+## Foundations Composite Inventory
+
+[`foundations-library.json`](./foundations-library.json) is the executable
+layering and motion checklist for `02 Foundations`. The associated
+[`foundations-library-fixture.md`](./foundations-library-fixture.md) defines the
+manual review procedure and deliberate rejection cases.
+
+Run the focused gate with:
+
+```bash
+yarn nx run @epa-wg/cem-theme:verify:figma-foundations
+```
+
+The gate derives six Effect Style values, one explicit no-effect specimen, five
+semantic layer aliases, and eight motion curves from canonical tokens. It
+rejects raw composite values in the inventory and emits
+`packages/cem-theme/dist/reports/cem-foundations-report.{json,md}`. The report is
+preparation evidence only; planned entries remain unreviewed until the live
+canvas revision is recorded.
 
 ## Component Library Inventory
 
@@ -82,8 +102,10 @@ and reviewed before Phase 5 publication; offline generation alone does not claim
 that external update.
 
 Native Import mode does not accept composite DTCG shadow or easing-curve types.
-Their excluded source tokens remain listed in `cem-figma-report.md`; do not copy
-their CSS values onto the canvas until the UI Kit representation is approved.
+Their source tokens remain excluded from the mode files and listed in
+`cem-figma-report.md`. Use only the approved derived Effect Styles and motion
+specimens from the Foundations inventory; never copy their CSS values onto the
+canvas.
 
 ## Native Library Validation
 

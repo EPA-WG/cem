@@ -457,7 +457,7 @@ Custom transforms required:
 - `cem/size/type-to-pt` (iOS): typography sizes → points; no automatic dynamic type scaling in v1.
 - `cem/size/layout-to-dp` (Android): spacing, shape, control, and layout dimensions → dp.
 - `cem/size/type-to-sp` (Android): typography sizes and text line-height → sp.
-- `cem/number/unitless`: font weights, opacity, z-index/layering, and other numeric values stay unitless.
+- `cem/number/unitless`: font weights, opacity, and other numeric values stay unitless.
 - `cem/category/web-only-filter`: drop web-only categories before emission.
 - `cem/mode/expand-themes`: expand `$extensions.cem.modes` to per-platform conventions (asset catalog hints for iOS;
   `values-night/` for Android).
@@ -504,7 +504,7 @@ export type CemTokenName = '--cem-palette-comfort' | '--cem-action-primary-defau
 
 export interface CemTokenMeta {
     name: CemTokenName;
-    type: 'color' | 'dimension' | 'number' | 'duration' | 'fontFamily' | 'string';
+    type: 'color' | 'dimension' | 'number' | 'duration' | 'cubicBezier' | 'shadow' | 'fontFamily' | 'string';
     tier: 'required' | 'recommended' | 'optional' | 'adapter' | 'deprecated';
     spec: string;
     sourceTable: string;
@@ -546,6 +546,9 @@ native library refresh or direct manual import:
   present in every imported mode file and has the same `$type` in each file.
 - Emit only supported value shapes: sRGB/HSL colors, `dimension` values in `px`, `duration` values in `s`, single-string
   `fontFamily`, numbers, booleans encoded through `com.figma.type`, and strings.
+- Keep canonical `shadow` and `cubicBezier` families outside native variable
+  mode files. Project them through the checked-in `02 Foundations` inventory as
+  derived Effect Styles and motion specimens instead.
 - Normalize names exactly as Figma does: nested DTCG groups become slash-separated names. Duplicate normalized names
   must fail before import because Figma ignores duplicates after the first one.
 - Keep aliases inside the same collection where possible. Cross-collection aliases require Figma-specific

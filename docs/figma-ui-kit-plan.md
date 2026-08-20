@@ -16,6 +16,7 @@ local builds and CI do not write to Figma.
 | Concern | Canonical source | Figma projection |
 | --- | --- | --- |
 | Visual values and modes | CEM token markdown and generated `figma/cem-*.tokens.json` | One native `CEM Tokens` collection with `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, and `Native` modes |
+| Layering and easing composites | Canonical DTCG `shadow`/`cubicBezier` values and `examples/figma/foundations-library.json` | Derived Effect Styles and motion specimens; excluded from native variable import |
 | Public component identity | `CEM_COMPONENT_PRIMITIVES` and `docs/component-mvp.md` | One classified inventory entry per public `cem-*` primitive |
 | States and coexistence | Executable component state matrix and focused component contracts | Independent variant or boolean properties only where the public component owns the state |
 | Author attributes and content | Public component reference and component contracts | Variant, text, boolean, instance-swap, or slot properties selected by semantic meaning |
@@ -76,8 +77,9 @@ invented as Figma variants.
 | Control geometry | `cem/control/*`, `cem/icon/button/*`, `cem/coupling/*` |
 | Corner radius | `cem/bend/*` |
 | Stroke | `cem/stroke/*` |
+| Layering | Derived `CEM/Layering/*` Effect Styles from canonical shadow tokens; Base is explicitly no effect and semantic endpoints annotate the owning rung |
 | Typography | `cem/typography/*` size variables and derived text styles |
-| Motion notes | `cem/duration/*` number variables and generated motion documentation |
+| Motion notes | `cem/duration/*` number variables plus derived specimens for canonical `cem/easing/*` cubic-Bézier tokens |
 
 ## Component Mapping
 
@@ -94,8 +96,8 @@ invented as Figma variants.
 1. Freeze an executable component-library inventory that accounts for every
    public primitive, its representation class, properties, states, token
    families, docs, and manual Figma evidence location.
-2. Build `02 Foundations` from the imported variables, including composite text
-   styles where variables alone cannot express the approved typography bundle.
+2. Build `02 Foundations` from the imported variables, approved composite text
+   styles, derived layering Effect Styles, and derived motion specimens.
 3. Build a representative pilot across all semantic families: `cem-action`,
    `cem-text-field`, `cem-card`, `cem-nav`, and `cem-dialog`. Review property
    naming and state density before expanding the library.
@@ -111,7 +113,11 @@ invented as Figma variants.
 The repository gate must remain credential-free and deterministic:
 
 - `yarn nx run @epa-wg/cem-theme:test:figma` verifies generated native DTCG
-  mode files, aliases, types, provenance, report health, and token propagation.
+  mode files, aliases, types, provenance, report health, token propagation, and
+  depends on the focused Foundations composite gate.
+- `yarn nx run @epa-wg/cem-theme:verify:figma-foundations` verifies that the
+  layering/motion inventory is complete and raw-value-free, derives its values
+  from canonical tokens, and emits JSON/Markdown review evidence.
 - `yarn nx run @epa-wg/cem-components:verify-figma-inventory` verifies the
   executable component inventory and review fixture, depends on the native
   token gate, and emits JSON/Markdown reports under `dist/reports/`.

@@ -25,8 +25,10 @@ planned canvas assets already exist.
 4. Match state variants only to the inventory's executable `states`. Runtime
    component/state tests remain authoritative; the Figma canvas cannot promote
    a state.
-5. Bind every supported value through `CEM Tokens`; do not substitute raw color,
-   spacing, size, stroke, shape, layering, typography, or motion values.
+5. Bind every supported value through `CEM Tokens`. Apply layering and easing
+   only through the approved `02 Foundations` Effect Styles and motion specimens;
+   do not substitute raw color, spacing, size, stroke, shape, layering,
+   typography, or motion values.
 6. Exercise the same asset in `Light`, `Dark`, `Contrast Light`, `Contrast Dark`,
    and `Native` modes without duplicating theme variants.
 7. Confirm payload entries remain nested, structural entries retain composition

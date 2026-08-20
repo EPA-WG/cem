@@ -455,6 +455,114 @@ function extractLightBranch(value) {
     return null;
 }
 
+const CSS_EASING_KEYWORDS = new Map([
+    ["ease", [0.25, 0.1, 0.25, 1]],
+    ["ease-in", [0.42, 0, 1, 1]],
+    ["ease-out", [0, 0, 0.58, 1]],
+    ["ease-in-out", [0.42, 0, 0.58, 1]],
+    ["linear", [0, 0, 1, 1]],
+]);
+const FIGMA_FOUNDATION_COMPOSITE_TABLES = new Set([
+    "cem-timing-easings",
+    "cem-layering-rungs",
+    "cem-layering-semantic",
+    "cem-layering-semantic-optional",
+]);
+
+function parseDtcgCubicBezier(value) {
+    const normalized = (value ?? "").trim().toLowerCase();
+    const keyword = CSS_EASING_KEYWORDS.get(normalized);
+    if (keyword) return [...keyword];
+
+    const match = normalized.match(/^cubic-bezier\(([^)]+)\)$/);
+    if (!match) return null;
+    const coordinates = match[1].split(",").map((part) => Number.parseFloat(part.trim()));
+    if (
+        coordinates.length !== 4 ||
+        coordinates.some((coordinate) => !Number.isFinite(coordinate)) ||
+        coordinates[0] < 0 ||
+        coordinates[0] > 1 ||
+        coordinates[2] < 0 ||
+        coordinates[2] > 1
+    ) {
+        return null;
+    }
+    return coordinates;
+}
+
+function splitCssTopLevel(value, separator) {
+    const parts = [];
+    let depth = 0;
+    let start = 0;
+    for (let index = 0; index < value.length; index++) {
+        const character = value[index];
+        if (character === "(") depth++;
+        else if (character === ")") depth--;
+        else if (character === separator && depth === 0) {
+            parts.push(value.slice(start, index).trim());
+            start = index + 1;
+        }
+    }
+    parts.push(value.slice(start).trim());
+    return parts.filter(Boolean);
+}
+
+function splitCssTerms(value) {
+    const terms = [];
+    let depth = 0;
+    let start = 0;
+    for (let index = 0; index <= value.length; index++) {
+        const character = value[index];
+        if (character === "(") depth++;
+        else if (character === ")") depth--;
+        if ((index === value.length || /\s/.test(character)) && depth === 0) {
+            const term = value.slice(start, index).trim();
+            if (term) terms.push(term);
+            start = index + 1;
+        }
+    }
+    return terms;
+}
+
+function parseDtcgDimension(value) {
+    const normalized = (value ?? "").trim().toLowerCase();
+    if (normalized === "0") return { value: 0, unit: "px" };
+    const match = normalized.match(/^(-?(?:\d+\.?\d*|\.\d+))(px|rem)$/);
+    if (!match) return null;
+    return { value: Number.parseFloat(match[1]), unit: match[2] };
+}
+
+function parseDtcgColor(value) {
+    const normalized = (value ?? "").trim();
+    if (/^#[0-9a-f]{3,8}$/i.test(normalized)) return hexToDtcgColor(normalized);
+    if (/^rgba?\(/i.test(normalized)) return rgbStringToDtcgColor(normalized);
+    return null;
+}
+
+function parseDtcgShadow(value) {
+    const normalized = (value ?? "").trim();
+    if (!normalized || normalized.toLowerCase() === "none") return null;
+
+    const shadows = [];
+    for (const part of splitCssTopLevel(normalized, ",")) {
+        const terms = splitCssTerms(part);
+        const inset = terms.includes("inset");
+        const visibleTerms = terms.filter((term) => term !== "inset");
+        const colorIndex = visibleTerms.findIndex((term) => parseDtcgColor(term));
+        if (colorIndex < 0) return null;
+        const color = parseDtcgColor(visibleTerms[colorIndex]);
+        const dimensions = visibleTerms
+            .filter((_, index) => index !== colorIndex)
+            .map(parseDtcgDimension);
+        if (!color || dimensions.length < 2 || dimensions.length > 4 || dimensions.some((dimension) => !dimension)) {
+            return null;
+        }
+        const [offsetX, offsetY, blur = { value: 0, unit: "px" }, spread = { value: 0, unit: "px" }] = dimensions;
+        shadows.push({ color, offsetX, offsetY, blur, spread, ...(inset ? { inset: true } : {}) });
+    }
+    return shadows.length === 1 ? shadows[0] : shadows;
+}
+
 // Infer the DTCG $type for a token based on its resolved light value and spec.
 function inferDtcgType(token) {
     const spec = token.spec ?? "";
@@ -464,6 +572,11 @@ function inferDtcgType(token) {
 
     if (tableId === "cem-stroke-indicator-appearance") return "number";
     if (tableId === "cem-stroke-rings") return "string";
+    if (tableId === "cem-timing-easings") return "cubicBezier";
+    if (spec === "cem-layering") {
+        if (lightVal === "none" || rawVal === "none" || rawVal.includes("--cem-elevation-0")) return "string";
+        return "shadow";
+    }
 
     // Typography tokens: classify by source table first to avoid numeric false-positives.
     // Font weight values (200, 400, 700…) and voice speech parameters both look like numbers;
@@ -508,13 +621,12 @@ function inferDtcgType(token) {
     if (spec === "cem-colors") return "color";
     if (spec === "cem-timing") return "duration";
     if (DIMENSION_SPECS.has(spec)) return "dimension";
-    if (spec === "cem-layering") return "number";
 
     return "string";
 }
 
 // Compute the DTCG $value for a token.
-function computeDtcgValue(token) {
+function computeDtcgValue(token, dtcgType) {
     const lightVal = (token.valueByMode?.light ?? "").trim();
 
     switch (token.valueType) {
@@ -529,14 +641,18 @@ function computeDtcgValue(token) {
         }
         case "platform-note":
             return (token.valueByMode?.native ?? token.valueRaw ?? "").trim();
-        default:
-            return lightVal || (token.valueRaw ?? "");
+        default: {
+            const value = lightVal || (token.valueRaw ?? "");
+            if (dtcgType === "cubicBezier") return parseDtcgCubicBezier(value) ?? value;
+            if (dtcgType === "shadow") return parseDtcgShadow(value) ?? value;
+            return value;
+        }
     }
 }
 
 function buildDtcgTokenRecord(token) {
     const $type = inferDtcgType(token);
-    const $value = computeDtcgValue(token);
+    const $value = computeDtcgValue(token, $type);
     const record = { $type, $value };
     if (token.description) record.$description = token.description;
     record.$extensions = {
@@ -581,6 +697,63 @@ function buildDtcgTree(tokens) {
 // ---------------------------------------------------------------------------
 
 function validateDtcgTree(tree, tokenList, errors) {
+    function isReference(value) {
+        return typeof value === "string" && /^\{[^{}]+\}$/.test(value);
+    }
+
+    function isDimension(value) {
+        return (
+            value &&
+            typeof value === "object" &&
+            Number.isFinite(value.value) &&
+            (value.unit === "px" || value.unit === "rem")
+        );
+    }
+
+    function isColor(value) {
+        return (
+            value &&
+            typeof value === "object" &&
+            value.colorSpace === "srgb" &&
+            Array.isArray(value.components) &&
+            value.components.length === 3 &&
+            value.components.every((component) => Number.isFinite(component) && component >= 0 && component <= 1) &&
+            (value.alpha === undefined || (Number.isFinite(value.alpha) && value.alpha >= 0 && value.alpha <= 1)) &&
+            (value.hex === undefined || /^#[0-9a-f]{6}$/i.test(value.hex))
+        );
+    }
+
+    function isShadow(value) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+        return (
+            isColor(value.color) &&
+            isDimension(value.offsetX) &&
+            isDimension(value.offsetY) &&
+            isDimension(value.blur) &&
+            isDimension(value.spread) &&
+            (value.inset === undefined || typeof value.inset === "boolean")
+        );
+    }
+
+    function valueMatchesDtcgType(type, value) {
+        if (isReference(value)) return true;
+        if (type === "cubicBezier") {
+            return (
+                Array.isArray(value) &&
+                value.length === 4 &&
+                value.every(Number.isFinite) &&
+                value[0] >= 0 &&
+                value[0] <= 1 &&
+                value[2] >= 0 &&
+                value[2] <= 1
+            );
+        }
+        if (type === "shadow") {
+            return Array.isArray(value) ? value.length > 0 && value.every((shadow) => isShadow(shadow)) : isShadow(value);
+        }
+        return true;
+    }
+
     // Duplicate canonical DTCG paths
     const seenPaths = new Map();
     for (const t of tokenList) {
@@ -603,6 +776,9 @@ function validateDtcgTree(tree, tokenList, errors) {
             if ("$value" in value) {
                 if (!value.$type) errors.push(`Token ${nodePath}.${key} missing $type`);
                 if (value.$value === undefined) errors.push(`Token ${nodePath}.${key} has undefined $value`);
+                if (!valueMatchesDtcgType(value.$type, value.$value)) {
+                    errors.push(`Token ${nodePath}.${key} value does not match ${value.$type}`);
+                }
             } else {
                 walkTree(value, `${nodePath}.${key}`);
             }
@@ -820,24 +996,26 @@ async function emitReport(stageResult) {
 // Stage 4 helpers — Figma value computation
 // ---------------------------------------------------------------------------
 
-function rgbStringToHex(rgb) {
+function rgbStringToDtcgColor(rgb) {
     const m3 = rgb.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
-    if (m3) {
-        return "#" + [m3[1], m3[2], m3[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("");
-    }
     const m4 = rgb.match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)$/i);
-    if (m4) {
-        const alpha = Math.round(parseFloat(m4[4]) * 255);
-        return (
-            "#" +
-            [m4[1], m4[2], m4[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("") +
-            alpha.toString(16).padStart(2, "0")
-        );
+    const match = m3 ?? m4;
+    if (!match) return null;
+    const channels = [match[1], match[2], match[3]].map(Number);
+    const alpha = m4 ? Number.parseFloat(m4[4]) : 1;
+    if (
+        [...channels, alpha].some((component) => !Number.isFinite(component)) ||
+        channels.some((channel) => channel < 0 || channel > 255) ||
+        alpha < 0 ||
+        alpha > 1
+    ) {
+        return null;
     }
-    return null;
+    const hex = `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+    return { colorSpace: "srgb", components: channels.map((channel) => channel / 255), alpha, hex };
 }
 
-function hexToFigmaColor(hex) {
+function hexToDtcgColor(hex) {
     let digits = hex.slice(1);
     if (digits.length === 3 || digits.length === 4) {
         digits = [...digits].map((digit) => `${digit}${digit}`).join("");
@@ -878,11 +1056,8 @@ function convertToFigmaValue(value, dtcgType) {
 
     switch (dtcgType) {
         case "color": {
-            if (/^#[0-9a-f]{3,8}$/i.test(v)) return hexToFigmaColor(v);
-            if (/^rgba?\(/i.test(v)) {
-                const hex = rgbStringToHex(v);
-                return hex ? hexToFigmaColor(hex) : null;
-            }
+            if (/^#[0-9a-f]{3,8}$/i.test(v)) return hexToDtcgColor(v);
+            if (/^rgba?\(/i.test(v)) return rgbStringToDtcgColor(v);
             return null; // oklch, color-mix, light-dark, system colors
         }
         case "dimension": {
@@ -1139,10 +1314,13 @@ async function stage4Figma(resolvedTokens, version, opts) {
     for (const t of filtered) {
         const dtcgType = inferDtcgType(t);
         const figmaType = figmaTypeForDtcgType(dtcgType);
+        const exclusionReason = FIGMA_FOUNDATION_COMPOSITE_TABLES.has(t.sourceTable)
+            ? "managed by the 02 Foundations composite-style inventory"
+            : null;
         const modeValues = {};
         let allValid = true;
         for (const mode of MODES) {
-            const val = computeFigmaValueForMode(t, mode, dtcgType, figmaResolved);
+            const val = exclusionReason ? null : computeFigmaValueForMode(t, mode, dtcgType, figmaResolved);
             modeValues[mode] = val;
             if (val === null) allValid = false;
         }
@@ -1153,6 +1331,7 @@ async function stage4Figma(resolvedTokens, version, opts) {
             allValid,
             aliasTarget: t.valueType === "alias" ? varToCssName(t.valueRaw) : null,
             aliasResolvedToConcrete: false,
+            exclusionReason,
         });
     }
 
@@ -1164,7 +1343,7 @@ async function stage4Figma(resolvedTokens, version, opts) {
     );
     for (const t of filtered.filter((token) => token.valueType === "alias")) {
         const fv = tokenFigmaValues.get(t.name);
-        if (!fv?.allValid || !fv.aliasTarget || candidateNames.has(fv.aliasTarget)) continue;
+        if (!fv?.allValid || fv.exclusionReason || !fv.aliasTarget || candidateNames.has(fv.aliasTarget)) continue;
 
         let allConcrete = true;
         const modeValues = {};
@@ -1185,10 +1364,12 @@ async function stage4Figma(resolvedTokens, version, opts) {
     const excluded = filtered.filter((t) => !tokenFigmaValues.get(t.name).allValid).map((t) => ({
         ...t,
         missingModes: MODES.filter((m) => tokenFigmaValues.get(t.name).modeValues[m] === null),
+        exclusionReason: tokenFigmaValues.get(t.name).exclusionReason,
     }));
 
     for (const t of excluded) {
-        warnings.push(`Excluded from Figma: ${t.name} [${t.valueType}] — missing: ${t.missingModes.join(", ")}`);
+        const reason = t.exclusionReason ?? `missing: ${t.missingModes.join(", ")}`;
+        warnings.push(`Excluded from Figma: ${t.name} [${t.valueType}] — ${reason}`);
     }
 
     // Validate duplicate slash-normalized names
@@ -1259,7 +1440,7 @@ async function emitFigmaFiles(result) {
     md.push("## Summary", "");
     md.push("| Stat | Count |", "| ---- | ----- |");
     md.push(`| Tokens in all mode files | ${included.length} |`);
-    md.push(`| Excluded (incomplete modes) | ${excluded.length} |`);
+    md.push(`| Excluded (unsupported or incomplete) | ${excluded.length} |`);
     md.push(`| Aliases resolved to concrete values | ${included.filter((t) => tokenFigmaValues.get(t.name)?.aliasResolvedToConcrete).length} |`);
     md.push(`| Warnings | ${warnings.length} |`);
     md.push(`| Errors | ${errors.length} |`, "");
@@ -1272,12 +1453,13 @@ async function emitFigmaFiles(result) {
     if (excluded.length > 0) {
         md.push("## Excluded tokens", "");
         md.push(
-            "Tokens with no valid Figma value for at least one mode are excluded from all mode files.",
+            "Unsupported composite-style families and tokens with no valid Figma value for at least one mode are excluded from all mode files.",
             "Use the canonical `cem.tokens.json` for cross-platform consumption.",
             ""
         );
         for (const t of excluded) {
-            md.push(`- \`${t.name}\` [${t.valueType}] — missing: ${t.missingModes.join(", ")}`);
+            const reason = t.exclusionReason ?? `missing: ${t.missingModes.join(", ")}`;
+            md.push(`- \`${t.name}\` [${t.valueType}] — ${reason}`);
         }
         md.push("");
     }

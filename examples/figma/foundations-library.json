@@ -1,0 +1,188 @@
+{
+    "version": 1,
+    "sources": {
+        "layering": "packages/cem-theme/src/lib/tokens/cem-layering.md#cem-layering-rungs",
+        "layerAliases": "packages/cem-theme/src/lib/tokens/cem-layering.md#cem-layering-semantic",
+        "motion": "packages/cem-theme/src/lib/tokens/cem-timing.md#cem-timing-easings",
+        "canonicalTokens": "packages/cem-theme/dist/lib/tokens/cem.tokens.json"
+    },
+    "figma": {
+        "file": "https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit",
+        "page": "02 Foundations",
+        "modes": ["Light", "Dark", "Contrast Light", "Contrast Dark", "Native"],
+        "governance": {
+            "layering": "derived-effect-styles",
+            "motion": "derived-motion-specimens",
+            "nativeVariableImport": "excluded",
+            "rawValuesAllowed": false
+        }
+    },
+    "layering": [
+        {
+            "token": "cem.recess.2",
+            "name": "Deep Recessed",
+            "representation": "effect-style",
+            "style": "CEM/Layering/Deep Recessed",
+            "semanticAliases": [],
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Layering / Deep Recessed",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.recess.1",
+            "name": "Recessed",
+            "representation": "effect-style",
+            "style": "CEM/Layering/Recessed",
+            "semanticAliases": ["cem.layer.back"],
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Layering / Recessed",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.elevation.0",
+            "name": "Base",
+            "representation": "no-effect",
+            "style": null,
+            "semanticAliases": ["cem.layer.base"],
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Layering / Base",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.elevation.1",
+            "name": "Raised",
+            "representation": "effect-style",
+            "style": "CEM/Layering/Raised",
+            "semanticAliases": ["cem.layer.work"],
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Layering / Raised",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.elevation.2",
+            "name": "Floating",
+            "representation": "effect-style",
+            "style": "CEM/Layering/Floating",
+            "semanticAliases": [],
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Layering / Floating",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.elevation.3",
+            "name": "Overlay",
+            "representation": "effect-style",
+            "style": "CEM/Layering/Overlay",
+            "semanticAliases": ["cem.layer.overlay"],
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Layering / Overlay",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.elevation.4",
+            "name": "Command",
+            "representation": "effect-style",
+            "style": "CEM/Layering/Command",
+            "semanticAliases": ["cem.layer.command"],
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Layering / Command",
+                "revision": null
+            }
+        }
+    ],
+    "motion": [
+        {
+            "token": "cem.easing.smooth",
+            "name": "Smooth",
+            "specimen": "CEM/Motion/Smooth",
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Motion / Smooth",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.easing.start.smooth",
+            "name": "Start Smooth",
+            "specimen": "CEM/Motion/Start Smooth",
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Motion / Start Smooth",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.easing.end.smooth",
+            "name": "End Smooth",
+            "specimen": "CEM/Motion/End Smooth",
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Motion / End Smooth",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.easing.highlighted",
+            "name": "Highlighted",
+            "specimen": "CEM/Motion/Highlighted",
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Motion / Highlighted",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.easing.highlighted.start",
+            "name": "Highlighted Start",
+            "specimen": "CEM/Motion/Highlighted Start",
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Motion / Highlighted Start",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.easing.highlighted.end",
+            "name": "Highlighted End",
+            "specimen": "CEM/Motion/Highlighted End",
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Motion / Highlighted End",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.easing.uniform",
+            "name": "Uniform",
+            "specimen": "CEM/Motion/Uniform",
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Motion / Uniform",
+                "revision": null
+            }
+        },
+        {
+            "token": "cem.easing.classic",
+            "name": "Classic",
+            "specimen": "CEM/Motion/Classic",
+            "figma": {
+                "status": "planned",
+                "locator": "02 Foundations / Motion / Classic",
+                "revision": null
+            }
+        }
+    ]
+}

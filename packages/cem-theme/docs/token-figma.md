@@ -128,9 +128,20 @@ Aliases such as `{cem.palette.comfort}` become Figma variable aliases when the s
 If the target type does not match, preserve the value as a string and list it in the import report.
 
 Figma's native Import mode does not currently accept DTCG `shadow` or
-`cubicBezier` tokens. Layering shadow recipes and easing curves therefore remain
-excluded from the five mode files and visible in `cem-figma-report.md`; choosing
-their reviewed Figma representation is a separate UI Kit governance decision.
+`cubicBezier` tokens. Layering and easing families therefore remain excluded
+from the five mode files and visible in `cem-figma-report.md`. The approved UI
+Kit projection is governed by `examples/figma/foundations-library.json`:
+
+- six canonical shadow recipes become derived `CEM/Layering/*` Effect Styles;
+- `cem/elevation/0` remains an explicit no-effect specimen because DTCG shadow
+  arrays cannot be empty;
+- five semantic `cem/layer/*` aliases annotate their owning rung rather than
+  duplicating Effect Styles; and
+- eight canonical `cubicBezier` tokens become derived motion specimens.
+
+Run `yarn nx run @epa-wg/cem-theme:verify:figma-foundations` to validate the
+raw-value-free inventory and emit the composite review report before editing the
+canvas.
 
 ## Native Figma library workflow
 
