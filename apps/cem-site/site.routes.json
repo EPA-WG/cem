@@ -87,6 +87,27 @@
         "packages/cem-theme/src/lib/tokens/cem-layering.md",
         "packages/cem-theme/src/lib/tokens/cem-voice-fonts-typography.md"
       ]
+    },
+    {
+      "kind": "page",
+      "route": "/components/",
+      "output": "components/index.html",
+      "source": "packages/cem-components/dist/catalog/cem.components.catalog.json",
+      "sourceKind": "generated",
+      "owner": "@epa-wg/cem-components",
+      "upstreamTarget": "@epa-wg/cem-components:build:catalog",
+      "importId": "component-catalog-source",
+      "exportId": "component-gallery",
+      "canonicalSources": [
+        "docs/component-mvp.md",
+        "packages/cem-components/src/lib/primitives.ts",
+        "packages/cem-components/docs/component-reference.md",
+        "packages/cem-components/docs/conventions.md",
+        "packages/cem-components/docs/accessibility.md"
+      ],
+      "evidenceSources": [
+        "packages/cem-components/dist/reports/component-state-matrix.json"
+      ]
     }
   ]
 }

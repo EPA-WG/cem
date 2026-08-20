@@ -23,7 +23,8 @@
             "import": "./dist/index.js",
             "default": "./dist/index.js"
         },
-        "./styles.css": "./dist/styles.css"
+        "./styles.css": "./dist/styles.css",
+        "./catalog/cem.components.catalog.json": "./dist/catalog/cem.components.catalog.json"
     },
     "files": [
         "dist",

@@ -16,3 +16,5 @@ coverage remains in `src/lib/primitives.browser.spec.ts`.
 | [`feedback-settings.html`](./feedback-settings.html) | Legacy combined settings example retained as an alias for existing links. |
 
 Examples assume the page has installed the CEM theme CSS, `@epa-wg/cem-elements`, and `@epa-wg/cem-components`.
+The public component catalog links to these exact package-owned source files;
+it does not copy their markup into generated documentation.

@@ -42,6 +42,10 @@
                 {attribute @name="href" @value="/tokens/"}
                 Tokens
               }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/components/"}
+                Components
+              }
             }
           }
           {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |

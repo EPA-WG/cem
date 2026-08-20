@@ -756,9 +756,25 @@ until final Phases 10 and 11, after Phase 9 release governance.
           a subsequent verification replay restored all 10 tasks from local Nx
           cache, and the final verifier-only edit restored 9 of 10. Focused
           `cem-site:lint` and `@epa-wg/cem-theme:lint` targets pass.
-    - [ ] Add a component-gallery catalog from component semantics, inventory
+    - [x] Add a component-gallery catalog from component semantics, inventory
           reports, and separately owned Storybook/example links without copying
           executable component fixtures into site-owned content.
+        - Completed 2026-08-20: the cached public
+          `@epa-wg/cem-components:build:catalog` target now validates the
+          canonical MVP semantics, 48 executable primitive declarations,
+          package reference/conventions/accessibility guidance, and the
+          generated 40-of-40 covered state-matrix report, then emits the public
+          beta `cem.components.catalog.json` package export deterministically.
+          The native site graph renders all 48 records at `/components/` with
+          category states, token families, 48 package reference links, eight
+          exact package-owned example source links, and the separately owned
+          local `cem-elements:storybook`/`build-storybook` commands and source
+          link. It copies no declaration or example markup, ships no JavaScript,
+          consumes no Figma projection, and records canonical versus generated
+          evidence sources separately. Site verification and the 66-file npm
+          package inventory pass; two uncached catalog generations have the same
+          SHA-256 digest, and the final Nx site replay restores all 13 tasks from
+          local cache.
     - [ ] Add example, API/reference, and release-note routes from their current
           owners, using an explicit authored-reference policy where no generated
           API projection exists and never presenting an absent generator as one.

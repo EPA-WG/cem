@@ -5,7 +5,7 @@
     "projectType": "library",
     "targets": {
         "build": {
-            "dependsOn": ["^build", "build:styles"]
+            "dependsOn": ["^build", "build:styles", "build:catalog"]
         },
         "test": {
             "dependsOn": ["^build", "verify-phase3-harness"],
@@ -22,6 +22,32 @@
             },
             "inputs": ["{projectRoot}/scripts/copy-styles.mjs", "{projectRoot}/src/styles.css"],
             "outputs": ["{projectRoot}/dist/styles.css"]
+        },
+        "build:catalog": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify-primitives", "verify-state-matrix"],
+            "options": {
+                "command": "node scripts/build-component-catalog.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/build-component-catalog.mjs",
+                "{projectRoot}/package.json",
+                "{projectRoot}/src/lib/primitives.ts",
+                "{projectRoot}/docs/component-reference.md",
+                "{projectRoot}/docs/conventions.md",
+                "{projectRoot}/docs/accessibility.md",
+                "{projectRoot}/examples/README.md",
+                "{projectRoot}/examples/*.html",
+                "{workspaceRoot}/docs/component-mvp.md",
+                "{workspaceRoot}/packages/cem-elements/project.json",
+                {
+                    "dependentTasksOutputFiles": "**/component-state-matrix.json",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{projectRoot}/dist/catalog/cem.components.catalog.json"]
         },
         "verify-primitives": {
             "cache": true,
@@ -435,7 +461,7 @@
                 "{projectRoot}/src/lib/cem-components.ts",
                 "{projectRoot}/src/lib/primitives.ts",
                 {
-                    "dependentTasksOutputFiles": "**/*.{js,css}",
+                    "dependentTasksOutputFiles": "**/*.{js,css,json}",
                     "transitive": false
                 }
             ],

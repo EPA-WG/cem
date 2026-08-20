@@ -18,6 +18,15 @@ yarn add @epa-wg/cem-components
 
 This package depends on `@epa-wg/cem-theme` and `@epa-wg/cem-elements`; install them alongside.
 
+## Public component catalog
+
+`@epa-wg/cem-components/catalog/cem.components.catalog.json` is the public beta
+structured catalog for documentation and other data consumers. It contains all
+verified component semantics, token families, category state coverage, and
+source links to separately owned examples and local Storybook configuration.
+It contains no executable declaration or example markup and is not a runtime
+component bundle.
+
 ## Runtime install
 
 ```ts
@@ -203,6 +212,7 @@ yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
 yarn nx run @epa-wg/cem-components:build:styles
+yarn nx run @epa-wg/cem-components:build:catalog
 yarn nx run @epa-wg/cem-components:lint
 ```
 
@@ -311,6 +321,9 @@ Known deferrals stay outside this trigger:
 | Public stylesheet source | `src/styles.css` |
 | Current shell entry | `src/lib/cem-components.ts` |
 | Primitive declarations | `src/lib/primitives.ts` |
+| Public component catalog source | `scripts/build-component-catalog.mjs` |
+| Public component catalog output | `dist/catalog/cem.components.catalog.json` |
+| State-matrix catalog evidence | `dist/reports/component-state-matrix.{json,md}` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
 | State and ARIA browser coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |

@@ -75,8 +75,8 @@ regenerated before site assembly.
 | Token browser data        | `@epa-wg/cem-theme:build:tokens`                | Public DTCG, flat catalog, voice, TypeScript metadata, and token reports       | Consume the public flat catalog for static browsing. Debug intermediate/resolved JSON and Figma outputs stay excluded. |
 | Platform snippets/reports | `@epa-wg/cem-theme:build:token-platforms`       | Per-mode JSON, Swift, Android XML/Kotlin, and platform reports                 | Present generated snippets and reports read-only.                                                            |
 | CEM-ML schema docs        | `cem_ml:build:docs` and schema-artifact targets | Copied Markdown/XHTML plus run, report, and observability schemas              | Consume declared outputs; do not duplicate schema definitions in the site.                                   |
-| Component verification    | `@epa-wg/cem-components` verification targets   | State-matrix and inventory JSON/Markdown reports                               | Use reports as build inputs or status evidence, not authored prose.                                          |
-| Browser stories           | `cem-elements:build-storybook`                  | `packages/cem-elements/storybook-static/`                                      | Link or embed as a separately owned artifact; do not make Storybook the site router.                         |
+| Component catalog         | `@epa-wg/cem-components:build:catalog`          | Public component catalog plus state-matrix JSON/Markdown evidence              | Render the public catalog; keep canonical semantics and executable declarations with the package.            |
+| Browser stories           | `cem-elements:build-storybook`                  | `packages/cem-elements/storybook-static/`                                      | Link the owned source/local targets until a separate deployment contract exists; do not make Storybook the site router. |
 
 No Typedoc, custom-elements manifest, or equivalent generated API-documentation
 target exists. Phase 6 therefore needs either an explicit API projection target
@@ -206,7 +206,11 @@ by `@epa-wg/cem-theme:build:tokens` as native JSON; its audited route metadata
 enumerates the ten canonical theme Markdown specifications, and verification
 maps every catalog record to its declared source-table heading. Generated token
 values remain read-only while Figma and debug projections remain outside the
-site graph. The dedicated module-map contract and deterministic
+site graph. The `/components/` surface similarly consumes the deterministic
+public catalog from `@epa-wg/cem-components:build:catalog`, distinguishes its
+canonical semantics from state-matrix evidence, and links the package examples
+and local `cem-elements` Storybook source without copying either artifact.
+The dedicated module-map contract and deterministic
 resolved-read/digest manifest remain the required path for later interactive
 JavaScript; the current static surfaces intentionally ship no runtime
 JavaScript.

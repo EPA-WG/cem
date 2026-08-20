@@ -127,4 +127,19 @@
           @schema="https://cem.dev/ns/data/html/1"}
     }
   }
+
+  {import @id=component-catalog-source
+      @src="../../packages/cem-components/dist/catalog/cem.components.catalog.json"
+      @content-type="application/json"
+      @schema="https://cem.dev/ns/data/json/1" |
+    {transform @id=component-gallery-page @src="layouts/component-gallery.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @entrypoint="components" |
+      {export @id=component-gallery
+          @out="../../dist/apps/cem-site/components/index.html"
+          @content-type="text/html"
+          @schema="https://cem.dev/ns/data/html/1"}
+    }
+  }
 }

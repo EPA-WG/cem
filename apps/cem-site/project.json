@@ -19,6 +19,10 @@
         {
           "projects": ["@epa-wg/cem-theme"],
           "target": "build:tokens"
+        },
+        {
+          "projects": ["@epa-wg/cem-components"],
+          "target": "build:catalog"
         }
       ],
       "options": {

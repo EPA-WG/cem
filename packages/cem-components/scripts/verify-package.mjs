@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceStylesPath = join(packageRoot, 'src', 'styles.css');
 const builtStylesPath = join(packageRoot, 'dist', 'styles.css');
+const builtCatalogPath = join(packageRoot, 'dist', 'catalog', 'cem.components.catalog.json');
+const publicCatalogPath = './dist/catalog/cem.components.catalog.json';
 const packageJsonPath = join(packageRoot, 'package.json');
 const sourcePrimitivesPath = join(packageRoot, 'src', 'lib', 'primitives.ts');
 const builtPrimitivesPath = join(packageRoot, 'dist', 'lib', 'primitives.js');
@@ -33,11 +35,21 @@ const forbiddenJavaScriptPatterns = [
 
 const sourceStyles = await readFile(sourceStylesPath);
 const builtStyles = await readFile(builtStylesPath);
+const componentCatalog = JSON.parse(await readFile(builtCatalogPath, 'utf8'));
 const sourcePrimitives = await readFile(sourcePrimitivesPath, 'utf8');
 const builtPrimitives = await readFile(builtPrimitivesPath, 'utf8');
 
 if (!sourceStyles.equals(builtStyles)) {
     throw new Error('src/styles.css and dist/styles.css must be byte-identical');
+}
+
+if (
+    componentCatalog.version !== 1 ||
+    !Array.isArray(componentCatalog.components) ||
+    componentCatalog.components.length === 0 ||
+    componentCatalog.$generated?.componentCount !== componentCatalog.components.length
+) {
+    throw new Error('dist/catalog/cem.components.catalog.json must contain the public component catalog');
 }
 
 if (!sourcePrimitives.includes("tag: 'cem-autocomplete'")) {
@@ -190,6 +202,12 @@ if (packageJson.exports?.['./styles.css'] !== './dist/styles.css') {
     throw new Error('package.json must export ./styles.css only from ./dist/styles.css');
 }
 
+if (packageJson.exports?.['./catalog/cem.components.catalog.json'] !== publicCatalogPath) {
+    throw new Error(
+        `package.json must export ./catalog/cem.components.catalog.json from ${publicCatalogPath}`,
+    );
+}
+
 const cssExports = Object.entries(packageJson.exports ?? {}).filter(
     ([key, value]) => key.endsWith('.css') || (typeof value === 'string' && value.endsWith('.css')),
 );
@@ -227,6 +245,7 @@ try {
     const packResults = JSON.parse(packOutput);
     const packedFiles = packResults[0]?.files?.map(({ path }) => path) ?? [];
     const packedStyles = packedFiles.filter((path) => path.endsWith('styles.css'));
+    const packedCatalogPath = publicCatalogPath.slice(2);
 
     if (packedStyles.length !== 1 || packedStyles[0] !== 'dist/styles.css') {
         throw new Error(`npm pack must contain only dist/styles.css, received: ${packedStyles.join(', ') || 'none'}`);
@@ -234,6 +253,10 @@ try {
 
     if (packedFiles.includes('src/styles.css') || packedFiles.includes('styles.css')) {
         throw new Error('npm pack must not contain source or package-root stylesheet copies');
+    }
+
+    if (!packedFiles.includes(packedCatalogPath)) {
+        throw new Error(`npm pack must contain the public component catalog ${packedCatalogPath}`);
     }
 
     for (const artifact of [
@@ -263,7 +286,7 @@ try {
 
     console.log(
         `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, tooltip, timepicker, datepicker, stepper, and tree owners included, ` +
-            'one dist/styles.css, zero source/root copies).',
+            'public component catalog, one dist/styles.css, zero source/root copies).',
     );
 } finally {
     await rm(npmCache, { force: true, recursive: true });

@@ -11,6 +11,7 @@ the CEMT layout owns the shared semantic shell.
 - Read the generated [transform graph reference](/reference/cem-ml/transform-config/).
 - Review the [WASM runtime package contract](/reference/cem-ml/wasm-runtime/).
 - Browse the read-only [CEM token catalog](/tokens/).
+- Browse the static [CEM component gallery](/components/).
 
 The current shell deliberately has no JavaScript runtime dependency. Interactive
 examples will add exact npm assets through schema-owned module maps when their

@@ -92,6 +92,21 @@ Build relationships:
 - `build:tokens` depends on `build:css`.
 - `build:token-platforms` depends on `build:tokens`.
 
+## Component catalog contract
+
+Component semantics remain owned by `docs/component-mvp.md`, the executable
+`CEM_COMPONENT_PRIMITIVES` declaration, and the package component reference,
+conventions, and accessibility documents. The cached
+`@epa-wg/cem-components:build:catalog` target validates those sources and the
+generated state-matrix report, then emits the public beta
+`packages/cem-components/dist/catalog/cem.components.catalog.json` artifact.
+
+The catalog contains semantic component rows, token families, category-level
+state coverage, GitHub source links for package examples, and the separately
+owned local Storybook Nx targets. It must not contain copied CEM-ML declarations,
+example markup, Figma projections, or a site-owned Storybook build. Prefer the
+`@epa-wg/cem-components/catalog/cem.components.catalog.json` package export.
+
 ## Dev server
 
 ```bash

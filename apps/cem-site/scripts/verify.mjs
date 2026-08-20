@@ -45,12 +45,35 @@ const entriesByOutput = new Map();
 const importIds = new Set();
 const exportIds = new Set();
 const canonicalSourceText = new Map();
+const evidenceSourceText = new Map();
 const buildInputs = new Set(project.targets.build.inputs);
 const buildDependencies = new Set(
   project.targets.build.dependsOn
     .filter((dependency) => typeof dependency === 'object')
     .map((dependency) => `${dependency.projects[0]}:${dependency.target}`),
 );
+
+async function loadDeclaredSources(entry, field, destination) {
+  if (entry[field] === undefined) {
+    return;
+  }
+  if (!Array.isArray(entry[field]) || entry[field].length === 0) {
+    throw new Error(`${entry.route} ${field} must be a non-empty array`);
+  }
+  if (new Set(entry[field]).size !== entry[field].length) {
+    throw new Error(`${entry.route} has duplicate ${field}`);
+  }
+  for (const source of entry[field]) {
+    if (
+      typeof source !== 'string' ||
+      /[*?[]/.test(source) ||
+      forbiddenSources.some((pattern) => pattern.test(source))
+    ) {
+      throw new Error(`${entry.route} has invalid ${field} entry ${source}`);
+    }
+    destination.set(source, await readFile(resolve(workspaceRoot, source), 'utf8'));
+  }
+}
 
 for (const entry of manifest.entries) {
   if (!['page', 'resource'].includes(entry.kind)) {
@@ -77,27 +100,8 @@ for (const entry of manifest.entries) {
   if (forbiddenSources.some((pattern) => pattern.test(entry.source))) {
     throw new Error(`${entry.route} publishes excluded source ${entry.source}`);
   }
-  if (entry.canonicalSources !== undefined) {
-    if (!Array.isArray(entry.canonicalSources) || entry.canonicalSources.length === 0) {
-      throw new Error(`${entry.route} canonicalSources must be a non-empty array`);
-    }
-    if (new Set(entry.canonicalSources).size !== entry.canonicalSources.length) {
-      throw new Error(`${entry.route} has duplicate canonical sources`);
-    }
-    for (const source of entry.canonicalSources) {
-      if (
-        typeof source !== 'string' ||
-        /[*?[]/.test(source) ||
-        forbiddenSources.some((pattern) => pattern.test(source))
-      ) {
-        throw new Error(`${entry.route} has invalid canonical source ${source}`);
-      }
-      canonicalSourceText.set(
-        source,
-        await readFile(resolve(workspaceRoot, source), 'utf8'),
-      );
-    }
-  }
+  await loadDeclaredSources(entry, 'canonicalSources', canonicalSourceText);
+  await loadDeclaredSources(entry, 'evidenceSources', evidenceSourceText);
   if (!entry.owner) {
     throw new Error(`${entry.route} has no canonical Nx owner`);
   }
@@ -282,6 +286,126 @@ for (const entry of manifest.entries) {
         canonicalSources: entry.canonicalSources,
         tokenCount: catalog.tokens.length,
         buckets,
+        javascript: false,
+      });
+    }
+
+    if (entry.route === '/components/') {
+      if (
+        entry.source !==
+        'packages/cem-components/dist/catalog/cem.components.catalog.json'
+      ) {
+        throw new Error('the component gallery must consume the public component catalog');
+      }
+      if (output.includes('<script')) {
+        throw new Error('the static component gallery must not load JavaScript');
+      }
+
+      const catalogText = await readFile(resolve(workspaceRoot, entry.source), 'utf8');
+      const catalog = JSON.parse(catalogText);
+      if (/figma/i.test(catalogText)) {
+        throw new Error('the Phase 6 component catalog must not consume Figma projections');
+      }
+      if (!Array.isArray(catalog.components) || catalog.components.length === 0) {
+        throw new Error('the public component catalog has no components');
+      }
+      if (
+        catalog.components.some((component) =>
+          Object.prototype.hasOwnProperty.call(component, 'cemMl'),
+        )
+      ) {
+        throw new Error('the component catalog must not copy executable CEM-ML fixtures');
+      }
+
+      const componentTags = new Set(catalog.components.map((component) => component.tag));
+      if (componentTags.size !== catalog.components.length) {
+        throw new Error('the public component catalog has duplicate component tags');
+      }
+      const renderedRows = [...output.matchAll(/data-component-tag="([^"]+)"/g)];
+      if (renderedRows.length !== catalog.components.length) {
+        throw new Error(
+          `component gallery rendered ${renderedRows.length} of ${catalog.components.length} catalog records`,
+        );
+      }
+
+      const componentMvp = canonicalSourceText.get('docs/component-mvp.md');
+      const primitiveSource = canonicalSourceText.get(
+        'packages/cem-components/src/lib/primitives.ts',
+      );
+      for (const component of catalog.components) {
+        if (
+          !component.tag?.startsWith('cem-') ||
+          !Array.isArray(component.tokenFamilies) ||
+          component.tokenFamilies.length === 0 ||
+          !Array.isArray(component.categoryStates) ||
+          component.categoryStates.length === 0
+        ) {
+          throw new Error(`component catalog record is incomplete: ${component.tag}`);
+        }
+        if (!componentMvp.includes(`| \`${component.tag}\` |`)) {
+          throw new Error(`${component.tag} is absent from canonical component semantics`);
+        }
+        if (!primitiveSource.includes(`tag: '${component.tag}'`)) {
+          throw new Error(`${component.tag} is absent from the executable primitive inventory`);
+        }
+        if (!output.includes(`data-component-tag="${component.tag}"`)) {
+          throw new Error(`${component.tag} is absent from the rendered component gallery`);
+        }
+        if (!output.includes(`href="${component.documentation.referenceHref}"`)) {
+          throw new Error(`${component.tag} is missing its package-owned reference link`);
+        }
+      }
+
+      if (
+        JSON.stringify(catalog.$generated?.canonicalSources) !==
+          JSON.stringify(entry.canonicalSources) ||
+        JSON.stringify(catalog.$generated?.evidenceSources) !==
+          JSON.stringify(entry.evidenceSources)
+      ) {
+        throw new Error('component catalog provenance drifted from the route allowlist');
+      }
+      const stateReportSource = entry.evidenceSources.find((source) =>
+        source.endsWith('/component-state-matrix.json'),
+      );
+      const stateReport = JSON.parse(evidenceSourceText.get(stateReportSource));
+      if (
+        JSON.stringify(catalog.stateCoverage?.summary) !==
+        JSON.stringify(stateReport.summary)
+      ) {
+        throw new Error('component catalog state coverage drifted from its Nx report');
+      }
+
+      const storybook = catalog.relatedSurfaces?.storybook;
+      if (
+        storybook?.owner !== 'cem-elements' ||
+        storybook?.availability !== 'local-build' ||
+        storybook?.devTarget !== 'cem-elements:storybook' ||
+        storybook?.buildTarget !== 'cem-elements:build-storybook' ||
+        !output.includes(`href="${storybook.sourceHref}"`)
+      ) {
+        throw new Error('component gallery Storybook ownership or source link drifted');
+      }
+      const examples = catalog.relatedSurfaces?.examples;
+      if (!Array.isArray(examples) || examples.length === 0) {
+        throw new Error('component catalog must link package-owned examples');
+      }
+      for (const example of examples) {
+        if (
+          example.owner !== '@epa-wg/cem-components' ||
+          !example.source?.startsWith('packages/cem-components/examples/') ||
+          !output.includes(`href="${example.sourceHref}"`)
+        ) {
+          throw new Error(`component example ownership or link drifted: ${example.name}`);
+        }
+      }
+
+      Object.assign(verificationEntry, {
+        canonicalSources: entry.canonicalSources,
+        evidenceSources: entry.evidenceSources,
+        componentCount: catalog.components.length,
+        stateCoverage: catalog.stateCoverage.summary,
+        exampleLinks: examples.length,
+        storybookAvailability: storybook.availability,
         javascript: false,
       });
     }

@@ -1,0 +1,174 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+  {param @name="input" @type="object" @required=true}
+  {template @name="components" @visibility="public" |
+    {body |
+      {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
+        {attribute @name="lang" @value="en"}
+        {element @name="head" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="charset" @value="utf-8"}
+          }
+          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="name" @value="viewport"}
+            {attribute @name="content" @value="width=device-width, initial-scale=1"}
+          }
+          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | CEM component gallery}
+        }
+        {element @name="body" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="header" @namespace="http://www.w3.org/1999/xhtml" |
+            {element @name="nav" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="aria-label" @value="Primary"}
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/"}
+                CEM Site
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/"}
+                Guides
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/cem-ml/cli/"}
+                CLI guide
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/reference/cem-ml/transform-config/"}
+                CEM-ML reference
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/tokens/"}
+                Tokens
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/components/"}
+                Components
+              }
+            }
+          }
+          {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
+            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" | CEM component gallery}
+            {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+              This static catalog presents package-owned component semantics and verified state coverage without copying executable fixtures.
+            }
+            {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+              State requirements:
+              {$input.stateCoverage.summary.total}; browser-covered:
+              {$input.stateCoverage.summary.covered}; static-only:
+              {$input.stateCoverage.summary.staticOnly}; gaps:
+              {$input.stateCoverage.summary.gaps}.
+            }
+            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" | Public components}
+              {element @name="table" @namespace="http://www.w3.org/1999/xhtml" |
+                {element @name="caption" @namespace="http://www.w3.org/1999/xhtml" |
+                  Component semantics, token families, and category state coverage
+                }
+                {element @name="thead" @namespace="http://www.w3.org/1999/xhtml" |
+                  {element @name="tr" @namespace="http://www.w3.org/1999/xhtml" |
+                    {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="scope" @value="col"}
+                      Component
+                    }
+                    {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="scope" @value="col"}
+                      Category
+                    }
+                    {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="scope" @value="col"}
+                      Primary use
+                    }
+                    {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="scope" @value="col"}
+                      Token families
+                    }
+                    {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="scope" @value="col"}
+                      Category states
+                    }
+                    {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="scope" @value="col"}
+                      Reference
+                    }
+                  }
+                }
+                {element @name="tbody" @namespace="http://www.w3.org/1999/xhtml" |
+                  {cem:for-each @select="$input.components" @as="component" |
+                    {element @name="tr" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="data-component-tag" @value="{$component.tag}"}
+                      {attribute @name="data-component-category" @value="{$component.category}"}
+                      {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                        {attribute @name="scope" @value="row"}
+                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$component.tag}}
+                      }
+                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$component.category}}
+                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$component.primaryUse}}
+                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                        {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                          {cem:for-each @select="$component.tokenFamilies" @as="family" |
+                            {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                              {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$family}}
+                            }
+                          }
+                        }
+                      }
+                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                        {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                          {cem:for-each @select="$component.categoryStates" @as="state" |
+                            {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                              {$state.name}: {$state.status}
+                            }
+                          }
+                        }
+                      }
+                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                          {attribute @name="href" @value="{$component.documentation.referenceHref}"}
+                          Component reference
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" | Storybook}
+              {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+                Interactive stories remain a separately owned local build. Run
+                {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | yarn nx run {$input.relatedSurfaces.storybook.devTarget}}
+                or build them with
+                {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | yarn nx run {$input.relatedSurfaces.storybook.buildTarget}}.
+              }
+              {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+                {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                  {attribute @name="href" @value="{$input.relatedSurfaces.storybook.sourceHref}"}
+                  Browse the separately owned Storybook source
+                }
+              }
+            }
+            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" | Workflow example sources}
+              {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                {cem:for-each @select="$input.relatedSurfaces.examples" @as="example" |
+                  {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                    {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="href" @value="{$example.sourceHref}"}
+                      {$example.name}
+                    }
+                    — {$example.purpose}
+                  }
+                }
+              }
+            }
+          }
+          {element @name="footer" @namespace="http://www.w3.org/1999/xhtml" |
+            Generated by the native CEM-ML transformation graph.
+          }
+        }
+      }
+    }
+  }
+}
