@@ -2391,6 +2391,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "mml" | "mathml" => Some(crate::schema::registry::MATHML_CONTENT_TYPE.to_owned()),
         "xsl" | "xslt" => Some(crate::schema::registry::XSLT_CONTENT_TYPE.to_owned()),
         "css" => Some(crate::schema::registry::CSS_CONTENT_TYPE.to_owned()),
+        "js" | "mjs" => Some("text/javascript".to_owned()),
         "cemt" => Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
         "cemql" => Some(crate::schema::registry::CEM_QL_CONTENT_TYPE.to_owned()),
         "cem-ql" => Some(crate::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE.to_owned()),
@@ -2713,6 +2714,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("styles/THEME.CSS").as_deref(),
             Some(crate::schema::registry::CSS_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn javascript_extensions_infer_javascript_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("node_modules/@pkg/runtime.js").as_deref(),
+            Some("text/javascript")
+        );
+        assert_eq!(
+            infer_content_type_from_path("node_modules/@pkg/runtime.MJS").as_deref(),
+            Some("text/javascript")
         );
     }
 

@@ -9114,6 +9114,66 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_module_maps_copy_only_declared_javascript_to_dist() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-module-assets");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(root.join("maps")).unwrap();
+        std::fs::create_dir_all(root.join("node_modules/@pkg")).unwrap();
+        std::fs::write(
+            root.join("src/page.html"),
+            r#"<!doctype html><html><head><script type="importmap">{"imports":{"@pkg/runtime":"../node_modules/@pkg/runtime.js"}}</script></head><body></body></html>"#,
+        )
+        .unwrap();
+        let module_bytes = b"export const runtime = 'declared';\n";
+        std::fs::write(root.join("node_modules/@pkg/runtime.js"), module_bytes).unwrap();
+        std::fs::write(
+            root.join("node_modules/@pkg/undeclared.js"),
+            b"export const undeclared = true;\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("maps/source.module-map.json"),
+            r#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"../node_modules/@pkg/runtime.js"}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("maps/dist.module-map.json"),
+            r#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"./vendor/runtime.js"}}"#,
+        )
+        .unwrap();
+        let config = root.join("rewrite.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=page @src="src/page.html" @content-type="text/html" |
+    {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" |
+      {export @id=html @out="dist/page.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["--quiet", "transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read(root.join("dist/vendor/runtime.js")).unwrap(),
+            module_bytes
+        );
+        assert!(!root.join("dist/vendor/undeclared.js").exists());
+        let html = std::fs::read_to_string(root.join("dist/page.html")).unwrap();
+        assert!(html.contains("\"@pkg/runtime\": \"./vendor/runtime.js\""));
+        assert!(!html.contains("node_modules"));
+    }
+
+    #[test]
     fn transform_config_recursive_glob_exports_apply_source_bindings() {
         let root =
             std::env::temp_dir().join("cem-ml-cli-tests/transform-config-recursive-bindings");

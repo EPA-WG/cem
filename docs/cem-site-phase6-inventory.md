@@ -135,12 +135,12 @@ would drift away from executable fixture gates.
    gate that proves the example.
 6. Publication and search use an explicit checked-in content manifest. Archive,
    temporary, internal audit, and debug artifacts are excluded by default.
-7. Runtime dependencies use public package export boundaries where one exists
-   and enter the CEM-ML graph through authored module maps and host resolver
-   identities. JavaScript, CSS, JSON, WASM, and related resources are typed
-   transformation inputs; graph policy inlines them or emits/fingerprints them
-   and rewrites consumers to deployed identities. There is no exceptional asset
-   copy step, and deployed pages never depend on `node_modules` or repository
+7. JavaScript runtime dependencies enter the CEM-ML graph through paired,
+   schema-owned module maps. Authors choose exact distributable `.js`/`.mjs`
+   files, including public package subpath files under `node_modules`, and exact
+   app-relative destination URLs. CEM-ML emits only those opaque typed assets
+   and rewrites the browser import map; it does not discover package exports or
+   transitive imports. Deployed pages never retain `node_modules` or repository
    filesystem paths.
 8. Live Figma state is outside Phase 6. The site may describe the deferred
    workflow but must not trigger or require a Figma refresh.
@@ -159,8 +159,8 @@ would drift away from executable fixture gates.
   it is appropriate for local debugging but unsuitable as a deployment or CI
   boundary.
 - Component workflow examples are fragments and need a site-owned wrapper whose
-  CEM-ML build graph resolves production package exports without duplicating the
-  fragment or preserving workspace-relative imports.
+  CEM-ML build graph maps exact production JavaScript files without duplicating
+  the fragment or preserving workspace-relative imports.
 
 ## Application Boundary Decision
 
@@ -176,29 +176,27 @@ The build boundary is deliberately split by responsibility:
    package/lockfile, template, and generated-report inputs plus the clean site
    output. Nx schedules and caches the task; it does not define web transformation
    semantics.
-2. CEM-ML module maps and resolver identities map authored/bare specifiers to
-   package exports and concrete resources, including dependencies reachable
-   through `node_modules` during the build.
-   The CEM-ML module map is the build-time authority; an HTML browser import map
-   is only an output projection.
-3. JavaScript, JSON, CSS, WASM binaries, and WASM JavaScript glue are typed graph
-   artifacts. Transformation policy decides whether each reachable artifact is
-   inlined or emitted/fingerprinted, retains source-map/integrity/provenance
-   identity, and records typed dependency edges. After the reachable closure is
-   known, linking assigns deployment identities and rewrites HTML import maps,
-   JavaScript/CSS specifiers, and resource URLs. Resolution and linking are
-   separate graph phases so shared dependencies, cycles, inlining, and content
-   hashes remain deterministic.
-4. The produced directory contains the complete reachable runtime closure and
-   remains runnable without the repository or `node_modules`. Asset handling is
-   therefore native CEM-ML transformation, not a post-build copy exception.
+2. Dedicated CEM-ML source and destination module maps explicitly pair exact
+   bare npm specifiers with `.js`/`.mjs` source files and app-relative deployed
+   URLs. Source values may enter `node_modules`; destination values never do.
+   The CEM-ML module map is the build-time authority and the HTML browser import
+   map is only its destination projection.
+3. Each declared JavaScript file is an opaque typed graph import/export. CEM-ML
+   copies its bytes beside the HTML export and does not parse JavaScript, select
+   package exports, discover transitive imports, or copy undeclared files. The
+   authored map therefore owns completeness.
+4. The produced directory contains the explicitly declared JavaScript runtime
+   set and remains runnable without those source files or `node_modules`, provided
+   the authored map declares every module the application loads. Asset handling
+   is native graph transformation, not a post-build copy exception.
 5. Vite may be added as a development server or browser-test harness over the
    generated directory, but it is not the production build authority and does
    not own dependency bundling.
 
-No application was scaffolded because the CEM-ML npm/browser dependency graph is
-the next executable prerequisite. The project may be generated only after that
-contract is represented by focused native and CLI fixtures.
+No application was scaffolded during this inventory. The dedicated module-map
+contract and its native/CLI fixtures now establish the JavaScript prerequisite;
+the remaining prerequisite is deterministic resolved-read/digest evidence for
+Nx cache and provenance inputs.
 
 ## Evidence Commands
 

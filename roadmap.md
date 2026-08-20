@@ -454,13 +454,15 @@ Deliverables:
 - Schema-owned Markdown-to-HTML conversion exposed as an explicit CEM-ML
   transform-graph edge, producing typed, chainable HTML artifacts before site
   layout or component composition.
-- CEM-ML-native web dependency assembly: authored module maps and host resolvers
-  resolve npm package exports and transitive JavaScript/WASM resources during
-  transformation; graph policy inlines or emits/fingerprints those typed
-  artifacts, rewrites browser specifiers/import maps to their deployed
-  identities, and produces a clean bundle decoupled from `node_modules` and
-  workspace paths. Asset handling is graph transformation, not an exceptional
-  copy phase.
+- CEM-ML-native web dependency assembly through the dedicated
+  `application/vnd.cem.module-map+json` / `https://cem.dev/ns/data/module-map/1`
+  contract. Paired source and destination maps explicitly enumerate exact bare
+  npm JavaScript specifiers, source files (including `node_modules` paths), and
+  app-relative deployed URLs. The graph treats each declared `.js`/`.mjs` file
+  as an opaque typed import/export, copies only those files beside the HTML
+  output, and projects destination URLs into the browser import map. JavaScript
+  parsing, transitive discovery, package-export selection, and undeclared asset
+  copying are not part of this phase.
 - Root-wired docs site with guides, token browser, component gallery, examples, API/reference, and release notes.
 - Generated docs imported from package markdown and token reports.
 - Interactive examples for tokens, components, XML fixtures, and native output snippets.

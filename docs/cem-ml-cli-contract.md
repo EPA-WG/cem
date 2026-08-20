@@ -227,45 +227,30 @@ Current implementation slice:
 
 ### Static web dependency transformation target
 
-The Phase 6 site build extends the same graph and resolver vocabulary; it must
-not introduce a separate asset-copy or JavaScript-bundler authority:
+The Phase 6 site build extends the same graph and resolver vocabulary without a
+second JavaScript bundler or asset-copy authority:
 
-- An authored module map plus host resolver policy resolves bare npm specifiers,
-  package export entries, relative module edges, and WASM/resource references
-  into stable graph resource identities. A Node CLI host may read resources from
-  `node_modules` during transformation, but that path is never an output
-  identity.
-- The CEM-ML module map is the build-time semantic input. A browser
-  `<script type="importmap">` is one possible output projection and must not
-  become a second resolution authority.
-- JavaScript, JSON, CSS, WASM binaries, WASM JavaScript glue, and other reachable
-  web resources are typed artifacts in the same transformation graph as source
-  Markdown, HTML, and CEM templates.
-- Typed dependency discovery records edge kind and referrer identity for static
-  JavaScript imports/re-exports, literal dynamic imports, CSS imports/URLs, and
-  URL/WASM references emitted by supported glue. Non-literal or unsupported
-  runtime discovery remains explicit external policy or a deterministic
-  diagnostic; it is never guessed from the filesystem.
-- Graph policy selects inline or emitted/fingerprinted output for each reachable
-  artifact. Both paths retain integrity, source-map, provenance, and cache
-  identity; neither is an untracked filesystem copy.
-- Linking is a graph phase after dependency discovery: it assigns final
-  deployment identities to the closed reachable set, then rewrites HTML import
-  maps, static resource references, and JavaScript/CSS module specifiers. This
-  ordering keeps inlining, shared emitted dependencies, cycles, and fingerprints
-  deterministic.
-- The emitted static directory is a closed runtime dependency graph: it must run
-  after the source workspace and `node_modules` are removed.
-- Nx may schedule and cache a CLI invocation using declared graph, lockfile,
-  package-export, source, and generated-content inputs. Nx and optional dev
-  servers do not redefine the transformation semantics. CEM-ML also emits the
-  resolved-read/dependency manifest and content digests needed to audit the
-  closure represented by that cache entry.
-
-This is a target contract, not a claim that the current `rewrite-importmap`
-slice already walks JavaScript imports or npm package exports. Those typed
-dependency adapters and graph fixtures must land before the site shell is
-scaffolded.
+- `application/vnd.cem.module-map+json` with schema
+  `https://cem.dev/ns/data/module-map/1` is the explicit JavaScript dependency
+  boundary. Paired source and destination documents have identical `imports`
+  keys. Keys are exact bare npm specifiers; source values identify `.js`/`.mjs`
+  files and destination values are app-relative `./` URLs.
+- Source values resolve relative to the source module-map document and may point
+  into `node_modules`. Each declared file becomes an ordinary opaque
+  `text/javascript` graph import and an export beside the graph's HTML output.
+  Only declared bytes are copied.
+- Destination values are projected into the HTML browser import map. Source and
+  `node_modules` paths never become browser output identities.
+- The map is the complete manifest. CEM-ML does not parse JavaScript, walk static
+  or dynamic imports, select npm package exports, infer transitive resources, or
+  copy undeclared siblings. If a runtime module needs another module, the author
+  declares that dependency as another exact map entry.
+- The first schema version excludes prefix maps, CommonJS, JSON, CSS, WASM,
+  inlining, and fingerprinting. Those require a later versioned contract rather
+  than silent discovery.
+- Nx schedules and caches the CLI graph. The next hardening slice is a
+  deterministic resolved-read manifest with content digests for all declared
+  module assets.
 
 The Rust/WASM engine API models transform as a first-class graph request/response
 pair instead of smuggling template information through `ConvertRequest` or CLI-only

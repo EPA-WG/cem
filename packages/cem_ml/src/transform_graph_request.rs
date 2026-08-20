@@ -21,14 +21,16 @@ use crate::engine::{
     TransformGraphDependencyRole, TransformGraphExport, TransformGraphImport,
     TransformGraphImportMapMissingPolicy, TransformGraphImportMapRewrite,
     TransformGraphImportMapRewriteMode, TransformGraphJoin, TransformGraphJoinInput,
-    TransformGraphJoinMode, TransformGraphRequest, TransformGraphStage, TransformRuntimePhase,
-    TransformStageSchedulerScopeIds, TransformTemplateEntrypoint, TransformTemplateKind,
+    TransformGraphJoinMode, TransformGraphRequest, TransformGraphStage, TransformGraphStylePolicy,
+    TransformRuntimePhase, TransformStageSchedulerScopeIds, TransformTemplateEntrypoint,
+    TransformTemplateKind,
 };
 use crate::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
     ResolveDirection, ResolveListRequest, ResolvePurpose, ResolveRequest, ResolverDiagnostic,
 };
 use crate::run_config::{self, ScopeConfig};
+use crate::schema::registry::{MODULE_MAP_CONTENT_TYPE, MODULE_MAP_SCHEMA_URI};
 use crate::transform_config::{
     self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphJoinMode as ConfigJoinMode,
     TransformGraphNode, TransformGraphNodeKind,
@@ -718,6 +720,7 @@ pub fn lower_transform_graph_request(
         edges: Vec::new(),
         variants: BTreeMap::new(),
         output_routes: BTreeMap::new(),
+        module_assets: BTreeMap::new(),
         next_scope_id: 0,
     };
     lowerer.lower()?;
@@ -750,7 +753,21 @@ struct TransformGraphRequestLowerer<'a> {
     edges: Vec<TransformGraphDependency>,
     variants: BTreeMap<String, Vec<ArtifactVariant>>,
     output_routes: BTreeMap<String, ArtifactOutputRoute>,
+    module_assets: BTreeMap<String, Vec<PendingModuleAsset>>,
     next_scope_id: u32,
+}
+
+#[derive(Debug, Clone)]
+struct PendingModuleAsset {
+    import_id: String,
+    target: String,
+}
+
+#[derive(Debug)]
+struct ModuleMapDocument {
+    uri: String,
+    schema: Option<String>,
+    imports: BTreeMap<String, String>,
 }
 
 impl TransformGraphRequestLowerer<'_> {
@@ -1089,13 +1106,40 @@ impl TransformGraphRequestLowerer<'_> {
         let mut rewrite_variants = Vec::with_capacity(count);
         for (index, primary_variant) in primary_variants.into_iter().enumerate() {
             let rewrite_id = variant_id(&node.id, index, count);
-            let source_imports = if let Some(source_map) = node.source_map.as_deref() {
-                self.importmap_imports(source_map, &primary_variant.bindings, false)?
+            let source_map = if let Some(source_map) = node.source_map.as_deref() {
+                Some(self.importmap_document(source_map, &primary_variant.bindings, false)?)
             } else {
-                BTreeMap::new()
+                None
             };
-            let target_imports =
-                self.importmap_imports(target_map, &primary_variant.bindings, true)?;
+            let target_map =
+                self.importmap_document(target_map, &primary_variant.bindings, true)?;
+            let source_is_module_map = source_map
+                .as_ref()
+                .and_then(|document| document.schema.as_deref())
+                == Some(MODULE_MAP_SCHEMA_URI);
+            let target_is_module_map = target_map.schema.as_deref() == Some(MODULE_MAP_SCHEMA_URI);
+            match (source_is_module_map, target_is_module_map) {
+                (true, true) => self.lower_module_assets(
+                    &rewrite_id,
+                    source_map.as_ref().expect("source module map"),
+                    &target_map,
+                )?,
+                (true, false) | (false, true) => {
+                    return Err(config_error(
+                        self.config_uri,
+                        "cem.transform_config.module_map_identity_mismatch",
+                        format!(
+                            "rewrite-importmap node `{}` must pair source and target documents with schema `{MODULE_MAP_SCHEMA_URI}`",
+                            node.id
+                        ),
+                    ));
+                }
+                (false, false) => {}
+            }
+            let source_imports = source_map
+                .map(|document| document.imports)
+                .unwrap_or_default();
+            let target_imports = target_map.imports;
             let scheduler_scope_id = self.take_scope();
             self.importmap_rewrites
                 .push(TransformGraphImportMapRewrite {
@@ -1127,12 +1171,12 @@ impl TransformGraphRequestLowerer<'_> {
         Ok(())
     }
 
-    fn importmap_imports(
+    fn importmap_document(
         &self,
         raw: &str,
         bindings: &BTreeMap<String, String>,
         required: bool,
-    ) -> Result<BTreeMap<String, String>, TransformGraphRequestError> {
+    ) -> Result<ModuleMapDocument, TransformGraphRequestError> {
         let expanded = expand_binding_template(
             raw,
             bindings,
@@ -1143,7 +1187,7 @@ impl TransformGraphRequestLowerer<'_> {
         let resource = self.provider.read_resource(
             &expanded,
             ResolvePurpose::ModuleMap,
-            Some("application/importmap+json"),
+            Some(MODULE_MAP_CONTENT_TYPE),
         )?;
         let value: serde_json::Value =
             serde_json::from_slice(&resource.bytes).map_err(|error| {
@@ -1153,6 +1197,29 @@ impl TransformGraphRequestLowerer<'_> {
                     format!("importmap `{}` is not valid JSON: {error}", resource.uri),
                 )
             })?;
+        let schema = match value.get("$schema") {
+            Some(serde_json::Value::String(schema)) if schema == MODULE_MAP_SCHEMA_URI => {
+                Some(schema.clone())
+            }
+            Some(serde_json::Value::String(schema)) => {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.schema_unsupported",
+                    format!(
+                        "module map `{}` uses unsupported `$schema` `{schema}`; expected `{MODULE_MAP_SCHEMA_URI}`",
+                        resource.uri
+                    ),
+                ));
+            }
+            Some(_) => {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.schema_invalid",
+                    format!("module map `{}` `$schema` must be a string", resource.uri),
+                ));
+            }
+            None => None,
+        };
         let Some(imports) = value.get("imports").and_then(serde_json::Value::as_object) else {
             if required {
                 return Err(config_error(
@@ -1164,9 +1231,13 @@ impl TransformGraphRequestLowerer<'_> {
                     ),
                 ));
             }
-            return Ok(BTreeMap::new());
+            return Ok(ModuleMapDocument {
+                uri: resource.uri,
+                schema,
+                imports: BTreeMap::new(),
+            });
         };
-        imports
+        let imports = imports
             .iter()
             .map(|(key, value)| {
                 value
@@ -1183,7 +1254,81 @@ impl TransformGraphRequestLowerer<'_> {
                         )
                     })
             })
-            .collect()
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        Ok(ModuleMapDocument {
+            uri: resource.uri,
+            schema,
+            imports,
+        })
+    }
+
+    fn lower_module_assets(
+        &mut self,
+        rewrite_id: &str,
+        source_map: &ModuleMapDocument,
+        target_map: &ModuleMapDocument,
+    ) -> Result<(), TransformGraphRequestError> {
+        let source_keys = source_map.imports.keys().collect::<BTreeSet<_>>();
+        let target_keys = target_map.imports.keys().collect::<BTreeSet<_>>();
+        if source_keys != target_keys {
+            let missing = source_keys
+                .difference(&target_keys)
+                .map(|key| key.as_str())
+                .collect::<Vec<_>>();
+            let undeclared = target_keys
+                .difference(&source_keys)
+                .map(|key| key.as_str())
+                .collect::<Vec<_>>();
+            return Err(config_error(
+                self.config_uri,
+                "cem.module_map.entries_mismatch",
+                format!(
+                    "module-map source and target `imports` keys must match; missing targets: [{}]; undeclared targets: [{}]",
+                    missing.join(", "),
+                    undeclared.join(", ")
+                ),
+            ));
+        }
+
+        let mut assets = Vec::with_capacity(source_map.imports.len());
+        for (index, (specifier, source)) in source_map.imports.iter().enumerate() {
+            validate_module_specifier(self.config_uri, specifier)?;
+            let target = &target_map.imports[specifier];
+            validate_module_asset_target(self.config_uri, specifier, target)?;
+            let source_uri = resolve_transform_graph_reference(&source_map.uri, source);
+            let source_content_type = run_config::infer_content_type_from_path(&source_uri);
+            if source_content_type.as_deref() != Some("text/javascript") {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.asset_type_unsupported",
+                    format!(
+                        "module-map entry `{specifier}` source `{source}` must identify a `.js` or `.mjs` JavaScript module"
+                    ),
+                ));
+            }
+            let resource = self.provider.read_resource(
+                &source_uri,
+                ResolvePurpose::Input,
+                Some("text/javascript"),
+            )?;
+            let import_id = format!("{rewrite_id}:module:{index}");
+            let scheduler_scope_id = self.take_scope();
+            self.imports.push(TransformGraphImport {
+                id: import_id.clone(),
+                input: engine_input_from_resource(
+                    resource,
+                    Some("text/javascript".to_owned()),
+                    None,
+                ),
+                scheduler_scope_id,
+            });
+            assets.push(PendingModuleAsset {
+                import_id,
+                target: target.clone(),
+            });
+        }
+        self.module_assets.insert(rewrite_id.to_owned(), assets);
+        Ok(())
     }
 
     fn lower_export(
@@ -1217,6 +1362,21 @@ impl TransformGraphRequestLowerer<'_> {
                 node.schema.clone(),
             );
             let target = target_scope.format_identity_option();
+            let module_assets = self
+                .module_assets
+                .get(&input_variant.id)
+                .cloned()
+                .unwrap_or_default();
+            if !module_assets.is_empty() && !module_asset_export_is_html(&target_scope) {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.transform_config.module_map_html_export_required",
+                    format!(
+                        "module-map rewrite `{}` must export an HTML document before its JavaScript assets can be placed",
+                        input_variant.id
+                    ),
+                ));
+            }
             self.output_routes.insert(
                 input_variant.id.clone(),
                 ArtifactOutputRoute {
@@ -1228,7 +1388,7 @@ impl TransformGraphRequestLowerer<'_> {
             self.exports.push(TransformGraphExport {
                 id: export_id.clone(),
                 input: input_variant.id.clone(),
-                destination: Some(destination),
+                destination: Some(destination.clone()),
                 target,
                 target_scope,
                 style_policy: node.style_policy.unwrap_or_default(),
@@ -1236,9 +1396,35 @@ impl TransformGraphRequestLowerer<'_> {
             });
             self.edges.push(TransformGraphDependency {
                 from: input_variant.id,
-                to: export_id,
+                to: export_id.clone(),
                 role: engine_dependency_role(input_role),
             });
+            for (asset_index, asset) in module_assets.into_iter().enumerate() {
+                let asset_destination =
+                    resolve_transform_graph_reference(&destination, &asset.target);
+                let asset_scope = resource_scope(
+                    &asset_destination,
+                    None,
+                    Some("text/javascript".to_owned()),
+                    None,
+                );
+                let asset_export_id = format!("{export_id}:module:{asset_index}");
+                let scheduler_scope_id = self.take_scope();
+                self.exports.push(TransformGraphExport {
+                    id: asset_export_id.clone(),
+                    input: asset.import_id.clone(),
+                    destination: Some(asset_destination),
+                    target: asset_scope.format_identity_option(),
+                    target_scope: asset_scope,
+                    style_policy: TransformGraphStylePolicy::Auto,
+                    scheduler_scope_id,
+                });
+                self.edges.push(TransformGraphDependency {
+                    from: asset.import_id,
+                    to: asset_export_id,
+                    role: TransformGraphDependencyRole::PrimaryInput,
+                });
+            }
         }
         Ok(())
     }
@@ -1353,6 +1539,93 @@ fn required_field<'a>(
 
 fn config_error(uri: &str, code: &str, message: impl Into<String>) -> TransformGraphRequestError {
     TransformGraphRequestError::diagnostic(uri, code, message)
+}
+
+fn validate_module_specifier(
+    config_uri: &str,
+    specifier: &str,
+) -> Result<(), TransformGraphRequestError> {
+    let specifier = specifier.trim();
+    if specifier.is_empty()
+        || specifier.starts_with('.')
+        || specifier.starts_with('/')
+        || specifier.starts_with('#')
+        || specifier.ends_with('/')
+        || uri_scheme(specifier).is_some()
+    {
+        return Err(config_error(
+            config_uri,
+            "cem.module_map.specifier_invalid",
+            format!(
+                "module-map import key `{specifier}` must be an exact bare npm module specifier"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_module_asset_target(
+    config_uri: &str,
+    specifier: &str,
+    target: &str,
+) -> Result<(), TransformGraphRequestError> {
+    let relative = target.strip_prefix("./").ok_or_else(|| {
+        config_error(
+            config_uri,
+            "cem.module_map.target_invalid",
+            format!(
+                "module-map entry `{specifier}` target `{target}` must be an app-relative `./` JavaScript URL"
+            ),
+        )
+    })?;
+    let path = Path::new(relative);
+    let has_only_normal_segments = path
+        .components()
+        .all(|component| matches!(component, std::path::Component::Normal(_)));
+    let is_javascript = matches!(
+        path.extension()
+            .and_then(OsStr::to_str)
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("js" | "mjs")
+    );
+    if relative.is_empty()
+        || target
+            .chars()
+            .any(|character| matches!(character, '\\' | '?' | '#'))
+        || !has_only_normal_segments
+        || !is_javascript
+    {
+        return Err(config_error(
+            config_uri,
+            "cem.module_map.target_invalid",
+            format!(
+                "module-map entry `{specifier}` target `{target}` must stay within the app output and end in `.js` or `.mjs`"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn module_asset_export_is_html(scope: &ScopeConfig) -> bool {
+    scope
+        .default_content_type
+        .as_deref()
+        .map(|content_type| {
+            content_type
+                .split(';')
+                .next()
+                .unwrap_or(content_type)
+                .trim()
+                .to_ascii_lowercase()
+        })
+        .is_some_and(|content_type| {
+            matches!(content_type.as_str(), "text/html" | "application/xhtml+xml")
+        })
+        || matches!(
+            scope.schema.as_deref(),
+            Some("https://cem.dev/ns/data/html/1" | "https://cem.dev/ns/data/xhtml/1")
+        )
 }
 
 fn variant_id(base: &str, index: usize, count: usize) -> String {
@@ -1987,5 +2260,134 @@ mod tests {
         );
         assert_eq!(manifest_request.imports[0].scheduler_scope_id, 0);
         assert_eq!(manifest_request.exports[0].scheduler_scope_id, 6);
+    }
+
+    #[test]
+    fn dedicated_module_maps_lower_declared_javascript_as_graph_artifacts() {
+        let fixture = FixtureDir::new();
+        let graph_bytes = br#"{run | {import @id=page @src="src/page.html" @content-type="text/html" | {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" | {export @id=html @out="dist/page.html" @content-type="text/html"}}}}"#;
+        let config_uri = fixture.write("graph.cem", graph_bytes);
+        fixture.write(
+            "src/page.html",
+            br#"<script type="importmap">{"imports":{"@pkg/runtime":"../node_modules/@pkg/runtime.js"}}</script>"#,
+        );
+        fixture.write(
+            "maps/source.module-map.json",
+            br#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"../node_modules/@pkg/runtime.js"}}"#,
+        );
+        fixture.write(
+            "maps/dist.module-map.json",
+            br#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"./vendor/runtime.js"}}"#,
+        );
+        let module_source = fixture.write(
+            "node_modules/@pkg/runtime.js",
+            b"export const runtime = 'declared';\n",
+        );
+        let graph = graph(&config_uri, graph_bytes);
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+
+        let request = lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+            .expect("dedicated module maps lower");
+
+        assert_eq!(request.imports.len(), 2);
+        let module_import = request
+            .imports
+            .iter()
+            .find(|import| import.input.uri == module_source)
+            .expect("declared module graph import");
+        assert_eq!(
+            module_import
+                .input
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/javascript")
+        );
+        let module_export = request
+            .exports
+            .iter()
+            .find(|export| export.input == module_import.id)
+            .expect("declared module graph export");
+        let expected_destination = fixture.0.join("dist/vendor/runtime.js");
+        assert_eq!(
+            module_export.destination.as_deref(),
+            Some(expected_destination.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            request.importmap_rewrites[0].target_imports["@pkg/runtime"],
+            "./vendor/runtime.js"
+        );
+    }
+
+    #[test]
+    fn module_map_contract_rejects_discovery_and_output_escape_shapes() {
+        for specifier in ["./runtime.js", "https://cdn.example/runtime.js", "@pkg/"] {
+            let error = validate_module_specifier("graph.cem", specifier).unwrap_err();
+            assert_eq!(error.code(), "cem.module_map.specifier_invalid");
+        }
+        for target in [
+            "../runtime.js",
+            "./../runtime.js",
+            "./runtime.css",
+            "./runtime.js?x=1",
+        ] {
+            let error =
+                validate_module_asset_target("graph.cem", "@pkg/runtime", target).unwrap_err();
+            assert_eq!(error.code(), "cem.module_map.target_invalid");
+        }
+    }
+
+    #[test]
+    fn dedicated_module_maps_require_identical_keys() {
+        let fixture = FixtureDir::new();
+        let graph_bytes = br#"{run | {import @id=page @src="src/page.html" @content-type="text/html" | {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" | {export @id=html @out="dist/page.html" @content-type="text/html"}}}}"#;
+        let config_uri = fixture.write("graph.cem", graph_bytes);
+        fixture.write("src/page.html", b"<html></html>");
+        fixture.write(
+            "maps/source.module-map.json",
+            br#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"../node_modules/@pkg/runtime.js"}}"#,
+        );
+        fixture.write(
+            "maps/dist.module-map.json",
+            br#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/other":"./vendor/other.js"}}"#,
+        );
+        let graph = graph(&config_uri, graph_bytes);
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+
+        let error = lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+            .unwrap_err();
+
+        assert_eq!(error.code(), "cem.module_map.entries_mismatch");
+    }
+
+    #[test]
+    fn dedicated_module_map_destination_collisions_are_runtime_contract_errors() {
+        let fixture = FixtureDir::new();
+        let graph_bytes = br#"{run | {import @id=page @src="src/page.html" @content-type="text/html" | {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" @missing=insert | {export @id=html @out="dist/page.html" @content-type="text/html"}}}}"#;
+        let config_uri = fixture.write("graph.cem", graph_bytes);
+        fixture.write("src/page.html", b"<html><head></head></html>");
+        fixture.write(
+            "maps/source.module-map.json",
+            br#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/a":"../node_modules/@pkg/a.js","@pkg/b":"../node_modules/@pkg/b.js"}}"#,
+        );
+        fixture.write(
+            "maps/dist.module-map.json",
+            br#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/a":"./vendor/shared.js","@pkg/b":"./vendor/shared.js"}}"#,
+        );
+        fixture.write("node_modules/@pkg/a.js", b"export const a = 1;\n");
+        fixture.write("node_modules/@pkg/b.js", b"export const b = 2;\n");
+        let graph = graph(&config_uri, graph_bytes);
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+        let request = lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+            .expect("colliding destinations lower before runtime validation");
+
+        let diagnostics = engine::validate_transform_graph_runtime_contract(&request);
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.transform_runtime.duplicate_destination"
+        }));
     }
 }

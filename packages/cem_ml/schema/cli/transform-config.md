@@ -59,9 +59,19 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `rewrite-importmap` mutates the `<script type="importmap">` JSON in a text
   HTML input artifact and leaves the rest of the HTML unchanged.
 - `rewrite-importmap @source-map` optionally validates the source `imports`
-  entries before rewriting.
-- `rewrite-importmap @target-map` points to a browser importmap JSON file whose
-  `imports` entries are written into the HTML importmap.
+  entries before rewriting. Legacy browser import-map JSON remains validation
+  only.
+- When both maps declare `$schema` as
+  `https://cem.dev/ns/data/module-map/1`, they use the dedicated
+  `application/vnd.cem.module-map+json` contract. Their exact bare-specifier key
+  sets must match. Source values resolve `.js`/`.mjs` resources relative to the
+  source map; destination values are safe app-relative `./` URLs.
+- Dedicated module-map sources lower into opaque `text/javascript` graph imports
+  and byte-preserving exports beside each HTML export. Destination values are
+  written into the HTML browser import map. JavaScript is not parsed and only
+  declared assets are copied.
+- `rewrite-importmap @target-map` points to either a legacy browser import-map
+  JSON file or the paired destination CEM-ML module map.
 - `rewrite-importmap @mode` supports `replace-imports` by default, plus `merge`
   and `replace-script`.
 - `rewrite-importmap @missing` supports `error` by default, plus `ignore` and

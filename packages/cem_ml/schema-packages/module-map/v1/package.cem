@@ -1,0 +1,30 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="module-map" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/module-map/1"
+        @source="schema/module-map.cem"
+    }
+
+    {content-type @value="application/vnd.cem.module-map+json" @primary=true}
+
+    {namespace @prefix="module-map" @uri="https://cem.dev/ns/data/module-map/1"}
+
+    {example
+        @id="source-modules"
+        @path="examples/source.module-map.json"
+        @content-type="application/vnd.cem.module-map+json"
+        @schema="https://cem.dev/ns/data/module-map/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="destination-modules"
+        @path="examples/destination.module-map.json"
+        @content-type="application/vnd.cem.module-map+json"
+        @schema="https://cem.dev/ns/data/module-map/1"
+        @expected-result="pass"
+    }
+}

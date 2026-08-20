@@ -1,0 +1,58 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="module-map" @namespace="https://cem.dev/ns/data/module-map/1" @version="1.0.0" |
+    {summary |
+        {text | Explicit JavaScript module deployment map. The JSON source document maps exact bare npm specifiers to source or destination module URLs. A paired source and destination map is a complete build manifest; CEM-ML copies only those declared JavaScript resources and does not parse JavaScript to discover more dependencies.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.module-map+json" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="module-map" @uri="https://cem.dev/ns/data/module-map/1" @role="schema"}
+    }
+
+    {elements |
+        {element @name="module-map" @required-attributes="schema-uri" @children="import+"}
+        {element @name="import" @required-attributes="specifier target"}
+    }
+
+    {attributes |
+        {attribute @name="schema-uri" @type="schema:uri"}
+        {attribute @name="specifier" @type="schema:string"}
+        {attribute @name="target" @type="schema:uri"}
+    }
+
+    {constraints |
+        {constraint @kind="module-map-schema-identity" @target="module-map" @policy="the JSON $schema member must equal https://cem.dev/ns/data/module-map/1"}
+        {constraint @kind="module-map-exact-bare-specifiers" @target="import" @policy="imports keys are exact bare npm module specifiers; relative, URL, internal-import, and prefix keys are rejected"}
+        {constraint @kind="module-map-source-javascript" @target="import" @policy="source-map targets identify explicit .js or .mjs resources and resolve relative to the source module-map document"}
+        {constraint @kind="module-map-destination-javascript" @target="import" @policy="destination-map targets are app-relative ./ URLs, cannot escape the HTML export directory, and end in .js or .mjs"}
+        {constraint @kind="module-map-pair-complete" @target="module-map" @policy="paired source and destination maps declare identical imports keys"}
+        {constraint @kind="module-map-no-discovery" @target="module-map" @policy="JavaScript content remains opaque; imports are never scanned to discover undeclared dependencies"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.module_map.schema_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.schema_unsupported" @severity="error"}
+        {diagnostic @code="cem.module_map.specifier_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.target_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.asset_type_unsupported" @severity="error"}
+        {diagnostic @code="cem.module_map.entries_mismatch" @severity="error"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="The first contract supports explicit JavaScript files only. JSON, CSS, WASM, transitive import discovery, package-export selection, prefix mappings, inlining, and fingerprinting are outside this version."}
+    }
+
+    {open-content |
+        {accept @kind="future-module-asset-kind" @policy="reject-unless-a-later-schema-version-declares-it"}
+    }
+}

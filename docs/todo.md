@@ -650,26 +650,36 @@ until final Phases 10 and 11, after Phase 9 release governance.
       scaffolded.
 - [ ] Make npm/browser dependency assembly a native CEM-ML web-build graph
       before scaffolding the site shell.
-    - [ ] Define the authored module-map and resolver contract for bare npm
-          specifiers, package export conditions, relative module edges, and
-          deterministic lockfile-backed identities; keep browser import maps as
-          output projections rather than a second resolution authority.
-    - [ ] Load transitive JavaScript, JSON, CSS, and WASM dependencies as typed
-          graph artifacts, including the JavaScript glue and binary relationships
-          of WASM npm packages, with explicit edge kinds for static imports,
-          literal dynamic imports, CSS imports/URLs, and supported URL/WASM glue.
-    - [ ] Add graph policy for inline versus emitted/fingerprinted artifacts and
-          preserve source maps, integrity, provenance, and cache identity across
-          either result.
-    - [ ] Link only after the reachable closure is known, assign deployment
-          identities, and rewrite HTML import maps, JavaScript/CSS specifiers,
-          and WASM/static resource references rather than preserving filesystem
-          or `node_modules` paths.
-    - [ ] Prove with Rust-native and CLI graph fixtures that the clean output is
-          reproducible, contains the complete reachable dependency closure, and
-          remains runnable after the workspace and `node_modules` are absent;
-          emit a resolved-read/dependency manifest with content digests for Nx
-          cache and provenance auditing.
+    - [x] Define a dedicated CEM-ML module-map content type and schema. Its
+          authored `imports` entries are the complete JavaScript dependency
+          manifest: source maps resolve explicit npm files (including paths in
+          `node_modules`), destination maps declare browser-facing module URLs,
+          and CEM-ML does not discover dependencies by parsing JavaScript.
+    - [x] Lower dedicated source/destination module maps into ordinary typed
+          JavaScript graph imports and exports, copy only declared source assets
+          beside the exported app HTML, and project only destination URLs into
+          the browser import map.
+    - [x] Reject missing destination entries, undeclared/non-JavaScript assets,
+          non-bare module specifiers, escaping output paths, and destination
+          collisions with stable native diagnostics.
+    - [x] Prove with Rust-native and CLI graph fixtures that declared npm assets
+          are byte-preserved in the clean output, no `node_modules` path leaks
+          into browser output, and undeclared JavaScript is not copied.
+        - Completed 2026-08-19: schema package
+          `cem_ml_schema_package_module_map_v1` owns
+          `application/vnd.cem.module-map+json` and
+          `https://cem.dev/ns/data/module-map/1`. Paired maps now lower each
+          exact declared `.js`/`.mjs` source into an opaque `text/javascript`
+          graph import and a byte-preserving export relative to the HTML
+          destination, while the HTML import map receives only app-relative
+          destination URLs. Native negative coverage rejects mismatched keys,
+          relative/URL/prefix specifiers, non-JavaScript or escaping targets,
+          and destination collisions. The CLI fixture copies the declared npm
+          asset, omits an undeclared sibling, and leaves no `node_modules` path
+          in the emitted HTML.
+    - [ ] Emit a deterministic module-asset read/dependency manifest with content
+          digests so Nx cache inputs and provenance auditing cover every declared
+          JavaScript resource.
 - [ ] Create the root-wired CEM Site shell with stable routes and generated-doc
       ingestion from public package/report boundaries.
 - [ ] Build the guides, token browser, component gallery, examples, API/reference,
