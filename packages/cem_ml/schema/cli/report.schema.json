@@ -519,7 +519,7 @@
     "transformGraphReport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["exportCount", "exports"],
+      "required": ["exportCount", "exports", "moduleAssetManifest"],
       "properties": {
         "exportCount": {
           "$ref": "#/$defs/nonNegativeInteger"
@@ -529,6 +529,73 @@
           "items": {
             "$ref": "#/$defs/transformGraphExportReport"
           }
+        },
+        "moduleAssetManifest": {
+          "$ref": "#/$defs/transformGraphModuleAssetManifest"
+        }
+      }
+    },
+    "transformGraphModuleAssetManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hashScheme", "hash", "assetCount", "assets"],
+      "properties": {
+        "hashScheme": {
+          "const": "sha256"
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "assetCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transformGraphModuleAsset"
+          }
+        }
+      }
+    },
+    "transformGraphModuleAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specifier",
+        "sourceMapUri",
+        "sourceUri",
+        "target",
+        "destination",
+        "contentType",
+        "byteLength",
+        "sha256"
+      ],
+      "properties": {
+        "specifier": {
+          "type": "string"
+        },
+        "sourceMapUri": {
+          "type": "string"
+        },
+        "sourceUri": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        },
+        "contentType": {
+          "const": "text/javascript"
+        },
+        "byteLength": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       }
     },

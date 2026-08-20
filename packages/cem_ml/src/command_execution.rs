@@ -1237,9 +1237,10 @@ mod tests {
         FixtureRoundtripResponse, FixtureValidateRequest, FixtureValidateResponse, InspectRequest,
         InspectResponse, InspectView, LayerFormat, ParseProjection, ParseRequest, ParseResponse,
         TemplateInput, TraceProjection, TraceRequest, TraceResponse, TransformExecutionPolicy,
-        TransformGraphArtifact, TransformGraphRequest, TransformRequest, TransformResponse,
-        TransformSchedulerScopeIds, TransformTemplateEntrypoint, TransformTemplateKind,
-        ValidateProjection, ValidateRequest, ValidateResponse,
+        TransformGraphArtifact, TransformGraphModuleAssetManifest, TransformGraphRequest,
+        TransformRequest, TransformResponse, TransformSchedulerScopeIds,
+        TransformTemplateEntrypoint, TransformTemplateKind, ValidateProjection, ValidateRequest,
+        ValidateResponse,
     };
     use crate::operation_control::OperationControl;
     use crate::operation_handle::{
@@ -1371,6 +1372,7 @@ mod tests {
                     source_map: None,
                     output_spans: Vec::new(),
                 }],
+                module_asset_manifest: TransformGraphModuleAssetManifest::default(),
                 diagnostics: Vec::new(),
                 scheduler_trace: SchedulerTraceReport::default(),
             })
@@ -1705,6 +1707,7 @@ mod tests {
                         importmap_rewrites: Vec::new(),
                         exports: Vec::new(),
                         edges: Vec::new(),
+                        module_asset_manifest: TransformGraphModuleAssetManifest::default(),
                         preserve_source_offsets: false,
                         context: context.clone(),
                         execution_policy: TransformExecutionPolicy::default(),

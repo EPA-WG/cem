@@ -174,8 +174,10 @@ The build boundary is deliberately split by responsibility:
 
 1. Nx invokes the CEM-ML CLI build graph and declares its source, module-map,
    package/lockfile, template, and generated-report inputs plus the clean site
-   output. Nx schedules and caches the task; it does not define web transformation
-   semantics.
+   output. A planning-only CEM-ML aggregate module-asset SHA-256 is an Nx runtime
+   input, so dynamically declared npm bytes participate without duplicating map
+   resolution in JavaScript. Nx schedules and caches the task; it does not define
+   web transformation semantics.
 2. Dedicated CEM-ML source and destination module maps explicitly pair exact
    bare npm specifiers with `.js`/`.mjs` source files and app-relative deployed
    URLs. Source values may enter `node_modules`; destination values never do.
@@ -194,9 +196,8 @@ The build boundary is deliberately split by responsibility:
    not own dependency bundling.
 
 No application was scaffolded during this inventory. The dedicated module-map
-contract and its native/CLI fixtures now establish the JavaScript prerequisite;
-the remaining prerequisite is deterministic resolved-read/digest evidence for
-Nx cache and provenance inputs.
+contract, deterministic resolved-read/digest manifest, and native/CLI/Nx fixtures
+now establish the JavaScript prerequisite for the site shell.
 
 ## Evidence Commands
 

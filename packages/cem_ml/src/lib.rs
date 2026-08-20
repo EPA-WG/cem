@@ -248,6 +248,12 @@ mod tests {
         );
         assert_eq!(
             schema
+                .pointer("/$defs/transformGraphReport/properties/moduleAssetManifest/$ref",)
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/transformGraphModuleAssetManifest")
+        );
+        assert_eq!(
+            schema
                 .pointer("/$defs/schedulerTraceEvent/properties/kind/enum")
                 .and_then(serde_json::Value::as_array)
                 .map(|values| values
@@ -292,10 +298,15 @@ mod tests {
                 source_map_ref: Some("out/page.html.map".into()),
                 collection_items: Vec::new(),
             }],
+            module_asset_manifest: crate::engine::TransformGraphModuleAssetManifest::default(),
         });
 
         let v = serde_json::to_value(&report).unwrap();
         assert_eq!(v["reportAst"]["transformGraph"]["exportCount"], 1);
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["moduleAssetManifest"]["hashScheme"],
+            "sha256"
+        );
         assert_eq!(
             v["reportAst"]["transformGraph"]["exports"][0]["exportId"],
             "main"

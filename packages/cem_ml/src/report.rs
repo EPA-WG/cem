@@ -1,5 +1,5 @@
 use crate::diagnostics::Diagnostic;
-use crate::engine::{FailLevel, FormatIdentity};
+use crate::engine::{FailLevel, FormatIdentity, TransformGraphModuleAssetManifest};
 use crate::scheduler::trace::{SchedulerEvent, SchedulerEventKind, SchedulerTrace};
 use serde::{Deserialize, Serialize};
 
@@ -178,6 +178,8 @@ pub struct ConvertOutputReport {
 pub struct TransformGraphReport {
     pub export_count: u64,
     pub exports: Vec<TransformGraphExportReport>,
+    #[serde(default)]
+    pub module_asset_manifest: TransformGraphModuleAssetManifest,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

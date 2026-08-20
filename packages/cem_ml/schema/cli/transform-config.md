@@ -70,6 +70,12 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
   and byte-preserving exports beside each HTML export. Destination values are
   written into the HTML browser import map. JavaScript is not parsed and only
   declared assets are copied.
+- Lowering also produces a deterministic module-asset manifest with resolved
+  source and destination provenance, byte lengths, per-asset SHA-256 digests,
+  and a host-neutral aggregate SHA-256. The common transform-graph response and
+  CLI reports retain the full manifest. CLI
+  `--module-asset-cache-key` prints only the aggregate `sha256:<digest>` and
+  stops before execution/publication for use as an Nx runtime input.
 - `rewrite-importmap @target-map` points to either a legacy browser import-map
   JSON file or the paired destination CEM-ML module map.
 - `rewrite-importmap @mode` supports `replace-imports` by default, plus `merge`

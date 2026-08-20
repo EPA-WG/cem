@@ -5448,6 +5448,7 @@ fn transform_report_from_response(
 
 fn transform_graph_report_from_artifacts(
     artifacts: &[eng::TransformGraphArtifact],
+    module_asset_manifest: &eng::TransformGraphModuleAssetManifest,
 ) -> cem_ml::report::TransformGraphReport {
     let exports = artifacts
         .iter()
@@ -5479,6 +5480,7 @@ fn transform_graph_report_from_artifacts(
     cem_ml::report::TransformGraphReport {
         export_count: exports.len() as u64,
         exports,
+        module_asset_manifest: module_asset_manifest.clone(),
     }
 }
 
@@ -5814,6 +5816,30 @@ fn render_transform_graph_report_cem(
     cem_element_start(out, indent, "transform-graph");
     cem_attr_u64(out, "export-count", transform_graph.export_count);
     out.push_str(" |\n");
+    let manifest = &transform_graph.module_asset_manifest;
+    cem_element_start(out, indent + 1, "module-asset-manifest");
+    cem_attr(out, "hash-scheme", &manifest.hash_scheme);
+    cem_attr(out, "hash", &manifest.hash);
+    cem_attr_u64(out, "asset-count", manifest.asset_count);
+    if manifest.assets.is_empty() {
+        out.push_str("}\n");
+    } else {
+        out.push_str(" |\n");
+        for asset in &manifest.assets {
+            cem_element_start(out, indent + 2, "module-asset");
+            cem_attr(out, "specifier", &asset.specifier);
+            cem_attr(out, "source-map-uri", &asset.source_map_uri);
+            cem_attr(out, "source-uri", &asset.source_uri);
+            cem_attr(out, "target", &asset.target);
+            cem_attr(out, "destination", &asset.destination);
+            cem_attr(out, "content-type", &asset.content_type);
+            cem_attr_u64(out, "byte-length", asset.byte_length);
+            cem_attr(out, "sha256", &asset.sha256);
+            out.push_str("}\n");
+        }
+        cem_indent(out, indent + 1);
+        out.push_str("}\n");
+    }
     for export in &transform_graph.exports {
         cem_element_start(out, indent + 1, "export");
         cem_attr(out, "export-id", &export.export_id);
@@ -5916,6 +5942,21 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
     if let Some(transform_graph) = &report.report_ast.transform_graph {
         out.push_str("\n## transform graph\n\n");
         out.push_str(&format!("- exports: {}\n", transform_graph.export_count));
+        let manifest = &transform_graph.module_asset_manifest;
+        out.push_str(&format!(
+            "- module assets: {} [{}:{}]\n",
+            manifest.asset_count, manifest.hash_scheme, manifest.hash
+        ));
+        for asset in &manifest.assets {
+            out.push_str(&format!(
+                "  - {}: {} -> {} ({} bytes, sha256:{})\n",
+                asset.specifier,
+                asset.source_uri,
+                asset.destination,
+                asset.byte_length,
+                asset.sha256
+            ));
+        }
         for export in &transform_graph.exports {
             out.push_str(&format!(
                 "- {} <- {} -> {}",
@@ -7482,10 +7523,16 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
         Ok(req) => req,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    if args.module_asset_cache_key {
+        let manifest = &req.module_asset_manifest;
+        let _ = writeln!(s.stdout, "{}:{}", manifest.hash_scheme, manifest.hash);
+        return Outcome::ok();
+    }
     match engine.transform_graph(req) {
         Ok(resp) => {
             let requested_report = report_requested(&args.report);
-            let graph_report = transform_graph_report_from_artifacts(&resp.artifacts);
+            let graph_report =
+                transform_graph_report_from_artifacts(&resp.artifacts, &resp.module_asset_manifest);
             let report = transform_report_if_requested(
                 args,
                 std::slice::from_ref(&config_source_uri),
@@ -9174,6 +9221,107 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_module_asset_manifest_reports_and_hashes_without_output_writes() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-module-manifest");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(root.join("maps")).unwrap();
+        std::fs::create_dir_all(root.join("node_modules/@pkg")).unwrap();
+        std::fs::write(
+            root.join("src/page.html"),
+            r#"<script type="importmap">{"imports":{"@pkg/runtime":"../node_modules/@pkg/runtime.js"}}</script>"#,
+        )
+        .unwrap();
+        let module_path = root.join("node_modules/@pkg/runtime.js");
+        let module_bytes = b"export const runtime = 'declared';\n";
+        std::fs::write(&module_path, module_bytes).unwrap();
+        std::fs::write(
+            root.join("maps/source.module-map.json"),
+            r#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"../node_modules/@pkg/runtime.js"}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("maps/dist.module-map.json"),
+            r#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"./vendor/runtime.js"}}"#,
+        )
+        .unwrap();
+        let config = root.join("rewrite.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=page @src="src/page.html" @content-type="text/html" |
+    {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" |
+      {export @id=html @out="dist/page.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let report_path = root.join("report.json");
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--quiet",
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        let report: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+        let manifest = &report["reportAst"]["transformGraph"]["moduleAssetManifest"];
+        assert_eq!(manifest["hashScheme"], "sha256");
+        assert_eq!(manifest["assetCount"], 1);
+        assert_eq!(manifest["assets"][0]["specifier"], "@pkg/runtime");
+        assert_eq!(
+            manifest["assets"][0]["sourceUri"],
+            module_path.display().to_string()
+        );
+        assert_eq!(manifest["assets"][0]["target"], "./vendor/runtime.js");
+        assert_eq!(manifest["assets"][0]["byteLength"], module_bytes.len());
+        assert_eq!(
+            manifest["assets"][0]["sha256"],
+            cem_ml::command_service::sha256_hex(module_bytes)
+        );
+
+        std::fs::remove_dir_all(root.join("dist")).unwrap();
+        let (outcome, first_key, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--quiet",
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--module-asset-cache-key",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(first_key.trim().starts_with("sha256:"), "{first_key}");
+        assert!(!root.join("dist").exists());
+
+        std::fs::write(&module_path, b"export const runtime = 'changed';\n").unwrap();
+        let (outcome, second_key, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--quiet",
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--module-asset-cache-key",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert_ne!(first_key, second_key);
+        assert!(!root.join("dist").exists());
+    }
+
+    #[test]
     fn transform_config_recursive_glob_exports_apply_source_bindings() {
         let root =
             std::env::temp_dir().join("cem-ml-cli-tests/transform-config-recursive-bindings");
@@ -9697,7 +9845,22 @@ mod tests {
             },
         ];
 
-        let report = transform_graph_report_from_artifacts(&artifacts);
+        let module_asset_manifest = eng::TransformGraphModuleAssetManifest {
+            hash_scheme: "sha256".to_owned(),
+            hash: "b".repeat(64),
+            asset_count: 1,
+            assets: vec![eng::TransformGraphModuleAsset {
+                specifier: "@pkg/runtime".to_owned(),
+                source_map_uri: "maps/source.module-map.json".to_owned(),
+                source_uri: "node_modules/@pkg/runtime.js".to_owned(),
+                target: "./vendor/runtime.js".to_owned(),
+                destination: "out/vendor/runtime.js".to_owned(),
+                content_type: "text/javascript".to_owned(),
+                byte_length: 42,
+                sha256: "a".repeat(64),
+            }],
+        };
+        let report = transform_graph_report_from_artifacts(&artifacts, &module_asset_manifest);
         let mut rendered_report = cem_ml::report::Report::deterministic(
             vec!["graph.cem".to_owned()],
             vec![],
@@ -9710,12 +9873,22 @@ mod tests {
         );
         rendered_report.report_ast.transform_graph = Some(report.clone());
         let markdown = render_report_markdown(&rendered_report);
+        let cem = render_report_cem(&rendered_report);
         assert!(markdown.contains("[sourceMapRef: out/page.html.map]"));
+        assert!(markdown.contains("- module assets: 1 [sha256:"));
+        assert!(markdown.contains("@pkg/runtime: node_modules/@pkg/runtime.js"));
         assert!(markdown.contains("- main <- html -> out/page.html"));
         assert!(markdown.contains("[collectionItems: 1]"));
         assert!(markdown.contains("  - html <- primary -> out/page.html (text/html)"));
+        assert!(cem.contains("{module-asset-manifest @hash-scheme=\"sha256\""));
+        assert!(cem.contains("{module-asset @specifier=\"@pkg/runtime\""));
 
         let value = serde_json::to_value(report).unwrap();
+        assert_eq!(value["moduleAssetManifest"]["assetCount"], 1);
+        assert_eq!(
+            value["moduleAssetManifest"]["assets"][0]["destination"],
+            "out/vendor/runtime.js"
+        );
         assert_eq!(value["exports"][0]["input"], "html");
         assert_eq!(value["exports"][0]["sourceMapRef"], "out/page.html.map");
         assert_eq!(value["exports"][0]["hasSourceMap"], true);

@@ -648,7 +648,7 @@ until final Phases 10 and 11, after Phase 9 release governance.
       asset-copy script, owns site content and web dependency assembly; Vite may
       remain an optional generated-output server/test harness. No application was
       scaffolded.
-- [ ] Make npm/browser dependency assembly a native CEM-ML web-build graph
+- [x] Make npm/browser dependency assembly a native CEM-ML web-build graph
       before scaffolding the site shell.
     - [x] Define a dedicated CEM-ML module-map content type and schema. Its
           authored `imports` entries are the complete JavaScript dependency
@@ -677,9 +677,27 @@ until final Phases 10 and 11, after Phase 9 release governance.
           and destination collisions. The CLI fixture copies the declared npm
           asset, omits an undeclared sibling, and leaves no `node_modules` path
           in the emitted HTML.
-    - [ ] Emit a deterministic module-asset read/dependency manifest with content
+    - [x] Emit a deterministic module-asset read/dependency manifest with content
           digests so Nx cache inputs and provenance auditing cover every declared
           JavaScript resource.
+        - [x] Add native fixtures for stable specifier/source-map/source/target/
+              destination records, byte lengths, per-asset SHA-256 digests, and a
+              host-neutral aggregate cache key.
+        - [x] Carry the manifest through the common transform-graph response and
+              CLI JSON/CEM/Markdown reports so native, WASM, and CLI hosts expose
+              the same provenance evidence.
+        - [x] Add a read-only CLI cache-key projection and prove an Nx runtime
+              input consumes it without parsing module maps in JavaScript or
+              performing transform output writes during hashing.
+        - Completed 2026-08-20: graph lowering now hashes each declared module
+          asset once and emits ordered provenance records through the common
+          response and every CLI report projection. The aggregate SHA-256 uses
+          host-neutral specifier, target, content-type, length, and content-digest
+          fields while reports retain resolved source-map, source, and destination
+          URIs. `--module-asset-cache-key` stops after lowering and performs no
+          output writes. The module-map Nx project consumes that projection as a
+          runtime input over a real `lit` dependency; dependency-output hashing
+          ensures the native CLI exists before Nx evaluates the runtime key.
 - [ ] Create the root-wired CEM Site shell with stable routes and generated-doc
       ingestion from public package/report boundaries.
 - [ ] Build the guides, token browser, component gallery, examples, API/reference,

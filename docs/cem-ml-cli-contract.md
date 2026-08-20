@@ -248,9 +248,15 @@ second JavaScript bundler or asset-copy authority:
 - The first schema version excludes prefix maps, CommonJS, JSON, CSS, WASM,
   inlining, and fingerprinting. Those require a later versioned contract rather
   than silent discovery.
-- Nx schedules and caches the CLI graph. The next hardening slice is a
-  deterministic resolved-read manifest with content digests for all declared
-  module assets.
+- Every lowered graph carries a deterministic module-asset manifest: exact
+  specifier, resolved source-map/source/destination provenance, app-relative
+  target, content type, byte length, and per-asset SHA-256. Its aggregate
+  SHA-256 hashes an ordered host-neutral projection so checkout paths do not
+  fragment remote cache entries. Native/WASM responses and CLI JSON/CEM/
+  Markdown reports expose the same records. CLI `--module-asset-cache-key`
+  returns only `sha256:<digest>` before execution or publication, allowing Nx
+  runtime inputs to hash dynamically declared `node_modules` bytes without a
+  JavaScript module-map parser.
 
 The Rust/WASM engine API models transform as a first-class graph request/response
 pair instead of smuggling template information through `ConvertRequest` or CLI-only
@@ -935,6 +941,8 @@ The checked-in JSON Schema for this explicit JSON projection is
 - optional `reportAst.transform`
 - optional `reportAst.transformGraph.exportCount`
 - optional `reportAst.transformGraph.exports[]`
+- optional `reportAst.transformGraph.moduleAssetManifest`, with `hashScheme`,
+  `hash`, `assetCount`, and ordered `assets[]` provenance/digest records
 
 Convert report output entries keep one item per successfully written primary
 convert output. These entries describe the target-native destination and target

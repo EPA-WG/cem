@@ -26,8 +26,18 @@ into the browser import map. It does not parse JavaScript, traverse imports,
 select npm package exports, or copy undeclared files.
 
 The first version accepts exact bare npm specifiers and `.js`/`.mjs` files only.
-CSS, JSON, WASM, prefix mappings, inlining, fingerprinting, and dependency
-digests require later schema versions or graph policy.
+CSS, JSON, WASM, prefix mappings, inlining, and fingerprinting require later
+schema versions or graph policy.
+
+Every lowered graph exposes a deterministic module-asset manifest. Each record
+contains the exact specifier, resolved source-map and source URIs, app-relative
+target, resolved output destination, content type, byte length, and SHA-256 of
+the bytes read. The manifest's aggregate SHA-256 is derived from ordered,
+host-neutral specifier/target/content tuples, so the same build has the same
+cache key in different checkout directories. `cem-ml transform --config ...
+--module-asset-cache-key` prints only `sha256:<digest>` and stops before graph
+execution or output publication; Nx consumes that projection as a runtime
+input in `verify:nx-cache-input`.
 
 ## Verification
 
@@ -37,8 +47,9 @@ Run:
 yarn nx run cem_ml_schema_package_module_map_v1:verify
 ```
 
-The target validates the package manifest and exercises native graph lowering
-plus CLI byte-preserving copy/import-map projection fixtures.
+The target validates the package manifest and exercises native graph lowering,
+CLI byte-preserving copy/import-map projection, manifest reporting, and the
+Nx runtime cache-key input.
 
 ## Examples
 

@@ -11503,6 +11503,7 @@ impl CemMlEngine for RealCemMlEngine {
             request.context.ensure_active()?;
             return Ok(TransformGraphResponse {
                 artifacts: exported,
+                module_asset_manifest: request.module_asset_manifest.clone(),
                 diagnostics,
                 scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
             });
@@ -11586,6 +11587,7 @@ impl CemMlEngine for RealCemMlEngine {
                 if has_hard_transform_diagnostic(&diagnostics) {
                     return Ok(TransformGraphResponse {
                         artifacts: exported,
+                        module_asset_manifest: request.module_asset_manifest.clone(),
                         diagnostics,
                         scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
                     });
@@ -11656,6 +11658,7 @@ impl CemMlEngine for RealCemMlEngine {
                 if has_hard_transform_diagnostic(&diagnostics) {
                     return Ok(TransformGraphResponse {
                         artifacts: exported,
+                        module_asset_manifest: request.module_asset_manifest.clone(),
                         diagnostics,
                         scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
                     });
@@ -11695,6 +11698,7 @@ impl CemMlEngine for RealCemMlEngine {
                 if has_hard_transform_diagnostic(&diagnostics) {
                     return Ok(TransformGraphResponse {
                         artifacts: exported,
+                        module_asset_manifest: request.module_asset_manifest.clone(),
                         diagnostics,
                         scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
                     });
@@ -11702,6 +11706,7 @@ impl CemMlEngine for RealCemMlEngine {
                 let Some(adapter) = adapter else {
                     return Ok(TransformGraphResponse {
                         artifacts: exported,
+                        module_asset_manifest: request.module_asset_manifest.clone(),
                         diagnostics,
                         scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
                     });
@@ -11739,6 +11744,7 @@ impl CemMlEngine for RealCemMlEngine {
                 if has_hard_transform_diagnostic(&diagnostics) {
                     return Ok(TransformGraphResponse {
                         artifacts: exported,
+                        module_asset_manifest: request.module_asset_manifest.clone(),
                         diagnostics,
                         scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
                     });
@@ -11789,6 +11795,7 @@ impl CemMlEngine for RealCemMlEngine {
                 if has_hard_transform_diagnostic(&diagnostics) {
                     return Ok(TransformGraphResponse {
                         artifacts: exported,
+                        module_asset_manifest: request.module_asset_manifest.clone(),
                         diagnostics,
                         scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
                     });
@@ -11813,6 +11820,7 @@ impl CemMlEngine for RealCemMlEngine {
                         });
                         return Ok(TransformGraphResponse {
                             artifacts: exported,
+                            module_asset_manifest: request.module_asset_manifest.clone(),
                             diagnostics,
                             scheduler_trace: crate::report::SchedulerTraceReport::from_trace(
                                 &trace,
@@ -11847,6 +11855,7 @@ impl CemMlEngine for RealCemMlEngine {
                 });
                 return Ok(TransformGraphResponse {
                     artifacts: exported,
+                    module_asset_manifest: request.module_asset_manifest.clone(),
                     diagnostics,
                     scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
                 });
@@ -11943,6 +11952,7 @@ impl CemMlEngine for RealCemMlEngine {
         request.context.ensure_active()?;
         Ok(TransformGraphResponse {
             artifacts: exported,
+            module_asset_manifest: request.module_asset_manifest.clone(),
             diagnostics,
             scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
         })
@@ -12772,6 +12782,7 @@ mod tests {
                     scheduler_scope_id: 7,
                 }],
                 edges: Vec::new(),
+                module_asset_manifest: TransformGraphModuleAssetManifest::default(),
                 preserve_source_offsets: true,
                 context,
                 execution_policy,

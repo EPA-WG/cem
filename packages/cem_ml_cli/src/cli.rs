@@ -847,6 +847,13 @@ pub struct TransformArgs {
     )]
     pub source_map_summary: bool,
 
+    #[arg(
+        long,
+        requires = "config",
+        help = "Print the host-neutral SHA-256 cache key for declared module assets and stop before transform execution"
+    )]
+    pub module_asset_cache_key: bool,
+
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]

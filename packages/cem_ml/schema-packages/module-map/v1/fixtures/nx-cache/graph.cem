@@ -1,0 +1,7 @@
+{run |
+  {import @id=page @src="page.html" @content-type="text/html" |
+    {rewrite-importmap @id=modules @source-map="source.module-map.json" @target-map="destination.module-map.json" |
+      {export @id=html @out="dist/index.html" @content-type="text/html"}
+    }
+  }
+}

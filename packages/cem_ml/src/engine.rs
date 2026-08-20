@@ -942,9 +942,49 @@ pub struct TransformGraphRequest {
     pub importmap_rewrites: Vec<TransformGraphImportMapRewrite>,
     pub exports: Vec<TransformGraphExport>,
     pub edges: Vec<TransformGraphDependency>,
+    pub module_asset_manifest: TransformGraphModuleAssetManifest,
     pub preserve_source_offsets: bool,
     pub context: EngineContext,
     pub execution_policy: TransformExecutionPolicy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct TransformGraphModuleAssetManifest {
+    pub hash_scheme: String,
+    pub hash: String,
+    pub asset_count: u64,
+    pub assets: Vec<TransformGraphModuleAsset>,
+}
+
+impl Default for TransformGraphModuleAssetManifest {
+    fn default() -> Self {
+        let marker = b"cem-module-asset-manifest-v1";
+        let mut canonical = Vec::with_capacity(8 + marker.len());
+        canonical.extend_from_slice(&(marker.len() as u64).to_be_bytes());
+        canonical.extend_from_slice(marker);
+        Self {
+            hash_scheme: "sha256".to_owned(),
+            hash: crate::command_service::sha256_hex(&canonical),
+            asset_count: 0,
+            assets: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct TransformGraphModuleAsset {
+    pub specifier: String,
+    pub source_map_uri: String,
+    pub source_uri: String,
+    pub target: String,
+    pub destination: String,
+    pub content_type: String,
+    pub byte_length: u64,
+    pub sha256: String,
 }
 
 #[derive(Debug, Clone)]
@@ -1229,6 +1269,8 @@ pub struct TransformResponse {
 pub struct TransformGraphResponse {
     #[serde(default)]
     pub artifacts: Vec<TransformGraphArtifact>,
+    #[serde(rename = "moduleAssetManifest", default)]
+    pub module_asset_manifest: TransformGraphModuleAssetManifest,
     pub diagnostics: Vec<Diagnostic>,
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,
@@ -1849,6 +1891,7 @@ mod tests {
                 },
             ],
             edges: Vec::new(),
+            module_asset_manifest: TransformGraphModuleAssetManifest::default(),
             preserve_source_offsets: true,
             context: EngineContext::default(),
             execution_policy: TransformExecutionPolicy::default(),
@@ -1895,6 +1938,7 @@ mod tests {
                 scheduler_scope_id: 2,
             }],
             edges: Vec::new(),
+            module_asset_manifest: TransformGraphModuleAssetManifest::default(),
             preserve_source_offsets: true,
             context: EngineContext::default(),
             execution_policy: TransformExecutionPolicy::default(),
@@ -2060,6 +2104,7 @@ mod tests {
                     role: TransformGraphDependencyRole::Parent,
                 },
             ],
+            module_asset_manifest: TransformGraphModuleAssetManifest::default(),
             preserve_source_offsets: true,
             context: EngineContext::default(),
             execution_policy: TransformExecutionPolicy::default(),
@@ -2132,6 +2177,7 @@ mod tests {
             importmap_rewrites: Vec::new(),
             exports: Vec::new(),
             edges: Vec::new(),
+            module_asset_manifest: TransformGraphModuleAssetManifest::default(),
             preserve_source_offsets: false,
             context: EngineContext::default(),
             execution_policy: TransformExecutionPolicy::default(),

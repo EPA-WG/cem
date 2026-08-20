@@ -462,7 +462,9 @@ Deliverables:
   as an opaque typed import/export, copies only those files beside the HTML
   output, and projects destination URLs into the browser import map. JavaScript
   parsing, transitive discovery, package-export selection, and undeclared asset
-  copying are not part of this phase.
+  copying are not part of this phase. A deterministic resolved-read manifest
+  records per-asset SHA-256 evidence and provides a host-neutral aggregate cache
+  key shared by native/WASM responses, CLI reports, and Nx runtime inputs.
 - Root-wired docs site with guides, token browser, component gallery, examples, API/reference, and release notes.
 - Generated docs imported from package markdown and token reports.
 - Interactive examples for tokens, components, XML fixtures, and native output snippets.

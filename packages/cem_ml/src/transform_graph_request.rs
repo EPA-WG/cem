@@ -21,9 +21,9 @@ use crate::engine::{
     TransformGraphDependencyRole, TransformGraphExport, TransformGraphImport,
     TransformGraphImportMapMissingPolicy, TransformGraphImportMapRewrite,
     TransformGraphImportMapRewriteMode, TransformGraphJoin, TransformGraphJoinInput,
-    TransformGraphJoinMode, TransformGraphRequest, TransformGraphStage, TransformGraphStylePolicy,
-    TransformRuntimePhase, TransformStageSchedulerScopeIds, TransformTemplateEntrypoint,
-    TransformTemplateKind,
+    TransformGraphJoinMode, TransformGraphModuleAsset, TransformGraphModuleAssetManifest,
+    TransformGraphRequest, TransformGraphStage, TransformGraphStylePolicy, TransformRuntimePhase,
+    TransformStageSchedulerScopeIds, TransformTemplateEntrypoint, TransformTemplateKind,
 };
 use crate::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
@@ -119,6 +119,17 @@ pub trait TransformGraphResourceProvider {
         purpose: ResolvePurpose,
         content_type_hint: Option<&str>,
     ) -> Result<TransformGraphResource, TransformGraphRequestError>;
+
+    fn read_resource_relative_to(
+        &self,
+        base_uri: &str,
+        reference: &str,
+        purpose: ResolvePurpose,
+        content_type_hint: Option<&str>,
+    ) -> Result<TransformGraphResource, TransformGraphRequestError> {
+        let resolved = resolve_transform_graph_reference(base_uri, reference);
+        self.read_resource(&resolved, purpose, content_type_hint)
+    }
 
     fn output_uri(&self, reference: &str) -> Result<String, TransformGraphRequestError>;
 
@@ -387,6 +398,17 @@ impl TransformGraphResourceProvider for FilesystemTransformGraphResourceProvider
         content_type_hint: Option<&str>,
     ) -> Result<TransformGraphResource, TransformGraphRequestError> {
         self.read_resolved(&self.resolved(reference), purpose, content_type_hint)
+    }
+
+    fn read_resource_relative_to(
+        &self,
+        base_uri: &str,
+        reference: &str,
+        purpose: ResolvePurpose,
+        content_type_hint: Option<&str>,
+    ) -> Result<TransformGraphResource, TransformGraphRequestError> {
+        let resolved = resolve_transform_graph_reference(base_uri, reference);
+        self.read_resolved(&resolved, purpose, content_type_hint)
     }
 
     fn output_uri(&self, reference: &str) -> Result<String, TransformGraphRequestError> {
@@ -721,6 +743,7 @@ pub fn lower_transform_graph_request(
         variants: BTreeMap::new(),
         output_routes: BTreeMap::new(),
         module_assets: BTreeMap::new(),
+        module_asset_records: Vec::new(),
         next_scope_id: 0,
     };
     lowerer.lower()?;
@@ -733,6 +756,7 @@ pub fn lower_transform_graph_request(
         importmap_rewrites: lowerer.importmap_rewrites,
         exports: lowerer.exports,
         edges: lowerer.edges,
+        module_asset_manifest: module_asset_manifest(lowerer.module_asset_records),
         preserve_source_offsets,
         context: context.clone(),
         execution_policy: TransformExecutionPolicy::default(),
@@ -754,13 +778,20 @@ struct TransformGraphRequestLowerer<'a> {
     variants: BTreeMap<String, Vec<ArtifactVariant>>,
     output_routes: BTreeMap<String, ArtifactOutputRoute>,
     module_assets: BTreeMap<String, Vec<PendingModuleAsset>>,
+    module_asset_records: Vec<TransformGraphModuleAsset>,
     next_scope_id: u32,
 }
 
 #[derive(Debug, Clone)]
 struct PendingModuleAsset {
     import_id: String,
+    specifier: String,
+    source_map_uri: String,
+    source_uri: String,
     target: String,
+    content_type: String,
+    byte_length: u64,
+    sha256: String,
 }
 
 #[derive(Debug)]
@@ -1306,11 +1337,15 @@ impl TransformGraphRequestLowerer<'_> {
                     ),
                 ));
             }
-            let resource = self.provider.read_resource(
-                &source_uri,
+            let resource = self.provider.read_resource_relative_to(
+                &source_map.uri,
+                source,
                 ResolvePurpose::Input,
                 Some("text/javascript"),
             )?;
+            let byte_length = resource.bytes.len() as u64;
+            let sha256 = crate::command_service::sha256_hex(&resource.bytes);
+            let source_uri = resource.uri.clone();
             let import_id = format!("{rewrite_id}:module:{index}");
             let scheduler_scope_id = self.take_scope();
             self.imports.push(TransformGraphImport {
@@ -1324,7 +1359,13 @@ impl TransformGraphRequestLowerer<'_> {
             });
             assets.push(PendingModuleAsset {
                 import_id,
+                specifier: specifier.clone(),
+                source_map_uri: source_map.uri.clone(),
+                source_uri,
                 target: target.clone(),
+                content_type: "text/javascript".to_owned(),
+                byte_length,
+                sha256,
             });
         }
         self.module_assets.insert(rewrite_id.to_owned(), assets);
@@ -1413,7 +1454,7 @@ impl TransformGraphRequestLowerer<'_> {
                 self.exports.push(TransformGraphExport {
                     id: asset_export_id.clone(),
                     input: asset.import_id.clone(),
-                    destination: Some(asset_destination),
+                    destination: Some(asset_destination.clone()),
                     target: asset_scope.format_identity_option(),
                     target_scope: asset_scope,
                     style_policy: TransformGraphStylePolicy::Auto,
@@ -1423,6 +1464,16 @@ impl TransformGraphRequestLowerer<'_> {
                     from: asset.import_id,
                     to: asset_export_id,
                     role: TransformGraphDependencyRole::PrimaryInput,
+                });
+                self.module_asset_records.push(TransformGraphModuleAsset {
+                    specifier: asset.specifier,
+                    source_map_uri: asset.source_map_uri,
+                    source_uri: asset.source_uri,
+                    target: asset.target,
+                    destination: asset_destination,
+                    content_type: asset.content_type,
+                    byte_length: asset.byte_length,
+                    sha256: asset.sha256,
                 });
             }
         }
@@ -1539,6 +1590,45 @@ fn required_field<'a>(
 
 fn config_error(uri: &str, code: &str, message: impl Into<String>) -> TransformGraphRequestError {
     TransformGraphRequestError::diagnostic(uri, code, message)
+}
+
+fn module_asset_manifest(
+    mut assets: Vec<TransformGraphModuleAsset>,
+) -> TransformGraphModuleAssetManifest {
+    assets.sort_by(|left, right| {
+        (
+            &left.specifier,
+            &left.target,
+            &left.source_uri,
+            &left.destination,
+        )
+            .cmp(&(
+                &right.specifier,
+                &right.target,
+                &right.source_uri,
+                &right.destination,
+            ))
+    });
+    let mut canonical = Vec::new();
+    append_module_asset_hash_field(&mut canonical, b"cem-module-asset-manifest-v1");
+    for asset in &assets {
+        append_module_asset_hash_field(&mut canonical, asset.specifier.as_bytes());
+        append_module_asset_hash_field(&mut canonical, asset.target.as_bytes());
+        append_module_asset_hash_field(&mut canonical, asset.content_type.as_bytes());
+        append_module_asset_hash_field(&mut canonical, &asset.byte_length.to_be_bytes());
+        append_module_asset_hash_field(&mut canonical, asset.sha256.as_bytes());
+    }
+    TransformGraphModuleAssetManifest {
+        hash_scheme: "sha256".to_owned(),
+        hash: crate::command_service::sha256_hex(&canonical),
+        asset_count: assets.len() as u64,
+        assets,
+    }
+}
+
+fn append_module_asset_hash_field(canonical: &mut Vec<u8>, field: &[u8]) {
+    canonical.extend_from_slice(&(field.len() as u64).to_be_bytes());
+    canonical.extend_from_slice(field);
 }
 
 fn validate_module_specifier(
@@ -2317,6 +2407,49 @@ mod tests {
         assert_eq!(
             request.importmap_rewrites[0].target_imports["@pkg/runtime"],
             "./vendor/runtime.js"
+        );
+        assert_eq!(request.module_asset_manifest.asset_count, 1);
+        assert_eq!(request.module_asset_manifest.hash_scheme, "sha256");
+        assert_eq!(request.module_asset_manifest.hash.len(), 64);
+        let asset = &request.module_asset_manifest.assets[0];
+        assert_eq!(asset.specifier, "@pkg/runtime");
+        assert_eq!(
+            asset.source_map_uri,
+            fixture
+                .0
+                .join("maps/source.module-map.json")
+                .to_string_lossy()
+        );
+        assert_eq!(asset.source_uri, module_source);
+        assert_eq!(asset.target, "./vendor/runtime.js");
+        assert_eq!(
+            asset.destination,
+            expected_destination.to_string_lossy().as_ref()
+        );
+        assert_eq!(asset.content_type, "text/javascript");
+        assert_eq!(asset.byte_length, 35);
+        assert_eq!(
+            asset.sha256,
+            crate::command_service::sha256_hex(b"export const runtime = 'declared';\n")
+        );
+
+        let repeated =
+            lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+                .expect("repeated dedicated module-map lowering");
+        assert_eq!(
+            repeated.module_asset_manifest,
+            request.module_asset_manifest
+        );
+
+        fixture.write(
+            "node_modules/@pkg/runtime.js",
+            b"export const runtime = 'different';\n",
+        );
+        let changed = lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+            .expect("changed dedicated module-map lowering");
+        assert_ne!(
+            changed.module_asset_manifest.hash,
+            request.module_asset_manifest.hash
         );
     }
 

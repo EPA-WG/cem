@@ -570,6 +570,9 @@ Exit criteria: an ADR exists and no parser code has been added.
     - optional `reportAst.transformGraph.exports[]`, with `exportId`, `input`, `destination`, `contentType`, `schema`,
       `outputKind`, `hasSourceMap`, `outputSpanCount`, optional `sourceMapRef`, and optional `collectionItems[]` for
       collection exports
+    - `reportAst.transformGraph.moduleAssetManifest`, with a host-neutral aggregate
+      SHA-256 and ordered specifier/source-map/source/target/destination/content-type/
+      byte-length/per-asset-SHA-256 records for declared module-map assets
     - event nodes with source module state, event sequence, source-map stack at event time, and visible partial
       hierarchy
 4. Use a deterministic default timestamp for feature tests:
@@ -911,8 +914,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `reportAst.transform` metadata for the input, destination, output kind, source-map presence, output-span
           count, and sidecar refs when the response exposes a source map and has an output destination. Graph transform
           reports include `reportAst.transformGraph` export metadata for resolved export IDs, destinations, content
-          identities, output kinds, source-map presence, output-span counts, sidecar refs, and collection-item
-          provenance summaries when artifacts expose source-map fields and have export destinations. For concrete
+          identities, output kinds, source-map presence, output-span counts, sidecar refs, collection-item
+          provenance summaries, and the deterministic module-asset digest manifest. The planning-only
+          `--module-asset-cache-key` projection prints the manifest aggregate hash without executing or publishing
+          graph outputs so Nx can use it as a runtime input. For concrete
           destinations, the CLI writes `{destination}.map` with the source-map JSON payload through the output resolver.
           Object sidecars carry the source-map `frames`, rebased `outputSpans`, export ID, input artifact ID, and
           destination metadata. `cem-ml transform --source-map-summary` prints sidecar refs and output-span counts after
