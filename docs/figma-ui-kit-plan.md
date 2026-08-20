@@ -114,7 +114,11 @@ The repository gate must remain credential-free and deterministic:
 
 - `yarn nx run @epa-wg/cem-theme:test:figma` verifies generated native DTCG
   mode files, aliases, types, provenance, report health, token propagation, and
-  depends on the focused Foundations composite gate.
+  depends on the focused native-review and Foundations composite gates.
+- `yarn nx run @epa-wg/cem-theme:verify:figma-native-review` derives the current
+  variable count and type totals from all five mode files, validates the
+  checked-in live-review state machine, and emits JSON/Markdown checkpoint
+  evidence without calling Figma.
 - `yarn nx run @epa-wg/cem-theme:verify:figma-foundations` verifies that the
   layering/motion inventory is complete and raw-value-free, derives its values
   from canonical tokens, and emits JSON/Markdown review evidence.

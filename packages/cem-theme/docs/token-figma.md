@@ -157,6 +157,14 @@ the five `CEM Tokens` modes:
 - `cem-contrast-dark`
 - `cem-native`
 
+Before importing, run
+`yarn nx run @epa-wg/cem-theme:verify:figma-native-review` and follow
+`examples/figma/native-library-review-fixture.md`. Record the live starting
+revision and confirmed collection/modes by promoting the checked-in record from
+`pending` to `started`; promote it to `reviewed` only after all five imports and
+live result checks are complete. The generated report is preparation evidence,
+not proof that the external file changed.
+
 Two-way write-back from Figma to Git or npm is outside the CEM theme deliverable and must stay disabled unless the
 markdown source-of-truth workflow changes.
 

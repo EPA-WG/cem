@@ -153,8 +153,29 @@
                 "{projectRoot}/dist/reports/cem-foundations-report.md"
             ]
         },
+        "verify:figma-native-review": {
+            "dependsOn": ["build:tokens"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-figma-native-review.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/verify-figma-native-review.mjs",
+                "{projectRoot}/dist/lib/tokens/figma/*.tokens.json",
+                "{projectRoot}/dist/lib/tokens/figma/cem-figma-report.md",
+                "{workspaceRoot}/examples/figma/native-library-review.json",
+                "{workspaceRoot}/examples/figma/native-library-review-fixture.md",
+                "{workspaceRoot}/examples/figma/README.md"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/reports/cem-figma-native-review.json",
+                "{projectRoot}/dist/reports/cem-figma-native-review.md"
+            ]
+        },
         "test:figma": {
-            "dependsOn": ["verify:figma-foundations"],
+            "dependsOn": ["verify:figma-foundations", "verify:figma-native-review"],
             "executor": "nx:run-commands",
             "options": {
                 "commands": ["node scripts/validate-figma.mjs", "node scripts/smoke-figma-propagation.mjs"],

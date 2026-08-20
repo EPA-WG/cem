@@ -36,8 +36,27 @@ yarn nx run @epa-wg/cem-theme:test:figma
 ```
 
 The target validates the five generated mode files, representative native alias bindings, source CSS token metadata for
-Figma WEB code syntax, the zero-error Figma report, and the checked-in Foundations evidence. It does not call the Figma
-REST API; API-backed live validation remains governed by the REST API sync policy below.
+Figma WEB code syntax, the zero-error Figma report, and the checked-in native-library and Foundations evidence. It does
+not call the Figma REST API; API-backed live validation remains governed by the REST API sync policy below.
+
+## Native Library Review Evidence
+
+[`native-library-review.json`](./native-library-review.json) separates the last
+historical live review, current generated expectations, and the pending live
+refresh. [`native-library-review-fixture.md`](./native-library-review-fixture.md)
+defines the manual promotion procedure and deliberate rejection cases.
+
+Run the focused gate with:
+
+```bash
+yarn nx run @epa-wg/cem-theme:verify:figma-native-review
+```
+
+Refresh status: `pending`. Starting refresh revision: not recorded. The gate
+emits `packages/cem-theme/dist/reports/cem-figma-native-review.{json,md}` and
+will accept a `started` checkpoint only after the live starting revision,
+collection, and exact mode order are recorded. It does not assert that the
+external file was refreshed.
 
 ## Foundations Composite Inventory
 
@@ -175,7 +194,8 @@ Update the CEM UI Kit native Figma Variables through Figma's native Import mode 
 Keep one CEM Tokens collection. Use the generated DTCG files in dist/lib/tokens/figma/ as the only Figma input:
 cem-light.tokens.json, cem-dark.tokens.json, cem-contrast-light.tokens.json, cem-contrast-dark.tokens.json,
 and cem-native.tokens.json. Preserve read-only governance: Figma changes must become markdown spec edits, not
-write-backs. Update docs/todo.md, packages/cem-theme/docs/token-export.md, and examples/figma/README.md.
+write-backs. Record the starting and reviewed evidence in examples/figma/native-library-review.json. Update
+docs/todo.md, packages/cem-theme/docs/token-export.md, and examples/figma/README.md.
 ```
 
 ## Developer Prompt: Split Figma Collections

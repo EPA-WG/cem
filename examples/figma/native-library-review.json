@@ -1,0 +1,57 @@
+{
+    "version": 1,
+    "sources": {
+        "generatedModes": "packages/cem-theme/dist/lib/tokens/figma/cem-*.tokens.json",
+        "generatedReport": "packages/cem-theme/dist/lib/tokens/figma/cem-figma-report.md",
+        "workflow": "examples/figma/README.md#native-figma-library-setup"
+    },
+    "figma": {
+        "file": "https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit",
+        "collection": "CEM Tokens",
+        "page": "01 Tokens",
+        "modes": ["Light", "Dark", "Contrast Light", "Contrast Dark", "Native"]
+    },
+    "generated": {
+        "verifiedAt": "2026-08-19",
+        "variableCountPerMode": 252,
+        "variableTypes": {
+            "COLOR": 57,
+            "FLOAT": 112,
+            "STRING": 83
+        }
+    },
+    "lastReviewed": {
+        "status": "reviewed",
+        "reviewedAt": "2026-04-30",
+        "revision": "https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24&t=QQwTKeMg0v9dTQ10-1",
+        "collection": "CEM Tokens",
+        "modes": ["Light", "Dark", "Contrast Light", "Contrast Dark", "Native"],
+        "variableCount": 230,
+        "variableTypes": {
+            "COLOR": 42,
+            "FLOAT": 100,
+            "STRING": 88
+        },
+        "missingModeValues": 0,
+        "nativeAliasModeValues": 255,
+        "evidenceLocators": [
+            "01 Tokens / CEM Generator Token Demos",
+            "examples/figma/screenshots/cem-generator-token-demos.png"
+        ]
+    },
+    "refresh": {
+        "status": "pending",
+        "startedAt": null,
+        "startingRevision": null,
+        "confirmedCollection": null,
+        "confirmedModes": null,
+        "importedModeFiles": null,
+        "reviewedAt": null,
+        "reviewedRevision": null,
+        "variableCount": null,
+        "variableTypes": null,
+        "missingModeValues": null,
+        "nativeAliasModeValues": null,
+        "evidenceLocators": []
+    }
+}

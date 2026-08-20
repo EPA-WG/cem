@@ -659,6 +659,25 @@ The remaining Phase 5 work is reviewed canvas work in the canonical CEM UI Kit.
     - [ ] Record the starting CEM UI Kit revision and confirm that the native
           `CEM Tokens` collection has the accepted Light, Dark, Contrast Light,
           Contrast Dark, and Native modes before editing the canvas.
+        - [x] Add a checked-in native-library review evidence record and
+              deliberate-rejection fixture for this manual checkpoint.
+        - [x] Add a credential-free Nx verifier that keeps the refresh pending
+              until a real starting revision and five-mode review are recorded.
+        - Completed 2026-08-19: `native-library-review.json` now separates the
+          historical 2026-04-30 live review, the current 252-variable generated
+          contract, and a truthful pending refresh. Its fixture defines the
+          `pending` -> `started` -> `reviewed` promotion procedure and rejection
+          cases. The new cached
+          `@epa-wg/cem-theme:verify:figma-native-review` target derives the 57
+          COLOR, 112 FLOAT, and 83 STRING expectations from all five mode files,
+          requires an explicitly recorded starting revision plus the exact
+          collection/modes before accepting `started`, and emits JSON/Markdown
+          reports. Theme
+          lint and the nine-task `test:figma` graph passed; the ten-task
+          `@epa-wg/cem-components:verify-figma-inventory` aggregate passed with
+          nine tasks restored from cache. The refresh remains `pending`, the
+          parent live checkpoint remains open, and no external Figma change was
+          claimed.
     - [ ] Build color, typography, spacing, shape, stroke, layering, and motion
           guidance with variable bindings or approved composite text styles and
           no raw replacement values.
