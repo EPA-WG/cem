@@ -133,6 +133,28 @@
                     "{workspaceRoot}/tools/scripts/ff-*.mjs"
                 ],
                 "outputs": []
+            },
+            "verify:phase3.6": {
+                "executor": "nx:run-commands",
+                "dependsOn": [
+                    {
+                        "projects": ["cem-elements"],
+                        "target": "verify"
+                    },
+                    {
+                        "projects": ["cem-elements"],
+                        "target": "verify-edge-ssr"
+                    },
+                    {
+                        "projects": ["@epa-wg/custom-element"],
+                        "target": "verify"
+                    }
+                ],
+                "options": {
+                    "command": "echo \"Phase 3.6 closure gate green: legacy/material browser parity, the isolated Edge/SSR lane, and the adopted @epa-wg/custom-element package all passed through the shared substrate.\"",
+                    "cwd": "{workspaceRoot}"
+                },
+                "outputs": []
             }
         }
     }

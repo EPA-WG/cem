@@ -662,15 +662,16 @@ function nextFrame(): Promise<void> {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-async function waitForElement(root: ParentNode, selector: string, frames = 120): Promise<Element> {
-    for (let attempt = 0; attempt < frames; attempt += 1) {
+async function waitForElement(root: ParentNode, selector: string, timeoutMs = 10_000): Promise<Element> {
+    const deadline = performance.now() + timeoutMs;
+    do {
         const found = root.querySelector(selector);
         if (found) {
             return found;
         }
         await nextFrame();
-    }
-    throw new Error(`expected ${selector} within ${frames} frames`);
+    } while (performance.now() < deadline);
+    throw new Error(`expected ${selector} within ${timeoutMs}ms`);
 }
 
 async function waitForCondition(predicate: () => boolean, message: string, frames = 120): Promise<void> {

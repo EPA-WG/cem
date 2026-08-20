@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Run the legacy, material, Edge/SSR, and `@epa-wg/custom-element` package gates as
-one Phase 3.6 closure check before retiring `@epa-wg/cem-elements` as the staging
-migration target.
+Build and review the Phase 5 CEM UI Kit `02 Foundations` page from the canonical
+native CEM variables, without introducing raw replacement values or making Figma
+a source of truth.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -570,6 +570,59 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       components, and downstream generators plus the governed FF-5 exit gate.
       FF-5 stays blocking while narrowly allowlisting the two XSLT schema policy
       records whose text explicitly forbids browser `XSLTProcessor` delegation.
-- [ ] Run legacy, material, Edge/SSR, and custom-element package gates together
+- [x] Run legacy, material, Edge/SSR, and custom-element package gates together
       before closing Phase 3.6 and retiring `@epa-wg/cem-elements` as the staging
       migration target.
+    - [x] Add and execute one root `@epa-wg/cem:verify:phase3.6` Nx aggregate
+          without merging the browser and isolated Edge/SSR lanes.
+    - Completed 2026-08-19: the new root closure target passed with all 64
+      dependencies, aggregating `cem-elements:verify`, the separately owned
+      `cem-elements:verify-edge-ssr` lane, and
+      `@epa-wg/custom-element:verify`. The browser lane passed 114/114 Storybook
+      and 133/133 unit cases, legacy/material inventories, the clean 71-file
+      substrate package, demos, CEMT pipeline, CEM-ML CLI/e2e/bench, and native
+      template-artifact evidence. The isolated lane remained separate and passed
+      6/6 Storybook plus 16/16 unit/host cases. The adopted custom-element package
+      passed its 282-commit/32-version-tag/2-source-tip provenance gate, complete
+      88-browser/3-unit reference corpus with all 29 adapter cases verified, and
+      the locked 146-file packed-archive contract. The first aggregate run exposed
+      a load-sensitive material-icon story wait: its 120-frame budget expired
+      while 63 sibling tasks passed, but the same 114 cases passed in isolation.
+      Replacing only element discovery's frame count with a bounded 10-second
+      elapsed-time deadline made the focused suite and the full aggregate green;
+      the final run restored 43 of 65 tasks from Nx cache. Phase 3.6 retires
+      `@epa-wg/cem-elements` only as the staging migration target:
+      `@epa-wg/custom-element` now adopts it, while `@epa-wg/cem-elements`
+      remains the shared substrate and package rather than being deleted.
+
+## Phase 5 Checklist
+
+Phase 4 component names, variants, executable states, and accessibility semantics
+are complete in the archived checklist, and the Phase 5 repository foundation
+already owns the five-mode token gate and 48-primitive executable Figma inventory.
+The remaining Phase 5 work is reviewed canvas work in the canonical CEM UI Kit.
+
+- [ ] Build and review the `02 Foundations` page from native CEM variables.
+    - [ ] Record the starting CEM UI Kit revision and confirm that the native
+          `CEM Tokens` collection has the accepted Light, Dark, Contrast Light,
+          Contrast Dark, and Native modes before editing the canvas.
+    - [ ] Build color, typography, spacing, shape, stroke, layering, and motion
+          guidance with variable bindings or approved composite text styles and
+          no raw replacement values.
+    - [ ] Review every foundation section in all five modes and record the Figma
+          revision, evidence locations, and raw-value findings.
+- [ ] Build and review the representative `03 Components` pilot for
+      `cem-action`, `cem-text-field`, `cem-card`, `cem-nav`, and `cem-dialog`.
+    - [ ] Keep variant dimensions independent, use component properties by
+          semantic meaning, and test every owned state in all five modes.
+    - [ ] Record the pilot fixture and review evidence before expanding to the
+          remaining component inventory.
+- [ ] Complete `03 Components` for every executable inventory entry, keeping
+      inert payloads nested under their consuming visual owners.
+- [ ] Build `04 Patterns` for auth, profile, assets, discussion, and settings
+      entirely from library instances, then compose `05 Site Demo` from those
+      patterns without detached one-off controls.
+- [ ] Populate `99 QA`, run the offline token/component gates, record the
+      reviewed Figma revision and five-mode evidence, and publish the Phase 5
+      library only after raw-value, detached-shape, state, and documentation
+      checks pass.
