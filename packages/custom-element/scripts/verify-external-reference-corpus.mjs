@@ -44,11 +44,10 @@ const expectedDispositionCounts = {
 };
 const expectedEvidenceStateCounts = {
     'accepted:verified': 61,
-    'package-adapter:required': 3,
-    'package-adapter:verified': 26,
+    'package-adapter:verified': 29,
     'rejected-bridge:rejected': 1,
 };
-const expectedInventoryDigest = 'c1e80110591fcfa9478011836eaa53ce2179d19cff53c9349a0d35bd18428434';
+const expectedInventoryDigest = 'b52a098e5fbfb39023b117240d500a005575c15a6be2d6b8e7bf7696504a1805';
 const projectConfigPaths = {
     '@epa-wg/custom-element': 'packages/custom-element/project.json',
     'cem-elements': 'packages/cem-elements/project.json',
@@ -170,7 +169,7 @@ console.log(
         `${dispositionCounts['package-adapter']} package-adapter, ` +
         `${dispositionCounts['rejected-bridge']} rejected-bridge; ` +
         `${evidenceStateCounts['package-adapter:verified']} package-adapter cases verified and ` +
-        `${evidenceStateCounts['package-adapter:required']} still required.`,
+        `${evidenceStateCounts['package-adapter:required'] ?? 0} still required.`,
 );
 
 function countEvidence(evidenceId, caseId, catalog, counts, stateCounts) {

@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Decide the next-major `<custom-element>` policy for the final three external
-reference cases: upward child-to-instance attribute propagation and retained
-exported attributes selected by either the legacy property or content attribute.
+Decide whether `<template lang="custom-element-v0">` remains a supported
+next-major browser compatibility selector after reviewing the explicit legacy
+migration fixtures and their canonical CEM-ML replacements.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -535,7 +535,7 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           CEM-ML from the installed archive in Chromium. Conditional `types`
           exports repair the root/subpath resolution defect found by that gate
           without changing either JavaScript target.
-- [ ] Rebuild the next-major `<custom-element>` implementation on the
+- [x] Rebuild the next-major `<custom-element>` implementation on the
       `cem-element` substrate without retaining a separate parser/render engine.
     - [x] Preserve and prove the accepted non-engine helper surface through the
           public source, built package, and clean archive consumer.
@@ -546,8 +546,17 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           compiles all eight imports in a clean TypeScript consumer. The locked
           external corpus now records 26 verified package-adapter cases and 3
           remaining policy cases without adding a parser or rendering path.
-    - [ ] Decide the next-major policy for upward attribute propagation and
+    - [x] Decide the next-major policy for upward attribute propagation and
           retained exported attributes before changing either behavior.
+        - [x] Add source/dist public-adapter assertions for one-way declared,
+              selected, and slice state plus both retired retention markers.
+        - Completed 2026-08-19: explicitly retired implicit child-to-host
+          propagation and the `dceExportedAttributes`/
+          `dce-exported-attributes` retention allowlists. Host attributes remain
+          author/script inputs unless an explicit substrate behavior owns a
+          mutation, and `mergeAttr` now has one exact-set contract. The public
+          source/dist browser gate proves the negative compatibility boundary;
+          all 29 package-adapter cases are verified and none remain required.
 - [ ] Keep or retire `<template lang="custom-element-v0">` only after the explicit
       migration fixtures provide compatibility evidence.
 - [ ] Run legacy, material, Edge/SSR, and custom-element package gates together

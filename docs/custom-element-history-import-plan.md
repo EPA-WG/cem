@@ -305,6 +305,14 @@ The accepted identity rules are:
   `deepEqual`, `mergeAttr`, `xml2dom`, `xmlString`, `obj2node`, and `tagUid`) or
   provide explicit next-major compatibility aliases. Do not restore
   XSLT/XPath-engine exports such as `createXsltFromDom`, `xPath`, or `toXsl`;
+- retire implicit upward propagation from declared defaults, selected values, and
+  slice state into produced-element host attributes. Host attributes remain
+  author/script inputs to the substrate snapshot; render state does not mutate
+  them unless an explicit produced-element behavior owns that mutation;
+- retire the legacy `dceExportedAttributes` property and
+  `dce-exported-attributes` content attribute. `mergeAttr` synchronizes the exact
+  source attribute set and does not interpret either marker as a retention
+  allowlist; substrate behavior ownership is the explicit replacement;
 - repair the declaration file to describe actual JS exports. The stale declared
   `log` helper is not implemented merely to preserve an already-false type claim;
 - retain the current adapter settlement/installation APIs as intentional

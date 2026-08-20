@@ -81,10 +81,13 @@
         },
         "package-upward-attribute-propagation": {
             "disposition": "package-adapter",
-            "state": "required",
-            "paths": ["docs/custom-element-phase3.6-inventory.md"],
+            "state": "verified",
+            "paths": [
+                "docs/custom-element-history-import-plan.md",
+                "packages/custom-element/test-fixtures/browser-smoke.js"
+            ],
             "nxTargets": ["@epa-wg/custom-element:test"],
-            "summary": "Decide and prove or explicitly retire legacy child-to-instance attribute propagation at the next-major boundary."
+            "summary": "The next-major contract explicitly retires child-to-instance attribute propagation; the source/dist browser gate proves defaults, selected declarations, and slice values remain render state rather than host mutations."
         },
         "package-scoped-style": {
             "disposition": "package-adapter",
@@ -108,10 +111,14 @@
         },
         "package-exported-attributes": {
             "disposition": "package-adapter",
-            "state": "required",
-            "paths": ["docs/custom-element-phase3.6-inventory.md"],
+            "state": "verified",
+            "paths": [
+                "docs/custom-element-history-import-plan.md",
+                "packages/custom-element/custom-element.js",
+                "packages/custom-element/test-fixtures/browser-smoke.js"
+            ],
             "nxTargets": ["@epa-wg/custom-element:test"],
-            "summary": "Decide and prove or explicitly retire the legacy retained exported-attribute merge policy at the next-major boundary."
+            "summary": "The next-major contract explicitly retires both legacy exported-attribute retention markers; the source/dist browser gate proves mergeAttr ignores both allowlist forms."
         },
         "accepted-source-resolution": {
             "disposition": "accepted",

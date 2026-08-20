@@ -101,6 +101,25 @@ export async function runCustomElementSmoke(importBase) {
             mergeTarget.value === 'source value',
     );
 
+    const propertyRetentionTarget = document.createElement('div');
+    propertyRetentionTarget.dceExportedAttributes = new Set(['enforced']);
+    propertyRetentionTarget.setAttribute('enforced', 'legacy property retention');
+    customElementModule.mergeAttr(document.createElement('div'), propertyRetentionTarget);
+    check(
+        'mergeAttr retires dceExportedAttributes property-based retention',
+        !propertyRetentionTarget.hasAttribute('enforced'),
+    );
+
+    const attributeRetentionTarget = document.createElement('div');
+    attributeRetentionTarget.setAttribute('dce-exported-attributes', 'enforced');
+    attributeRetentionTarget.setAttribute('enforced', 'legacy attribute retention');
+    customElementModule.mergeAttr(document.createElement('div'), attributeRetentionTarget);
+    check(
+        'mergeAttr retires dce-exported-attributes content-attribute retention',
+        !attributeRetentionTarget.hasAttribute('dce-exported-attributes') &&
+            !attributeRetentionTarget.hasAttribute('enforced'),
+    );
+
     const parsedXml = customElementModule.xml2dom('<a/>');
     check('xml2dom parses an XML document', parsedXml.documentElement.localName === 'a');
     check('xmlString serializes an XML document', customElementModule.xmlString(parsedXml).includes('<a'));
@@ -389,6 +408,33 @@ export async function runCustomElementSmoke(importBase) {
     check(
         'public adapter projects the second radio value',
         sliceMatrix.querySelector('[data-role="radio"]')?.textContent === 'two',
+    );
+
+    await declareAdapterFixture(
+        'adapter-one-way-attributes',
+        [
+            '<attribute name="defaulted">Default value</attribute>',
+            '<attribute name="selected" select="//source"></attribute>',
+            '<slice name="source"></slice>',
+            '<input data-role="source" slice="source" slice-event="input" slice-value="$target.value" />',
+            '<output data-role="defaulted">${$defaulted}</output>',
+            '<output data-role="source-value">${$source}</output>',
+        ].join(''),
+    );
+    const oneWayAttributes = await appendAdapterInstance('adapter-one-way-attributes');
+    check(
+        'declared defaults stay in render state without propagating to the host',
+        oneWayAttributes.querySelector('[data-role="defaulted"]')?.textContent === 'Default value' &&
+            !oneWayAttributes.hasAttribute('defaulted'),
+    );
+    const oneWaySource = oneWayAttributes.querySelector('[data-role="source"]');
+    oneWaySource.value = 'runtime value';
+    await dispatchAndSettle(oneWayAttributes, oneWaySource, new Event('input', { bubbles: true }));
+    check(
+        'selected and slice values stay in render state without propagating to the host',
+        oneWayAttributes.querySelector('[data-role="source-value"]')?.textContent === 'runtime value' &&
+            !oneWayAttributes.hasAttribute('selected') &&
+            !oneWayAttributes.hasAttribute('source'),
     );
 
     await declareAdapterFixture(
