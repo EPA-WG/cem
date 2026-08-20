@@ -2,14 +2,14 @@
 
 Date: 2026-08-19
 
-Status: inventory and content ownership complete; application boundary awaiting
-acceptance.
+Status: inventory, content ownership, and application boundary accepted;
+CEM-ML web dependency transformation is the next prerequisite.
 
 ## Purpose
 
 This inventory identifies the existing documentation, generated outputs,
 examples, browser entry points, and resolved Nx ownership that a Phase 6 CEM
-Site can reuse. It does not scaffold a site or select an application boundary.
+Site can reuse. It does not scaffold the site.
 
 The site is a presentation and navigation consumer. It must not become a second
 source for token values, component behavior, parser/schema contracts, release
@@ -34,9 +34,11 @@ Site build. The current browser-oriented targets are:
 
 Vite is already a workspace development dependency, but `@nx/vite` is not
 installed and no resolved Vite application target exists. The two checked-in
-Vite configurations belong to package tests. The Yarn workspace declaration is
-currently `packages/*`, so a publishable/package-managed project under `apps/`
-would require an explicit workspace-boundary change.
+Vite configurations belong to package tests. This is not a production-build
+gap: the accepted site boundary makes CEM-ML CLI the static application build
+authority. Vite may later serve or test the generated output. The Yarn workspace
+declaration is currently `packages/*`, so a package-managed project under
+`apps/` still requires an explicit workspace-boundary change.
 
 ## Reusable Authored Sources
 
@@ -81,11 +83,12 @@ target exists. Phase 6 therefore needs either an explicit API projection target
 or a deliberately scoped authored-reference policy; it cannot claim a generated
 API browser from the current workspace.
 
-The existing generic Markdown compiler is useful but not a complete site
-generator. It processes one project's source tree, rewrites Markdown links to
-XHTML, injects CDN-hosted Prism assets, and assumes a relative `index.css`. It
-does not own cross-package navigation, a publication allowlist, search, link
-validation, asset fingerprinting, or a clean deployment bundle.
+The existing generic Markdown compiler remains a useful package-local producer,
+but it is not the site build authority. It processes one project's source tree,
+rewrites Markdown links to XHTML, injects CDN-hosted Prism assets, and assumes a
+relative `index.css`. The CEM-ML CLI graph must instead own cross-package content
+conversion, navigation/layout composition, dependency resolution, inlining or
+emission, import rewriting, fingerprinting, and clean deployment assembly.
 
 ## Examples And Browser Entry Points
 
@@ -132,9 +135,13 @@ would drift away from executable fixture gates.
    gate that proves the example.
 6. Publication and search use an explicit checked-in content manifest. Archive,
    temporary, internal audit, and debug artifacts are excluded by default.
-7. Runtime assets use public package export boundaries where one exists. Any
-   build-time workspace path must be copied into the clean site artifact and
-   verified so deployed pages never depend on the repository filesystem.
+7. Runtime dependencies use public package export boundaries where one exists
+   and enter the CEM-ML graph through authored module maps and host resolver
+   identities. JavaScript, CSS, JSON, WASM, and related resources are typed
+   transformation inputs; graph policy inlines them or emits/fingerprints them
+   and rewrites consumers to deployed identities. There is no exceptional asset
+   copy step, and deployed pages never depend on `node_modules` or repository
+   filesystem paths.
 8. Live Figma state is outside Phase 6. The site may describe the deferred
    workflow but must not trigger or require a Figma refresh.
 
@@ -151,32 +158,47 @@ would drift away from executable fixture gates.
 - The root development server exposes the filesystem root and opens a browser;
   it is appropriate for local debugging but unsuitable as a deployment or CI
   boundary.
-- Component workflow examples are fragments and need a site-owned wrapper that
-  imports production package outputs without duplicating the fragment.
+- Component workflow examples are fragments and need a site-owned wrapper whose
+  CEM-ML build graph resolves production package exports without duplicating the
+  fragment or preserving workspace-relative imports.
 
 ## Application Boundary Decision
 
-Two viable boundaries remain:
+Accepted: create a dedicated `apps/cem-site` Nx application with static
+deployment output and CEM/custom-element components for its shell. The project
+owns route metadata, the publication manifest, layouts, navigation, search,
+accessibility gates, and deployment configuration. Package-local Markdown
+compilation remains independent.
 
-1. Create a dedicated `apps/cem-site` Nx application that emits a static bundle
-   and uses CEM/custom-element components for its shell. This isolates route,
-   search, manifest, link, accessibility, and deployment ownership while reusing
-   Vite already present in the workspace.
-2. Extend `tools/scripts/compile-markdown.mjs` and the existing root file server
-   into a cross-package static documentation generator. This minimizes new
-   project structure but couples deployable-site concerns to package-local XHTML
-   compilation and requires substantial new navigation, manifest, asset, and
-   verification behavior in shared scripts.
+The build boundary is deliberately split by responsibility:
 
-Recommendation: accept option 1—a dedicated `apps/cem-site` Nx application with
-static deployment output. It creates the clearest ownership boundary, can prove
-the production component stack, and leaves package-local Markdown compilation
-independent. Acceptance must also decide whether to add `apps/*` to Yarn
-workspaces and `@nx/vite` to Nx plugin ownership, or initially use explicit
-cached `nx:run-commands` targets around the installed Vite CLI.
+1. Nx invokes the CEM-ML CLI build graph and declares its source, module-map,
+   package/lockfile, template, and generated-report inputs plus the clean site
+   output. Nx schedules and caches the task; it does not define web transformation
+   semantics.
+2. CEM-ML module maps and resolver identities map authored/bare specifiers to
+   package exports and concrete resources, including dependencies reachable
+   through `node_modules` during the build.
+   The CEM-ML module map is the build-time authority; an HTML browser import map
+   is only an output projection.
+3. JavaScript, JSON, CSS, WASM binaries, and WASM JavaScript glue are typed graph
+   artifacts. Transformation policy decides whether each reachable artifact is
+   inlined or emitted/fingerprinted, retains source-map/integrity/provenance
+   identity, and records typed dependency edges. After the reachable closure is
+   known, linking assigns deployment identities and rewrites HTML import maps,
+   JavaScript/CSS specifiers, and resource URLs. Resolution and linking are
+   separate graph phases so shared dependencies, cycles, inlining, and content
+   hashes remain deterministic.
+4. The produced directory contains the complete reachable runtime closure and
+   remains runnable without the repository or `node_modules`. Asset handling is
+   therefore native CEM-ML transformation, not a post-build copy exception.
+5. Vite may be added as a development server or browser-test harness over the
+   generated directory, but it is not the production build authority and does
+   not own dependency bundling.
 
-No application was scaffolded because accepting this boundary and its Nx/Vite
-ownership is the next decision point.
+No application was scaffolded because the CEM-ML npm/browser dependency graph is
+the next executable prerequisite. The project may be generated only after that
+contract is represented by focused native and CLI fixtures.
 
 ## Evidence Commands
 

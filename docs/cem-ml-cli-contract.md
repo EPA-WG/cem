@@ -225,6 +225,48 @@ Current implementation slice:
   glob expansion requires an explicit list-capable resolver and is bounded by a
   deterministic max-entry guard.
 
+### Static web dependency transformation target
+
+The Phase 6 site build extends the same graph and resolver vocabulary; it must
+not introduce a separate asset-copy or JavaScript-bundler authority:
+
+- An authored module map plus host resolver policy resolves bare npm specifiers,
+  package export entries, relative module edges, and WASM/resource references
+  into stable graph resource identities. A Node CLI host may read resources from
+  `node_modules` during transformation, but that path is never an output
+  identity.
+- The CEM-ML module map is the build-time semantic input. A browser
+  `<script type="importmap">` is one possible output projection and must not
+  become a second resolution authority.
+- JavaScript, JSON, CSS, WASM binaries, WASM JavaScript glue, and other reachable
+  web resources are typed artifacts in the same transformation graph as source
+  Markdown, HTML, and CEM templates.
+- Typed dependency discovery records edge kind and referrer identity for static
+  JavaScript imports/re-exports, literal dynamic imports, CSS imports/URLs, and
+  URL/WASM references emitted by supported glue. Non-literal or unsupported
+  runtime discovery remains explicit external policy or a deterministic
+  diagnostic; it is never guessed from the filesystem.
+- Graph policy selects inline or emitted/fingerprinted output for each reachable
+  artifact. Both paths retain integrity, source-map, provenance, and cache
+  identity; neither is an untracked filesystem copy.
+- Linking is a graph phase after dependency discovery: it assigns final
+  deployment identities to the closed reachable set, then rewrites HTML import
+  maps, static resource references, and JavaScript/CSS module specifiers. This
+  ordering keeps inlining, shared emitted dependencies, cycles, and fingerprints
+  deterministic.
+- The emitted static directory is a closed runtime dependency graph: it must run
+  after the source workspace and `node_modules` are removed.
+- Nx may schedule and cache a CLI invocation using declared graph, lockfile,
+  package-export, source, and generated-content inputs. Nx and optional dev
+  servers do not redefine the transformation semantics. CEM-ML also emits the
+  resolved-read/dependency manifest and content digests needed to audit the
+  closure represented by that cache entry.
+
+This is a target contract, not a claim that the current `rewrite-importmap`
+slice already walks JavaScript imports or npm package exports. Those typed
+dependency adapters and graph fixtures must land before the site shell is
+scaffolded.
+
 The Rust/WASM engine API models transform as a first-class graph request/response
 pair instead of smuggling template information through `ConvertRequest` or CLI-only
 options. The graph-lowered request shape includes:

@@ -626,12 +626,12 @@ until final Phases 10 and 11, after Phase 9 release governance.
       conversion, and graph CLI tests pass; the aggregate `cem_ml:test` suite
       passes, and all 517 `cem_ml_cli:test` library cases pass (515 in the
       restricted sandbox plus the two loopback HTTP cases with socket access).
-- [ ] Inventory the current root, package, generated-documentation, and example
+- [x] Inventory the current root, package, generated-documentation, and example
       surfaces, then lock the CEM Site project and content-ownership boundary
       before scaffolding.
     - [x] Map reusable authored Markdown, generated token/API reports, component
           examples, release notes, and existing browser entry points.
-    - [ ] Record the evidence-based choice between `apps/cem-site` and a static
+    - [x] Record the evidence-based choice between `apps/cem-site` and a static
           docs application, including build, routing, deployment, and Nx target
           ownership.
     - [x] Define authored-versus-generated content ownership so the site never
@@ -642,10 +642,34 @@ until final Phases 10 and 11, after Phase 9 release governance.
       and generated content families, 142 inspected example assets, browser
       entry points, missing API/site gates, and an eight-rule ownership
       contract. Theme Markdown specifications remain canonical; generated
-      and Figma data remain read-only projections. The evidence recommends a
-      dedicated static-output `apps/cem-site` Nx application, but the parent
-      stays open at the explicit application/Nx/Vite ownership decision. No
-      application was scaffolded.
+      and Figma data remain read-only projections. The accepted boundary is a
+      dedicated static-output `apps/cem-site` Nx application whose cached build
+      target invokes the CEM-ML CLI transformation graph. CEM-ML, not Vite or an
+      asset-copy script, owns site content and web dependency assembly; Vite may
+      remain an optional generated-output server/test harness. No application was
+      scaffolded.
+- [ ] Make npm/browser dependency assembly a native CEM-ML web-build graph
+      before scaffolding the site shell.
+    - [ ] Define the authored module-map and resolver contract for bare npm
+          specifiers, package export conditions, relative module edges, and
+          deterministic lockfile-backed identities; keep browser import maps as
+          output projections rather than a second resolution authority.
+    - [ ] Load transitive JavaScript, JSON, CSS, and WASM dependencies as typed
+          graph artifacts, including the JavaScript glue and binary relationships
+          of WASM npm packages, with explicit edge kinds for static imports,
+          literal dynamic imports, CSS imports/URLs, and supported URL/WASM glue.
+    - [ ] Add graph policy for inline versus emitted/fingerprinted artifacts and
+          preserve source maps, integrity, provenance, and cache identity across
+          either result.
+    - [ ] Link only after the reachable closure is known, assign deployment
+          identities, and rewrite HTML import maps, JavaScript/CSS specifiers,
+          and WASM/static resource references rather than preserving filesystem
+          or `node_modules` paths.
+    - [ ] Prove with Rust-native and CLI graph fixtures that the clean output is
+          reproducible, contains the complete reachable dependency closure, and
+          remains runnable after the workspace and `node_modules` are absent;
+          emit a resolved-read/dependency manifest with content digests for Nx
+          cache and provenance auditing.
 - [ ] Create the root-wired CEM Site shell with stable routes and generated-doc
       ingestion from public package/report boundaries.
 - [ ] Build the guides, token browser, component gallery, examples, API/reference,
