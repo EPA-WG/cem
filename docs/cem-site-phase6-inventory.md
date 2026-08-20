@@ -195,13 +195,16 @@ The build boundary is deliberately split by responsibility:
    generated directory, but it is not the production build authority and does
    not own dependency bundling.
 
-The resulting `apps/cem-site` application keeps an explicit three-route
-publication graph, uses the native Markdown → HTML → recovered DOM → CEMT
-pipeline for shared layout composition, and consumes the generated CEM-ML
-transform-config Markdown from `cem_ml:build:docs`. The dedicated module-map
-contract and deterministic resolved-read/digest manifest remain the required
-path for later interactive JavaScript; the initial shell intentionally ships no
-runtime JavaScript.
+The resulting `apps/cem-site` application keeps an explicit checked-in
+route/source allowlist and publication graph, uses the native Markdown → HTML →
+recovered DOM → CEMT pipeline for shared layout composition, and consumes the
+generated CEM-ML transform-config Markdown from `cem_ml:build:docs`. Its first
+package-authored surfaces render the `@epa-wg/cem-ml-cli` browser/Node usage
+guide and `@epa-wg/cem-ml` WASM runtime reference directly from their owning
+README files. The dedicated module-map contract and deterministic
+resolved-read/digest manifest remain the required path for later interactive
+JavaScript; the current static surfaces intentionally ship no runtime
+JavaScript.
 
 ## Evidence Commands
 

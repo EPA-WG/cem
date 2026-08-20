@@ -43,6 +43,28 @@
     }
   }
 
+  {import @id=cli-guide-source @src="../../packages/cem-ml-cli-npm/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=cli-guide-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=cli-guide-dom @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=cli-guide-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM-ML Browser and Node CLI Guide"}
+          {export @id=cli-guide @out="../../dist/apps/cem-site/guides/cem-ml/cli/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
   {import @id=transform-reference-source
       @src="../../packages/cem_ml/dist/cli/transform-config.md"
       @content-type="text/markdown; charset=utf-8; variant=CommonMark"
@@ -61,6 +83,30 @@
           {param @name="title" @value="CEM-ML Transform Graph Reference"}
           {export @id=transform-reference
               @out="../../dist/apps/cem-site/reference/cem-ml/transform-config/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=wasm-reference-source @src="../../packages/cem-ml-npm/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=wasm-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=wasm-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=wasm-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM-ML WASM Runtime Reference"}
+          {export @id=wasm-reference
+              @out="../../dist/apps/cem-site/reference/cem-ml/wasm-runtime/index.html"
               @content-type="text/html"
               @schema="https://cem.dev/ns/data/html/1"}
         }

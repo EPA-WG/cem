@@ -11,7 +11,6 @@ await rm(outputRoot, { recursive: true, force: true });
 const result = spawnSync(
   cli,
   [
-    '--quiet',
     'transform',
     '--config',
     'apps/cem-site/site.cem',

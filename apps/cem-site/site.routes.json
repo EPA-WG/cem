@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "exclusions": [
+    "docs/archive/**",
+    "docs/todo.md",
+    "roadmap.md",
+    "**/*.tmp.md",
+    "**/figma/**",
+    "**/cem.tokens.intermediate.json",
+    "**/cem.tokens.resolved.json"
+  ],
+  "entries": [
+    {
+      "kind": "page",
+      "route": "/",
+      "output": "index.html",
+      "source": "apps/cem-site/content/_index.md",
+      "sourceKind": "authored",
+      "owner": "cem-site",
+      "upstreamTarget": null,
+      "importId": "home-source",
+      "exportId": "home"
+    },
+    {
+      "kind": "page",
+      "route": "/guides/",
+      "output": "guides/index.html",
+      "source": "apps/cem-site/content/guides/_index.md",
+      "sourceKind": "authored",
+      "owner": "cem-site",
+      "upstreamTarget": null,
+      "importId": "guides-source",
+      "exportId": "guides"
+    },
+    {
+      "kind": "page",
+      "route": "/guides/cem-ml/cli/",
+      "output": "guides/cem-ml/cli/index.html",
+      "source": "packages/cem-ml-cli-npm/README.md",
+      "sourceKind": "authored",
+      "owner": "@epa-wg/cem-ml-cli",
+      "upstreamTarget": null,
+      "importId": "cli-guide-source",
+      "exportId": "cli-guide"
+    },
+    {
+      "kind": "page",
+      "route": "/reference/cem-ml/transform-config/",
+      "output": "reference/cem-ml/transform-config/index.html",
+      "source": "packages/cem_ml/dist/cli/transform-config.md",
+      "sourceKind": "generated",
+      "owner": "cem_ml",
+      "upstreamTarget": "cem_ml:build:docs",
+      "importId": "transform-reference-source",
+      "exportId": "transform-reference"
+    },
+    {
+      "kind": "page",
+      "route": "/reference/cem-ml/wasm-runtime/",
+      "output": "reference/cem-ml/wasm-runtime/index.html",
+      "source": "packages/cem-ml-npm/README.md",
+      "sourceKind": "authored",
+      "owner": "@epa-wg/cem-ml",
+      "upstreamTarget": null,
+      "importId": "wasm-reference-source",
+      "exportId": "wasm-reference"
+    }
+  ]
+}

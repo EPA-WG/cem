@@ -26,7 +26,10 @@
         "{projectRoot}/layouts/**/*.cemt",
         "{projectRoot}/README.md",
         "{projectRoot}/site.cem",
+        "{projectRoot}/site.routes.json",
         "{projectRoot}/scripts/build.mjs",
+        "{workspaceRoot}/packages/cem-ml-npm/README.md",
+        "{workspaceRoot}/packages/cem-ml-cli-npm/README.md",
         {
           "dependentTasksOutputFiles": "**/*",
           "transitive": false
@@ -44,6 +47,7 @@
       },
       "inputs": [
         "{projectRoot}/site.cem",
+        "{projectRoot}/site.routes.json",
         "{projectRoot}/scripts/verify.mjs",
         {
           "dependentTasksOutputFiles": "**/*",

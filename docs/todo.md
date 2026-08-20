@@ -725,10 +725,21 @@ until final Phases 10 and 11, after Phase 9 release governance.
       later interactive work must use the dedicated module-map graph contract.
 - [ ] Build the guides, token browser, component gallery, examples, API/reference,
       and release-notes surfaces without duplicating canonical source content.
-    - [ ] Extend the checked-in publication graph with an explicit route/source
+    - [x] Extend the checked-in publication graph with an explicit route/source
           allowlist for the first authored guides and package-owned references;
           exclude archives, active planning documents, debug projections, and
           directory-wide copies.
+        - Completed 2026-08-20: `apps/cem-site/site.routes.json` now records the
+          exact source, route/output, source kind, owning Nx project, upstream
+          generation target, and graph import/export identities for five pages.
+          The first external authored surfaces are the
+          `@epa-wg/cem-ml-cli` browser/Node usage guide and the
+          `@epa-wg/cem-ml` WASM runtime reference; the existing transform-config
+          reference remains generated only by `cem_ml:build:docs`. Nx hashes the
+          package-owned Markdown directly, while the verifier rejects duplicate
+          routes, missing owners/targets, graph/report drift, directory-wide or
+          excluded archive/planning/temporary/Figma/debug sources, unexpected
+          outputs, unpublished internal links, and missing CEMT source maps.
     - [ ] Add a static token-browser surface sourced from canonical theme Markdown
           and public `@epa-wg/cem-theme:build:tokens` outputs, keeping generated
           values read-only and excluding Figma and debug token projections.
