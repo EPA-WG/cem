@@ -603,6 +603,21 @@ already owns the five-mode token gate and 48-primitive executable Figma inventor
 The remaining Phase 5 work is reviewed canvas work in the canonical CEM UI Kit.
 
 - [ ] Build and review the `02 Foundations` page from native CEM variables.
+    - [x] Re-run the credential-free repository preflight and confirm the
+          live-canvas ownership boundary before editing Figma.
+        - Completed 2026-08-19: the resolved
+          `@epa-wg/cem-components:verify-figma-inventory` Nx graph passed all
+          eight tasks, with four restored from cache. It regenerated and
+          validated 252 consistent variables across Light, Dark, Contrast Light,
+          Contrast Dark, and Native, proved the representative token-propagation
+          smoke, and verified all 48 public primitives (37 component sets, three
+          components, four payloads, and four structural owners). The inventory
+          remains truthful at zero reviewed and 48 planned canvas entries. The
+          last recorded live-library review is still the 2026-04-30 230-variable
+          revision, so the canonical file must be refreshed and its current
+          revision captured before foundation construction. This environment has
+          no approved live Figma reader/editor or credential; anonymous access is
+          blocked. No canvas or publication claim was made.
     - [ ] Record the starting CEM UI Kit revision and confirm that the native
           `CEM Tokens` collection has the accepted Light, Dark, Contrast Light,
           Contrast Dark, and Native modes before editing the canvas.
