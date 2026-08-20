@@ -29,6 +29,8 @@ This index links the active project, release, and token workflow documents.
 - [CEM Studio web application proposal](./cem-studio.md) — PWA architecture, synchronized Studio/runtime/CLI npm
   packages, focused Node/Linux AMD64/Homebrew ARM64/Windows AMD64 CLI targets, semi-native Node SEA wishlist,
   local-first projects, CEM components/theme boundaries, previews, and storage providers.
+- [CEM Site Phase 6 inventory](./cem-site-phase6-inventory.md) — resolved Nx ownership, reusable documentation and
+  example surfaces, generated projections, site content boundaries, and the pending application-shape decision.
 - [CEM ML Phase 2 run-config audit](./cem-ml-phase2-run-config-audit.md) — current `cem_ml` and `cem_ml_cli`
   run-config/lifecycle surfaces mapped to the Phase 2 parser/runtime contract.
 - [CEM ML Phase 2 normalized run-config contract](./cem-ml-phase2-run-config-contract.md) — target authored-config

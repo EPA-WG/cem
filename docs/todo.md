@@ -610,13 +610,23 @@ until final Phases 10 and 11, after Phase 9 release governance.
 - [ ] Inventory the current root, package, generated-documentation, and example
       surfaces, then lock the CEM Site project and content-ownership boundary
       before scaffolding.
-    - [ ] Map reusable authored Markdown, generated token/API reports, component
+    - [x] Map reusable authored Markdown, generated token/API reports, component
           examples, release notes, and existing browser entry points.
     - [ ] Record the evidence-based choice between `apps/cem-site` and a static
           docs application, including build, routing, deployment, and Nx target
           ownership.
-    - [ ] Define authored-versus-generated content ownership so the site never
+    - [x] Define authored-versus-generated content ownership so the site never
           becomes a second source for token, API, or component contracts.
+    - Completed 2026-08-19: [`cem-site-phase6-inventory.md`](cem-site-phase6-inventory.md)
+      records the 41-project resolved Nx graph, the absence of a site/serve
+      owner, the existing Storybook and two generated-doc targets, authored
+      and generated content families, 142 inspected example assets, browser
+      entry points, missing API/site gates, and an eight-rule ownership
+      contract. Theme Markdown specifications remain canonical; generated
+      and Figma data remain read-only projections. The evidence recommends a
+      dedicated static-output `apps/cem-site` Nx application, but the parent
+      stays open at the explicit application/Nx/Vite ownership decision. No
+      application was scaffolded.
 - [ ] Create the root-wired CEM Site shell with stable routes and generated-doc
       ingestion from public package/report boundaries.
 - [ ] Build the guides, token browser, component gallery, examples, API/reference,
