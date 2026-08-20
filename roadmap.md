@@ -18,6 +18,7 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable.        | `packages/cem-elements`, future `packages/custom-element`                |
 | CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                          | `packages/cem-components`, `packages/cem-elements`                       |
 | CEM site                      | Public docs, token/component gallery, interactive examples, and release documentation wired from the repo root.                                                                                                                                                                                             | future `apps/cem-site` or static docs app                                |
+| Hugo framework integration    | A downstream integration of the CEM-ML stack with Hugo, initially exploring adoption of the CEM theme, component set, and accessibility tooling. Exact product shape and package ownership remain TBD.                                                                                                      | future Hugo integration (TBD)                                            |
 | Repo docs spine               | Root docs, package docs, generated API/token docs, examples index, and contribution/release docs.                                                                                                                                                                                                           | `README.md`, `docs/`, package docs                                       |
 | Figma UI Kit                  | Designer-facing components, variants, variables, usage examples, and governance workflow.                                                                                                                                                                                                                   | `examples/figma`, future design artifacts                                |
 | Figma site demo               | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion.                                                                                                                                                                                                       | future `examples/figma-site-demo`                                        |
@@ -44,8 +45,11 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
     `<cem-element>`-based `@epa-wg/cem-components` counterpart first, then consume it from Studio. A Studio-specific
     component or application-local implementation may lead only when no Angular Material counterpart exists.
 12. Keep Markdown token specifications under `packages/cem-theme/src/lib/tokens/` canonical. Generated Figma mode
-    files are pull-only projections, and live Figma library/prototype updates run only after the site, Studio, native
-    package, and release-governance phases are complete.
+    files are pull-only projections, and live Figma library/prototype updates run only after the site, Studio, Hugo
+    integration, native package, and release-governance phases are complete.
+13. Treat Hugo support as a downstream framework integration of the CEM-ML, theme, component, and accessibility
+    contracts. It must not replace the canonical Markdown token sources or make Hugo the implementation authority for
+    the CEM Site.
 
 ## Phase 0 - Repo Spine And Docs
 
@@ -437,8 +441,9 @@ Exit criteria:
 - No Studio component duplicates an Angular Material capability that lacks the corresponding general CEM component;
   parity coverage is represented as CEM semantic components rather than direct Material clones.
 
-Scheduling note: the former Phase 5 UI Kit and Phase 7 Figma demo were reassigned to final Phases 10 and 11. Existing
-non-Figma phase identifiers remain stable so their established plans and references do not need unrelated renumbering.
+Scheduling note: the former Phase 5 UI Kit and Phase 7 Figma demo were reassigned to final Phases 10 and 11. Phase 7 is
+now reserved for the separate Hugo framework integration; the other non-Figma phase identifiers remain stable so their
+established plans and references do not need unrelated renumbering.
 
 ## Phase 6 - CEM Site
 
@@ -514,6 +519,31 @@ Exit criteria:
   default, and all reusable UI passes theme, keyboard, accessibility, and light-DOM checks.
 - A Studio dependency audit proves that every Angular-Material-equivalent control comes from its completed general CEM
   parity component; only controls with no catalog counterpart may originate in `/studio` or the application.
+
+## Phase 7 - Hugo Framework Integration
+
+Goal: define and prove a supported way to adopt the CEM-ML stack in Hugo projects after the native CEM Site contracts
+are established.
+
+Scope status: TBD. Before implementation work enters `docs/todo.md`, this phase must decide whether the supported
+product is a Hugo Module/theme, a starter or reference site, build-pipeline integration, or a bounded combination of
+those forms.
+
+Initial intent:
+
+- Adopt the generated CEM theme while keeping the Markdown token specifications under
+  `packages/cem-theme/src/lib/tokens/` authoritative.
+- Make the CEM component set usable from Hugo Markdown, templates, partials, or shortcodes without forking component
+  behavior or token values.
+- Integrate the repository's accessibility tools, checks, and component guidance into the Hugo authoring and build
+  workflow.
+- Define the boundary between Hugo content/rendering responsibilities and CEM-ML validation, conversion,
+  transformation-graph, JS, and WASM responsibilities.
+- Produce an architecture decision, compatibility matrix, and verification plan before selecting package paths,
+  distribution mechanics, or implementation tasks.
+
+Exit criteria: TBD with the rest of the phase scope; no Phase 7 implementation checklist should be added to
+`docs/todo.md` until the architecture decision is accepted.
 
 ## Phase 8 - Native Platform Packages
 
@@ -634,6 +664,7 @@ Exit criteria:
 | M4        | Angular Material parity through CEM components            | Completes the reusable `<cem-element>`-based control baseline before Studio or demos create equivalent one-off UI.                                                |
 | M6        | CEM site                                                  | Public documentation should be generated from stable package and component contracts.                                                                             |
 | M6.5      | CEM Studio PWA                                            | The browser workbench composes the stable CLI/WASM contract and parity-complete components; only UI absent from Angular Material may begin as Studio-specific.    |
+| M7        | Hugo framework integration scope and proof                | Define the supported Hugo product shape, then prove CEM theme, component, accessibility, and CEM-ML pipeline adoption without creating a second source of truth.  |
 | M8        | Native package hardening                                  | Native artifacts become product-grade once token/component semantics are stable.                                                                                  |
 | M9        | Release governance, CLI artifacts, and Studio publication | Formalize compatibility, preserve release-scoped WASM/Linux assets on tagged GitHub Releases, and publish the fixed-version npm/CLI/native/Studio family.         |
 | M10       | Figma UI Kit MVP                                          | Project the completed code and token contracts into Figma only after the non-Figma product and governance phases are complete.                                    |
