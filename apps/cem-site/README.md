@@ -11,10 +11,18 @@ upstream generation target and participate directly in the site build hash.
 
 Run `yarn nx run cem-site:build` to produce `dist/apps/cem-site`, or run
 `yarn nx run cem-site:verify` to build and verify the route allowlist, links,
-generated-document provenance, transform report, and source-map sidecars.
+generated-document provenance, transform report, source-map sidecars, and token
+catalog traceability.
 
 Authored content follows a Hugo-like folder hierarchy under `content/`. Shared
 semantic HTML composition lives in `layouts/page.cemt`. Cross-package generated
 documents are read only from declared upstream Nx outputs; the application does
 not duplicate or patch their source text. Archive, planning, temporary, Figma,
 and debug-token paths remain excluded from the publication allowlist.
+
+The static `/tokens/` route consumes
+`@epa-wg/cem-theme:build:tokens`' public `cem.tokens.catalog.json` output as
+native JSON. The route manifest enumerates the exact canonical theme Markdown
+specifications behind that catalog, and verification maps every generated token
+record back to its source table heading. The generated values are read-only and
+the page ships no JavaScript.

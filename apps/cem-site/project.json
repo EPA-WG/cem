@@ -15,6 +15,10 @@
         {
           "projects": ["cem_ml"],
           "target": "build:docs"
+        },
+        {
+          "projects": ["@epa-wg/cem-theme"],
+          "target": "build:tokens"
         }
       ],
       "options": {

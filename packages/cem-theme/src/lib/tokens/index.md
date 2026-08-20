@@ -273,6 +273,7 @@ Markdown token specs remain the source of truth. Generated artifacts under `dist
 | Artifact | Purpose | Contract |
 |---|---|---|
 | `cem.tokens.json` | Canonical DTCG-compatible visual tokens with CEM metadata and per-mode values | Public beta |
+| `cem.tokens.catalog.json` | Flat visual and voice token metadata for documentation and other data consumers | Public beta |
 | `cem.voice.tokens.json` | Voice/audio token metadata for TTS or speech adapters | Public beta |
 | `cem.tokens.ts` | TypeScript token names and metadata for docs, tests, examples, and autocomplete | Public beta |
 | `cem.tokens.report.{md,json}` | Human and CI-readable portability reports | Public beta |

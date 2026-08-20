@@ -1,0 +1,147 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+  {param @name="input" @type="object" @required=true}
+  {template @name="tokens" @visibility="public" |
+    {body |
+      {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
+        {attribute @name="lang" @value="en"}
+        {element @name="head" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="charset" @value="utf-8"}
+          }
+          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="name" @value="viewport"}
+            {attribute @name="content" @value="width=device-width, initial-scale=1"}
+          }
+          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | CEM token browser}
+        }
+        {element @name="body" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="header" @namespace="http://www.w3.org/1999/xhtml" |
+            {element @name="nav" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="aria-label" @value="Primary"}
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/"}
+                CEM Site
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/"}
+                Guides
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/cem-ml/cli/"}
+                CLI guide
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/reference/cem-ml/transform-config/"}
+                CEM-ML reference
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/tokens/"}
+                Tokens
+              }
+            }
+          }
+          {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
+            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" | CEM token browser}
+            {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+              These read-only values are generated from the canonical CEM theme Markdown token tables.
+            }
+            {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+              Source specifications remain authoritative; this catalog is a build projection for browsing and tooling.
+            }
+            {element @name="table" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="caption" @namespace="http://www.w3.org/1999/xhtml" |
+                Public visual and voice token metadata
+              }
+              {element @name="thead" @namespace="http://www.w3.org/1999/xhtml" |
+                {element @name="tr" @namespace="http://www.w3.org/1999/xhtml" |
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Name
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Type
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Tier
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Source
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Bucket
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Portability
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Raw value
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Light
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Dark
+                  }
+                  {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="scope" @value="col"}
+                    Native
+                  }
+                }
+              }
+              {element @name="tbody" @namespace="http://www.w3.org/1999/xhtml" |
+                {cem:for-each @select="$input.tokens" @as="token" |
+                  {element @name="tr" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="data-token-name" @value="{$token.name}"}
+                    {attribute @name="data-token-spec" @value="{$token.spec}"}
+                    {attribute @name="data-token-table" @value="{$token.sourceTable}"}
+                    {attribute @name="data-token-bucket" @value="{$token.bucket}"}
+                    {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="scope" @value="row"}
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.name}}
+                    }
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$token.type}}
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$token.tier}}
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.spec}}
+                      /
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.sourceTable}}
+                    }
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$token.bucket}}
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$token.portability}}
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.rawValue}}
+                    }
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.modes.light}}
+                    }
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.modes.dark}}
+                    }
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.modes.native}}
+                    }
+                  }
+                }
+              }
+            }
+          }
+          {element @name="footer" @namespace="http://www.w3.org/1999/xhtml" |
+            Generated by the native CEM-ML transformation graph.
+          }
+        }
+      }
+    }
+  }
+}

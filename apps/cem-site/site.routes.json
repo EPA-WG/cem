@@ -64,6 +64,29 @@
       "upstreamTarget": null,
       "importId": "wasm-reference-source",
       "exportId": "wasm-reference"
+    },
+    {
+      "kind": "page",
+      "route": "/tokens/",
+      "output": "tokens/index.html",
+      "source": "packages/cem-theme/dist/lib/tokens/cem.tokens.catalog.json",
+      "sourceKind": "generated",
+      "owner": "@epa-wg/cem-theme",
+      "upstreamTarget": "@epa-wg/cem-theme:build:tokens",
+      "importId": "token-catalog-source",
+      "exportId": "token-browser",
+      "canonicalSources": [
+        "packages/cem-theme/src/lib/tokens/cem-colors.md",
+        "packages/cem-theme/src/lib/tokens/cem-dimension.md",
+        "packages/cem-theme/src/lib/tokens/cem-timing.md",
+        "packages/cem-theme/src/lib/tokens/cem-breakpoints.md",
+        "packages/cem-theme/src/lib/tokens/cem-coupling.md",
+        "packages/cem-theme/src/lib/tokens/cem-controls.md",
+        "packages/cem-theme/src/lib/tokens/cem-shape.md",
+        "packages/cem-theme/src/lib/tokens/cem-stroke.md",
+        "packages/cem-theme/src/lib/tokens/cem-layering.md",
+        "packages/cem-theme/src/lib/tokens/cem-voice-fonts-typography.md"
+      ]
     }
   ]
 }

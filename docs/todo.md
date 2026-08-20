@@ -740,9 +740,22 @@ until final Phases 10 and 11, after Phase 9 release governance.
           routes, missing owners/targets, graph/report drift, directory-wide or
           excluded archive/planning/temporary/Figma/debug sources, unexpected
           outputs, unpublished internal links, and missing CEMT source maps.
-    - [ ] Add a static token-browser surface sourced from canonical theme Markdown
+    - [x] Add a static token-browser surface sourced from canonical theme Markdown
           and public `@epa-wg/cem-theme:build:tokens` outputs, keeping generated
           values read-only and excluding Figma and debug token projections.
+        - Completed 2026-08-20: the theme target now emits the public beta
+          `cem.tokens.catalog.json` package export from the same sorted metadata
+          records as `cem.tokens.ts`. The native CEM-ML site graph imports that
+          JSON directly and renders 487 visual/voice records at `/tokens/`
+          through CEMT with no JavaScript. The route allowlist names all ten
+          canonical Markdown specifications exactly; verification maps every
+          catalog record to its source-table heading, enforces the generated
+          owner/target relationship, rejects Figma and intermediate/resolved
+          debug inputs, and checks clean output, links, and render provenance.
+          The uncached theme/token/site build and the full site verifier pass;
+          a subsequent verification replay restored all 10 tasks from local Nx
+          cache, and the final verifier-only edit restored 9 of 10. Focused
+          `cem-site:lint` and `@epa-wg/cem-theme:lint` targets pass.
     - [ ] Add a component-gallery catalog from component semantics, inventory
           reports, and separately owned Storybook/example links without copying
           executable component fixtures into site-owned content.

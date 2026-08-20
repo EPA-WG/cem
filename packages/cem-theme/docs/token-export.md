@@ -1,6 +1,6 @@
 # Multi-Platform Token Export — Design Document
 
-**Status:** Proposal (not yet implemented). Recommends Approach E (Hybrid).
+**Status:** Implemented public export pipeline; Figma and native projections remain experimental. Uses Approach E (Hybrid).
 **Audience:** CEM maintainers, design-system reviewers, downstream platform teams.
 **Decision status:** MVP decisions are resolved; see §12 (Decision log).
 
@@ -30,9 +30,12 @@ exposing the same tokens to non-CSS consumers:
 
 ### Implementation state
 
-The repo has design notes for token export, but no implemented Style Dictionary config, DTCG build target, Figma import
-files, or native platform outputs. Treat this as the first implementation architecture, not a migration plan. Any
-prototype artifacts must either become generated outputs under `dist/` or be removed before release.
+`@epa-wg/cem-theme:build:tokens` emits public DTCG visual/voice JSON, a flat
+visual/voice catalog, TypeScript metadata, portability reports, and experimental
+Figma mode files from the canonical Markdown-derived XHTML and CSS. The separate
+`build:token-platforms` target emits the experimental iOS, Android, and per-mode
+JSON projections. Debug intermediate/resolved files remain non-contract build
+artifacts; all generated projections stay under `dist/`.
 
 ---
 
@@ -48,17 +51,17 @@ prototype artifacts must either become generated outputs under `dist/` or be rem
 │  *.xhtml        │────────▶│  CSS pipeline (existing) │──▶ dist/lib/css/*.css
 │  (h6 + table)   │         └──────────────────────────┘
 └────────┬────────┘
-         │ export-tokens.mjs (NEW — extract + classify)
+         │ export-tokens.mjs (extract + classify)
          ▼
 ┌─────────────────┐
 │  intermediate   │
 │     JSON        │
 └────────┬────────┘
-         │ export-tokens.mjs (NEW — resolve through generated CSS when needed)
+         │ export-tokens.mjs (resolve through generated CSS when needed)
          ▼
 ┌─────────────────┐         ┌──────────────────────────┐
-│  resolved JSON  │────────▶│  DTCG emission           │──▶ dist/lib/tokens/cem.tokens.json + figma/
-│  (per-theme)    │         └──────────┬───────────────┘     + cem.tokens.report.{md,json}
+│  resolved JSON  │────────▶│  public token emission   │──▶ DTCG + catalog + TypeScript + reports + figma/
+│  (per-theme)    │         └──────────┬───────────────┘
 └─────────────────┘                    │
                                        ▼
                           ┌─────────────────────────────┐
@@ -512,6 +515,11 @@ export interface CemTokenMeta {
 }
 ```
 
+The public `dist/lib/tokens/cem.tokens.catalog.json` artifact exposes those same
+sorted visual and voice metadata records under `tokens`, with generated
+provenance under `$generated`. Data consumers use that catalog instead of
+parsing TypeScript or flattening the nested DTCG contract themselves.
+
 ### Phase E — Figma integration
 
 The MVP path is **native Figma Variables in the CEM UI Kit**. All Figma workflows are read-only from the generated
@@ -841,8 +849,9 @@ The full Phase A–G arc is the destination. The MVP is the **smallest slice tha
    Variables file import documented as a fallback. Cover only `literal`-portability and `alias`-portability tokens.
    `native` uses Chromium-computed browser-reference colors. `css-expression` and `platform-note` tokens listed in
    `cem-figma-report.md`.
-4. **TypeScript metadata** — `cem-tokens.ts` typed token names + metadata for consumer tooling, autocomplete in
-   IDEs, and docs generation. Not a runtime CSS replacement.
+4. **Public metadata** — `cem.tokens.catalog.json` flat visual/voice records plus `cem.tokens.ts` typed token names
+   and the same metadata for consumer tooling, autocomplete in IDEs, and docs generation. Neither artifact is a
+   runtime CSS replacement.
 5. **Defer native** — Android XML/Compose and iOS Swift exports stay behind a separate `build:token-platforms`
    target until unit-mapping policy (decisions §9, §14, §15) and mode coverage are validated.
 
@@ -866,7 +875,7 @@ they can rely on:
 | Tier             | Includes                                                                                                                      | Stability commitment                                                                                   |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **Stable**       | Markdown specs (`packages/cem-theme/src/lib/tokens/*.md`), CSS custom properties (`dist/lib/css/*.css`), required token names | Backwards compatible; breaking changes only with major version bump and migration notes                |
-| **Beta**         | Canonical DTCG JSON (`cem.tokens.json`), TypeScript metadata, portability reports                                             | Schema may evolve in minor releases; renames discouraged; consumers should pin minor versions          |
+| **Beta**         | Canonical DTCG JSON (`cem.tokens.json`), flat catalog, TypeScript metadata, portability reports                               | Schema may evolve in minor releases; renames discouraged; consumers should pin minor versions          |
 | **Experimental** | Figma exports, Android XML/Compose, iOS Swift, asset-catalog hints, direct Figma REST API sync                                | May change shape, naming, or structure freely between minor releases; consumers regenerate per release |
 
 **Breaking changes** (require major version bump):

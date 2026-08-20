@@ -184,8 +184,8 @@ hand-maintained matrix.
 ## Token Export Pipeline
 
 The CSS pipeline is the web runtime output. The token export pipeline is the cross-platform artifact output. It reads
-the same compiled token XHTML and generated CSS, then emits canonical JSON, Figma files, TypeScript metadata, reports,
-and post-MVP platform files.
+the same compiled token XHTML and generated CSS, then emits canonical JSON, a flat visual/voice catalog, Figma files,
+TypeScript metadata, reports, and post-MVP platform files.
 
 Primary design and checklist:
 
@@ -200,8 +200,9 @@ Important target relationships:
    `dist/lib/token-platforms/json/`.
 
 Generated debug artifacts, `cem.tokens.intermediate.json` and `cem.tokens.resolved.json`, are not public package
-contracts. Consumers should use `cem.tokens.json`, `cem.voice.tokens.json`, `cem.tokens.ts`, Figma files, or platform
-outputs instead.
+contracts. Consumers should use `cem.tokens.json`, `cem.tokens.catalog.json`, `cem.voice.tokens.json`,
+`cem.tokens.ts`, Figma files, or platform outputs instead. `cem.tokens.catalog.json` and `cem.tokens.ts` are emitted
+from the same sorted metadata records so data and typed consumers see one projection contract.
 
 ## Cross-Phase Verification
 

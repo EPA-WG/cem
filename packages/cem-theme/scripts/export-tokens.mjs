@@ -8,7 +8,7 @@
  * Stage 3 (Phase C): Emit canonical DTCG-compatible JSON (cem.tokens.json,
  *   cem.voice.tokens.json) and reports (cem.tokens.report.{md,json}).
  * Stage 4 (Phase D): Emit native Figma DTCG mode files and the Figma report.
- * Stage 5 (Phase E): Emit TypeScript token metadata.
+ * Stage 5 (Phase E): Emit flat JSON and TypeScript token metadata.
  *
  * Usage:
  *   node packages/cem-theme/scripts/export-tokens.mjs [--with-optional] [--with-adapter] [--with-deprecated]
@@ -1526,12 +1526,26 @@ function buildTokenMeta(token, bucket) {
     };
 }
 
-async function emitTypeScriptMetadata(stage3Result, generated) {
-    const outPath = path.join(DIST_TOKENS, "cem.tokens.ts");
-    const allMeta = [
+function buildAllTokenMetadata(stage3Result) {
+    return [
         ...stage3Result.visualTokens.map((token) => buildTokenMeta(token, "visual")),
         ...stage3Result.voiceTokens.map((token) => buildTokenMeta(token, "voice")),
     ].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function emitTokenCatalog(allMeta, generated) {
+    const outPath = path.join(DIST_TOKENS, "cem.tokens.catalog.json");
+    const catalog = {
+        $generated: generated,
+        tokens: allMeta,
+    };
+    await fs.mkdir(DIST_TOKENS, { recursive: true });
+    await fs.writeFile(outPath, `${JSON.stringify(catalog, null, 2)}\n`, "utf8");
+    return outPath;
+}
+
+async function emitTypeScriptMetadata(allMeta, generated) {
+    const outPath = path.join(DIST_TOKENS, "cem.tokens.ts");
 
     const tokenNames = allMeta.map((token) => token.name);
     const tokenTypes = [...new Set(allMeta.map((token) => token.type))].sort();
@@ -1719,9 +1733,12 @@ async function main(argv) {
         process.exit(1);
     }
 
-    // Stage 5 — TypeScript token metadata
-    console.log("export-tokens: Stage 5 — TypeScript metadata emission");
-    const tsPath = await emitTypeScriptMetadata(s3, s3.generated);
+    // Stage 5 — flat token metadata for typed and data consumers
+    console.log("export-tokens: Stage 5 — public token metadata emission");
+    const allMeta = buildAllTokenMetadata(s3);
+    const catalogPath = await emitTokenCatalog(allMeta, s3.generated);
+    const tsPath = await emitTypeScriptMetadata(allMeta, s3.generated);
+    console.log(`  → ${path.relative(process.cwd(), catalogPath)}`);
     console.log(`  → ${path.relative(process.cwd(), tsPath)}`);
 }
 

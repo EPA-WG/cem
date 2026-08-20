@@ -44,6 +44,7 @@ const entriesByRoute = new Map();
 const entriesByOutput = new Map();
 const importIds = new Set();
 const exportIds = new Set();
+const canonicalSourceText = new Map();
 const buildInputs = new Set(project.targets.build.inputs);
 const buildDependencies = new Set(
   project.targets.build.dependsOn
@@ -75,6 +76,27 @@ for (const entry of manifest.entries) {
   }
   if (forbiddenSources.some((pattern) => pattern.test(entry.source))) {
     throw new Error(`${entry.route} publishes excluded source ${entry.source}`);
+  }
+  if (entry.canonicalSources !== undefined) {
+    if (!Array.isArray(entry.canonicalSources) || entry.canonicalSources.length === 0) {
+      throw new Error(`${entry.route} canonicalSources must be a non-empty array`);
+    }
+    if (new Set(entry.canonicalSources).size !== entry.canonicalSources.length) {
+      throw new Error(`${entry.route} has duplicate canonical sources`);
+    }
+    for (const source of entry.canonicalSources) {
+      if (
+        typeof source !== 'string' ||
+        /[*?[]/.test(source) ||
+        forbiddenSources.some((pattern) => pattern.test(source))
+      ) {
+        throw new Error(`${entry.route} has invalid canonical source ${source}`);
+      }
+      canonicalSourceText.set(
+        source,
+        await readFile(resolve(workspaceRoot, source), 'utf8'),
+      );
+    }
   }
   if (!entry.owner) {
     throw new Error(`${entry.route} has no canonical Nx owner`);
@@ -185,14 +207,86 @@ for (const entry of manifest.entries) {
         throw new Error(`${entry.output} links to unpublished route ${target.pathname}`);
       }
     }
-    verification.entries.push({
+    const verificationEntry = {
       route: entry.route,
       kind: entry.kind,
       owner: entry.owner,
       upstreamTarget: entry.upstreamTarget,
       links,
       outputSpans: sourceMap.outputSpans.length,
-    });
+    };
+
+    if (entry.route === '/tokens/') {
+      if (
+        entry.source !==
+        'packages/cem-theme/dist/lib/tokens/cem.tokens.catalog.json'
+      ) {
+        throw new Error('the token browser must consume the public theme token catalog');
+      }
+      if (output.includes('<script')) {
+        throw new Error('the static token browser must not load JavaScript');
+      }
+
+      const catalog = JSON.parse(
+        await readFile(resolve(workspaceRoot, entry.source), 'utf8'),
+      );
+      if (!Array.isArray(catalog.tokens) || catalog.tokens.length === 0) {
+        throw new Error('the public theme token catalog has no tokens');
+      }
+      const tokenNames = new Set(catalog.tokens.map((token) => token.name));
+      if (tokenNames.size !== catalog.tokens.length) {
+        throw new Error('the public theme token catalog has duplicate token names');
+      }
+      const renderedRows = [...output.matchAll(/data-token-name="([^"]+)"/g)];
+      if (renderedRows.length !== catalog.tokens.length) {
+        throw new Error(
+          `token browser rendered ${renderedRows.length} of ${catalog.tokens.length} catalog records`,
+        );
+      }
+      for (const token of catalog.tokens) {
+        const canonicalSource = entry.canonicalSources.find(
+          (source) => source.endsWith(`/${token.spec}.md`),
+        );
+        if (!canonicalSource) {
+          throw new Error(`${token.name} has undeclared canonical spec ${token.spec}`);
+        }
+        if (
+          !canonicalSourceText
+            .get(canonicalSource)
+            .includes(`###### ${token.sourceTable}`)
+        ) {
+          throw new Error(
+            `${token.name} has unknown source table ${token.spec}#${token.sourceTable}`,
+          );
+        }
+        if (!output.includes(`data-token-name="${token.name}"`)) {
+          throw new Error(`${token.name} is absent from the rendered token browser`);
+        }
+      }
+
+      const canonicalSpecs = entry.canonicalSources.map((source) =>
+        source.slice(source.lastIndexOf('/') + 1, -3),
+      );
+      if (
+        JSON.stringify(catalog.$generated?.sourceSpecs) !==
+        JSON.stringify(canonicalSpecs)
+      ) {
+        throw new Error('token catalog source specs drifted from canonicalSources');
+      }
+      const buckets = [...new Set(catalog.tokens.map((token) => token.bucket))].sort();
+      if (JSON.stringify(buckets) !== JSON.stringify(['visual', 'voice'])) {
+        throw new Error(`token catalog bucket coverage drifted: ${buckets.join(', ')}`);
+      }
+
+      Object.assign(verificationEntry, {
+        canonicalSources: entry.canonicalSources,
+        tokenCount: catalog.tokens.length,
+        buckets,
+        javascript: false,
+      });
+    }
+
+    verification.entries.push(verificationEntry);
   } else {
     const source = await readFile(resolve(workspaceRoot, entry.source), 'utf8');
     if (output !== source) {

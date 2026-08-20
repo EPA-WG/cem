@@ -25,6 +25,7 @@
         },
         "./styles.css": "./dist/lib/css/cem-combined.css",
         "./tokens/cem.tokens.json": "./dist/lib/tokens/cem.tokens.json",
+        "./tokens/cem.tokens.catalog.json": "./dist/lib/tokens/cem.tokens.catalog.json",
         "./tokens/cem.voice.tokens.json": "./dist/lib/tokens/cem.voice.tokens.json",
         "./tokens/cem.tokens.report.json": "./dist/lib/tokens/cem.tokens.report.json",
         "./tokens/cem.tokens.ts": "./dist/lib/tokens/cem.tokens.ts",

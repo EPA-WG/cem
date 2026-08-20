@@ -81,6 +81,7 @@ The same paths work for individual specs, e.g.
 | `@epa-wg/cem-theme`                               | Theme entry (TypeScript).                           |
 | `@epa-wg/cem-theme/styles.css`                    | Generated combined CSS token stylesheet.           |
 | `@epa-wg/cem-theme/tokens/cem.tokens.json`        | Canonical DTCG-compatible visual tokens.            |
+| `@epa-wg/cem-theme/tokens/cem.tokens.catalog.json` | Flat visual/voice metadata for data consumers.     |
 | `@epa-wg/cem-theme/tokens/cem.voice.tokens.json`  | Voice/audio metadata, separate from visual outputs. |
 | `@epa-wg/cem-theme/tokens/cem.tokens.ts`          | Token names + metadata for docs/tests/autocomplete. |
 | `@epa-wg/cem-theme/tokens/cem.tokens.report.json` | Portability and skipped-token report.               |
@@ -90,7 +91,7 @@ Consumers MUST NOT import debug artifacts (`cem.tokens.intermediate.json`, `cem.
 
 For AI-assisted styling work, start with `dist/lib/tokens/cem-theme-ai-instructions.md`. It points to the relevant
 token specs in `dist/lib/tokens/*.md` and explains how to choose semantic tokens before checking exact names and values
-in `cem.tokens.ts`, `cem.tokens.json`, or generated CSS.
+in `cem.tokens.catalog.json`, `cem.tokens.ts`, `cem.tokens.json`, or generated CSS.
 
 ## Build & test
 

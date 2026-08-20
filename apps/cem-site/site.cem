@@ -113,4 +113,18 @@
       }
     }
   }
+
+  {import @id=token-catalog-source
+      @src="../../packages/cem-theme/dist/lib/tokens/cem.tokens.catalog.json"
+      @content-type="application/json"
+      @schema="https://cem.dev/ns/data/json/1" |
+    {transform @id=token-browser-page @src="layouts/token-browser.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @entrypoint="tokens" |
+      {export @id=token-browser @out="../../dist/apps/cem-site/tokens/index.html"
+          @content-type="text/html"
+          @schema="https://cem.dev/ns/data/html/1"}
+    }
+  }
 }

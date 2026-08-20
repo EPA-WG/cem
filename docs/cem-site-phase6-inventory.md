@@ -72,7 +72,7 @@ regenerated before site assembly.
 | Projection                | Owner target                                    | Current useful outputs                                                         | Site rule                                                                                                    |
 | ------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | Theme source docs         | `@epa-wg/cem-theme:build:docs`                  | Copied Markdown and XHTML under `packages/cem-theme/dist/lib/`                 | Consume generated output or source through a manifest; do not patch `dist/`.                                 |
-| Token browser data        | `@epa-wg/cem-theme:build:tokens`                | Public `cem.tokens.json`, voice tokens, TypeScript metadata, and token reports | Prefer public package export subpaths and report contracts. Debug intermediate/resolved JSON stays excluded. |
+| Token browser data        | `@epa-wg/cem-theme:build:tokens`                | Public DTCG, flat catalog, voice, TypeScript metadata, and token reports       | Consume the public flat catalog for static browsing. Debug intermediate/resolved JSON and Figma outputs stay excluded. |
 | Platform snippets/reports | `@epa-wg/cem-theme:build:token-platforms`       | Per-mode JSON, Swift, Android XML/Kotlin, and platform reports                 | Present generated snippets and reports read-only.                                                            |
 | CEM-ML schema docs        | `cem_ml:build:docs` and schema-artifact targets | Copied Markdown/XHTML plus run, report, and observability schemas              | Consume declared outputs; do not duplicate schema definitions in the site.                                   |
 | Component verification    | `@epa-wg/cem-components` verification targets   | State-matrix and inventory JSON/Markdown reports                               | Use reports as build inputs or status evidence, not authored prose.                                          |
@@ -201,7 +201,12 @@ recovered DOM → CEMT pipeline for shared layout composition, and consumes the
 generated CEM-ML transform-config Markdown from `cem_ml:build:docs`. Its first
 package-authored surfaces render the `@epa-wg/cem-ml-cli` browser/Node usage
 guide and `@epa-wg/cem-ml` WASM runtime reference directly from their owning
-README files. The dedicated module-map contract and deterministic
+README files. The `/tokens/` surface transforms the public flat catalog emitted
+by `@epa-wg/cem-theme:build:tokens` as native JSON; its audited route metadata
+enumerates the ten canonical theme Markdown specifications, and verification
+maps every catalog record to its declared source-table heading. Generated token
+values remain read-only while Figma and debug projections remain outside the
+site graph. The dedicated module-map contract and deterministic
 resolved-read/digest manifest remain the required path for later interactive
 JavaScript; the current static surfaces intentionally ship no runtime
 JavaScript.

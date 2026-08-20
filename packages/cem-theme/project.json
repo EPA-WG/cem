@@ -84,6 +84,7 @@
             ],
             "outputs": [
                 "{projectRoot}/dist/lib/tokens/cem.tokens.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.catalog.json",
                 "{projectRoot}/dist/lib/tokens/cem.tokens.ts",
                 "{projectRoot}/dist/lib/tokens/cem.voice.tokens.json",
                 "{projectRoot}/dist/lib/tokens/cem.tokens.report.md",

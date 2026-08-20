@@ -66,6 +66,7 @@ cross-platform artifacts from `packages/cem-theme/scripts/export-tokens.mjs`.
 Public beta outputs under `packages/cem-theme/dist/lib/tokens/`:
 
 - `cem.tokens.json` — canonical DTCG-compatible visual tokens.
+- `cem.tokens.catalog.json` — flat visual and voice token metadata for documentation and other data consumers.
 - `cem.voice.tokens.json` — voice/audio metadata, separate from visual outputs.
 - `cem.tokens.ts` — TypeScript token names and metadata for docs/tests/autocomplete.
 - `cem.tokens.report.{md,json}` — portability and skipped-token reports.
@@ -81,7 +82,9 @@ Debug-only outputs:
 - `cem.tokens.resolved.json`
 
 Consumers must not import debug artifacts. Prefer package export subpaths such as
-`@epa-wg/cem-theme/tokens/cem.tokens.json` or `@epa-wg/cem-theme/tokens/cem.tokens.ts` instead of deep `dist/` paths.
+`@epa-wg/cem-theme/tokens/cem.tokens.json`,
+`@epa-wg/cem-theme/tokens/cem.tokens.catalog.json`, or
+`@epa-wg/cem-theme/tokens/cem.tokens.ts` instead of deep `dist/` paths.
 
 Build relationships:
 
