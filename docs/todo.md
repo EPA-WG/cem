@@ -698,10 +698,48 @@ until final Phases 10 and 11, after Phase 9 release governance.
           output writes. The module-map Nx project consumes that projection as a
           runtime input over a real `lit` dependency; dependency-output hashing
           ensures the native CLI exists before Nx evaluates the runtime key.
-- [ ] Create the root-wired CEM Site shell with stable routes and generated-doc
+- [x] Create the root-wired CEM Site shell with stable routes and generated-doc
       ingestion from public package/report boundaries.
+    - [x] Add a Rust-native graph fixture for Markdown → HTML → recovered DOM →
+          CEMT layout composition, including escaped-text regression coverage,
+          native artifact ownership, diagnostics, and source-map provenance.
+    - [x] Execute the registered `Html5RecoveryConverter` in transform graphs
+          and expose its typed DOM projection directly to CEMT without raw HTML,
+          JSON, or an untyped string bridge.
+    - [x] Scaffold `apps/cem-site` as a cached CEM-ML CLI application with an
+          explicit Hugo-like publication graph, stable root/reference routes,
+          and generated documentation consumed from an upstream Nx output.
+    - [x] Verify the clean static output, route links, generated-doc ownership,
+          native transform report/source maps, and Nx cache replay.
+    - Completed 2026-08-20: transform graphs now execute the registered HTML5
+      recovery converter and retain `HtmlDocumentAst` as a native DOM projection.
+      CEMT receives a borrowed hierarchical query view over that owner, including
+      native event/attribute ranges, without a raw HTML, JSON, or replacement-tree
+      handoff. Rust unit and adapter suites pass, the CLI's 519 pre-existing cases
+      passed in the aggregate run, and the corrected end-to-end native-layout
+      fixture passes as the 520th case. `apps/cem-site` now publishes explicit
+      root, guides, and generated CEM-ML reference routes through the native CLI;
+      its Nx verification proves the exact clean output allowlist, internal links,
+      upstream generated-doc ownership, graph report, CEMT source-map spans, and a
+      four-of-four local cache replay. The shell intentionally has no JavaScript;
+      later interactive work must use the dedicated module-map graph contract.
 - [ ] Build the guides, token browser, component gallery, examples, API/reference,
       and release-notes surfaces without duplicating canonical source content.
+    - [ ] Extend the checked-in publication graph with an explicit route/source
+          allowlist for the first authored guides and package-owned references;
+          exclude archives, active planning documents, debug projections, and
+          directory-wide copies.
+    - [ ] Add a static token-browser surface sourced from canonical theme Markdown
+          and public `@epa-wg/cem-theme:build:tokens` outputs, keeping generated
+          values read-only and excluding Figma and debug token projections.
+    - [ ] Add a component-gallery catalog from component semantics, inventory
+          reports, and separately owned Storybook/example links without copying
+          executable component fixtures into site-owned content.
+    - [ ] Add example, API/reference, and release-note routes from their current
+          owners, using an explicit authored-reference policy where no generated
+          API projection exists and never presenting an absent generator as one.
+    - [ ] Prove every new route records its canonical owner/upstream Nx target and
+          that publication remains deterministic from a clean output directory.
 - [ ] Add interactive token, component, CEM fixture, and native-output examples
       using the production CEM/custom-element implementation.
 - [ ] Add search, stable deep links, root navigation, and optional Angular Material

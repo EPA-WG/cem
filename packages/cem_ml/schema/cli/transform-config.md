@@ -48,9 +48,12 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - Conversion produces a typed graph artifact, so later `transform`,
   `rewrite-importmap`, and `export` nodes consume the target identity rather
   than reparsing an implicit JSON or text intermediary.
-- The first executable graph conversion is the Markdown package's
-  `markdown-to-html-rust` edge. Other registered edge implementations remain
-  unavailable in graph execution until their typed artifact adapters land.
+- Executable graph conversions include the Markdown package's
+  `markdown-to-html-rust` edge and the HTML package's
+  `html-to-cem-dom-projection-rust` recovery edge. The latter retains the
+  package-owned `HtmlDocumentAst` as a native DOM projection whose borrowed
+  hierarchical query view can feed CEMT directly; it does not serialize the
+  DOM through JSON, raw HTML, or a replacement tree.
 - `transform` creates a template application node from `@src`.
 - `transform @entrypoint` selects a public CEM-native template entrypoint.
 - `transform` child `param @name @value` records provide caller params for that transform stage.
@@ -130,8 +133,24 @@ string as an `xsl:with-param` value for named template entrypoints. Plain
     {convert @id=html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
         @converter="markdown-to-html-rust" |
-      {export @id=page @out="dist/{stem}.html"}
+      {convert @id=dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {export @id=site @out="dist/{stem}/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
     }
   }
 }
 ```
+
+The layout in this example receives the native DOM projection as its implicit
+`input` value. A complete layout can recursively emit `input.children` with the
+CEM transform vocabulary while adding shared navigation and page structure.

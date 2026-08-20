@@ -3,7 +3,7 @@
 Date: 2026-08-19
 
 Status: inventory, content ownership, and application boundary accepted;
-CEM-ML web dependency transformation is the next prerequisite.
+the initial root-wired shell now implements this boundary.
 
 ## Purpose
 
@@ -195,9 +195,13 @@ The build boundary is deliberately split by responsibility:
    generated directory, but it is not the production build authority and does
    not own dependency bundling.
 
-No application was scaffolded during this inventory. The dedicated module-map
-contract, deterministic resolved-read/digest manifest, and native/CLI/Nx fixtures
-now establish the JavaScript prerequisite for the site shell.
+The resulting `apps/cem-site` application keeps an explicit three-route
+publication graph, uses the native Markdown → HTML → recovered DOM → CEMT
+pipeline for shared layout composition, and consumes the generated CEM-ML
+transform-config Markdown from `cem_ml:build:docs`. The dedicated module-map
+contract and deterministic resolved-read/digest manifest remain the required
+path for later interactive JavaScript; the initial shell intentionally ships no
+runtime JavaScript.
 
 ## Evidence Commands
 

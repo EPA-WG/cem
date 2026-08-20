@@ -9092,6 +9092,107 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_composes_markdown_html_through_native_dom_and_cemt_layout() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-site-layout");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("content")).unwrap();
+        std::fs::write(
+            root.join("content/index.md"),
+            "# CEM Site\n\nThis is **typed** Markdown.\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("page.cemt"),
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+  {param @name="input" @type="object" @required=true}
+  {template @name="main" @visibility="public" |
+    {body |
+      {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
+        {element @name="head" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | CEM Site}
+        }
+        {element @name="body" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
+            {cem:for-each @select="$input.children" @as="node" |
+              {call @template="emit-node" @with:node="{$node}"}
+            }
+          }
+        }
+      }
+    }
+  }
+  {template @name="emit-node" |
+    {param @name="node" @type="object" @required=true}
+    {body |
+      {cem:choose |
+        {cem:when @test='node.kind == "element"' |
+          {element @name="{$node.name}" @namespace="{$node.namespace}" |
+            {cem:for-each @select="$node.attributes" @as="attribute" |
+              {attribute @name="{$attribute.name}" @namespace="{$attribute.namespace}" @value="{$attribute.value}"}
+            }
+            {cem:for-each @select="$node.children" @as="child" |
+              {call @template="emit-node" @with:node="{$child}"}
+            }
+          }
+        }
+        {cem:when @test='node.kind == "text" || node.kind == "whitespace"' | {$node.data}}
+        {cem:when @test='node.kind == "comment"' | {comment @value="{$node.data}"}}
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=content @src="content/index.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=fragment @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=dom @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=page @src="page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="main" |
+          {export @id=site @out="dist/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "stdout={stdout}\nstderr={stderr}");
+        let html = std::fs::read_to_string(root.join("dist/index.html")).unwrap();
+        let normalized = html.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(html.contains("<title>CEM Site</title>"), "{html}");
+        assert!(normalized.contains("<main><h1> CEM Site </h1>"), "{html}");
+        assert!(normalized.contains("<strong> typed </strong>"), "{html}");
+        assert!(!html.contains("&lt;h1"), "{html}");
+        let source_map = std::fs::read_to_string(root.join("dist/index.html.map")).unwrap();
+        assert!(source_map.contains("outputSpans"), "{source_map}");
+        assert!(source_map.contains("InterpreterRender"), "{source_map}");
+    }
+
+    #[test]
     fn transform_config_rewrites_html_importmap_for_dist() {
         let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-importmap");
         let _ = std::fs::remove_dir_all(&root);

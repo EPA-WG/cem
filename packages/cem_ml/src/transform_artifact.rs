@@ -8659,6 +8659,7 @@ impl TransformDataArtifact {
             TransformArtifactBody::CemDocument(_)
             | TransformArtifactBody::GenericData(_)
             | TransformArtifactBody::DomProjection(_)
+            | TransformArtifactBody::HtmlDomProjection(_)
             | TransformArtifactBody::EventStream(_)
             | TransformArtifactBody::XPathResult(_)
             | TransformArtifactBody::Encoded(_) => None,
@@ -8674,6 +8675,9 @@ pub enum TransformArtifactBody {
     CemTree(Arc<CemTreeAstStream>),
     MaterializedCemtTree(Arc<CemtMaterializedTreeArtifact>),
     DomProjection(Arc<CemDocument>),
+    /// A recovered HTML DOM projection that retains the package-owned HTML AST
+    /// instead of serializing through JSON or constructing a replacement CEM tree.
+    HtmlDomProjection(Arc<HtmlDocumentAst>),
     EventStream(Arc<NormalizedEventStream>),
     XPathResult(Arc<XPathResultArtifact>),
     Collection(Arc<TransformArtifactCollection>),
@@ -8690,6 +8694,7 @@ impl TransformArtifactBody {
             Self::CemTree(_) => "cem.tree-ast",
             Self::MaterializedCemtTree(_) => CEMT_MATERIALIZED_TREE_REPRESENTATION_ID,
             Self::DomProjection(_) => DOM_PROJECTION_REPRESENTATION_ID,
+            Self::HtmlDomProjection(_) => "cem.html-dom-projection",
             Self::EventStream(_) => EVENT_STREAM_REPRESENTATION_ID,
             Self::XPathResult(_) => XPATH_RESULT_REPRESENTATION_ID,
             Self::Collection(_) => TRANSFORM_COLLECTION_REPRESENTATION_ID,

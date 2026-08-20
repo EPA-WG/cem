@@ -73,8 +73,12 @@ contract.
 Markdown documents can also convert to `text/html` through the typed Markdown
 AST stream. Direct CLI conversion and transform-graph `convert` nodes select
 the schema-owned `markdown-to-html-rust` edge; graph conversion produces a
-typed HTML artifact that later graph stages can consume. The current HTML
-conversion covers common block and inline Markdown and
+typed HTML artifact that later graph stages can consume. A following
+`html-to-cem-dom-projection-rust` graph edge performs HTML5 recovery into the
+package-owned native HTML AST. CEMT consumes a borrowed hierarchical view of
+that projection, so shared layouts retain Markdown markup without escaping it
+and without introducing a raw HTML, JSON, or replacement-tree handoff. The
+current HTML conversion covers common block and inline Markdown and
 supports fenced `cem-ml svg` blocks as trusted package examples: the fenced
 CEM-ML is parsed and rendered as inline SVG markup before the generated HTML is
 written as conversion output. The package README still quotes the original

@@ -84,6 +84,13 @@ use cem_ml::transform_template::{
 use cem_ml::validation::json::{
     json_document_ast_from_source_bytes, JsonNumberKind, JsonSourceValidationRequest, JsonValueAst,
 };
+use cem_ml::validation::html::{
+    HtmlAttributeAst, HtmlDocumentAst, HtmlEventAst, HtmlEventKind,
+};
+#[cfg(test)]
+use cem_ml::validation::html::{
+    html_document_ast_from_source_bytes, HtmlSourceValidationRequest,
+};
 use cem_ml::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst};
 use cem_ql::api::{
     compile, compile_expression, evaluate, evaluate_with_control,
@@ -4982,6 +4989,271 @@ impl QueryItemView for CemDocumentQueryView {
     }
 }
 
+#[derive(Debug, Clone)]
+struct HtmlDomDocumentQueryView {
+    document: Arc<HtmlDocumentAst>,
+}
+
+impl HtmlDomDocumentQueryView {
+    fn node_item(&self, index: usize) -> Item {
+        Item::native(HtmlDomNodeQueryView {
+            document: Arc::clone(&self.document),
+            index,
+        })
+    }
+
+    fn root_children(&self) -> Vec<Item> {
+        self.document
+            .events
+            .iter()
+            .filter(|event| event.depth == 0 && html_dom_event_is_node(event))
+            .map(|event| self.node_item(event.index))
+            .collect()
+    }
+}
+
+impl QueryItemView for HtmlDomDocumentQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.html-dom-document-view"
+    }
+
+    fn identity(&self) -> String {
+        format!("{:p}:html-dom-document", Arc::as_ptr(&self.document))
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(vec![
+            ("kind".to_owned(), atom_items("document")),
+            ("children".to_owned(), self.root_children()),
+        ])
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        Some(match name {
+            "kind" => atom_items("document"),
+            "children" => self.root_children(),
+            _ => Vec::new(),
+        })
+    }
+}
+
+fn html_dom_event_is_node(event: &HtmlEventAst) -> bool {
+    matches!(
+        event.kind,
+        HtmlEventKind::StartElement
+            | HtmlEventKind::Text
+            | HtmlEventKind::RawText
+            | HtmlEventKind::Rcdata
+            | HtmlEventKind::Comment
+    )
+}
+
+#[derive(Debug, Clone)]
+struct HtmlDomNodeQueryView {
+    document: Arc<HtmlDocumentAst>,
+    index: usize,
+}
+
+impl HtmlDomNodeQueryView {
+    fn event(&self) -> Option<&HtmlEventAst> {
+        self.document.events.get(self.index)
+    }
+
+    fn child_items(&self) -> Vec<Item> {
+        let Some(parent) = self.event() else {
+            return Vec::new();
+        };
+        if parent.kind != HtmlEventKind::StartElement
+            || parent.self_closing
+            || parent.void_element
+        {
+            return Vec::new();
+        }
+        let child_depth = parent.depth.saturating_add(1);
+        let mut children = Vec::new();
+        for event in self.document.events.iter().skip(self.index.saturating_add(1)) {
+            if event.kind == HtmlEventKind::EndElement && event.depth <= parent.depth {
+                break;
+            }
+            if html_dom_event_is_node(event) && event.depth <= parent.depth {
+                break;
+            }
+            if html_dom_event_is_node(event) && event.depth == child_depth {
+                children.push(Item::native(Self {
+                    document: Arc::clone(&self.document),
+                    index: event.index,
+                }));
+            }
+        }
+        children
+    }
+
+    fn attribute_items(&self) -> Vec<Item> {
+        self.event()
+            .into_iter()
+            .flat_map(|event| event.attributes.iter().enumerate())
+            .map(|(attribute_index, _)| {
+                Item::native(HtmlDomAttributeQueryView {
+                    document: Arc::clone(&self.document),
+                    event_index: self.index,
+                    attribute_index,
+                })
+            })
+            .collect()
+    }
+
+    fn field_names(&self) -> &'static [&'static str] {
+        match self.event().map(|event| event.kind) {
+            Some(HtmlEventKind::StartElement) => {
+                &["kind", "name", "namespace", "attributes", "children"]
+            }
+            Some(HtmlEventKind::Text)
+            | Some(HtmlEventKind::RawText)
+            | Some(HtmlEventKind::Rcdata)
+            | Some(HtmlEventKind::Comment) => &["kind", "data", "value"],
+            _ => &[],
+        }
+    }
+}
+
+impl QueryItemView for HtmlDomNodeQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.html-dom-node-view"
+    }
+
+    fn identity(&self) -> String {
+        format!("{:p}:html-dom-node:{}", Arc::as_ptr(&self.document), self.index)
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            self.field_names()
+                .iter()
+                .map(|name| ((*name).to_owned(), self.field(name).unwrap_or_default()))
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let event = self.event()?;
+        Some(match (event.kind, name) {
+            (HtmlEventKind::StartElement, "kind") => atom_items("element"),
+            (HtmlEventKind::StartElement, "name") => {
+                optional_atom_items(event.local_name.as_deref())
+            }
+            (HtmlEventKind::StartElement, "namespace") => {
+                atom_items(event.namespace_uri.clone())
+            }
+            (HtmlEventKind::StartElement, "attributes") => {
+                vec![Item::Array(self.attribute_items())]
+            }
+            (HtmlEventKind::StartElement, "children") => {
+                vec![Item::Array(self.child_items())]
+            }
+            (HtmlEventKind::Text, "kind") if event.whitespace_only => atom_items("whitespace"),
+            (HtmlEventKind::Text, "kind") => atom_items("text"),
+            (HtmlEventKind::RawText | HtmlEventKind::Rcdata, "kind") => atom_items("raw-text"),
+            (HtmlEventKind::Comment, "kind") => atom_items("comment"),
+            (
+                HtmlEventKind::Text
+                | HtmlEventKind::RawText
+                | HtmlEventKind::Rcdata
+                | HtmlEventKind::Comment,
+                "data" | "value",
+            ) => atom_items(event.value.as_deref().unwrap_or(&event.lexeme).to_owned()),
+            _ => Vec::new(),
+        })
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        self.event().map(|event| event.source_range.source_map())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct HtmlDomAttributeQueryView {
+    document: Arc<HtmlDocumentAst>,
+    event_index: usize,
+    attribute_index: usize,
+}
+
+impl HtmlDomAttributeQueryView {
+    fn attribute(&self) -> Option<&HtmlAttributeAst> {
+        self.document
+            .events
+            .get(self.event_index)?
+            .attributes
+            .get(self.attribute_index)
+    }
+}
+
+impl QueryItemView for HtmlDomAttributeQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.html-dom-attribute-view"
+    }
+
+    fn identity(&self) -> String {
+        format!(
+            "{:p}:html-dom-node:{}:attribute:{}",
+            Arc::as_ptr(&self.document),
+            self.event_index,
+            self.attribute_index
+        )
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            ["kind", "name", "namespace", "value"]
+                .into_iter()
+                .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let attribute = self.attribute()?;
+        Some(match name {
+            "kind" => atom_items("attribute"),
+            "name" => atom_items(attribute.local_name.clone()),
+            "namespace" => atom_items(String::new()),
+            "value" => vec![attribute
+                .value
+                .as_ref()
+                .map(|value| Item::Atomic(AtomValue::String(value.clone())))
+                .unwrap_or(Item::Atomic(AtomValue::Null))],
+            _ => Vec::new(),
+        })
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        self.attribute().map(|attribute| attribute.source_range.source_map())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum JsonQueryPathSegment {
     Member(usize),
@@ -5805,6 +6077,11 @@ fn artifact_query_stream(artifact: &TransformTemplateDataArtifact) -> Result<Ite
             .root()
             .map(|_| ItemStream::once(CemDocumentQueryView::item(Arc::clone(document), 0)))
             .ok_or_else(|| "native CEM transform artifact has no document root".to_owned()),
+        TransformArtifactBody::HtmlDomProjection(document) => Ok(ItemStream::once(Item::native(
+            HtmlDomDocumentQueryView {
+                document: Arc::clone(document),
+            },
+        ))),
         TransformArtifactBody::Lifecycle(owner) => lifecycle_query_stream(Arc::clone(owner)),
         TransformArtifactBody::Collection(collection) => Ok(ItemStream::once(Item::native(
             TransformCollectionQueryView {
@@ -7395,6 +7672,68 @@ count + 1"#,
             Some(AtomValue::String("main".to_owned()))
         );
         assert!(children[0].source_map().is_some());
+    }
+
+    #[test]
+    fn cql_html_dom_projection_retains_ast_identity_and_hierarchical_children() {
+        let (document, diagnostics) = html_document_ast_from_source_bytes(
+            HtmlSourceValidationRequest {
+                bytes: b"<h1>CEM <strong>Site</strong></h1>",
+                source_uri: "fragment.html",
+                content_type: Some(HTML_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}");
+        let document = Arc::new(document.expect("HTML document"));
+        let artifact = TransformTemplateDataArtifact::new(
+            "dom",
+            Some("fragment.html".to_owned()),
+            Some(FormatIdentity {
+                content_type: Some(
+                    cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE.to_owned(),
+                ),
+                schema: Some(cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformArtifactBody::HtmlDomProjection(Arc::clone(&document)),
+        );
+
+        let stream = artifact_query_stream(&artifact).expect("HTML DOM projection is queryable");
+        let root = stream.items.first().expect("HTML DOM document view");
+        let view = root
+            .view()
+            .and_then(|view| view.downcast_ref::<HtmlDomDocumentQueryView>())
+            .expect("HTML DOM stays a native AST-backed view");
+        assert!(Arc::ptr_eq(&view.document, &document));
+
+        let h1 = root
+            .view()
+            .and_then(|view| view.field("children"))
+            .and_then(|items| items.into_iter().next())
+            .expect("document h1 child");
+        assert_eq!(
+            h1.view()
+                .and_then(|view| view.field("name"))
+                .and_then(|items| items.first().and_then(Item::atom)),
+            Some(AtomValue::String("h1".to_owned()))
+        );
+        let h1_children = h1
+            .view()
+            .and_then(|view| view.field("children"))
+            .and_then(|items| items.first().and_then(Item::members))
+            .expect("h1 child array");
+        assert_eq!(h1_children.len(), 2);
+        assert_eq!(
+            h1_children[1]
+                .view()
+                .and_then(|view| view.field("name"))
+                .and_then(|items| items.first().and_then(Item::atom)),
+            Some(AtomValue::String("strong".to_owned()))
+        );
+        assert!(h1_children.iter().all(|item| item.source_map().is_some()));
     }
 
     #[test]
@@ -12188,6 +12527,8 @@ if greeting == "Hello" {
                 },
                 scheduler_scope_id: 18,
             }],
+            conversions: Vec::new(),
+            module_asset_manifest: Default::default(),
             joins: Vec::new(),
             stages: vec![TransformGraphStage {
                 id: "result".to_owned(),
@@ -12411,6 +12752,8 @@ if greeting == "Hello" {
                 },
                 scheduler_scope_id: 20,
             }],
+            conversions: Vec::new(),
+            module_asset_manifest: Default::default(),
             joins: Vec::new(),
             stages: vec![
                 TransformGraphStage {
@@ -12528,6 +12871,8 @@ if greeting == "Hello" {
                 },
                 scheduler_scope_id: 30,
             }],
+            conversions: Vec::new(),
+            module_asset_manifest: Default::default(),
             joins: vec![TransformGraphJoin {
                 id: "collection".to_owned(),
                 mode: TransformGraphJoinMode::Collect,
@@ -12639,6 +12984,8 @@ if greeting == "Hello" {
                 },
                 scheduler_scope_id: 40,
             }],
+            conversions: Vec::new(),
+            module_asset_manifest: Default::default(),
             joins: vec![TransformGraphJoin {
                 id: "collection".to_owned(),
                 mode: TransformGraphJoinMode::Collect,
@@ -12793,6 +13140,8 @@ if greeting == "Hello" {
                     },
                     scheduler_scope_id: base_scope,
                 }],
+                conversions: Vec::new(),
+                module_asset_manifest: Default::default(),
                 joins: vec![TransformGraphJoin {
                     id: "collection".to_owned(),
                     mode,
@@ -12960,6 +13309,8 @@ if greeting == "Hello" {
                 },
                 scheduler_scope_id: 40,
             }],
+            conversions: Vec::new(),
+            module_asset_manifest: Default::default(),
             joins: Vec::new(),
             stages: vec![TransformGraphStage {
                 id: "chart".to_owned(),
@@ -13043,6 +13394,8 @@ if greeting == "Hello" {
                 },
                 scheduler_scope_id: 30,
             }],
+            conversions: Vec::new(),
+            module_asset_manifest: Default::default(),
             joins: Vec::new(),
             stages: vec![
                 TransformGraphStage {

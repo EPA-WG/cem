@@ -453,7 +453,10 @@ Deliverables:
 
 - Schema-owned Markdown-to-HTML conversion exposed as an explicit CEM-ML
   transform-graph edge, producing typed, chainable HTML artifacts before site
-  layout or component composition.
+  layout or component composition. Native HTML5 recovery retains the
+  package-owned HTML AST as a typed DOM projection, and CEMT consumes a borrowed
+  hierarchical view for layout composition without raw HTML, JSON, or a
+  replacement-tree bridge.
 - CEM-ML-native web dependency assembly through the dedicated
   `application/vnd.cem.module-map+json` / `https://cem.dev/ns/data/module-map/1`
   contract. Paired source and destination maps explicitly enumerate exact bare

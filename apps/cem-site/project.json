@@ -1,0 +1,57 @@
+{
+  "name": "cem-site",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/cem-site/content",
+  "targets": {
+    "build": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        {
+          "projects": ["cem_ml_cli"],
+          "target": "build"
+        },
+        {
+          "projects": ["cem_ml"],
+          "target": "build:docs"
+        }
+      ],
+      "options": {
+        "command": "node apps/cem-site/scripts/build.mjs",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/content/**/*.md",
+        "{projectRoot}/layouts/**/*.cemt",
+        "{projectRoot}/README.md",
+        "{projectRoot}/site.cem",
+        "{projectRoot}/scripts/build.mjs",
+        {
+          "dependentTasksOutputFiles": "**/*",
+          "transitive": false
+        }
+      ],
+      "outputs": ["{workspaceRoot}/dist/apps/cem-site"]
+    },
+    "verify": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "node apps/cem-site/scripts/verify.mjs",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/site.cem",
+        "{projectRoot}/scripts/verify.mjs",
+        {
+          "dependentTasksOutputFiles": "**/*",
+          "transitive": false
+        }
+      ],
+      "outputs": ["{workspaceRoot}/dist/reports/cem-site"]
+    }
+  },
+  "tags": ["scope:cem-site", "type:application", "lang:cem"]
+}

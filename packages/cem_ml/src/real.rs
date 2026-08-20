@@ -125,7 +125,9 @@ use crate::transform_template::{
 use crate::validation::css::CssDocumentAst;
 use crate::validation::csv::CsvDocumentAst;
 use crate::validation::generic_data::GenericDataDocumentAst;
-use crate::validation::html::HtmlDocumentAst;
+use crate::validation::html::{
+    html_document_ast_from_source_bytes, HtmlDocumentAst, HtmlSourceValidationRequest,
+};
 use crate::validation::json::{
     json_document_ast_from_source_bytes, JsonDocumentAst, JsonSourceValidationRequest, JsonValueAst,
 };
@@ -3038,6 +3040,100 @@ fn convert_transform_graph_artifact(
             return None;
         }
     };
+
+    if rust_symbol == "Html5RecoveryConverter" {
+        let document = match &input.body {
+            TransformArtifactBody::Encoded(encoded)
+                if encoded.encoding == TransformEncoding::Text =>
+            {
+                let source_uri = input.uri.as_deref().unwrap_or(&conversion.id);
+                let (document, mut parse_diagnostics) = html_document_ast_from_source_bytes(
+                    HtmlSourceValidationRequest {
+                        bytes: encoded.bytes.as_ref(),
+                        source_uri,
+                        content_type: source.content_type.as_deref(),
+                    },
+                );
+                diagnostics.append(&mut parse_diagnostics);
+                if has_hard_transform_diagnostic(diagnostics) {
+                    return None;
+                }
+                let Some(document) = document else {
+                    diagnostics.push(Diagnostic {
+                        uri: input.uri.clone(),
+                        code: "cem.transform_runtime.convert_output_invalid".to_owned(),
+                        severity: Severity::Fatal,
+                        message: format!(
+                            "convert node `{}` did not produce an HTML document",
+                            conversion.id
+                        ),
+                        node: Some(format!("convert:{}", conversion.id)),
+                        ..Diagnostic::default()
+                    });
+                    return None;
+                };
+                Arc::new(document)
+            }
+            TransformArtifactBody::Lifecycle(stream) => match stream.as_ref() {
+                LoadedInputAstStream::HtmlDocument(document) => Arc::new(document.clone()),
+                _ => {
+                    diagnostics.push(Diagnostic {
+                        uri: input.uri.clone(),
+                        code: "cem.transform_runtime.convert_representation_unsupported".to_owned(),
+                        severity: Severity::Fatal,
+                        message: format!(
+                            "converter `{}` requires encoded HTML or an HTML lifecycle AST, got `{}`",
+                            selected.descriptor.id,
+                            input.body.representation_id()
+                        ),
+                        node: Some(format!("convert:{}", conversion.id)),
+                        ..Diagnostic::default()
+                    });
+                    return None;
+                }
+            },
+            _ => {
+                diagnostics.push(Diagnostic {
+                    uri: input.uri.clone(),
+                    code: "cem.transform_runtime.convert_representation_unsupported".to_owned(),
+                    severity: Severity::Fatal,
+                    message: format!(
+                        "converter `{}` requires encoded HTML or an HTML lifecycle AST, got `{}`",
+                        selected.descriptor.id,
+                        input.body.representation_id()
+                    ),
+                    node: Some(format!("convert:{}", conversion.id)),
+                    ..Diagnostic::default()
+                });
+                return None;
+            }
+        };
+        let source_map = Some(SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: SourceId(1),
+                span: crate::source_map::FrameSpan::Single(ByteRange::new(
+                    0,
+                    u32::try_from(document.source.byte_length).unwrap_or(u32::MAX),
+                )),
+                transform: crate::source_map::TransformKind::ContentTypeTransform {
+                    content_type: HTML_CONTENT_TYPE.to_owned(),
+                },
+            }],
+        });
+        return Some((
+            TransformTemplateDataArtifact::new(
+                conversion.id.clone(),
+                input.uri.clone(),
+                Some(conversion.target.clone()),
+                TransformArtifactBody::HtmlDomProjection(document),
+            ),
+            TransformOutputMetadata {
+                source_map,
+                output_spans: Vec::new(),
+                raw_content: None,
+            },
+        ));
+    }
 
     let (content, source_map, output_spans) = match (rust_symbol, &input.body) {
         ("MarkdownHtmlConverter", TransformArtifactBody::Lifecycle(stream)) => {
@@ -13837,6 +13933,57 @@ mod tests {
                 "transform data loader must not call `{forbidden}`"
             );
         }
+    }
+
+    #[test]
+    fn transform_graph_html_recovery_keeps_a_native_dom_projection() {
+        let html = "<h1>CEM Site</h1>\n<p>This is <strong>typed</strong> HTML.</p>\n";
+        let input = encoded_text_test_artifact(
+            "fragment",
+            Some("content.md"),
+            FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            html,
+        );
+        let conversion = TransformGraphConversion {
+            id: "dom".to_owned(),
+            primary_input: "fragment".to_owned(),
+            converter_id: Some("html-to-cem-dom-projection-rust".to_owned()),
+            target: FormatIdentity {
+                content_type: Some(CEM_DOM_PROJECTION_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_id: 1,
+        };
+        let mut diagnostics = Vec::new();
+
+        let (artifact, metadata) = convert_transform_graph_artifact(
+            &EngineContext::default(),
+            &conversion,
+            &input,
+            &mut diagnostics,
+        )
+        .expect("registered HTML recovery converter should execute");
+
+        assert!(diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}");
+        assert_eq!(artifact.identity.as_ref(), Some(&conversion.target));
+        let TransformArtifactBody::HtmlDomProjection(document) = artifact.body else {
+            panic!("HTML recovery must retain a native DOM projection owner");
+        };
+        assert!(document.events.iter().any(|event| {
+            event.kind == crate::validation::html::HtmlEventKind::StartElement
+                && event.local_name.as_deref() == Some("strong")
+        }));
+        assert!(metadata.source_map.is_some());
+        assert!(metadata.raw_content.is_none());
     }
 
     const OUTPUT_ARTIFACT_TEST_SCHEMA_SOURCE: &[u8] = br#"@doc cem-ml 1

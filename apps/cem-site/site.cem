@@ -1,0 +1,70 @@
+{run |
+  {import @id=home-source @src="content/_index.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=home-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=home-dom @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=home-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Site"}
+          {export @id=home @out="../../dist/apps/cem-site/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=guides-source @src="content/guides/_index.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=guides-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=guides-dom @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=guides-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Site Guides"}
+          {export @id=guides @out="../../dist/apps/cem-site/guides/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=transform-reference-source
+      @src="../../packages/cem_ml/dist/cli/transform-config.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=transform-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=transform-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=transform-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM-ML Transform Graph Reference"}
+          {export @id=transform-reference
+              @out="../../dist/apps/cem-site/reference/cem-ml/transform-config/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+}
