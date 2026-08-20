@@ -19,7 +19,13 @@ const SOURCE_TOKEN = {
     path: "cem.color.cyan.xl",
     slashPath: "cem/color/cyan/xl",
     cssName: "--cem-color-cyan-xl",
-    smokeValue: "#e8ffff",
+    smokeLabel: "#E8FFFF",
+    smokeValue: {
+        colorSpace: "srgb",
+        components: [232 / 255, 1, 1],
+        alpha: 1,
+        hex: "#E8FFFF",
+    },
 };
 const FIXTURE_BINDINGS = ["cem.palette.comfort", "cem.palette.comfort.text"];
 const PROPAGATION = new Map([
@@ -36,6 +42,10 @@ async function readJson(filePath) {
 
 function cloneJson(value) {
     return JSON.parse(JSON.stringify(value));
+}
+
+function valuesMatch(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function tokenAt(tree, tokenPath) {
@@ -114,8 +124,16 @@ function validateFixturePropagation(files, errors) {
         for (const tokenPath of expectedChanged) {
             const beforeToken = tokenAt(before, tokenPath);
             const afterToken = tokenAt(after, tokenPath);
-            assert(beforeToken?.$value !== SOURCE_TOKEN.smokeValue, `${mode}: ${tokenPath} already has smoke value`, errors);
-            assert(afterToken?.$value === SOURCE_TOKEN.smokeValue, `${mode}: ${tokenPath} did not receive smoke value`, errors);
+            assert(
+                !valuesMatch(beforeToken?.$value, SOURCE_TOKEN.smokeValue),
+                `${mode}: ${tokenPath} already has smoke value`,
+                errors
+            );
+            assert(
+                valuesMatch(afterToken?.$value, SOURCE_TOKEN.smokeValue),
+                `${mode}: ${tokenPath} did not receive smoke value`,
+                errors
+            );
             assert(afterToken?.$type === beforeToken?.$type, `${mode}: ${tokenPath} type changed during refresh`, errors);
             assert(
                 afterToken?.$extensions?.cem?.cssName === beforeToken?.$extensions?.cem?.cssName,
@@ -129,9 +147,9 @@ function validateFixturePropagation(files, errors) {
             const afterValue = tokenAt(after, binding)?.$value;
             if (expectedChanged.has(binding)) {
                 changedFixtureBindings += 1;
-                assert(beforeValue !== afterValue, `${mode}: fixture binding ${binding} did not change`, errors);
+                assert(!valuesMatch(beforeValue, afterValue), `${mode}: fixture binding ${binding} did not change`, errors);
             } else {
-                assert(beforeValue === afterValue, `${mode}: fixture binding ${binding} changed unexpectedly`, errors);
+                assert(valuesMatch(beforeValue, afterValue), `${mode}: fixture binding ${binding} changed unexpectedly`, errors);
             }
         }
     }
@@ -153,7 +171,7 @@ async function main() {
     }
 
     console.log(
-        `smoke-figma-propagation: ${SOURCE_TOKEN.slashPath} -> ${SOURCE_TOKEN.smokeValue} reaches fixture bindings in generated Figma modes`
+        `smoke-figma-propagation: ${SOURCE_TOKEN.slashPath} -> ${SOURCE_TOKEN.smokeLabel} reaches fixture bindings in generated Figma modes`
     );
 }
 

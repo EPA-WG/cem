@@ -115,17 +115,22 @@ the parent token and continue walking child groups.
 
 Map token types to Figma variable types as follows:
 
-| DTCG token type  | Figma variable type  | Notes                                                                        |
-|------------------|----------------------|------------------------------------------------------------------------------|
-| `color`          | `COLOR`              | Hex values become normalized Figma RGB values.                               |
-| `dimension`      | `FLOAT`              | Numeric values are parsed from px-compatible strings such as `16px`.         |
-| `number`         | `FLOAT`              | Emit as numeric scalar values.                                               |
-| `duration`       | `STRING`             | Preserve values such as `0.25s`; Figma has no native duration variable type. |
-| `fontFamily`     | `STRING`             | Preserve font-family names; text styles can be generated separately later.   |
-| `string`         | `STRING`             | Preserve platform notes, OpenType settings, and other string values.         |
+| DTCG token type | Figma variable type | Generated `$value` shape | Notes |
+| --- | --- | --- | --- |
+| `color` | `COLOR` | `{ colorSpace: "srgb", components: [...], alpha, hex }` | Resolve CSS colors and emit the current DTCG color object. |
+| `dimension` | `FLOAT` | `{ value: 16, unit: "px" }` | Resolve px-compatible CSS dimensions and convert rem values to px. |
+| `number` | `FLOAT` | Numeric scalar | Preserve finite unitless values. |
+| `duration` | `FLOAT` | `{ value: 0.25, unit: "s" }` | Normalize milliseconds to seconds; Figma imports the duration as a number variable. |
+| `fontFamily` | `STRING` | Family-name string | Preserve the first family name; text styles can be generated separately later. |
+| `string` | `STRING` | String scalar | Preserve platform notes, OpenType settings, and other string values. |
 
 Aliases such as `{cem.palette.comfort}` become Figma variable aliases when the source and target variable types match.
 If the target type does not match, preserve the value as a string and list it in the import report.
+
+Figma's native Import mode does not currently accept DTCG `shadow` or
+`cubicBezier` tokens. Layering shadow recipes and easing curves therefore remain
+excluded from the five mode files and visible in `cem-figma-report.md`; choosing
+their reviewed Figma representation is a separate UI Kit governance decision.
 
 ## Native Figma library workflow
 

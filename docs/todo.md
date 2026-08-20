@@ -618,6 +618,24 @@ The remaining Phase 5 work is reviewed canvas work in the canonical CEM UI Kit.
           revision captured before foundation construction. This environment has
           no approved live Figma reader/editor or credential; anonymous access is
           blocked. No canvas or publication claim was made.
+    - [x] Repair the generated native Figma mode projection to use the current
+          DTCG value shapes accepted by Figma Import mode before refreshing the
+          live collection.
+        - Completed 2026-08-19: Stage 4 now emits sRGB color objects, px
+          dimension objects, and second-based duration objects while preserving
+          aliases and finite number/string scalars. The offline validator rejects
+          legacy scalar shapes, and the propagation smoke test compares the
+          structured color values. `@epa-wg/cem-theme:test:figma` regenerated and
+          validated 252 consistent tokens across all five modes, theme lint
+          passed, and `@epa-wg/cem-components:verify-figma-inventory` passed its
+          eight-task graph with the 48-entry inventory still at zero reviewed and
+          48 planned. Shadow recipes and easing curves remain deliberately
+          excluded pending the following representation decision; no live Figma
+          update was claimed.
+    - [ ] Decide how canonical layering shadow recipes and easing curves are
+          represented in Figma before defining the `02 Foundations` review
+          inventory; native Import mode does not accept those composite DTCG
+          token types.
     - [ ] Record the starting CEM UI Kit revision and confirm that the native
           `CEM Tokens` collection has the accepted Light, Dark, Contrast Light,
           Contrast Dark, and Native modes before editing the canvas.

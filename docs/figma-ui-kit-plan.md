@@ -77,7 +77,7 @@ invented as Figma variants.
 | Corner radius | `cem/bend/*` |
 | Stroke | `cem/stroke/*` |
 | Typography | `cem/typography/*` size variables and derived text styles |
-| Motion notes | `cem/duration/*` string variables and generated motion documentation |
+| Motion notes | `cem/duration/*` number variables and generated motion documentation |
 
 ## Component Mapping
 

@@ -837,6 +837,25 @@ function rgbStringToHex(rgb) {
     return null;
 }
 
+function hexToFigmaColor(hex) {
+    let digits = hex.slice(1);
+    if (digits.length === 3 || digits.length === 4) {
+        digits = [...digits].map((digit) => `${digit}${digit}`).join("");
+    }
+    if (digits.length !== 6 && digits.length !== 8) return null;
+
+    const channels = digits.match(/.{2}/g)?.map((channel) => Number.parseInt(channel, 16));
+    if (!channels || channels.some((channel) => !Number.isFinite(channel))) return null;
+
+    const [red, green, blue, alpha = 255] = channels;
+    return {
+        colorSpace: "srgb",
+        components: [red / 255, green / 255, blue / 255],
+        alpha: alpha / 255,
+        hex: `#${digits.slice(0, 6).toUpperCase()}`,
+    };
+}
+
 // Extract the dark (second) branch from "light-dark(X, Y)"
 function extractDarkBranch(value) {
     const trimmed = (value ?? "").trim();
@@ -851,7 +870,7 @@ function extractDarkBranch(value) {
     return null;
 }
 
-// Convert a resolved CSS value to a Figma-compatible string.
+// Convert a resolved CSS value to the current DTCG shape accepted by Figma.
 // Returns null if the value cannot be expressed in Figma format.
 function convertToFigmaValue(value, dtcgType) {
     const v = (value ?? "").trim();
@@ -859,20 +878,24 @@ function convertToFigmaValue(value, dtcgType) {
 
     switch (dtcgType) {
         case "color": {
-            if (/^#[0-9a-f]{3,8}$/i.test(v)) return v.toLowerCase();
-            if (/^rgba?\(/i.test(v)) return rgbStringToHex(v);
-            if (/^hsl\(/i.test(v)) return v;
+            if (/^#[0-9a-f]{3,8}$/i.test(v)) return hexToFigmaColor(v);
+            if (/^rgba?\(/i.test(v)) {
+                const hex = rgbStringToHex(v);
+                return hex ? hexToFigmaColor(hex) : null;
+            }
             return null; // oklch, color-mix, light-dark, system colors
         }
         case "dimension": {
-            if (v === "0" || v === "0px") return "0px";
-            if (v.endsWith("px")) return v;
-            if (v.endsWith("rem")) return `${Math.round(parseFloat(v) * 16 * 100) / 100}px`;
+            if (v === "0" || v === "0px") return { value: 0, unit: "px" };
+            if (/^-?\d+(\.\d+)?px$/.test(v)) return { value: Number.parseFloat(v), unit: "px" };
+            if (/^-?\d+(\.\d+)?rem$/.test(v)) {
+                return { value: Math.round(Number.parseFloat(v) * 16 * 100) / 100, unit: "px" };
+            }
             return null; // %, vw, vh, calc() without prior resolution
         }
         case "duration": {
-            if (v.endsWith("ms")) return `${parseFloat(v) / 1000}s`;
-            if (/^\d+(\.\d+)?s$/.test(v)) return v;
+            if (/^\d+(\.\d+)?ms$/.test(v)) return { value: Number.parseFloat(v) / 1000, unit: "s" };
+            if (/^\d+(\.\d+)?s$/.test(v)) return { value: Number.parseFloat(v), unit: "s" };
             return null;
         }
         case "fontFamily":

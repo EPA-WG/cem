@@ -66,8 +66,8 @@ function expectedFigmaType(dtcgType) {
             return "COLOR";
         case "dimension":
         case "number":
-            return "FLOAT";
         case "duration":
+            return "FLOAT";
         case "fontFamily":
         case "string":
             return "STRING";
@@ -80,13 +80,30 @@ function valueMatchesType(type, value) {
     if (isTokenReference(value)) return true;
     switch (type) {
         case "color":
-            return typeof value === "string" && /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(value);
+            return (
+                value?.colorSpace === "srgb" &&
+                Array.isArray(value.components) &&
+                value.components.length === 3 &&
+                value.components.every((component) =>
+                    typeof component === "number" && Number.isFinite(component) && component >= 0 && component <= 1
+                ) &&
+                typeof value.alpha === "number" &&
+                Number.isFinite(value.alpha) &&
+                value.alpha >= 0 &&
+                value.alpha <= 1 &&
+                (value.hex === undefined || /^#[0-9a-fA-F]{6}$/.test(value.hex))
+            );
         case "dimension":
-            return typeof value === "string" && /^-?\d+(\.\d+)?(px|rem)?$/.test(value);
+            return value?.unit === "px" && typeof value.value === "number" && Number.isFinite(value.value);
         case "number":
-            return typeof value === "number";
+            return typeof value === "number" && Number.isFinite(value);
         case "duration":
-            return typeof value === "string" && /^-?\d+(\.\d+)?(ms|s)$/.test(value);
+            return (
+                value?.unit === "s" &&
+                typeof value.value === "number" &&
+                Number.isFinite(value.value) &&
+                value.value >= 0
+            );
         case "fontFamily":
         case "string":
             return typeof value === "string" && value.length > 0;

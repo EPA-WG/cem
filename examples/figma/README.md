@@ -67,17 +67,23 @@ validated in the real file.
 
 ## Generated Artifact Validation
 
-Offline validation run: 2026-08-11.
+Offline validation run: 2026-08-19.
 
 - Generated variable count: 252 per mode.
 - Variable types: 57 color, 96 dimension, 6 duration, 5 font family, 10 number, and 78 string.
 - Modes: `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, and `Native` with identical token paths and types.
+- Import values use current DTCG objects for sRGB colors, px dimensions, and
+  second-based durations; numeric and string token values remain scalars.
 - Report errors: 0.
 
 This is the current repository import surface. The last manual native-library
 review below recorded 230 variables, so the live `CEM UI Kit` must be refreshed
 and reviewed before Phase 5 publication; offline generation alone does not claim
 that external update.
+
+Native Import mode does not accept composite DTCG shadow or easing-curve types.
+Their excluded source tokens remain listed in `cem-figma-report.md`; do not copy
+their CSS values onto the canvas until the UI Kit representation is approved.
 
 ## Native Library Validation
 
