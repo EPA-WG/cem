@@ -5,7 +5,7 @@
 This is the source-of-truth schema artifact for the CEM-native CLI transform
 graph config. It is separate from the CEM core document schema and separate
 from CEM-native template schemas. The graph config describes import,
-transformation, and export wiring; it does not define template execution
+typed conversion, transformation, and export wiring; it does not define template execution
 semantics. The CEM-native template declaration schema is
 `https://cem.dev/ns/template/cem-native/1` and lives at
 `packages/cem_ml/schema-packages/cem-native-template/v1/`.
@@ -18,9 +18,10 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | Element | Required attributes | Optional attributes | Child elements |
 | ------- | ------------------- | ------------------- | -------------- |
 | `run` | none | none | `import` |
-| `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `join`, `transform`, `rewrite-importmap`, `export` |
-| `join` | `mode` | `id`, `input`, `by`, `with:*` | `transform`, `rewrite-importmap`, `export` |
-| `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `transform`, `rewrite-importmap`, `export` |
+| `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `join` | `mode` | `id`, `input`, `by`, `with:*` | `convert`, `transform`, `rewrite-importmap`, `export` |
+| `convert` | none | `id`, `input`, `content-type`, `contentType`, `schema`, `converter` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
 | `rewrite-importmap` | `target-map` | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing` | `export` |
 | `param` | `name`, `value` | none | none |
 | `export` | `out` | `id`, `content-type`, `contentType`, `schema`, `style-policy`, `stylePolicy` | none |
@@ -40,6 +41,16 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `join @mode="zip" @with:LABEL="NODE"` creates one collection artifact for
   each positional tuple across primary and named secondary input artifacts.
   Unequal input counts are a schema validation failure.
+- `convert` follows one registered, schema-package-owned converter edge from
+  the typed input identity to the target `@content-type` and/or `@schema`.
+- `convert @converter` selects that exact registered edge and validates that
+  its declared source and target identities match the graph artifacts.
+- Conversion produces a typed graph artifact, so later `transform`,
+  `rewrite-importmap`, and `export` nodes consume the target identity rather
+  than reparsing an implicit JSON or text intermediary.
+- The first executable graph conversion is the Markdown package's
+  `markdown-to-html-rust` edge. Other registered edge implementations remain
+  unavailable in graph execution until their typed artifact adapters land.
 - `transform` creates a template application node from `@src`.
 - `transform @entrypoint` selects a public CEM-native template entrypoint.
 - `transform` child `param @name @value` records provide caller params for that transform stage.
@@ -97,12 +108,13 @@ string as an `xsl:with-param` value for named template entrypoints. Plain
 ```cem
 {@doc cem-ml 1}
 {run |
-  {import @id=book @src="inputs/*.xml" @content-type="application/xml" |
-    {transform @id=html @src="templates/book.cem" |
-      {export @id=page @out="book/chapters/{stem}.html" @content-type="text/html"}
-    }
-    {transform @id=chart @src="illustrations/chart1.cem" |
-      {export @id=chart-out @out="book/chapters/{stem}/img/chart1.svg" @content-type="image/svg+xml"}
+  {import @id=content @src="content/*.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {export @id=page @out="dist/{stem}.html"}
     }
   }
 }

@@ -192,8 +192,8 @@ named primary artifact. Additional joins use named `@with:*` bindings:
 
 Reference semantics:
 
-- IDs are unique across import and transform nodes in one config graph.
-- `@input` and `@with:*` must reference existing import/transform IDs.
+- IDs are unique across import, conversion, and transform nodes in one config graph.
+- `@input` and `@with:*` must reference existing graph artifact IDs.
 - references must not create cycles.
 - secondary artifacts are passed to the transform engine as named inputs.
 - document order must not imply joins; joins are explicit only.
@@ -201,14 +201,16 @@ Reference semantics:
 Current implementation slice:
 
 - `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML config
-  bytes into import, transform, and export graph nodes plus dependency edges.
+  bytes into import, typed conversion, transform, and export graph nodes plus
+  dependency edges. `convert` selects a schema-package-owned edge by source and
+  target identity; `@converter` may pin the expected edge ID.
 - The parser validates missing required operation attributes, duplicate IDs,
   unresolved explicit refs, cycles, and wildcard output patterns. Duplicate output
   destinations are validated after bindings are resolved.
 - `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` define the
-  graph-shaped engine boundary for loaded imports, template-backed transform stages,
-  export nodes, graph dependencies, scheduler scope IDs, diagnostics, artifacts, and
-  scheduler trace.
+  graph-shaped engine boundary for loaded imports, typed converter stages,
+  template-backed transform stages, export nodes, graph dependencies, scheduler
+  scope IDs, diagnostics, artifacts, and scheduler trace.
 - `RealCemMlEngine::transform_graph` executes the first in-memory graph runtime slice
   for CEM-native template stages when an executable adapter is registered. It imports
   graph data, executes one-to-one stages once their primary and secondary artifacts

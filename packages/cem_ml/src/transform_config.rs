@@ -1,7 +1,7 @@
 //! CEM-ML transform graph configuration.
 //!
 //! This module owns the future `cem-ml transform` config syntax boundary. It
-//! parses CEM-ML-authored `run` / `import` / `join` / `transform` /
+//! parses CEM-ML-authored `run` / `import` / `join` / `convert` / `transform` /
 //! `rewrite-importmap` / `export` trees into a graph model and validates graph
 //! shape. It does not execute templates.
 
@@ -42,13 +42,38 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
         local_name: "import",
         required_attributes: &["src"],
         optional_attributes: &["id", "content-type", "contentType", "schema"],
-        child_elements: &["join", "transform", "rewrite-importmap", "export"],
+        child_elements: &[
+            "join",
+            "convert",
+            "transform",
+            "rewrite-importmap",
+            "export",
+        ],
     },
     TransformConfigElementSchema {
         local_name: "join",
         required_attributes: &["mode"],
         optional_attributes: &["id", "input", "by", "with:*"],
-        child_elements: &["transform", "rewrite-importmap", "export"],
+        child_elements: &["convert", "transform", "rewrite-importmap", "export"],
+    },
+    TransformConfigElementSchema {
+        local_name: "convert",
+        required_attributes: &[],
+        optional_attributes: &[
+            "id",
+            "input",
+            "content-type",
+            "contentType",
+            "schema",
+            "converter",
+        ],
+        child_elements: &[
+            "join",
+            "convert",
+            "transform",
+            "rewrite-importmap",
+            "export",
+        ],
     },
     TransformConfigElementSchema {
         local_name: "transform",
@@ -63,7 +88,14 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
             "template-schema",
             "templateSchema",
         ],
-        child_elements: &["param", "join", "transform", "rewrite-importmap", "export"],
+        child_elements: &[
+            "param",
+            "join",
+            "convert",
+            "transform",
+            "rewrite-importmap",
+            "export",
+        ],
     },
     TransformConfigElementSchema {
         local_name: "rewrite-importmap",
@@ -131,6 +163,8 @@ pub struct TransformGraphNode {
     #[serde(default)]
     pub entrypoint: Option<String>,
     #[serde(default)]
+    pub converter: Option<String>,
+    #[serde(default)]
     pub params: BTreeMap<String, String>,
     #[serde(default)]
     pub join_mode: Option<TransformGraphJoinMode>,
@@ -157,6 +191,7 @@ pub struct TransformGraphNode {
 pub enum TransformGraphNodeKind {
     Import,
     Join,
+    Convert,
     Transform,
     ImportMapRewrite,
     Export,
@@ -167,6 +202,7 @@ impl TransformGraphNodeKind {
         match self {
             TransformGraphNodeKind::Import => "import",
             TransformGraphNodeKind::Join => "join",
+            TransformGraphNodeKind::Convert => "convert",
             TransformGraphNodeKind::Transform => "transform",
             TransformGraphNodeKind::ImportMapRewrite => "rewrite-importmap",
             TransformGraphNodeKind::Export => "export",
@@ -370,7 +406,7 @@ impl GraphLowerer<'_> {
                 continue;
             };
             match name {
-                "import" | "join" | "transform" | "rewrite-importmap" | "export" => {
+                "import" | "join" | "convert" | "transform" | "rewrite-importmap" | "export" => {
                     self.lower_operation(*child, parent_graph_id.clone());
                 }
                 other => self.push_diag(
@@ -388,6 +424,7 @@ impl GraphLowerer<'_> {
         let kind = match name {
             "import" => TransformGraphNodeKind::Import,
             "join" => TransformGraphNodeKind::Join,
+            "convert" => TransformGraphNodeKind::Convert,
             "transform" => TransformGraphNodeKind::Transform,
             "rewrite-importmap" => TransformGraphNodeKind::ImportMapRewrite,
             "export" => TransformGraphNodeKind::Export,
@@ -466,6 +503,9 @@ impl GraphLowerer<'_> {
                 .or_else(|| attr_value(&attrs, "", "templateSchema")),
             template_kind: None,
             entrypoint: attr_value(&attrs, "", "entrypoint")
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty()),
+            converter: attr_value(&attrs, "", "converter")
                 .map(|value| value.trim().to_owned())
                 .filter(|value| !value.is_empty()),
             params,
@@ -587,7 +627,7 @@ impl GraphLowerer<'_> {
             };
             match name {
                 "param" => {}
-                "join" | "transform" | "rewrite-importmap" | "export" => {
+                "join" | "convert" | "transform" | "rewrite-importmap" | "export" => {
                     self.lower_operation(*child, parent_graph_id.clone());
                 }
                 other => self.push_diag(
@@ -683,6 +723,19 @@ impl GraphLowerer<'_> {
                         "cem.transform_config.template_identity_missing",
                         format!(
                             "transform node `{}` requires a supported template identity via `@template-content-type`, `@template-schema`, or `@src` extension",
+                            node.id
+                        ),
+                    );
+                }
+            }
+            TransformGraphNodeKind::Convert => {
+                if node.content_type.as_deref().unwrap_or("").trim().is_empty()
+                    && node.schema.as_deref().unwrap_or("").trim().is_empty()
+                {
+                    self.push_diag(
+                        "cem.transform_config.convert_target_missing",
+                        format!(
+                            "convert node `{}` requires target `@content-type` or `@schema`",
                             node.id
                         ),
                     );
@@ -1058,6 +1111,10 @@ mod tests {
             .iter()
             .find(|element| element.local_name == "transform")
             .expect("transform schema");
+        let convert = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "convert")
+            .expect("convert schema");
         let param = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
             .iter()
             .find(|element| element.local_name == "param")
@@ -1074,7 +1131,7 @@ mod tests {
         assert!(join.optional_attributes.contains(&"with:*"));
         assert_eq!(
             join.child_elements,
-            &["transform", "rewrite-importmap", "export"]
+            &["convert", "transform", "rewrite-importmap", "export"]
         );
         assert_eq!(transform.required_attributes, &["src"]);
         assert!(transform.optional_attributes.contains(&"with:*"));
@@ -1082,6 +1139,12 @@ mod tests {
         assert!(transform.child_elements.contains(&"param"));
         assert!(transform.child_elements.contains(&"join"));
         assert!(transform.child_elements.contains(&"export"));
+        assert!(convert.required_attributes.is_empty());
+        assert!(convert.optional_attributes.contains(&"content-type"));
+        assert!(convert.optional_attributes.contains(&"schema"));
+        assert!(convert.optional_attributes.contains(&"converter"));
+        assert!(convert.child_elements.contains(&"transform"));
+        assert!(convert.child_elements.contains(&"export"));
         assert_eq!(param.required_attributes, &["name", "value"]);
         assert!(param.child_elements.is_empty());
         let export = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
@@ -1090,6 +1153,61 @@ mod tests {
             .expect("export schema");
         assert!(export.optional_attributes.contains(&"style-policy"));
         assert!(export.optional_attributes.contains(&"stylePolicy"));
+    }
+
+    #[test]
+    fn accepts_explicit_convert_node_between_import_and_export() {
+        let response = parse(
+            r#"@doc cem-ml 1
+{run |
+  {import @id=content @src="content.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark" |
+    {convert @id=html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {export @id=page @out="dist/page.html"}
+    }
+  }
+}
+"#,
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let convert = response
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "html")
+            .expect("convert node");
+        assert_eq!(convert.kind, TransformGraphNodeKind::Convert);
+        assert_eq!(convert.converter.as_deref(), Some("markdown-to-html-rust"));
+        assert_eq!(convert.content_type.as_deref(), Some("text/html"));
+        assert_eq!(
+            convert.schema.as_deref(),
+            Some("https://cem.dev/ns/data/html/1")
+        );
+    }
+
+    #[test]
+    fn rejects_convert_node_without_target_identity() {
+        let response = parse(
+            r#"{run |
+  {import @id=content @src="content.md" |
+    {convert @id=html |
+      {export @id=page @out="dist/page.html"}
+    }
+  }
+}"#,
+        );
+
+        assert!(has_diag(
+            &response,
+            "cem.transform_config.convert_target_missing"
+        ));
     }
 
     #[test]

@@ -451,6 +451,9 @@ Goal: publish the system as a navigable product, not just packages.
 
 Deliverables:
 
+- Schema-owned Markdown-to-HTML conversion exposed as an explicit CEM-ML
+  transform-graph edge, producing typed, chainable HTML artifacts before site
+  layout or component composition.
 - Root-wired docs site with guides, token browser, component gallery, examples, API/reference, and release notes.
 - Generated docs imported from package markdown and token reports.
 - Interactive examples for tokens, components, XML fixtures, and native output snippets.

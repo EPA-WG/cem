@@ -17,12 +17,12 @@ use crate::command_service::VirtualResourceV1;
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{
     self, EngineContext, EngineError, EngineInput, FormatIdentity, TemplateInput,
-    TransformExecutionPolicy, TransformGraphDependency, TransformGraphDependencyRole,
-    TransformGraphExport, TransformGraphImport, TransformGraphImportMapMissingPolicy,
-    TransformGraphImportMapRewrite, TransformGraphImportMapRewriteMode, TransformGraphJoin,
-    TransformGraphJoinInput, TransformGraphJoinMode, TransformGraphRequest, TransformGraphStage,
-    TransformRuntimePhase, TransformStageSchedulerScopeIds, TransformTemplateEntrypoint,
-    TransformTemplateKind,
+    TransformExecutionPolicy, TransformGraphConversion, TransformGraphDependency,
+    TransformGraphDependencyRole, TransformGraphExport, TransformGraphImport,
+    TransformGraphImportMapMissingPolicy, TransformGraphImportMapRewrite,
+    TransformGraphImportMapRewriteMode, TransformGraphJoin, TransformGraphJoinInput,
+    TransformGraphJoinMode, TransformGraphRequest, TransformGraphStage, TransformRuntimePhase,
+    TransformStageSchedulerScopeIds, TransformTemplateEntrypoint, TransformTemplateKind,
 };
 use crate::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
@@ -711,6 +711,7 @@ pub fn lower_transform_graph_request(
         config_uri,
         imports: Vec::new(),
         joins: Vec::new(),
+        conversions: Vec::new(),
         stages: Vec::new(),
         importmap_rewrites: Vec::new(),
         exports: Vec::new(),
@@ -724,6 +725,7 @@ pub fn lower_transform_graph_request(
     Ok(TransformGraphRequest {
         imports: lowerer.imports,
         joins: lowerer.joins,
+        conversions: lowerer.conversions,
         stages: lowerer.stages,
         importmap_rewrites: lowerer.importmap_rewrites,
         exports: lowerer.exports,
@@ -741,6 +743,7 @@ struct TransformGraphRequestLowerer<'a> {
     config_uri: &'a str,
     imports: Vec<TransformGraphImport>,
     joins: Vec<TransformGraphJoin>,
+    conversions: Vec<TransformGraphConversion>,
     stages: Vec<TransformGraphStage>,
     importmap_rewrites: Vec<TransformGraphImportMapRewrite>,
     exports: Vec<TransformGraphExport>,
@@ -756,6 +759,7 @@ impl TransformGraphRequestLowerer<'_> {
             match node.kind {
                 TransformGraphNodeKind::Import => self.lower_import(node)?,
                 TransformGraphNodeKind::Join => self.lower_join(node)?,
+                TransformGraphNodeKind::Convert => self.lower_convert(node)?,
                 TransformGraphNodeKind::Transform => self.lower_transform(node)?,
                 TransformGraphNodeKind::ImportMapRewrite => self.lower_importmap(node)?,
                 TransformGraphNodeKind::Export => self.lower_export(node)?,
@@ -1004,6 +1008,61 @@ impl TransformGraphRequestLowerer<'_> {
             });
         }
         self.variants.insert(node.id.clone(), stage_variants);
+        Ok(())
+    }
+
+    fn lower_convert(
+        &mut self,
+        node: &TransformGraphNode,
+    ) -> Result<(), TransformGraphRequestError> {
+        let (primary_ref, primary_role) = primary_ref(self.graph, node, self.config_uri)?;
+        let primary_variants = variants_for_ref(
+            &self.variants,
+            &node.id,
+            "input",
+            &primary_ref,
+            self.config_uri,
+        )?;
+        let count = primary_variants.len();
+        let mut converted_variants = Vec::with_capacity(count);
+        for (index, primary_variant) in primary_variants.into_iter().enumerate() {
+            let conversion_id = variant_id(&node.id, index, count);
+            let target_scope = resource_scope(
+                self.config_uri,
+                None,
+                node.content_type.clone(),
+                node.schema.clone(),
+            );
+            let target = target_scope.format_identity_option().ok_or_else(|| {
+                config_error(
+                    self.config_uri,
+                    "cem.transform_config.convert_target_missing",
+                    format!(
+                        "convert node `{}` requires target @content-type or @schema",
+                        node.id
+                    ),
+                )
+            })?;
+            let scheduler_scope_id = self.take_scope();
+            self.conversions.push(TransformGraphConversion {
+                id: conversion_id.clone(),
+                primary_input: primary_variant.id.clone(),
+                converter_id: node.converter.clone(),
+                target,
+                target_scope,
+                scheduler_scope_id,
+            });
+            self.edges.push(TransformGraphDependency {
+                from: primary_variant.id,
+                to: conversion_id.clone(),
+                role: engine_dependency_role(primary_role),
+            });
+            converted_variants.push(ArtifactVariant {
+                id: conversion_id,
+                bindings: primary_variant.bindings,
+            });
+        }
+        self.variants.insert(node.id.clone(), converted_variants);
         Ok(())
     }
 

@@ -87,6 +87,7 @@ const DEFERRED_CROSS_PACKAGE_CONVERTER_EDGES: &[(&str, &str, &str, &str)] = &[
         "html",
         "cem-dom-projection",
     ),
+    ("markdown", "markdown-to-html-rust", "markdown", "html"),
     (
         "xml",
         "xml-to-cem-dom-projection-rust",

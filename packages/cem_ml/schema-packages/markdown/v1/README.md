@@ -1,6 +1,6 @@
 # Markdown Resource Schema Package
 
-Status: schema, examples, formatter, and colorizer package frame
+Status: schema, examples, formatter, colorizer, and Markdown-to-HTML converter package
 
 This package defines registry identity for generic Markdown resources.
 
@@ -20,7 +20,8 @@ storage guidance.
 
 ## Output Artifacts
 
-The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The package declares CEMT formatter and colorizer artifacts plus the
+`markdown-to-html-rust` typed converter edge in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
 
@@ -69,8 +70,11 @@ writer, not a full Markdown block/inline reflow engine. Trusted HTML rendering
 modes and variant-specific extension models are not part of the current release
 contract.
 
-Markdown documents can also export to `text/html` through the typed Markdown
-AST stream. The current HTML export covers common block and inline Markdown and
+Markdown documents can also convert to `text/html` through the typed Markdown
+AST stream. Direct CLI conversion and transform-graph `convert` nodes select
+the schema-owned `markdown-to-html-rust` edge; graph conversion produces a
+typed HTML artifact that later graph stages can consume. The current HTML
+conversion covers common block and inline Markdown and
 supports fenced `cem-ml svg` blocks as trusted package examples: the fenced
 CEM-ML is parsed and rendered as inline SVG markup before the generated HTML is
 written as conversion output. The package README still quotes the original

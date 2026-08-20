@@ -432,7 +432,9 @@ pub fn missing_command_graph_resource_reads_v1(
                     }
                 }
             }
-            TransformGraphNodeKind::Join | TransformGraphNodeKind::Export => {}
+            TransformGraphNodeKind::Join
+            | TransformGraphNodeKind::Convert
+            | TransformGraphNodeKind::Export => {}
         }
     }
 

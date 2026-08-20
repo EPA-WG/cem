@@ -432,6 +432,10 @@ pub fn validate_transform_graph_runtime_contract(
         validate_graph_id("join", &join.id, &mut ids, &mut diagnostics);
         artifacts.insert(join.id.clone());
     }
+    for conversion in &request.conversions {
+        validate_graph_id("convert", &conversion.id, &mut ids, &mut diagnostics);
+        artifacts.insert(conversion.id.clone());
+    }
     for stage in &request.stages {
         validate_graph_id("transform", &stage.id, &mut ids, &mut diagnostics);
         artifacts.insert(stage.id.clone());
@@ -495,6 +499,15 @@ pub fn validate_transform_graph_runtime_contract(
                 &mut diagnostics,
             );
         }
+    }
+    for conversion in &request.conversions {
+        validate_artifact_ref(
+            &conversion.id,
+            "primaryInput",
+            &conversion.primary_input,
+            &artifacts,
+            &mut diagnostics,
+        );
     }
     for rewrite in &request.importmap_rewrites {
         validate_artifact_ref(
@@ -924,6 +937,7 @@ pub struct TransformRequest {
 pub struct TransformGraphRequest {
     pub imports: Vec<TransformGraphImport>,
     pub joins: Vec<TransformGraphJoin>,
+    pub conversions: Vec<TransformGraphConversion>,
     pub stages: Vec<TransformGraphStage>,
     pub importmap_rewrites: Vec<TransformGraphImportMapRewrite>,
     pub exports: Vec<TransformGraphExport>,
@@ -966,6 +980,16 @@ pub struct TransformGraphJoinInput {
     pub bindings: BTreeMap<String, String>,
     pub destination: Option<String>,
     pub target: Option<FormatIdentity>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformGraphConversion {
+    pub id: String,
+    pub primary_input: String,
+    pub converter_id: Option<String>,
+    pub target: FormatIdentity,
+    pub target_scope: ScopeConfig,
+    pub scheduler_scope_id: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -1773,6 +1797,7 @@ mod tests {
                 scheduler_scope_id: 1,
             }],
             joins: Vec::new(),
+            conversions: Vec::new(),
             stages: vec![
                 TransformGraphStage {
                     id: "book".to_owned(),
@@ -1857,6 +1882,7 @@ mod tests {
                 scheduler_scope_id: 1,
             }],
             joins: Vec::new(),
+            conversions: Vec::new(),
             stages: Vec::new(),
             importmap_rewrites: Vec::new(),
             exports: vec![TransformGraphExport {
@@ -1978,6 +2004,7 @@ mod tests {
                 bindings: BTreeMap::from([("count".to_owned(), "2".to_owned())]),
                 scheduler_scope_id: 3,
             }],
+            conversions: Vec::new(),
             stages: vec![TransformGraphStage {
                 id: "report".to_owned(),
                 template: template_input("report.cem", "text/cem-ml"),
@@ -2100,6 +2127,7 @@ mod tests {
         let request = TransformGraphRequest {
             imports: Vec::new(),
             joins: Vec::new(),
+            conversions: Vec::new(),
             stages: Vec::new(),
             importmap_rewrites: Vec::new(),
             exports: Vec::new(),

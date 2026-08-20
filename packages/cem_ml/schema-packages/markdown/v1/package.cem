@@ -125,4 +125,20 @@
         @expected-result="pass"
         @expected-diagnostics="cem.markdown.unknown_variant"
     }
+
+    {converter
+        @id="markdown-to-html-rust"
+        @implementation="rust"
+        @rust-symbol="MarkdownHtmlConverter"
+        @streamable=false
+        @lossiness="presentation"
+        @output-syntax="html"
+        @encoding-category="html-document"
+        @formatter-profile="compact"
+        @implicit=true
+        @readiness="ready"
+        @cost=100 |
+        {from @content-type="text/markdown" @schema="https://cem.dev/ns/data/markdown/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
 }

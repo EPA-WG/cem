@@ -607,6 +607,25 @@ until final Phases 10 and 11, after Phase 9 release governance.
 
 ## Phase 6 Checklist
 
+- [x] Establish graph-native Markdown-to-HTML conversion before choosing or
+      scaffolding the site application.
+    - [x] Declare the Markdown-to-HTML edge in the Markdown schema package so
+          conversion planning selects a named, typed converter rather than an
+          export-time format guess.
+    - [x] Add an explicit `convert` transform-graph node that preserves glob
+          variants and produces chainable typed HTML artifacts.
+    - [x] Reuse the Markdown lifecycle AST and CEM-ML output pipeline without a
+          JSON intermediary, with diagnostics and provenance covered by focused
+          Rust and CLI tests.
+    - Completed 2026-08-19: the Markdown schema package now owns the ready
+      `markdown-to-html-rust` edge, explicit graph `convert` nodes resolve that
+      edge by typed source/target identity, and glob variants remain distinct
+      through HTML export. The native Markdown AST feeds the renderer without a
+      JSON bridge, while HTML artifacts and `.html.map` sidecars retain source
+      frames and output spans. Focused parser, registry, schema-package, direct
+      conversion, and graph CLI tests pass; the aggregate `cem_ml:test` suite
+      passes, and all 517 `cem_ml_cli:test` library cases pass (515 in the
+      restricted sandbox plus the two loopback HTTP cases with socket access).
 - [ ] Inventory the current root, package, generated-documentation, and example
       surfaces, then lock the CEM Site project and content-ownership boundary
       before scaffolding.

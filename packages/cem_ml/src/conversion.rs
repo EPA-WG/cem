@@ -1182,6 +1182,14 @@ pub enum ConversionOutputPipelineStageExecution {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConversionExecutionError {
     Lookup(ConversionLookupError),
+    UnknownConverter {
+        converter_id: String,
+    },
+    ConverterIdentityMismatch {
+        converter_id: String,
+        source: ResolvedConversionIdentity,
+        target: ResolvedConversionIdentity,
+    },
     MissingTemplate {
         converter_id: String,
     },
@@ -1198,6 +1206,18 @@ impl std::fmt::Display for ConversionExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Lookup(error) => write!(f, "{error}"),
+            Self::UnknownConverter { converter_id } => {
+                write!(f, "converter `{converter_id}` is not registered")
+            }
+            Self::ConverterIdentityMismatch {
+                converter_id,
+                source,
+                target,
+            } => write!(
+                f,
+                "converter `{converter_id}` does not match `{}` ({}) to `{}` ({})",
+                source.content_type, source.schema, target.content_type, target.schema
+            ),
             Self::MissingTemplate { converter_id } => {
                 write!(
                     f,
@@ -1573,6 +1593,39 @@ impl ConversionRegistry {
             target,
             ConversionLookupOptions::default(),
         )
+    }
+
+    pub fn resolve_named_execution<'a>(
+        &'a self,
+        schema_registry: &SchemaRegistry,
+        template_adapter_registry: &TransformTemplateAdapterRegistry,
+        converter_id: &str,
+        source: &FormatIdentity,
+        target: &FormatIdentity,
+    ) -> Result<DirectConversionExecution<'a>, ConversionExecutionError> {
+        let source = resolve_identity(source, schema_registry)
+            .map_err(ConversionLookupError::SourceIdentity)?;
+        let target = resolve_identity(target, schema_registry)
+            .map_err(ConversionLookupError::TargetIdentity)?;
+        let descriptor = self.converter(converter_id).ok_or_else(|| {
+            ConversionExecutionError::UnknownConverter {
+                converter_id: converter_id.to_owned(),
+            }
+        })?;
+        if !descriptor.from.matches(&source) || !descriptor.to.matches(&target) {
+            return Err(ConversionExecutionError::ConverterIdentityMismatch {
+                converter_id: converter_id.to_owned(),
+                source,
+                target,
+            });
+        }
+        let execution = resolve_descriptor_execution(descriptor, template_adapter_registry)?;
+        Ok(DirectConversionExecution {
+            source,
+            target,
+            descriptor,
+            execution,
+        })
     }
 
     pub fn resolve_content_type_conversion_execution<'a>(
@@ -15190,6 +15243,32 @@ mod tests {
     }
 
     #[test]
+    fn builtin_registry_selects_markdown_to_html_converter_edge() {
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let registry = ConversionRegistry::with_builtin_converters();
+
+        let selection = registry
+            .select_direct_edge(
+                &schemas,
+                &identity("text/markdown; charset=utf-8; variant=CommonMark"),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .expect("Markdown to HTML converter edge");
+
+        assert_eq!(selection.descriptor.id, "markdown-to-html-rust");
+        assert_eq!(selection.source.schema, MARKDOWN_SCHEMA_URI);
+        assert_eq!(selection.target.schema, HTML_SCHEMA_URI);
+        assert_eq!(
+            selection.descriptor.rust_symbol.as_deref(),
+            Some("MarkdownHtmlConverter")
+        );
+        assert_eq!(
+            selection.descriptor.implementation,
+            ConversionImplementation::Rust
+        );
+    }
+
+    #[test]
     fn builtin_registry_prefers_cemt_primary_edge_with_rust_fallback() {
         let schemas = SchemaRegistry::with_builtin_schemas();
         let registry = ConversionRegistry::with_builtin_converters();
@@ -15228,6 +15307,29 @@ mod tests {
         assert_eq!(rust_edge.implementation, ConversionImplementation::Rust);
         assert_eq!(rust_edge.readiness, ConversionReadiness::Ready);
         assert_eq!(rust_edge.cost, 100);
+    }
+
+    #[test]
+    fn named_execution_selects_the_requested_typed_edge() {
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let registry = ConversionRegistry::with_builtin_converters();
+        let adapters = TransformTemplateAdapterRegistry::with_builtin_adapters();
+
+        let selection = registry
+            .resolve_named_execution(
+                &schemas,
+                &adapters,
+                "cem-dom-projection-to-html-rust",
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .expect("named Rust edge");
+
+        assert_eq!(selection.descriptor.id, "cem-dom-projection-to-html-rust");
+        assert!(matches!(
+            selection.execution,
+            ConversionExecution::Rust { .. }
+        ));
     }
 
     #[test]
@@ -27280,13 +27382,14 @@ mod tests {
             .map(|descriptor| descriptor.id.as_str())
             .collect::<BTreeSet<_>>();
 
-        assert_eq!(ids.len(), 12);
+        assert_eq!(ids.len(), 13);
         for id in [
             "cem-ml-to-dom-projection-rust",
             "cem-ml-to-ast-projection-rust",
             "cem-ml-to-events-projection-rust",
             "html-to-cem-dom-projection-rust",
             "xml-to-cem-dom-projection-rust",
+            "markdown-to-html-rust",
             "cem-dom-projection-to-html-cemt",
             "cem-dom-projection-to-xml-cemt",
             "cem-dom-projection-to-html-rust",

@@ -2970,6 +2970,176 @@ fn transform_data_artifact_from_output(
     ))
 }
 
+fn convert_transform_graph_artifact(
+    context: &EngineContext,
+    conversion: &TransformGraphConversion,
+    input: &TransformTemplateDataArtifact,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(TransformTemplateDataArtifact, TransformOutputMetadata)> {
+    let Some(source) = input.identity.as_ref() else {
+        diagnostics.push(Diagnostic {
+            uri: input.uri.clone(),
+            code: "cem.transform_runtime.convert_source_identity_missing".to_owned(),
+            severity: Severity::Fatal,
+            message: format!(
+                "convert node `{}` requires a typed source identity",
+                conversion.id
+            ),
+            node: Some(format!("convert:{}", conversion.id)),
+            ..Diagnostic::default()
+        });
+        return None;
+    };
+    let selected_result = if let Some(converter_id) = conversion.converter_id.as_deref() {
+        context.converter_registry.resolve_named_execution(
+            &context.schema_registry,
+            &context.template_adapter_registry,
+            converter_id,
+            source,
+            &conversion.target,
+        )
+    } else {
+        context.converter_registry.resolve_direct_execution(
+            &context.schema_registry,
+            &context.template_adapter_registry,
+            source,
+            &conversion.target,
+        )
+    };
+    let selected = match selected_result {
+        Ok(selected) => selected,
+        Err(error) => {
+            diagnostics.push(Diagnostic {
+                uri: input.uri.clone(),
+                code: "cem.transform_runtime.convert_edge_unavailable".to_owned(),
+                severity: Severity::Fatal,
+                message: format!("convert node `{}`: {error}", conversion.id),
+                node: Some(format!("convert:{}", conversion.id)),
+                ..Diagnostic::default()
+            });
+            return None;
+        }
+    };
+    let rust_symbol = match &selected.execution {
+        ConversionExecution::Rust { rust_symbol }
+        | ConversionExecution::RustFallback { rust_symbol, .. } => rust_symbol.as_str(),
+        ConversionExecution::CemtTemplate { .. } => {
+            diagnostics.push(Diagnostic {
+                uri: input.uri.clone(),
+                code: "cem.transform_runtime.convert_execution_unsupported".to_owned(),
+                severity: Severity::Fatal,
+                message: format!(
+                    "convert node `{}` selected CEMT converter `{}`, whose graph execution adapter is not implemented",
+                    conversion.id, selected.descriptor.id
+                ),
+                node: Some(format!("convert:{}", conversion.id)),
+                ..Diagnostic::default()
+            });
+            return None;
+        }
+    };
+
+    let (content, source_map, output_spans) = match (rust_symbol, &input.body) {
+        ("MarkdownHtmlConverter", TransformArtifactBody::Lifecycle(stream)) => {
+            match stream.as_ref() {
+                LoadedInputAstStream::MarkdownDocument(document) => {
+                    let html = markdown_document_ast_to_html(
+                        document,
+                        context,
+                        input.uri.as_deref().unwrap_or(&conversion.id),
+                        diagnostics,
+                    );
+                    if has_hard_transform_diagnostic(diagnostics) {
+                        return None;
+                    }
+                    let content = markdown_generated_html_output(
+                        &html.content,
+                        &conversion.target_scope,
+                        input.uri.as_deref(),
+                        diagnostics,
+                    )?;
+                    let mapping_preserved = content == html.content;
+                    let source_map = mapping_preserved.then(|| SourceMapStack {
+                        frames: vec![crate::source_map::SourceMapFrame {
+                            source_id: SourceId(1),
+                            span: crate::source_map::FrameSpan::Single(ByteRange::new(
+                                0,
+                                u32::try_from(document.source.byte_length).unwrap_or(u32::MAX),
+                            )),
+                            transform: crate::source_map::TransformKind::ContentTypeTransform {
+                                content_type: MARKDOWN_CONTENT_TYPE.to_owned(),
+                            },
+                        }],
+                    });
+                    let output_spans = if mapping_preserved {
+                        html.output_spans
+                    } else {
+                        Vec::new()
+                    };
+                    (content, source_map, output_spans)
+                }
+                _ => {
+                    diagnostics.push(Diagnostic {
+                        uri: input.uri.clone(),
+                        code: "cem.transform_runtime.convert_representation_unsupported".to_owned(),
+                        severity: Severity::Fatal,
+                        message: format!(
+                            "converter `{}` requires a Markdown lifecycle AST, got `{}`",
+                            selected.descriptor.id,
+                            input.body.representation_id()
+                        ),
+                        node: Some(format!("convert:{}", conversion.id)),
+                        ..Diagnostic::default()
+                    });
+                    return None;
+                }
+            }
+        }
+        _ => {
+            diagnostics.push(Diagnostic {
+                uri: input.uri.clone(),
+                code: "cem.transform_runtime.convert_execution_unsupported".to_owned(),
+                severity: Severity::Fatal,
+                message: format!(
+                    "convert node `{}` selected unsupported Rust converter symbol `{rust_symbol}`",
+                    conversion.id
+                ),
+                node: Some(format!("convert:{}", conversion.id)),
+                ..Diagnostic::default()
+            });
+            return None;
+        }
+    };
+    let artifact = match TransformTemplateDataArtifact::encoded(
+        conversion.id.clone(),
+        input.uri.clone(),
+        conversion.target.clone(),
+        TransformEncoding::Text,
+        content.as_bytes().to_vec(),
+    ) {
+        Ok(artifact) => artifact,
+        Err(error) => {
+            diagnostics.push(Diagnostic {
+                uri: input.uri.clone(),
+                code: "cem.transform_runtime.convert_output_invalid".to_owned(),
+                severity: Severity::Fatal,
+                message: format!("convert node `{}`: {error}", conversion.id),
+                node: Some(format!("convert:{}", conversion.id)),
+                ..Diagnostic::default()
+            });
+            return None;
+        }
+    };
+    Some((
+        artifact,
+        TransformOutputMetadata {
+            source_map,
+            output_spans,
+            raw_content: Some(content),
+        },
+    ))
+}
+
 fn transform_graph_export_primary(
     context: &EngineContext,
     artifact: &TransformTemplateDataArtifact,
@@ -6720,6 +6890,59 @@ fn convert_loaded_markdown_ast_to_html_output(
     let mut metadata =
         convert_metadata_for_direct_output_pipeline("markdown-html-output", &pipeline);
     metadata.implementation = Some("markdown-ast-stream-to-html-output-pipeline".to_owned());
+    let source = request
+        .input
+        .identity
+        .clone()
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(MARKDOWN_CONTENT_TYPE.to_owned()),
+            schema: Some(MARKDOWN_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    match context.converter_registry.resolve_direct_execution(
+        &context.schema_registry,
+        &context.template_adapter_registry,
+        &source,
+        &target,
+    ) {
+        Ok(selected)
+            if matches!(
+                &selected.execution,
+                ConversionExecution::Rust { rust_symbol }
+                    if rust_symbol == "MarkdownHtmlConverter"
+            ) =>
+        {
+            metadata.converter_id = Some(selected.descriptor.id.clone());
+        }
+        Ok(selected) => diagnostics.push(Diagnostic {
+            uri: Some(request.input.uri.clone()),
+            code: "cem.converter.execution_unsupported".to_owned(),
+            severity: Severity::Fatal,
+            message: format!(
+                "Markdown-to-HTML conversion selected unsupported converter `{}`",
+                selected.descriptor.id
+            ),
+            node: Some("convert".to_owned()),
+            ..Diagnostic::default()
+        }),
+        Err(error) => diagnostics.push(Diagnostic {
+            uri: Some(request.input.uri.clone()),
+            code: "cem.converter.edge_unavailable".to_owned(),
+            severity: Severity::Fatal,
+            message: format!("Markdown-to-HTML converter edge is unavailable: {error}"),
+            node: Some("convert".to_owned()),
+            ..Diagnostic::default()
+        }),
+    }
 
     let html = markdown_document_ast_to_html(&document, context, &request.input.uri, diagnostics);
     if diagnostics
@@ -6730,7 +6953,7 @@ fn convert_loaded_markdown_ast_to_html_output(
     }
 
     let Some(content) = markdown_generated_html_output(
-        &html,
+        &html.content,
         &request.target_scope,
         Some(&request.input.uri),
         diagnostics,
@@ -6753,6 +6976,13 @@ fn convert_loaded_markdown_ast_to_html_output(
 struct MarkdownHtmlCodeBlock {
     info: String,
     text: String,
+    origin: Option<SourceMapStack>,
+}
+
+#[derive(Debug, Default)]
+struct MarkdownHtmlRender {
+    content: String,
+    output_spans: Vec<OutputSpan>,
 }
 
 fn markdown_document_ast_to_html(
@@ -6760,8 +6990,9 @@ fn markdown_document_ast_to_html(
     context: &EngineContext,
     source_uri: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> String {
+) -> MarkdownHtmlRender {
     let mut html = String::new();
+    let mut output_spans = Vec::new();
     let mut code_block: Option<MarkdownHtmlCodeBlock> = None;
     let mut table_head_depth = 0_u32;
 
@@ -6769,12 +7000,20 @@ fn markdown_document_ast_to_html(
         if let Some(block) = code_block.as_mut() {
             if event.kind == "end" && event.tag.as_deref() == Some("code-block") {
                 let block = code_block.take().expect("active Markdown code block");
+                let output_start = html.len();
+                let origin = block.origin.clone();
                 html.push_str(&markdown_code_block_to_html(
                     block,
                     context,
                     source_uri,
                     diagnostics,
                 ));
+                markdown_push_generated_output_span(
+                    &mut output_spans,
+                    output_start,
+                    html.len(),
+                    origin,
+                );
                 continue;
             }
             if let Some(text) = event.text.as_deref() {
@@ -6785,12 +7024,14 @@ fn markdown_document_ast_to_html(
             continue;
         }
 
+        let output_start = html.len();
         match event.kind.as_str() {
             "start" => {
                 if event.tag.as_deref() == Some("code-block") {
                     code_block = Some(MarkdownHtmlCodeBlock {
                         info: event.info.clone().unwrap_or_default(),
                         text: String::new(),
+                        origin: Some(event.source_range.source_map()),
                     });
                 } else {
                     markdown_push_start_html(&mut html, event, table_head_depth > 0);
@@ -6827,18 +7068,51 @@ fn markdown_document_ast_to_html(
             }
             _ => {}
         }
+        markdown_push_generated_output_span(
+            &mut output_spans,
+            output_start,
+            html.len(),
+            Some(event.source_range.source_map()),
+        );
     }
 
     if let Some(block) = code_block {
+        let output_start = html.len();
+        let origin = block.origin.clone();
         html.push_str(&markdown_code_block_to_html(
             block,
             context,
             source_uri,
             diagnostics,
         ));
+        markdown_push_generated_output_span(&mut output_spans, output_start, html.len(), origin);
     }
 
-    html
+    MarkdownHtmlRender {
+        content: html,
+        output_spans,
+    }
+}
+
+fn markdown_push_generated_output_span(
+    output_spans: &mut Vec<OutputSpan>,
+    output_start: usize,
+    output_end: usize,
+    origin: Option<SourceMapStack>,
+) {
+    if output_start >= output_end {
+        return;
+    }
+    let Some(origin) = origin else {
+        return;
+    };
+    output_spans.push(OutputSpan {
+        output_range: ByteRange::new(
+            output_start as u64,
+            u32::try_from(output_end - output_start).unwrap_or(u32::MAX),
+        ),
+        origin,
+    });
 }
 
 fn markdown_push_start_html(
@@ -11235,10 +11509,17 @@ impl CemMlEngine for RealCemMlEngine {
         }
 
         let mut completed_joins = BTreeSet::new();
+        let mut completed_conversions = BTreeSet::new();
         let mut completed_stages = BTreeSet::new();
         let mut completed_importmap_rewrites = BTreeSet::new();
-        while completed_joins.len() + completed_stages.len() + completed_importmap_rewrites.len()
-            < request.joins.len() + request.stages.len() + request.importmap_rewrites.len()
+        while completed_joins.len()
+            + completed_conversions.len()
+            + completed_stages.len()
+            + completed_importmap_rewrites.len()
+            < request.joins.len()
+                + request.conversions.len()
+                + request.stages.len()
+                + request.importmap_rewrites.len()
         {
             request.context.ensure_active()?;
             let mut progressed = false;
@@ -11272,6 +11553,44 @@ impl CemMlEngine for RealCemMlEngine {
                 });
                 request.context.ensure_active()?;
                 completed_joins.insert(join.id.clone());
+            }
+
+            for conversion in &request.conversions {
+                if completed_conversions.contains(&conversion.id) {
+                    continue;
+                }
+                let Some(primary_input) = artifacts.get(&conversion.primary_input).cloned() else {
+                    continue;
+                };
+
+                progressed = true;
+                let pool = crate::scheduler::WorkerPool::new(
+                    conversion.scheduler_scope_id,
+                    scheduler_policy_from_context(&request.context),
+                    trace.clone(),
+                );
+                pool.submit(format!("{}:convert", conversion.id), &abort)
+                    .map_err(scheduler_dispatch_error)?;
+                pool.run_to_completion(&abort, |_| {
+                    if let Some((artifact, metadata)) = convert_transform_graph_artifact(
+                        &request.context,
+                        conversion,
+                        &primary_input,
+                        &mut diagnostics,
+                    ) {
+                        artifacts.insert(conversion.id.clone(), Arc::new(artifact));
+                        artifact_metadata.insert(conversion.id.clone(), metadata);
+                    }
+                });
+                request.context.ensure_active()?;
+                if has_hard_transform_diagnostic(&diagnostics) {
+                    return Ok(TransformGraphResponse {
+                        artifacts: exported,
+                        diagnostics,
+                        scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+                    });
+                }
+                completed_conversions.insert(conversion.id.clone());
             }
 
             for rewrite in &request.importmap_rewrites {
@@ -11602,6 +11921,13 @@ impl CemMlEngine for RealCemMlEngine {
         for stage in &request.stages {
             diagnostics.extend(time_budget_diagnostics(
                 &stage.template.root_scope,
+                &["transformms", "transformtimebudgetms"],
+                elapsed_ns,
+            ));
+        }
+        for conversion in &request.conversions {
+            diagnostics.extend(time_budget_diagnostics(
+                &conversion.target_scope,
                 &["transformms", "transformtimebudgetms"],
                 elapsed_ns,
             ));
@@ -12382,6 +12708,7 @@ mod tests {
                     bindings: BTreeMap::new(),
                     scheduler_scope_id: 4,
                 }],
+                conversions: Vec::new(),
                 stages: vec![
                     TransformGraphStage {
                         id: "json-tree".to_owned(),

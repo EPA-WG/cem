@@ -804,15 +804,31 @@ fn graph_requirements(
     let mut requirements = Vec::new();
     for node in response.graph.nodes {
         let references = match node.kind {
-            TransformGraphNodeKind::Import => vec![(node.src, ResolvePurpose::Input, node.content_type)],
+            TransformGraphNodeKind::Import => {
+                vec![(node.src, ResolvePurpose::Input, node.content_type)]
+            }
             TransformGraphNodeKind::Transform => {
-                vec![(node.src, ResolvePurpose::Template, node.template_content_type)]
+                vec![(
+                    node.src,
+                    ResolvePurpose::Template,
+                    node.template_content_type,
+                )]
             }
             TransformGraphNodeKind::ImportMapRewrite => vec![
-                (node.source_map, ResolvePurpose::ModuleMap, Some("application/json".to_owned())),
-                (node.target_map, ResolvePurpose::ModuleMap, Some("application/json".to_owned())),
+                (
+                    node.source_map,
+                    ResolvePurpose::ModuleMap,
+                    Some("application/json".to_owned()),
+                ),
+                (
+                    node.target_map,
+                    ResolvePurpose::ModuleMap,
+                    Some("application/json".to_owned()),
+                ),
             ],
-            TransformGraphNodeKind::Join | TransformGraphNodeKind::Export => Vec::new(),
+            TransformGraphNodeKind::Join
+            | TransformGraphNodeKind::Convert
+            | TransformGraphNodeKind::Export => Vec::new(),
         };
         for (reference, purpose, content_type) in references {
             let Some(reference) = reference else { continue };

@@ -716,12 +716,13 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `RealCemMlEngine::transform_graph` executes CEM-native graph requests and bounded XSLT parity stages when the
       CLI host registers the executable compatibility adapter. Full XSLT 3.0/4.0 engine execution remains deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
-      `run` / `import` / `join` / `transform` / `export` graph config and validates missing required operation
+      `run` / `import` / `join` / `convert` / `transform` / `export` graph config and validates missing required operation
       attributes, duplicate IDs, unresolved refs, cycles, and wildcard output patterns. CLI dispatch lowers this config
       into `TransformGraphRequest`, resolving relative resource and export paths against the config document path and
       validating duplicate destinations after output bindings resolve.
     - Current engine API slice: `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` model
-      loaded import nodes, collect and source-binding group-by join nodes, template-backed transform stages, export
+      loaded import nodes, collect and source-binding group-by join nodes, schema-owned typed converter stages,
+      template-backed transform stages, export
       nodes, graph dependencies, scheduler scope IDs, emitted artifacts, diagnostics, and scheduler trace. The default
       trait method still returns not implemented.
     - Current design/API slice:

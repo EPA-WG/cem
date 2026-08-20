@@ -8995,6 +8995,56 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_converts_markdown_glob_to_typed_html_exports() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-markdown-html");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("content")).unwrap();
+        std::fs::write(root.join("content/first.md"), "# First\n\nHello **CEM**.\n").unwrap();
+        std::fs::write(root.join("content/second.md"), "# Second\n\n- one\n- two\n").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=content @src="content/*.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {export @id=page @out="dist/{stem}.html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("dist/first.html")).unwrap(),
+            "<h1>First</h1>\n<p>Hello <strong>CEM</strong>.</p>\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("dist/second.html")).unwrap(),
+            "<h1>Second</h1>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>\n"
+        );
+        let source_map: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("dist/first.html.map")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(source_map["exportId"], "page:0");
+        assert_eq!(source_map["input"], "html:0");
+        assert!(source_map["frames"].as_array().unwrap().len() == 1);
+        assert!(!source_map["outputSpans"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
     fn transform_config_rewrites_html_importmap_for_dist() {
         let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-importmap");
         let _ = std::fs::remove_dir_all(&root);

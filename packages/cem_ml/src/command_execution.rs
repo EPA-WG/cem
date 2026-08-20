@@ -1700,6 +1700,7 @@ mod tests {
                     request: TransformGraphRequest {
                         imports: Vec::new(),
                         joins: Vec::new(),
+                        conversions: Vec::new(),
                         stages: Vec::new(),
                         importmap_rewrites: Vec::new(),
                         exports: Vec::new(),
