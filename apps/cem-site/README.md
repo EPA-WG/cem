@@ -9,11 +9,18 @@ records each route or resource, its canonical source, owning Nx project, and
 the upstream target required for generated inputs. Every entry also declares a
 content role and relative-link policy. Authored sources have no upstream
 generation target and participate directly in the site build hash.
+Verification resolves the current Nx project graph, derives the unique deepest
+project root for every source, and rejects a declared owner that does not match.
+Generated routes additionally require an existing target on that same owner and
+an exact scheduling edge from `cem-site:build`.
 
 Run `yarn nx run cem-site:build` to produce `dist/apps/cem-site`, or run
 `yarn nx run cem-site:verify` to build and verify the route allowlist, links,
 generated-document provenance, transform report, source-map sidecars, token
-catalog traceability, and component-catalog ownership.
+catalog traceability, component-catalog ownership, and deterministic clean
+publication. The focused `cem-site:verify:determinism` target executes the same
+native build twice after removing the output directory and records a per-file
+and aggregate SHA-256 report under `dist/reports/cem-site/determinism.json`.
 
 Authored content follows a Hugo-like folder hierarchy under `content/`. Shared
 semantic HTML composition lives in `layouts/page.cemt`. Cross-package generated

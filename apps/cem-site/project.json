@@ -56,7 +56,7 @@
     "verify": {
       "cache": true,
       "executor": "nx:run-commands",
-      "dependsOn": ["build"],
+      "dependsOn": ["build", "verify:determinism"],
       "options": {
         "command": "node apps/cem-site/scripts/verify.mjs",
         "cwd": "{workspaceRoot}"
@@ -65,12 +65,36 @@
         "{projectRoot}/site.cem",
         "{projectRoot}/site.routes.json",
         "{projectRoot}/scripts/verify.mjs",
+        "{workspaceRoot}/nx.json",
+        "{workspaceRoot}/package.json",
+        "{workspaceRoot}/apps/*/project.json",
+        "{workspaceRoot}/packages/*/project.json",
+        "{workspaceRoot}/packages/*/package.json",
         {
           "dependentTasksOutputFiles": "**/*",
           "transitive": false
         }
       ],
-      "outputs": ["{workspaceRoot}/dist/reports/cem-site"]
+      "outputs": ["{workspaceRoot}/dist/reports/cem-site/verification.json"]
+    },
+    "verify:determinism": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "node apps/cem-site/scripts/verify-determinism.mjs",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/site.routes.json",
+        "{projectRoot}/scripts/build.mjs",
+        "{projectRoot}/scripts/verify-determinism.mjs",
+        {
+          "dependentTasksOutputFiles": "**/*",
+          "transitive": false
+        }
+      ],
+      "outputs": ["{workspaceRoot}/dist/reports/cem-site/determinism.json"]
     }
   },
   "tags": ["scope:cem-site", "type:application", "lang:cem"]

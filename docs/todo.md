@@ -789,8 +789,19 @@ until final Phases 10 and 11, after Phase 9 release governance.
           to the established canonical `develop` source tree without changing
           site-root navigation or copying executable example markup. All 15 site
           routes build and pass the Nx site verifier.
-    - [ ] Prove every new route records its canonical owner/upstream Nx target and
+    - [x] Prove every new route records its canonical owner/upstream Nx target and
           that publication remains deterministic from a clean output directory.
+        - Completed 2026-08-20: site verification now reads the resolved Nx
+          project graph, assigns every source to its unique deepest project root,
+          rejects owner drift, and requires each generated route's upstream target
+          to exist on that same owner and be scheduled by `cem-site:build`. The
+          cached `cem-site:verify:determinism` target removes the output directory,
+          runs the real native publication twice, rejects any unexpected output,
+          and compares per-file SHA-256 records. Both clean builds emitted the
+          same 31 files for 15 routes with aggregate digest
+          `c0ec818f318d7743cb4045501c1336dbc60b296e4454332404cb030c6b4bbd95`.
+          Site lint passes, and the final aggregate verification restored all 14
+          tasks—including ownership and determinism—from local Nx cache.
 - [ ] Add interactive token, component, CEM fixture, and native-output examples
       using the production CEM/custom-element implementation.
 - [ ] Add search, stable deep links, root navigation, and optional Angular Material

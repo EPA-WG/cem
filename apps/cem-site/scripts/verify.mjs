@@ -1,5 +1,6 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
+import { createProjectGraphAsync } from '@nx/devkit';
 
 const workspaceRoot = resolve(import.meta.dirname, '../../..');
 const projectRoot = resolve(workspaceRoot, 'apps/cem-site');
@@ -8,9 +9,15 @@ const reportRoot = resolve(workspaceRoot, 'dist/reports/cem-site');
 const manifest = JSON.parse(
   await readFile(resolve(projectRoot, 'site.routes.json'), 'utf8'),
 );
-const project = JSON.parse(await readFile(resolve(projectRoot, 'project.json'), 'utf8'));
 const publicationGraph = await readFile(resolve(projectRoot, 'site.cem'), 'utf8');
 const reportText = await readFile(join(outputRoot, 'site.report.json'), 'utf8');
+const projectGraph = await createProjectGraphAsync({ exitOnError: false });
+const siteProject = projectGraph.nodes['cem-site']?.data;
+const siteBuildTarget = siteProject?.targets?.build;
+
+if (!siteProject || !siteBuildTarget) {
+  throw new Error('the resolved Nx graph does not contain cem-site:build');
+}
 
 if (manifest.version !== 1 || !Array.isArray(manifest.entries)) {
   throw new Error('site.routes.json must declare version 1 and an entries array');
@@ -44,9 +51,10 @@ const entriesByRoute = new Map();
 const entriesByOutput = new Map();
 const importIds = new Set();
 const exportIds = new Set();
+const ownersByRoute = new Map();
 const canonicalSourceText = new Map();
 const evidenceSourceText = new Map();
-const buildInputs = new Set(project.targets.build.inputs);
+const buildInputs = new Set(siteBuildTarget.inputs);
 const allowedContentRoles = new Set([
   'landing',
   'guide-index',
@@ -63,7 +71,7 @@ const allowedRelativeLinkPolicies = new Set([
   'canonical-source',
 ]);
 const buildDependencies = new Set(
-  project.targets.build.dependsOn
+  siteBuildTarget.dependsOn
     .filter((dependency) => typeof dependency === 'object')
     .map((dependency) => `${dependency.projects[0]}:${dependency.target}`),
 );
@@ -84,6 +92,29 @@ function expectedCanonicalSourceBase(source) {
   const separator = source.lastIndexOf('/');
   const directory = separator === -1 ? '' : source.slice(0, separator + 1);
   return `https://github.com/EPA-WG/cem/blob/develop/${directory}`;
+}
+
+function canonicalOwner(source) {
+  const candidates = Object.values(projectGraph.nodes)
+    .map((node) => ({
+      name: node.name,
+      root: node.data.root.replaceAll('\\', '/').replace(/^\.\/$/, '.'),
+    }))
+    .filter(({ root }) =>
+      root === '.' ? true : source === root || source.startsWith(`${root}/`),
+    )
+    .sort((left, right) => right.root.length - left.root.length);
+  if (candidates.length === 0) {
+    throw new Error(`${source} has no owning Nx project root`);
+  }
+  const deepest = candidates[0].root.length;
+  const owners = candidates.filter(({ root }) => root.length === deepest);
+  if (owners.length !== 1) {
+    throw new Error(
+      `${source} has ambiguous Nx owners: ${owners.map(({ name }) => name).join(', ')}`,
+    );
+  }
+  return owners[0];
 }
 
 async function loadDeclaredSources(entry, field, destination) {
@@ -170,9 +201,28 @@ for (const entry of manifest.entries) {
   if (!entry.owner) {
     throw new Error(`${entry.route} has no canonical Nx owner`);
   }
+  const resolvedOwner = canonicalOwner(entry.source);
+  if (entry.owner !== resolvedOwner.name) {
+    throw new Error(
+      `${entry.route} declares owner ${entry.owner}, but ${entry.source} belongs to ${resolvedOwner.name}`,
+    );
+  }
+  ownersByRoute.set(entry.route, resolvedOwner);
   if (entry.sourceKind === 'generated') {
     if (!entry.upstreamTarget || !buildDependencies.has(entry.upstreamTarget)) {
       throw new Error(`${entry.route} does not schedule ${entry.upstreamTarget}`);
+    }
+    const ownerTargetPrefix = `${entry.owner}:`;
+    if (!entry.upstreamTarget.startsWith(ownerTargetPrefix)) {
+      throw new Error(
+        `${entry.route} upstream target ${entry.upstreamTarget} is not owned by ${entry.owner}`,
+      );
+    }
+    const targetName = entry.upstreamTarget.slice(ownerTargetPrefix.length);
+    if (!projectGraph.nodes[entry.owner].data.targets?.[targetName]) {
+      throw new Error(
+        `${entry.route} upstream target ${entry.upstreamTarget} is absent from the resolved Nx graph`,
+      );
     }
   } else if (entry.sourceKind === 'authored') {
     if (entry.upstreamTarget !== null) {
@@ -327,6 +377,7 @@ for (const entry of manifest.entries) {
       contentRole: entry.contentRole,
       relativeLinkPolicy: entry.relativeLinkPolicy,
       owner: entry.owner,
+      ownerRoot: ownersByRoute.get(entry.route).root,
       upstreamTarget: entry.upstreamTarget,
       links,
       outputSpans: sourceMap.outputSpans.length,
@@ -533,6 +584,7 @@ for (const entry of manifest.entries) {
       route: entry.route,
       kind: entry.kind,
       owner: entry.owner,
+      ownerRoot: ownersByRoute.get(entry.route).root,
       upstreamTarget: entry.upstreamTarget,
       bytes: Buffer.byteLength(output),
     });
