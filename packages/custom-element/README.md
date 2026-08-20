@@ -313,6 +313,14 @@ XPath is a selector language to navigate over custom element instance data, attr
 > [XSLT 1.0](https://www.w3.org/TR/xslt-10/) processor — that *engine dependency* is what 0.1.0 retires,
 > not the authoring dialect.
 
+`<template lang="custom-element-v0">` remains a deprecated browser compatibility
+selector through the next-major migration window. Untyped legacy templates on
+`<custom-element>` are normalized to that selector; both forms lower to canonical
+CEM-ML and render through the same `cem_ql` substrate. New authoring should use
+`type="text/cem-ml"`. The selector may be removed only after retained demos,
+material fixtures, and downstream generator workflows have canonical CEM-ML
+replacements and the FF-5 usage inventory reaches its removal gate.
+
 # troubleshooting
 ## HTML parser is not compatible with templates
 On many tags like `table`, or link `a` the attempt to use XSLT operations could lead to DOM order mismatch to given

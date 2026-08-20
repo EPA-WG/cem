@@ -218,6 +218,25 @@ export async function runCustomElementSmoke(importBase) {
         instance?.querySelector('template[data-cem-island="instance"]') !== null,
     );
 
+    const explicitLegacyDeclaration = document.querySelector('custom-element[tag="explicit-legacy-card"]');
+    const explicitLegacyInstance = document.querySelector('explicit-legacy-card');
+    await customElementModule.whenDeclarationSettled(explicitLegacyDeclaration);
+    await customElementModule.whenRenderSettled(explicitLegacyInstance);
+    check(
+        'explicit deprecated browser compatibility selector remains unchanged',
+        explicitLegacyDeclaration?.querySelector(':scope > template')?.getAttribute('lang') === 'custom-element-v0',
+    );
+    check(
+        'explicit deprecated browser compatibility selector renders through the substrate',
+        explicitLegacyInstance?.querySelector('[data-role="explicit-legacy"]')?.textContent?.trim() ===
+            'Explicit legacy' && explicitLegacyInstance?.querySelector('template[data-cem-island="instance"]') !== null,
+    );
+    check(
+        'explicit deprecated browser compatibility selector compiles without diagnostics',
+        customElementModule.diagnosticsFor(explicitLegacyDeclaration).length === 0 &&
+            customElementModule.diagnosticsFor(explicitLegacyInstance).length === 0,
+    );
+
     const implicitInstance = document.querySelector('implicit-template-card');
     await waitFor(
         'legacy shorthand declaration renders implicit template content',

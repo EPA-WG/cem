@@ -16,6 +16,14 @@
             <span>Payload</span>
         </fixture-card>
 
+        <custom-element tag="explicit-legacy-card" hidden>
+            <template lang="custom-element-v0">
+                <strong data-role="explicit-legacy">{label}</strong>
+            </template>
+        </custom-element>
+
+        <explicit-legacy-card label="Explicit legacy"></explicit-legacy-card>
+
         <custom-element tag="implicit-template-card" hidden>
             <a href="#">Implicit</a>
         </custom-element>

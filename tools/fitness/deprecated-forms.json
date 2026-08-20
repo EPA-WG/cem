@@ -28,7 +28,11 @@
             "pattern": "XSLTProcessor",
             "status": "forbidden",
             "reason": "legacy browser XSLT 1.0 engine must not reappear in adapter source (BR-CO-5; retired per AC-P-6.9)",
-            "allowlist": ["packages/custom-element/scripts/verify-package-baseline.mjs"]
+            "allowlist": [
+                "packages/custom-element/scripts/verify-package-baseline.mjs",
+                "packages/cem_ml/schema-packages/xslt/v1/schema/xslt.cem",
+                "packages/cem-ml-npm/dist-stripped/schema-packages/xslt/v1/schema/xslt.cem"
+            ]
         },
         {
             "id": "xslt-compiler",

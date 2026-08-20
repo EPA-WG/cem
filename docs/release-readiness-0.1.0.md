@@ -84,9 +84,9 @@ For consumers of the 0.0.x line:
    `position`, `count`, …).
    **Tier 3 XSLT outside the bounded compatibility profile is not converted**
    (for example EXSLT `func:function`, `<msxsl:script>`, or dynamic construction names outside the scalar AVT subset)
-   — these emit a conversion diagnostic; author that logic in CEM-ML/CEM-QL. The separate
-   `custom-element-v0` DOM-projection bridge
-   (explicit `lang`) stays deprecated-but-functional, removed next major.
+   — these emit a conversion diagnostic; author that logic in CEM-ML/CEM-QL. The
+   `custom-element-v0` browser compatibility selector (explicit `lang`) stays
+   deprecated-but-functional through the next-major migration window.
 3. **Deep `dist/` imports are discouraged.** Import package export subpaths
    instead — `@epa-wg/cem-theme/tokens/cem.tokens.json`,
    `@epa-wg/cem-theme/tokens/cem.tokens.ts`, `@epa-wg/cem-elements`. Debug-only
@@ -107,9 +107,10 @@ browser XSLT-1.0 transform processor is gone in 0.1.0 (the `custom-element` adap
 delegates to `CemElementRuntime`; the verifier blocks `XSLTProcessor` from
 returning). Legacy HTML+XSLT templates run via the DOM→CEM-ML converter on the same
 engine as migrated templates — a legacy sample and its CEM-ML twin render
-identically. Tier 3 XSLT outside the bounded compatibility profile is not converted. The older
-`custom-element-v0` DOM-projection bridge stays
-deprecated, removed next major (FF-5 gated).
+identically. Tier 3 XSLT outside the bounded compatibility profile is not
+converted. The `custom-element-v0` browser compatibility selector stays
+deprecated through the next-major migration window and lowers into the shared
+engine; its later removal remains FF-5 and migration-exit gated.
 
 | Surface | 0.1.0 | next major |
 | --- | --- | --- |
@@ -117,8 +118,8 @@ deprecated, removed next major (FF-5 gated).
 | Native browser XSLT transform engine (`XSLTProcessor`) | ❌ **retired** | ❌ |
 | Legacy HTML+XSLT via DOM→CEM-ML conversion (Tier 1/2: `value-of`/`for-each`/`if`/`choose`/`variable`/AVT + XPath subset) | ✅ supported | ✅ |
 | Tier 3 XSLT outside the bounded compatibility profile (EXSLT `func:function`, `msxsl:script`, unsupported dynamic construction) | ❌ not converted (diagnostic) | ❌ |
-| `custom-element-v0` DOM-projection bridge (explicit `lang`) | ⚠️ deprecated, functional | ❌ removed (FF-5 gated) |
-| `custom-element-v0` / `cem-ml-v0` deprecated form ids | ⚠️ scanned by FF-5 | ❌ removed |
+| `custom-element-v0` browser compatibility selector (explicit `lang`) | ⚠️ deprecated, functional | ⚠️ retained migration window (FF-5 inventoried) |
+| `custom-element-v0` / `cem-ml-v0` deprecated form ids | ⚠️ scanned by FF-5 | ⚠️ removed only after the governed exit gate |
 
 ## 5. npm package-contents check
 
@@ -212,9 +213,10 @@ unpacked). All pack cleanly.
 - [x] Add a deprecation notice to the legacy XSLT-only README section (§4).
       Landed in `packages/custom-element/README.md` (§"XSLT 1.0") and
       `packages/cem-theme/README.md` (Build & test — generator path): both note
-      deprecated-but-functional in 0.1.0, removed next major (FF-5 gated), migrate to
-      the substrate. cem-theme also clarifies the generated `dist/lib/css/*.css` is
-      unchanged, so CSS consumers are unaffected.
+      deprecated-but-functional migration-window support governed by the FF-5
+      exit gate and migration to the substrate. cem-theme also clarifies the
+      generated `dist/lib/css/*.css` is unchanged, so CSS consumers are
+      unaffected.
 
 ## 8. Dry-run rehearsal findings (2026-06-12)
 

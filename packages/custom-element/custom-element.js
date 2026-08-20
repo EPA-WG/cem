@@ -1,9 +1,9 @@
 import { CemElementRuntime } from '../cem-elements/dist/index.js';
 
 const CUSTOM_ELEMENT_TAG = 'custom-element';
-// Untyped legacy browser templates use the exact compatibility selector accepted by the substrate.
-// The `custom-element-xslt` identity is reserved for native converter/CLI inputs and deliberately
-// remains on the browser DOM path.
+// Deprecated migration-window selector: untyped legacy browser templates use the exact identity
+// accepted by the substrate. The `custom-element-xslt` identity is reserved for native
+// converter/CLI inputs and deliberately remains on the browser DOM path.
 const LEGACY_TEMPLATE_LANG = 'custom-element-v0';
 const runtimeByHost = new WeakMap();
 const registeredDeclarations = new WeakSet();

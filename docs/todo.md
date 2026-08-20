@@ -7,9 +7,9 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Decide whether `<template lang="custom-element-v0">` remains a supported
-next-major browser compatibility selector after reviewing the explicit legacy
-migration fixtures and their canonical CEM-ML replacements.
+Run the legacy, material, Edge/SSR, and `@epa-wg/custom-element` package gates as
+one Phase 3.6 closure check before retiring `@epa-wg/cem-elements` as the staging
+migration target.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -557,8 +557,19 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
           mutation, and `mergeAttr` now has one exact-set contract. The public
           source/dist browser gate proves the negative compatibility boundary;
           all 29 package-adapter cases are verified and none remain required.
-- [ ] Keep or retire `<template lang="custom-element-v0">` only after the explicit
+- [x] Keep or retire `<template lang="custom-element-v0">` only after the explicit
       migration fixtures provide compatibility evidence.
+    - [x] Add public source/dist evidence that an explicit deprecated selector is
+          preserved and renders through the same substrate data-island path.
+    - Completed 2026-08-19: retained the exact selector as deprecated through the
+      next-major migration window. Twelve manifest-backed legacy/CEM-ML pairs,
+      selector precedence/negative cases, and the public source/dist fixture prove
+      conversion and rendering through the single CEM-ML/CEM-QL substrate; the
+      browser XSLT engine and `custom-element-xslt` browser alias remain excluded.
+      Removal now requires canonical replacements for retained demos, material
+      components, and downstream generators plus the governed FF-5 exit gate.
+      FF-5 stays blocking while narrowly allowlisting the two XSLT schema policy
+      records whose text explicitly forbids browser `XSLTProcessor` delegation.
 - [ ] Run legacy, material, Edge/SSR, and custom-element package gates together
       before closing Phase 3.6 and retiring `@epa-wg/cem-elements` as the staging
       migration target.

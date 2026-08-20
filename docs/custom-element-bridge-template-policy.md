@@ -1,5 +1,7 @@
 # `@epa-wg/custom-element` Bridge Template Policy
 
+Status: Accepted 2026-08-19
+
 This records the Phase 3.6 next-major policy for legacy
 `<custom-element>` templates. It follows the adapter boundary in
 [`custom-element-adapter-boundary.md`](custom-element-adapter-boundary.md) and
@@ -45,23 +47,22 @@ Existing substrate coverage supports the bridge scope:
 | Legacy bridge template surface | `LegacyBridgeTemplateParity` |
 | `module-url` resources | `MaterialIconLinkParity` |
 
-The legacy docs and demos also show behaviors that remain outside the fixture
-boundary: omitted `tag` inline rendering, XSLT `for-each`/`variable`, broad XPath
-functions, multi-event/multi-target slice wiring, companion resource primitives,
-and true scoped CSS rewriting.
+The fixture boundary has since expanded through the Phase 3.6 public-adapter
+matrix and executable demo/material gates. The accepted dispositions below
+replace the original planning gaps without expanding the adapter into an engine.
 
-## Gap Policy
+## Accepted Gap Dispositions
 
 | Legacy gap | Policy | Reason |
 | --- | --- | --- |
-| Omitted `tag` inline rendering | Migrate | The substrate requires a produced tag. Auto-generated tags are hard to make stable for SSR, edge snapshots, diagnostics, and custom-element registry collisions. Migrate authors to an explicit `tag` plus explicit produced instance. |
-| XSLT-only `for-each` and `variable` | Option A keep explicitly, Option B convert | Option A keeps the legacy XSLT+XPath model with HTML and XSLT default-namespace behavior. Option B converts the logic to CEM-ML+CEM-QL under `type="cem-ml; version=0.0"`. The recommended CSS-generator path is Option B. |
-| Broad XPath functions and `//path` compatibility | Option A keep explicitly, Option B convert | Option A preserves XPath. Option B rewrites selection to CEM-QL over structured inputs. The default substrate adapter must not accidentally hide an XPath engine; if Option A is selected, name and fixture it as a legacy runtime. |
-| Multiple slice event names on one element | Keep only if promoted into substrate | This can be a small extension to substrate event binding, but it must live in `CemElementRuntime`. The adapter must not keep a separate event queue. |
-| Multiple slice targets, `slice for=...`, checkbox/radio coercion | Migrate | These behaviors combine target lookup, coercion, and validation side effects from the old render loop. Prefer explicit rendered controls and cem-ql expressions until a substrate primitive is designed. |
+| Omitted `tag` inline rendering | Keep in the package adapter | Existing consumers receive a private generated tag and inline instance; new authoring should prefer an explicit declaration and instance. The adapter delegates registration/rendering to `CemElementRuntime`. |
+| XSLT `for-each` and `variable` | Convert the fixture-bounded subset | The native converter lowers accepted legacy forms to CEM-ML/CEM-QL. Unsupported Tier 3 forms produce diagnostics rather than selecting another runtime. |
+| Broad XPath functions and `//path` compatibility | Convert only the locked subset | Accepted expressions lower to CEM-QL over structured inputs; unsupported expressions diagnose. No browser XPath engine is retained. |
+| Multiple slice event names on one element | Keep in the substrate | `CemElementRuntime` owns the event fan-in and render invalidation; the adapter has no separate queue. |
+| Multiple slice targets, `slice for=...`, checkbox/radio coercion | Keep the fixture-bounded substrate behavior | Public source/dist cases prove fan-out and control coercion through the shared event/data state machine. |
 | `module-url` resource slices | Keep | The substrate already resolves inert `module-url` helpers through `resolveModuleUrl` and stores the value under `datadom.slices.*`. |
-| `http-request`, `local-storage`, `location-element` resource primitives | Defer to companion-module task | They remain published companion modules for compatibility, but the bridge-template policy does not make them substrate render primitives. |
-| True scoped CSS selector rewriting | Drop as a guarantee | Current substrate renders light-DOM styles. Do not promise legacy selector rewriting unless a dedicated style-containment primitive is designed and tested. |
+| `http-request`, `local-storage`, `location-element` resource primitives | Keep focused compatibility | Public companion shims and substrate resource controls cover the locked lifecycle/data projections. |
+| Scoped CSS selector rewriting | Keep focused light-DOM containment | Declaration and per-instance payload scopes are runtime-owned and source/dist tested; arbitrary legacy rewriting outside that boundary is not promised. |
 
 ## Authoring Rules
 
@@ -75,42 +76,47 @@ During the migration window:
 - canonical CEM-ML templates use `type="text/cem-ml"` or
   `type="application/cem-ml"`;
 - new package examples and docs should prefer canonical CEM-ML/CEM-QL;
-- legacy XPath examples should either stay in an explicit Option A legacy runtime
-  path or be rewritten to CEM-QL under `type="cem-ml; version=0.0"`;
-- omitted-`tag` examples should be rewritten to a declaration plus produced
-  instance;
-- scoped CSS examples should state that styles are light-DOM/global unless a
-  later containment primitive is added.
+- legacy XPath examples stay within the documented converter subset or are
+  rewritten to CEM-QL under `type="cem-ml; version=0.0"`;
+- omitted-`tag` remains a compatibility form, while new examples use an explicit
+  declaration plus produced instance;
+- scoped CSS examples use the runtime's focused light-DOM declaration and
+  per-instance payload containment contract.
 
-After the migration window, `custom-element-v0` and `cem-ml; version=0.0` can be removed only
-when package fixtures prove that all retained demos and downstream generator
-workflows have moved to canonical CEM-ML/CEM-QL or to an explicitly documented
-legacy runtime.
+Deprecation does not itself authorize removal. After the next-major migration
+window, `custom-element-v0` and `cem-ml; version=0.0` can be removed only when all
+of these exit conditions hold:
 
-## Implementation TODO
+- every retained demo, material component, and downstream generator workflow has
+  moved to canonical CEM-ML/CEM-QL or an explicitly documented legacy runtime;
+- the twelve manifest-backed legacy/CEM-ML pairs retain their canonical side as
+  executable replacement evidence;
+- the public source/dist and packed-consumer gates no longer require untyped
+  legacy normalization or the explicit selector;
+- FF-5 reports no non-fixture runtime consumers and its registry is deliberately
+  advanced through the governed removal phase.
 
-- Add adapter fixtures proving untyped `<custom-element>` templates are routed to
-  legacy-v0 without mutating explicitly typed CEM-ML templates.
-- Add a diagnostic fixture for omitted `tag` that points to the explicit
-  declaration plus instance migration.
-- Add CSS-generator migration fixtures using `<template type="cem-ml; version=0.0">` and
-  convert legacy `<variable>`/`<for-each>`/XPath logic to CEM-ML+CEM-QL.
-- Decide whether whitespace-separated `slice-event` values are promoted into
-  `CemElementRuntime`; if promoted, cover them in substrate stories before the
-  adapter accepts them.
-- Keep `module-url` bridge coverage tied to `resolveModuleUrl`.
-- Move `http-request`, `local-storage`, and `location-element` decisions to the
-  companion-module/resource-primitive task.
-- Add a scoped-CSS migration note that recommends explicit classes or future
-  containment primitives rather than legacy selector rewriting.
+## Decision Evidence
+
+- The twelve manifest-backed legacy/CEM-ML pairs execute one-to-one in the
+  substrate browser gate, including the exact explicit selector and negative
+  routing cases.
+- The shared `@epa-wg/custom-element` browser fixture proves untyped normalization
+  plus explicit-selector rendering against both source and generated `dist/`.
+- Both paths retain the substrate data island and pass without adapter diagnostics;
+  the package verifier continues to forbid `XSLTProcessor`, `createXsltFromDom`,
+  and a package-local produced-element engine.
+- Canonical `text/cem-ml` and `application/cem-ml` keep precedence, and
+  `custom-element-xslt` remains a native converter/CLI identity rather than a
+  browser selector.
 
 ## Non-Goals
 
 This policy does not:
 
 - reopen the adapter-boundary decision;
-- silently retain `XSLTProcessor`, XPath, or package-local DOM merge logic without
-  choosing Option A and documenting it as a legacy runtime;
-- implement CEM-ML loop or variable support;
-- decide companion-module rewrites;
-- rewire downstream `cem-theme` consumers.
+- retain `XSLTProcessor`, a browser XPath engine, or package-local render loop;
+- treat deprecation as approval to remove a selector with active consumers;
+- alias the native `custom-element-xslt` identity into browser authoring;
+- allow new package examples to choose the deprecated selector over canonical
+  CEM-ML/CEM-QL.
