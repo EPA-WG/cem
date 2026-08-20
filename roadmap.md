@@ -17,10 +17,10 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | CEM Studio                    | Installable local-first PWA and npm package for exercising CEM-ML validation, conversion, query, transformation, source-map, report, and graph workflows through editable projects and a bidirectional CLI Command view.                                                                                    | future `packages/cem-studio`, `@epa-wg/cem-components/studio`            |
 | CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable.        | `packages/cem-elements`, future `packages/custom-element`                |
 | CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                          | `packages/cem-components`, `packages/cem-elements`                       |
-| Figma UI Kit                  | Designer-facing components, variants, variables, usage examples, and governance workflow.                                                                                                                                                                                                                   | `examples/figma`, future design artifacts                                |
 | CEM site                      | Public docs, token/component gallery, interactive examples, and release documentation wired from the repo root.                                                                                                                                                                                             | future `apps/cem-site` or static docs app                                |
-| Figma site demo               | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion.                                                                                                                                                                                                       | future `examples/figma-site-demo`                                        |
 | Repo docs spine               | Root docs, package docs, generated API/token docs, examples index, and contribution/release docs.                                                                                                                                                                                                           | `README.md`, `docs/`, package docs                                       |
+| Figma UI Kit                  | Designer-facing components, variants, variables, usage examples, and governance workflow.                                                                                                                                                                                                                   | `examples/figma`, future design artifacts                                |
+| Figma site demo               | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion.                                                                                                                                                                                                       | future `examples/figma-site-demo`                                        |
 
 ## Ordering Principles
 
@@ -43,6 +43,9 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
     Studio needs a control or interaction that Angular Material already provides, implement and verify its
     `<cem-element>`-based `@epa-wg/cem-components` counterpart first, then consume it from Studio. A Studio-specific
     component or application-local implementation may lead only when no Angular Material counterpart exists.
+12. Keep Markdown token specifications under `packages/cem-theme/src/lib/tokens/` canonical. Generated Figma mode
+    files are pull-only projections, and live Figma library/prototype updates run only after the site, Studio, native
+    package, and release-governance phases are complete.
 
 ## Phase 0 - Repo Spine And Docs
 
@@ -78,7 +81,7 @@ Deliverables:
 Remaining gates: none under Phase 1. Native toolchain compile gates (Swift, Kotlin/Compose) and the non-Figma
 token-change smoke test moved to [Phase 8 - Native Platform Packages](#phase-8---native-platform-packages) where the
 native artifacts they validate are owned. Figma-specific token validation moved to
-[Phase 5 - Figma UI Kit](#phase-5---figma-ui-kit) so the gate lands alongside the kit it validates.
+[Phase 10 - Figma UI Kit](#phase-10---figma-ui-kit) so the gate lands alongside the kit it validates.
 
 ## Phase 2 - Schema-Defined Parser And Document Runtime
 
@@ -434,30 +437,8 @@ Exit criteria:
 - No Studio component duplicates an Angular Material capability that lacks the corresponding general CEM component;
   parity coverage is represented as CEM semantic components rather than direct Material clones.
 
-## Phase 5 - Figma UI Kit
-
-Goal: give designers a governed, usable design kit tied to generated tokens and component semantics.
-Starts after the Phase 4 CEM Component Set has stable names, variants, states, and accessibility semantics.
-
-Deliverables:
-
-- Figma variables sourced from generated CEM token files through the documented pull-only workflow.
-- Component variants matching the CEM component set: states, density, mode, intent, size, and validation.
-- Usage pages for forms, navigation, data views, profile, assets, and discussion threads.
-- Handoff annotations mapping Figma components to CEM elements and attributes.
-- Governance rules for token updates, kit releases, and no write-back to source markdown.
-
-Token-validation gates (moved from Phase 1):
-
-- Validate native Figma library variables against the generated `figma/cem-*.tokens.json` files for every mode. The
-  gate ships with the UI Kit because the validation is meaningful only against a populated kit.
-- Extend the Phase 1 token-change smoke test to cover the Figma propagation path end to end (CSS / JSON / Swift /
-  Android already gated in Phase 1).
-
-Exit criteria:
-
-- Designers can mock the major CEM demo flows without inventing colors, spacing, or unsupported component states.
-- Figma names and component variants map cleanly to code names.
+Scheduling note: the former Phase 5 UI Kit and Phase 7 Figma demo were reassigned to final Phases 10 and 11. Existing
+non-Figma phase identifiers remain stable so their established plans and references do not need unrelated renumbering.
 
 ## Phase 6 - CEM Site
 
@@ -534,9 +515,89 @@ Exit criteria:
 - A Studio dependency audit proves that every Angular-Material-equivalent control comes from its completed general CEM
   parity component; only controls with no catalog counterpart may originate in `/studio` or the application.
 
-## Phase 7 - Figma Site Demo
+## Phase 8 - Native Platform Packages
+
+Goal: move beyond generated token files into credible platform integration.
+
+Deliverables:
+
+- iOS package layout for generated Swift tokens and sample SwiftUI usage.
+- Android package layout for XML resources, Kotlin constants, and sample Compose usage.
+- Native component guidance for the CEM component set: names, state mapping, color/typography mapping, and accessibility.
+- CI/toolchain validation for Swift and Kotlin outputs.
+- Native visual parity checks against web/Figma references where practical.
+
+Native validation gates (moved from Phase 1):
+
+- Generated Swift compiles with the supported Xcode/Swift toolchain.
+- Generated Kotlin/Compose compiles with the supported Gradle/Kotlin toolchain.
+- Generated iOS and Android reports show zero fail-hard violations before release.
+- Full token-change smoke test through CSS, JSON, Swift, and Android outputs. (The Figma propagation leg lives in
+  Phase 10.)
+
+Exit criteria:
+
+- Native consumers can install or copy generated artifacts and pass compile checks without reading generator internals.
+
+## Phase 9 - Release, Governance, And Compatibility
+
+Goal: make CEM maintainable as a public design-system product.
+
+Deliverables:
+
+- Versioning policy for token names, component APIs, XML schema, native outputs, and the fixed
+  CEM-ML runtime/CLI/Studio deployment family.
+- Migration guides and deprecation reports.
+- CI gates for build, lint, token reports, component tests, docs links, examples, and native compilation.
+- Package export maps and published artifacts for stable public contracts.
+- `cem-ml` CLI public distribution: separate `@epa-wg/cem-ml` WASM runtime and `@epa-wg/cem-ml-cli` Node/WASM CLI npm
+  packages plus Linux AMD64 archives. Preserve those three release units as non-replaced assets on the matching tagged
+  GitHub Release with checksums, signatures, SBOMs, provenance, install docs, and smoke tests; publish only after the
+  complete release-scoped asset set is staged and verified. Keep Homebrew ARM64 and Windows AMD64 deployment projects
+  as local validation surfaces until separately promoted into distribution scope.
+- `@epa-wg/cem-studio` npm/PWA publication from the same fixed CEM-ML version and release commit, including static
+  deployment assets, capability/build metadata, service-worker update checks, and clean-consumer verification.
+- Contribution guidelines for token specs, components, docs, and native package updates.
+
+Exit criteria:
+
+- A release can be cut with confidence that token, web, native, docs, and demo contracts are coherent before the final
+  Figma projection phases begin.
+- Users can install `cem-ml` as WASM for Node or from the Linux AMD64 native package and run the same portable CLI smoke
+  test on each published runtime.
+- Every release-scoped binary remains recoverable from the version's GitHub Release, and all CEM-ML npm, native, and Studio
+  artifacts report the exact version originating from common `cem_ml`.
+
+## Phase 10 - Figma UI Kit
+
+Goal: give designers a governed, usable design kit tied to generated tokens and component semantics.
+This final projection phase starts only after Phase 9 is complete.
+
+Deliverables:
+
+- Figma variables sourced from generated CEM token files through the documented pull-only workflow. The canonical
+  values remain the Markdown token specifications under `packages/cem-theme/src/lib/tokens/`.
+- Component variants matching the CEM component set: states, density, mode, intent, size, and validation.
+- Usage pages for forms, navigation, data views, profile, assets, and discussion threads.
+- Handoff annotations mapping Figma components to CEM elements and attributes.
+- Governance rules for token updates, kit releases, and no write-back to source markdown.
+
+Token-validation gates (moved from Phase 1):
+
+- Validate native Figma library variables against the generated `figma/cem-*.tokens.json` files for every mode. The
+  gate ships with the UI Kit because the validation is meaningful only against a populated kit.
+- Extend the Phase 1 token-change smoke test to cover the Figma propagation path end to end (CSS / JSON / Swift /
+  Android already gated in Phase 1).
+
+Exit criteria:
+
+- Designers can mock the major CEM demo flows without inventing colors, spacing, or unsupported component states.
+- Figma names and component variants map cleanly to code names.
+
+## Phase 11 - Figma Site Demo
 
 Goal: prove CEM on a realistic product surface that designers, developers, and native consumers can all inspect.
+This phase starts only after the Phase 10 UI Kit is reviewed and published.
 
 Scope:
 
@@ -559,58 +620,6 @@ Exit criteria:
 
 - The same flows exist in Figma, CEM fixture form, and web-rendered form with consistent tokens and component semantics.
 
-## Phase 8 - Native Platform Packages
-
-Goal: move beyond generated token files into credible platform integration.
-
-Deliverables:
-
-- iOS package layout for generated Swift tokens and sample SwiftUI usage.
-- Android package layout for XML resources, Kotlin constants, and sample Compose usage.
-- Native component guidance for the CEM component set: names, state mapping, color/typography mapping, and accessibility.
-- CI/toolchain validation for Swift and Kotlin outputs.
-- Native visual parity checks against web/Figma references where practical.
-
-Native validation gates (moved from Phase 1):
-
-- Generated Swift compiles with the supported Xcode/Swift toolchain.
-- Generated Kotlin/Compose compiles with the supported Gradle/Kotlin toolchain.
-- Generated iOS and Android reports show zero fail-hard violations before release.
-- Full token-change smoke test through CSS, JSON, Swift, and Android outputs. (The Figma propagation leg lives in
-  Phase 5.)
-
-Exit criteria:
-
-- Native consumers can install or copy generated artifacts and pass compile checks without reading generator internals.
-
-## Phase 9 - Release, Governance, And Compatibility
-
-Goal: make CEM maintainable as a public design-system product.
-
-Deliverables:
-
-- Versioning policy for token names, component APIs, XML schema, native outputs, Figma kit releases, and the fixed
-  CEM-ML runtime/CLI/Studio deployment family.
-- Migration guides and deprecation reports.
-- CI gates for build, lint, token reports, component tests, docs links, examples, and native compilation.
-- Package export maps and published artifacts for stable public contracts.
-- `cem-ml` CLI public distribution: separate `@epa-wg/cem-ml` WASM runtime and `@epa-wg/cem-ml-cli` Node/WASM CLI npm
-  packages plus Linux AMD64 archives. Preserve those three release units as non-replaced assets on the matching tagged
-  GitHub Release with checksums, signatures, SBOMs, provenance, install docs, and smoke tests; publish only after the
-  complete release-scoped asset set is staged and verified. Keep Homebrew ARM64 and Windows AMD64 deployment projects
-  as local validation surfaces until separately promoted into distribution scope.
-- `@epa-wg/cem-studio` npm/PWA publication from the same fixed CEM-ML version and release commit, including static
-  deployment assets, capability/build metadata, service-worker update checks, and clean-consumer verification.
-- Contribution guidelines for token specs, components, docs, and design kit updates.
-
-Exit criteria:
-
-- A release can be cut with confidence that token, web, native, Figma, docs, and demo contracts are coherent.
-- Users can install `cem-ml` as WASM for Node or from the Linux AMD64 native package and run the same portable CLI smoke
-  test on each published runtime.
-- Every release-scoped binary remains recoverable from the version's GitHub Release, and all CEM-ML npm, native, and Studio
-  artifacts report the exact version originating from common `cem_ml`.
-
 ## Suggested Milestone Sequence
 
 | Milestone | Focus                                                     | Why now                                                                                                                                                           |
@@ -623,12 +632,12 @@ Exit criteria:
 | M3c       | `@epa-wg/custom-element` monorepo adoption                | The published package adopts the substrate only after browser parity and the Edge/SSR follow-up are green.                                                        |
 | M3d       | Custom-element runtime primitives                         | Components need stable behavior conventions before broad catalog work; they consume the parity-proven substrate from M3a.                                         |
 | M4        | Angular Material parity through CEM components            | Completes the reusable `<cem-element>`-based control baseline before Studio or demos create equivalent one-off UI.                                                |
-| M5        | Figma UI Kit MVP                                          | Designers need the same semantics once component names and states stabilize.                                                                                      |
 | M6        | CEM site                                                  | Public documentation should be generated from stable package and component contracts.                                                                             |
 | M6.5      | CEM Studio PWA                                            | The browser workbench composes the stable CLI/WASM contract and parity-complete components; only UI absent from Angular Material may begin as Studio-specific.    |
-| M7        | Figma site demo plus matching web fixtures                | Full-flow demo proves the system across design and implementation.                                                                                                |
 | M8        | Native package hardening                                  | Native artifacts become product-grade once token/component semantics are stable.                                                                                  |
 | M9        | Release governance, CLI artifacts, and Studio publication | Formalize compatibility, preserve release-scoped WASM/Linux assets on tagged GitHub Releases, and publish the fixed-version npm/CLI/native/Studio family.         |
+| M10       | Figma UI Kit MVP                                          | Project the completed code and token contracts into Figma only after the non-Figma product and governance phases are complete.                                    |
+| M11       | Figma site demo plus matching web fixtures                | Finish with a full-flow parity proof across the reviewed UI Kit, fixtures, web implementation, and native guidance.                                               |
 
 ## Near-Term Backlog
 
@@ -648,5 +657,6 @@ Exit criteria:
 - Promote the Studio project model, browser command round trip, local persistence and File System Access provider,
   themed component boundary, and PWA verification contract into task-level acceptance criteria when Phase 6.5 is
   scheduled.
-- Add a Figma UI Kit plan that maps components to generated token variables.
 - Add native compile validation to CI once Swift and Kotlin toolchains are available.
+- Add a final-phase Figma UI Kit plan that maps components to generated token variables without writing values back to
+  the canonical Markdown token specifications.

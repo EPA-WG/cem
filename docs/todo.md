@@ -7,9 +7,10 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
-Build and review the Phase 5 CEM UI Kit `02 Foundations` page from the canonical
-native CEM variables, without introducing raw replacement values or making Figma
-a source of truth.
+Inventory and lock the Phase 6 CEM Site implementation boundary, then build the
+root-wired documentation product from canonical repository sources. Live Figma
+library and prototype updates are deferred to final Phases 10 and 11; Markdown
+token specifications under `packages/cem-theme/src/lib/tokens/` remain canonical.
 
 Phase 2.6 is complete. Its checklist is archived in
 [`archive/todo-completed-2026-08-18.md`](archive/todo-completed-2026-08-18.md),
@@ -347,8 +348,17 @@ registration identities may reuse an inherited or existing definition.
 
 The Edge/SSR host fixtures belong to Phase 3.5 after the browser substrate is
 stable. Moving `@epa-wg/custom-element` into the monorepo and deciding final
-legacy XSLT preservation belong to Phase 3.6. Figma UI Kit work remains Phase 5,
-and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
+legacy XSLT preservation belong to Phase 3.6. Swift/Xcode plus Kotlin/Compose
+compile gates remain Phase 8. Live Figma UI Kit and prototype work is deferred
+until final Phases 10 and 11, after Phase 9 release governance.
+
+- [x] Move all remaining live Figma library and prototype updates behind the
+      CEM Site, Studio, native-package, and release-governance phases.
+      Completed 2026-08-19: `roadmap.md` now makes the pull-only Figma UI Kit and
+      site demo final Phases 10 and 11, and this checklist activates Phase 6 while
+      preserving completed credential-free Figma preparation at the end. No live
+      Figma state changed; generated artifacts remain downstream projections of
+      the canonical theme Markdown specifications.
 
 - [x] Before activating Phase 3.5, split its six Storybook cases and supporting
       processing-boundary selections from the shared Phase 3A files so
@@ -595,12 +605,48 @@ and Swift/Xcode plus Kotlin/Compose compile gates remain Phase 8.
       `@epa-wg/custom-element` now adopts it, while `@epa-wg/cem-elements`
       remains the shared substrate and package rather than being deleted.
 
-## Phase 5 Checklist
+## Phase 6 Checklist
+
+- [ ] Inventory the current root, package, generated-documentation, and example
+      surfaces, then lock the CEM Site project and content-ownership boundary
+      before scaffolding.
+    - [ ] Map reusable authored Markdown, generated token/API reports, component
+          examples, release notes, and existing browser entry points.
+    - [ ] Record the evidence-based choice between `apps/cem-site` and a static
+          docs application, including build, routing, deployment, and Nx target
+          ownership.
+    - [ ] Define authored-versus-generated content ownership so the site never
+          becomes a second source for token, API, or component contracts.
+- [ ] Create the root-wired CEM Site shell with stable routes and generated-doc
+      ingestion from public package/report boundaries.
+- [ ] Build the guides, token browser, component gallery, examples, API/reference,
+      and release-notes surfaces without duplicating canonical source content.
+- [ ] Add interactive token, component, CEM fixture, and native-output examples
+      using the production CEM/custom-element implementation.
+- [ ] Add search, stable deep links, root navigation, and optional Angular Material
+      coverage comparison from the pinned parity evidence.
+- [ ] Add cached Nx verification for site build, links, generated-content drift,
+      accessibility, and clean deployment output before closing Phase 6.
+
+## Later Non-Figma Phase Gates
+
+Expand each gate into its task-level checklist when it becomes the immediate
+goal. These gates deliberately keep the deferred Figma work from becoming active
+before the non-Figma roadmap is complete.
+
+- [ ] Complete Phase 6.5, the CEM Studio PWA and browser workbench, after the CEM
+      Site contract is stable.
+- [ ] Complete Phase 8 native platform package hardening and toolchain validation.
+- [ ] Complete Phase 9 release, governance, and compatibility work for the code,
+      docs, Studio, and native distribution surfaces.
+
+## Phase 10 Checklist — Deferred Figma UI Kit
 
 Phase 4 component names, variants, executable states, and accessibility semantics
-are complete in the archived checklist, and the Phase 5 repository foundation
+are complete in the archived checklist, and the Phase 10 repository foundation
 already owns the five-mode token gate and 48-primitive executable Figma inventory.
-The remaining Phase 5 work is reviewed canvas work in the canonical CEM UI Kit.
+The remaining Phase 10 work is reviewed canvas work in the canonical CEM UI Kit
+and must not start before Phase 9 is complete.
 
 - [ ] Build and review the `02 Foundations` page from native CEM variables.
     - [x] Re-run the credential-free repository preflight and confirm the
@@ -691,10 +737,19 @@ The remaining Phase 5 work is reviewed canvas work in the canonical CEM UI Kit.
           remaining component inventory.
 - [ ] Complete `03 Components` for every executable inventory entry, keeping
       inert payloads nested under their consuming visual owners.
+- [ ] Populate `99 QA`, run the offline token/component gates, record the
+      reviewed Figma revision and five-mode evidence, and publish the Phase 10
+      library only after raw-value, detached-shape, state, and documentation
+      checks pass.
+
+## Phase 11 Checklist — Deferred Figma Site Demo
+
+Phase 11 starts only after the Phase 10 UI Kit is reviewed and published.
+
 - [ ] Build `04 Patterns` for auth, profile, assets, discussion, and settings
       entirely from library instances, then compose `05 Site Demo` from those
       patterns without detached one-off controls.
-- [ ] Populate `99 QA`, run the offline token/component gates, record the
-      reviewed Figma revision and five-mode evidence, and publish the Phase 5
-      library only after raw-value, detached-shape, state, and documentation
-      checks pass.
+- [ ] Add matching CEM XML/HTML fixtures and a web implementation built from CEM
+      components, with native iOS/Android token-usage notes.
+- [ ] Record scenario tests, screenshots, and reviewed Figma evidence proving
+      consistent tokens and component semantics across design and implementation.
