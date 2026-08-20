@@ -1369,6 +1369,7 @@ mod tests {
                     destination: None,
                     identity: Some(json_identity()),
                     primary: json!({"graph": true}),
+                    primary_bytes: None,
                     source_map: None,
                     output_spans: Vec::new(),
                 }],

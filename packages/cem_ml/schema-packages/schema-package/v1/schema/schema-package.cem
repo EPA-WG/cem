@@ -44,7 +44,7 @@
         {attribute @name="template-entrypoint" @type="schema:identifier"}
         {attribute @name="rust-symbol" @type="schema:identifier"}
         {attribute @name="streamable" @type="schema:boolean"}
-        {attribute @name="lossiness" @type="schema:identifier" @values="lossless serialization syntax-normalized debug-view recovery"}
+        {attribute @name="lossiness" @type="schema:identifier" @values="lossless serialization syntax-normalized presentation debug-view recovery"}
         {attribute @name="output-syntax" @type="schema:identifier" @values="html xml json yaml csv css markdown cemt text binary opaque"}
         {attribute @name="encoding-category" @type="schema:identifier"}
         {attribute @name="formatter-profile" @type="schema:symbol-reference"}

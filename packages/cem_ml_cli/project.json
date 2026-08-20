@@ -124,6 +124,7 @@
                         "cem_ml_schema_package_json_schema_v1",
                         "cem_ml_schema_package_markdown_v1",
                         "cem_ml_schema_package_module_map_v1",
+                        "cem_ml_schema_package_module_map_v2_v1",
                         "cem_ml_schema_package_mathml_v1",
                         "cem_ml_schema_package_relax_ng_v1",
                         "cem_ml_schema_package_schema_v1",
@@ -273,10 +274,7 @@
                 "{workspaceRoot}/packages/cem-elements/tests/parity/legacy/**/*",
                 "{workspaceRoot}/packages/cem-elements/tests/parity/material/**/*"
             ],
-            "outputs": [
-                "{projectRoot}/dist/cem-ml.report.cem",
-                "{projectRoot}/dist/cem-ml.report.md"
-            ]
+            "outputs": ["{projectRoot}/dist/cem-ml.report.cem", "{projectRoot}/dist/cem-ml.report.md"]
         },
         "validate-converter-parity": {
             "executor": "nx:run-commands",
@@ -301,6 +299,7 @@
                         "cem_ml_schema_package_json_schema_v1",
                         "cem_ml_schema_package_markdown_v1",
                         "cem_ml_schema_package_module_map_v1",
+                        "cem_ml_schema_package_module_map_v2_v1",
                         "cem_ml_schema_package_mathml_v1",
                         "cem_ml_schema_package_relax_ng_v1",
                         "cem_ml_schema_package_schema_v1",
@@ -328,20 +327,14 @@
                 "{workspaceRoot}/packages/cem_ml/schema-packages/**/*.cemt",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/**/*.cem-bin"
             ],
-            "outputs": [
-                "{projectRoot}/dist/cem-ml.parity.report.json",
-                "{projectRoot}/dist/cem-ml.parity.report.md"
-            ]
+            "outputs": ["{projectRoot}/dist/cem-ml.parity.report.json", "{projectRoot}/dist/cem-ml.parity.report.md"]
         },
         "validate-cemt-pipeline-fixture": {
             "executor": "nx:run-commands",
             "dependsOn": [
                 "build",
                 {
-                    "projects": [
-                        "cem_ml_schema_package_cem_ml_v1",
-                        "cem_ml_schema_package_cem_transform_v1"
-                    ],
+                    "projects": ["cem_ml_schema_package_cem_ml_v1", "cem_ml_schema_package_cem_transform_v1"],
                     "target": "verify"
                 }
             ],
@@ -461,6 +454,7 @@
                         "cem_ml_schema_package_json_schema_v1",
                         "cem_ml_schema_package_markdown_v1",
                         "cem_ml_schema_package_module_map_v1",
+                        "cem_ml_schema_package_module_map_v2_v1",
                         "cem_ml_schema_package_mathml_v1",
                         "cem_ml_schema_package_relax_ng_v1",
                         "cem_ml_schema_package_schema_v1",
@@ -537,9 +531,7 @@
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/examples/cem-ml/**/*.cem"
             ],
-            "outputs": [
-                "{projectRoot}/dist/cem-ml.bench.report.json"
-            ]
+            "outputs": ["{projectRoot}/dist/cem-ml.bench.report.json"]
         }
     },
     "tags": ["scope:cem-ml", "type:app", "lang:rust"]

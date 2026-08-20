@@ -1,0 +1,24 @@
+{
+    "$schema": "https://cem.dev/ns/data/module-map/2",
+    "imports": {
+        "lit": "./vendor/lit.js"
+    },
+    "resources": {
+        "@fixture/runtime/sidecar": {
+            "path": "./vendor/runtime/sidecar.js",
+            "contentType": "text/javascript"
+        },
+        "@fixture/runtime/worker": {
+            "path": "./vendor/runtime/worker.mjs",
+            "contentType": "text/javascript"
+        },
+        "@fixture/runtime/styles": {
+            "path": "./vendor/runtime/styles.css",
+            "contentType": "text/css"
+        },
+        "@fixture/runtime/wasm": {
+            "path": "./vendor/runtime/runtime.wasm",
+            "contentType": "application/wasm"
+        }
+    }
+}

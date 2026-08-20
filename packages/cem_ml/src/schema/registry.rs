@@ -28,6 +28,7 @@ pub const YAML_SCHEMA_URI: &str = "https://cem.dev/ns/data/yaml/1";
 pub const CSV_SCHEMA_URI: &str = "https://cem.dev/ns/data/csv/1";
 pub const MARKDOWN_SCHEMA_URI: &str = "https://cem.dev/ns/data/markdown/1";
 pub const MODULE_MAP_SCHEMA_URI: &str = "https://cem.dev/ns/data/module-map/1";
+pub const MODULE_MAP_V2_SCHEMA_URI: &str = "https://cem.dev/ns/data/module-map/2";
 pub const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
 pub const RELAX_NG_SCHEMA_URI: &str = "https://cem.dev/ns/data/relax-ng/1";
 pub const RELAX_NG_NAMESPACE_URI: &str = "http://relaxng.org/ns/structure/1.0";

@@ -6840,14 +6840,18 @@ fn write_transform_graph_artifacts(
         .collect::<BTreeSet<_>>();
     for artifact in artifacts {
         let out = artifact.destination.as_deref().map(Path::new);
-        write_document_primary_with_identity(
-            context,
-            &artifact.primary,
-            artifact.identity.as_ref(),
-            out,
-            output_color_type,
-            s,
-        )?;
+        if let Some(primary_bytes) = artifact.primary_bytes.as_ref() {
+            write_raw_primary_bytes(context, &primary_bytes.bytes, out, s)?;
+        } else {
+            write_document_primary_with_identity(
+                context,
+                &artifact.primary,
+                artifact.identity.as_ref(),
+                out,
+                output_color_type,
+                s,
+            )?;
+        }
         write_transform_graph_source_map_sidecar(context, artifact)?;
         write_transform_graph_collection_item_artifacts(
             context,
@@ -6914,7 +6918,14 @@ fn stage_transform_graph_artifacts(
                 Path::new(destination),
                 "output destination",
                 ResolvePurpose::Output,
-                document_primary_bytes(&artifact.primary, artifact.identity.as_ref())?,
+                artifact
+                    .primary_bytes
+                    .as_ref()
+                    .map(|primary| primary.bytes.clone())
+                    .map(Ok)
+                    .unwrap_or_else(|| {
+                        document_primary_bytes(&artifact.primary, artifact.identity.as_ref())
+                    })?,
             );
             stage_transform_graph_source_map_sidecar(batch, artifact)?;
         }
@@ -9322,6 +9333,115 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_module_map_v2_publishes_explicit_text_and_binary_resources_atomically() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-module-resources");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(root.join("maps")).unwrap();
+        std::fs::create_dir_all(root.join("node_modules/@pkg")).unwrap();
+        std::fs::write(
+            root.join("src/page.html"),
+            r#"<!doctype html><html><head><script type="importmap">{"imports":{"@pkg/runtime":"../node_modules/@pkg/runtime.js"}}</script></head><body></body></html>"#,
+        )
+        .unwrap();
+        let module_bytes = b"export const runtime = 'declared';\n";
+        let sidecar_bytes = b"export const sidecar = true;\n";
+        let worker_bytes = b"self.postMessage('ready');\n";
+        let css_bytes = b".runtime { color: red; }\n";
+        let wasm_bytes = [0x00, 0x61, 0x73, 0x6d, 0xff, 0x00];
+        std::fs::write(root.join("node_modules/@pkg/runtime.js"), module_bytes).unwrap();
+        std::fs::write(root.join("node_modules/@pkg/sidecar.js"), sidecar_bytes).unwrap();
+        std::fs::write(root.join("node_modules/@pkg/worker.mjs"), worker_bytes).unwrap();
+        std::fs::write(root.join("node_modules/@pkg/styles.css"), css_bytes).unwrap();
+        std::fs::write(root.join("node_modules/@pkg/runtime.wasm"), wasm_bytes).unwrap();
+        std::fs::write(
+            root.join("node_modules/@pkg/undeclared.js"),
+            b"throw new Error('undeclared');\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("maps/source.module-map.json"),
+            r#"{
+  "$schema": "https://cem.dev/ns/data/module-map/2",
+  "imports": {"@pkg/runtime": "../node_modules/@pkg/runtime.js"},
+  "resources": {
+    "@pkg/runtime/sidecar": {"path": "../node_modules/@pkg/sidecar.js", "contentType": "text/javascript"},
+    "@pkg/runtime/worker": {"path": "../node_modules/@pkg/worker.mjs", "contentType": "text/javascript"},
+    "@pkg/runtime/styles": {"path": "../node_modules/@pkg/styles.css", "contentType": "text/css"},
+    "@pkg/runtime/wasm": {"path": "../node_modules/@pkg/runtime.wasm", "contentType": "application/wasm"}
+  }
+}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("maps/dist.module-map.json"),
+            r#"{
+  "$schema": "https://cem.dev/ns/data/module-map/2",
+  "imports": {"@pkg/runtime": "./vendor/runtime.js"},
+  "resources": {
+    "@pkg/runtime/sidecar": {"path": "./vendor/sidecar.js", "contentType": "text/javascript"},
+    "@pkg/runtime/worker": {"path": "./vendor/worker.mjs", "contentType": "text/javascript"},
+    "@pkg/runtime/styles": {"path": "./vendor/styles.css", "contentType": "text/css"},
+    "@pkg/runtime/wasm": {"path": "./vendor/runtime.wasm", "contentType": "application/wasm"}
+  }
+}"#,
+        )
+        .unwrap();
+        let config = root.join("rewrite.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=page @src="src/page.html" @content-type="text/html" |
+    {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" |
+      {export @id=html @out="dist/page.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let report_path = root.join("report.json");
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--quiet",
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        for (relative, expected) in [
+            ("runtime.js", module_bytes.as_slice()),
+            ("sidecar.js", sidecar_bytes.as_slice()),
+            ("worker.mjs", worker_bytes.as_slice()),
+            ("styles.css", css_bytes.as_slice()),
+            ("runtime.wasm", wasm_bytes.as_slice()),
+        ] {
+            assert_eq!(
+                std::fs::read(root.join("dist/vendor").join(relative)).unwrap(),
+                expected
+            );
+        }
+        assert!(!root.join("dist/vendor/undeclared.js").exists());
+        let html = std::fs::read_to_string(root.join("dist/page.html")).unwrap();
+        assert!(html.contains("\"@pkg/runtime\": \"./vendor/runtime.js\""));
+        assert!(!html.contains("@pkg/runtime/wasm"));
+        assert!(!html.contains("node_modules"));
+        let report: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(report_path).unwrap()).unwrap();
+        assert_eq!(
+            report["reportAst"]["transformGraph"]["moduleAssetManifest"]["assetCount"],
+            5
+        );
+    }
+
+    #[test]
     fn transform_config_module_asset_manifest_reports_and_hashes_without_output_writes() {
         let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-module-manifest");
         let _ = std::fs::remove_dir_all(&root);
@@ -9897,6 +10017,7 @@ mod tests {
                 export_id: "main".to_owned(),
                 input: "html".to_owned(),
                 destination: Some("out/page.html".to_owned()),
+                primary_bytes: None,
                 identity: Some(eng::FormatIdentity {
                     content_type: Some("text/html".to_owned()),
                     ..eng::FormatIdentity::default()
@@ -9911,6 +10032,7 @@ mod tests {
                 export_id: "stdout".to_owned(),
                 input: "html".to_owned(),
                 destination: None,
+                primary_bytes: None,
                 identity: None,
                 primary: serde_json::json!({
                     "kind": "document"
@@ -9922,6 +10044,7 @@ mod tests {
                 export_id: "collection".to_owned(),
                 input: "joined".to_owned(),
                 destination: Some("out/collection.json".to_owned()),
+                primary_bytes: None,
                 identity: Some(eng::FormatIdentity {
                     content_type: Some("application/json".to_owned()),
                     ..eng::FormatIdentity::default()
@@ -10111,6 +10234,7 @@ mod tests {
             export_id: "main".to_owned(),
             input: "html".to_owned(),
             destination: Some(out.display().to_string()),
+            primary_bytes: None,
             identity: Some(eng::FormatIdentity {
                 content_type: Some("text/html".to_owned()),
                 ..eng::FormatIdentity::default()
@@ -10171,6 +10295,7 @@ mod tests {
             export_id: "joined".to_owned(),
             input: "collection".to_owned(),
             destination: Some(out.display().to_string()),
+            primary_bytes: None,
             identity: Some(eng::FormatIdentity {
                 content_type: Some("application/json".to_owned()),
                 ..eng::FormatIdentity::default()
@@ -10285,6 +10410,7 @@ mod tests {
             export_id: "joined".to_owned(),
             input: "collection".to_owned(),
             destination: Some(out.display().to_string()),
+            primary_bytes: None,
             identity: Some(eng::FormatIdentity {
                 content_type: Some("application/yaml".to_owned()),
                 schema: Some(cem_ml::schema::registry::YAML_SCHEMA_URI.to_owned()),
@@ -10370,6 +10496,7 @@ mod tests {
             export_id: "joined".to_owned(),
             input: "collection".to_owned(),
             destination: Some(out.display().to_string()),
+            primary_bytes: None,
             identity: Some(eng::FormatIdentity {
                 content_type: Some(cem_ml::schema::registry::XML_CONTENT_TYPE.to_owned()),
                 schema: Some(cem_ml::schema::registry::XML_SCHEMA_URI.to_owned()),

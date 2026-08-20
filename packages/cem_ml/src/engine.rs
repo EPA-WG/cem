@@ -991,6 +991,7 @@ pub struct TransformGraphModuleAsset {
 pub struct TransformGraphImport {
     pub id: String,
     pub input: EngineInput,
+    pub opaque: bool,
     pub scheduler_scope_id: u32,
 }
 
@@ -1287,6 +1288,8 @@ pub struct TransformGraphArtifact {
     #[serde(default)]
     pub identity: Option<FormatIdentity>,
     pub primary: Value,
+    #[serde(skip)]
+    pub primary_bytes: Option<PrimaryBytes>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_map: Option<SourceMapStack>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1836,6 +1839,7 @@ mod tests {
             imports: vec![TransformGraphImport {
                 id: "book".to_owned(),
                 input: engine_input("book.xml", "application/xml"),
+                opaque: false,
                 scheduler_scope_id: 1,
             }],
             joins: Vec::new(),
@@ -1922,6 +1926,7 @@ mod tests {
             imports: vec![TransformGraphImport {
                 id: "page".to_owned(),
                 input: engine_input("page.html", "text/html"),
+                opaque: false,
                 scheduler_scope_id: 1,
             }],
             joins: Vec::new(),
@@ -2017,11 +2022,13 @@ mod tests {
                 TransformGraphImport {
                     id: "book".to_owned(),
                     input: engine_input("book.xml", "application/xml"),
+                    opaque: false,
                     scheduler_scope_id: 1,
                 },
                 TransformGraphImport {
                     id: "stats".to_owned(),
                     input: engine_input("stats.xml", "application/xml"),
+                    opaque: false,
                     scheduler_scope_id: 2,
                 },
             ],

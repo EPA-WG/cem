@@ -2817,11 +2817,36 @@ fn load_transform_data_artifact(
     input: &EngineInput,
     context: &EngineContext,
     artifact_id: impl Into<String>,
+    opaque: bool,
 ) -> (TransformTemplateDataArtifact, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     let mut scope_diagnostics =
         root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
     diagnostics.append(&mut scope_diagnostics);
+    if opaque {
+        let identity = input.identity.clone().unwrap_or_default();
+        let encoding = identity
+            .content_type
+            .as_deref()
+            .map(content_type_essence)
+            .filter(|content_type| {
+                content_type == "application/octet-stream"
+                    || content_type == "application/wasm"
+                    || content_type.ends_with("+cem-bin")
+            })
+            .map(|_| TransformEncoding::Binary)
+            .unwrap_or(TransformEncoding::Text);
+        let artifact = TransformTemplateDataArtifact {
+            artifact_id: artifact_id.into(),
+            uri: Some(input_uri(input, context)),
+            identity: input.identity.clone(),
+            body: TransformArtifactBody::Encoded(Arc::new(
+                TransformEncodedArtifact::new(identity, encoding, input.bytes.clone())
+                    .expect("opaque graph resource identity must match its encoding"),
+            )),
+        };
+        return (artifact, diagnostics);
+    }
     let mut loaded = load_input_through_lifecycle(input, context);
     diagnostics.append(&mut loaded.diagnostics);
     let body = if let Some(ast_stream) = loaded.ast_stream.take() {
@@ -3236,13 +3261,53 @@ fn convert_transform_graph_artifact(
     ))
 }
 
+type TransformGraphExportPrimary = (
+    Value,
+    Option<PrimaryBytes>,
+    Option<SourceMapStack>,
+    Vec<OutputSpan>,
+);
+
 fn transform_graph_export_primary(
     context: &EngineContext,
     artifact: &TransformTemplateDataArtifact,
     metadata: &TransformOutputMetadata,
     target: Option<&FormatIdentity>,
     style_projection: TransformGraphHtmlStyleProjection,
-) -> Result<(Value, Option<SourceMapStack>, Vec<OutputSpan>), String> {
+) -> Result<TransformGraphExportPrimary, String> {
+    if let TransformArtifactBody::Encoded(encoded) = &artifact.body {
+        if encoded.encoding == TransformEncoding::Binary {
+            let identity = target
+                .or(artifact.identity.as_ref())
+                .unwrap_or(&encoded.identity);
+            let content_type = identity
+                .content_type
+                .clone()
+                .unwrap_or_else(|| "application/octet-stream".to_owned());
+            let bytes = encoded.bytes.as_ref().to_vec();
+            let hash = crate::command_service::sha256_hex(&bytes);
+            let primary_bytes = PrimaryBytes {
+                content_type: content_type.clone(),
+                schema: identity.schema.clone(),
+                format_version: "raw-resource/1".to_owned(),
+                hash_scheme: "sha256".to_owned(),
+                hash: hash.clone(),
+                bytes,
+            };
+            return Ok((
+                json!({
+                    "kind": "resource",
+                    "contentType": content_type,
+                    "schema": identity.schema,
+                    "byteLength": primary_bytes.bytes.len(),
+                    "sha256": hash,
+                }),
+                Some(primary_bytes),
+                metadata.source_map.clone(),
+                metadata.output_spans.clone(),
+            ));
+        }
+    }
     if transform_graph_target_is_css(target) {
         if let Some(raw_content) = transform_graph_artifact_raw_content(artifact, Some(metadata)) {
             if let Some(css) =
@@ -3257,6 +3322,7 @@ fn transform_graph_export_primary(
                         "kind": "document",
                         "content": css.content,
                     }),
+                    None,
                     source_map,
                     css.output_spans,
                 ));
@@ -3290,6 +3356,7 @@ fn transform_graph_export_primary(
                         "kind": "html",
                         "content": html.content,
                     }),
+                    None,
                     source_map,
                     html.output_spans,
                 ));
@@ -3306,6 +3373,7 @@ fn transform_graph_export_primary(
     )?;
     Ok((
         primary,
+        None,
         metadata.source_map.clone(),
         metadata.output_spans.clone(),
     ))
@@ -11368,7 +11436,7 @@ impl CemMlEngine for RealCemMlEngine {
         let mut primary_input: Option<TransformTemplateDataArtifact> = None;
         data_pool.run_to_completion(&abort, |_| {
             let (artifact, mut data_diagnostics) =
-                load_transform_data_artifact(&request.data, &request.context, "data");
+                load_transform_data_artifact(&request.data, &request.context, "data", false);
             diagnostics.append(&mut data_diagnostics);
             primary_input = Some(artifact);
         });
@@ -11577,8 +11645,12 @@ impl CemMlEngine for RealCemMlEngine {
                     )
                     .expect("raw graph import text encoding must be valid")
                 } else {
-                    let (artifact, mut import_diagnostics) =
-                        load_transform_data_artifact(&import.input, &request.context, &import.id);
+                    let (artifact, mut import_diagnostics) = load_transform_data_artifact(
+                        &import.input,
+                        &request.context,
+                        &import.id,
+                        import.opaque,
+                    );
                     diagnostics.append(&mut import_diagnostics);
                     artifact
                 };
@@ -11980,13 +12052,15 @@ impl CemMlEngine for RealCemMlEngine {
                     let identity = export.target.clone().or_else(|| artifact.identity.clone());
                     let style_projection =
                         transform_graph_html_style_projection_for_export(export, &request.exports);
-                    let Ok((primary, source_map, output_spans)) = transform_graph_export_primary(
-                        &request.context,
-                        artifact,
-                        &metadata,
-                        identity.as_ref(),
-                        style_projection,
-                    ) else {
+                    let Ok((primary, primary_bytes, source_map, output_spans)) =
+                        transform_graph_export_primary(
+                            &request.context,
+                            artifact,
+                            &metadata,
+                            identity.as_ref(),
+                            style_projection,
+                        )
+                    else {
                         diagnostics.push(Diagnostic {
                             uri: artifact.uri.clone(),
                             code: "cem.transform_runtime.export_representation_unsupported"
@@ -12007,6 +12081,7 @@ impl CemMlEngine for RealCemMlEngine {
                         destination: export.destination.clone(),
                         identity,
                         primary,
+                        primary_bytes,
                         source_map,
                         output_spans,
                     });
@@ -12789,6 +12864,7 @@ mod tests {
                         JSON_CONTENT_TYPE,
                         JSON_VALUE_SCHEMA_URI,
                     ),
+                    opaque: false,
                     scheduler_scope_id: 1,
                 }],
                 joins: vec![TransformGraphJoin {
@@ -13096,7 +13172,7 @@ mod tests {
             crate::schema::registry::JSON_VALUE_SCHEMA_URI,
         );
 
-        let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data");
+        let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data", false);
 
         assert!(!diagnostics
             .iter()
@@ -13573,7 +13649,7 @@ mod tests {
             XML_SCHEMA_URI,
         );
 
-        let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data");
+        let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data", false);
 
         assert!(!diagnostics
             .iter()
@@ -13684,9 +13760,9 @@ mod tests {
             XML_SCHEMA_URI,
         );
         let (first, first_diagnostics) =
-            load_transform_data_artifact(&first_input, &ctx(), "first");
+            load_transform_data_artifact(&first_input, &ctx(), "first", false);
         let (second, second_diagnostics) =
-            load_transform_data_artifact(&second_input, &ctx(), "second");
+            load_transform_data_artifact(&second_input, &ctx(), "second", false);
         assert!(first_diagnostics
             .iter()
             .chain(&second_diagnostics)
@@ -14049,7 +14125,7 @@ mod tests {
             ..FormatIdentity::default()
         };
 
-        let (primary, source_map, output_spans) = transform_graph_export_primary(
+        let (primary, primary_bytes, source_map, output_spans) = transform_graph_export_primary(
             &EngineContext::default(),
             &artifact,
             &metadata,
@@ -14063,6 +14139,7 @@ mod tests {
             primary["content"],
             ".card { color: red; }\n\n.grid { display: grid; }\n"
         );
+        assert!(primary_bytes.is_none());
         assert!(source_map.is_none());
         assert!(output_spans.is_empty());
     }
@@ -14100,14 +14177,15 @@ mod tests {
             ..FormatIdentity::default()
         };
 
-        let (primary, exported_source_map, output_spans) = transform_graph_export_primary(
-            &EngineContext::default(),
-            &artifact,
-            &metadata,
-            Some(&target),
-            TransformGraphHtmlStyleProjection::Inline,
-        )
-        .expect("CSS export projection");
+        let (primary, primary_bytes, exported_source_map, output_spans) =
+            transform_graph_export_primary(
+                &EngineContext::default(),
+                &artifact,
+                &metadata,
+                Some(&target),
+                TransformGraphHtmlStyleProjection::Inline,
+            )
+            .expect("CSS export projection");
 
         assert_eq!(primary["kind"], "document");
         assert_eq!(
@@ -14115,6 +14193,7 @@ mod tests {
             ".card { color: red; }\n\n.grid { display: grid; }\n"
         );
         assert_eq!(exported_source_map, Some(source_map));
+        assert!(primary_bytes.is_none());
         assert_eq!(output_spans.len(), 2);
         assert_eq!(
             output_spans[0].output_range,
@@ -14152,7 +14231,7 @@ mod tests {
             ..FormatIdentity::default()
         };
 
-        let (primary, source_map, output_spans) = transform_graph_export_primary(
+        let (primary, primary_bytes, source_map, output_spans) = transform_graph_export_primary(
             &EngineContext::default(),
             &artifact,
             &metadata,
@@ -14168,6 +14247,7 @@ mod tests {
             primary["content"],
             r#"<html><head><link rel="stylesheet" href="assets/page.css?mode=screen&amp;theme=&quot;dark&quot;"></head><body>Hi</body></html>"#
         );
+        assert!(primary_bytes.is_none());
         assert!(source_map.is_none());
         assert!(output_spans.is_empty());
     }
@@ -14205,18 +14285,20 @@ mod tests {
             ..FormatIdentity::default()
         };
 
-        let (primary, exported_source_map, output_spans) = transform_graph_export_primary(
-            &EngineContext::default(),
-            &artifact,
-            &metadata,
-            Some(&target),
-            TransformGraphHtmlStyleProjection::Link("page.css".to_owned()),
-        )
-        .expect("HTML link export projection");
+        let (primary, primary_bytes, exported_source_map, output_spans) =
+            transform_graph_export_primary(
+                &EngineContext::default(),
+                &artifact,
+                &metadata,
+                Some(&target),
+                TransformGraphHtmlStyleProjection::Link("page.css".to_owned()),
+            )
+            .expect("HTML link export projection");
 
         assert_eq!(primary["kind"], "html");
         assert_eq!(primary["content"], format!("{before}{replacement}{after}"));
         assert_eq!(exported_source_map, Some(source_map));
+        assert!(primary_bytes.is_none());
         assert_eq!(output_spans.len(), 2);
         assert_eq!(
             output_spans[0].output_range,
@@ -14265,18 +14347,20 @@ mod tests {
             ..FormatIdentity::default()
         };
 
-        let (primary, exported_source_map, output_spans) = transform_graph_export_primary(
-            &EngineContext::default(),
-            &artifact,
-            &metadata,
-            Some(&target),
-            TransformGraphHtmlStyleProjection::Omit,
-        )
-        .expect("HTML omit export projection");
+        let (primary, primary_bytes, exported_source_map, output_spans) =
+            transform_graph_export_primary(
+                &EngineContext::default(),
+                &artifact,
+                &metadata,
+                Some(&target),
+                TransformGraphHtmlStyleProjection::Omit,
+            )
+            .expect("HTML omit export projection");
 
         assert_eq!(primary["kind"], "html");
         assert_eq!(primary["content"], format!("{before}{after}"));
         assert_eq!(exported_source_map, Some(source_map));
+        assert!(primary_bytes.is_none());
         assert_eq!(output_spans.len(), 2);
         assert_eq!(
             output_spans[0].output_range,
@@ -14315,7 +14399,7 @@ mod tests {
             ..FormatIdentity::default()
         };
 
-        let (primary, source_map, output_spans) = transform_graph_export_primary(
+        let (primary, primary_bytes, source_map, output_spans) = transform_graph_export_primary(
             &EngineContext::default(),
             &artifact,
             &metadata,
@@ -14329,6 +14413,7 @@ mod tests {
             primary["content"],
             r#"<html><head></head><body>Hi</body></html>"#
         );
+        assert!(primary_bytes.is_none());
         assert!(source_map.is_none());
         assert!(output_spans.is_empty());
     }

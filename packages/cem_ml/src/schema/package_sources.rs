@@ -847,6 +847,12 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         schema_source: include_str!("../../schema-packages/module-map/v1/schema/module-map.cem"),
     },
     BuiltinSchemaPackageSource {
+        package_id: "module-map-v2",
+        schema_path: "schema-packages/module-map-v2/v1/schema/module-map-v2.cem",
+        manifest_source: include_str!("../../schema-packages/module-map-v2/v1/package.cem"),
+        schema_source: include_str!("../../schema-packages/module-map-v2/v1/schema/module-map-v2.cem"),
+    },
+    BuiltinSchemaPackageSource {
         package_id: "xml",
         schema_path: "schema-packages/xml/v1/schema/xml.cem",
         manifest_source: include_str!("../../schema-packages/xml/v1/package.cem"),
@@ -969,10 +975,10 @@ mod tests {
         CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
         JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, MODULE_MAP_CONTENT_TYPE,
-        MODULE_MAP_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI,
-        RELAX_NG_XML_CONTENT_TYPE, SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI, SVG_CONTENT_TYPE,
-        SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-        XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+        MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
+        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI,
+        SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+        XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
         YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
@@ -2534,6 +2540,19 @@ mod tests {
             "module-map",
             MODULE_MAP_CONTENT_TYPE,
             MODULE_MAP_SCHEMA_URI,
+        );
+        assert_eq!(examples.len(), 2);
+        assert!(examples
+            .iter()
+            .all(|example| example.expected_result == SchemaPackageExampleExpectedResult::Pass));
+    }
+
+    #[test]
+    fn module_map_v2_package_examples_are_manifest_indexed() {
+        let examples = manifest_indexed_package_examples(
+            "module-map-v2",
+            MODULE_MAP_CONTENT_TYPE,
+            MODULE_MAP_V2_SCHEMA_URI,
         );
         assert_eq!(examples.len(), 2);
         assert!(examples

@@ -8,10 +8,10 @@ same JSON shape:
 
 ```json
 {
-  "$schema": "https://cem.dev/ns/data/module-map/1",
-  "imports": {
-    "@scope/package/subpath": "../node_modules/@scope/package/dist/subpath.js"
-  }
+    "$schema": "https://cem.dev/ns/data/module-map/1",
+    "imports": {
+        "@scope/package/subpath": "../node_modules/@scope/package/dist/subpath.js"
+    }
 }
 ```
 
@@ -26,8 +26,10 @@ into the browser import map. It does not parse JavaScript, traverse imports,
 select npm package exports, or copy undeclared files.
 
 The first version accepts exact bare npm specifiers and `.js`/`.mjs` files only.
-CSS, JSON, WASM, prefix mappings, inlining, and fingerprinting require later
-schema versions or graph policy.
+[Schema v2](../../module-map-v2/v1/README.md) preserves this contract and adds
+explicit deployment-only entries for JavaScript sidecars, workers, CSS, and
+WASM. JSON resources, prefix mappings, inlining, and fingerprinting remain for
+later schema versions or graph policy.
 
 Every lowered graph exposes a deterministic module-asset manifest. Each record
 contains the exact specifier, resolved source-map and source URIs, app-relative
@@ -53,24 +55,48 @@ Nx runtime cache-key input.
 
 ## Examples
 
-Source module map:
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
+
+<details>
+<summary>source-modules</summary>
+
+- Source: [`examples/source.module-map.json`](./examples/source.module-map.json)
+- Content type: `application/vnd.cem.module-map+json`
+- Schema: `https://cem.dev/ns/data/module-map/1`
+- Expected result: `pass`
+- README rendering: fenced `json` source
+
+</details>
 
 ```json
 {
-  "$schema": "https://cem.dev/ns/data/module-map/1",
-  "imports": {
-    "@epa-wg/cem-ml/wasm": "../../node_modules/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js"
-  }
+    "$schema": "https://cem.dev/ns/data/module-map/1",
+    "imports": {
+        "@epa-wg/cem-ml/wasm": "../../node_modules/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js"
+    }
 }
 ```
 
-Destination module map:
+<details>
+<summary>destination-modules</summary>
+
+- Source: [`examples/destination.module-map.json`](./examples/destination.module-map.json)
+- Content type: `application/vnd.cem.module-map+json`
+- Schema: `https://cem.dev/ns/data/module-map/1`
+- Expected result: `pass`
+- README rendering: fenced `json` source
+
+</details>
 
 ```json
 {
-  "$schema": "https://cem.dev/ns/data/module-map/1",
-  "imports": {
-    "@epa-wg/cem-ml/wasm": "./assets/cem_ml.js"
-  }
+    "$schema": "https://cem.dev/ns/data/module-map/1",
+    "imports": {
+        "@epa-wg/cem-ml/wasm": "./assets/cem_ml.js"
+    }
 }
 ```

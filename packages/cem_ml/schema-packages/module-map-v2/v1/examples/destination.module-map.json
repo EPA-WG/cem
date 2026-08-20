@@ -1,0 +1,20 @@
+{
+    "$schema": "https://cem.dev/ns/data/module-map/2",
+    "imports": {
+        "@epa-wg/custom-element": "./assets/custom-element/index.js"
+    },
+    "resources": {
+        "@epa-wg/custom-element/runtime": {
+            "path": "./assets/custom-element/custom-element.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/custom-element/theme": {
+            "path": "./assets/theme/cem-combined.css",
+            "contentType": "text/css"
+        },
+        "@epa-wg/custom-element/cem-ql-wasm": {
+            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "contentType": "application/wasm"
+        }
+    }
+}

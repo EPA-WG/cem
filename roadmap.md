@@ -17,7 +17,7 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | CEM Studio                    | Installable local-first PWA and npm package for exercising CEM-ML validation, conversion, query, transformation, source-map, report, and graph workflows through editable projects and a bidirectional CLI Command view.                                                                                    | future `packages/cem-studio`, `@epa-wg/cem-components/studio`            |
 | CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable.        | `packages/cem-elements`, future `packages/custom-element`                |
 | CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                          | `packages/cem-components`, `packages/cem-elements`                       |
-| CEM site                      | Public docs, token/component gallery, interactive examples, and release documentation built as a static web application by the CEM-ML CLI transformation graph.                                                                                                                                          | future `apps/cem-site`                                                   |
+| CEM site                      | Public docs, token/component gallery, interactive examples, and release documentation built as a static web application by the CEM-ML CLI transformation graph.                                                                                                                                             | future `apps/cem-site`                                                   |
 | Hugo framework integration    | A downstream integration of the CEM-ML stack with Hugo, initially exploring adoption of the CEM theme, component set, and accessibility tooling. Exact product shape and package ownership remain TBD.                                                                                                      | future Hugo integration (TBD)                                            |
 | Repo docs spine               | Root docs, package docs, generated API/token docs, examples index, and contribution/release docs.                                                                                                                                                                                                           | `README.md`, `docs/`, package docs                                       |
 | Figma UI Kit                  | Designer-facing components, variants, variables, usage examples, and governance workflow.                                                                                                                                                                                                                   | `examples/figma`, future design artifacts                                |
@@ -458,16 +458,19 @@ Deliverables:
   hierarchical view for layout composition without raw HTML, JSON, or a
   replacement-tree bridge.
 - CEM-ML-native web dependency assembly through the dedicated
-  `application/vnd.cem.module-map+json` / `https://cem.dev/ns/data/module-map/1`
-  contract. Paired source and destination maps explicitly enumerate exact bare
-  npm JavaScript specifiers, source files (including `node_modules` paths), and
-  app-relative deployed URLs. The graph treats each declared `.js`/`.mjs` file
-  as an opaque typed import/export, copies only those files beside the HTML
-  output, and projects destination URLs into the browser import map. JavaScript
-  parsing, transitive discovery, package-export selection, and undeclared asset
-  copying are not part of this phase. A deterministic resolved-read manifest
-  records per-asset SHA-256 evidence and provides a host-neutral aggregate cache
-  key shared by native/WASM responses, CLI reports, and Nx runtime inputs.
+  `application/vnd.cem.module-map+json` contract. Schema
+  `https://cem.dev/ns/data/module-map/1` retains exact bare npm JavaScript
+  imports; schema `https://cem.dev/ns/data/module-map/2` adds paired explicit
+  resources for relative JavaScript sidecars, workers, CSS, and WASM. Source and
+  destination maps enumerate the complete source files (including
+  `node_modules` paths), content types, and app-relative deployed URLs. The graph
+  treats every declaration as an opaque typed import/export, byte-preserves it
+  beside the HTML output, and projects only `imports` destination URLs into the
+  browser import map. JavaScript/CSS parsing, transitive discovery,
+  package-export selection, and undeclared asset copying are not part of this
+  phase. A deterministic resolved-read manifest records per-asset SHA-256
+  evidence and provides a host-neutral aggregate cache key shared by
+  native/WASM responses, CLI reports, and Nx runtime inputs.
 - Root-wired docs site with guides, token browser, component gallery, examples, API/reference, and release notes.
 - Generated docs imported from package markdown and token reports.
 - Interactive examples for tokens, components, XML fixtures, and native output snippets.

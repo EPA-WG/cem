@@ -723,7 +723,7 @@ until final Phases 10 and 11, after Phase 9 release governance.
       upstream generated-doc ownership, graph report, CEMT source-map spans, and a
       four-of-four local cache replay. The shell intentionally has no JavaScript;
       later interactive work must use the dedicated module-map graph contract.
-- [ ] Build the guides, token browser, component gallery, examples, API/reference,
+- [x] Build the guides, token browser, component gallery, examples, API/reference,
       and release-notes surfaces without duplicating canonical source content.
     - [x] Extend the checked-in publication graph with an explicit route/source
           allowlist for the first authored guides and package-owned references;
@@ -802,6 +802,37 @@ until final Phases 10 and 11, after Phase 9 release governance.
           `c0ec818f318d7743cb4045501c1336dbc60b296e4454332404cb030c6b4bbd95`.
           Site lint passes, and the final aggregate verification restored all 14
           tasks—including ownership and determinism—from local Nx cache.
+- [x] Extend the dedicated module-map deployment contract to schema v2 so the
+      production CEM/custom-element runtime can publish every explicit web
+      dependency without an asset-copy exception.
+    - [x] Add a versioned schema package whose paired `resources` entries declare
+          exact logical resource names, source files, app-relative destinations,
+          and content types while preserving v1 `imports` behavior.
+    - [x] Add Rust-native fixtures proving CSS, relative JavaScript sidecars,
+          workers, and WASM lower as opaque graph artifacts without JavaScript
+          parsing, transitive discovery, or undeclared-resource copying.
+    - [x] Add a byte-capable transform-graph artifact boundary and atomic CLI
+          publication path that preserve binary resource bytes and identity.
+    - [x] Extend deterministic resolved-read manifests and cache keys across
+          JavaScript and resource entries, with stable validation for mismatched
+          keys, unsupported types, escaping destinations, and collisions.
+    - [x] Verify the v1 compatibility lane, v2 schema package, native and CLI
+          suites, WASM/type projections, and Nx cache replay before activating
+          the interactive site fixture.
+        - Completed 2026-08-20: module-map v2 adds an exact, paired `resources`
+          contract for JavaScript, module workers, CSS, and WASM while keeping
+          v1 `imports` behavior unchanged. Resource reads lower as declared
+          opaque graph artifacts, retain their content identity, and publish
+          exact text or binary bytes through the CLI's atomic multi-output
+          boundary; invalid UTF-8 WASM bytes are covered explicitly. Resolved-read
+          manifests and cache keys include every declared import and resource,
+          and validation rejects schema/key mismatches, unsupported media types,
+          unsafe destinations, and import/resource collisions. The CEM-ML build,
+          its 1,968-test aggregate, and the added lifecycle regression pass; the
+          full CLI target passes 521 unit tests and all integration suites,
+          including both schema-owned module-map versions. A repeat of the
+          aggregate restored all 37 Nx tasks from local cache, and lint plus
+          scoped formatting pass.
 - [ ] Add interactive token, component, CEM fixture, and native-output examples
       using the production CEM/custom-element implementation.
 - [ ] Add search, stable deep links, root navigation, and optional Angular Material

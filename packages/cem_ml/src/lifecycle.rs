@@ -20,6 +20,7 @@ use crate::schema::registry::{
     HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
     JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
     MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
+    MODULE_MAP_CONTENT_TYPE, MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI,
     RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
     SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
     XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
@@ -1466,16 +1467,24 @@ impl LifecycleAdapter for JsonAdapter {
 }
 
 fn matches_json_identity(identity: &FormatIdentity) -> bool {
-    let explicit_schema_matches = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == JSON_VALUE_SCHEMA_URI);
+    let explicit_schema = identity.schema.as_deref().map(str::trim);
+    let explicit_schema_matches = explicit_schema.is_some_and(|schema| {
+        matches!(
+            schema,
+            JSON_VALUE_SCHEMA_URI | MODULE_MAP_SCHEMA_URI | MODULE_MAP_V2_SCHEMA_URI
+        )
+    });
+    let explicit_module_map_schema = explicit_schema.is_some_and(|schema| {
+        matches!(schema, MODULE_MAP_SCHEMA_URI | MODULE_MAP_V2_SCHEMA_URI)
+    });
     if let Some(content_type) = identity.content_type.as_deref() {
-        return matches!(
-            content_type_essence(content_type).as_str(),
-            JSON_CONTENT_TYPE | "text/json"
-        ) && (identity.schema.is_none() || explicit_schema_matches);
+        return match content_type_essence(content_type).as_str() {
+            JSON_CONTENT_TYPE | "text/json" => {
+                identity.schema.is_none() || explicit_schema_matches
+            }
+            MODULE_MAP_CONTENT_TYPE => identity.schema.is_none() || explicit_module_map_schema,
+            _ => false,
+        };
     }
     explicit_schema_matches
 }
@@ -2410,6 +2419,30 @@ mod tests {
                 .and_then(|value| value["name"].as_str().map(str::to_owned)),
             Some("Ada".to_owned())
         );
+    }
+
+    #[test]
+    fn builtins_load_versioned_module_maps_through_json_syntax_adapter() {
+        for schema in [MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI] {
+            let mut context = context(MODULE_MAP_CONTENT_TYPE);
+            context.schema = Some(schema.to_owned());
+            let loaded = LifecycleRegistry::with_builtin_adapters().load(
+                &input(br#"{"imports":{"@example/runtime":"./assets/runtime.js"}}"#),
+                &context,
+            );
+
+            assert_eq!(loaded.adapter_id, Some("json"), "{schema}");
+            assert!(loaded.diagnostics.is_empty(), "{schema}");
+            let document = match loaded
+                .ast_stream
+                .expect("module-map adapter emits internal JSON AST stream")
+            {
+                LoadedInputAstStream::JsonDocument(document) => document,
+                other => panic!("module-map adapter emitted unexpected AST stream: {other:?}"),
+            };
+            assert_eq!(document.source.content_type, MODULE_MAP_CONTENT_TYPE);
+            assert_eq!(document.source.media_type, MODULE_MAP_CONTENT_TYPE);
+        }
     }
 
     #[test]

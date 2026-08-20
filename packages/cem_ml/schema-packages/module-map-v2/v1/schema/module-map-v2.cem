@@ -1,0 +1,72 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="module-map" @namespace="https://cem.dev/ns/data/module-map/2" @version="2.0.0" |
+    {summary |
+        {text | Explicit web dependency deployment map. Paired source and destination documents retain the version 1 exact bare JavaScript imports contract and add a complete resources manifest for relative JavaScript sidecars, workers, CSS, and WASM. CEM-ML copies only declared opaque resources and never parses JavaScript or discovers transitive dependencies.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.module-map+json" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="module-map" @uri="https://cem.dev/ns/data/module-map/2" @role="schema"}
+    }
+
+    {elements |
+        {element @name="module-map" @required-attributes="schema-uri" @children="import+ resource*"}
+        {element @name="import" @required-attributes="specifier target"}
+        {element @name="resource" @required-attributes="name target content-type"}
+    }
+
+    {attributes |
+        {attribute @name="schema-uri" @type="schema:uri"}
+        {attribute @name="specifier" @type="schema:string"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="target" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:media-type"}
+    }
+
+    {constraints |
+        {constraint @kind="module-map-schema-identity" @target="module-map" @policy="the JSON $schema member must equal https://cem.dev/ns/data/module-map/2"}
+        {constraint @kind="module-map-exact-bare-specifiers" @target="import" @policy="imports keys remain exact bare npm module specifiers and retain the version 1 contract"}
+        {constraint @kind="module-map-resource-identities" @target="resource" @policy="resources keys are exact bare logical resource names and cannot duplicate imports keys"}
+        {constraint @kind="module-map-resource-types" @target="resource" @policy="resource entries declare path and contentType exactly; text/javascript permits .js or .mjs, text/css permits .css, and application/wasm permits .wasm"}
+        {constraint @kind="module-map-pair-complete" @target="module-map" @policy="paired source and destination documents use schema version 2 and declare identical imports and resources keys with matching resource content types"}
+        {constraint @kind="module-map-destination-contained" @target="module-map" @policy="all destination targets are app-relative ./ URLs, cannot escape the HTML export directory, and match their declared resource type"}
+        {constraint @kind="module-map-no-discovery" @target="module-map" @policy="JavaScript and resource content remains opaque; files are never scanned to discover undeclared dependencies"}
+        {constraint @kind="module-map-browser-projection" @target="module-map" @policy="only imports entries are projected into the browser import map; resources entries are deployment-only"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.module_map.schema_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.schema_unsupported" @severity="error"}
+        {diagnostic @code="cem.module_map.specifier_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.target_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.asset_type_unsupported" @severity="error"}
+        {diagnostic @code="cem.module_map.entries_mismatch" @severity="error"}
+        {diagnostic @code="cem.module_map.resources_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.resources_unsupported" @severity="error"}
+        {diagnostic @code="cem.module_map.resource_entry_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.resource_entries_mismatch" @severity="error"}
+        {diagnostic @code="cem.module_map.resource_type_unsupported" @severity="error"}
+        {diagnostic @code="cem.module_map.resource_type_mismatch" @severity="error"}
+        {diagnostic @code="cem.module_map.resource_target_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.asset_identity_duplicate" @severity="error"}
+    }
+
+    {compatibility |
+        {note @version="2.0.0" @value="Version 2 preserves version 1 imports and adds explicit resources. Version 1 remains supported and rejects resources rather than changing meaning."}
+        {note @version="2.0.0" @value="JSON resources, fingerprinting, prefix mappings, inlining, dependency discovery, and package-export selection remain outside this version."}
+    }
+
+    {open-content |
+        {accept @kind="future-module-asset-kind" @policy="reject-unless-a-later-schema-version-declares-it"}
+    }
+}
