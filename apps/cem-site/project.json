@@ -38,6 +38,14 @@
         "{projectRoot}/scripts/build.mjs",
         "{workspaceRoot}/packages/cem-ml-npm/README.md",
         "{workspaceRoot}/packages/cem-ml-cli-npm/README.md",
+        "{workspaceRoot}/examples/cem-ml/README.md",
+        "{workspaceRoot}/packages/cem-components/examples/README.md",
+        "{workspaceRoot}/packages/cem-components/docs/component-reference.md",
+        "{workspaceRoot}/CHANGELOG.md",
+        "{workspaceRoot}/packages/cem-components/CHANGELOG.md",
+        "{workspaceRoot}/packages/cem-elements/CHANGELOG.md",
+        "{workspaceRoot}/packages/cem-theme/CHANGELOG.md",
+        "{workspaceRoot}/packages/custom-element/CHANGELOG.md",
         {
           "dependentTasksOutputFiles": "**/*",
           "transitive": false

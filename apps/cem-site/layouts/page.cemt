@@ -6,6 +6,7 @@
   {param @name="input" @type="object" @required=true}
   {template @name="page" @visibility="public" |
     {param @name="title" @type="string" @required=true}
+    {param @name="canonicalSourceBase" @type="string" @default=""}
     {body |
       {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
         {attribute @name="lang" @value="en"}
@@ -51,7 +52,8 @@
           }
           {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
             {cem:for-each @select="$input.children" @as="node" |
-              {call @template="emit-node" @with:node="{$node}"}
+              {call @template="emit-node" @with:node="{$node}"
+                  @with:canonicalSourceBase="{$canonicalSourceBase}"}
             }
           }
           {element @name="footer" @namespace="http://www.w3.org/1999/xhtml" |
@@ -63,15 +65,26 @@
   }
   {template @name="emit-node" |
     {param @name="node" @type="object" @required=true}
+    {param @name="canonicalSourceBase" @type="string" @default=""}
     {body |
       {cem:choose |
         {cem:when @test='node.kind == "element"' |
           {element @name="{$node.name}" @namespace="{$node.namespace}" |
             {cem:for-each @select="$node.attributes" @as="attribute" |
-              {attribute @name="{$attribute.name}" @namespace="{$attribute.namespace}" @value="{$attribute.value}"}
+              {cem:choose |
+                {cem:when @test='attribute.name == "href" && canonicalSourceBase != "" && str:starts_with(attribute.value, "#") == false && str:starts_with(attribute.value, "/") == false && str:starts_with(attribute.value, "http:") == false && str:starts_with(attribute.value, "https:") == false && str:starts_with(attribute.value, "mailto:") == false' |
+                  {attribute @name="{$attribute.name}" @namespace="{$attribute.namespace}"
+                      @value="{str:concat((canonicalSourceBase, attribute.value))}"}
+                }
+                {cem:otherwise |
+                  {attribute @name="{$attribute.name}" @namespace="{$attribute.namespace}"
+                      @value="{$attribute.value}"}
+                }
+              }
             }
             {cem:for-each @select="$node.children" @as="child" |
-              {call @template="emit-node" @with:node="{$child}"}
+              {call @template="emit-node" @with:node="{$child}"
+                  @with:canonicalSourceBase="{$canonicalSourceBase}"}
             }
           }
         }

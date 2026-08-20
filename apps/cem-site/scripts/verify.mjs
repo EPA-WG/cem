@@ -47,11 +47,44 @@ const exportIds = new Set();
 const canonicalSourceText = new Map();
 const evidenceSourceText = new Map();
 const buildInputs = new Set(project.targets.build.inputs);
+const allowedContentRoles = new Set([
+  'landing',
+  'guide-index',
+  'guide',
+  'authored-reference',
+  'generated-reference',
+  'catalog',
+  'example-index',
+  'release-notes',
+]);
+const allowedRelativeLinkPolicies = new Set([
+  'none',
+  'site-routes',
+  'canonical-source',
+]);
 const buildDependencies = new Set(
   project.targets.build.dependsOn
     .filter((dependency) => typeof dependency === 'object')
     .map((dependency) => `${dependency.projects[0]}:${dependency.target}`),
 );
+
+function markdownLinks(source) {
+  return [...source.matchAll(/\]\(([^)]+)\)/g)].map((match) => match[1].trim());
+}
+
+function isRelativeRepositoryLink(href) {
+  return (
+    !href.startsWith('#') &&
+    !href.startsWith('/') &&
+    !/^[a-z][a-z0-9+.-]*:/i.test(href)
+  );
+}
+
+function expectedCanonicalSourceBase(source) {
+  const separator = source.lastIndexOf('/');
+  const directory = separator === -1 ? '' : source.slice(0, separator + 1);
+  return `https://github.com/EPA-WG/cem/blob/develop/${directory}`;
+}
 
 async function loadDeclaredSources(entry, field, destination) {
   if (entry[field] === undefined) {
@@ -100,6 +133,38 @@ for (const entry of manifest.entries) {
   if (forbiddenSources.some((pattern) => pattern.test(entry.source))) {
     throw new Error(`${entry.route} publishes excluded source ${entry.source}`);
   }
+  if (!allowedContentRoles.has(entry.contentRole)) {
+    throw new Error(`${entry.route} has unknown content role ${entry.contentRole}`);
+  }
+  if (!allowedRelativeLinkPolicies.has(entry.relativeLinkPolicy)) {
+    throw new Error(
+      `${entry.route} has unknown relative-link policy ${entry.relativeLinkPolicy}`,
+    );
+  }
+  if (
+    entry.route.startsWith('/reference/') &&
+    !['authored-reference', 'generated-reference'].includes(entry.contentRole)
+  ) {
+    throw new Error(`${entry.route} does not declare an explicit reference role`);
+  }
+  if (
+    entry.contentRole === 'authored-reference' &&
+    entry.sourceKind !== 'authored'
+  ) {
+    throw new Error(`${entry.route} presents generated content as authored reference`);
+  }
+  if (
+    entry.contentRole === 'generated-reference' &&
+    entry.sourceKind !== 'generated'
+  ) {
+    throw new Error(`${entry.route} presents authored content as generated reference`);
+  }
+  if (entry.route.startsWith('/examples/') && entry.contentRole !== 'example-index') {
+    throw new Error(`${entry.route} does not declare the example-index role`);
+  }
+  if (entry.route.startsWith('/releases/') && entry.contentRole !== 'release-notes') {
+    throw new Error(`${entry.route} does not declare the release-notes role`);
+  }
   await loadDeclaredSources(entry, 'canonicalSources', canonicalSourceText);
   await loadDeclaredSources(entry, 'evidenceSources', evidenceSourceText);
   if (!entry.owner) {
@@ -123,7 +188,33 @@ for (const entry of manifest.entries) {
     throw new Error(`${entry.route} has unknown source kind ${entry.sourceKind}`);
   }
 
-  await readFile(resolve(workspaceRoot, entry.source));
+  const sourceText = await readFile(resolve(workspaceRoot, entry.source), 'utf8');
+  const relativeSourceLinks = markdownLinks(sourceText).filter(isRelativeRepositoryLink);
+  if (entry.relativeLinkPolicy === 'canonical-source') {
+    const expectedBase = expectedCanonicalSourceBase(entry.source);
+    if (
+      entry.sourceKind !== 'authored' ||
+      relativeSourceLinks.length === 0 ||
+      entry.canonicalSourceBase !== expectedBase
+    ) {
+      throw new Error(
+        `${entry.route} canonical-source policy must map authored relative links to ${expectedBase}`,
+      );
+    }
+  } else {
+    if (entry.canonicalSourceBase !== undefined) {
+      throw new Error(`${entry.route} declares an unused canonicalSourceBase`);
+    }
+    if (entry.relativeLinkPolicy === 'none' && relativeSourceLinks.length !== 0) {
+      throw new Error(`${entry.route} leaves repository-relative links without a policy`);
+    }
+    if (
+      entry.relativeLinkPolicy === 'site-routes' &&
+      !entry.source.startsWith('apps/cem-site/')
+    ) {
+      throw new Error(`${entry.route} applies site-route policy outside site-owned content`);
+    }
+  }
   const graphSource = relative(projectRoot, resolve(workspaceRoot, entry.source)).replaceAll(
     '\\',
     '/',
@@ -137,6 +228,16 @@ for (const entry of manifest.entries) {
   ]) {
     if (!publicationGraph.includes(token)) {
       throw new Error(`${entry.route} is missing graph token ${token}`);
+    }
+  }
+  if (entry.relativeLinkPolicy === 'canonical-source') {
+    for (const token of [
+      '@name="canonicalSourceBase"',
+      `@value="${entry.canonicalSourceBase}"`,
+    ]) {
+      if (!publicationGraph.includes(token)) {
+        throw new Error(`${entry.route} is missing canonical-source graph token ${token}`);
+      }
     }
   }
   if (
@@ -202,6 +303,15 @@ for (const entry of manifest.entries) {
     }
 
     const links = [...output.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+    if (entry.relativeLinkPolicy === 'canonical-source') {
+      const source = await readFile(resolve(workspaceRoot, entry.source), 'utf8');
+      for (const href of markdownLinks(source).filter(isRelativeRepositoryLink)) {
+        const rewritten = `${entry.canonicalSourceBase}${href}`;
+        if (!links.includes(rewritten)) {
+          throw new Error(`${entry.output} does not canonically rewrite ${href}`);
+        }
+      }
+    }
     for (const href of links) {
       if (href.startsWith('#')) {
         continue;
@@ -214,6 +324,8 @@ for (const entry of manifest.entries) {
     const verificationEntry = {
       route: entry.route,
       kind: entry.kind,
+      contentRole: entry.contentRole,
+      relativeLinkPolicy: entry.relativeLinkPolicy,
       owner: entry.owner,
       upstreamTarget: entry.upstreamTarget,
       links,

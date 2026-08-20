@@ -775,9 +775,20 @@ until final Phases 10 and 11, after Phase 9 release governance.
           package inventory pass; two uncached catalog generations have the same
           SHA-256 digest, and the final Nx site replay restores all 13 tasks from
           local cache.
-    - [ ] Add example, API/reference, and release-note routes from their current
+    - [x] Add example, API/reference, and release-note routes from their current
           owners, using an explicit authored-reference policy where no generated
           API projection exists and never presenting an absent generator as one.
+        - Completed 2026-08-20: the native publication graph now adds eight
+          owner-sourced pages: canonical CEM-ML and component example indexes,
+          the package-authored component reference, the workspace release notes,
+          and component, element, theme, and custom-element release notes. Every
+          allowlisted page declares a content role and relative-link policy;
+          `authored-reference` requires authored input with no upstream target,
+          while `generated-reference` requires a generated input and scheduled
+          Nx target. The shared CEMT layout rewrites 40 repository-relative links
+          to the established canonical `develop` source tree without changing
+          site-root navigation or copying executable example markup. All 15 site
+          routes build and pass the Nx site verifier.
     - [ ] Prove every new route records its canonical owner/upstream Nx target and
           that publication remains deterministic from a clean output directory.
 - [ ] Add interactive token, component, CEM fixture, and native-output examples

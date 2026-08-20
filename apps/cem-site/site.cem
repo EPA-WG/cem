@@ -142,4 +142,210 @@
           @schema="https://cem.dev/ns/data/html/1"}
     }
   }
+
+  {import @id=cem-ml-examples-source @src="../../examples/cem-ml/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=cem-ml-examples-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=cem-ml-examples-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=cem-ml-examples-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="Canonical CEM-ML Examples"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/examples/cem-ml/"}
+          {export @id=cem-ml-examples
+              @out="../../dist/apps/cem-site/examples/cem-ml/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=component-examples-source
+      @src="../../packages/cem-components/examples/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=component-examples-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=component-examples-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=component-examples-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Component Examples"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/examples/"}
+          {export @id=component-examples
+              @out="../../dist/apps/cem-site/examples/components/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=component-reference-source
+      @src="../../packages/cem-components/docs/component-reference.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=component-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=component-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=component-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Component Authored Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/docs/"}
+          {export @id=component-reference
+              @out="../../dist/apps/cem-site/reference/components/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=workspace-releases-source @src="../../CHANGELOG.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=workspace-releases-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=workspace-releases-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=workspace-releases-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Workspace Release Notes"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/"}
+          {export @id=workspace-releases
+              @out="../../dist/apps/cem-site/releases/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=component-releases-source
+      @src="../../packages/cem-components/CHANGELOG.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=component-releases-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=component-releases-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=component-releases-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Components Release Notes"}
+          {export @id=component-releases
+              @out="../../dist/apps/cem-site/releases/cem-components/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=cem-elements-releases-source
+      @src="../../packages/cem-elements/CHANGELOG.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=cem-elements-releases-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=cem-elements-releases-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=cem-elements-releases-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Elements Release Notes"}
+          {export @id=cem-elements-releases
+              @out="../../dist/apps/cem-site/releases/cem-elements/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=theme-releases-source
+      @src="../../packages/cem-theme/CHANGELOG.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=theme-releases-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=theme-releases-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=theme-releases-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Theme Release Notes"}
+          {export @id=theme-releases
+              @out="../../dist/apps/cem-site/releases/cem-theme/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=custom-element-releases-source
+      @src="../../packages/custom-element/CHANGELOG.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=custom-element-releases-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=custom-element-releases-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=custom-element-releases-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="Custom Element Release Notes"}
+          {export @id=custom-element-releases
+              @out="../../dist/apps/cem-site/releases/custom-element/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
 }
