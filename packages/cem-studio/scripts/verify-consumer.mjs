@@ -57,11 +57,13 @@ try {
         'dist/static/service-worker.js',
         'dist/static/cache-inventory.json',
         'dist/static/assets/@epa-wg/cem-studio/bootstrap.js',
+        'dist/static/assets/@epa-wg/cem-studio/repository.js',
         'dist/static/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js',
         'dist/static/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm',
         'dist/static/assets/@epa-wg/cem-components/dist/index.js',
         'dist/static/assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css',
         'src/bootstrap.d.ts',
+        'src/repository.d.ts',
     ]) {
         assert.ok(statSync(resolve(installedStudioRoot, path)).isFile(), `installed package is missing ${path}`);
     }
@@ -72,16 +74,17 @@ try {
   loadCemMlBrowser,
   mountCemStudio,
   registerCemStudioServiceWorker,
+  createCemStudioProjectRepository,
 } from '@epa-wg/cem-studio';
 
 console.log(JSON.stringify({
-  exports: [loadCemMlBrowser, mountCemStudio, registerCemStudioServiceWorker].map((value) => typeof value),
+  exports: [loadCemMlBrowser, mountCemStudio, registerCemStudioServiceWorker, createCemStudioProjectRepository].map((value) => typeof value),
   navigatorPresent: 'navigator' in globalThis,
 }));
 `,
     );
     const probe = JSON.parse(capture(process.execPath, ['probe.mjs']));
-    assert.deepEqual(probe.exports, ['function', 'function', 'function']);
+    assert.deepEqual(probe.exports, ['function', 'function', 'function', 'function']);
 
     const report = {
         schemaVersion: 1,

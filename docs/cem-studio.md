@@ -4,7 +4,11 @@ Status: accepted Phase 6.5 product and persistence contract, originally
 researched 2026-08-09 and promoted to the roadmap. The resolved 2026-08-20
 implementation baseline and build boundary are recorded in
 [`cem-studio-phase6.5-boundary-audit.md`](./cem-studio-phase6.5-boundary-audit.md);
-the task-level execution state is owned by `docs/todo.md`.
+the task-level execution state is owned by `docs/todo.md`. The 2026-08-21
+repository, deterministic-search, and optional browser-AI architecture below is
+also accepted: IndexedDB remains a Studio application repository behind a
+generic `cem-elements` host capability, while visible search and AI states are
+composed entirely from CEM controls.
 
 The Phase 2.5 deployment, version, platform, capability, signing, and host-wire
 decisions are canonical in
@@ -989,10 +993,13 @@ API.
 | Cache Storage              | Versioned app shell, WASM, bundled capability catalog, and immutable sample assets.                       | Service-worker/offline asset cache, not a transactional project database.                                                                                                                                                                |
 | Origin Private File System | Optional later cache for very large blobs or engine scratch data.                                         | Fast worker-oriented storage, but origin-private, quota-bound, and invisible to the user; it is not backup or Git integration ([MDN OPFS](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)). |
 
-Suggested IndexedDB stores are `workspaces`, `nodes`, `resources`, `blobs`,
-`runs`, `resultSnapshots`, `providerBindings`, `syncQueue`, `trash`, and
-`settings`. Schema upgrades must be versioned, transactional, tested against old
-fixtures, and recoverable by export when migration fails.
+The accepted IndexedDB stores are `meta`, `projects`, `entries`, `resources`,
+`blobs`, `runs`, `resultSnapshots`, `providerBindings`, `syncQueue`, `trash`,
+`changes`, and `searchDocuments`. `projects` and `entries` deliberately match
+the accepted portable `project`/`entry` vocabulary; IndexedDB does not introduce
+parallel `workspace`/`node` domain names. Schema upgrades must be versioned,
+transactional, tested against old fixtures, and recoverable by export when
+migration fails.
 
 Browser storage is best-effort by default and quotas/eviction differ by browser.
 Studio should display `navigator.storage.estimate()`, request
@@ -1000,6 +1007,191 @@ Studio should display `navigator.storage.estimate()`, request
 handle quota errors, and keep export prominent. Persistence reduces automatic
 eviction risk but is not a backup and users can still clear site data
 ([MDN storage quotas and eviction](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria)).
+
+### Repository and `cem-elements` Boundary
+
+IndexedDB is a browser implementation detail, not template or portable-project
+vocabulary. Do not expose database names, object stores, indexes,
+`IDBKeyRange`, callbacks, or transaction handles to CEM-ML. `cem-elements`
+instead owns a generic clone-safe repository host contract that applications
+register by logical identity. Studio registers `studio-projects`; Site may
+register a separately scoped, read-only search cache.
+
+The accepted substrate surface has three responsibilities:
+
+1. A transient `repository-query` CEM-ML resource reads or subscribes to an
+   allowlisted operation on a registered repository and projects its lifecycle
+   into a data slice. It is analogous to `http-request`, but its request names a
+   logical repository and operation rather than physical persistence details.
+2. A read-only `storage-status` resource projects repository availability,
+   opening/migration state, blocked upgrades, usage/quota, persistence state,
+   and recoverable diagnostics. Requesting storage persistence requires an
+   explicit user action; rendering the resource cannot call
+   `navigator.storage.persist()`.
+3. An injected JavaScript repository port owns `query`, `execute`, `subscribe`,
+   and `status`. Query results are clone-safe values with request and repository
+   revisions. Mutations are explicit commands and never execute merely because
+   a template rendered or a data slice changed.
+
+The v1 conceptual boundary is:
+
+```ts
+interface CemRepositoryPort {
+    query(request: RepositoryQuery, signal?: AbortSignal): Promise<QueryResult>;
+    execute(command: RepositoryCommand, signal?: AbortSignal): Promise<CommandResult>;
+    subscribe(cursor: ChangeCursor, notify: () => void): () => void;
+    status(): Promise<RepositoryStatus>;
+}
+```
+
+This is a governed runtime envelope, not a new portable content type. If a
+repository request later becomes authored, persisted, or transformed CEM-ML
+content, it must first gain an explicit registered content type and schema.
+
+Application orchestration remains in `@epa-wg/cem-studio`: migrations,
+autosave policy, project commands, import/export validation, search corpus and
+ranking, multi-tab conflict presentation, and storage recovery are not reusable
+UI components. `@epa-wg/cem-components` owns every visible control and status
+surface. A raw `<indexed-db>` widget or app-local search/AI control is forbidden.
+
+### IndexedDB Schema, Transactions, and Coordination
+
+Use one product-scoped Studio database per origin, not one database per project
+and not one database name per application release. The database version governs
+structural migrations while records remain keyed by stable project and resource
+identities across application updates.
+
+Store responsibilities are:
+
+| Store              | Authority and lifecycle                                                                                              |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `meta`             | Logical schema, semantic-migration, search-index, seed, and maintenance checkpoints.                                 |
+| `projects`         | Authoritative normalized project metadata plus the current project commit revision.                                  |
+| `entries`          | Portable project hierarchy records keyed by project and stable entry id.                                             |
+| `resources`        | Resource identity, path, content/schema identity, revision, hash, and current blob reference.                        |
+| `blobs`            | Content-addressed source/result bytes keyed by SHA-256; bounded maintenance reclaims unreachable blobs.              |
+| `runs`             | Bounded command run metadata and provenance.                                                                         |
+| `resultSnapshots`  | Bounded immutable run outputs referenced by run identity.                                                            |
+| `providerBindings` | Host-only file/provider bindings; never exported into the portable project.                                          |
+| `syncQueue`        | Future idempotent provider outbox with base revisions; unused until a provider contract is promoted.                 |
+| `trash`            | Tombstones, retention metadata, and restore identity; purge and blob collection are separate maintenance operations. |
+| `changes`          | Durable monotonic commit journal used for subscriptions, multi-tab invalidation, and derived-index recovery.         |
+| `searchDocuments`  | Rebuildable normalized search documents keyed to exact source revisions; never project authority.                    |
+
+Atomic autosave computes source bytes and SHA-256 before opening its transaction,
+then opens one read/write transaction over every affected authoritative and
+derived store. Inside the transaction it verifies the expected project and
+resource revisions, stores the blob/resource update, advances revisions,
+replaces the search document, and appends the durable change record. Any failed
+check or write aborts the whole transaction. There is no silent last-write-wins
+path; stale writes return the expected/current revision and hash as a structured
+conflict.
+
+`BroadcastChannel` is only a low-latency wake-up hint. The committed `changes`
+journal is the source of truth: another tab resumes after its last change cursor
+and requeries. `navigator.locks` may reduce avoidable contention but cannot be
+required for correctness. Every open connection handles `versionchange` by
+preserving any in-memory draft, closing the connection, and exposing a reload or
+retry state. IndexedDB permits multiple clients but cannot perform an upgrade
+until old-version connections close
+([W3C Indexed Database API 3.0](https://www.w3.org/TR/IndexedDB/)).
+
+Keep object-store/index changes inside `onupgradeneeded`. Potentially large
+semantic conversions, blob maintenance, and search reindexing use resumable
+logical migrations with `meta` checkpoints. Until a derived index is rebuilt,
+the application may use a bounded scan fallback; it must not expose incomplete
+index results as complete.
+
+Use strict durability where supported for project saves, imports, trash, and
+restore. Derived search maintenance and disposable caches may use relaxed
+durability. Normalize `blocked`, `VersionError`, `QuotaExceededError`, aborted,
+corrupt, migration-failed, and revision-conflict outcomes into stable repository
+diagnostics. The IndexedDB specification reserves `QuotaExceededError` for
+insufficient remaining storage or denied quota
+([W3C Indexed Database API 3.0](https://www.w3.org/TR/IndexedDB/)).
+
+### Deterministic Search and Optional Browser AI
+
+Search is deterministic and fully functional without AI. IndexedDB has no
+native full-text search, so every searchable page, component, token, project,
+entry, resource, diagnostic, command, schema capability, transformation stage,
+and retained run projects into a versioned `searchDocuments` record containing
+stable identity, scope/kind, title/path/text/tags, normalized tokens, optional
+trigrams, and exact source revision. Multi-entry token/trigram indexes retrieve
+candidates; application policy intersects, filters, scores, snippets, and routes
+them. The index is derived, disposable, and deterministically rebuildable.
+
+CEM Site receives its canonical search corpus as a CEM-ML build artifact. It
+may install that artifact into a product-scoped IndexedDB cache keyed by build
+and corpus hash, but the cache is not source authority and cannot be required
+for first-load search. Studio derives its mutable corpus from authoritative
+project records and merges it with versioned bundled documentation/capability
+records. Deleted or unauthorized records are excluded before ranking.
+
+Both applications compose the visible search experience from existing CEM
+controls: `cem-autocomplete`, `cem-option`, `cem-option-group`, `cem-list` or
+`cem-tree`, `cem-progress`/`cem-progress-spinner`, `cem-alert`, `cem-dialog`,
+`cem-action`, and `cem-badge`. Site or Studio owns query state, corpus selection,
+filtering/ranking, result loading, navigation, and the optional AI policy; it
+does not own replacement control DOM, keyboard, accessibility, or theme behavior.
+
+Browser AI is an optional second stage over retrieved evidence:
+
+```text
+user query
+    -> deterministic lexical/trigram retrieval
+    -> bounded evidence chunks with stable ids and revisions
+    -> optional on-device browser model
+    -> validated answer/intent plus citations to supplied ids
+    -> CEM component presentation beside the unchanged result list
+```
+
+Current browser APIs are capability globals such as `LanguageModel`,
+`Summarizer`, `Translator`, `LanguageDetector`, `Writer`, and `Rewriter`, not a
+stable `window.ai.*` namespace. Chrome documents Translator, Language Detector,
+and Summarizer from Chrome 138, and the web Prompt API from Chrome 148; Writer
+and Rewriter remain trial-stage capabilities. Implementations must feature-detect
+each API and call its asynchronous `availability()` with the same requested
+languages/modalities used to create a session
+([Chrome built-in AI API status](https://developer.chrome.com/docs/ai/built-in-apis),
+[Chrome Prompt API](https://developer.chrome.com/docs/ai/prompt-api)). Microsoft
+Edge documents `LanguageModel` as a Canary/Dev developer preview, so Edge support
+must be capability-reported rather than promised as a production baseline
+([Microsoft Edge Prompt API](https://learn.microsoft.com/en-us/microsoft-edge/web-platform/prompt-api)).
+
+`cem-elements` may own a browser-AI host adapter and a read-only `ai-capability`
+resource so availability, model-download, streaming, cancellation, context,
+language, and failure states enter normal CEM data slices. Site and Studio own
+the prompts, evidence projection, result validation, and user disclosure. Model
+creation/download and inference are explicit user-intent operations; they are
+not triggered by rendering `ai-capability`.
+
+The model never receives direct IndexedDB access and never becomes search
+authority. It may translate a query, propose an allowlisted structured filter,
+rerank the retrieved candidate set, summarize supplied excerpts, or explain a
+diagnostic. It may not generate unrestricted repository commands/CEM-QL, mutate
+a project, invent a citation, or fetch/crawl the web. Returned ids are validated
+against the supplied candidate set and answers retain the source revision set;
+unknown citations fail and changed sources mark the answer stale. Literal ranked
+results stay visible when AI is unavailable, downloading, cancelled, over quota,
+unsupported, or wrong.
+
+Prompt content uses an explicit field allowlist and excludes credentials,
+provider bindings, file handles, secrets, and denied data-island fields. Treat
+retrieved project/page text as untrusted prompt data because it may contain
+instructions. Do not persist prompt history or model answers by default. Any
+later AI cache is disposable and keyed by model capability identity, prompt
+contract version, query hash, locale, and complete source-revision-set hash; it
+is never part of project export. Browser-managed model files are outside the
+application database and must not be copied into IndexedDB.
+
+The current Prompt and task APIs are available to top-level windows and
+same-origin frames but not Web Workers. Deterministic retrieval and IndexedDB
+work may run in an application worker, while the browser-AI adapter presently
+runs in the document lane and streams clone-safe state back to application
+orchestration
+([Chrome Prompt API worker boundary](https://developer.chrome.com/docs/ai/prompt-api),
+[Chrome Summarizer API](https://developer.chrome.com/docs/ai/summarizer-api)).
 
 ### PWA and Offline Contract
 
@@ -1417,6 +1609,14 @@ or todo list by itself.
 - Projects are local-first and useful without an account or network.
 - IndexedDB owns mutable local projects; `localStorage` owns only small
   preferences.
+- Studio exposes IndexedDB through a logical repository port; CEM-ML templates
+  never address physical databases, stores, indexes, or transaction handles.
+- Repository queries may enter CEM data slices declaratively, but project
+  mutation and persistence requests are explicit application commands and never
+  render side effects.
+- Deterministic lexical/trigram search is the complete baseline. Browser AI is
+  optional evidence-bound assistance, never retrieval or project authority, and
+  every visible search/AI surface is composed from CEM components.
 - Built-in examples are versioned seeds; updates never overwrite user copies.
 - Content/schema/query/transform identities are explicit and never guessed.
 - Logical URIs and stable ids survive tree-label changes.
@@ -1465,6 +1665,7 @@ Studio proposal.
 - [web.dev: PWA installation](https://web.dev/learn/pwa/installation)
 - [web.dev: Service workers](https://web.dev/learn/pwa/service-workers)
 - [MDN: IndexedDB API](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)
+- [W3C: Indexed Database API 3.0](https://www.w3.org/TR/IndexedDB/)
 - [MDN: Web Storage API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API)
 - [MDN: Storage quotas and eviction](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria)
 - [MDN: Origin Private File System](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)
@@ -1473,6 +1674,10 @@ Studio proposal.
 - [MDN: Fetch and CORS](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#making_cross-origin_requests)
 - [MDN: iframe `srcdoc` security](https://developer.mozilla.org/en-US/docs/Web/API/HTMLIFrameElement/srcdoc)
 - [MDN: Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy)
+- [Chrome: Built-in AI API status](https://developer.chrome.com/docs/ai/built-in-apis)
+- [Chrome: Prompt API](https://developer.chrome.com/docs/ai/prompt-api)
+- [Chrome: Summarizer API](https://developer.chrome.com/docs/ai/summarizer-api)
+- [Microsoft Edge: Prompt API](https://learn.microsoft.com/en-us/microsoft-edge/web-platform/prompt-api)
 - [npm: `package.json` `bin` field](https://docs.npmjs.com/cli/v11/configuring-npm/package-json#bin)
 - [Node.js: Single executable applications](https://nodejs.org/api/single-executable-applications.html)
 - [Vercel: archived and deprecated `pkg`](https://github.com/vercel/pkg)

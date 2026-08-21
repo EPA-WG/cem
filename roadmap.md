@@ -540,17 +540,22 @@ Deliverables:
   post-local-MVP wishlist.
 
 Progress: **publishable package, graph-owned bootstrap, UI ownership
-classification, and the general tabs prerequisite complete (2026-08-21).** `@epa-wg/cem-studio` now participates in
-the fixed-version CEM-ML platform group, resolves one exact CLI-to-runtime
-chain, and packages a 60-file static bootstrap assembled entirely by the CEM-ML
+classification, general tabs, and the versioned local project repository
+complete (2026-08-21).** `@epa-wg/cem-studio` now participates in the
+fixed-version CEM-ML platform group, resolves one exact CLI-to-runtime chain,
+and packages a 61-file static bootstrap assembled entirely by the CEM-ML
 transformation graph. The executable UI classification assigns all 23 initial
 shell/workbench behaviors to general CEM controls, seven future reusable
 `/studio` composites, or Studio application orchestration. The completed
 `cem-tabs`/`cem-tab` Material-parity contract opens compact shell panes and
-Results projection switching without app-local interaction code. The service
-worker and cache inventory remain bootstrap-only; the versioned IndexedDB
-repository is the next Phase 6.5 prerequisite before offline lifecycle and UI
-composition.
+Results projection switching without app-local interaction code. The private
+IndexedDB v1 implementation now sits behind the generic `cem-elements`
+repository protocol with strict revision/hash transactions, durable multi-tab
+changes, deterministic search documents, quota diagnostics, and CEM-ML-validated
+import/export. The service worker and cache inventory remain bootstrap-only;
+the next prerequisite is projecting repository queries and storage health into
+CEM data slices without introducing render-side mutations, before composing the
+offline PWA shell.
 
 Exit criteria:
 

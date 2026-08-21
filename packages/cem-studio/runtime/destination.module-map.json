@@ -3,6 +3,7 @@
     "imports": {
         "@epa-wg/cem-studio": "./assets/@epa-wg/cem-studio/bootstrap.js",
         "@epa-wg/cem-studio/main": "./assets/@epa-wg/cem-studio/main.js",
+        "@epa-wg/cem-studio/repository": "./assets/@epa-wg/cem-studio/repository.js",
         "@epa-wg/cem-ml-cli/browser": "./assets/@epa-wg/cem-ml-cli/dist/browser.js",
         "@epa-wg/cem-ml/wasm": "./assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js",
         "@epa-wg/cem-components": "./assets/@epa-wg/cem-components/dist/index.js",

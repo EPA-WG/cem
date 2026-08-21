@@ -20,6 +20,7 @@ assert.equal(cli.version, commonVersion);
 assert.equal(runtime.version, commonVersion);
 assert.deepEqual(Object.keys(studio.dependencies).sort(), [
     '@epa-wg/cem-components',
+    '@epa-wg/cem-elements',
     '@epa-wg/cem-ml-cli',
     '@epa-wg/cem-theme',
 ]);
@@ -35,15 +36,14 @@ for (const project of [
     '@epa-wg/cem-ml-cli',
     '@epa-wg/cem-ml',
     '@epa-wg/cem-components',
+    'cem-elements',
     '@epa-wg/cem-theme',
 ]) {
     assert.ok(graph.nodes[project], `resolved Nx graph is missing ${project}`);
 }
 
-const directDependencies = new Set(
-    (graph.dependencies['@epa-wg/cem-studio'] ?? []).map(({ target }) => target),
-);
-for (const dependency of ['@epa-wg/cem-ml-cli', '@epa-wg/cem-components', '@epa-wg/cem-theme']) {
+const directDependencies = new Set((graph.dependencies['@epa-wg/cem-studio'] ?? []).map(({ target }) => target));
+for (const dependency of ['@epa-wg/cem-ml-cli', '@epa-wg/cem-components', 'cem-elements', '@epa-wg/cem-theme']) {
     assert.ok(directDependencies.has(dependency), `Studio Nx dependencies are missing ${dependency}`);
 }
 assert.equal(

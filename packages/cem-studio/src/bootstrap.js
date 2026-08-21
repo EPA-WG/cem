@@ -39,6 +39,16 @@ export async function loadCemMlBrowser() {
     return import('@epa-wg/cem-ml-cli/browser');
 }
 
+export {
+    CEM_STUDIO_DATABASE_VERSION,
+    CEM_STUDIO_REPOSITORY_ID,
+    CEM_STUDIO_SEARCH_INDEX_VERSION,
+    CemStudioIndexedDbRepository,
+    CemStudioRepositoryError,
+    createCemStudioProjectRepository,
+    normalizeRepositoryError,
+} from './repository.js';
+
 /**
  * Register the graph-emitted service worker only after an embedding host opts
  * in. Importing this module has no service-worker side effect.

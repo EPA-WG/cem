@@ -15,6 +15,11 @@
             "import": "./dist/static/assets/@epa-wg/cem-studio/bootstrap.js",
             "default": "./dist/static/assets/@epa-wg/cem-studio/bootstrap.js"
         },
+        "./repository": {
+            "types": "./src/repository.d.ts",
+            "import": "./dist/static/assets/@epa-wg/cem-studio/repository.js",
+            "default": "./dist/static/assets/@epa-wg/cem-studio/repository.js"
+        },
         "./manifest.webmanifest": "./dist/static/manifest.webmanifest",
         "./static/*": "./dist/static/*",
         "./package.json": "./package.json"
@@ -22,6 +27,7 @@
     "files": [
         "dist",
         "src/bootstrap.d.ts",
+        "src/repository.d.ts",
         "README.md",
         "LICENSE"
     ],
@@ -31,6 +37,7 @@
     },
     "dependencies": {
         "@epa-wg/cem-components": "0.1.1",
+        "@epa-wg/cem-elements": "0.1.1",
         "@epa-wg/cem-ml-cli": "0.1.0",
         "@epa-wg/cem-theme": "0.1.1"
     },

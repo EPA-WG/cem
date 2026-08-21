@@ -4,14 +4,19 @@
 static deployment. Nx schedules its prerequisites and verification; the native
 CEM-ML CLI transformation graph is the final production assembler.
 
-The initial package slice deliberately contains only the typed bootstrap and
-deployment boundary. Workbench controls, persistence, offline cache behavior,
-and command execution are delivered by later Phase 6.5 checklist items.
+The package includes the typed bootstrap/deployment boundary and the versioned
+local project repository. Workbench controls, offline cache behavior, and
+command execution are delivered by later Phase 6.5 checklist items.
 
 ## Package surfaces
 
 - `@epa-wg/cem-studio` exports `mountCemStudio`, the explicit browser-command
-  loader, and opt-in service-worker registration.
+  loader, opt-in service-worker registration, and the IndexedDB repository
+  factory.
+- `@epa-wg/cem-studio/repository` exposes the same repository contract without
+  importing the application bootstrap. A CEM-ML project validator is mandatory;
+  import validation completes before a write transaction, and export validation
+  rechecks the normalized project and every resource hash.
 - `@epa-wg/cem-studio/manifest.webmanifest` exposes the generated application
   manifest.
 - `@epa-wg/cem-studio/static/*` exposes the graph-emitted deployable tree.
@@ -19,10 +24,20 @@ and command execution are delivered by later Phase 6.5 checklist items.
 Importing the package never registers a service worker. Hosts must call
 `registerCemStudioServiceWorker()` explicitly.
 
+The repository implements the logical `studio-projects` port from
+`@epa-wg/cem-elements`. Its physical database/stores remain private to Studio;
+callers use versioned clone-safe `query` and `execute` envelopes. Project saves,
+imports, trash, and restore are strict multi-store transactions with expected
+revision checks, SHA-256 content addressing, a durable change journal,
+`BroadcastChannel` invalidation, and derived deterministic search documents.
+Search and storage status render through CEM components when the workbench shell
+is composed; persistence does not introduce application-local visible controls.
+
 ## Build and verification
 
 ```bash
 yarn nx run @epa-wg/cem-studio:build
+yarn nx run @epa-wg/cem-studio:test:repository
 yarn nx run @epa-wg/cem-studio:check
 ```
 

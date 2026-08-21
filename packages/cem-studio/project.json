@@ -5,6 +5,7 @@
     "sourceRoot": "packages/cem-studio/src",
     "implicitDependencies": [
         "@epa-wg/cem-ml-cli",
+        "cem-elements",
         "@epa-wg/cem-components",
         "@epa-wg/cem-theme",
         "@epa-wg/custom-element",
@@ -46,6 +47,32 @@
             ],
             "outputs": []
         },
+        "test:repository": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem-elements"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run --no-file-parallelism",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/repository.js",
+                "{projectRoot}/src/repository.browser.spec.js",
+                "{projectRoot}/vitest.config.mts",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "build": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -56,6 +83,10 @@
                 },
                 {
                     "projects": ["@epa-wg/cem-ml-cli"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["cem-elements"],
                     "target": "build"
                 },
                 {
@@ -86,10 +117,7 @@
                     "transitive": false
                 }
             ],
-            "outputs": [
-                "{projectRoot}/dist/static",
-                "{workspaceRoot}/dist/reports/cem-studio/build.json"
-            ]
+            "outputs": ["{projectRoot}/dist/static", "{workspaceRoot}/dist/reports/cem-studio/build.json"]
         },
         "verify:dependencies": {
             "cache": true,
@@ -190,6 +218,7 @@
             "dependsOn": [
                 "lint",
                 "typecheck",
+                "test:repository",
                 "verify:dependencies",
                 "verify:ui-classification",
                 "verify:output",
@@ -214,6 +243,7 @@
                 "{projectRoot}/README.md",
                 "{projectRoot}/LICENSE",
                 "{projectRoot}/src/bootstrap.d.ts",
+                "{projectRoot}/src/repository.d.ts",
                 "{projectRoot}/scripts/package.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",

@@ -1,4 +1,5 @@
 export * from './lib/cem-elements.js';
+export * from './lib/repository.js';
 export {
     CemDeclarationScopeError,
     createCemDeclarationScope,

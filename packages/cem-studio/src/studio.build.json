@@ -5,6 +5,7 @@
     "dependencies": {
         "@epa-wg/cem-ml-cli": "0.1.0",
         "@epa-wg/cem-components": "0.1.1",
+        "@epa-wg/cem-elements": "0.1.1",
         "@epa-wg/cem-theme": "0.1.1"
     },
     "assembly": "cem-ml-transform-graph",

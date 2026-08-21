@@ -1102,9 +1102,33 @@ including search, is composed from `@epa-wg/cem-components` and
       without replacing inferred commands or working directories. No live
       Figma asset was changed; `cem-tab` is recorded only as a planned inert
       payload in the repository-owned projection.
-- [ ] Implement the versioned IndexedDB project repository with migrations,
+- [x] Implement the versioned IndexedDB project repository with migrations,
       atomic autosave, trash/restore, revision/hash conflicts, multi-tab
       coordination, quota diagnostics, and validated import/export.
+    - Completed 2026-08-21: `@epa-wg/cem-elements` now owns clone-safe
+      repository protocol v1 and its logical registry, while
+      `@epa-wg/cem-studio` registers the private `studio-projects` IndexedDB
+      implementation without exposing database, store, index, or transaction
+      vocabulary to CEM-ML. Database v1 creates all 12 accepted stores and
+      indexes; strict multi-store import, resource save, trash, and restore
+      transactions enforce expected revisions, content-address source bytes by
+      SHA-256, advance the durable change journal, and rebuild deterministic
+      search documents. Import and export both require the injected CEM-ML
+      Studio-project validator and recheck all declared resource hashes before
+      returning or committing a bundle. `BroadcastChannel` is only a wake-up
+      hint over the durable cursor, storage status normalizes quota/persistence
+      and migration diagnostics, and seven real Chromium tests cover schema,
+      atomicity, validation, conflict, search, trash/restore, multi-instance
+      coordination, quota, and version failures. The aggregate Studio check
+      passes lint, typecheck, browser tests, deterministic graph assembly (54
+      declared assets / 61 files), package verification, and a clean consumer;
+      the generic repository registry is also covered by the full 136-test
+      `cem-elements` unit suite.
+- [ ] Project logical repository reads and storage health into CEM data slices
+      through transient `repository-query` and `storage-status` resources, with
+      abort/stale-result handling, durable-cursor subscription cleanup, and a
+      proof that rendering can never execute repository mutations or request
+      persistent storage.
 - [ ] Build the installable PWA shell with semantic theme modes, a dedicated
       command worker, versioned app/runtime/sample caches, explicit update
       coordination, offline navigation, and recovery without project loss.
