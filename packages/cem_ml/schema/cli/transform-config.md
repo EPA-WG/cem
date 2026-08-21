@@ -18,7 +18,7 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | Element | Required attributes | Optional attributes | Child elements |
 | ------- | ------------------- | ------------------- | -------------- |
 | `run` | none | none | `import` |
-| `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `import` | `src` | `id`, `content-type`, `contentType`, `schema`, `opaque` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
 | `join` | `mode` | `id`, `input`, `by`, `with:*` | `convert`, `transform`, `rewrite-importmap`, `export` |
 | `convert` | none | `id`, `input`, `content-type`, `contentType`, `schema`, `converter` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
 | `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
@@ -31,6 +31,13 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - A document must contain exactly one top-level `run` element.
 - `run` contains one or more import branches.
 - `import` creates a source node from `@src`.
+- `import @opaque=true` creates an explicitly typed, byte-preserving source for
+  static publication without parsing or schema validation. `@opaque` is a
+  strict `true`/`false` boolean. Opaque imports require `@content-type`, forbid
+  `@schema`, and must feed one or more direct `export` nodes only. Those exports
+  cannot declare `@schema`; an explicit export content type must have the same
+  media type as the import. Omitting the export content type preserves the
+  source identity.
 - `join @mode="collect"` creates one collection artifact from all artifacts in
   its primary input.
 - `join @mode="group-by" @by="NAME"` creates one collection artifact for each

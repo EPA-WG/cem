@@ -1,0 +1,59 @@
+{run |
+  {import @id=studio-html @src="src/index.html"
+      @content-type="text/html"
+      @schema="https://cem.dev/ns/data/html/1" |
+    {rewrite-importmap @id=studio-assets
+        @source-map="runtime/source.module-map.json"
+        @target-map="runtime/destination.module-map.json" |
+      {export @id=studio-index @out="dist/static/index.html"
+          @content-type="text/html"
+          @schema="https://cem.dev/ns/data/html/1"}
+    }
+  }
+
+  {import @id=studio-manifest @src="src/studio.webmanifest.json"
+      @content-type="application/json"
+      @opaque=true |
+    {export @id=studio-manifest-output @out="dist/static/manifest.webmanifest"
+        @content-type="application/json"}
+  }
+
+  {import @id=studio-build @src="src/studio.build.json"
+      @content-type="application/json"
+      @opaque=true |
+    {export @id=studio-build-output @out="dist/static/build.json"
+        @content-type="application/json"}
+  }
+
+  {import @id=studio-cache-inventory @src="src/cache-inventory.json"
+      @content-type="application/json"
+      @opaque=true |
+    {export @id=studio-cache-inventory-output @out="dist/static/cache-inventory.json"
+        @content-type="application/json"}
+  }
+
+  {import @id=cem-ml-runtime-metadata
+      @src="../../node_modules/@epa-wg/cem-ml/dist/cem-ml-runtime.json"
+      @content-type="application/json"
+      @opaque=true |
+    {export @id=cem-ml-runtime-metadata-output
+        @out="dist/static/assets/@epa-wg/cem-ml/dist/cem-ml-runtime.json"
+        @content-type="application/json"}
+  }
+
+  {import @id=cem-theme-package-metadata
+      @src="../../node_modules/@epa-wg/cem-theme/package.json"
+      @content-type="application/json"
+      @opaque=true |
+    {export @id=cem-theme-package-metadata-output
+        @out="dist/static/assets/@epa-wg/cem-theme/package.json"
+        @content-type="application/json"}
+  }
+
+  {import @id=studio-icon @src="src/icon.svg"
+      @content-type="image/svg+xml"
+      @opaque=true |
+    {export @id=studio-icon-output @out="dist/static/icon.svg"
+        @content-type="image/svg+xml"}
+  }
+}

@@ -2825,24 +2825,17 @@ fn load_transform_data_artifact(
     diagnostics.append(&mut scope_diagnostics);
     if opaque {
         let identity = input.identity.clone().unwrap_or_default();
-        let encoding = identity
-            .content_type
-            .as_deref()
-            .map(content_type_essence)
-            .filter(|content_type| {
-                content_type == "application/octet-stream"
-                    || content_type == "application/wasm"
-                    || content_type.ends_with("+cem-bin")
-            })
-            .map(|_| TransformEncoding::Binary)
-            .unwrap_or(TransformEncoding::Text);
         let artifact = TransformTemplateDataArtifact {
             artifact_id: artifact_id.into(),
             uri: Some(input_uri(input, context)),
             identity: input.identity.clone(),
             body: TransformArtifactBody::Encoded(Arc::new(
-                TransformEncodedArtifact::new(identity, encoding, input.bytes.clone())
-                    .expect("opaque graph resource identity must match its encoding"),
+                TransformEncodedArtifact::new(
+                    identity,
+                    TransformEncoding::Binary,
+                    input.bytes.clone(),
+                )
+                .expect("opaque graph resource identity must match its encoding"),
             )),
         };
         return (artifact, diagnostics);
@@ -14252,6 +14245,45 @@ mod tests {
             ".card { color: red; }\n\n.grid { display: grid; }\n"
         );
         assert!(primary_bytes.is_none());
+        assert!(source_map.is_none());
+        assert!(output_spans.is_empty());
+    }
+
+    #[test]
+    fn opaque_graph_import_preserves_json_labeled_bytes_without_parsing() {
+        let bytes = br#"{ "duplicate": 1, "duplicate": invalid }"#.to_vec();
+        let identity = FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let input = EngineInput {
+            uri: "memory:opaque.json".to_owned(),
+            bytes: bytes.clone(),
+            from_format: None,
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+
+        let (artifact, diagnostics) =
+            load_transform_data_artifact(&input, &EngineContext::default(), "opaque-json", true);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let TransformArtifactBody::Encoded(encoded) = &artifact.body else {
+            panic!("opaque import must retain an encoded artifact");
+        };
+        assert_eq!(encoded.encoding, TransformEncoding::Binary);
+
+        let (primary, primary_bytes, source_map, output_spans) = transform_graph_export_primary(
+            &EngineContext::default(),
+            &artifact,
+            &TransformOutputMetadata::default(),
+            Some(&identity),
+            TransformGraphHtmlStyleProjection::Inline,
+        )
+        .expect("opaque JSON-labeled bytes export without parsing");
+
+        assert_eq!(primary["kind"], "resource");
+        assert_eq!(primary["contentType"], JSON_CONTENT_TYPE);
+        assert_eq!(primary_bytes.expect("raw resource bytes").bytes, bytes);
         assert!(source_map.is_none());
         assert!(output_spans.is_empty());
     }

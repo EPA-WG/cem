@@ -1020,14 +1020,29 @@ including search, is composed from `@epa-wg/cem-components` and
       CEM-ML WASM build. The broader 1,970-test CEM-ML gate passed 1,969 tests;
       its unrelated debugger deadline timing test passed immediately when
       rerun alone through the same Nx target.
-- [ ] Create the publishable `@epa-wg/cem-studio` Nx application/package under
+- [x] Create the publishable `@epa-wg/cem-studio` Nx application/package under
       `packages/cem-studio` with exact `@epa-wg/cem-ml-cli` versioning and one
       transitive `@epa-wg/cem-ml` runtime.
-    - [ ] Make the CEM-ML transformation graph and source/destination module
+    - [x] Make the CEM-ML transformation graph and source/destination module
           maps own final app, component, worker, WASM, manifest, service-worker,
           style, and cache-inventory emission with no post-graph copy exception.
-    - [ ] Add cached build, lint, typecheck, package, resolved-dependency,
+    - [x] Add cached build, lint, typecheck, package, resolved-dependency,
           deterministic-output, and clean-consumer verification targets.
+    - Completed 2026-08-21: `@epa-wg/cem-studio@0.1.0` is a fixed-version
+      CEM-ML platform member with an exact `@epa-wg/cem-ml-cli` dependency and
+      one logical transitive path to `@epa-wg/cem-ml`. Its single authoritative
+      module-map rewrite emits 53 declared app/component/worker/style/WASM
+      assets, including the service worker, plus seven direct graph exports:
+      HTML, manifest, icon, build metadata, cache inventory, and two dependency
+      metadata resources. Generic
+      `import @opaque=true` config support now publishes explicitly typed raw
+      resources without parsing or schema claims and rejects non-direct or
+      identity-changing graph use. The cached Studio `check` covers lint,
+      typecheck, dependency resolution, exact-byte graph output, two-clean-build
+      determinism, npm packing, and a temporary clean consumer; the verified
+      archive contains all 60 static files and exactly one installed runtime.
+      The service worker and cache inventory remain intentionally
+      bootstrap-only until the later PWA lifecycle item.
 - [ ] Classify the initial Studio shell and workbench behavior against the
       pinned Angular Material inventory before composing it.
     - [ ] Reuse completed general CEM controls within their proven contracts;

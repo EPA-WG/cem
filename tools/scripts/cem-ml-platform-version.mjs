@@ -22,7 +22,16 @@ const cargoDependencies = Object.freeze([
     ['packages/cem_ql/Cargo.toml', 'dependencies', 'cem-ml'],
 ]);
 
-const npmPackages = Object.freeze(['packages/cem-ml-npm/package.json', 'packages/cem-ml-cli-npm/package.json']);
+const npmPackages = Object.freeze([
+    'packages/cem-ml-npm/package.json',
+    'packages/cem-ml-cli-npm/package.json',
+    'packages/cem-studio/package.json',
+]);
+
+const studioVersionMetadata = Object.freeze([
+    'packages/cem-studio/src/studio.build.json',
+    'packages/cem-studio/src/cache-inventory.json',
+]);
 
 const nativeDeployments = Object.freeze([
     'packages/cem-ml-cli-native-linux-amd64/deployment.json',
@@ -33,6 +42,7 @@ const nativeDeployments = Object.freeze([
 export const governedPlatformVersionFiles = Object.freeze([
     ...cargoPackages.map(([path]) => path),
     ...npmPackages,
+    ...studioVersionMetadata,
     ...nativeDeployments,
     'Cargo.lock',
     'yarn.lock',
@@ -65,6 +75,20 @@ export function synchronizePlatformVersion({ workspaceRoot = defaultWorkspaceRoo
             if (metadata.name === '@epa-wg/cem-ml-cli') {
                 metadata.dependencies ??= {};
                 metadata.dependencies['@epa-wg/cem-ml'] = version;
+            }
+            if (metadata.name === '@epa-wg/cem-studio') {
+                metadata.dependencies ??= {};
+                metadata.dependencies['@epa-wg/cem-ml-cli'] = version;
+            }
+            return formatJsonLike(source, metadata);
+        });
+    }
+    for (const relativePath of studioVersionMetadata) {
+        transform(relativePath, (source) => {
+            const metadata = JSON.parse(source);
+            metadata.commonVersion = version;
+            if (relativePath.endsWith('studio.build.json')) {
+                metadata.dependencies['@epa-wg/cem-ml-cli'] = version;
             }
             return formatJsonLike(source, metadata);
         });
@@ -148,10 +172,21 @@ function updateCargoLock(lock, version) {
 function updateYarnLock(lock, version) {
     const dependencyPattern = /( {4}"@epa-wg\/cem-ml": "npm:)[^"]+("\n)/;
     const selectorPattern = /("@epa-wg\/cem-ml@npm:)[^,]+(, @epa-wg\/cem-ml@workspace:packages\/cem-ml-npm":\n)/;
-    if (!dependencyPattern.test(lock) || !selectorPattern.test(lock)) {
-        throw new Error('cannot find the exact @epa-wg/cem-ml workspace dependency in yarn.lock');
+    const cliDependencyPattern = /( {4}"@epa-wg\/cem-ml-cli": "npm:)[^"]+("\n)/;
+    const cliSelectorPattern = /("@epa-wg\/cem-ml-cli@npm:)[^,]+(, @epa-wg\/cem-ml-cli@workspace:packages\/cem-ml-cli-npm":\n)/;
+    if (
+        !dependencyPattern.test(lock) ||
+        !selectorPattern.test(lock) ||
+        !cliDependencyPattern.test(lock) ||
+        !cliSelectorPattern.test(lock)
+    ) {
+        throw new Error('cannot find the exact CEM-ML npm workspace dependencies in yarn.lock');
     }
-    return lock.replace(dependencyPattern, `$1${version}$2`).replace(selectorPattern, `$1${version}$2`);
+    return lock
+        .replace(dependencyPattern, `$1${version}$2`)
+        .replace(selectorPattern, `$1${version}$2`)
+        .replace(cliDependencyPattern, `$1${version}$2`)
+        .replace(cliSelectorPattern, `$1${version}$2`);
 }
 
 function tomlSection(manifest, sectionName, relativePath) {

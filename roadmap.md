@@ -539,6 +539,13 @@ Deliverables:
 - Keep account-backed S3, NoSQL, Git repository, and GitHub Gist storage behind one revisioned provider contract as a
   post-local-MVP wishlist.
 
+Progress: **publishable package and graph-owned bootstrap foundation complete
+(2026-08-21).** `@epa-wg/cem-studio` now participates in the fixed-version
+CEM-ML platform group, resolves one exact CLI-to-runtime chain, and packages a
+60-file static bootstrap assembled entirely by the CEM-ML transformation graph.
+The service worker and cache inventory are emitted but remain bootstrap-only;
+offline lifecycle, updates, and project persistence remain Phase 6.5 work.
+
 Exit criteria:
 
 - A user can install or open Studio, work offline, edit or fetch input, validate/convert/query/transform it, inspect

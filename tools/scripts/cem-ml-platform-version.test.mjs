@@ -32,6 +32,19 @@ test('Cargo authority synchronizes every platform manifest and exact dependency 
         const npmCli = JSON.parse(readFileSync(resolve(fixtureRoot, 'packages/cem-ml-cli-npm/package.json')));
         assert.equal(npmCli.version, '2.3.4');
         assert.equal(npmCli.dependencies['@epa-wg/cem-ml'], '2.3.4');
+        const studio = JSON.parse(readFileSync(resolve(fixtureRoot, 'packages/cem-studio/package.json')));
+        assert.equal(studio.version, '2.3.4');
+        assert.equal(studio.dependencies['@epa-wg/cem-ml-cli'], '2.3.4');
+        const studioBuild = JSON.parse(
+            readFileSync(resolve(fixtureRoot, 'packages/cem-studio/src/studio.build.json')),
+        );
+        assert.equal(studioBuild.commonVersion, '2.3.4');
+        assert.equal(studioBuild.dependencies['@epa-wg/cem-ml-cli'], '2.3.4');
+        assert.equal(
+            JSON.parse(readFileSync(resolve(fixtureRoot, 'packages/cem-studio/src/cache-inventory.json')))
+                .commonVersion,
+            '2.3.4',
+        );
         for (const relativePath of [
             'packages/cem-ml-cli-native-linux-amd64/deployment.json',
             'packages/cem-ml-cli-native-brew-arm64/deployment.json',

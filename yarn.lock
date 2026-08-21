@@ -1373,7 +1373,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@epa-wg/cem-components@workspace:packages/cem-components":
+"@epa-wg/cem-components@npm:0.1.1, @epa-wg/cem-components@workspace:packages/cem-components":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-components@workspace:packages/cem-components"
   dependencies:
@@ -1388,7 +1388,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/cem-ml-cli@workspace:packages/cem-ml-cli-npm":
+"@epa-wg/cem-ml-cli@npm:0.1.0, @epa-wg/cem-ml-cli@workspace:packages/cem-ml-cli-npm":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-ml-cli@workspace:packages/cem-ml-cli-npm"
   dependencies:
@@ -1406,7 +1406,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/cem-theme@npm:^0.1.1, @epa-wg/cem-theme@workspace:packages/cem-theme":
+"@epa-wg/cem-studio@workspace:packages/cem-studio":
+  version: 0.0.0-use.local
+  resolution: "@epa-wg/cem-studio@workspace:packages/cem-studio"
+  dependencies:
+    "@epa-wg/cem-components": "npm:0.1.1"
+    "@epa-wg/cem-ml-cli": "npm:0.1.0"
+    "@epa-wg/cem-theme": "npm:0.1.1"
+    "@epa-wg/custom-element": "npm:0.1.0"
+    "@types/node": "npm:25.6.0"
+    typescript: "npm:6.0.3"
+  languageName: unknown
+  linkType: soft
+
+"@epa-wg/cem-theme@npm:0.1.1, @epa-wg/cem-theme@npm:^0.1.1, @epa-wg/cem-theme@workspace:packages/cem-theme":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-theme@workspace:packages/cem-theme"
   dependencies:
@@ -1457,7 +1470,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/custom-element@workspace:^, @epa-wg/custom-element@workspace:packages/custom-element":
+"@epa-wg/custom-element@npm:0.1.0, @epa-wg/custom-element@workspace:^, @epa-wg/custom-element@workspace:packages/custom-element":
   version: 0.0.0-use.local
   resolution: "@epa-wg/custom-element@workspace:packages/custom-element"
   languageName: unknown

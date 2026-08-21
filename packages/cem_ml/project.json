@@ -91,6 +91,9 @@
                 "{workspaceRoot}/packages/cem_ml/grammar/tree-sitter-cem/Cargo.toml",
                 "{workspaceRoot}/packages/cem-ml-npm/package.json",
                 "{workspaceRoot}/packages/cem-ml-cli-npm/package.json",
+                "{workspaceRoot}/packages/cem-studio/package.json",
+                "{workspaceRoot}/packages/cem-studio/src/studio.build.json",
+                "{workspaceRoot}/packages/cem-studio/src/cache-inventory.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-linux-amd64/deployment.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-brew-arm64/deployment.json",
                 "{workspaceRoot}/packages/cem-ml-cli-native-windows-amd64/deployment.json"

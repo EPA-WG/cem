@@ -41,7 +41,7 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
     TransformConfigElementSchema {
         local_name: "import",
         required_attributes: &["src"],
-        optional_attributes: &["id", "content-type", "contentType", "schema"],
+        optional_attributes: &["id", "content-type", "contentType", "schema", "opaque"],
         child_elements: &[
             "join",
             "convert",
@@ -154,6 +154,8 @@ pub struct TransformGraphNode {
     pub content_type: Option<String>,
     #[serde(default)]
     pub schema: Option<String>,
+    #[serde(default)]
+    pub opaque: bool,
     #[serde(default)]
     pub template_content_type: Option<String>,
     #[serde(default)]
@@ -484,6 +486,17 @@ impl GraphLowerer<'_> {
         } else {
             None
         };
+        let opaque = if kind == TransformGraphNodeKind::Import {
+            match parse_import_opaque(attr_value(&attrs, "", "opaque").as_deref(), &id) {
+                Ok(opaque) => opaque,
+                Err((code, message)) => {
+                    self.push_diag(code, message);
+                    false
+                }
+            }
+        } else {
+            false
+        };
         let params = if kind == TransformGraphNodeKind::Transform {
             self.collect_transform_params(ast_id, &id)
         } else {
@@ -497,6 +510,7 @@ impl GraphLowerer<'_> {
             content_type: attr_value(&attrs, "", "content-type")
                 .or_else(|| attr_value(&attrs, "", "contentType")),
             schema: attr_value(&attrs, "", "schema"),
+            opaque,
             template_content_type: attr_value(&attrs, "", "template-content-type")
                 .or_else(|| attr_value(&attrs, "", "templateContentType")),
             template_schema: attr_value(&attrs, "", "template-schema")
@@ -699,6 +713,7 @@ impl GraphLowerer<'_> {
         }
 
         self.validate_outputs(&nodes);
+        self.validate_opaque_imports(&nodes);
         self.validate_cycles();
     }
 
@@ -832,6 +847,101 @@ impl GraphLowerer<'_> {
                         node.id
                     ),
                 );
+            }
+        }
+    }
+
+    fn validate_opaque_imports(&mut self, nodes: &[TransformGraphNode]) {
+        let nodes_by_id = nodes
+            .iter()
+            .map(|node| (node.id.as_str(), node))
+            .collect::<BTreeMap<_, _>>();
+        let opaque_imports = nodes
+            .iter()
+            .filter(|node| node.kind == TransformGraphNodeKind::Import && node.opaque);
+
+        for import in opaque_imports {
+            let source_content_type = import
+                .content_type
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty());
+            if source_content_type.is_none() {
+                self.push_diag(
+                    "cem.transform_config.import_opaque_content_type_required",
+                    format!(
+                        "opaque import node `{}` requires explicit `@content-type`",
+                        import.id
+                    ),
+                );
+            }
+            if import
+                .schema
+                .as_deref()
+                .map(str::trim)
+                .is_some_and(|value| !value.is_empty())
+            {
+                self.push_diag(
+                    "cem.transform_config.import_opaque_schema_unsupported",
+                    format!(
+                        "opaque import node `{}` cannot declare `@schema` because its bytes are not parsed or validated",
+                        import.id
+                    ),
+                );
+            }
+
+            let outputs = self
+                .graph
+                .edges
+                .iter()
+                .filter(|edge| edge.from == import.id)
+                .filter_map(|edge| nodes_by_id.get(edge.to.as_str()).copied())
+                .collect::<Vec<_>>();
+            if outputs.is_empty()
+                || outputs
+                    .iter()
+                    .any(|output| output.kind != TransformGraphNodeKind::Export)
+            {
+                self.push_diag(
+                    "cem.transform_config.import_opaque_direct_export_required",
+                    format!(
+                        "opaque import node `{}` must feed one or more direct export nodes and cannot feed parsed graph operations",
+                        import.id
+                    ),
+                );
+            }
+
+            for export in outputs
+                .into_iter()
+                .filter(|output| output.kind == TransformGraphNodeKind::Export)
+            {
+                if export
+                    .schema
+                    .as_deref()
+                    .map(str::trim)
+                    .is_some_and(|value| !value.is_empty())
+                {
+                    self.push_diag(
+                        "cem.transform_config.import_opaque_export_schema_unsupported",
+                        format!(
+                            "export node `{}` cannot declare `@schema` for opaque import `{}` because its bytes are not parsed or validated",
+                            export.id, import.id
+                        ),
+                    );
+                }
+                if let (Some(source), Some(target)) =
+                    (source_content_type, export.content_type.as_deref())
+                {
+                    if content_type_essence(source) != content_type_essence(target) {
+                        self.push_diag(
+                            "cem.transform_config.import_opaque_export_identity_mismatch",
+                            format!(
+                                "export node `{}` content type `{}` must match opaque import `{}` content type `{}`",
+                                export.id, target, import.id, source
+                            ),
+                        );
+                    }
+                }
             }
         }
     }
@@ -1001,6 +1111,22 @@ fn parse_join_mode(
     }
 }
 
+fn parse_import_opaque(value: Option<&str>, node_id: &str) -> Result<bool, (&'static str, String)> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(false);
+    };
+    match value {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        other => Err((
+            "cem.transform_config.import_opaque_invalid",
+            format!(
+                "import node `{node_id}` uses invalid `@opaque` value `{other}`; use `true` or `false`"
+            ),
+        )),
+    }
+}
+
 fn parse_importmap_rewrite_mode(
     value: Option<&str>,
     node_id: &str,
@@ -1123,9 +1249,14 @@ mod tests {
             .iter()
             .find(|element| element.local_name == "join")
             .expect("join schema");
+        let import = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "import")
+            .expect("import schema");
 
         assert_eq!(TRANSFORM_CONFIG_SCHEMA_URI, TRANSFORM_CONFIG_NAMESPACE_URI);
         assert_eq!(run.child_elements, &["import"]);
+        assert!(import.optional_attributes.contains(&"opaque"));
         assert_eq!(join.required_attributes, &["mode"]);
         assert!(join.optional_attributes.contains(&"by"));
         assert!(join.optional_attributes.contains(&"with:*"));
@@ -1153,6 +1284,96 @@ mod tests {
             .expect("export schema");
         assert!(export.optional_attributes.contains(&"style-policy"));
         assert!(export.optional_attributes.contains(&"stylePolicy"));
+    }
+
+    #[test]
+    fn accepts_explicit_opaque_import_for_direct_byte_preserving_export() {
+        let response = parse(
+            r#"{run |
+  {import @id=asset @src="asset.bin"
+      @content-type="application/octet-stream" @opaque=true |
+    {export @id=copy @out="dist/asset.bin"
+        @content-type="application/octet-stream"}
+  }
+}"#,
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let import = response
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "asset")
+            .expect("opaque import node");
+        assert!(import.opaque);
+    }
+
+    #[test]
+    fn rejects_invalid_or_unbounded_opaque_import_contracts() {
+        let invalid_boolean = parse(
+            r#"{run | {import @id=asset @src="asset.bin"
+  @content-type="application/octet-stream" @opaque=maybe |
+  {export @id=copy @out="dist/asset.bin"}
+}}"#,
+        );
+        assert!(has_diag(
+            &invalid_boolean,
+            "cem.transform_config.import_opaque_invalid"
+        ));
+
+        let missing_content_type = parse(
+            r#"{run | {import @id=asset @src="asset.bin" @opaque=true |
+  {export @id=copy @out="dist/asset.bin"}
+}}"#,
+        );
+        assert!(has_diag(
+            &missing_content_type,
+            "cem.transform_config.import_opaque_content_type_required"
+        ));
+
+        let schema_claim = parse(
+            r#"{run | {import @id=asset @src="asset.json"
+  @content-type="application/json" @schema="https://example.test/data/1" @opaque=true |
+  {export @id=copy @out="dist/asset.json"}
+}}"#,
+        );
+        assert!(has_diag(
+            &schema_claim,
+            "cem.transform_config.import_opaque_schema_unsupported"
+        ));
+
+        let parsed_child = parse(
+            r#"{run | {import @id=asset @src="asset.json"
+  @content-type="application/json" @opaque=true |
+  {convert @id=converted @content-type="text/plain" |
+    {export @id=copy @out="dist/asset.txt"}
+  }
+}}"#,
+        );
+        assert!(has_diag(
+            &parsed_child,
+            "cem.transform_config.import_opaque_direct_export_required"
+        ));
+
+        let export_identity_claim = parse(
+            r#"{run | {import @id=asset @src="asset.json"
+  @content-type="application/json" @opaque=true |
+  {export @id=copy @out="dist/asset.json"
+      @content-type="text/plain" @schema="https://example.test/data/1"}
+}}"#,
+        );
+        assert!(has_diag(
+            &export_identity_claim,
+            "cem.transform_config.import_opaque_export_identity_mismatch"
+        ));
+        assert!(has_diag(
+            &export_identity_claim,
+            "cem.transform_config.import_opaque_export_schema_unsupported"
+        ));
     }
 
     #[test]

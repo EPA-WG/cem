@@ -1,0 +1,198 @@
+{
+    "$schema": "https://cem.dev/ns/data/module-map/2",
+    "imports": {
+        "@epa-wg/cem-studio": "../src/bootstrap.js",
+        "@epa-wg/cem-studio/main": "../src/main.js",
+        "@epa-wg/cem-ml-cli/browser": "../../../node_modules/@epa-wg/cem-ml-cli/dist/browser.js",
+        "@epa-wg/cem-ml/wasm": "../../../node_modules/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-components": "../../../node_modules/@epa-wg/cem-components/dist/index.js",
+        "@epa-wg/cem-theme": "../../../node_modules/@epa-wg/cem-theme/dist/index.js",
+        "@epa-wg/custom-element": "../../../node_modules/@epa-wg/custom-element/custom-element.js"
+    },
+    "resources": {
+        "@epa-wg/cem-studio/service-worker": {
+            "path": "../src/service-worker.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/browser-command": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/browser-command.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/browser-invocation": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/browser-invocation.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/browser-worker": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/browser-worker.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/command": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/command.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/generated-command-schema": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/generated/command-schema.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/operation": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/operation.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/protocol": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/protocol.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml/wasm-binary": {
+            "path": "../../../node_modules/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "contentType": "application/wasm"
+        },
+        "@epa-wg/cem-components/cem-components": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/cem-components.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/primitives": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/primitives.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/autocomplete-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/autocomplete-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/choice-options": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/choice-options.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/datepicker-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/datepicker-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/expansion-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/expansion-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/feedback-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/feedback-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/navigation-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/navigation-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/paginator-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/paginator-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/progress-spinner-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/progress-spinner-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/select-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/select-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/slider-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/slider-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/sort-header-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/sort-header-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/stepper-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/stepper-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/timepicker-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/timepicker-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/tooltip-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/tooltip-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/tree-behavior": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/lib/tree-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/styles": {
+            "path": "../../../node_modules/@epa-wg/cem-components/dist/styles.css",
+            "contentType": "text/css"
+        },
+        "@epa-wg/cem-theme/cem-theme": {
+            "path": "../../../node_modules/@epa-wg/cem-theme/dist/lib/cem-theme.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-theme/styles": {
+            "path": "../../../node_modules/@epa-wg/cem-theme/dist/lib/css/cem-combined.css",
+            "contentType": "text/css"
+        },
+        "@epa-wg/cem-elements/index": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/index.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/cem-elements": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/cem-elements.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/declaration-scope": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/declaration-scope.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/disposition": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/disposition.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/edge-ssr-host": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/edge-ssr-host.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/projection": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/projection.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/legacy-contract": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/legacy-xslt/contract.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/template-language": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/legacy-xslt/template-language.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/cem-ql-render": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/processing-cache": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-cache.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/processing-engine": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-engine.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/processing-host": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/processing-host-runtime": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host-runtime.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/processing-scheduler": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-scheduler.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/processing-worker": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/cem-ql": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/cem-ql-wasm": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "contentType": "application/wasm"
+        }
+    }
+}

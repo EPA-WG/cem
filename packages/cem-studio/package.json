@@ -1,0 +1,45 @@
+{
+    "name": "@epa-wg/cem-studio",
+    "version": "0.1.0",
+    "description": "Installable CEM-ML browser workbench bootstrap and static deployment",
+    "license": "MIT",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/EPA-WG/cem.git",
+        "directory": "packages/cem-studio"
+    },
+    "exports": {
+        ".": {
+            "types": "./src/bootstrap.d.ts",
+            "import": "./dist/static/assets/@epa-wg/cem-studio/bootstrap.js",
+            "default": "./dist/static/assets/@epa-wg/cem-studio/bootstrap.js"
+        },
+        "./manifest.webmanifest": "./dist/static/manifest.webmanifest",
+        "./static/*": "./dist/static/*",
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "dist",
+        "src/bootstrap.d.ts",
+        "README.md",
+        "LICENSE"
+    ],
+    "sideEffects": false,
+    "engines": {
+        "node": "^22.12.0 || ^24.0.0"
+    },
+    "dependencies": {
+        "@epa-wg/cem-components": "0.1.1",
+        "@epa-wg/cem-ml-cli": "0.1.0",
+        "@epa-wg/cem-theme": "0.1.1"
+    },
+    "devDependencies": {
+        "@epa-wg/custom-element": "0.1.0",
+        "@types/node": "25.6.0",
+        "typescript": "6.0.3"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

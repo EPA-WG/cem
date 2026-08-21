@@ -1,0 +1,22 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "allowJs": true,
+        "checkJs": true,
+        "composite": false,
+        "declaration": false,
+        "declarationMap": false,
+        "emitDeclarationOnly": false,
+        "lib": ["es2022", "dom", "webworker"],
+        "noEmit": true
+    },
+    "include": ["src/bootstrap.js", "src/main.js", "src/bootstrap.d.ts"],
+    "references": [
+        {
+            "path": "../cem-theme"
+        },
+        {
+            "path": "../cem-components"
+        }
+    ]
+}

@@ -1,0 +1,253 @@
+{
+    "name": "@epa-wg/cem-studio",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "application",
+    "sourceRoot": "packages/cem-studio/src",
+    "implicitDependencies": [
+        "@epa-wg/cem-ml-cli",
+        "@epa-wg/cem-components",
+        "@epa-wg/cem-theme",
+        "@epa-wg/custom-element",
+        "cem_ml_cli"
+    ],
+    "targets": {
+        "lint": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "yarn eslint packages/cem-studio",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.js",
+                "{projectRoot}/scripts/**/*.mjs",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/eslint.config.mjs"
+            ],
+            "outputs": []
+        },
+        "typecheck": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tsc --project tsconfig.json --noEmit",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/tsconfig.json",
+                "{projectRoot}/src/**/*.js",
+                "{projectRoot}/src/**/*.d.ts",
+                "{workspaceRoot}/tsconfig.base.json",
+                {
+                    "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts}",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
+        "build": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-components"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-theme"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/custom-element"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "node scripts/build.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/studio.cem",
+                "{projectRoot}/src/**/*",
+                "{projectRoot}/runtime/**/*",
+                "{projectRoot}/scripts/build.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{projectRoot}/dist/static",
+                "{workspaceRoot}/dist/reports/cem-studio/build.json"
+            ]
+        },
+        "verify:dependencies": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node scripts/verify-dependencies.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/project.json",
+                "{projectRoot}/src/studio.build.json",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem-ml-cli-npm/package.json",
+                "{workspaceRoot}/packages/cem-ml-npm/package.json",
+                "{workspaceRoot}/nx.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/dependencies.json"]
+        },
+        "verify:output": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node scripts/verify-output.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/project.json",
+                "{projectRoot}/studio.cem",
+                "{projectRoot}/src/**/*",
+                "{projectRoot}/runtime/**/*",
+                "{projectRoot}/scripts/build.mjs",
+                "{projectRoot}/scripts/verify-output.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/output.json"]
+        },
+        "verify:determinism": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:output"],
+            "options": {
+                "command": "node scripts/verify-determinism.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/studio.cem",
+                "{projectRoot}/src/**/*",
+                "{projectRoot}/runtime/**/*",
+                "{projectRoot}/scripts/build.mjs",
+                "{projectRoot}/scripts/verify-determinism.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/determinism.json"]
+        },
+        "verify": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "lint",
+                "typecheck",
+                "verify:dependencies",
+                "verify:output",
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node -e \"console.log('CEM Studio bootstrap package verification passed.')\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        },
+        "package": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify"],
+            "options": {
+                "command": "node scripts/package.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/README.md",
+                "{projectRoot}/LICENSE",
+                "{projectRoot}/src/bootstrap.d.ts",
+                "{projectRoot}/scripts/package.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/packages/cem-studio"]
+        },
+        "verify:consumer": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "package",
+                {
+                    "projects": ["@epa-wg/cem-ml"],
+                    "target": "package"
+                },
+                {
+                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "target": "package"
+                },
+                {
+                    "projects": ["cem-elements"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-components"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-theme"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "node scripts/verify-consumer.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/scripts/verify-consumer.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/consumer.json"]
+        },
+        "check": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify", "verify:consumer"],
+            "options": {
+                "command": "node -e \"console.log('CEM Studio package, deterministic deployment, and clean consumer checks passed.')\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        },
+        "nx-release-publish": {
+            "executor": "@nx/js:release-publish",
+            "dependsOn": ["package"],
+            "options": {
+                "access": "public"
+            }
+        }
+    },
+    "tags": ["npm:public", "scope:cem-studio", "type:application", "lang:cem"]
+}

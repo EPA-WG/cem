@@ -851,7 +851,7 @@ impl TransformGraphRequestLowerer<'_> {
             self.imports.push(TransformGraphImport {
                 id: id.clone(),
                 input,
-                opaque: false,
+                opaque: node.opaque,
                 scheduler_scope_id,
             });
             variants.push(ArtifactVariant { id, bindings });
@@ -2628,6 +2628,30 @@ mod tests {
         );
         assert_eq!(manifest_request.imports[0].scheduler_scope_id, 0);
         assert_eq!(manifest_request.exports[0].scheduler_scope_id, 6);
+    }
+
+    #[test]
+    fn regular_opaque_import_lowers_as_byte_preserving_graph_input() {
+        let fixture = FixtureDir::new();
+        let graph_bytes = br#"{run | {import @id=asset @src="inputs/asset.bin" @content-type="application/octet-stream" @opaque=true | {export @id=copy @out="dist/asset.bin" @content-type="application/octet-stream"}}}"#;
+        let config_uri = fixture.write("graph.cem", graph_bytes);
+        let source_uri = fixture.write("inputs/asset.bin", &[0x00, 0xff, 0x61, 0x73, 0x6d, 0x00]);
+        let graph = graph(&config_uri, graph_bytes);
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+
+        let request = lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+            .expect("opaque import lowers");
+
+        assert_eq!(request.imports.len(), 1);
+        assert!(request.imports[0].opaque);
+        assert_eq!(request.imports[0].input.uri, source_uri);
+        assert_eq!(
+            request.imports[0].input.bytes,
+            vec![0x00, 0xff, 0x61, 0x73, 0x6d, 0x00]
+        );
+        assert_eq!(request.exports.len(), 1);
+        assert_eq!(request.exports[0].input, request.imports[0].id);
     }
 
     #[test]

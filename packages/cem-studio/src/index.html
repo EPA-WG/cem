@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#001010" />
+        <title>CEM Studio</title>
+        <link rel="manifest" href="./manifest.webmanifest" />
+        <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+        <link rel="stylesheet" href="./assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css" />
+        <link rel="stylesheet" href="./assets/@epa-wg/cem-components/dist/styles.css" />
+        <script type="importmap">
+            {
+                "imports": {
+                    "@epa-wg/cem-studio": "../src/bootstrap.js",
+                    "@epa-wg/cem-studio/main": "../src/main.js",
+                    "@epa-wg/cem-ml-cli/browser": "../../../node_modules/@epa-wg/cem-ml-cli/dist/browser.js",
+                    "@epa-wg/cem-ml/wasm": "../../../node_modules/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js",
+                    "@epa-wg/cem-components": "../../../node_modules/@epa-wg/cem-components/dist/index.js",
+                    "@epa-wg/cem-theme": "../../../node_modules/@epa-wg/cem-theme/dist/index.js",
+                    "@epa-wg/custom-element": "../../../node_modules/@epa-wg/custom-element/custom-element.js"
+                }
+            }
+        </script>
+        <script type="module">import '@epa-wg/cem-studio/main';</script>
+    </head>
+    <body>
+        <main data-cem-studio-root data-cem-studio-state="bootstrap">
+            <h1>CEM Studio</h1>
+            <p>The synchronized CEM-ML workbench package is ready for shell composition.</p>
+        </main>
+    </body>
+</html>

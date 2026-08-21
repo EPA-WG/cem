@@ -75,6 +75,7 @@
                     "cem_ml_cli",
                     "@epa-wg/cem-ml",
                     "@epa-wg/cem-ml-cli",
+                    "@epa-wg/cem-studio",
                     "cem_ml_cli_native_linux_amd64",
                     "cem_ml_cli_native_brew_arm64",
                     "cem_ml_cli_native_windows_amd64"

@@ -1,0 +1,19 @@
+{
+    "name": "CEM Studio",
+    "short_name": "CEM Studio",
+    "description": "Local-first CEM-ML browser workbench",
+    "id": "./",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#001010",
+    "theme_color": "#001010",
+    "icons": [
+        {
+            "src": "./icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

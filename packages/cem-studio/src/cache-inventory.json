@@ -1,0 +1,16 @@
+{
+    "schemaVersion": 1,
+    "commonVersion": "0.1.0",
+    "status": "bootstrap-only",
+    "groups": [
+        {
+            "id": "shell",
+            "urls": [
+                "./index.html",
+                "./manifest.webmanifest",
+                "./icon.svg",
+                "./build.json"
+            ]
+        }
+    ]
+}

@@ -37,9 +37,11 @@ assert.equal(runtimeManifest.capabilities.browser.commonVersion, cargoVersion);
 assert.equal(runtimeManifest.protocol.workerProtocolVersion, 1);
 assert.equal(runtimeManifest.protocol.operationProtocolVersion, 1);
 assert.equal(runtimeManifest.protocol.limits.maxWorkers, 256);
-assert.equal(runtimeManifest.schemaPackages.manifestCount, 25);
+const schemaPackageManifestCount = verifySchemaPackageReferences(
+  resolve(distRoot, 'schema-packages'),
+);
+assert.equal(runtimeManifest.schemaPackages.manifestCount, schemaPackageManifestCount);
 assert.ok(runtimeManifest.schemaPackages.fileCount > runtimeManifest.schemaPackages.manifestCount);
-verifySchemaPackageReferences(resolve(distRoot, 'schema-packages'));
 
 for (const target of ['browser', 'node']) {
   const artifact = runtimeManifest.artifacts[target];
@@ -149,7 +151,8 @@ function listFiles(root) {
 }
 
 function verifySchemaPackageReferences(schemaRoot) {
-  for (const path of listFiles(schemaRoot).filter((path) => path.endsWith('/package.cem'))) {
+  const manifests = listFiles(schemaRoot).filter((path) => path.endsWith('/package.cem'));
+  for (const path of manifests) {
     const manifestPath = resolve(schemaRoot, path);
     const manifest = readFileSync(manifestPath, 'utf8');
     for (const match of manifest.matchAll(/@(source|path)="([^"]+)"/g)) {
@@ -165,4 +168,5 @@ function verifySchemaPackageReferences(schemaRoot) {
       assert.ok(existsSync(referencedPath), `${path} references a missing asset: ${match[2]}`);
     }
   }
+  return manifests.length;
 }

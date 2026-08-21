@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">CEM Studio</title>
+    <rect width="64" height="64" rx="12" fill="#001010" />
+    <path d="M18 17h28v8H26v14h20v8H18z" fill="#b2dfdb" />
+    <path d="M31 29h15v8H31z" fill="#80cbc4" />
+</svg>
