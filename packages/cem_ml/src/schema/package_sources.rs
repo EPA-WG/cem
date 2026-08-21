@@ -46,6 +46,13 @@ pub fn builtin_schema_package_artifact_source(
 
 static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSource] = &[
     BuiltinSchemaPackageArtifactSource {
+        package_id: "studio-project",
+        path: "schema-packages/studio-project/v1/schema/studio-project.schema.json",
+        source: include_str!(
+            "../../schema-packages/studio-project/v1/schema/studio-project.schema.json"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
         package_id: "cem-dom-projection",
         path: "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
         source: include_str!(
@@ -851,6 +858,14 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         schema_path: "schema-packages/module-map-v2/v1/schema/module-map-v2.cem",
         manifest_source: include_str!("../../schema-packages/module-map-v2/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/module-map-v2/v1/schema/module-map-v2.cem"),
+    },
+    BuiltinSchemaPackageSource {
+        package_id: "studio-project",
+        schema_path: "schema-packages/studio-project/v1/schema/studio-project.cem",
+        manifest_source: include_str!("../../schema-packages/studio-project/v1/package.cem"),
+        schema_source: include_str!(
+            "../../schema-packages/studio-project/v1/schema/studio-project.cem"
+        ),
     },
     BuiltinSchemaPackageSource {
         package_id: "xml",
@@ -3612,7 +3627,7 @@ mod tests {
     }
 
     #[test]
-    fn declared_builtin_cemt_artifacts_match_embedded_folder_sources() {
+    fn declared_builtin_artifacts_match_embedded_folder_sources() {
         let embedded_artifact_paths = builtin_schema_package_artifact_sources()
             .iter()
             .map(|source| (source.package_id, source.path))
@@ -3629,12 +3644,6 @@ mod tests {
                     package.package_id,
                     path,
                     source_path.display()
-                );
-                assert!(
-                    path.ends_with(".cemt"),
-                    "{} declared CEMT artifact `{}` must use .cemt",
-                    package.package_id,
-                    path
                 );
                 assert!(
                     embedded_artifact_paths.contains(&(package.package_id, path.as_str())),

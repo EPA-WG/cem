@@ -1,0 +1,15 @@
+{
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "stateful-project",
+    "name": "Stateful project",
+    "rootUri": "studio://stateful-project/",
+    "revision": 1,
+    "createdAt": "2026-08-20T00:00:00Z",
+    "updatedAt": "2026-08-20T00:00:00Z",
+    "entries": [],
+    "resources": [],
+    "providerBinding": {
+        "absolutePath": "/Users/example/project"
+    }
+}

@@ -1,0 +1,169 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://cem.dev/schema/studio/project.schema.json",
+    "title": "CEM Studio Project v1",
+    "description": "Portable JSON projection of the CEM Studio project model.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "$schema",
+        "schemaVersion",
+        "id",
+        "name",
+        "rootUri",
+        "revision",
+        "createdAt",
+        "updatedAt",
+        "entries",
+        "resources"
+    ],
+    "properties": {
+        "$schema": { "const": "https://cem.dev/ns/studio/project/1" },
+        "schemaVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "description": { "$ref": "#/$defs/nonEmptyString" },
+        "rootUri": {
+            "type": "string",
+            "pattern": "^studio://[a-z0-9][a-z0-9-]{0,63}/$"
+        },
+        "revision": { "$ref": "#/$defs/revision" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "entries": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/entry" }
+        },
+        "resources": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/resource" }
+        }
+    },
+    "$defs": {
+        "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "nonEmptyString": {
+            "type": "string",
+            "minLength": 1
+        },
+        "revision": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+        },
+        "entry": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "name"],
+            "properties": {
+                "id": { "$ref": "#/$defs/id" },
+                "parentId": { "$ref": "#/$defs/id" },
+                "kind": {
+                    "enum": [
+                        "subproject",
+                        "data-set",
+                        "validation",
+                        "inspection",
+                        "conversion",
+                        "query",
+                        "transformation",
+                        "transformation-graph",
+                        "trace"
+                    ]
+                },
+                "name": { "$ref": "#/$defs/nonEmptyString" },
+                "description": { "$ref": "#/$defs/nonEmptyString" },
+                "runConfigResourceId": { "$ref": "#/$defs/id" },
+                "resourceIds": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/id" }
+                },
+                "tags": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/nonEmptyString" }
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "kind": { "enum": ["subproject", "data-set"] }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": { "not": { "required": ["runConfigResourceId"] } },
+                    "else": { "required": ["runConfigResourceId"] }
+                },
+                {
+                    "if": {
+                        "properties": { "kind": { "const": "data-set" } },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "required": ["resourceIds"],
+                        "properties": { "resourceIds": { "minItems": 1 } }
+                    }
+                }
+            ]
+        },
+        "resource": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "role", "sourceKind", "path", "contentType", "revision", "sha256"],
+            "properties": {
+                "id": { "$ref": "#/$defs/id" },
+                "role": {
+                    "enum": [
+                        "data",
+                        "schema",
+                        "query",
+                        "template",
+                        "transform-config",
+                        "graph",
+                        "run-config",
+                        "expected"
+                    ]
+                },
+                "sourceKind": { "enum": ["project-file", "url"] },
+                "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*\\\\).+$"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https?://"
+                },
+                "contentType": {
+                    "type": "string",
+                    "pattern": "^[^/\\s]+/[^/\\s]+$"
+                },
+                "schema": { "type": "string", "format": "uri" },
+                "revision": { "$ref": "#/$defs/revision" },
+                "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": { "sourceKind": { "const": "project-file" } },
+                        "required": ["sourceKind"]
+                    },
+                    "then": { "not": { "required": ["url"] } },
+                    "else": { "required": ["url"] }
+                }
+            ]
+        }
+    }
+}

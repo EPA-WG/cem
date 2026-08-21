@@ -515,9 +515,9 @@ Deliverables:
   `@epa-wg/cem-ml-cli` package and tested-compatible `@epa-wg/cem-components` and `@epa-wg/cem-theme` packages.
 - Build an installable, offline-capable PWA shell with a dedicated CEM-ML worker, versioned app/runtime/sample caches,
   explicit update coordination, responsive layout, and Consumer Semantic Theme modes.
-- Define a portable project/subproject hierarchy for data sets, inline and URL resources, validation/configuration,
-  conversions, queries, transformations, and transformation graphs. Persist mutable projects in IndexedDB and provide
-  validated import/export before remote providers.
+- Use the accepted `studio-project/v1` portable CEM/JSON project hierarchy for data sets, inline and URL resources,
+  validation/configuration, conversions, queries, transformations, and transformation graphs. Persist mutable projects
+  in IndexedDB and provide validated import/export before remote providers.
 - Add an opt-in local-file provider through the File System Access API. Let users open individual files or bind a
   portable project directory, edit supported resources, create files, and save changes back in place. Persist selected
   file/directory handles only as provider bindings, reconnect them through explicit permission requests, and retain

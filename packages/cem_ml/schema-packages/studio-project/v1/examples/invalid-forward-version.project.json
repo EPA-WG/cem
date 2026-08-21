@@ -1,0 +1,12 @@
+{
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 2,
+    "id": "future-project",
+    "name": "Future project",
+    "rootUri": "studio://future-project/",
+    "revision": 1,
+    "createdAt": "2026-08-20T00:00:00Z",
+    "updatedAt": "2026-08-20T00:00:00Z",
+    "entries": [],
+    "resources": []
+}

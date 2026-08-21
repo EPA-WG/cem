@@ -45,15 +45,15 @@ The accepted application boundary is:
 
 ## Resolved Workspace Baseline
 
-| Surface             | Resolved evidence                                                                                                                                                                                                                                                                                                                                                 | Phase 6.5 consequence                                                                                                                                                                                                  |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nx project graph    | The workspace resolves 44 projects and no `cem-studio` project. `@epa-wg/cem-ml-cli`, `@epa-wg/cem-ml`, `@epa-wg/cem-components`, `@epa-wg/cem-theme`, `cem-elements`, and `cem-site` are independently resolved owners.                                                                                                                                          | Studio is a new package/application; no hidden scaffold or application state needs migration.                                                                                                                          |
-| Browser engine      | `@epa-wg/cem-ml-cli/browser` exports command parsing/serialization, invocation projection, a command-service client, worker-pool operation control, cancellation, artifact reads, and disposal.                                                                                                                                                                   | Studio composes the public browser client and does not create a private WASM wrapper.                                                                                                                                  |
-| Portable operations | The browser parity fixture executes `parse`, `validate`, `check`, `inspect`, `convert`, `query`, direct and graph `transform`, `trace`, and version/capability discovery. The checked report records native, Node, and browser normalized parity plus cancellation.                                                                                               | The old proposal gap claiming that typed browser operation parity still needs to be added is closed. Studio work starts at project/product composition.                                                                |
-| Browser limitations | Browser capabilities truthfully mark `bench`, fixtures, schema mutation, and plugin mutation unavailable; the current browser worker topology reports one effective worker.                                                                                                                                                                                       | Unsupported features remain disabled or explanatory. They are not silently substituted and do not block the local MVP.                                                                                                 |
-| UI foundation       | The component catalog has 48 public primitives and the pinned Angular Material inventory has 37 entries. The initial frame can reuse covered `cem-tree`, `cem-dialog`, `cem-select`, `cem-stepper`, `cem-tooltip`, and related elements; partial rows such as app bar, tabs, table, progress, toast, list, and button remain bounded by their recorded contracts. | Every Studio composition must classify its needed behavior against the matrix. A partial component is usable only within its proven contract; missing general behavior is completed in `@epa-wg/cem-components` first. |
-| Persistence and PWA | No existing Studio IndexedDB repository, File System Access provider, service worker, Cache Storage owner, or install manifest was found.                                                                                                                                                                                                                         | These are genuine Phase 6.5 application deliverables, not wiring to an existing app. Persistence begins only after the portable project contract is accepted.                                                          |
-| Web assembly        | `cem-site` already makes Nx the orchestrator and the CEM-ML graph/module-map pair the deterministic production assembly authority; Vite is present for tests but no Nx Vite application plugin owns production output.                                                                                                                                            | Studio adopts the same authority split and extends it for an installable app rather than introducing a competing build pipeline.                                                                                       |
+| Surface             | Resolved evidence                                                                                                                                                                                                                                                                                                                                                                | Phase 6.5 consequence                                                                                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nx project graph    | The audit resolved 44 projects and no Studio owner. The accepted contract added `cem_ml_schema_package_studio_project_v1`, so the workspace now resolves 45 projects but still has no `@epa-wg/cem-studio` application/package. `@epa-wg/cem-ml-cli`, `@epa-wg/cem-ml`, `@epa-wg/cem-components`, `@epa-wg/cem-theme`, `cem-elements`, and `cem-site` remain independent owners. | Studio is a new package/application; no hidden scaffold or application state needs migration.                                                                                                                          |
+| Browser engine      | `@epa-wg/cem-ml-cli/browser` exports command parsing/serialization, invocation projection, a command-service client, worker-pool operation control, cancellation, artifact reads, and disposal.                                                                                                                                                                                  | Studio composes the public browser client and does not create a private WASM wrapper.                                                                                                                                  |
+| Portable operations | The browser parity fixture executes `parse`, `validate`, `check`, `inspect`, `convert`, `query`, direct and graph `transform`, `trace`, and version/capability discovery. The checked report records native, Node, and browser normalized parity plus cancellation.                                                                                                              | The old proposal gap claiming that typed browser operation parity still needs to be added is closed. Studio work starts at project/product composition.                                                                |
+| Browser limitations | Browser capabilities truthfully mark `bench`, fixtures, schema mutation, and plugin mutation unavailable; the current browser worker topology reports one effective worker.                                                                                                                                                                                                      | Unsupported features remain disabled or explanatory. They are not silently substituted and do not block the local MVP.                                                                                                 |
+| UI foundation       | The component catalog has 48 public primitives and the pinned Angular Material inventory has 37 entries. The initial frame can reuse covered `cem-tree`, `cem-dialog`, `cem-select`, `cem-stepper`, `cem-tooltip`, and related elements; partial rows such as app bar, tabs, table, progress, toast, list, and button remain bounded by their recorded contracts.                | Every Studio composition must classify its needed behavior against the matrix. A partial component is usable only within its proven contract; missing general behavior is completed in `@epa-wg/cem-components` first. |
+| Persistence and PWA | No existing Studio IndexedDB repository, File System Access provider, service worker, Cache Storage owner, or install manifest was found.                                                                                                                                                                                                                                        | These are genuine Phase 6.5 application deliverables, not wiring to an existing app. Persistence can now begin against the accepted portable project contract.                                                         |
+| Web assembly        | `cem-site` already makes Nx the orchestrator and the CEM-ML graph/module-map pair the deterministic production assembly authority; Vite is present for tests but no Nx Vite application plugin owns production output.                                                                                                                                                           | Studio adopts the same authority split and extends it for an installable app rather than introducing a competing build pipeline.                                                                                       |
 
 ## Ownership Boundary
 
@@ -102,29 +102,35 @@ transformation, graph editing, the bidirectional CLI Command view, local-file
 write-back, and provider work stay in later checklist items rather than
 expanding the first proof.
 
-## Decision Point Reached
+## Decision Accepted And Proven
 
-The portable project schema/content identity is not yet accepted. It owns the
-shape persisted in IndexedDB, exported as `project.cem`, projected to JSON,
-used by Feature Tour generation, and migrated across releases. Scaffolding a
-store or seed before that decision would make application code an accidental
-schema authority, so Phase 6.5 stops here.
-
-The recommended next contract is:
+The portable project schema/content identity was accepted and implemented on
+2026-08-20 before application persistence or scaffolding. The accepted contract
+is:
 
 - canonical CEM content type `application/vnd.cem.studio-project+cem`;
 - normalized JSON projection `application/vnd.cem.studio-project+json`;
 - shared schema identity `https://cem.dev/ns/studio/project/1`;
 - JSON Schema artifact identity
   `https://cem.dev/schema/studio/project.schema.json`; and
-- a versioned `studio-project/v1` schema package that owns both projections,
-  deliberate rejection fixtures, conversion parity, and Feature Tour seed
+- a versioned `studio-project/v1` schema package that owns both projections, a
+  JSON Schema artifact, deliberate rejection fixtures, and Feature Tour seed
   validation.
 
 This follows the repository's existing vendor content-type and versioned
 namespace vocabulary while keeping the schema independent of browser storage.
-It remains a recommendation, not an accepted contract, until the next checklist
-item is completed.
+The canonical portable tree has `project.cem` at its root and keeps referenced
+resources in their native formats at contained relative paths. A downloadable
+bundle is only a lossless archive of that tree; it does not introduce another
+project model. `.cem-studio/`, provider bindings, credentials, absolute host
+paths, browser handles, and transient UI state are outside the manifest.
+
+The native model and the package-owned fixtures prove CEM/JSON semantic
+equivalence, deterministic serialization, exact namespace/default selection,
+forward-version rejection, stable hierarchy/resource references, contained
+paths, and logical `studio://` URI derivation. The package is embedded in the
+built-in registry and is part of the CLI schema-package verify gates. Phase 6.5
+can now proceed to the `@epa-wg/cem-studio` Nx application/package scaffold.
 
 ## Evidence
 

@@ -1,0 +1,50 @@
+@doc cem-ml 1
+@ns studio = "https://cem.dev/ns/studio/project/1"
+@default studio
+
+{project
+    @schema-version=1
+    @id="feature-tour"
+    @name="CEM-ML Feature Tour"
+    @description="Editable local-first Studio seed"
+    @root-uri="studio://feature-tour/"
+    @revision=1
+    @created-at="2026-08-20T00:00:00Z"
+    @updated-at="2026-08-20T00:00:00Z" |
+    {entry
+        @id="start-here"
+        @kind="subproject"
+        @name="00 Start Here"
+        @description="First browser-capable workflows"
+        @tags="tour getting-started"
+    }
+    {entry
+        @id="validate-source"
+        @parent-id="start-here"
+        @kind="validation"
+        @name="Validate and navigate diagnostics"
+        @run-config-resource-id="validate-config"
+        @resource-ids="tour-source validate-config"
+        @tags="tour validation"
+    }
+    {resource
+        @id="tour-source"
+        @role="data"
+        @source-kind="project-file"
+        @path="data/tour.cem"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @revision=1
+        @sha256="0000000000000000000000000000000000000000000000000000000000000000"
+    }
+    {resource
+        @id="validate-config"
+        @role="run-config"
+        @source-kind="project-file"
+        @path="config/validate.json"
+        @content-type="application/json"
+        @schema="https://cem.dev/ns/cli/run-config/1"
+        @revision=1
+        @sha256="1111111111111111111111111111111111111111111111111111111111111111"
+    }
+}

@@ -991,20 +991,35 @@ including search, is composed from `@epa-wg/cem-components` and
       37-row Material-parity foundation; and found no existing IndexedDB,
       File System Access, service-worker, or install-manifest owner. It accepts
       `packages/cem-studio`, one exact CLI/runtime chain, Nx orchestration, and
-      CEM-ML graph/module-map production assembly. It stops before scaffolding
-      at the still-open portable project schema/content identity.
-- [ ] Accept the Studio portable project v1 schema/content identity and prove
+      CEM-ML graph/module-map production assembly. Its schema/content decision
+      point is closed by the following completed contract slice.
+- [x] Accept the Studio portable project v1 schema/content identity and prove
       its CEM and normalized JSON projections before application persistence.
-    - [ ] Add valid, edge, and deliberate-rejection project fixtures first,
+    - [x] Add valid, edge, and deliberate-rejection project fixtures first,
           covering stable ids, hierarchy, resource identities, relative paths,
           run-config references, revisions/hashes, and forbidden provider/UI
           state.
-    - [ ] Decide and register the canonical CEM content type, JSON projection,
+    - [x] Decide and register the canonical CEM content type, JSON projection,
           versioned namespace/schema identities, schema-package ownership, and
           `project.cem` directory/bundle rules.
-    - [ ] Prove CEM/JSON semantic round trips, deterministic normalization,
+    - [x] Prove CEM/JSON semantic round trips, deterministic normalization,
           forward-version rejection, logical `studio://` URI derivation, and
           validation before import writes.
+    - Completed 2026-08-20: `studio-project/v1` now owns the canonical
+      `application/vnd.cem.studio-project+cem` projection, normalized
+      `application/vnd.cem.studio-project+json` projection,
+      `https://cem.dev/ns/studio/project/1` schema identity, and
+      `https://cem.dev/schema/studio/project.schema.json` artifact. Six
+      manifest-indexed fixtures and ten native contract tests cover projection
+      equality, deterministic round trips, exact namespace selection, normalized
+      JSON shape, stable hierarchy/resource references, contained paths,
+      `studio://` derivation, forbidden host/UI state, duplicate ids, and
+      forward-version rejection. The package is embedded in the built-in
+      registry, participates in all three CLI schema-package gates, and passes
+      its cached Nx verify, the 13-test schema-package structure target, and the
+      CEM-ML WASM build. The broader 1,970-test CEM-ML gate passed 1,969 tests;
+      its unrelated debugger deadline timing test passed immediately when
+      rerun alone through the same Nx target.
 - [ ] Create the publishable `@epa-wg/cem-studio` Nx application/package under
       `packages/cem-studio` with exact `@epa-wg/cem-ml-cli` versioning and one
       transitive `@epa-wg/cem-ml` runtime.

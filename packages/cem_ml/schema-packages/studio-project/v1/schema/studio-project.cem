@@ -1,0 +1,117 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="studio-project" @namespace="https://cem.dev/ns/studio/project/1" @version="1.0.0" |
+    {summary |
+        {text | Portable, provider-neutral CEM Studio project manifest. CEM is the canonical editable projection and JSON is an equivalent interchange and IndexedDB projection over one normalized native model. The manifest stores stable hierarchy and resource references, but excludes provider bindings, absolute host paths, credentials, browser handles, open tabs, selections, and other transient UI state.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.studio-project+cem" @primary=true}
+        {content-type @value="application/vnd.cem.studio-project+json" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="studio" @uri="https://cem.dev/ns/studio/project/1" @role="schema"}
+    }
+
+    {elements |
+        {element @name="project" @required-attributes="schema-version id name root-uri revision created-at updated-at" @optional-attributes="description" @children="entry* resource*"}
+        {element @name="entry" @required-attributes="id kind name" @optional-attributes="parent-id description run-config-resource-id resource-ids tags"}
+        {element @name="resource" @required-attributes="id role source-kind path content-type revision sha256" @optional-attributes="url schema"}
+    }
+
+    {attributes |
+        {attribute @name="schema-version" @type="cemml:integer" @minInclusive=1 @maxInclusive=1}
+        {attribute @name="id" @type="schema:identifier" @pattern="^[a-z0-9][a-z0-9-]{0,63}$"}
+        {attribute @name="name" @type="schema:string" @minLength=1}
+        {attribute @name="description" @type="schema:string" @minLength=1}
+        {attribute @name="root-uri" @type="schema:uri" @uriSchemes="studio"}
+        {attribute @name="revision" @type="cemml:integer" @minInclusive=1}
+        {attribute @name="created-at" @type="schema:string"}
+        {attribute @name="updated-at" @type="schema:string"}
+        {attribute @name="parent-id" @type="schema:identifier"}
+        {attribute @name="kind" @type="schema:identifier" @values="subproject data-set validation inspection conversion query transformation transformation-graph trace"}
+        {attribute @name="run-config-resource-id" @type="schema:identifier"}
+        {attribute @name="resource-ids" @type="cemml:name-list"}
+        {attribute @name="tags" @type="cemml:name-list"}
+        {attribute @name="role" @type="schema:identifier" @values="data schema query template transform-config graph run-config expected"}
+        {attribute @name="source-kind" @type="schema:identifier" @values="project-file url"}
+        {attribute @name="path" @type="cemml:path" @pathForbiddenPrefixes="/ ../" @pathForbiddenDirectoryNames=".cem-studio"}
+        {attribute @name="url" @type="schema:uri" @uriSchemes="http https"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="schema" @type="schema:uri"}
+        {attribute @name="sha256" @type="schema:string" @pattern="^[0-9a-f]{64}$"}
+    }
+
+    {constraints |
+        {constraint @kind="fixed-schema-identity" @target="project" @policy="the schema identity is exactly https://cem.dev/ns/studio/project/1 and schema-version is exactly 1"}
+        {constraint @kind="canonical-root-uri" @target="project" @policy="root-uri is exactly studio://{project-id}/"}
+        {constraint @kind="global-stable-identifiers" @target="project" @policy="project, entry, and resource ids use the lowercase stable-id grammar and are globally unique"}
+        {constraint @kind="acyclic-subproject-hierarchy" @target="entry" @policy="parent-id resolves to a subproject entry and parent chains are acyclic"}
+        {constraint @kind="entry-run-config" @target="entry" @policy="operation entries require a run-config resource; subproject and data-set entries forbid one"}
+        {constraint @kind="entry-resource-references" @target="entry" @policy="resource-ids and run-config-resource-id resolve within the same manifest; a run config has role run-config"}
+        {constraint @kind="contained-resource-path" @target="resource" @policy="path is project-relative, normalized, and cannot escape root-uri"}
+        {constraint @kind="resource-source" @target="resource" @policy="project-file forbids url; url requires an absolute HTTP or HTTPS URL"}
+        {constraint @kind="resource-content-identity" @target="resource" @policy="content-type is a media type, schema is an optional absolute URI, revision is positive, and sha256 is lowercase hexadecimal"}
+        {constraint @kind="portable-boundary" @target="project" @policy="provider bindings, absolute host paths, credentials, browser handles, and transient UI state are forbidden"}
+        {constraint @kind="deterministic-projections" @target="project" @policy="CEM and JSON parse into one native model and serialize deterministically without losing semantics"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.studio_project.invalid_cem" @severity="error"}
+        {diagnostic @code="cem.studio_project.invalid_json" @severity="error"}
+        {diagnostic @code="cem.studio_project.cem_serialization_failed" @severity="error"}
+        {diagnostic @code="cem.studio_project.json_serialization_failed" @severity="error"}
+        {diagnostic @code="cem.studio_project.content_type_unsupported" @severity="error"}
+        {diagnostic @code="cem.studio_project.schema_identity_unsupported" @severity="error"}
+        {diagnostic @code="cem.studio_project.schema_version_unsupported" @severity="error"}
+        {diagnostic @code="cem.studio_project.project_missing" @severity="error"}
+        {diagnostic @code="cem.studio_project.project_duplicate" @severity="error"}
+        {diagnostic @code="cem.studio_project.child_unknown" @severity="error"}
+        {diagnostic @code="cem.studio_project.attribute_unknown" @severity="error"}
+        {diagnostic @code="cem.studio_project.attribute_duplicate" @severity="error"}
+        {diagnostic @code="cem.studio_project.field_required" @severity="error"}
+        {diagnostic @code="cem.studio_project.field_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.entry_kind_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.id_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.id_duplicate" @severity="error"}
+        {diagnostic @code="cem.studio_project.text_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.root_uri_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.revision_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.timestamp_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.parent_reference_unresolved" @severity="error"}
+        {diagnostic @code="cem.studio_project.parent_kind_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.hierarchy_cycle" @severity="error"}
+        {diagnostic @code="cem.studio_project.resource_reference_unresolved" @severity="error"}
+        {diagnostic @code="cem.studio_project.resource_path_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.resource_source_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.resource_role_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.content_type_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.schema_identity_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.resource_url_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.sha256_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.run_config_required" @severity="error"}
+        {diagnostic @code="cem.studio_project.run_config_forbidden" @severity="error"}
+        {diagnostic @code="cem.studio_project.run_config_role_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.data_set_empty" @severity="error"}
+        {diagnostic @code="cem.studio_project.list_value_duplicate" @severity="error"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="Version 1 fixes portable identity, hierarchy, resource-reference, projection, and rejection semantics. Forward versions are rejected until a later schema package declares them."}
+        {source @schema="https://cem.dev/ns/studio/project/1" @content-type="application/vnd.cem.studio-project+cem"}
+        {source @schema="https://cem.dev/ns/studio/project/1" @content-type="application/vnd.cem.studio-project+json"}
+    }
+
+    {open-content |
+        {accept @kind="future-project-field" @policy="reject-unless-a-later-schema-version-declares-it"}
+    }
+}

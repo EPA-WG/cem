@@ -50,6 +50,7 @@ pub mod scheduler;
 pub mod schema;
 pub mod source;
 pub mod source_map;
+pub mod studio_project;
 pub mod tokenizer;
 pub mod transform_artifact;
 pub mod transform_config;

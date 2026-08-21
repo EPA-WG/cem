@@ -119,12 +119,12 @@ baseline is:
 | `cem_ml` plus the synchronized `@epa-wg/cem-ml` `/wasm` runtime                                   | One semantic implementation reaches native, Node, and browser WASM.                                                                                                               | Studio must consume the public runtime transitively through the CLI package and never bundle a private engine.                                                                 |
 | `@epa-wg/cem-ml-cli/browser` typed command service                                                | Portable `parse`, `validate`, `check`, `inspect`, `convert`, `query`, `transform`, `trace`, capability, cancellation, progress, artifact, and resolver contracts are implemented. | Compose these contracts into Studio project/run state; do not recreate command execution in application TypeScript.                                                            |
 | Native/Node/browser parity reports                                                                | The portable operation fixture and normalized result/cancellation parity are already verified across all three hosts.                                                             | Add Studio-specific project, persistence, stale-result, Feature Tour, and UI integration fixtures.                                                                             |
-| Schema-package registries and examples                                                            | Can generate the Feature Tour and capability catalog rather than hard-coding samples.                                                                                             | Define the Studio project schema package and ensure the browser capability payload carries the package versions needed to gate generated examples.                             |
+| Schema-package registries and examples                                                            | The accepted `studio-project/v1` package owns the portable CEM/JSON project model, JSON Schema artifact, and Feature Tour/rejection fixtures.                                     | Ensure the browser capability payload carries the package versions needed to gate generated examples.                                                                          |
 | `@epa-wg/cem-components`, `@epa-wg/cem-elements`, and the pinned 37-entry Angular Material matrix | The 48 public primitives provide the reusable light-DOM UI foundation.                                                                                                            | Classify each Studio composition, complete missing general parity behavior first, and add a `/studio` export only for reusable workbench behavior with no general counterpart. |
 | `@epa-wg/cem-theme` Markdown specifications and generated semantic modes                          | Canonical visual system for Studio.                                                                                                                                               | Add only genuinely reusable missing semantics to the Markdown owners; keep application aliases mapped to existing semantic tokens.                                             |
 | The fixed `cem-ml-platform` Nx release group                                                      | `cem_ml`, native CLI, WASM npm, CLI npm, and native target packages already share one Cargo-derived version contract.                                                             | Add the future Studio project to the release family and verify its exact CLI dependency, package artifact, app build id, and release commit.                                   |
 | CEM Site CEM-ML graph/module-map production assembly                                              | Proves deterministic web assembly without making Vite or a copy script the deployment authority.                                                                                  | Extend the same boundary to Studio app modules, worker/WASM assets, manifest, service worker, and offline cache inventory.                                                     |
-| No existing Studio application, IndexedDB store, local-file provider, or PWA owner                | Leaves a clean application boundary.                                                                                                                                              | Implement these Phase 6.5 deliverables after the portable project schema/content identity is accepted.                                                                         |
+| No existing Studio application, IndexedDB store, local-file provider, or PWA owner                | Leaves a clean application boundary.                                                                                                                                              | Create the Studio application/package next, then implement the repository, provider, and PWA deliverables against the accepted project contract.                               |
 
 Relevant local contracts include the
 [`cem-ml` CLI feature summary](./cem-ml-cli-contract.md),
@@ -1062,11 +1062,23 @@ No single serialization is ideal for IndexedDB, Git review, NoSQL queries,
 single-object storage, documentation, and quick sharing. Define one versioned
 **logical project model** and several lossless or generated projections.
 
-### Recommended Canonical and Projections
+### Accepted Canonical and Projections
 
-1. Define a CEM-ML Studio project schema. `project.cem` is the preferred
-   human-authorable portable manifest and Git source of truth once that schema
-   is accepted.
+The accepted v1 identities are:
+
+- CEM: `application/vnd.cem.studio-project+cem`;
+- normalized JSON: `application/vnd.cem.studio-project+json`;
+- schema: `https://cem.dev/ns/studio/project/1`; and
+- JSON Schema artifact:
+  `https://cem.dev/schema/studio/project.schema.json`.
+
+The owning package is
+`packages/cem_ml/schema-packages/studio-project/v1`. Its native Rust model,
+schema-owned fixtures, and diagnostics are the semantic authority used before
+any import write.
+
+1. `project.cem` is the preferred human-authorable portable manifest and Git
+   source of truth.
 2. Keep sources, schemas, queries, templates, and transformation configs as
    separate files in their native formats. Do not embed every resource into one
    huge manifest.
@@ -1098,6 +1110,12 @@ expected/                         # optional pinned result fixtures
 The manifest references logical relative paths plus content/schema identities.
 Provider ids, OAuth details, local absolute paths, signed URLs, UI pane sizes,
 and transient run output do not belong in the portable manifest.
+
+The portable tree has `project.cem` at its root. Resource paths must be
+normalized, relative, contained by the project root, and outside the reserved
+`.cem-studio/` provider-state directory. A ZIP or other downloadable bundle is
+only a lossless archive of this tree and cannot add an alternate manifest or
+semantic model.
 
 ### Deployment Format Matrix
 
@@ -1432,8 +1450,6 @@ Studio proposal.
 - What executable-size, startup, performance, signing, asset-loading, and
   security-update thresholds must a Node SEA semi-native package meet before it
   leaves the wishlist?
-- What is the accepted CEM-ML schema/content identity for a Studio project
-  manifest?
 - Which source/result size limits are safe defaults for desktop and mobile
   browsers?
 - Is textarea sufficient for the first public release, or is schema-driven

@@ -1,0 +1,22 @@
+{
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "escaping-project",
+    "name": "Escaping project",
+    "rootUri": "studio://escaping-project/",
+    "revision": 1,
+    "createdAt": "2026-08-20T00:00:00Z",
+    "updatedAt": "2026-08-20T00:00:00Z",
+    "entries": [],
+    "resources": [
+        {
+            "id": "outside",
+            "role": "data",
+            "sourceKind": "project-file",
+            "path": "../outside.cem",
+            "contentType": "application/cem",
+            "revision": 1,
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+    ]
+}

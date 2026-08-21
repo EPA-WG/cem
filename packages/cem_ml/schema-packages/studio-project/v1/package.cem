@@ -1,0 +1,76 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="studio-project" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/studio/project/1"
+        @source="schema/studio-project.cem"
+    }
+
+    {content-type @value="application/vnd.cem.studio-project+cem" @primary=true}
+    {content-type @value="application/vnd.cem.studio-project+json" @alias=true}
+
+    {namespace @prefix="studio" @uri="https://cem.dev/ns/studio/project/1"}
+
+    {artifact
+        @kind="json-schema"
+        @path="schema/studio-project.schema.json"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @target-content-type="application/vnd.cem.studio-project+json"
+        @target-schema="https://cem.dev/ns/studio/project/1"
+    }
+
+    {example
+        @id="feature-tour-cem"
+        @path="examples/feature-tour.project.cem"
+        @content-type="application/vnd.cem.studio-project+cem"
+        @schema="https://cem.dev/ns/studio/project/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="feature-tour-json"
+        @path="examples/feature-tour.project.json"
+        @content-type="application/vnd.cem.studio-project+json"
+        @schema="https://cem.dev/ns/studio/project/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-forward-version"
+        @path="examples/invalid-forward-version.project.json"
+        @content-type="application/vnd.cem.studio-project+json"
+        @schema="https://cem.dev/ns/studio/project/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.studio_project.schema_version_unsupported"
+    }
+
+    {example
+        @id="invalid-escaping-path"
+        @path="examples/invalid-escaping-path.project.json"
+        @content-type="application/vnd.cem.studio-project+json"
+        @schema="https://cem.dev/ns/studio/project/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.studio_project.resource_path_invalid"
+    }
+
+    {example
+        @id="invalid-forbidden-state"
+        @path="examples/invalid-forbidden-state.project.json"
+        @content-type="application/vnd.cem.studio-project+json"
+        @schema="https://cem.dev/ns/studio/project/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.studio_project.invalid_json"
+    }
+
+    {example
+        @id="invalid-duplicate-id"
+        @path="examples/invalid-duplicate-id.project.cem"
+        @content-type="application/vnd.cem.studio-project+cem"
+        @schema="https://cem.dev/ns/studio/project/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.studio_project.id_duplicate"
+    }
+}
