@@ -73,6 +73,18 @@ describe('CemRepositoryRegistry', () => {
         unregister();
         expect(registry.has('studio-projects')).toBe(false);
     });
+
+    it('projects a frozen read-only capability without execute authority', async () => {
+        const execute = vi.fn();
+        const registry = new CemRepositoryRegistry();
+        registry.register('studio-projects', port({ execute }));
+
+        const reader = registry.readOnly();
+        expect(Object.isFrozen(reader)).toBe(true);
+        expect('execute' in reader).toBe(false);
+        await reader.query(request);
+        expect(execute).not.toHaveBeenCalled();
+    });
 });
 
 function port(overrides: Partial<CemRepositoryPort> = {}): CemRepositoryPort {

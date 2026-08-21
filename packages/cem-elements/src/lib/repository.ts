@@ -64,6 +64,13 @@ export interface CemRepositoryPort {
     status(): Promise<CemRepositoryStatus>;
 }
 
+/** Read-only repository surface permitted inside declarative render lifecycles. */
+export interface CemRepositoryReader {
+    query(request: CemRepositoryRequest, signal?: AbortSignal): Promise<CemRepositoryQueryResult>;
+    subscribe(identity: string, cursor: number, notify: (change: CemRepositoryChange) => void): () => void;
+    status(identity: string): Promise<CemRepositoryStatus>;
+}
+
 export class CemRepositoryContractError extends Error {
     constructor(
         readonly code:
@@ -87,7 +94,7 @@ export class CemRepositoryContractError extends Error {
  * address only logical repository and operation identities; physical browser
  * databases, stores, indexes, and transaction handles remain host-private.
  */
-export class CemRepositoryRegistry {
+export class CemRepositoryRegistry implements CemRepositoryReader {
     private readonly ports = new Map<string, CemRepositoryPort>();
 
     register(identity: string, port: CemRepositoryPort): () => void {
@@ -106,6 +113,18 @@ export class CemRepositoryRegistry {
 
     has(identity: string): boolean {
         return this.ports.has(identity);
+    }
+
+    /**
+     * Return a capability-narrowed facade for CEM runtimes. The facade has no
+     * mutation method, so render-driven code cannot acquire `execute`.
+     */
+    readOnly(): CemRepositoryReader {
+        return Object.freeze({
+            query: this.query.bind(this),
+            subscribe: this.subscribe.bind(this),
+            status: this.status.bind(this),
+        });
     }
 
     async query(request: CemRepositoryRequest, signal?: AbortSignal): Promise<CemRepositoryQueryResult> {

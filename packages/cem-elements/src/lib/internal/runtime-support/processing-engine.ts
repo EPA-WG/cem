@@ -373,6 +373,20 @@ function lowerResourceControls(plan: RenderPlan): {
                 }
                 continue;
             }
+            if (node.tag === 'repository-query') {
+                const control = lowerRepositoryQueryControl(node);
+                if (control) {
+                    resourceControls.push(control);
+                }
+                continue;
+            }
+            if (node.tag === 'storage-status') {
+                const control = lowerStorageStatusControl(node);
+                if (control) {
+                    resourceControls.push(control);
+                }
+                continue;
+            }
             retained.push({ ...node, children: lowerNodes(node.children) });
         }
         return retained;
@@ -380,6 +394,52 @@ function lowerResourceControls(plan: RenderPlan): {
     return {
         renderPlan: { ...plan, nodes: lowerNodes(plan.nodes) },
         resourceControls,
+    };
+}
+
+function lowerRepositoryQueryControl(
+    node: Extract<RenderPlanNode, { kind: 'element' }>
+): CemProcessingResourceControl | null {
+    const attributes = renderAttributeRecord(node.attributes);
+    const sliceName = attributes.slice?.trim() ?? '';
+    const repository = attributes.repository?.trim() ?? '';
+    const operation = attributes.operation?.trim() ?? '';
+    if (!sliceName || !repository || !operation) {
+        return null;
+    }
+    const parameters = optionalControlAttribute(attributes, 'parameters');
+    const cursor = optionalControlAttribute(attributes, 'cursor');
+    return {
+        kind: 'repository-query',
+        renderNodeId: node.renderNodeId,
+        sliceName,
+        repository,
+        operation,
+        ...(parameters === undefined ? {} : { parameters }),
+        live: controlBooleanAttribute(attributes, 'live'),
+        ...(cursor === undefined ? {} : { cursor }),
+        ...(node.sourceMapRef === undefined ? {} : { sourceMapRef: node.sourceMapRef })
+    };
+}
+
+function lowerStorageStatusControl(
+    node: Extract<RenderPlanNode, { kind: 'element' }>
+): CemProcessingResourceControl | null {
+    const attributes = renderAttributeRecord(node.attributes);
+    const sliceName = attributes.slice?.trim() ?? '';
+    const repository = attributes.repository?.trim() ?? '';
+    if (!sliceName || !repository) {
+        return null;
+    }
+    const cursor = optionalControlAttribute(attributes, 'cursor');
+    return {
+        kind: 'storage-status',
+        renderNodeId: node.renderNodeId,
+        sliceName,
+        repository,
+        live: controlBooleanAttribute(attributes, 'live'),
+        ...(cursor === undefined ? {} : { cursor }),
+        ...(node.sourceMapRef === undefined ? {} : { sourceMapRef: node.sourceMapRef })
     };
 }
 
@@ -425,6 +485,14 @@ function optionalControlAttribute(
 ): string | undefined {
     const value = attributes[name]?.trim();
     return value ? value : undefined;
+}
+
+function controlBooleanAttribute(attributes: Record<string, string>, name: string): boolean {
+    if (!(name in attributes)) {
+        return false;
+    }
+    const value = attributes[name]?.trim().toLowerCase();
+    return value !== 'false' && value !== '0';
 }
 
 function sameArtifactHandle(left: CemProcessingArtifactHandle, right: CemProcessingArtifactHandle): boolean {

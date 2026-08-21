@@ -178,7 +178,32 @@ export interface CemProcessingHttpRequestControl {
     sourceMapRef?: SourceMapRef;
 }
 
-export type CemProcessingResourceControl = CemProcessingHttpRequestControl;
+export interface CemProcessingRepositoryQueryControl {
+    kind: 'repository-query';
+    renderNodeId: string;
+    sliceName: string;
+    repository: string;
+    operation: string;
+    parameters?: string;
+    live: boolean;
+    cursor?: string;
+    sourceMapRef?: SourceMapRef;
+}
+
+export interface CemProcessingStorageStatusControl {
+    kind: 'storage-status';
+    renderNodeId: string;
+    sliceName: string;
+    repository: string;
+    live: boolean;
+    cursor?: string;
+    sourceMapRef?: SourceMapRef;
+}
+
+export type CemProcessingResourceControl =
+    | CemProcessingHttpRequestControl
+    | CemProcessingRepositoryQueryControl
+    | CemProcessingStorageStatusControl;
 
 export interface CemProcessingRenderDiffResult {
     revision: RenderRevision;

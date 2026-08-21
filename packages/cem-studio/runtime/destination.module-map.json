@@ -135,6 +135,10 @@
             "path": "./assets/@epa-wg/cem-elements/dist/lib/cem-elements.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-elements/repository": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/repository.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-elements/declaration-scope": {
             "path": "./assets/@epa-wg/cem-elements/dist/lib/declaration-scope.js",
             "contentType": "text/javascript"

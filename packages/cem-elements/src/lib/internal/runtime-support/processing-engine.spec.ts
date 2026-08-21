@@ -62,6 +62,35 @@ vi.mock('./cem-ql-render.js', () => {
                     children: [],
                     sourceMapRef: { fidelity: 'author-byte-exact' as const, frame: 'cem:0' },
                 }] : []),
+                ...(sources.get(artifactId)?.includes('repository-query') ? [{
+                    kind: 'element' as const,
+                    namespace: null,
+                    tag: 'repository-query',
+                    attributes: [
+                        { name: 'slice', value: 'projects' },
+                        { name: 'repository', value: 'studio-projects' },
+                        { name: 'operation', value: 'list-projects' },
+                        { name: 'parameters', value: '{"includeTrash":false}' },
+                        { name: 'live', value: 'true' },
+                        { name: 'cursor', value: '12' },
+                    ],
+                    renderNodeId: `${input.identity.producedTag}-repository-1`,
+                    children: [],
+                    sourceMapRef: { fidelity: 'author-byte-exact' as const, frame: 'cem:1' },
+                }] : []),
+                ...(sources.get(artifactId)?.includes('storage-status') ? [{
+                    kind: 'element' as const,
+                    namespace: null,
+                    tag: 'storage-status',
+                    attributes: [
+                        { name: 'slice', value: 'storage' },
+                        { name: 'repository', value: 'studio-projects' },
+                        { name: 'live', value: 'true' },
+                    ],
+                    renderNodeId: `${input.identity.producedTag}-storage-1`,
+                    children: [],
+                    sourceMapRef: { fidelity: 'author-byte-exact' as const, frame: 'cem:2' },
+                }] : []),
                 {
                 kind: 'element' as const,
                 namespace: null,
@@ -396,6 +425,67 @@ describe('Phase 3A retained processing engine', () => {
             sourceMapRef: { fidelity: 'author-byte-exact', frame: 'cem:0' },
         }]);
         expect(JSON.stringify(rendered.frames)).not.toContain('http-request');
+        expect(structuredClone(rendered)).toEqual(rendered);
+    });
+
+    it('lowers repository reads and storage status without mutation authority in the render plan', async () => {
+        const engine = new CemProcessingEngine();
+        const snapshot = snapshotFixture(
+            '1',
+            'template-worker-repository-1',
+            'cem-worker-repository'
+        );
+        const compiled = await engine.compile({
+            language: 'cem-ml',
+            producedTag: 'cem-worker-repository',
+            templateArtifactId: snapshot.templateArtifactId,
+            registrationIdentity: 'cem-registration-v1:worker-repository',
+            source: createCemProcessingTextSource(
+                '{repository-query @slice=projects @repository=studio-projects @operation=list-projects}' +
+                    '{storage-status @slice=storage @repository=studio-projects}' +
+                    '{span | {$label}}',
+                5
+            ),
+            sourceRef: { kind: 'inline', value: 'cem-worker-repository' },
+            resolverIdentity: 'document:https://example.test/',
+            scopePolicyStamp: snapshot.scopePolicyStamp,
+            sourceMapMode: 'dev'
+        });
+
+        const rendered = await engine.renderDiff({
+            artifact: compiled.artifact,
+            revision: revision(snapshot),
+            snapshot,
+            data: { label: 'Loaded' },
+            scopeUid: 'worker-repository-scope',
+            instanceScopeUid: 'worker-repository-instance-scope',
+            previousRenderPlan: null
+        });
+
+        expect(rendered.resourceControls).toEqual([
+            {
+                kind: 'repository-query',
+                renderNodeId: 'cem-worker-repository-repository-1',
+                sliceName: 'projects',
+                repository: 'studio-projects',
+                operation: 'list-projects',
+                parameters: '{"includeTrash":false}',
+                live: true,
+                cursor: '12',
+                sourceMapRef: { fidelity: 'author-byte-exact', frame: 'cem:1' }
+            },
+            {
+                kind: 'storage-status',
+                renderNodeId: 'cem-worker-repository-storage-1',
+                sliceName: 'storage',
+                repository: 'studio-projects',
+                live: true,
+                sourceMapRef: { fidelity: 'author-byte-exact', frame: 'cem:2' }
+            }
+        ]);
+        expect(JSON.stringify(rendered.frames)).not.toMatch(
+            /repository-query|storage-status|execute/
+        );
         expect(structuredClone(rendered)).toEqual(rendered);
     });
 });

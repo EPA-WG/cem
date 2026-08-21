@@ -1120,15 +1120,37 @@ including search, is composed from `@epa-wg/cem-components` and
       and migration diagnostics, and seven real Chromium tests cover schema,
       atomicity, validation, conflict, search, trash/restore, multi-instance
       coordination, quota, and version failures. The aggregate Studio check
-      passes lint, typecheck, browser tests, deterministic graph assembly (54
-      declared assets / 61 files), package verification, and a clean consumer;
-      the generic repository registry is also covered by the full 136-test
+      passes lint, typecheck, browser tests, deterministic graph assembly (55
+      declared assets / 62 files), package verification, and a clean consumer;
+      the generic repository registry is also covered by the full 138-test
       `cem-elements` unit suite.
-- [ ] Project logical repository reads and storage health into CEM data slices
+- [x] Project logical repository reads and storage health into CEM data slices
       through transient `repository-query` and `storage-status` resources, with
       abort/stale-result handling, durable-cursor subscription cleanup, and a
       proof that rendering can never execute repository mutations or request
       persistent storage.
+    - [x] Accept and document the clone-safe resource envelopes, declaration
+          attributes, read-only registry injection, and canonical CEM-ML
+          processing-host lowering.
+    - [x] Add focused processing-engine and real-browser fixtures for query and
+          status lifecycles, superseded-request abort, stale-result rejection,
+          live cursor refresh, disconnect cleanup, and the no-mutation boundary.
+    - [x] Integrate the resources into the package build and aggregate browser
+          verification without adding app-owned visible UI.
+    - Completed 2026-08-21: canonical processing-host plans and the direct DOM
+      fallback now lower both declarations into clone-safe
+      `scheduled`/`loaded`/`failed` data-slice envelopes. The runtime consumes
+      the frozen `CemRepositoryRegistry.readOnly()` capability, aborts
+      superseded queries, rejects late revisions, refreshes query and status
+      slices from durable cursor hints, and releases every query/subscription on
+      replacement, disappearance, or disconnect. Focused engine/registry tests
+      and a real Chromium lifecycle fixture prove JSON-parameter projection,
+      storage-health reads, stale-result protection, and zero calls to
+      `execute`; the package and Studio module maps include the reader runtime
+      without introducing application-owned visible UI. The full
+      `cem-elements:verify` integration gate passes all 59 Nx tasks, and the
+      Studio aggregate passes all 37 tasks with deterministic 55-asset/62-file
+      graph output, package verification, and a clean consumer.
 - [ ] Build the installable PWA shell with semantic theme modes, a dedicated
       command worker, versioned app/runtime/sample caches, explicit update
       coordination, offline navigation, and recovery without project loss.

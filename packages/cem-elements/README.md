@@ -31,6 +31,32 @@ states use the portable lifecycle vocabulary: `scheduled`, `in-progress`, `loade
 `failed` for the implemented Phase 1 transitions. JSON/XML projections are available at
 `datadom.slices.<name>.data` and can be consumed by `cem:for-each`.
 
+`<repository-query>` and `<storage-status>` use the same transient-control boundary for
+logical repository reads. Applications register host-owned ports with
+`CemRepositoryRegistry` and inject `registry.readOnly()` through the runtime's
+`repositoryRegistry` option. The facade exposes only `query`, `subscribe`, and `status`;
+it deliberately has no `execute` capability.
+
+```cem
+{repository-query
+    @slice=projects
+    @repository=studio-projects
+    @operation=list-projects
+    @parameters="{$datadom.attributes.query-parameters}"
+    @live=true
+    @cursor=0}
+{storage-status @slice=storage @repository=studio-projects @live=true @cursor=0}
+```
+
+`parameters` is optional JSON; the example reads it from an instance attribute such as
+`query-parameters='{"includeTrash":false}'` so the JSON reaches the declaration as one
+interpolated value. `live` subscribes from the optional non-negative durable change cursor,
+and every query revision is runtime-owned. Both resources project
+`scheduled`, `loaded`, or `failed` envelopes under `datadom.slices.<name>`, reject stale
+completions, and release subscriptions and abortable queries when superseded, removed,
+or disconnected. `storage-status` reports the port's existing quota/persistence state;
+rendering cannot invoke a repository mutation or call `navigator.storage.persist()`.
+
 ## Production-Ready Trigger
 
 The package is considered browser-substrate production-ready when this command passes:

@@ -540,22 +540,26 @@ Deliverables:
   post-local-MVP wishlist.
 
 Progress: **publishable package, graph-owned bootstrap, UI ownership
-classification, general tabs, and the versioned local project repository
-complete (2026-08-21).** `@epa-wg/cem-studio` now participates in the
-fixed-version CEM-ML platform group, resolves one exact CLI-to-runtime chain,
-and packages a 61-file static bootstrap assembled entirely by the CEM-ML
-transformation graph. The executable UI classification assigns all 23 initial
-shell/workbench behaviors to general CEM controls, seven future reusable
-`/studio` composites, or Studio application orchestration. The completed
-`cem-tabs`/`cem-tab` Material-parity contract opens compact shell panes and
-Results projection switching without app-local interaction code. The private
-IndexedDB v1 implementation now sits behind the generic `cem-elements`
-repository protocol with strict revision/hash transactions, durable multi-tab
-changes, deterministic search documents, quota diagnostics, and CEM-ML-validated
-import/export. The service worker and cache inventory remain bootstrap-only;
-the next prerequisite is projecting repository queries and storage health into
-CEM data slices without introducing render-side mutations, before composing the
-offline PWA shell.
+classification, general tabs, the versioned local project repository, and its
+read-only CEM resource projection complete (2026-08-21).**
+`@epa-wg/cem-studio` participates in the fixed-version CEM-ML platform group,
+resolves one exact CLI-to-runtime chain, and packages its static bootstrap
+as a deterministic 62-file output entirely through the CEM-ML transformation
+graph. The executable UI
+classification assigns all 23 initial shell/workbench behaviors to general CEM
+controls, seven future reusable `/studio` composites, or Studio application
+orchestration. The completed `cem-tabs`/`cem-tab` Material-parity contract opens
+compact shell panes and Results projection switching without app-local
+interaction code. The private IndexedDB v1 implementation sits behind the
+generic `cem-elements` repository protocol with strict revision/hash
+transactions, durable multi-tab changes, deterministic search documents, quota
+diagnostics, and CEM-ML-validated import/export. Transient `repository-query`
+and `storage-status` resources now project clone-safe lifecycle envelopes into
+CEM data slices through a capability-narrowed reader, abort superseded work,
+reject stale completions, follow durable cursors, and release subscriptions
+without exposing repository mutation or storage-persistence authority. The
+service worker and cache inventory remain bootstrap-only; the next work item is
+the installable offline PWA shell.
 
 Exit criteria:
 

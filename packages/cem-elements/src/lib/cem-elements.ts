@@ -69,6 +69,14 @@ import {
     type CemEdgeSsrRenderUpdateInput,
     type CemEdgeSsrJobSequence,
 } from './edge-ssr-host.js';
+import {
+    CEM_REPOSITORY_PROTOCOL_VERSION,
+    type CemRepositoryChange,
+    type CemRepositoryDiagnostic,
+    type CemRepositoryReader,
+    type CemRepositoryRequest,
+    type CemRepositoryStatus
+} from './repository.js';
 
 export * from './edge-ssr-host.js';
 
@@ -397,6 +405,29 @@ export interface CemHttpResourceEnvelope {
     diagnostics: CemElementDiagnostic[];
 }
 
+export type CemRepositoryResourceState = 'scheduled' | 'loaded' | 'failed';
+
+export interface CemRepositoryQueryEnvelope {
+    kind: 'repository-query';
+    state: CemRepositoryResourceState;
+    resourceRevision: number;
+    changeCursor: number;
+    request: CemRepositoryRequest;
+    repositoryRevision: number | null;
+    data: unknown;
+    diagnostics: CemElementDiagnostic[];
+}
+
+export interface CemStorageStatusEnvelope {
+    kind: 'storage-status';
+    state: CemRepositoryResourceState;
+    resourceRevision: number;
+    changeCursor: number;
+    repository: string;
+    data: CemRepositoryStatus | null;
+    diagnostics: CemElementDiagnostic[];
+}
+
 export interface CemElementRuntimeOptions {
     declarationTag?: string;
     /**
@@ -443,6 +474,12 @@ export interface CemElementRuntimeOptions {
      * override these when they provide their own resolver/loader policy.
      */
     httpResourcePolicy?: Partial<CemHttpResourcePolicy>;
+    /**
+     * Capability-narrowed logical repository reader. Declarative resources can
+     * query, subscribe, and inspect status; mutation authority is intentionally
+     * absent from this boundary.
+     */
+    repositoryRegistry?: CemRepositoryReader;
     /**
      * Effective run mode for the BR-VC-9 unknown-optional-feature disposition
      * applied when ingesting a versioned governed-contract payload (e.g. a
@@ -627,6 +664,8 @@ interface InstanceState {
     slices: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
     httpResources: Record<string, ActiveHttpResource>;
+    repositoryQueryResources: Record<string, ActiveRepositoryQueryResource>;
+    storageStatusResources: Record<string, ActiveStorageStatusResource>;
     localStorageResources: Record<string, ActiveLocalStorageResource>;
     locationResources: Record<string, ActiveLocationResource>;
     resourceRevisions: Record<string, number>;
@@ -686,6 +725,24 @@ interface HttpRequestDeclaration {
     sourceMapRef?: SourceMapRef;
 }
 
+interface RepositoryQueryDeclaration {
+    sliceName: string;
+    repository: string;
+    operation: string;
+    parameters?: string;
+    live: boolean;
+    cursor?: string;
+    sourceMapRef?: SourceMapRef;
+}
+
+interface StorageStatusDeclaration {
+    sliceName: string;
+    repository: string;
+    live: boolean;
+    cursor?: string;
+    sourceMapRef?: SourceMapRef;
+}
+
 interface ResolvedDeclarationSource {
     sourceRef: CemProcessingSourceRef;
     resolverIdentity: string;
@@ -720,6 +777,25 @@ interface ActiveHttpResource {
     revision: number;
     controller: AbortController;
     settled: Promise<void>;
+}
+
+interface ActiveRepositoryQueryResource {
+    key: string;
+    revision: number;
+    cursor: number;
+    controller: AbortController;
+    settled: Promise<void>;
+    unsubscribe?: () => void;
+    refreshQueued: boolean;
+}
+
+interface ActiveStorageStatusResource {
+    key: string;
+    revision: number;
+    cursor: number;
+    settled: Promise<void>;
+    unsubscribe?: () => void;
+    refreshQueued: boolean;
 }
 
 interface ActiveLocalStorageResource {
@@ -1167,6 +1243,7 @@ export class CemElementRuntime {
     private readonly resolveResourceUrlOption?: CemElementRuntimeOptions['resolveResourceUrl'];
     private readonly loadHttpResourceOption?: CemElementRuntimeOptions['loadHttpResource'];
     private readonly httpResourcePolicy: CemHttpResourcePolicy;
+    private readonly repositoryRegistry?: CemRepositoryReader;
     private readonly runMode: RunMode;
     private readonly uidSeedOption?: CemElementRuntimeOptions['uidSeed'];
     private readonly uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
@@ -1185,6 +1262,7 @@ export class CemElementRuntime {
         this.resolveResourceUrlOption = options.resolveResourceUrl;
         this.loadHttpResourceOption = options.loadHttpResource;
         this.httpResourcePolicy = { ...DEFAULT_HTTP_RESOURCE_POLICY, ...(options.httpResourcePolicy ?? {}) };
+        this.repositoryRegistry = options.repositoryRegistry;
         this.runMode = options.runMode ?? 'application';
         this.uidSeedOption = options.uidSeed;
         this.uidSeedFallback = options.uidSeedFallback ?? (this.runMode === 'build-ssr' ? 'source-hash' : 'runtime');
@@ -1757,6 +1835,15 @@ export class CemElementRuntime {
             for (const active of Object.values(state.httpResources)) {
                 active.controller.abort();
             }
+            for (const active of Object.values(state.repositoryQueryResources)) {
+                active.controller.abort();
+                active.unsubscribe?.();
+            }
+            state.repositoryQueryResources = {};
+            for (const active of Object.values(state.storageStatusResources)) {
+                active.unsubscribe?.();
+            }
+            state.storageStatusResources = {};
             for (const active of Object.values(state.localStorageResources)) {
                 active.destroy?.();
             }
@@ -2218,7 +2305,14 @@ export class CemElementRuntime {
             preserveElementChildren: (current) =>
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false)
                 && directDataIsland(current) !== undefined,
-            transientElementTags: ['module-url', 'http-request', 'local-storage', 'location-element'],
+            transientElementTags: [
+                'module-url',
+                'http-request',
+                'repository-query',
+                'storage-status',
+                'local-storage',
+                'location-element',
+            ],
         });
         if (result.status !== 'applied') {
             this.recordDiagnostics(
@@ -2244,6 +2338,8 @@ export class CemElementRuntime {
         _token: number
     ): Promise<void> {
         const settled: Promise<void>[] = [];
+        const repositoryQueries = new Set<string>();
+        const storageStatuses = new Set<string>();
         for (const control of controls) {
             if (control.kind === 'http-request') {
                 settled.push(this.startHttpRequestResource(instance, compiled, {
@@ -2257,7 +2353,34 @@ export class CemElementRuntime {
                     sourceMapRef: control.sourceMapRef,
                 }));
             }
+            if (control.kind === 'repository-query') {
+                repositoryQueries.add(control.sliceName);
+                settled.push(
+                    this.startRepositoryQueryResource(instance, compiled, {
+                        sliceName: control.sliceName,
+                        repository: control.repository,
+                        operation: control.operation,
+                        parameters: control.parameters,
+                        live: control.live,
+                        cursor: control.cursor,
+                        sourceMapRef: control.sourceMapRef
+                    })
+                );
+            }
+            if (control.kind === 'storage-status') {
+                storageStatuses.add(control.sliceName);
+                settled.push(
+                    this.startStorageStatusResource(instance, compiled, {
+                        sliceName: control.sliceName,
+                        repository: control.repository,
+                        live: control.live,
+                        cursor: control.cursor,
+                        sourceMapRef: control.sourceMapRef
+                    })
+                );
+            }
         }
+        this.disposeMissingRepositoryResources(instance, repositoryQueries, storageStatuses);
         return settled.length === 0 ? Promise.resolve() : Promise.all(settled).then(() => undefined);
     }
 
@@ -2448,6 +2571,8 @@ export class CemElementRuntime {
                 : Object.fromEntries(compiled.declaredSlices.map((slice) => [slice.name, slice.defaultValue])),
             eventPayloads: hydrationSnapshot?.eventPayloads ?? {},
             httpResources: {},
+            repositoryQueryResources: {},
+            storageStatusResources: {},
             localStorageResources: {},
             locationResources: {},
             resourceRevisions: {},
@@ -2643,7 +2768,11 @@ export class CemElementRuntime {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
-            Array.from(rendered.querySelectorAll('module-url,http-request,local-storage,location-element')),
+            Array.from(
+                rendered.querySelectorAll(
+                    'module-url,http-request,repository-query,storage-status,local-storage,location-element'
+                )
+            ),
             token
         );
     }
@@ -2657,7 +2786,10 @@ export class CemElementRuntime {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
-            renderedElementsBetween(bounds, 'module-url,http-request,local-storage,location-element'),
+            renderedElementsBetween(
+                bounds,
+                'module-url,http-request,repository-query,storage-status,local-storage,location-element'
+            ),
             token
         );
     }
@@ -2668,17 +2800,19 @@ export class CemElementRuntime {
         resourceElements: Element[],
         token: number
     ): Promise<void> {
-        if (resourceElements.length === 0) {
-            return Promise.resolve();
-        }
-
         const moduleTasks: Promise<RenderedResourceResult>[] = [];
-        const httpSettled: Promise<void>[] = [];
+        const resourcesSettled: Promise<void>[] = [];
+        const repositoryQueries = new Set<string>();
+        const storageStatuses = new Set<string>();
         for (const element of resourceElements) {
             const localName = element.localName;
             const sliceName = element.getAttribute('slice')?.trim() ?? '';
             const specifier = element.getAttribute('src')?.trim() ?? '';
             const httpRequest = localName === 'http-request' ? readHttpRequestDeclaration(element) : null;
+            const repositoryQuery =
+                localName === 'repository-query' ? readRepositoryQueryDeclaration(element) : null;
+            const storageStatus =
+                localName === 'storage-status' ? readStorageStatusDeclaration(element) : null;
             const localStorage = localName === 'local-storage' ? readLocalStorageDeclaration(element) : null;
             const locationElement = localName === 'location-element' ? readLocationElementDeclaration(element) : null;
             element.remove();
@@ -2700,7 +2834,23 @@ export class CemElementRuntime {
                 continue;
             }
             if (httpRequest) {
-                httpSettled.push(this.startHttpRequestResource(instance, compiled, httpRequest));
+                resourcesSettled.push(
+                    this.startHttpRequestResource(instance, compiled, httpRequest)
+                );
+                continue;
+            }
+            if (repositoryQuery) {
+                repositoryQueries.add(repositoryQuery.sliceName);
+                resourcesSettled.push(
+                    this.startRepositoryQueryResource(instance, compiled, repositoryQuery)
+                );
+                continue;
+            }
+            if (storageStatus) {
+                storageStatuses.add(storageStatus.sliceName);
+                resourcesSettled.push(
+                    this.startStorageStatusResource(instance, compiled, storageStatus)
+                );
                 continue;
             }
             if (localStorage) {
@@ -2711,7 +2861,8 @@ export class CemElementRuntime {
                 this.bindLocationResource(instance, compiled, locationElement);
             }
         }
-        if (moduleTasks.length === 0 && httpSettled.length === 0) {
+        this.disposeMissingRepositoryResources(instance, repositoryQueries, storageStatuses);
+        if (moduleTasks.length === 0 && resourcesSettled.length === 0) {
             return Promise.resolve();
         }
 
@@ -2754,7 +2905,7 @@ export class CemElementRuntime {
                 await this.whenRenderSettled(instance);
             }
         });
-        return Promise.all([modulesSettled, ...httpSettled]).then(() => undefined);
+        return Promise.all([modulesSettled, ...resourcesSettled]).then(() => undefined);
     }
 
     private resolveModuleUrl(specifier: string, baseDocument: Document): Promise<string> {
@@ -2770,6 +2921,592 @@ export class CemElementRuntime {
         ).then((value) => String(value));
         this.moduleUrls.set(key, resolved);
         return resolved;
+    }
+
+    private startRepositoryQueryResource(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: RepositoryQueryDeclaration
+    ): Promise<void> {
+        const island = this.ensureDataIsland(instance);
+        const state = this.ensureInstanceState(instance, compiled, island);
+        const key = repositoryQueryResourceKey(declaration);
+        const existing = state.repositoryQueryResources[declaration.sliceName];
+        if (existing?.key === key) {
+            return existing.settled;
+        }
+        if (existing) {
+            existing.controller.abort();
+            existing.unsubscribe?.();
+        }
+
+        const active: ActiveRepositoryQueryResource = {
+            key,
+            revision: 0,
+            cursor: 0,
+            controller: new AbortController(),
+            settled: Promise.resolve(),
+            refreshQueued: false
+        };
+        state.repositoryQueryResources[declaration.sliceName] = active;
+        try {
+            active.cursor = repositoryCursor(declaration.cursor);
+            if (declaration.live) {
+                active.unsubscribe = this.requireRepositoryRegistry().subscribe(
+                    declaration.repository,
+                    active.cursor,
+                    (change) =>
+                        this.queueRepositoryQueryRefresh(
+                            instance,
+                            compiled,
+                            declaration,
+                            active,
+                            change
+                        )
+                );
+            }
+            active.settled = this.refreshRepositoryQuery(instance, compiled, declaration, active);
+        } catch (error) {
+            active.settled = this.failRepositoryQueryInitialization(
+                instance,
+                compiled,
+                state,
+                declaration,
+                active,
+                error
+            );
+        }
+        return active.settled;
+    }
+
+    private refreshRepositoryQuery(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: RepositoryQueryDeclaration,
+        active: ActiveRepositoryQueryResource
+    ): Promise<void> {
+        const state = this.instanceStates.get(instance);
+        if (!state || state.repositoryQueryResources[declaration.sliceName] !== active) {
+            return Promise.resolve();
+        }
+        active.controller.abort();
+        active.controller = new AbortController();
+        const revision = (state.resourceRevisions[declaration.sliceName] ?? 0) + 1;
+        active.revision = revision;
+        state.resourceRevisions[declaration.sliceName] = revision;
+
+        let request: CemRepositoryRequest;
+        try {
+            request = repositoryRequest(declaration, revision);
+        } catch (error) {
+            return this.failRepositoryQueryInitialization(
+                instance,
+                compiled,
+                state,
+                declaration,
+                active,
+                error,
+                revision
+            );
+        }
+        this.writeRepositoryQueryEnvelope(instance, compiled, state, declaration.sliceName, {
+            kind: 'repository-query',
+            state: 'scheduled',
+            resourceRevision: revision,
+            changeCursor: active.cursor,
+            request,
+            repositoryRevision: null,
+            data: null,
+            diagnostics: []
+        });
+        this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
+
+        return this.runRepositoryQuery(instance, compiled, declaration, active, request, revision);
+    }
+
+    private async runRepositoryQuery(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: RepositoryQueryDeclaration,
+        active: ActiveRepositoryQueryResource,
+        request: CemRepositoryRequest,
+        revision: number
+    ): Promise<void> {
+        try {
+            const result = await this.requireRepositoryRegistry().query(
+                request,
+                active.controller.signal
+            );
+            if (!this.isActiveRepositoryQuery(instance, declaration.sliceName, active, revision)) {
+                return;
+            }
+            const diagnostics = repositoryDiagnostics(
+                result.diagnostics,
+                compiled.producedTag,
+                declaration.sourceMapRef
+            );
+            this.updateRepositoryQueryAndRerender(
+                instance,
+                compiled,
+                declaration.sliceName,
+                active,
+                revision,
+                {
+                    kind: 'repository-query',
+                    state: 'loaded',
+                    resourceRevision: revision,
+                    changeCursor: active.cursor,
+                    request,
+                    repositoryRevision: result.repositoryRevision,
+                    data: result.value,
+                    diagnostics
+                }
+            );
+        } catch (error) {
+            if (!this.isActiveRepositoryQuery(instance, declaration.sliceName, active, revision)) {
+                return;
+            }
+            const diagnostic = repositoryResourceErrorDiagnostic(
+                error,
+                'query_failed',
+                `repository-query ${declaration.repository}/${declaration.operation} failed`,
+                compiled.producedTag,
+                declaration.sourceMapRef
+            );
+            this.updateRepositoryQueryAndRerender(
+                instance,
+                compiled,
+                declaration.sliceName,
+                active,
+                revision,
+                {
+                    kind: 'repository-query',
+                    state: 'failed',
+                    resourceRevision: revision,
+                    changeCursor: active.cursor,
+                    request,
+                    repositoryRevision: null,
+                    data: null,
+                    diagnostics: [diagnostic]
+                }
+            );
+        }
+    }
+
+    private failRepositoryQueryInitialization(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        state: InstanceState,
+        declaration: RepositoryQueryDeclaration,
+        active: ActiveRepositoryQueryResource,
+        error: unknown,
+        suppliedRevision?: number
+    ): Promise<void> {
+        active.unsubscribe?.();
+        active.unsubscribe = undefined;
+        const revision =
+            suppliedRevision ?? (state.resourceRevisions[declaration.sliceName] ?? 0) + 1;
+        active.revision = revision;
+        state.resourceRevisions[declaration.sliceName] = revision;
+        const request = repositoryRequestWithoutParameters(declaration, revision);
+        const diagnostic = repositoryResourceErrorDiagnostic(
+            error,
+            'declaration_invalid',
+            `repository-query ${declaration.repository}/${declaration.operation} is invalid`,
+            compiled.producedTag,
+            declaration.sourceMapRef
+        );
+        this.writeRepositoryQueryEnvelope(instance, compiled, state, declaration.sliceName, {
+            kind: 'repository-query',
+            state: 'failed',
+            resourceRevision: revision,
+            changeCursor: active.cursor,
+            request,
+            repositoryRevision: null,
+            data: null,
+            diagnostics: [diagnostic]
+        });
+        this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
+        return Promise.resolve();
+    }
+
+    private queueRepositoryQueryRefresh(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: RepositoryQueryDeclaration,
+        active: ActiveRepositoryQueryResource,
+        change: CemRepositoryChange
+    ): void {
+        if (change.cursor <= active.cursor) {
+            return;
+        }
+        active.cursor = change.cursor;
+        if (active.refreshQueued) {
+            return;
+        }
+        active.refreshQueued = true;
+        queueMicrotask(() => {
+            active.refreshQueued = false;
+            if (!this.isCurrentRepositoryQuery(instance, declaration.sliceName, active)) {
+                return;
+            }
+            active.settled = this.refreshRepositoryQuery(instance, compiled, declaration, active);
+        });
+    }
+
+    private isCurrentRepositoryQuery(
+        instance: HTMLElement,
+        sliceName: string,
+        active: ActiveRepositoryQueryResource
+    ): boolean {
+        return (
+            instance.isConnected &&
+            this.instanceStates.get(instance)?.repositoryQueryResources[sliceName] === active
+        );
+    }
+
+    private isActiveRepositoryQuery(
+        instance: HTMLElement,
+        sliceName: string,
+        active: ActiveRepositoryQueryResource,
+        revision: number
+    ): boolean {
+        return (
+            this.isCurrentRepositoryQuery(instance, sliceName, active) &&
+            active.revision === revision &&
+            !active.controller.signal.aborted
+        );
+    }
+
+    private updateRepositoryQueryAndRerender(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        sliceName: string,
+        active: ActiveRepositoryQueryResource,
+        revision: number,
+        envelope: CemRepositoryQueryEnvelope
+    ): void {
+        if (!this.isActiveRepositoryQuery(instance, sliceName, active, revision)) {
+            return;
+        }
+        const state = this.instanceStates.get(instance);
+        if (!state) {
+            return;
+        }
+        this.writeRepositoryQueryEnvelope(instance, compiled, state, sliceName, envelope);
+        this.scheduleResourceRerender(instance, compiled, sliceName, revision);
+    }
+
+    private writeRepositoryQueryEnvelope(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        state: InstanceState,
+        sliceName: string,
+        envelope: CemRepositoryQueryEnvelope
+    ): void {
+        state.slices[sliceName] = envelope;
+        state.eventPayloads[sliceName] = {
+            type: 'repository-query',
+            state: envelope.state,
+            resourceRevision: envelope.resourceRevision,
+            changeCursor: envelope.changeCursor,
+            request: envelope.request,
+            repositoryRevision: envelope.repositoryRevision,
+            diagnostics: envelope.diagnostics
+        };
+        this.recordDiagnostics(instance, envelope.diagnostics);
+    }
+
+    private startStorageStatusResource(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: StorageStatusDeclaration
+    ): Promise<void> {
+        const island = this.ensureDataIsland(instance);
+        const state = this.ensureInstanceState(instance, compiled, island);
+        const key = storageStatusResourceKey(declaration);
+        const existing = state.storageStatusResources[declaration.sliceName];
+        if (existing?.key === key) {
+            return existing.settled;
+        }
+        existing?.unsubscribe?.();
+
+        const active: ActiveStorageStatusResource = {
+            key,
+            revision: 0,
+            cursor: 0,
+            settled: Promise.resolve(),
+            refreshQueued: false
+        };
+        state.storageStatusResources[declaration.sliceName] = active;
+        try {
+            active.cursor = repositoryCursor(declaration.cursor);
+            if (declaration.live) {
+                active.unsubscribe = this.requireRepositoryRegistry().subscribe(
+                    declaration.repository,
+                    active.cursor,
+                    (change) =>
+                        this.queueStorageStatusRefresh(
+                            instance,
+                            compiled,
+                            declaration,
+                            active,
+                            change
+                        )
+                );
+            }
+            active.settled = this.refreshStorageStatus(instance, compiled, declaration, active);
+        } catch (error) {
+            active.settled = this.failStorageStatusInitialization(
+                instance,
+                compiled,
+                state,
+                declaration,
+                active,
+                error
+            );
+        }
+        return active.settled;
+    }
+
+    private refreshStorageStatus(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: StorageStatusDeclaration,
+        active: ActiveStorageStatusResource
+    ): Promise<void> {
+        const state = this.instanceStates.get(instance);
+        if (!state || state.storageStatusResources[declaration.sliceName] !== active) {
+            return Promise.resolve();
+        }
+        const revision = (state.resourceRevisions[declaration.sliceName] ?? 0) + 1;
+        active.revision = revision;
+        state.resourceRevisions[declaration.sliceName] = revision;
+        this.writeStorageStatusEnvelope(instance, compiled, state, declaration.sliceName, {
+            kind: 'storage-status',
+            state: 'scheduled',
+            resourceRevision: revision,
+            changeCursor: active.cursor,
+            repository: declaration.repository,
+            data: null,
+            diagnostics: []
+        });
+        this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
+        return this.runStorageStatus(instance, compiled, declaration, active, revision);
+    }
+
+    private async runStorageStatus(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: StorageStatusDeclaration,
+        active: ActiveStorageStatusResource,
+        revision: number
+    ): Promise<void> {
+        try {
+            const result = await this.requireRepositoryRegistry().status(declaration.repository);
+            if (!this.isActiveStorageStatus(instance, declaration.sliceName, active, revision)) {
+                return;
+            }
+            const diagnostics = repositoryDiagnostics(
+                result.diagnostics,
+                compiled.producedTag,
+                declaration.sourceMapRef
+            );
+            this.updateStorageStatusAndRerender(
+                instance,
+                compiled,
+                declaration.sliceName,
+                active,
+                revision,
+                {
+                    kind: 'storage-status',
+                    state: 'loaded',
+                    resourceRevision: revision,
+                    changeCursor: active.cursor,
+                    repository: declaration.repository,
+                    data: result,
+                    diagnostics
+                }
+            );
+        } catch (error) {
+            if (!this.isActiveStorageStatus(instance, declaration.sliceName, active, revision)) {
+                return;
+            }
+            const diagnostic = repositoryResourceErrorDiagnostic(
+                error,
+                'status_failed',
+                `storage-status ${declaration.repository} failed`,
+                compiled.producedTag,
+                declaration.sourceMapRef
+            );
+            this.updateStorageStatusAndRerender(
+                instance,
+                compiled,
+                declaration.sliceName,
+                active,
+                revision,
+                {
+                    kind: 'storage-status',
+                    state: 'failed',
+                    resourceRevision: revision,
+                    changeCursor: active.cursor,
+                    repository: declaration.repository,
+                    data: null,
+                    diagnostics: [diagnostic]
+                }
+            );
+        }
+    }
+
+    private failStorageStatusInitialization(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        state: InstanceState,
+        declaration: StorageStatusDeclaration,
+        active: ActiveStorageStatusResource,
+        error: unknown
+    ): Promise<void> {
+        const revision = (state.resourceRevisions[declaration.sliceName] ?? 0) + 1;
+        active.revision = revision;
+        state.resourceRevisions[declaration.sliceName] = revision;
+        const diagnostic = repositoryResourceErrorDiagnostic(
+            error,
+            'declaration_invalid',
+            `storage-status ${declaration.repository} is invalid`,
+            compiled.producedTag,
+            declaration.sourceMapRef
+        );
+        this.writeStorageStatusEnvelope(instance, compiled, state, declaration.sliceName, {
+            kind: 'storage-status',
+            state: 'failed',
+            resourceRevision: revision,
+            changeCursor: active.cursor,
+            repository: declaration.repository,
+            data: null,
+            diagnostics: [diagnostic]
+        });
+        this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
+        return Promise.resolve();
+    }
+
+    private queueStorageStatusRefresh(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: StorageStatusDeclaration,
+        active: ActiveStorageStatusResource,
+        change: CemRepositoryChange
+    ): void {
+        if (change.cursor <= active.cursor) {
+            return;
+        }
+        active.cursor = change.cursor;
+        if (active.refreshQueued) {
+            return;
+        }
+        active.refreshQueued = true;
+        queueMicrotask(() => {
+            active.refreshQueued = false;
+            if (!this.isCurrentStorageStatus(instance, declaration.sliceName, active)) {
+                return;
+            }
+            active.settled = this.refreshStorageStatus(instance, compiled, declaration, active);
+        });
+    }
+
+    private isCurrentStorageStatus(
+        instance: HTMLElement,
+        sliceName: string,
+        active: ActiveStorageStatusResource
+    ): boolean {
+        return (
+            instance.isConnected &&
+            this.instanceStates.get(instance)?.storageStatusResources[sliceName] === active
+        );
+    }
+
+    private isActiveStorageStatus(
+        instance: HTMLElement,
+        sliceName: string,
+        active: ActiveStorageStatusResource,
+        revision: number
+    ): boolean {
+        return (
+            this.isCurrentStorageStatus(instance, sliceName, active) && active.revision === revision
+        );
+    }
+
+    private updateStorageStatusAndRerender(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        sliceName: string,
+        active: ActiveStorageStatusResource,
+        revision: number,
+        envelope: CemStorageStatusEnvelope
+    ): void {
+        if (!this.isActiveStorageStatus(instance, sliceName, active, revision)) {
+            return;
+        }
+        const state = this.instanceStates.get(instance);
+        if (!state) {
+            return;
+        }
+        this.writeStorageStatusEnvelope(instance, compiled, state, sliceName, envelope);
+        this.scheduleResourceRerender(instance, compiled, sliceName, revision);
+    }
+
+    private writeStorageStatusEnvelope(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        state: InstanceState,
+        sliceName: string,
+        envelope: CemStorageStatusEnvelope
+    ): void {
+        state.slices[sliceName] = envelope;
+        state.eventPayloads[sliceName] = {
+            type: 'storage-status',
+            state: envelope.state,
+            resourceRevision: envelope.resourceRevision,
+            changeCursor: envelope.changeCursor,
+            repository: envelope.repository,
+            diagnostics: envelope.diagnostics
+        };
+        this.recordDiagnostics(instance, envelope.diagnostics);
+    }
+
+    private disposeMissingRepositoryResources(
+        instance: HTMLElement,
+        repositoryQueries: ReadonlySet<string>,
+        storageStatuses: ReadonlySet<string>
+    ): void {
+        const state = this.instanceStates.get(instance);
+        if (!state) {
+            return;
+        }
+        for (const [sliceName, active] of Object.entries(state.repositoryQueryResources)) {
+            if (repositoryQueries.has(sliceName)) {
+                continue;
+            }
+            active.controller.abort();
+            active.unsubscribe?.();
+            delete state.repositoryQueryResources[sliceName];
+        }
+        for (const [sliceName, active] of Object.entries(state.storageStatusResources)) {
+            if (storageStatuses.has(sliceName)) {
+                continue;
+            }
+            active.unsubscribe?.();
+            delete state.storageStatusResources[sliceName];
+        }
+    }
+
+    private requireRepositoryRegistry(): CemRepositoryReader {
+        if (!this.repositoryRegistry) {
+            throw new RepositoryResourceError(
+                'cem-element.repository_registry_unavailable',
+                'no read-only repository registry was provided to the CEM runtime'
+            );
+        }
+        return this.repositoryRegistry;
     }
 
     private bindLocalStorageResource(
@@ -3459,7 +4196,14 @@ export class CemElementRuntime {
             preserveElementChildren: (current: Element) =>
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false)
                 && directDataIsland(current) !== undefined,
-            transientElementTags: ['module-url', 'http-request', 'local-storage', 'location-element'],
+            transientElementTags: [
+                'module-url',
+                'http-request',
+                'repository-query',
+                'storage-status',
+                'local-storage',
+                'location-element',
+            ],
         };
         if (previous) {
             const bounds = this.ensureRenderBounds(instance, island);
@@ -4144,6 +4888,160 @@ function readHttpRequestDeclaration(element: Element): HttpRequestDeclaration | 
         credentials: optionalAttribute(element, 'credentials'),
         cache: optionalAttribute(element, 'cache'),
     };
+}
+
+function readRepositoryQueryDeclaration(element: Element): RepositoryQueryDeclaration | null {
+    const sliceName = element.getAttribute('slice')?.trim();
+    const repository = element.getAttribute('repository')?.trim();
+    const operation = element.getAttribute('operation')?.trim();
+    if (!sliceName || !repository || !operation) {
+        return null;
+    }
+    return {
+        sliceName,
+        repository,
+        operation,
+        parameters: optionalAttribute(element, 'parameters'),
+        live: booleanAttribute(element, 'live'),
+        cursor: optionalAttribute(element, 'cursor')
+    };
+}
+
+function readStorageStatusDeclaration(element: Element): StorageStatusDeclaration | null {
+    const sliceName = element.getAttribute('slice')?.trim();
+    const repository = element.getAttribute('repository')?.trim();
+    if (!sliceName || !repository) {
+        return null;
+    }
+    return {
+        sliceName,
+        repository,
+        live: booleanAttribute(element, 'live'),
+        cursor: optionalAttribute(element, 'cursor')
+    };
+}
+
+function repositoryQueryResourceKey(declaration: RepositoryQueryDeclaration): string {
+    return JSON.stringify([
+        declaration.repository,
+        declaration.operation,
+        declaration.parameters ?? null,
+        declaration.live,
+        declaration.cursor ?? null
+    ]);
+}
+
+function storageStatusResourceKey(declaration: StorageStatusDeclaration): string {
+    return JSON.stringify([declaration.repository, declaration.live, declaration.cursor ?? null]);
+}
+
+function repositoryRequest(
+    declaration: RepositoryQueryDeclaration,
+    revision: number
+): CemRepositoryRequest {
+    let parameters: unknown;
+    if (declaration.parameters !== undefined) {
+        try {
+            parameters = JSON.parse(declaration.parameters);
+        } catch (error) {
+            throw new RepositoryResourceError(
+                'cem-element.repository_parameters_invalid',
+                `repository-query parameters must be valid JSON: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+    return {
+        protocolVersion: CEM_REPOSITORY_PROTOCOL_VERSION,
+        repository: declaration.repository,
+        operation: declaration.operation,
+        requestRevision: revision,
+        ...(declaration.parameters === undefined ? {} : { parameters })
+    };
+}
+
+function repositoryRequestWithoutParameters(
+    declaration: RepositoryQueryDeclaration,
+    revision: number
+): CemRepositoryRequest {
+    return {
+        protocolVersion: CEM_REPOSITORY_PROTOCOL_VERSION,
+        repository: declaration.repository,
+        operation: declaration.operation,
+        requestRevision: revision
+    };
+}
+
+function repositoryCursor(value: string | undefined): number {
+    if (value === undefined) {
+        return 0;
+    }
+    if (!/^\d+$/.test(value)) {
+        throw new RepositoryResourceError(
+            'cem-element.repository_cursor_invalid',
+            'repository cursor must be a non-negative safe integer'
+        );
+    }
+    const cursor = Number(value);
+    if (!Number.isSafeInteger(cursor)) {
+        throw new RepositoryResourceError(
+            'cem-element.repository_cursor_invalid',
+            'repository cursor must be a non-negative safe integer'
+        );
+    }
+    return cursor;
+}
+
+function repositoryDiagnostics(
+    diagnostics: readonly CemRepositoryDiagnostic[],
+    tag: string,
+    sourceMapRef?: SourceMapRef
+): CemElementDiagnostic[] {
+    return diagnostics.map((diagnostic) =>
+        resourceDiagnostic(
+            diagnostic.code,
+            diagnostic.message,
+            tag,
+            diagnostic.severity,
+            sourceMapRef
+        )
+    );
+}
+
+function repositoryResourceErrorDiagnostic(
+    error: unknown,
+    fallback: 'query_failed' | 'status_failed' | 'declaration_invalid',
+    prefix: string,
+    tag: string,
+    sourceMapRef?: SourceMapRef
+): CemElementDiagnostic {
+    const aborted = error instanceof DOMException && error.name === 'AbortError';
+    const code =
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        typeof error.code === 'string'
+            ? error.code
+            : aborted
+              ? 'cem-element.repository_query_aborted'
+              : `cem-element.repository_${fallback}`;
+    const message = error instanceof Error ? error.message : String(error);
+    return resourceDiagnostic(
+        code,
+        `${prefix}: ${message}`,
+        tag,
+        aborted ? 'warning' : 'error',
+        sourceMapRef
+    );
+}
+
+class RepositoryResourceError extends Error {
+    constructor(
+        readonly code: string,
+        message: string
+    ) {
+        super(message);
+        this.name = 'RepositoryResourceError';
+    }
 }
 
 function readLocalStorageDeclaration(element: Element): LocalStorageDeclaration | null {
@@ -5502,6 +6400,8 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
         return (
             node.tag === 'module-url' ||
             node.tag === 'http-request' ||
+            node.tag === 'repository-query' ||
+            node.tag === 'storage-status' ||
             node.tag === 'local-storage' ||
             node.tag === 'location-element' ||
             node.children.some(visit)

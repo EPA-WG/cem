@@ -8,7 +8,9 @@ the task-level execution state is owned by `docs/todo.md`. The 2026-08-21
 repository, deterministic-search, and optional browser-AI architecture below is
 also accepted: IndexedDB remains a Studio application repository behind a
 generic `cem-elements` host capability, while visible search and AI states are
-composed entirely from CEM controls.
+composed entirely from CEM controls. The read-only `repository-query` and
+`storage-status` resource boundary was implemented and browser-verified on
+2026-08-21.
 
 The Phase 2.5 deployment, version, platform, capability, signing, and host-wire
 decisions are canonical in
@@ -1047,6 +1049,31 @@ interface CemRepositoryPort {
 This is a governed runtime envelope, not a new portable content type. If a
 repository request later becomes authored, persisted, or transformed CEM-ML
 content, it must first gain an explicit registered content type and schema.
+
+The implemented declaration vocabulary is:
+
+```cem
+{repository-query
+    @slice=projects
+    @repository=studio-projects
+    @operation=list-projects
+    @parameters="{$datadom.attributes.query-parameters}"
+    @live=true
+    @cursor=0}
+{storage-status @slice=storage @repository=studio-projects @live=true @cursor=0}
+```
+
+`parameters` is optional JSON; the example interpolates an instance attribute
+such as `query-parameters='{"includeTrash":false}'` so it remains one declaration
+value. Request revisions remain runtime-owned. `live` subscribes from the
+optional non-negative durable cursor and requeries current state when a newer
+cursor arrives. Both resources are lowered out of canonical
+CEM-ML render plans before DOM diffing, expose clone-safe
+`scheduled`/`loaded`/`failed` envelopes, reject stale completions, and clean up
+on supersession, disappearance, or disconnect. The runtime accepts the
+`CemRepositoryReader` surface returned by `CemRepositoryRegistry.readOnly()`,
+whose capability surface omits `execute`; no storage-manager capability enters
+the render path, so it also cannot request persistence.
 
 Application orchestration remains in `@epa-wg/cem-studio`: migrations,
 autosave policy, project commands, import/export validation, search corpus and

@@ -57,6 +57,13 @@ import {
 } from './internal/runtime-support/processing-host.js';
 import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
+import {
+    CEM_REPOSITORY_PROTOCOL_VERSION,
+    CemRepositoryRegistry,
+    type CemRepositoryChange,
+    type CemRepositoryPort,
+    type CemRepositoryQueryResult,
+} from './repository.js';
 
 const meta: Meta = {
     title: 'CEM Elements/Runtime',
@@ -2436,6 +2443,191 @@ export const HttpRequestResourceLifecycle: Story = {
         assert(page.sourceId?.responseIdentityHash, 'source-id records a response identity hash');
         assertEqual(page.data?.name, 'second', 'snapshot stores serializable response data');
         JSON.stringify(page);
+    },
+};
+
+export const RepositoryReadResourceLifecycle: Story = {
+    render: () =>
+        storyPanel(
+            'Repository read resource lifecycle',
+            'read-only query/status slices, stale-result rejection, live cursor refresh, and disconnect cleanup',
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'repository read resource lifecycle story');
+        canvasElement.appendChild(root);
+
+        const queryRequests: Array<{
+            operation: string;
+            requestRevision: number;
+            parameters?: unknown;
+        }> = [];
+        const subscriberCursors: number[] = [];
+        const subscribers = new Set<(change: CemRepositoryChange) => void>();
+        let resolveSlow: ((result: CemRepositoryQueryResult) => void) | undefined;
+        let abortedQueries = 0;
+        let executeCalls = 0;
+        let statusCalls = 0;
+        let unsubscribeCalls = 0;
+
+        const repository: CemRepositoryPort = {
+            query: (request, signal) => {
+                queryRequests.push({
+                    operation: request.operation,
+                    requestRevision: request.requestRevision,
+                    parameters: request.parameters,
+                });
+                const result = (label: string): CemRepositoryQueryResult => ({
+                    protocolVersion: CEM_REPOSITORY_PROTOCOL_VERSION,
+                    repository: request.repository,
+                    operation: request.operation,
+                    requestRevision: request.requestRevision,
+                    repositoryRevision: queryRequests.length,
+                    value: { label },
+                    diagnostics: [],
+                });
+                if (request.operation === 'slow-projects') {
+                    signal?.addEventListener(
+                        'abort',
+                        () => {
+                            abortedQueries += 1;
+                        },
+                        { once: true },
+                    );
+                    return new Promise((resolve) => {
+                        resolveSlow = resolve;
+                    });
+                }
+                return Promise.resolve(result(`projects-${queryRequests.length}`));
+            },
+            execute: async () => {
+                executeCalls += 1;
+                throw new Error('rendering must not execute repository commands');
+            },
+            subscribe: (cursor, notify) => {
+                subscriberCursors.push(cursor);
+                subscribers.add(notify);
+                return () => {
+                    unsubscribeCalls += 1;
+                    subscribers.delete(notify);
+                };
+            },
+            status: async () => {
+                statusCalls += 1;
+                return {
+                    protocolVersion: CEM_REPOSITORY_PROTOCOL_VERSION,
+                    repository: 'studio-projects',
+                    state: 'ready',
+                    repositoryRevision: queryRequests.length,
+                    schemaVersion: 1,
+                    usage: 64,
+                    quota: 128,
+                    persisted: true,
+                    diagnostics: [],
+                };
+            },
+        };
+        const registry = new CemRepositoryRegistry();
+        registry.register('studio-projects', repository);
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-repository-resource',
+            repositoryRegistry: registry.readOnly(),
+        });
+        const declaration = buildCemMlDeclaration(
+            'cem-element-story-repository-resource',
+            'story-repository-resource-panel',
+            [
+                '{repository-query @slice=projects @repository=studio-projects @operation="{$datadom.attributes.operation}" @parameters="{$datadom.attributes.parameters}" @live=true @cursor=3}',
+                '{storage-status @slice=storage @repository=studio-projects @live=true @cursor=3}',
+                '{article |',
+                '  {p @class=query-state | {$datadom.slices.projects.state}}',
+                '  {p @class=query-revision | {$datadom.slices.projects.resourceRevision}}',
+                '  {p @class=query-cursor | {$datadom.slices.projects.changeCursor}}',
+                '  {cem:if @test=\'datadom.slices.projects.state == "loaded"\' |',
+                '    {output @class=query-label | {$datadom.slices.projects.data.label}}',
+                '  }',
+                '  {p @class=storage-state | {$datadom.slices.storage.state}}',
+                '  {cem:if @test=\'datadom.slices.storage.state == "loaded"\' |',
+                '    {output @class=storage-persisted | {$datadom.slices.storage.data.persisted}}',
+                '  }',
+                '}',
+            ].join('\n'),
+        );
+        root.appendChild(declaration);
+        assert(runtime.registerDeclaration(declaration), 'repository resource declaration registers');
+        await runtime.whenDeclarationSettled(declaration);
+
+        const instance = document.createElement('story-repository-resource-panel');
+        instance.setAttribute('operation', 'slow-projects');
+        instance.setAttribute('parameters', JSON.stringify({ includeTrash: false }));
+        root.appendChild(instance);
+        await waitForCondition(
+            () => instance.querySelector('.query-state')?.textContent?.trim() === 'scheduled',
+            'repository-query renders scheduled state',
+        );
+
+        instance.setAttribute('operation', 'list-projects');
+        await waitForCondition(() => abortedQueries === 1, 'superseded repository query is aborted');
+        await waitForCondition(
+            () => instance.querySelector('.query-label')?.textContent?.trim() === 'projects-2',
+            'latest repository query renders data',
+        );
+        assertEqual(
+            JSON.stringify(queryRequests[1]?.parameters),
+            JSON.stringify({ includeTrash: false }),
+            'repository-query parses JSON parameters into the clone-safe request',
+        );
+        assertEqual(
+            requiredElement(instance, '.storage-persisted').textContent?.trim(),
+            'true',
+            'storage-status projects persistence state without requesting it',
+        );
+
+        resolveSlow?.({
+            protocolVersion: CEM_REPOSITORY_PROTOCOL_VERSION,
+            repository: 'studio-projects',
+            operation: 'slow-projects',
+            requestRevision: queryRequests[0]?.requestRevision ?? 1,
+            repositoryRevision: 1,
+            value: { label: 'stale-projects' },
+            diagnostics: [],
+        });
+        await nextFrame();
+        assertEqual(
+            requiredElement(instance, '.query-label').textContent?.trim(),
+            'projects-2',
+            'late superseded result cannot replace the current repository slice',
+        );
+
+        const change: CemRepositoryChange = {
+            protocolVersion: CEM_REPOSITORY_PROTOCOL_VERSION,
+            repository: 'studio-projects',
+            cursor: 8,
+            repositoryRevision: 8,
+        };
+        for (const notify of [...subscribers]) notify(change);
+        await waitForCondition(
+            () => instance.querySelector('.query-label')?.textContent?.trim() === 'projects-3',
+            'live repository cursor refresh requeries current data',
+        );
+        await waitForCondition(
+            () => instance.querySelector('.query-cursor')?.textContent?.trim() === '8',
+            'live repository cursor is projected into the slice',
+        );
+        assertEqual(
+            subscriberCursors.join('|'),
+            '3|3|3',
+            'initial query, status, and replacement query subscribe from the authored durable cursor',
+        );
+        assertEqual(unsubscribeCalls, 1, 'superseding a query releases its prior live subscription');
+        assert(statusCalls >= 2, 'storage status refreshes after a repository change hint');
+        assertEqual(executeCalls, 0, 'rendering repository resources never executes mutation commands');
+        assert(instance.querySelector('repository-query') === null, 'repository-query is transient DOM');
+        assert(instance.querySelector('storage-status') === null, 'storage-status is transient DOM');
+
+        instance.remove();
+        assertEqual(unsubscribeCalls, 3, 'disconnect releases the remaining query and storage-status subscriptions');
+        assertEqual(subscribers.size, 0, 'disconnect leaves no live repository callbacks');
     },
 };
 
