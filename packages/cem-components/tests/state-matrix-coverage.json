@@ -735,11 +735,19 @@
                 "expect(submissions).toBe(0);",
                 "expect(nestedClicks).toBe(1);",
                 "expect(linkSpaceEvents).toEqual(['keydown:false', 'keyup:false']);",
-                "expect(ariaOwners.map((owner) => owner.getAttribute('tabindex'))).toEqual([null, null, null]);",
-                "expect(ariaDisabledLink.getAttribute('aria-current')).toBe('page');",
-                "expect(ariaDisabledTab.getAttribute('aria-selected')).toBe('true');"
+                "expect(ariaOwners.map((owner) => owner.getAttribute('tabindex'))).toEqual([null, null]);",
+                "expect(ariaDisabledLink.getAttribute('aria-current')).toBe('page');"
             ],
             "componentEvidence": [
+                {
+                    "component": "cem-tabs",
+                    "owner": "packages/cem-components/src/lib/tabs.browser.spec.ts",
+                    "test": "commits pointer and native keyboard activation once while current and disabled paths stay silent",
+                    "assertions": [
+                        "expect(parts.host.selectedIndex).toBe(3);",
+                        "expect(events.filter(({ type }) => type === 'cem-tab')).toHaveLength(1);"
+                    ]
+                },
                 {
                     "component": "cem-paginator",
                     "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
@@ -771,6 +779,15 @@
             "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
             "assertions": ["expect(tabs.map((tab) => tab.getAttribute('aria-selected')).join('|')).toBe('true|false');"],
             "componentEvidence": [
+                {
+                    "component": "cem-tabs",
+                    "owner": "packages/cem-components/src/lib/tabs.browser.spec.ts",
+                    "test": "renders one labeled tablist with exact native tabs and stable reciprocal panels",
+                    "assertions": [
+                        "expect(parts.tabs.filter((tab) => tab.getAttribute('aria-selected') === 'true')).toEqual([parts.tabs[1]]);",
+                        "expect(parts.panels.filter((panel) => !panel.hidden)).toEqual([parts.panels[1]]);"
+                    ]
+                },
                 {
                     "component": "cem-stepper",
                     "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",

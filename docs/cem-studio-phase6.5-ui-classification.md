@@ -13,16 +13,14 @@ All 23 initial shell/workbench behaviors have an explicit owner and contract
 boundary against Angular Material `22.1.1` at tag `v22.1.1`, commit
 `0b67c3c38141049657b1167479accc80e455d2bd`:
 
-- 3 behaviors reuse general CEM controls directly;
+- 5 behaviors reuse general CEM controls directly;
 - 11 keep application state and orchestration in `@epa-wg/cem-studio` while
   rendering every visible control through CEM components;
 - 7 are reusable workbench composites with no Angular Material catalog
   counterpart and are therefore reserved for a future
-  `@epa-wg/cem-components/studio` export; and
-- 2 view-switching behaviors are blocked by the same general component gap:
-  the current partial `cem-tabs` mapping does not yet own tabs, tabpanels,
-  roving focus, activation policy, selected-index events, or stable panel
-  visibility.
+  `@epa-wg/cem-components/studio` export. Both view-switching behaviors now
+  reuse the completed general `cem-tabs`/`cem-tab` contract, so all 23
+  classifications are open and no general parity gate remains.
 
 No application-local widget is accepted. Search uses `cem-autocomplete` with
 Studio/CEM-QL-owned filtering. Source editing uses `cem-textarea` as the
@@ -35,7 +33,7 @@ and commands remain application services that drive shared controls.
 | --- | --- | --- | --- |
 | `shell-command-bar` | Reuse general controls | `cem-app-bar`, actions, select, badge | Open within the single-row app-bar and native-action subsets. |
 | `responsive-workspace-layout` | Studio orchestration | `cem-grid`, `cem-stack`, `cem-surface` | Open; no grid-list, sidenav, or splitter behavior is claimed. |
-| `compact-pane-navigation` | Complete general parity first | `cem-tabs` | **Blocked** by the partial tabs row. |
+| `compact-pane-navigation` | Reuse general controls | `cem-tabs`, `cem-tab` payloads | Open; Studio owns pane routes and preserved workbench selection. |
 | `home-and-projects` | Studio orchestration | card, actions, badge, alert, progress | Open within the proven subsets. |
 | `project-hierarchy` | Reuse general controls | `cem-tree`, `cem-tree-item` | Open; Studio owns data, selection, loading, and routes. |
 | `explorer-reordering` | Future `/studio` composite | `cem-studio-project-explorer` over tree/actions | Open for component implementation; stable-id transactions stay in Studio. |
@@ -45,7 +43,7 @@ and commands remain application services that drive shared controls.
 | `resource-identity-form` | Studio orchestration | fields, text, select, autocomplete, checkbox | Open within proven field/form subsets. |
 | `run-workbench-form` | Studio orchestration | schema-selected CEM inputs/actions/feedback | Open; the typed CLI schema and Studio own projection and values. |
 | `cli-command-roundtrip` | Studio orchestration | textarea, actions, autocomplete, dialog, passive table | Open; parsing and transactional Apply remain CLI/application behavior. |
-| `result-view-navigation` | Complete general parity first | `cem-tabs` | **Blocked** by the same partial tabs row. |
+| `result-view-navigation` | Reuse general controls | `cem-tabs`, `cem-tab` payloads | Open; Studio owns result projections and current artifact selection. |
 | `structured-data-inspector` | Future `/studio` composite | `cem-studio-data-inspector` over tree/table/sort/paginator | Open for component implementation; data loading and sorting stay in Studio. |
 | `diagnostics-panel` | Future `/studio` composite | `cem-studio-diagnostics` over list/badge/actions | Open for component implementation; diagnostic data and source navigation stay in Studio. |
 | `report-event-source-trace` | Future `/studio` composite | `cem-studio-trace-view` over tree/table/paginator | Open for component implementation; trace data and navigation stay in Studio. |
@@ -59,7 +57,7 @@ and commands remain application services that drive shared controls.
 
 ## Accepted General Boundaries
 
-The 20 partial Angular Material rows do not all block Studio. A partial row is
+The 19 partial Angular Material rows do not all block Studio. A partial row is
 usable when Studio requires only its proven subset. The initial boundary is:
 
 - use `cem-app-bar` as one application/context header, not as a generic or
@@ -120,10 +118,8 @@ omits an executable row. It emits deterministic JSON and Markdown reports under
 
 ## Next Gate
 
-Complete general `cem-tabs` parity before composing either the compact shell
-pane switcher or the Results projection switcher. The contract must decide and
-test authored tab/panel vocabulary, stable relationships, roving keyboard
-focus, activation policy, disabled behavior, selected-index mutation/events,
-focus behavior when panels change, state/token semantics, forced colors, and
-package output. Studio composition remains blocked until the general parity
-inventory is promoted from `partial` for the required subset.
+Implement the versioned IndexedDB project repository before composing the PWA
+shell or offline vertical slice. The repository must define schema versions and
+migrations, atomic autosave, trash/restore, revision/hash conflict handling,
+multi-tab coordination, quota diagnostics, and validated import/export while
+keeping every visible control in the general CEM component surface.

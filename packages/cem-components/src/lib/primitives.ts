@@ -14,6 +14,7 @@ import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 import { CEM_SLIDER_BEHAVIOR } from './slider-behavior.js';
 import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
 import { CEM_STEPPER_BEHAVIOR } from './stepper-behavior.js';
+import { CEM_TABS_BEHAVIOR } from './tabs-behavior.js';
 import { CEM_TIMEPICKER_BEHAVIOR } from './timepicker-behavior.js';
 import { CEM_TOOLTIP_BEHAVIOR } from './tooltip-behavior.js';
 import { CEM_TREE_BEHAVIOR } from './tree-behavior.js';
@@ -522,12 +523,35 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-tabs',
-        description: 'MVP tablist container for local view switching.',
-        behavior: CEM_NAVIGATION_BEHAVIOR,
-        behaviorIdentity: 'cem-components-navigation-behavior-v1',
+        description: 'Labeled local-view switcher with stable linked tab panels and manual activation.',
+        behavior: CEM_TABS_BEHAVIOR,
+        behaviorIdentity: 'cem-components-tabs-behavior-v1',
         cemMl:
-            '{attribute @name=label | Tabs}' +
-            '{div @class=cem-tabs @role=tablist @aria-label="{$label}" | {slot | {button @type=button @role=tab @aria-selected=true | Tab}}}',
+            '{module |' +
+            ' {attribute @name=label | Tabs}' +
+            ' {slice @name=tabs}' +
+            ' {template @name=tab-header |' +
+            '  {param @name=tab}' +
+            '  {body |' +
+            '   {button @id="{$tab.buttonId}" @type=button @class=cem-tabs__tab @role=tab @data-tab-index="{$tab.index}" @tabindex="{$tab.tabIndex}" @disabled={if tab.disabled { true } else { null }} @aria-selected="{$tab.selected}" @aria-controls="{$tab.panelId}" | {$tab.label}}}}' +
+            ' {template @name=tab-panel |' +
+            '  {param @name=tab}' +
+            '  {body |' +
+            '   {div @id="{$tab.panelId}" @class=cem-tabs__panel @role=tabpanel @data-tab-index="{$tab.index}" @tabindex=0 @aria-labelledby="{$tab.buttonId}" @hidden={if tab.selected { null } else { true }} |' +
+            '    {cem:project-payload @select="tab.children" | }}}}' +
+            ' {body |' +
+            '  {cem:choose |' +
+            '   {cem:when @test=datadom.slices.authoringValid |' +
+            '    {div @class=cem-tabs__list @role=tablist @aria-label="{$label}" @aria-orientation="{$datadom.slices.orientation}" |' +
+            '     {cem:for-each @select=datadom.slices.tabs @as=tab | {call @template=tab-header @with:tab="{$tab}"}}}' +
+            '    {div @class=cem-tabs__panels |' +
+            '     {cem:for-each @select=datadom.slices.tabs @as=tab | {call @template=tab-panel @with:tab="{$tab}"}}}}' +
+            '   {cem:otherwise | {span @class="cem-tabs cem-tabs--invalid" @hidden=true | }}}}}',
+    },
+    {
+        tag: 'cem-tab',
+        description: 'Inert labeled local-view payload consumed by cem-tabs.',
+        cemMl: '{div @class=cem-tab | {slot}}',
     },
     {
         tag: 'cem-stepper',

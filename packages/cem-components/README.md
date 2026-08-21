@@ -46,7 +46,7 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
-`cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
+`cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-tab`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
 ## Stylesheet install
@@ -103,10 +103,12 @@ Keyboard focus uses the existing D5 focus width/offset and zebra focus color on
 the same native owners without changing geometry or replacing hover/current
 paint. Held native activation uses distinct navigation active/current-active
 pairs; the disclosure delegates its release-time toggle to the existing
-expanded contract. Native-disabled buttons retain browser suppression;
-ARIA-disabled direct owners remain focusable while component-owned capture
-behavior blocks pointer, programmatic, Enter, and native-button Space
-activation before target and application bubble listeners.
+expanded contract. Native-disabled buttons retain browser suppression.
+`cem-tabs` generates only native-disabled unavailable tab buttons under its
+dedicated manual-activation contract. ARIA-disabled direct `cem-nav` owners
+remain focusable while component-owned capture behavior blocks pointer,
+programmatic, Enter, and native-button Space activation before target and
+application bubble listeners.
 
 `cem-stepper` is a workflow-navigation owner rather than a tab substitute. It
 consumes strict inert `cem-step` payloads, generates an ordered set of exact

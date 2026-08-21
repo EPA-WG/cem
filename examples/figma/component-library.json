@@ -366,11 +366,21 @@
             "tag": "cem-tabs",
             "category": "Navigation",
             "representation": "component-set",
-            "properties": { "label": "text", "slot:default": "slot" },
+            "properties": { "label": "text", "selected-index": "text", "orientation": "variant", "slot:default": "slot" },
             "states": ["default", "hover", "focus-visible", "active", "disabled", "selected"],
-            "tokenFamilies": ["palette", "navigation", "stroke", "gap", "typography"],
-            "documentation": ["packages/cem-components/docs/component-reference.md#navigation"],
+            "tokenFamilies": ["palette", "navigation", "stroke", "bend", "gap", "coupling", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#navigation", "packages/cem-components/docs/tabs-contract.md"],
             "figma": { "status": "planned", "locator": "03 Components / Navigation / cem-tabs", "revision": null }
+        },
+        {
+            "tag": "cem-tab",
+            "category": "Navigation",
+            "representation": "payload",
+            "properties": { "value": "text", "label": "text", "disabled": "boolean", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["palette", "navigation", "stroke", "bend", "gap", "coupling", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#navigation", "packages/cem-components/docs/tabs-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Navigation / cem-tab", "revision": null }
         },
         {
             "tag": "cem-stepper",

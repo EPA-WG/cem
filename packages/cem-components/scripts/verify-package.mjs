@@ -22,6 +22,7 @@ const builtSliderBehaviorPath = join(packageRoot, 'dist', 'lib', 'slider-behavio
 const builtTooltipBehaviorPath = join(packageRoot, 'dist', 'lib', 'tooltip-behavior.js');
 const builtTimepickerBehaviorPath = join(packageRoot, 'dist', 'lib', 'timepicker-behavior.js');
 const builtDatepickerBehaviorPath = join(packageRoot, 'dist', 'lib', 'datepicker-behavior.js');
+const builtTabsBehaviorPath = join(packageRoot, 'dist', 'lib', 'tabs-behavior.js');
 const builtStepperBehaviorPath = join(packageRoot, 'dist', 'lib', 'stepper-behavior.js');
 const builtTreeBehaviorPath = join(packageRoot, 'dist', 'lib', 'tree-behavior.js');
 const sourceEntries = [join(packageRoot, 'src', 'index.ts'), join(packageRoot, 'src', 'lib', 'cem-components.ts')];
@@ -132,6 +133,14 @@ if (!builtPrimitives.includes("tag: 'cem-datepicker'")) {
     throw new Error('built primitive inventory must contain cem-datepicker');
 }
 
+if (!sourcePrimitives.includes("tag: 'cem-tabs'") || !sourcePrimitives.includes("tag: 'cem-tab'")) {
+    throw new Error('source primitive inventory must contain cem-tabs and cem-tab');
+}
+
+if (!builtPrimitives.includes("tag: 'cem-tabs'") || !builtPrimitives.includes("tag: 'cem-tab'")) {
+    throw new Error('built primitive inventory must contain cem-tabs and cem-tab');
+}
+
 if (!sourcePrimitives.includes("tag: 'cem-stepper'") || !sourcePrimitives.includes("tag: 'cem-step'")) {
     throw new Error('source primitive inventory must contain cem-stepper and cem-step');
 }
@@ -182,6 +191,10 @@ if (!existsSync(builtTimepickerBehaviorPath)) {
 
 if (!existsSync(builtDatepickerBehaviorPath)) {
     throw new Error('built package must contain the datepicker behavior artifact');
+}
+
+if (!existsSync(builtTabsBehaviorPath)) {
+    throw new Error('built package must contain the tabs behavior artifact');
 }
 
 if (!existsSync(builtStepperBehaviorPath)) {
@@ -269,6 +282,7 @@ try {
         'dist/lib/tooltip-behavior.js',
         'dist/lib/timepicker-behavior.js',
         'dist/lib/datepicker-behavior.js',
+        'dist/lib/tabs-behavior.js',
         'dist/lib/stepper-behavior.js',
         'dist/lib/tree-behavior.js',
         'dist/lib/primitives.js',
@@ -285,7 +299,7 @@ try {
     }
 
     console.log(
-        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, tooltip, timepicker, datepicker, stepper, and tree owners included, ` +
+        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, tooltip, timepicker, datepicker, tabs, stepper, and tree owners included, ` +
             'public component catalog, one dist/styles.css, zero source/root copies).',
     );
 } finally {

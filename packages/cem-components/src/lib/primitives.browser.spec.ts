@@ -255,8 +255,8 @@ describe('CEM component primitives', () => {
                     <a href="#assets">Assets</a>
                 </cem-nav>
                 <cem-tabs label="Profile sections">
-                    <button type="button" role="tab" aria-selected="true">Overview</button>
-                    <button type="button" role="tab" aria-selected="false">Security</button>
+                    <cem-tab value="overview" label="Overview"><p>Overview panel</p></cem-tab>
+                    <cem-tab value="security" label="Security"><p>Security panel</p></cem-tab>
                 </cem-tabs>
             </cem-stack>
         `);

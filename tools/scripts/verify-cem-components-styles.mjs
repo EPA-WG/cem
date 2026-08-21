@@ -234,6 +234,76 @@ const NAVIGATION_BINDINGS = new Map([
         "cem-tabs > [role='tablist'] > button[role='tab']:enabled:focus-visible",
     ].map((selector) => [selector, focusBinding()]),
 ]);
+const TABS_LAYOUT_BINDINGS = new Map([
+    [
+        'cem-tabs',
+        new Map([
+            ['background-color', 'var(--cem-palette-comfort)'],
+            ['color', 'var(--cem-palette-comfort-text)'],
+            ['display', 'block'],
+            ['font-family', 'var(--cem-typography-ui-font-family)'],
+            ['font-size', 'var(--cem-typography-ui-font-size)'],
+            ['line-height', 'var(--cem-typography-ui-line-height)'],
+        ]),
+    ],
+    [
+        "cem-tabs[orientation='vertical']",
+        new Map([
+            ['display', 'grid'],
+            ['gap', 'var(--cem-gap-group)'],
+            ['grid-template-columns', 'auto minmax(0, 1fr)'],
+        ]),
+    ],
+    [
+        'cem-tabs > .cem-tabs__list',
+        new Map([
+            ['display', 'flex'],
+            ['gap', 'var(--cem-gap-related)'],
+        ]),
+    ],
+    ["cem-tabs > .cem-tabs__list[aria-orientation='vertical']", new Map([['display', 'grid']])],
+    [
+        'cem-tabs > .cem-tabs__list > .cem-tabs__tab',
+        new Map([
+            ['appearance', 'none'],
+            ['border', 'var(--cem-stroke-none) solid transparent'],
+            ['border-block-end-width', 'var(--cem-stroke-divider)'],
+            ['border-radius', 'var(--cem-bend-control)'],
+            ['box-sizing', 'border-box'],
+            ['font', 'inherit'],
+            ['font-weight', 'var(--cem-typography-ui-font-weight)'],
+            ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
+            ['margin', 'var(--cem-stroke-none)'],
+            ['min-block-size', 'var(--cem-coupling-zone-min)'],
+            ['padding-block', 'var(--cem-control-padding-y)'],
+            ['padding-inline', 'var(--cem-control-padding-x)'],
+        ]),
+    ],
+    [
+        "cem-tabs > .cem-tabs__list > .cem-tabs__tab[aria-selected='true']",
+        new Map([['border-block-end-color', 'currentColor']]),
+    ],
+    [
+        "cem-tabs > .cem-tabs__list[aria-orientation='vertical'] > .cem-tabs__tab",
+        new Map([
+            ['border-block-end-width', 'var(--cem-stroke-none)'],
+            ['border-inline-end-width', 'var(--cem-stroke-divider)'],
+            ['text-align', 'start'],
+        ]),
+    ],
+    [
+        "cem-tabs > .cem-tabs__list[aria-orientation='vertical'] > .cem-tabs__tab[aria-selected='true']",
+        new Map([['border-inline-end-color', 'currentColor']]),
+    ],
+    [
+        'cem-tabs > .cem-tabs__panels > .cem-tabs__panel',
+        new Map([
+            ['background-color', 'var(--cem-palette-comfort)'],
+            ['color', 'var(--cem-palette-comfort-text)'],
+            ['padding', 'var(--cem-inset-container)'],
+        ]),
+    ],
+]);
 const FEEDBACK_BINDINGS = new Map([
     ['cem-dialog[transient] > dialog.cem-dialog:focus-visible', focusBinding()],
     ['cem-dialog-shell[transient] > dialog.cem-dialog-shell:focus-visible', focusBinding()],
@@ -1148,12 +1218,19 @@ function assertPublicComponentStyles(components, tokenNames) {
     }
 
     for (const selector of navigationRules.keys()) {
-        if (!NAVIGATION_BINDINGS.has(selector)) {
+        if (!NAVIGATION_BINDINGS.has(selector) && !TABS_LAYOUT_BINDINGS.has(selector)) {
             fail(
                 `${pathLabel}: unexpected navigation selector \`${selector}\` is outside the accepted navigation-state contract`,
             );
         }
     }
+
+    assertExactStateBindings(
+        pathLabel,
+        'tabs layout',
+        new Map([...navigationRules].filter(([selector]) => TABS_LAYOUT_BINDINGS.has(selector))),
+        TABS_LAYOUT_BINDINGS,
+    );
 
     assertExactStateBindings(pathLabel, 'divider', dividerRules, DIVIDER_BINDINGS);
 

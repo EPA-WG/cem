@@ -208,7 +208,8 @@ await mkdir(reportRoot, { recursive: true });
 await writeFile(resolve(reportRoot, 'ui-classification.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 await writeFile(resolve(reportRoot, 'ui-classification.md'), markdown, 'utf8');
 console.log(
-    `Verified ${report.behaviorCount} Studio UI classifications: ${report.openBehaviorCount} open, ${report.blockedBehaviors.length} blocked by ${report.generalParityGates.join(', ')}.`,
+    `Verified ${report.behaviorCount} Studio UI classifications: ${report.openBehaviorCount} open, ` +
+        `${report.blockedBehaviors.length} blocked by ${report.generalParityGates.join(', ') || 'none'}.`,
 );
 
 async function readJson(path) {

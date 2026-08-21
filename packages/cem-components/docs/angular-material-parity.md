@@ -3,7 +3,8 @@
 **Status:** All pinned product mappings are audited. The accepted `autocomplete`,
 `divider`, `expansion`, `progress-spinner`, `sort`, `paginator`, `slider`,
 `tooltip`, `timepicker`, `stepper`, and `tree` priorities are covered, and the bounded
-single-date `datepicker` priority is completed as a partial catalog mapping;
+single-date `datepicker` priority is completed as a partial catalog mapping. The
+Studio-driven `tabs` priority is also covered;
 the pinned catalog now has no implementation gaps. Choosing whether to deepen a
 partial mapping or advance a different roadmap program is a separate product
 decision tracked in [`docs/todo.md`](../../../docs/todo.md).
@@ -74,8 +75,8 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 17 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, stepper, timepicker, tooltip, tree |
-| Partial | 20 | badge, bottom-sheet, button, button-toggle, chips, core, datepicker, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
+| Covered | 18 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, stepper, tabs, timepicker, tooltip, tree |
+| Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, datepicker, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, toolbar |
 | Gap | 0 | — |
 
 Each row in the executable inventory explains its boundary. In particular,
@@ -213,6 +214,16 @@ content-interaction active and selected-active pairs; D1/D2/D3/D5/D6 already own
 layout, target, shape, focus, and type. Normal and forced colors pass with stable
 geometry, redundant state shapes, no animation, and no component CSS exception.
 
+`tabs` deepens the previously partial local-view shell into a complete general
+owner required by Studio. The [tabs contract](./tabs-contract.md) assigns strict
+inert `cem-tab` payloads, stable reciprocal tab/panel relationships, horizontal
+and vertical roving focus, deliberate manual activation, native-disabled
+skipping, silent programmatic selection, one serializable `cem-tab` event, and
+focus-safe dynamic removal or disable recovery to `cem-tabs`. Shared navigation
+tokens cover normal and forced colors without introducing app-specific state.
+Routing, lazy loading, label pagination, deletion, popup behavior, and arbitrary
+in-place payload reordering remain outside the v1 owner.
+
 Run the invariant with:
 
 ```bash
@@ -220,7 +231,7 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports seventeen covered rows,
-twenty partial rows, zero gaps, no remaining audit, and a complete pinned gap
+of the accepted implementation priority. It reports eighteen covered rows,
+nineteen partial rows, zero gaps, no remaining audit, and a complete pinned gap
 program. Any next parity work requires a deliberate choice among the documented
 partial mappings rather than an implied missing-owner sequence.

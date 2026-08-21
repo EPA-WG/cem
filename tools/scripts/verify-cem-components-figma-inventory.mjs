@@ -24,7 +24,7 @@ const expectedSources = {
     documentation: 'packages/cem-components/docs/component-reference.md',
 };
 const expectedModes = ['Light', 'Dark', 'Contrast Light', 'Contrast Dark', 'Native'];
-const payloadTags = new Set(['cem-option', 'cem-option-group', 'cem-step', 'cem-tree-item']);
+const payloadTags = new Set(['cem-option', 'cem-option-group', 'cem-tab', 'cem-step', 'cem-tree-item']);
 const structuralTags = new Set(['cem-stack', 'cem-grid', 'cem-table', 'cem-app-bar']);
 const allowedRepresentations = new Set(['component-set', 'component', 'payload', 'structural']);
 const allowedPropertyKinds = new Set(['variant', 'boolean', 'text', 'instance-swap', 'slot']);

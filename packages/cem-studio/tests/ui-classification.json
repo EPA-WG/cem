@@ -13,20 +13,7 @@
         "A reusable /studio composite may lead only when the pinned catalog has no counterpart for the composite capability.",
         "Studio owns routes, data, selection, persistence, workers, updates, search, and command orchestration, but not control DOM or interaction semantics."
     ],
-    "generalParityGates": [
-        {
-            "materialId": "tabs",
-            "blocks": ["compact-pane-navigation", "result-view-navigation"],
-            "missingBehavior": [
-                "owned tab and tabpanel relationships",
-                "roving keyboard focus",
-                "automatic or manual activation policy",
-                "selected-index change events",
-                "stable panel visibility and focus behavior"
-            ],
-            "nextAction": "Complete and verify the general cem-tabs contract before composing either Studio view switcher."
-        }
-    ],
+    "generalParityGates": [],
     "deferredGeneralCapabilities": [
         {
             "materialId": "menu",
@@ -82,14 +69,14 @@
             "id": "compact-pane-navigation",
             "surface": "Application shell",
             "requirement": "Compact widths expose explorer, editor, preview, and console as one accessible pane switcher.",
-            "disposition": "complete-general-first",
-            "compositionGate": "blocked",
-            "generalComponents": ["cem-tabs"],
+            "disposition": "reuse-general",
+            "compositionGate": "open",
+            "generalComponents": ["cem-tabs", "cem-tab"],
             "studioComponents": [],
             "materialReferences": ["tabs"],
-            "contractBounds": ["The current cem-tabs shell and styling are insufficient because tab/panel ownership and keyboard activation are not yet implemented."],
+            "contractBounds": ["Use cem-tabs as the completed general local-view owner with inert cem-tab payloads, stable panels, manual activation, and no route, persistence, lazy-loading, or in-place reordering ownership."],
             "applicationOwns": ["selected pane route", "preserved workbench selection"],
-            "evidence": ["packages/cem-components/tests/angular-material-parity.json#tabs", "docs/cem-studio.md#responsive-layout"]
+            "evidence": ["packages/cem-components/docs/tabs-contract.md", "docs/cem-studio.md#responsive-layout"]
         },
         {
             "id": "home-and-projects",
@@ -212,14 +199,14 @@
             "id": "result-view-navigation",
             "surface": "Results",
             "requirement": "Switch among structured data, safe preview, raw bytes/text, diagnostics, report, event trace, and source trace with stable panels.",
-            "disposition": "complete-general-first",
-            "compositionGate": "blocked",
-            "generalComponents": ["cem-tabs"],
+            "disposition": "reuse-general",
+            "compositionGate": "open",
+            "generalComponents": ["cem-tabs", "cem-tab"],
             "studioComponents": [],
             "materialReferences": ["tabs"],
-            "contractBounds": ["The current cem-tabs shell cannot be used as a tab/tabpanel controller until its general parity gate is complete."],
+            "contractBounds": ["Use cem-tabs for the completed general tab/tabpanel interaction while Studio owns projection data, routing, and persistence; do not add app-local tab controls."],
             "applicationOwns": ["selected result projection", "current artifact and source selection"],
-            "evidence": ["packages/cem-components/tests/angular-material-parity.json#tabs", "docs/cem-studio.md#preview-rules"]
+            "evidence": ["packages/cem-components/docs/tabs-contract.md", "docs/cem-studio.md#preview-rules"]
         },
         {
             "id": "structured-data-inspector",

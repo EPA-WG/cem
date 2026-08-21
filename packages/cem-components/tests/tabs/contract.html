@@ -1,0 +1,36 @@
+<section class="cem-theme-light" aria-label="Tabs contract fixture">
+<button type="button" data-tabs-focus-start>Before tabs</button>
+
+<cem-tabs id="workspace-tabs" label="Workspace panes" selected-index="1">
+    <cem-tab value="explorer" label="Explorer">
+        <input id="explorer-filter" aria-label="Explorer filter" value="initial">
+    </cem-tab>
+    <cem-tab value="editor" label="Editor">
+        <textarea id="editor-source" aria-label="Editor source">source</textarea>
+    </cem-tab>
+    <cem-tab value="preview" label="Preview" disabled>
+        <p>Preview unavailable</p>
+    </cem-tab>
+    <cem-tab value="console" label="Console">
+        <button id="clear-console" type="button">Clear console</button>
+    </cem-tab>
+</cem-tabs>
+
+<cem-tabs id="vertical-tabs" label="Result views" orientation="vertical">
+    <cem-tab value="data" label="Data"><p>Data result</p></cem-tab>
+    <cem-tab value="raw" label="Raw" disabled><p>Raw result</p></cem-tab>
+    <cem-tab value="report" label="Report"><p>Report result</p></cem-tab>
+</cem-tabs>
+
+<cem-tabs id="dynamic-tabs" label="Dynamic views" selected-index="1">
+    <cem-tab value="one" label="One"><input id="retained-value" aria-label="Retained value" value="one"></cem-tab>
+    <cem-tab value="two" label="Two"><button id="focused-panel-action" type="button">Focused panel action</button></cem-tab>
+    <cem-tab value="three" label="Three"><p>Three panel</p></cem-tab>
+</cem-tabs>
+
+<cem-tabs id="malformed-tabs" label="Malformed tabs">
+    <div>Not a tab payload</div>
+</cem-tabs>
+
+<button type="button" data-tabs-focus-end>After tabs</button>
+</section>

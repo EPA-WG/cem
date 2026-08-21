@@ -1,7 +1,7 @@
 # CEM UI Kit Plan
 
 **Status:** Accepted Phase 5 contract. The native token collection, offline
-token gates, and executable 48-primitive component inventory exist;
+token gates, and executable 49-primitive component inventory exist;
 foundations, canvas component sets, patterns, and reviewed UI Kit evidence
 remain pending.
 

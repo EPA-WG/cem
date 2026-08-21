@@ -118,6 +118,11 @@
                 "access": "public"
             }
         },
+        "test-ci--**/**": {
+            "options": {
+                "env": {}
+            }
+        },
         "test": {
             "dependsOn": ["^build"]
         }

@@ -51,7 +51,8 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Content | `tree-item` | `cem-tree-item` | Inert recursive hierarchy payload consumed by `cem-tree` | palette, content, control, stroke, bend, gap, coupling, typography |
 | Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
 | Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, navigation, gap, inset, typography |
-| Navigation | `tabs` | `cem-tabs` | Local view switching | palette, navigation, stroke, gap, typography |
+| Navigation | `tabs` | `cem-tabs` | Labeled local-view switching with linked persistent panels | palette, navigation, stroke, bend, gap, coupling, control, typography |
+| Navigation | `tab` | `cem-tab` | Inert labeled local-view payload consumed by `cem-tabs` | palette, navigation, stroke, bend, gap, coupling, control, typography |
 | Navigation | `stepper` | `cem-stepper` | Labeled linear or nonlinear workflow navigation with persistent panels | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography |
 | Navigation | `step` | `cem-step` | Inert labeled workflow-step payload consumed by `cem-stepper` | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography |
 | Navigation | `paginator` | `cem-paginator` | Paged-content navigation with application-owned data | action, palette, select, control, stroke, bend, gap, inset, typography |

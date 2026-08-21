@@ -72,8 +72,8 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 <cem-icon-button name="settings" label="Open settings" disabled></cem-icon-button>
                 <cem-menu-item expanded="true">Advanced options</cem-menu-item>
                 <cem-tabs label="Sections">
-                    <button type="button" role="tab" aria-selected="true">Current</button>
-                    <button type="button" role="tab" aria-selected="false">Later</button>
+                    <cem-tab value="current" label="Current"><p>Current panel</p></cem-tab>
+                    <cem-tab value="later" label="Later"><p>Later panel</p></cem-tab>
                 </cem-tabs>
             </cem-stack>
         `);
@@ -274,13 +274,10 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 <cem-nav label="Workspace navigation" collapsible expanded>
                     <a href="#workspace">Workspace</a>
                 </cem-nav>
-                <cem-tabs label="Profile sections">
-                    <button type="button" role="tab" aria-selected="false">Overview tab</button>
-                    <button type="button" role="tab" aria-selected="true">Security tab</button>
-                    <button type="button" role="tab" aria-selected="false" aria-disabled="true">
-                        Billing tab
-                    </button>
-                    <button type="button" role="tab" aria-selected="false" disabled>Disabled tab</button>
+                <cem-tabs label="Profile sections" selected-index="1">
+                    <cem-tab value="overview" label="Overview tab"><p>Overview panel</p></cem-tab>
+                    <cem-tab value="security" label="Security tab"><p>Security panel</p></cem-tab>
+                    <cem-tab value="billing" label="Billing tab" disabled><p>Billing panel</p></cem-tab>
                 </cem-tabs>
             </cem-stack>
         `);
@@ -376,11 +373,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 host: primaryHost,
                 owner: harness.query<HTMLButtonElement>('cem-nav button:disabled'),
                 wrapper: primaryWrapper,
-            },
-            {
-                host: tabsHost,
-                owner: harness.query<HTMLButtonElement>('cem-tabs button[aria-disabled="true"]'),
-                wrapper: tabsWrapper,
             },
             {
                 host: tabsHost,
@@ -489,22 +481,19 @@ describe('CEM component primitive states and ARIA behavior', () => {
                         <a id="focus-nav-content" href="#workspace">Workspace</a>
                         <button id="focus-content-disabled" type="button" disabled>Unavailable workspace</button>
                     </cem-nav>
-                    <cem-tabs label="Focus profile sections">
-                        <button id="focus-tab-default" type="button" role="tab" aria-selected="false">
-                            Overview tab
-                        </button>
-                        <button id="focus-tab-selected" type="button" role="tab" aria-selected="true">
-                            Security tab
-                        </button>
-                        <button id="focus-tab-disabled" type="button" role="tab" aria-selected="false" disabled>
-                            Disabled tab
-                        </button>
+                    <cem-tabs label="Focus profile sections" selected-index="1">
+                        <cem-tab value="overview" label="Overview tab"><p>Overview panel</p></cem-tab>
+                        <cem-tab value="security" label="Security tab"><p>Security panel</p></cem-tab>
+                        <cem-tab value="disabled" label="Disabled tab" disabled><p>Disabled panel</p></cem-tab>
                     </cem-tabs>
                 </cem-stack>
                 <button id="navigation-focus-end" type="button">End navigation focus sequence</button>
             </section>
         `);
-        await waitForStateSelector(root, '#focus-tab-disabled:disabled');
+        await waitForStateSelector(
+            root,
+            'cem-tabs[label="Focus profile sections"] [data-tab-index="2"]:disabled',
+        );
 
         const start = harness.query<HTMLButtonElement>('#navigation-focus-start');
         const end = harness.query<HTMLButtonElement>('#navigation-focus-end');
@@ -514,6 +503,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
         const disclosureWrapper = harness.query<HTMLElement>('cem-nav[label="Focus workspace navigation"] > nav');
         const tabsHost = harness.query<HTMLElement>('cem-tabs[label="Focus profile sections"]');
         const tabsWrapper = harness.query<HTMLElement>('cem-tabs[label="Focus profile sections"] > [role="tablist"]');
+        const selectedTabsPanel = harness.query<HTMLElement>(
+            'cem-tabs[label="Focus profile sections"] > .cem-tabs__panels > [role="tabpanel"]:not([hidden])',
+        );
         const cases = [
             {
                 host: primaryHost,
@@ -567,19 +559,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
             },
             {
                 host: tabsHost,
-                owner: harness.query<HTMLButtonElement>('#focus-tab-default'),
-                state: { attribute: 'aria-selected', value: 'false' },
-                tokens: {
-                    defaultBackground: '--cem-navigation-item-default-background',
-                    defaultText: '--cem-navigation-item-default-text',
-                    hoverBackground: '--cem-navigation-item-hover-background',
-                    hoverText: '--cem-navigation-item-hover-text',
-                },
-                wrapper: tabsWrapper,
-            },
-            {
-                host: tabsHost,
-                owner: harness.query<HTMLButtonElement>('#focus-tab-selected'),
+                owner: harness.query<HTMLButtonElement>('cem-tabs[label="Focus profile sections"] [data-tab-index="1"]'),
                 state: { attribute: 'aria-selected', value: 'true' },
                 tokens: {
                     defaultBackground: '--cem-navigation-item-current-background',
@@ -593,7 +573,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         const disabled = [
             harness.query<HTMLButtonElement>('#focus-nav-disabled'),
             harness.query<HTMLButtonElement>('#focus-content-disabled'),
-            harness.query<HTMLButtonElement>('#focus-tab-disabled'),
+            harness.query<HTMLButtonElement>('cem-tabs[label="Focus profile sections"] [data-tab-index="2"]'),
         ];
         const baselines = cases.map(({ host, owner, wrapper }) =>
             captureNavigationState(runtime, host, wrapper, owner),
@@ -702,8 +682,12 @@ describe('CEM component primitive states and ARIA behavior', () => {
         }
         await userEvent.tab();
         await nextRenderFrame();
-        expect(document.activeElement).toBe(end);
+        expect(document.activeElement).toBe(selectedTabsPanel);
+        expect(selectedTabsPanel.tabIndex).toBe(0);
         expect(lastCase.owner.matches(':focus-visible')).toBe(false);
+        await userEvent.tab();
+        await nextRenderFrame();
+        expect(document.activeElement).toBe(end);
         const restoredLast = captureNavigationState(runtime, lastCase.host, lastCase.wrapper, lastCase.owner);
         expect(restoredLast.focusTreatment).toEqual(lastBaseline.focusTreatment);
         expectNavigationStructureAndGeometry(restoredLast, lastBaseline);
@@ -711,8 +695,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(focusOrder).toEqual(cases.map(({ owner }) => owner.id || owner.className));
         expect(cases[1].owner.getAttribute('aria-current')).toBe('page');
         expect(cases[2].owner.getAttribute('aria-expanded')).toBe('true');
-        expect(cases[4].owner.getAttribute('aria-selected')).toBe('false');
-        expect(cases[5].owner.getAttribute('aria-selected')).toBe('true');
+        expect(cases[4].owner.getAttribute('aria-selected')).toBe('true');
         expect(mutationEvents).toEqual([]);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
@@ -732,35 +715,14 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 <cem-nav label="Active workspace navigation" collapsible expanded>
                     <a id="active-nav-content" href="#active-workspace">Workspace</a>
                 </cem-nav>
-                <cem-tabs label="Active profile sections">
-                    <button id="active-tab-default" type="button" role="tab" aria-selected="false">
-                        Overview tab
-                    </button>
-                    <button id="active-tab-selected" type="button" role="tab" aria-selected="true">
-                        Security tab
-                    </button>
-                    <button
-                        id="active-tab-aria-disabled"
-                        type="button"
-                        role="tab"
-                        aria-selected="false"
-                        aria-disabled="true"
-                    >
-                        Billing tab
-                    </button>
-                    <button
-                        id="active-tab-disabled"
-                        type="button"
-                        role="tab"
-                        aria-selected="false"
-                        disabled
-                    >
-                        Disabled tab
-                    </button>
+                <cem-tabs label="Active profile sections" selected-index="1">
+                    <cem-tab value="overview" label="Overview tab"><p>Overview panel</p></cem-tab>
+                    <cem-tab value="security" label="Security tab"><p>Security panel</p></cem-tab>
+                    <cem-tab value="disabled" label="Disabled tab" disabled><p>Disabled panel</p></cem-tab>
                 </cem-tabs>
             </cem-stack>
         `);
-        await waitForStateSelector(root, '#active-tab-disabled:disabled');
+        await waitForStateSelector(root, 'cem-tabs[label="Active profile sections"] [data-tab-index="2"]:disabled');
 
         const primaryHost = harness.query<HTMLElement>('cem-nav[label="Active primary navigation"]');
         const primaryWrapper = harness.query<HTMLElement>('cem-nav[label="Active primary navigation"] > nav');
@@ -813,14 +775,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
             },
             {
                 host: tabsHost,
-                owner: harness.query<HTMLButtonElement>('#active-tab-default'),
-                state: { attribute: 'aria-selected', value: 'false' },
-                tokens: activeTokens,
-                wrapper: tabsWrapper,
-            },
-            {
-                host: tabsHost,
-                owner: harness.query<HTMLButtonElement>('#active-tab-selected'),
+                owner: harness.query<HTMLButtonElement>(
+                    'cem-tabs[label="Active profile sections"] [data-tab-index="1"]',
+                ),
                 state: { attribute: 'aria-selected', value: 'true' },
                 tokens: currentActiveTokens,
                 wrapper: tabsWrapper,
@@ -846,12 +803,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
             },
             {
                 host: tabsHost,
-                owner: harness.query<HTMLButtonElement>('#active-tab-aria-disabled'),
-                wrapper: tabsWrapper,
-            },
-            {
-                host: tabsHost,
-                owner: harness.query<HTMLButtonElement>('#active-tab-disabled'),
+                owner: harness.query<HTMLButtonElement>(
+                    'cem-tabs[label="Active profile sections"] [data-tab-index="2"]',
+                ),
                 wrapper: tabsWrapper,
             },
         ] as const;
@@ -988,7 +942,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
 
         const defaultLink = activeCases[0].owner;
         const currentLink = activeCases[1].owner;
-        const selectedTab = activeCases[4].owner;
+        const selectedTab = activeCases[3].owner;
         await userEvent.unhover(defaultLink);
         await userEvent.keyboard('{Tab}');
         await assertFocusVisible(defaultLink);
@@ -1110,50 +1064,21 @@ describe('CEM component primitive states and ARIA behavior', () => {
                             </button>
                         </div>
                     </cem-nav>
-                    <cem-tabs label="Disabled profile sections">
-                        <button id="disabled-tab-enabled" type="button" role="tab" aria-selected="false">
-                            Enabled tab
-                        </button>
-                        <button
-                            id="disabled-tab-selected"
-                            type="button"
-                            role="tab"
-                            aria-selected="true"
-                            aria-disabled="true"
-                        >
-                            Unavailable selected tab
-                        </button>
-                        <button
-                            id="disabled-tab-native"
-                            type="button"
-                            role="tab"
-                            aria-selected="false"
-                            disabled
-                        >
-                            Native disabled tab
-                        </button>
-                    </cem-tabs>
                     <button id="disabled-navigation-end" type="button">End</button>
                 </form>
             </section>
         `);
-        await waitForStateSelector(root, '#disabled-tab-native:disabled');
+        await waitForStateSelector(root, '#disabled-nav-native:disabled');
 
         const form = harness.query<HTMLFormElement>('#disabled-navigation-form');
         const start = harness.query<HTMLButtonElement>('#disabled-navigation-start');
         const end = harness.query<HTMLButtonElement>('#disabled-navigation-end');
         const navHost = harness.query<HTMLElement>('cem-nav[label="Disabled primary navigation"]');
         const navWrapper = harness.query<HTMLElement>('cem-nav[label="Disabled primary navigation"] > nav');
-        const tabsHost = harness.query<HTMLElement>('cem-tabs[label="Disabled profile sections"]');
-        const tabsWrapper = harness.query<HTMLElement>(
-            'cem-tabs[label="Disabled profile sections"] > [role="tablist"]',
-        );
         const ariaDisabledLink = harness.query<HTMLAnchorElement>('#disabled-nav-current');
         const ariaDisabledLinkLabel = harness.query<HTMLElement>('#disabled-nav-current-label');
         const ariaDisabledButton = harness.query<HTMLButtonElement>('#disabled-nav-submit');
-        const ariaDisabledTab = harness.query<HTMLButtonElement>('#disabled-tab-selected');
         const nativeDisabledButton = harness.query<HTMLButtonElement>('#disabled-nav-native');
-        const nativeDisabledTab = harness.query<HTMLButtonElement>('#disabled-tab-native');
         const nestedDisabledButton = harness.query<HTMLButtonElement>('#disabled-nav-nested');
         const ariaCases = [
             {
@@ -1172,26 +1097,15 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 activationKeys: ['Enter', ' '],
                 wrapper: navWrapper,
             },
-            {
-                host: tabsHost,
-                owner: ariaDisabledTab,
-                pointerTarget: ariaDisabledTab,
-                state: { attribute: 'aria-selected', value: 'true' },
-                activationKeys: ['Enter', ' '],
-                wrapper: tabsWrapper,
-            },
         ] as const;
         const nativeCases = [
             { host: navHost, owner: nativeDisabledButton, wrapper: navWrapper },
-            { host: tabsHost, owner: nativeDisabledTab, wrapper: tabsWrapper },
         ] as const;
         const focusOrder: readonly HTMLElement[] = [
             harness.query<HTMLAnchorElement>('#disabled-nav-enabled'),
             ariaDisabledLink,
             ariaDisabledButton,
             harness.query<HTMLAnchorElement>('#disabled-nav-tail'),
-            harness.query<HTMLButtonElement>('#disabled-tab-enabled'),
-            ariaDisabledTab,
         ];
         const focusEvents: string[] = [];
         harness.root.addEventListener('focusin', (event) => {
@@ -1200,7 +1114,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
             }
         });
 
-        assertStateHostsRendered(harness.root, 'cem-nav, cem-tabs');
+        assertStateHostsRendered(harness.root, 'cem-nav');
         start.focus();
         for (const owner of focusOrder) {
             await userEvent.tab();
@@ -1218,7 +1132,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 expect(paintedColor(styles.outlineColor)).toBe(resolveTokenColor(owner, '--cem-zebra-color-1'));
             }
             expect(document.activeElement).not.toBe(nativeDisabledButton);
-            expect(document.activeElement).not.toBe(nativeDisabledTab);
         }
         await userEvent.tab();
         expect(document.activeElement).toBe(end);
@@ -1408,9 +1321,8 @@ describe('CEM component primitive states and ARIA behavior', () => {
         await userEvent.keyboard('{Tab}');
 
         expect(Array.from(new FormData(form).entries())).toEqual([]);
-        expect(ariaOwners.map((owner) => owner.getAttribute('tabindex'))).toEqual([null, null, null]);
+        expect(ariaOwners.map((owner) => owner.getAttribute('tabindex'))).toEqual([null, null]);
         expect(ariaDisabledLink.getAttribute('aria-current')).toBe('page');
-        expect(ariaDisabledTab.getAttribute('aria-selected')).toBe('true');
         expect(mutationEvents).toEqual([]);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });

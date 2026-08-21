@@ -1056,33 +1056,52 @@ including search, is composed from `@epa-wg/cem-components` and
     - Completed 2026-08-21: the executable
       [`Studio UI classification`](./cem-studio-phase6.5-ui-classification.md)
       maps all 23 initial shell/workbench behaviors to the pinned Angular
-      Material `22.1.1` inventory and current 48-component CEM surface. Three
+      Material `22.1.1` inventory and current 49-component CEM surface. Five
       behaviors directly reuse general controls, eleven keep only application
       orchestration in Studio, and seven reserve named reusable `/studio`
       composites because their workbench capability has no Material catalog
-      counterpart. Both blocked behaviors resolve to one general prerequisite:
-      the partial `cem-tabs` row lacks tab/panel ownership, roving focus,
-      activation, selection events, and stable panel behavior. The cached
+      counterpart. The completed general `cem-tabs`/`cem-tab` prerequisite now
+      opens both view-switching compositions, so all 23 classifications are
+      open with no remaining general parity gate. The cached
       `verify:ui-classification` target verifies the Material/state inventories,
       exact benchmark, component owners, evidence, blockers, deferred partial
       capabilities, documentation coverage, and deterministic reports. Initial
       popup menus, radio groups, sidenav behavior, and snack-bar lifecycle are
       explicitly excluded in favor of proven visible actions, select, semantic
       grid, and persistent alert contracts.
-- [ ] Complete the general `cem-tabs` parity required by Studio pane navigation
+- [x] Complete the general `cem-tabs` parity required by Studio pane navigation
       before composing the shell or Results view switchers.
-    - [ ] Accept the authored tab/panel vocabulary, stable relationship model,
+    - [x] Accept the authored tab/panel vocabulary, stable relationship model,
           automatic/manual activation policy, selection event, and disabled and
           dynamic-child behavior in a component contract.
-    - [ ] Add failing browser tests for horizontal/vertical roving focus,
+    - [x] Add failing browser tests for horizontal/vertical roving focus,
           Home/End and arrow keys, activation, focus-safe panel changes,
           programmatic selection, mutation, and accessibility semantics.
-    - [ ] Implement the general light-DOM component behavior, state/token and
+    - [x] Implement the general light-DOM component behavior, state/token and
           forced-color treatment, docs, package output, and clean-consumer
           evidence without Studio-specific state.
-    - [ ] Promote the pinned tabs row only after the focused tests, state matrix,
+    - [x] Promote the pinned tabs row only after the focused tests, state matrix,
           Material parity, package verification, and aggregate component gate
           pass.
+    - Completed 2026-08-21: `cem-tabs` now consumes strict inert `cem-tab`
+      payloads and owns stable reciprocal tab/tabpanel IDs, horizontal and
+      vertical roving focus, manual Enter/Space activation, native-disabled
+      skipping, silent `selectedIndex` control, one serializable `cem-tab`
+      event, persistent panel state, and focus-safe removal/disable recovery.
+      Token-only normal and forced-color styling uses the shared navigation
+      families, with no animation, numeric stacking, or Studio-owned state.
+      The focused five-test tabs suite, 22-test shared state suite, dedicated
+      forced-colors gate, package verifier, 40-row state matrix, 49-primitive
+      catalog/Figma projection, and full 130-test browser aggregate pass. The
+      pinned Material inventory is now 18 covered / 19 partial, and Studio's
+      two view switchers are open general-component compositions. Arbitrary
+      in-place payload reordering remains explicitly outside v1 because it
+      requires a separate CEM projection-reconciliation contract; append,
+      removal, label, and disabled changes are covered. The atomized Vitest
+      target default now supplies the `env` object required by local Nx 22.7.0
+      without replacing inferred commands or working directories. No live
+      Figma asset was changed; `cem-tab` is recorded only as a planned inert
+      payload in the repository-owned projection.
 - [ ] Implement the versioned IndexedDB project repository with migrations,
       atomic autosave, trash/restore, revision/hash conflicts, multi-tab
       coordination, quota diagnostics, and validated import/export.
@@ -1123,7 +1142,7 @@ before the non-Figma roadmap is complete.
 
 Phase 4 component names, variants, executable states, and accessibility semantics
 are complete in the archived checklist, and the Phase 10 repository foundation
-already owns the five-mode token gate and 48-primitive executable Figma inventory.
+already owns the five-mode token gate and 49-primitive executable Figma inventory.
 The remaining Phase 10 work is reviewed canvas work in the canonical CEM UI Kit
 and must not start before Phase 9 is complete.
 

@@ -73,12 +73,7 @@ function isDirectNavigationOwner(instance: HTMLElement, owner: HTMLElement): boo
         return parent.classList.contains('cem-nav__content') && nav?.localName === 'nav' && nav.parentElement === instance;
     }
 
-    return (
-        instance.localName === 'cem-tabs'
-        && owner.matches("button[role='tab']")
-        && parent.getAttribute('role') === 'tablist'
-        && parent.parentElement === instance
-    );
+    return false;
 }
 
 function suppress(event: Event): void {

@@ -11,10 +11,10 @@
     },
     "recommendedAudit": null,
     "implementationPriority": {
-        "id": "tree",
-        "acceptedAt": "2026-08-11",
-        "completedAt": "2026-08-11",
-        "contract": "packages/cem-components/docs/tree-contract.md",
+        "id": "tabs",
+        "acceptedAt": "2026-08-21",
+        "completedAt": "2026-08-21",
+        "contract": "packages/cem-components/docs/tabs-contract.md",
         "state": "completed",
         "targetStatus": "covered"
     },
@@ -480,15 +480,15 @@
         {
             "id": "tabs",
             "name": "Tabs",
-            "status": "partial",
+            "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-tabs"],
+                "owners": ["cem-tabs", "cem-tab"],
                 "states": ["default", "hover", "focus-visible", "active", "disabled", "selected"],
-                "keyboard": ["Authored tab buttons retain native Tab and Space/Enter behavior; the current CEM behavior does not implement roving Left/Right, Home/End focus or selection."],
-                "accessibility": ["Expose a labeled tablist and preserve authored tab and aria-selected semantics."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders navigation-family MVP primitives as accessible landmarks and tablists", "packages/cem-components/src/lib/states.browser.spec.ts::moves keyboard focus through navigation owners without changing selection or component state", "packages/cem-components/src/lib/states.browser.spec.ts::styles only navigation hover owners without changing current selection or component state"],
-                "notes": "The tablist shell and interaction styling are covered. There is no tab/tabpanel relationship owner, roving keyboard controller, activation policy, selected-index event model, lazy content, label pagination, or navigation-panel composition."
+                "keyboard": ["Use manual activation: roving Left/Right in horizontal orientation or Up/Down in vertical orientation wraps and skips native-disabled tabs; Home/End reach the first/last enabled tab, Enter/Space selects, and the other-axis arrows remain native."],
+                "accessibility": ["Expose one labeled tablist, exact native tab buttons, stable reciprocal tab/tabpanel references, one selected enabled tab and visible focusable panel, native disabled suppression, and focus recovery before a selected panel is hidden."],
+                "evidence": ["packages/cem-components/src/lib/tabs.browser.spec.ts::renders one labeled tablist with exact native tabs and stable reciprocal panels", "packages/cem-components/src/lib/tabs.browser.spec.ts::commits pointer and native keyboard activation once while current and disabled paths stay silent", "packages/cem-components/src/lib/tabs.browser.spec.ts::uses manual activation with orientation-aware wrapping roving focus and selected entry restoration", "packages/cem-components/src/lib/tabs.browser.spec.ts::keeps programmatic changes silent, stabilizes ids, recovers selection, and never hides focused content", "packages/cem-components/src/lib/tabs.browser.spec.ts::fails closed for malformed authoring", "packages/cem-components/src/lib/states.browser.spec.ts::styles only navigation hover owners without changing current selection or component state", "packages/cem-components/src/lib/states.browser.spec.ts::applies navigation active treatment during trusted pointer and native keyboard activation", "packages/cem-components/scripts/verify-tabs-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/tabs-contract.md"],
+                "notes": "cem-tabs owns local-view switching through strict inert cem-tab payloads, stable linked tabpanels, horizontal/vertical roving focus, deliberate manual activation, silent programmatic selection, one serializable activation event, native disabled behavior, focus-safe dynamic removal/disable recovery, and tokenized normal/forced-color states. Routing, navigation links, lazy loading, label pagination, deletion, popup behavior, and arbitrary in-place payload reordering remain outside the v1 owner."
             }
         },
         {

@@ -10,6 +10,7 @@ planned canvas assets already exist.
 | --- | --- | --- |
 | `cem-action` | `component-set` | State variants and public properties on one reusable action set |
 | `cem-icon` | `component` | One reusable icon owner using a bounded instance-swap property, never one variant per icon name |
+| `cem-tab` | `payload` | Nested only inside the `cem-tabs` local-view owner, with no standalone interaction asset |
 | `cem-tree-item` | `payload` | Nested only inside the `cem-tree` visual owner, with no standalone interaction asset |
 | `cem-stack` | `structural` | Auto Layout composition owner using the declared gap property |
 

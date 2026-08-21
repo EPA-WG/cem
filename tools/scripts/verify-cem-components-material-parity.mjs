@@ -61,10 +61,10 @@ const EXPECTED_CATALOG = [
 const ALLOWED_STATUSES = new Set(['unreviewed', 'gap', 'partial', 'covered']);
 const ALLOWED_MAPPING_KINDS = new Set(['component', 'behavior', 'gap']);
 const EXPECTED_IMPLEMENTATION_PRIORITY = {
-    id: 'tree',
-    acceptedAt: '2026-08-11',
-    completedAt: '2026-08-11',
-    contract: 'packages/cem-components/docs/tree-contract.md',
+    id: 'tabs',
+    acceptedAt: '2026-08-21',
+    completedAt: '2026-08-21',
+    contract: 'packages/cem-components/docs/tabs-contract.md',
     state: 'completed',
     targetStatus: 'covered',
 };
@@ -153,13 +153,13 @@ function validateImplementationPriority(priority) {
     }
     const contractSource = readFileSync(contractPath, 'utf8');
     for (const heading of [
-        '# Tree Contract',
+        '# Tabs Contract',
         '## Owner and author vocabulary',
-        '## Expansion, activation, and event contract',
+        '## Selection, interaction, and event contract',
         '## Accessibility contract',
         '## Theme-token audit',
-        '## Forced-colors boundary',
-        '## Focused fixture and assertion matrix',
+        '## Evidence matrix',
+        '## Reference boundary',
     ]) {
         if (!contractSource.includes(heading)) {
             fail(`implementationPriority contract must contain ${heading}`);

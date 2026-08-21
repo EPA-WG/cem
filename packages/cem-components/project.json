@@ -360,6 +360,24 @@
             ],
             "outputs": []
         },
+        "verify-tabs-forced-colors": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "options": {
+                "command": "node scripts/verify-tabs-forced-colors.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-tabs-forced-colors.mjs",
+                "{projectRoot}/src/styles.css",
+                {
+                    "dependentTasksOutputFiles": "**/*.css",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "verify-stepper-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -501,6 +519,7 @@
                 "verify-tooltip-forced-colors",
                 "verify-timepicker-forced-colors",
                 "verify-datepicker-forced-colors",
+                "verify-tabs-forced-colors",
                 "verify-stepper-forced-colors",
                 "verify-tree-forced-colors",
                 "verify-feedback-focus-forced-colors",

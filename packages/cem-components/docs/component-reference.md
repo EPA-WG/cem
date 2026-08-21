@@ -37,11 +37,11 @@ The aggregate gate includes:
 | Gate | Command | Coverage |
 | --- | --- | --- |
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
-| Figma component inventory | `yarn nx run @epa-wg/cem-components:verify-figma-inventory` | Accounts for all 48 public primitives, validates component-set/component/payload/structural classification, public property traceability, exact executable states and token families, live documentation, planned/reviewed evidence rules, and the five-mode review fixture. It depends on the native Figma token gate. |
+| Figma component inventory | `yarn nx run @epa-wg/cem-components:verify-figma-inventory` | Accounts for all 49 public primitives, validates component-set/component/payload/structural classification, public property traceability, exact executable states and token families, live documentation, planned/reviewed evidence rules, and the five-mode review fixture. It depends on the native Figma token gate. |
 | Angular Material parity inventory | `yarn nx run @epa-wg/cem-components:verify-material-parity` | Pins the exact stable official catalog and requires every entry to remain visible until it is audited as a component mapping, cross-cutting behavior, partial mapping, or explicit gap. Barebone `cem-elements` compatibility fixtures cannot satisfy product UI parity evidence. |
 | State matrix | `yarn nx run @epa-wg/cem-components:verify-state-matrix` | Resolves every category state to exact browser tests/assertions and supports verifier-checked component-specific evidence so a newly promoted owner does not replace existing evidence. |
 | Public component catalog | `yarn nx run @epa-wg/cem-components:build:catalog` | Emits deterministic public beta JSON from the canonical MVP table, executable primitive inventory, this reference, conventions/accessibility guidance, and the verified state-matrix report. Related examples and Storybook remain source links/local commands rather than copied fixtures or site-owned builds. |
-| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, paginator, feedback, slider, tooltip, and timepicker bindings, component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
+| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, tabs layout, paginator, feedback, slider, tooltip, and timepicker bindings, component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
 | Divider forced colors | `yarn nx run @epa-wg/cem-components:verify-divider-forced-colors` | Proves `CanvasText` separator color, D5 thickness, D1 inset, and the complete D1/D2 line-plus-margins track in forced colors. |
 | Expansion forced colors | `yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors` | Proves header/panel system colors, contextual hover/active/disabled paint, D5 focus, D2 target size, stable geometry, and event/state isolation. |
 | Sort-header forced colors | `yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors` | Proves character-distinct none/ascending/descending states, system hover/active/disabled colors, D5 focus coexistence, D2/D2c geometry, and transient-input state isolation. |
@@ -50,6 +50,7 @@ The aggregate gate includes:
 | Tooltip forced colors | `yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors` | Proves exact trigger ownership, persistent description, `Canvas`/`CanvasText` surface paint, top-layer CSS anchor placement and fallback, pointer/focus continuity, stable geometry, and event/state isolation. |
 | Timepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors` | Proves exact native input ownership, `Canvas`/`CanvasText` popup paint, system hover/active/selected/disabled coexistence, D5 focus, top-layer CSS anchor placement, stable geometry, and event/state isolation. |
 | Datepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors` | Proves exact native input ownership, modal/top-layer containment, `Canvas` dialog paint, `SelectedItem` selected paint, `Mark` current paint, `CanvasText` focus coexistence, disabled suppression, logical anchor placement, stable geometry, and event/state isolation. |
+| Tabs forced colors | `yarn nx run @epa-wg/cem-components:verify-tabs-forced-colors` | Proves selected/default/disabled system paint, a surviving `Highlight` indicator, D2 target size, D5 focus, stable geometry and ARIA, and absence of animation or numeric stacking. |
 | Stepper forced colors | `yarn nx run @epa-wg/cem-components:verify-stepper-forced-colors` | Proves exact native header ownership, current/hover/active/focus/completed/invalid/disabled coexistence, completed/remaining connector paint, D2/D5 geometry, and transient event/state isolation. |
 | Tree forced colors | `yarn nx run @epa-wg/cem-components:verify-tree-forced-colors` | Proves exact native treeitem ownership, default/hover/active/selected/focus/disabled/loading system paint, visible state shapes, D2/D5 geometry, wrapper isolation, and transient event/state silence. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
@@ -76,6 +77,7 @@ Executable fixture locations:
 | Tooltip behavior and state coverage | `../src/lib/tooltip.browser.spec.ts` |
 | Timepicker behavior and state coverage | `../src/lib/timepicker.browser.spec.ts` |
 | Datepicker behavior and state coverage | `../src/lib/datepicker.browser.spec.ts` |
+| Tabs behavior and state coverage | `../src/lib/tabs.browser.spec.ts` |
 | Stepper behavior and state coverage | `../src/lib/stepper.browser.spec.ts` |
 | Tree behavior and state coverage | `../src/lib/tree.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
@@ -91,13 +93,14 @@ Executable fixture locations:
 | Declarative tooltip fixture | `../tests/tooltip/contract.html` |
 | Declarative timepicker fixture | `../tests/timepicker/contract.html` |
 | Declarative datepicker fixture | `../tests/datepicker/contract.html` |
+| Declarative tabs fixture | `../tests/tabs/contract.html` |
 | Declarative stepper fixture | `../tests/stepper/contract.html` |
 | Declarative tree fixture | `../tests/tree/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Phase 3 action/field substrate harness fixture | `../src/lib/testing/component-harness.browser.spec.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-tooltip-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-datepicker-forced-colors.mjs`, `../scripts/verify-tree-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-tooltip-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-datepicker-forced-colors.mjs`, `../scripts/verify-tabs-forced-colors.mjs`, `../scripts/verify-tree-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
 
 The Phase 3 visual baseline is the inline Vitest snapshot produced by the
 headless Chromium project used on Linux CI. It records normalized visible HTML,
@@ -237,7 +240,8 @@ spacing/inset, the D2 guard floor, and D5 line geometry as specified by the
 | --- | --- | --- | --- | --- |
 | `cem-app-bar` | Page or application banner. | `slot="title"` for title; default slot for global actions. | palette, stroke, gap, inset, typography | `label` names the banner when multiple landmarks exist. |
 | `cem-nav` | Labeled navigation region with an optional region-wide disclosure. | Default slot accepts links/actions. Presence-only `collapsible` adds a native disclosure button; presence-only `expanded` sets its initial open state. Without `collapsible`, the existing passive landmark output is unchanged. | palette, navigation, gap, inset, typography | `label` names both the nav landmark and disclosure button. The button mirrors the current boolean state through `aria-expanded`; hidden content leaves the tab order and links retain native semantics. |
-| `cem-tabs` | Local view switcher. | Project tab buttons with `role="tab"` and `aria-selected`. | palette, navigation, stroke, gap, typography | Tablist must be named and exactly one active tab should be selected. |
+| `cem-tabs` | Labeled local-view switcher. | Direct `cem-tab` children require unique `value` and non-empty `label`; host accepts `selected-index` and `orientation`. See the [tabs contract](./tabs-contract.md). | palette, navigation, stroke, bend, gap, coupling, control, typography | A labeled tablist owns roving native tab buttons with manual activation and stable reciprocal persistent tabpanels; exactly one enabled tab and panel are selected. |
+| `cem-tab` | Inert local-view payload consumed by `cem-tabs`. | `value`, `label`, optional `disabled`, and default panel content. | palette, navigation, stroke, bend, gap, coupling, control, typography | Adds no independent role, focus, event, form, route, loading, or persistence owner. |
 | `cem-stepper` | Linear or nonlinear workflow navigation. | Direct `cem-step` children require unique `value` and non-empty `label`; host accepts `selected-index`, `orientation`, `linear`, and `disabled`. Steps accept `completed`, `editable`, `optional`, `invalid`, and `disabled`. See the [stepper contract](./stepper-contract.md). | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography | A labeled ordered list owns roving native header buttons with `aria-current="step"`; stable reciprocal regions retain authored panel state. Application facts control validation/completion. |
 | `cem-step` | Inert step payload consumed by `cem-stepper`. | `value`, `label`, status attributes, and default panel content. | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography | Adds no independent role, focus, event, form, or validation owner. |
 | `cem-paginator` | Labeled paged-content navigation with application-owned data. | `length`, zero-based `page-index`, `page-size`, whitespace-separated `page-size-options`, `show-first-last`, `hide-page-size`, `disabled`, `name`, `label`, and localizable control/range labels. See the [paginator contract](./paginator-contract.md). | action, palette, select, control, stroke, bend, gap, inset, typography | A native navigation landmark owns a labeled page-size select, named native actions, focus-stable `aria-disabled` boundaries, and one atomic polite range status. Applications consume `cem-page` to load/render data. |
@@ -256,8 +260,9 @@ colors use platform system colors. See the
 [navigation focus-visible contract](./navigation-focus-visible-contract.md),
 the [navigation active contract](./navigation-active-contract.md), and the
 [navigation disabled contract](./navigation-disabled-contract.md). Native
-disabled buttons leave the tab order and use browser suppression. Direct
-ARIA-disabled owners remain keyboard-discoverable while host capture behavior
+disabled buttons leave the tab order and use browser suppression; `cem-tabs`
+uses that native-disabled contract exclusively. Direct ARIA-disabled `cem-nav`
+owners remain keyboard-discoverable while host capture behavior
 prevents pointer, programmatic, Enter, and native-button Space activation
 before target/application bubble listeners or default action.
 
