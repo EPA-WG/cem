@@ -22,6 +22,11 @@ catalog traceability, component-catalog ownership, and deterministic clean
 publication. The focused `cem-site:verify:determinism` target executes the same
 native build twice after removing the output directory and records a per-file
 and aggregate SHA-256 report under `dist/reports/cem-site/determinism.json`.
+The cached `cem-site:verify:production` target then serves that exact output and
+crawls every page in Chromium. It rejects failed same-origin responses,
+page/console/runtime errors, landmark and heading drift, inaccessible names,
+broken ARIA or fragment references, missing keyboard focus indicators, and any
+file that differs from the clean deterministic inventory.
 
 Authored content follows a Hugo-like folder hierarchy under `content/`. Shared
 semantic HTML composition lives in `layouts/page.cemt`. Cross-package generated
@@ -42,6 +47,13 @@ indexes, the package-owned component reference, the workspace changelog, and
 the component, element, theme, and custom-element changelogs. Example links
 remain source links except for the dedicated production-backed interactive
 route described below.
+
+The static `/packages/` route is generated from the manifest's audited public
+surface inventory. Verification derives that inventory independently from every
+non-private workspace `package.json` and every workspace Cargo crate that
+explicitly declares `publish = true`, then requires one owner-matched reference
+route for each deployment or crate identity. Package pages consume canonical
+package Markdown directly; CEM Site does not copy their documentation.
 
 The static `/tokens/` route consumes
 `@epa-wg/cem-theme:build:tokens`' public `cem.tokens.catalog.json` output as

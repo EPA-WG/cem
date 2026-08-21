@@ -17,14 +17,15 @@
                 "!{projectRoot}/src/**/*.stories.ts",
                 "{projectRoot}/scripts/package-runtime-assets.mjs",
                 "{workspaceRoot}/tsconfig.base.json",
-                "{workspaceRoot}/packages/cem_ql/dist/wasm/**"
+                "{workspaceRoot}/packages/cem_ql/dist/wasm/**",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
             ],
             "outputs": ["{projectRoot}/dist"],
             "options": {
-                "commands": [
-                    "tsc --build tsconfig.lib.json",
-                    "node scripts/package-runtime-assets.mjs"
-                ],
+                "commands": ["tsc --build tsconfig.lib.json", "node scripts/package-runtime-assets.mjs"],
                 "parallel": false,
                 "cwd": "{projectRoot}"
             }
@@ -272,11 +273,7 @@
         },
         "verify-edge-ssr": {
             "executor": "nx:run-commands",
-            "dependsOn": [
-                "verify-substrate",
-                "test:edge-ssr-unit",
-                "test:edge-ssr"
-            ],
+            "dependsOn": ["verify-substrate", "test:edge-ssr-unit", "test:edge-ssr"],
             "options": {
                 "command": "echo \"Edge/SSR focused evidence gate green: substrate roundtrips, 16 focused unit/host cases, and 6 dedicated Storybook cases passed; the Node-only initial SSR, edge-update, and browser privacy/export fixtures are green, and this accepted lane remains isolated from browser verification.\"",
                 "cwd": "{workspaceRoot}"

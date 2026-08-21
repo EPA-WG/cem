@@ -9,9 +9,9 @@ lens—focusing on how users perceive and interact with interfaces, rather than 
 
 It is implemented as a combination of:
 
-* [AI instructions](packages/cem-theme/src/lib/tokens) AI instructions for generating and adapting themes
-* [CSS design tokens and stylesheets](https://unpkg.com/@epa-wg/cem-theme/dist/lib/css-generators/index.html)
-* Web Components for use in fully declarative applications (no JS required)
+- [AI instructions](packages/cem-theme/src/lib/tokens) AI instructions for generating and adapting themes
+- [CSS design tokens and stylesheets](https://unpkg.com/@epa-wg/cem-theme/dist/lib/css-generators/index.html)
+- Web Components for use in fully declarative applications (no JS required)
 
 [CEM POC - custom-element](https://unpkg.com/@epa-wg/custom-element/index.html) |
 [CEM elements lib POC](https://unpkg.com/@epa-wg/custom-element-dist/src/material/components.html)
@@ -22,7 +22,6 @@ maintainable interfaces.
 [![npm version](https://badge.fury.io/js/%40epa-wg%2Fcem-theme.svg)](https://badge.fury.io/js/%40epa-wg%2Fcem-theme)
 [![Downloads](https://img.shields.io/npm/dm/@epa-wg/cem-theme.svg)](https://www.npmjs.com/package/@epa-wg/cem-theme)
 [![License](https://img.shields.io/npm/l/@epa-wg/cem-theme.svg)](./LICENSE)
-
 
 # Figma design library
 
@@ -65,16 +64,31 @@ The component stack has two deliberately separate layers:
 Runtime/template compatibility fixtures in `cem-elements` therefore do not, by
 themselves, establish product-component parity in `cem-components`.
 
-| Package                                                       | Status            | Purpose                                                                                                                         |
-|---------------------------------------------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| [`@epa-wg/cem-theme`](packages/cem-theme/README.md)           | published         | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files.    |
-| `@epa-wg/cem-elements`                                        | active substrate  | Barebone `<cem-element>` component base and browser/API primitives, including URL and HTTP resource accessors; edge/SSR and `<custom-element>` adoption remain follow-up phases. |
-| [`@epa-wg/cem-components`](packages/cem-components/README.md) | active MVP        | Material-superset declarative UI components built on `cem-elements` with Consumer Semantic Theme styling and behavioral/accessibility contracts. |
-| `@epa-wg/custom-element`                                      | external today    | Current production custom-element package; monorepo migration and `cem-element`-based next major are deferred until after the Edge/SSR follow-up phase. |
-| [`cem_ml` / Cargo `cem-ml`](packages/cem_ml/Cargo.toml)       | active common runtime | Rust-owned parser/runtime semantics and synchronized CEM-ML product-version authority. |
-| [`@epa-wg/cem-ml`](packages/cem-ml-npm/README.md)             | active WASM deployment | Generated low-level browser/Node WASM loaders, declarations, schema-package assets, and ABI/integrity metadata; no command or UI policy. |
-| [`@epa-wg/cem-ml-cli`](packages/cem-ml-cli-npm/README.md)     | active browser/Node-host slice | Universal CLI deployment project with an exact WASM-runtime dependency, bounded dedicated-worker and worker-thread pools, and a browser main-thread fallback; shared commands, operation control, and the npm executable remain Phase 2.5 work. |
-| [`cem_ml_cli` / Cargo `cem-ml-cli`](packages/cem_ml_cli/Cargo.toml) | active native host | Rust CLI host and `cem-ml` binary for parsing, validation, reports, fixtures, and migration workflows. |
+Publication metadata is authoritative. The CEM Site's
+[`/packages/`](apps/cem-site/README.md) projection and verification gate derive
+the same inventory independently, so a newly publishable package or crate must
+gain an owner-matched documentation route in the same change.
+
+## Public npm packages
+
+| Package                                                       | Purpose                                                                                                              |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [`@epa-wg/cem-components`](packages/cem-components/README.md) | Material-superset declarative UI components, behaviors, accessibility contracts, and public catalog.                 |
+| [`@epa-wg/cem-elements`](packages/cem-elements/README.md)     | Barebone `<cem-element>` substrate, processing host, and browser resource primitives.                                |
+| [`@epa-wg/cem-ml-cli`](packages/cem-ml-cli-npm/README.md)     | Synchronized browser and Node CLI deployment with bounded worker hosts and a main-thread fallback.                   |
+| [`@epa-wg/cem-ml`](packages/cem-ml-npm/README.md)             | Low-level synchronized CEM-ML WASM runtime, loaders, declarations, schema assets, and integrity metadata.            |
+| [`@epa-wg/cem-theme`](packages/cem-theme/README.md)           | Canonical token specs plus generated CSS, DTCG JSON, TypeScript metadata, platform outputs, and adapter projections. |
+| [`@epa-wg/custom-element`](packages/custom-element/README.md) | Production declarative custom-element compatibility package retained beside the successor `cem-elements` substrate.  |
+| [`@epa-wg/trang-native`](packages/trang-native/README.md)     | Self-contained native Trang deployment used for RELAX NG parity without a consumer JRE.                              |
+
+## Public Cargo crates
+
+| Crate                                                                   | Purpose                                                                                                  |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [`cem-ml`](packages/cem_ml/README.md)                                   | Shared parser, validation, lifecycle, transformation, reporting, scheduling, and host-service semantics. |
+| [`cem-ml-cli`](packages/cem_ml_cli/README.md)                           | Native Rust command host and `cem-ml` executable.                                                        |
+| [`cem-ml-transform-cem-ql`](packages/cem_ml_transform_cem_ql/README.md) | Adapter between the CEM-ML transform lifecycle and CEM-QL compilation/rendering.                         |
+| [`cem-ql`](packages/cem_ql/README.md)                                   | Query-language compiler, evaluator, template renderer, artifact runtime, and WASM boundary.              |
 
 # Use the token CSS
 
@@ -82,7 +96,7 @@ The generated CSS exposes every CEM token as a CSS custom property on `:root`. D
 tokens via `var(--cem-...)`.
 
 | File                            | When to use                                                                                                                                    |
-|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dist/lib/css/cem-combined.css` | Single concatenated file. One HTTP request — best for `<link>` and CDN delivery.                                                               |
 | `dist/lib/css/cem.css`          | `@import` index over per-spec files (`cem-colors.css`, `cem-dimension.css`, …). Best when a tool resolves `@import` and you want tree-shaking. |
 
@@ -93,7 +107,6 @@ yarn add @epa-wg/cem-theme
 ```
 
 ```html
-
 <link rel="stylesheet" href="node_modules/@epa-wg/cem-theme/dist/lib/css/cem-combined.css" />
 ```
 

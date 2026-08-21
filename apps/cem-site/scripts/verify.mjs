@@ -53,6 +53,7 @@ const buildInputs = new Set(siteBuildTarget.inputs);
 const allowedContentRoles = new Set([
     'landing',
     'guide-index',
+    'package-index',
     'guide',
     'authored-reference',
     'generated-reference',
@@ -459,6 +460,125 @@ for (const entry of manifest.entries) {
     exportIds.add(entry.exportId);
 }
 
+if (!Array.isArray(manifest.publicSurfaces) || manifest.publicSurfaces.length === 0) {
+    throw new Error('site.routes.json must declare public package and crate surfaces');
+}
+
+const requiredInventoryInputs = [
+    '{workspaceRoot}/Cargo.toml',
+    '{workspaceRoot}/packages/**/Cargo.toml',
+    '{workspaceRoot}/packages/*/package.json',
+    '{workspaceRoot}/packages/*/README.md',
+];
+for (const input of requiredInventoryInputs) {
+    if (!buildInputs.has(input)) {
+        throw new Error(`public-surface inventory input is absent from the Nx build hash: ${input}`);
+    }
+}
+
+const expectedPublicSurfaces = [];
+const packageDirectories = (await readdir(resolve(workspaceRoot, 'packages'), { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+for (const directory of packageDirectories) {
+    const source = `packages/${directory}/package.json`;
+    let packageManifest;
+    try {
+        packageManifest = JSON.parse(await readFile(resolve(workspaceRoot, source), 'utf8'));
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            continue;
+        }
+        throw error;
+    }
+    if (packageManifest.private !== true) {
+        expectedPublicSurfaces.push({
+            kind: 'npm',
+            id: packageManifest.name,
+            manifest: source,
+            nxProject: canonicalOwner(source).name,
+        });
+    }
+}
+
+const workspaceCargo = await readFile(resolve(workspaceRoot, 'Cargo.toml'), 'utf8');
+const workspaceMembers = workspaceCargo.match(/members\s*=\s*\[([\s\S]*?)\]/)?.[1];
+if (!workspaceMembers) {
+    throw new Error('the Cargo workspace has no explicit members inventory');
+}
+for (const match of workspaceMembers.matchAll(/['"]([^'"]+)['"]/g)) {
+    const source = `${match[1]}/Cargo.toml`;
+    const cargoManifest = await readFile(resolve(workspaceRoot, source), 'utf8');
+    const packageSection = cargoManifest.match(/^\[package\]\s*([\s\S]*?)(?=^\[|(?![\s\S]))/m)?.[1];
+    if (!packageSection || !/^publish\s*=\s*true\s*$/m.test(packageSection)) {
+        continue;
+    }
+    const name = packageSection.match(/^name\s*=\s*['"]([^'"]+)['"]\s*$/m)?.[1];
+    if (!name) {
+        throw new Error(`${source} has no Cargo package name`);
+    }
+    expectedPublicSurfaces.push({
+        kind: 'cargo',
+        id: name,
+        manifest: source,
+        nxProject: canonicalOwner(source).name,
+    });
+}
+
+const publicSurfaceKeys = new Set();
+const publicSurfaceManifests = new Set();
+for (const surface of manifest.publicSurfaces) {
+    const key = `${surface.kind}:${surface.id}`;
+    if (
+        !['npm', 'cargo'].includes(surface.kind) ||
+        typeof surface.id !== 'string' ||
+        !surface.id ||
+        typeof surface.manifest !== 'string' ||
+        !surface.manifest ||
+        typeof surface.nxProject !== 'string' ||
+        !surface.nxProject ||
+        typeof surface.route !== 'string' ||
+        !surface.route ||
+        typeof surface.summary !== 'string' ||
+        !surface.summary.trim()
+    ) {
+        throw new Error(`incomplete public-surface declaration: ${JSON.stringify(surface)}`);
+    }
+    if (publicSurfaceKeys.has(key) || publicSurfaceManifests.has(surface.manifest)) {
+        throw new Error(`duplicate public-surface declaration: ${key}`);
+    }
+    const route = entriesByRoute.get(surface.route);
+    if (!route || route.kind !== 'page') {
+        throw new Error(`${key} has no published documentation route ${surface.route}`);
+    }
+    if (route.owner !== surface.nxProject && surface.route !== '/packages/') {
+        throw new Error(`${key} route ${surface.route} is not owned by ${surface.nxProject}`);
+    }
+    if (canonicalOwner(surface.manifest).name !== surface.nxProject) {
+        throw new Error(`${key} manifest is not owned by ${surface.nxProject}`);
+    }
+    publicSurfaceKeys.add(key);
+    publicSurfaceManifests.add(surface.manifest);
+}
+
+const comparablePublicSurface = ({ kind, id, manifest: source, nxProject }) => ({
+    kind,
+    id,
+    manifest: source,
+    nxProject,
+});
+const sortPublicSurfaces = (surfaces) =>
+    surfaces
+        .map(comparablePublicSurface)
+        .sort((left, right) => `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`));
+if (
+    JSON.stringify(sortPublicSurfaces(manifest.publicSurfaces)) !==
+    JSON.stringify(sortPublicSurfaces(expectedPublicSurfaces))
+) {
+    throw new Error('public package/crate documentation drifted from publication metadata');
+}
+
 if (!Array.isArray(manifest.searchDocuments) || manifest.searchDocuments.length === 0) {
     throw new Error('site.routes.json must declare searchable route documents');
 }
@@ -560,6 +680,12 @@ for (const document of manifest.searchDocuments) {
 const verification = {
     entries: [],
     exclusions: manifest.exclusions,
+    publicSurfaces: {
+        total: manifest.publicSurfaces.length,
+        npm: manifest.publicSurfaces.filter(({ kind }) => kind === 'npm').length,
+        cargo: manifest.publicSurfaces.filter(({ kind }) => kind === 'cargo').length,
+        surfaces: manifest.publicSurfaces,
+    },
     report: 'site.report.json',
 };
 for (const entry of manifest.entries) {
@@ -571,8 +697,8 @@ for (const entry of manifest.entries) {
         if (!output.includes('<nav aria-label="Primary">')) {
             throw new Error(`${entry.output} does not contain the shared primary navigation`);
         }
-        if (output.includes('&lt;h1') || output.includes('node_modules')) {
-            throw new Error(`${entry.output} contains an escaped HTML bridge or source-only path`);
+        if (output.includes('&lt;h1') || /<(?:script|link)\b[^>]*(?:src|href)="[^"]*node_modules/i.test(output)) {
+            throw new Error(`${entry.output} contains an escaped HTML bridge or source-only runtime asset path`);
         }
         if (!Array.isArray(sourceMap.outputSpans) || sourceMap.outputSpans.length === 0) {
             throw new Error(`${entry.output}.map has no native output spans`);
@@ -619,6 +745,39 @@ for (const entry of manifest.entries) {
             links,
             outputSpans: sourceMap.outputSpans.length,
         };
+
+        if (entry.contentRole === 'package-index') {
+            if (
+                entry.route !== '/packages/' ||
+                entry.source !== 'apps/cem-site/site.routes.json' ||
+                output.includes('<script')
+            ) {
+                throw new Error('the public package index must be a static projection of the route manifest');
+            }
+            const renderedSurfaces = [...output.matchAll(/<li\b([^>]*)>/g)]
+                .map(([, attributes]) => ({
+                    kind: attributes.match(/\bdata-public-kind="([^"]+)"/)?.[1],
+                    id: attributes.match(/\bdata-public-id="([^"]+)"/)?.[1],
+                }))
+                .filter(({ kind, id }) => kind && id)
+                .map(({ kind, id }) => `${kind}:${id}`);
+            const declaredSurfaces = manifest.publicSurfaces.map(({ kind, id }) => `${kind}:${id}`);
+            if (JSON.stringify(renderedSurfaces) !== JSON.stringify(declaredSurfaces)) {
+                throw new Error('the public package index does not render every declared surface exactly once');
+            }
+            const renderedText = normalizedHtmlText(output);
+            for (const surface of manifest.publicSurfaces) {
+                if (!output.includes(`href="${surface.route}"`) || !renderedText.includes(surface.summary)) {
+                    throw new Error(`the public package index does not explain ${surface.kind}:${surface.id}`);
+                }
+            }
+            Object.assign(verificationEntry, {
+                publicSurfaceCount: manifest.publicSurfaces.length,
+                npmPackageCount: manifest.publicSurfaces.filter(({ kind }) => kind === 'npm').length,
+                cargoCrateCount: manifest.publicSurfaces.filter(({ kind }) => kind === 'cargo').length,
+                javascript: false,
+            });
+        }
 
         if (entry.route === '/tokens/') {
             if (entry.source !== 'packages/cem-theme/dist/lib/tokens/cem.tokens.catalog.json') {

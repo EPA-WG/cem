@@ -22,8 +22,8 @@ UI is re-rendered on each data slice change triggered by initialization or DOM e
 
 
 
-<details>
-<summary> What is DCE? </summary>
+## What is DCE?
+
 DCE provides the next level of abstraction in HTML - native composition. With native implementation which is
 streaming parser, streaming transformation, multithreading. native assumes the C/Rust compiled code.
 There is no place for JavaScript except of polyfill and ability to extend DCE, which otherwise has to be native.
@@ -46,12 +46,11 @@ While DCE is no-JS concept, DCE provides the basic declarative constructs to bui
 DCE is compatible with closed/open/named root. Enabling as site-scoped styling and registry as encapsulated anonymous scopes in shadow root.
 
 This project is a POC( Proof of Concept ) targeting to become a base for native DCE implementation polyfill.
-</details>
 
-# use
+## use
 
 [//]: # (Use the [bootstrap project]&#40;https://github.com/EPA-WG/custom-element-bootstrap&#41; with all pre-configured or)
-## install
+### install
 use via CDN
 ```html
 <script type="module" src="https://unpkg.com/@epa-wg/custom-element@0.0/custom-element.js"></script>
@@ -62,14 +61,14 @@ npm i -P @epa-wg/custom-element
 yarn add @epa-wg/custom-element
 ```
 
-## Enable IDE support
+### Enable IDE support
 [IDE.md](ide/IDE.md)
 
 
 
-## [Live demo 🔗][demo-url]
+### [Live demo 🔗][demo-url]
 
-### Interactivity via data `slice` triggered by events
+#### Interactivity via data `slice` triggered by events
 ```html
 <custom-element>
       <input slice="typed"> //slice/typed : {//slice/typed}
@@ -87,7 +86,7 @@ yarn add @epa-wg/custom-element
 ```
 More on `slice` concept in [slice and events demo page][slice-demo-url]
 
-### Templating power
+#### Templating power
 comes from XSLT and XPath. Which is natively implemented in all current browsers, globally tested and well documented.
 ```html
 
@@ -142,9 +141,9 @@ generates HTML
 , look into sources for samples of CSS encapsulation and external template use.
 
 
-# Implementation notes
-## Life cycle
-### `custom-element` declaration
+## Implementation notes
+### Life cycle
+#### `custom-element` declaration
 * constructor injects payload into XSL template
 * creates a class for custom element extending HTMLElement
 * registers element by `tag` attribute
@@ -152,11 +151,11 @@ generates HTML
 NOTE: attempt to register custom element with already registered tag name would fail due to w3c standard limitations.
 The scoped custom element registry is still a proposal.
 
-### omitting `tag` leads to template instantiation
+#### omitting `tag` leads to template instantiation
 Whether template is inline or given by `src` attribute, the `custom-element` would be instantiated inline if no `tag`
 attribute is given.
 
-### custom element instance
+#### custom element instance
 constructor creates XML with
 * root matching the tag
 * payload
@@ -166,7 +165,7 @@ constructor creates XML with
 
 DOM content is replaced with results of instance XML transformation by declaration XSLT.
 
-# `tag` attribute
+## `tag` attribute
 allows to define the Custom Element tag registered by `window.customElements.define()`.
 
 If omitted, the tag is auto-generated and the content is rendered inline.
@@ -175,7 +174,7 @@ If omitted, the tag is auto-generated and the content is rendered inline.
 ```
 See [demo](https://unpkg.com/@epa-wg/custom-element@0.0/demo/external-template.html) for `tag` attribute use.
 
-# `src` attribute
+## `src` attribute
 allows to refer either external template or template within external library by `#id` hash in URL.
 
 The compatibility adapter follows the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) through the
@@ -185,7 +184,7 @@ content-type context passed to CEM-ML.
 
 See [demo](https://unpkg.com/@epa-wg/custom-element@0.0/demo/external-template.html) with various samples.
 
-## types of template
+### types of template
 * HTML with DCE syntax ( slots, data slices, xslt operators, etc. )
 * SVG image, MathML, etc.
 * XSLT template. The `datadom` is the XML payload for transformation. In order to be embedded into external document,
@@ -193,19 +192,19 @@ this document has to have XML syntax like XHTML. Attempt of including XSLT withi
 integrity by parser.
 
 
-## `#id` Local reference
+### `#id` Local reference
 allows to refer the template withing same document
 
-## `url`
+### `url`
 allows to use the external document as template
 
-## `url#id`
+### `url#id`
 allows to refer the template withing external document
 
 
-# template syntax
+## template syntax
 [Scoped CSS][css-demo-url] live demo
-## styles encapsulation
+### styles encapsulation
 DCE can have the own styles which would be scoped to the instances.
 In order to prevent the style leaking, it has to be defined withing `template` tag:
 ```html
@@ -219,11 +218,13 @@ In order to prevent the style leaking, it has to be defined withing `template` t
   </template>
 </custom-element>
 ```
+```html
 <fieldset>
   <label style="color: green"> green <button style="color: blue">blue</button> </label>
 </fieldset>
+```
 
-### override style for instance
+#### override style for instance
 In same way as in DCE itself:
 ```html
         <custom-element tag="dce-2">
@@ -242,7 +243,7 @@ In same way as in DCE itself:
             </template>
         </dce-2>
 ```
-## Attributes
+### Attributes
 To be served by IDE and to track the attributes changes, they have to be declared via `attribute`:
 ```html
     <custom-element tag="dce-with-attrs" hidden>
@@ -260,7 +261,7 @@ The names in curly braces are matching the instance attributes. I.e. in XML node
 
 To access payload XPath could start with `/*/payload/`. I.e. `{/*/payload//label}` refers to all `label` tags in payload.
 
-## Slots
+### Slots
 `<slot name="xxx">` is replaced by payload top elements with `slot` attribute matching the name,
 i.e.  slot `xxx` is matching `<i slot="xxx">...</i>` in payload.
 ```html
@@ -275,18 +276,18 @@ i.e.  slot `xxx` is matching `<i slot="xxx">...</i>` in payload.
 </with-description>
 ```
 
-## loops, variables
+### loops, variables
 Loop implemented via [for-each](https://developer.mozilla.org/en-US/docs/Web/XSLT/Element/for-each).
 See [for-each table demo][for-each-demo] for examples including nested loops and XHTML namespace usage.
 
 [Variables in XSLT](https://developer.mozilla.org/en-US/docs/Web/XSLT/Element/variable)
 
-## [XPath](https://developer.mozilla.org/en-US/docs/Web/XSLT/Transforming_XML_with_XSLT/The_Netscape_XSLT_XPath_Reference)
+### [XPath](https://developer.mozilla.org/en-US/docs/Web/XSLT/Transforming_XML_with_XSLT/The_Netscape_XSLT_XPath_Reference)
 is available in `{}` in attributes, in `for-each`, `if`, `value-of`, and other XSL tags.
 
 XPath is a selector language to navigate over custom element instance data, attributes, and payload.
 
-## XSLT 1.0 — engine retired, legacy templates supported via conversion (0.1.0)
+### XSLT 1.0 — engine retired, legacy templates supported via conversion (0.1.0)
 
 > **How it works now (0.1.0):** the in-browser native XSLT 1.0 transform engine is **retired** —
 > `<custom-element>` no longer runs a browser XSLT processor. Instead, legacy HTML+XSLT templates are
@@ -321,8 +322,8 @@ CEM-ML and render through the same `cem_ql` substrate. New authoring should use
 material fixtures, and downstream generator workflows have canonical CEM-ML
 replacements and the FF-5 usage inventory reaches its removal gate.
 
-# troubleshooting
-## HTML parser is not compatible with templates
+## troubleshooting
+### HTML parser is not compatible with templates
 On many tags like `table`, or link `a` the attempt to use XSLT operations could lead to DOM order mismatch to given
 in template. In such cases the `xhtml:` prefix in front of troubled tag would solve the parsing.
 
@@ -349,7 +350,7 @@ in template. In such cases the `xhtml:` prefix in front of troubled tag would so
 ```
 See [demo source](demo/local-storage.html) for detailed sample.
 
-## Chrome devtools plugin
+### Chrome devtools plugin
 [@epa-wg/custom-element plugin][plugin-url] gives the view into
 
 * `current` selected in DOM inspector node
@@ -360,14 +361,14 @@ See [demo source](demo/local-storage.html) for detailed sample.
 * `xml` as a string
 * `xslt` as a string
 
-## template debugging
+### template debugging
 `xml` and `xslt` can be saved to file via for "_copy string contents_" into clipboard.
 
 The XSLT debugger from your favorite IDE can set the breakpoints withing those files and
 run transformation under debugger.
 
 
-## `{}` does not give a value
+### `{}` does not give a value
 * try to add as attribute you could observe and put the value of node name or text to identify the current location in data
 within template
 ```xml

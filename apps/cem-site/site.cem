@@ -43,6 +43,19 @@
     }
   }
 
+  {import @id=package-index-source @src="site.routes.json"
+      @content-type="application/json"
+      @schema="https://cem.dev/ns/data/json/1" |
+    {transform @id=package-index-page @src="layouts/package-index.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @entrypoint="packages" |
+      {export @id=package-index @out="../../dist/apps/cem-site/packages/index.html"
+          @content-type="text/html"
+          @schema="https://cem.dev/ns/data/html/1"}
+    }
+  }
+
   {import @id=cli-guide-source @src="../../packages/cem-ml-cli-npm/README.md"
       @content-type="text/markdown; charset=utf-8; variant=CommonMark"
       @schema="https://cem.dev/ns/data/markdown/1" |
@@ -107,6 +120,189 @@
           {param @name="title" @value="CEM-ML WASM Runtime Reference"}
           {export @id=wasm-reference
               @out="../../dist/apps/cem-site/reference/cem-ml/wasm-runtime/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=cem-elements-reference-source @src="../../packages/cem-elements/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=cem-elements-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=cem-elements-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=cem-elements-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="CEM Elements Package Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem-elements/"}
+          {export @id=cem-elements-reference
+              @out="../../dist/apps/cem-site/reference/cem-elements/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=custom-element-reference-source @src="../../packages/custom-element/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=custom-element-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=custom-element-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=custom-element-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="Custom Element Package Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/custom-element/"}
+          {export @id=custom-element-reference
+              @out="../../dist/apps/cem-site/reference/custom-element/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=trang-native-reference-source @src="../../packages/trang-native/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=trang-native-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=trang-native-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=trang-native-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="Trang Native Package Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/trang-native/"}
+          {export @id=trang-native-reference
+              @out="../../dist/apps/cem-site/reference/trang-native/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=cem-ml-crate-reference-source @src="../../packages/cem_ml/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=cem-ml-crate-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=cem-ml-crate-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=cem-ml-crate-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="cem-ml Rust Crate Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem_ml/"}
+          {export @id=cem-ml-crate-reference
+              @out="../../dist/apps/cem-site/reference/crates/cem-ml/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=cem-ml-cli-crate-reference-source @src="../../packages/cem_ml_cli/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=cem-ml-cli-crate-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=cem-ml-cli-crate-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=cem-ml-cli-crate-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="cem-ml-cli Rust Crate Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem_ml_cli/"}
+          {export @id=cem-ml-cli-crate-reference
+              @out="../../dist/apps/cem-site/reference/crates/cem-ml-cli/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=cem-ml-transform-cem-ql-crate-reference-source
+      @src="../../packages/cem_ml_transform_cem_ql/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=cem-ml-transform-cem-ql-crate-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=cem-ml-transform-cem-ql-crate-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=cem-ml-transform-cem-ql-crate-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="cem-ml-transform-cem-ql Rust Crate Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem_ml_transform_cem_ql/"}
+          {export @id=cem-ml-transform-cem-ql-crate-reference
+              @out="../../dist/apps/cem-site/reference/crates/cem-ml-transform-cem-ql/index.html"
+              @content-type="text/html"
+              @schema="https://cem.dev/ns/data/html/1"}
+        }
+      }
+    }
+  }
+
+  {import @id=cem-ql-crate-reference-source @src="../../packages/cem_ql/README.md"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=cem-ql-crate-reference-html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=cem-ql-crate-reference-dom
+          @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=cem-ql-crate-reference-page @src="layouts/page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {param @name="title" @value="cem-ql Rust Crate Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem_ql/"}
+          {export @id=cem-ql-crate-reference
+              @out="../../dist/apps/cem-site/reference/crates/cem-ql/index.html"
               @content-type="text/html"
               @schema="https://cem.dev/ns/data/html/1"}
         }

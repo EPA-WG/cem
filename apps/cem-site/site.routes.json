@@ -9,6 +9,96 @@
         "**/cem.tokens.intermediate.json",
         "**/cem.tokens.resolved.json"
     ],
+    "publicSurfaces": [
+        {
+            "kind": "npm",
+            "id": "@epa-wg/cem-components",
+            "manifest": "packages/cem-components/package.json",
+            "nxProject": "@epa-wg/cem-components",
+            "route": "/components/",
+            "summary": "Production CEM component semantics, behaviors, styles, and public catalog."
+        },
+        {
+            "kind": "npm",
+            "id": "@epa-wg/cem-elements",
+            "manifest": "packages/cem-elements/package.json",
+            "nxProject": "cem-elements",
+            "route": "/reference/cem-elements/",
+            "summary": "Declarative light-DOM custom-element substrate and browser resource primitives."
+        },
+        {
+            "kind": "npm",
+            "id": "@epa-wg/cem-ml",
+            "manifest": "packages/cem-ml-npm/package.json",
+            "nxProject": "@epa-wg/cem-ml",
+            "route": "/reference/cem-ml/wasm-runtime/",
+            "summary": "Low-level synchronized CEM-ML WebAssembly runtime deployment."
+        },
+        {
+            "kind": "npm",
+            "id": "@epa-wg/cem-ml-cli",
+            "manifest": "packages/cem-ml-cli-npm/package.json",
+            "nxProject": "@epa-wg/cem-ml-cli",
+            "route": "/guides/cem-ml/cli/",
+            "summary": "Synchronized browser and Node CLI deployment with the cem-ml executable."
+        },
+        {
+            "kind": "npm",
+            "id": "@epa-wg/cem-theme",
+            "manifest": "packages/cem-theme/package.json",
+            "nxProject": "@epa-wg/cem-theme",
+            "route": "/tokens/",
+            "summary": "Canonical semantic theme tokens, generated CSS, metadata, and adapter projections."
+        },
+        {
+            "kind": "npm",
+            "id": "@epa-wg/custom-element",
+            "manifest": "packages/custom-element/package.json",
+            "nxProject": "@epa-wg/custom-element",
+            "route": "/reference/custom-element/",
+            "summary": "Production declarative custom-element compatibility package on the CEM substrate."
+        },
+        {
+            "kind": "npm",
+            "id": "@epa-wg/trang-native",
+            "manifest": "packages/trang-native/package.json",
+            "nxProject": "@epa-wg/trang-native",
+            "route": "/reference/trang-native/",
+            "summary": "Self-contained native Trang deployment for RELAX NG schema parity."
+        },
+        {
+            "kind": "cargo",
+            "id": "cem-ml",
+            "manifest": "packages/cem_ml/Cargo.toml",
+            "nxProject": "cem_ml",
+            "route": "/reference/crates/cem-ml/",
+            "summary": "Rust parser, validation, lifecycle, transformation, reporting, and host-service library."
+        },
+        {
+            "kind": "cargo",
+            "id": "cem-ml-cli",
+            "manifest": "packages/cem_ml_cli/Cargo.toml",
+            "nxProject": "cem_ml_cli",
+            "route": "/reference/crates/cem-ml-cli/",
+            "summary": "Native Rust command host and cem-ml binary."
+        },
+        {
+            "kind": "cargo",
+            "id": "cem-ml-transform-cem-ql",
+            "manifest": "packages/cem_ml_transform_cem_ql/Cargo.toml",
+            "nxProject": "cem_ml_transform_cem_ql",
+            "route": "/reference/crates/cem-ml-transform-cem-ql/",
+            "summary": "CEM-ML transform-template adapter backed by CEM-QL rendering."
+        },
+        {
+            "kind": "cargo",
+            "id": "cem-ql",
+            "manifest": "packages/cem_ql/Cargo.toml",
+            "nxProject": "cem_ql",
+            "route": "/reference/crates/cem-ql/",
+            "summary": "Rust compiler, evaluator, template renderer, and artifact runtime for CEM-QL."
+        }
+    ],
     "runtimes": [
         {
             "id": "interactive",
@@ -48,6 +138,16 @@
             ]
         },
         {
+            "route": "/packages/",
+            "title": "Public packages and crates",
+            "summary": "Repository-derived index of every publishable npm package and Cargo crate.",
+            "headings": [
+                { "id": "public-package-index", "level": 1, "text": "Public packages and crates" },
+                { "id": "npm-packages", "level": 2, "text": "npm packages" },
+                { "id": "cargo-crates", "level": 2, "text": "Cargo crates" }
+            ]
+        },
+        {
             "route": "/guides/cem-ml/cli/",
             "title": "CEM-ML CLI guide",
             "summary": "Browser and Node CLI package usage and transformation workflows.",
@@ -75,6 +175,48 @@
             "title": "CEM-ML WASM runtime",
             "summary": "The browser and package contract for the CEM-ML WebAssembly runtime.",
             "headings": [{ "id": "heading-1", "level": 1, "text": "@epa-wg/cem-ml" }]
+        },
+        {
+            "route": "/reference/cem-elements/",
+            "title": "CEM Elements package",
+            "summary": "Package contract for the declarative light-DOM custom-element substrate.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "@epa-wg/cem-elements" }]
+        },
+        {
+            "route": "/reference/custom-element/",
+            "title": "Custom Element package",
+            "summary": "Production declarative custom-element compatibility package and usage contract.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "custom-element" }]
+        },
+        {
+            "route": "/reference/trang-native/",
+            "title": "Trang Native package",
+            "summary": "Native Trang installation, platform, integrity, and RELAX NG parity contract.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "@epa-wg/trang-native" }]
+        },
+        {
+            "route": "/reference/crates/cem-ml/",
+            "title": "cem-ml Rust crate",
+            "summary": "Canonical Rust parser, runtime, transformation, report, and host-service ownership.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "cem-ml" }]
+        },
+        {
+            "route": "/reference/crates/cem-ml-cli/",
+            "title": "cem-ml-cli Rust crate",
+            "summary": "Native Rust command host and cem-ml binary boundary.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "cem-ml-cli" }]
+        },
+        {
+            "route": "/reference/crates/cem-ml-transform-cem-ql/",
+            "title": "cem-ml-transform-cem-ql Rust crate",
+            "summary": "Transform-template adapter integrating CEM-ML lifecycle ownership with CEM-QL rendering.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "cem-ml-transform-cem-ql" }]
+        },
+        {
+            "route": "/reference/crates/cem-ql/",
+            "title": "cem-ql Rust crate",
+            "summary": "CEM query-language compiler, evaluator, template renderer, and artifact runtime.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "cem-ql" }]
         },
         {
             "route": "/tokens/",
@@ -205,6 +347,19 @@
         },
         {
             "kind": "page",
+            "route": "/packages/",
+            "output": "packages/index.html",
+            "source": "apps/cem-site/site.routes.json",
+            "sourceKind": "authored",
+            "contentRole": "package-index",
+            "relativeLinkPolicy": "none",
+            "owner": "cem-site",
+            "upstreamTarget": null,
+            "importId": "package-index-source",
+            "exportId": "package-index"
+        },
+        {
+            "kind": "page",
             "route": "/guides/cem-ml/cli/",
             "output": "guides/cem-ml/cli/index.html",
             "source": "packages/cem-ml-cli-npm/README.md",
@@ -241,6 +396,104 @@
             "upstreamTarget": null,
             "importId": "wasm-reference-source",
             "exportId": "wasm-reference"
+        },
+        {
+            "kind": "page",
+            "route": "/reference/cem-elements/",
+            "output": "reference/cem-elements/index.html",
+            "source": "packages/cem-elements/README.md",
+            "sourceKind": "authored",
+            "contentRole": "authored-reference",
+            "relativeLinkPolicy": "canonical-source",
+            "canonicalSourceBase": "https://github.com/EPA-WG/cem/blob/develop/packages/cem-elements/",
+            "owner": "cem-elements",
+            "upstreamTarget": null,
+            "importId": "cem-elements-reference-source",
+            "exportId": "cem-elements-reference"
+        },
+        {
+            "kind": "page",
+            "route": "/reference/custom-element/",
+            "output": "reference/custom-element/index.html",
+            "source": "packages/custom-element/README.md",
+            "sourceKind": "authored",
+            "contentRole": "authored-reference",
+            "relativeLinkPolicy": "canonical-source",
+            "canonicalSourceBase": "https://github.com/EPA-WG/cem/blob/develop/packages/custom-element/",
+            "owner": "@epa-wg/custom-element",
+            "upstreamTarget": null,
+            "importId": "custom-element-reference-source",
+            "exportId": "custom-element-reference"
+        },
+        {
+            "kind": "page",
+            "route": "/reference/trang-native/",
+            "output": "reference/trang-native/index.html",
+            "source": "packages/trang-native/README.md",
+            "sourceKind": "authored",
+            "contentRole": "authored-reference",
+            "relativeLinkPolicy": "canonical-source",
+            "canonicalSourceBase": "https://github.com/EPA-WG/cem/blob/develop/packages/trang-native/",
+            "owner": "@epa-wg/trang-native",
+            "upstreamTarget": null,
+            "importId": "trang-native-reference-source",
+            "exportId": "trang-native-reference"
+        },
+        {
+            "kind": "page",
+            "route": "/reference/crates/cem-ml/",
+            "output": "reference/crates/cem-ml/index.html",
+            "source": "packages/cem_ml/README.md",
+            "sourceKind": "authored",
+            "contentRole": "authored-reference",
+            "relativeLinkPolicy": "canonical-source",
+            "canonicalSourceBase": "https://github.com/EPA-WG/cem/blob/develop/packages/cem_ml/",
+            "owner": "cem_ml",
+            "upstreamTarget": null,
+            "importId": "cem-ml-crate-reference-source",
+            "exportId": "cem-ml-crate-reference"
+        },
+        {
+            "kind": "page",
+            "route": "/reference/crates/cem-ml-cli/",
+            "output": "reference/crates/cem-ml-cli/index.html",
+            "source": "packages/cem_ml_cli/README.md",
+            "sourceKind": "authored",
+            "contentRole": "authored-reference",
+            "relativeLinkPolicy": "canonical-source",
+            "canonicalSourceBase": "https://github.com/EPA-WG/cem/blob/develop/packages/cem_ml_cli/",
+            "owner": "cem_ml_cli",
+            "upstreamTarget": null,
+            "importId": "cem-ml-cli-crate-reference-source",
+            "exportId": "cem-ml-cli-crate-reference"
+        },
+        {
+            "kind": "page",
+            "route": "/reference/crates/cem-ml-transform-cem-ql/",
+            "output": "reference/crates/cem-ml-transform-cem-ql/index.html",
+            "source": "packages/cem_ml_transform_cem_ql/README.md",
+            "sourceKind": "authored",
+            "contentRole": "authored-reference",
+            "relativeLinkPolicy": "canonical-source",
+            "canonicalSourceBase": "https://github.com/EPA-WG/cem/blob/develop/packages/cem_ml_transform_cem_ql/",
+            "owner": "cem_ml_transform_cem_ql",
+            "upstreamTarget": null,
+            "importId": "cem-ml-transform-cem-ql-crate-reference-source",
+            "exportId": "cem-ml-transform-cem-ql-crate-reference"
+        },
+        {
+            "kind": "page",
+            "route": "/reference/crates/cem-ql/",
+            "output": "reference/crates/cem-ql/index.html",
+            "source": "packages/cem_ql/README.md",
+            "sourceKind": "authored",
+            "contentRole": "authored-reference",
+            "relativeLinkPolicy": "canonical-source",
+            "canonicalSourceBase": "https://github.com/EPA-WG/cem/blob/develop/packages/cem_ql/",
+            "owner": "cem_ql",
+            "upstreamTarget": null,
+            "importId": "cem-ql-crate-reference-source",
+            "exportId": "cem-ql-crate-reference"
         },
         {
             "kind": "page",

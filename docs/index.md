@@ -64,6 +64,25 @@ This index links the active project, release, and token workflow documents.
 
 - [NPM publishing workflow](./npm-publish.md) — release, publish, post-release Figma refresh, and branch sync steps.
 
+## Public Packages And Crates
+
+- [CEM Site publication contract](../apps/cem-site/README.md) — manifest-derived public-surface inventory,
+  canonical package routes, deterministic output, and cached production verification.
+- [`@epa-wg/cem-components`](../packages/cem-components/README.md) and
+  [`@epa-wg/cem-elements`](../packages/cem-elements/README.md) — the styled product component layer and its barebone
+  declarative browser substrate.
+- [`@epa-wg/cem-theme`](../packages/cem-theme/README.md) and
+  [`@epa-wg/custom-element`](../packages/custom-element/README.md) — semantic theme outputs and the production
+  compatibility custom-element package.
+- [`@epa-wg/cem-ml`](../packages/cem-ml-npm/README.md) and
+  [`@epa-wg/cem-ml-cli`](../packages/cem-ml-cli-npm/README.md) — synchronized WASM runtime and browser/Node CLI
+  deployments.
+- [`@epa-wg/trang-native`](../packages/trang-native/README.md) — native Trang deployment for RELAX NG parity.
+- [`cem-ml`](../packages/cem_ml/README.md), [`cem-ml-cli`](../packages/cem_ml_cli/README.md),
+  [`cem-ml-transform-cem-ql`](../packages/cem_ml_transform_cem_ql/README.md), and
+  [`cem-ql`](../packages/cem_ql/README.md) — publishable Rust library, native host, template adapter, and query
+  runtime boundaries.
+
 ## Theme And Token Pipeline
 
 - [CEM theme package](../packages/cem-theme/README.md) — package-level build and test notes.
@@ -89,10 +108,14 @@ This index links the active project, release, and token workflow documents.
 
 ## Parser Runtime
 
-- [`@epa-wg/cem-ml`](../packages/cem_ml/Cargo.toml) — active Rust parser/runtime library (Cargo crate `cem-ml`) for
-  canonical CEM-ML plus XML/HTML parity inputs.
-- [`@epa-wg/cem-ml-cli`](../packages/cem_ml_cli/Cargo.toml) — active Rust CLI (Cargo crate `cem-ml-cli`, binary
-  `cem-ml`) for parsing, validation, reports, fixtures, and migration workflows.
+- [`cem-ml`](../packages/cem_ml/README.md) — active Rust parser/runtime library for canonical CEM-ML plus XML/HTML
+  parity inputs.
+- [`cem-ml-cli`](../packages/cem_ml_cli/README.md) — native Rust CLI crate and `cem-ml` binary for parsing,
+  validation, reports, fixtures, and migration workflows.
+- [`cem-ml-transform-cem-ql`](../packages/cem_ml_transform_cem_ql/README.md) — explicit adapter between CEM-ML
+  transformation ownership and CEM-QL rendering.
+- [`cem-ql`](../packages/cem_ql/README.md) — compiler, evaluator, template renderer, and artifact runtime for the CEM
+  query language.
 
 ## Native Outputs
 

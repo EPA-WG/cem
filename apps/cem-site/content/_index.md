@@ -7,6 +7,7 @@ the CEMT layout owns the shared semantic shell.
 ## Published now
 
 - Follow the [guides](/guides/) entry point.
+- Browse every publishable [npm package and Cargo crate](/packages/).
 - Use the canonical [CEM-ML browser and Node CLI guide](/guides/cem-ml/cli/).
 - Read the generated [transform graph reference](/reference/cem-ml/transform-config/).
 - Review the [WASM runtime package contract](/reference/cem-ml/wasm-runtime/).

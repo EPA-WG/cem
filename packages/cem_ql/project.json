@@ -43,10 +43,19 @@
                 "command": "node tools/scripts/build-cem-ql-wasm.mjs",
                 "cwd": "{workspaceRoot}"
             },
-            "outputs": [
-                "{workspaceRoot}/dist/target/cem_ql/wasm32-unknown-unknown",
-                "{projectRoot}/dist/wasm"
-            ]
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/rust-toolchain.toml",
+                "{workspaceRoot}/tools/scripts/build-cem-ql-wasm.mjs",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/schema/**/*",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/**/*"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ql/wasm32-unknown-unknown", "{projectRoot}/dist/wasm"]
         },
         "bench": {
             "cache": false,

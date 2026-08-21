@@ -33,6 +33,10 @@
                 Guides
               }
               {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/packages/"}
+                Packages
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
                 {attribute @name="href" @value="/guides/cem-ml/cli/"}
                 CLI guide
               }

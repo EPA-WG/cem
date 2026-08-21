@@ -497,6 +497,12 @@ Exit criteria:
 
 - The site can explain, demonstrate, and validate every public package/module from the repo root.
 
+Completion: **Phase 6 complete (2026-08-20).** The native CEM-ML graph publishes
+and independently verifies owner-matched documentation for every non-private npm
+package and every Cargo crate with `publish = true`; cached static, search,
+interactive, accessibility, deterministic-output, and dependency-artifact gates
+close through `cem-site:verify`.
+
 ## Phase 6.5 - CEM Studio PWA And Browser Workbench
 
 Goal: provide an installable, local-first browser application that exposes the synchronized CEM-ML CLI command model

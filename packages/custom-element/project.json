@@ -40,7 +40,11 @@
                 "{workspaceRoot}/packages/cem-elements/dist/**/*",
                 "{workspaceRoot}/packages/cem_ql/src/**/*",
                 "{workspaceRoot}/packages/cem_ql/Cargo.toml",
-                "{workspaceRoot}/packages/cem_ql/dist/wasm/**/*"
+                "{workspaceRoot}/packages/cem_ql/dist/wasm/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
             ],
             "outputs": ["{projectRoot}/dist"]
         },

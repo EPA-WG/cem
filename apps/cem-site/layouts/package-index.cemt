@@ -4,7 +4,7 @@
 
 {module @version="1.0.0" |
   {param @name="input" @type="object" @required=true}
-  {template @name="search" @visibility="public" |
+  {template @name="packages" @visibility="public" |
     {body |
       {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
         {attribute @name="lang" @value="en"}
@@ -16,23 +16,7 @@
             {attribute @name="name" @value="viewport"}
             {attribute @name="content" @value="width=device-width, initial-scale=1"}
           }
-          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | Search CEM Site}
-          {element @name="link" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="rel" @value="stylesheet"}
-            {attribute @name="href" @value="./assets/theme/cem-combined.css"}
-          }
-          {element @name="link" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="rel" @value="stylesheet"}
-            {attribute @name="href" @value="./assets/cem-components/styles.css"}
-          }
-          {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="type" @value="importmap"}
-            {$input.searchImportMap}
-          }
-          {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="type" @value="module"}
-            import "@epa-wg/cem-site/search";
-          }
+          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | Public packages and crates}
         }
         {element @name="body" @namespace="http://www.w3.org/1999/xhtml" |
           {element @name="header" @namespace="http://www.w3.org/1999/xhtml" |
@@ -82,51 +66,50 @@
           }
           {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
             {attribute @name="id" @value="content"}
-            {attribute @name="data-search-index" @value="route-manifest"}
             {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="id" @value="site-search"}
-              Search CEM Site
-            }
-            {element @name="form" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="action" @value="/search/"}
-              {attribute @name="method" @value="get"}
-              {element @name="cem-field" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="data-search-field" @value=""}
-                {attribute @name="label" @value="Search routes and headings"}
-                {attribute @name="name" @value="q"}
-                {attribute @name="type" @value="search"}
-              }
-              {element @name="cem-action" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="data-search-action" @value=""}
-                {attribute @name="label" @value="Search"}
-                Search
-              }
+              {attribute @name="id" @value="public-package-index"}
+              Public packages and crates
             }
             {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="data-search-status" @value=""}
-              {attribute @name="role" @value="status"}
-              {attribute @name="aria-live" @value="polite"}
-              {$ seq:count(input.searchDocuments.route)} searchable documents
+              This static index is verified against every non-private workspace package.json and every workspace Cargo crate that explicitly declares publish = true.
             }
-            {element @name="ol" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="id" @value="search-results"}
-              {attribute @name="data-search-results" @value=""}
-              {cem:for-each @select="$input.searchDocuments" @as="document" |
-                {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="data-search-document" @value="{$document.route}"}
-                  {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                    {attribute @name="href" @value="{$document.route}"}
-                    {$document.title}
-                  }
-                  {element @name="p" @namespace="http://www.w3.org/1999/xhtml" | {$document.summary}}
-                  {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                    {cem:for-each @select="$document.headings" @as="heading" |
-                      {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                          {attribute @name="href" @value='{str:concat((document.route, "#", heading.id))}'}
-                          {$heading.text}
-                        }
+            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="npm-packages"}
+                npm packages
+              }
+              {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                {cem:for-each @select="$input.publicSurfaces" @as="surface" |
+                  {cem:if @test='surface.kind == "npm"' |
+                    {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="data-public-kind" @value="{$surface.kind}"}
+                      {attribute @name="data-public-id" @value="{$surface.id}"}
+                      {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                        {attribute @name="href" @value="{$surface.route}"}
+                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$surface.id}}
                       }
+                      — {$surface.summary}
+                    }
+                  }
+                }
+              }
+            }
+            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="cargo-crates"}
+                Cargo crates
+              }
+              {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                {cem:for-each @select="$input.publicSurfaces" @as="surface" |
+                  {cem:if @test='surface.kind == "cargo"' |
+                    {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                      {attribute @name="data-public-kind" @value="{$surface.kind}"}
+                      {attribute @name="data-public-id" @value="{$surface.id}"}
+                      {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                        {attribute @name="href" @value="{$surface.route}"}
+                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$surface.id}}
+                      }
+                      — {$surface.summary}
                     }
                   }
                 }

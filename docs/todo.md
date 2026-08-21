@@ -928,8 +928,49 @@ until final Phases 10 and 11, after Phase 9 release governance.
           `04d025e2544701282f3183165493f817f2a3630aca7980c27d5f1293a0753314`;
           the repeat graph restored all 21 tasks from local cache. Site lint and
           scoped Prettier checks pass.
-- [ ] Add cached Nx verification for site build, links, generated-content drift,
-      accessibility, and clean deployment output before closing Phase 6.
+- [x] Close Phase 6 with complete public-surface documentation and cached
+      production verification.
+    - [x] Derive the public-surface inventory from every non-private workspace
+          `package.json` and every Cargo crate with `publish = true`, retaining
+          each deployment or crate identity even when product families overlap.
+    - [x] Add canonical package documentation and root-wired site routes for
+          every uncovered public npm package and Cargo crate without copying
+          package content into the site application.
+    - [x] Add a cached full-route Chromium gate covering responses, runtime and
+          console failures, landmarks, titles, heading order, names, fragment
+          targets, focus visibility, and clean production output.
+    - [x] Make the public-surface inventory, static source/render verification,
+          deterministic build, browser accessibility crawl, search, and
+          interactive checks one cached `cem-site:verify` closure graph.
+        - [x] Make `cem_ql:build:wasm` hash its Rust toolchain, lockfile,
+              transitive `cem-ml` sources, embedded schemas, and build wrapper;
+              make the `cem-elements` and `custom-element` packaging targets
+              hash dependency outputs; prove uncached and cached site
+              publication copy identical WASM bytes.
+    - [x] Prove uncached execution plus all-cache replay, update root/site
+          documentation, and mark the Phase 6 exit criterion complete.
+    - Completed 2026-08-20: publication metadata now drives an independently
+      verified inventory of all 11 public surfaces—seven non-private npm
+      packages and four Cargo crates with explicit `publish = true`. Native CEMT
+      publishes the static `/packages/` index plus owner-matched canonical routes
+      for `cem-elements`, `custom-element`, Trang Native, and all four Rust
+      crates; the new crate documentation remains package-owned. The strict
+      Markdown edge remains raw-HTML-free. The cached production gate served and
+      crawled all 26 routes in Chromium, checked 253 stable headings, 868 named
+      keyboard stops with visible focus, 78 internal fragment links, landmarks,
+      responses, ARIA references, images, and runtime/console failures, and
+      reported zero errors. Search covers all 25 non-search pages, and the
+      interactive component/runtime checks remain green. The closure exposed and
+      repaired a stale transitive WASM cache boundary: `cem_ql:build:wasm` now
+      hashes its toolchain, lockfile, `cem-ml` sources, schemas, and wrapper,
+      while both packaging consumers hash dependency outputs. Fresh and cached
+      publication now retain the same 34,568,929-byte WASM with SHA-256
+      `0fcc18011de323e1b145e0824e4e3c1bf9221c1c2671df2189f5bc216ed934ac`.
+      Two clean builds contain the same 131 files with aggregate SHA-256
+      `96f6dd801da1891c29ef569140d8f1b099da90dedb8c99c0127080265ba43b7b`;
+      the final replay restored all 22 Nx tasks from local cache. Site lint,
+      resolved Nx configuration, JSON parsing, diff checks, and scoped Prettier
+      checks pass. The Phase 6 roadmap exit criterion is complete.
 
 ## Later Non-Figma Phase Gates
 

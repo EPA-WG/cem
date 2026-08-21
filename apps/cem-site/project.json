@@ -50,6 +50,17 @@
                 "{projectRoot}/site.cem",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/build.mjs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/**/Cargo.toml",
+                "{workspaceRoot}/packages/*/package.json",
+                "{workspaceRoot}/packages/*/README.md",
+                "{workspaceRoot}/packages/cem-elements/README.md",
+                "{workspaceRoot}/packages/custom-element/README.md",
+                "{workspaceRoot}/packages/trang-native/README.md",
+                "{workspaceRoot}/packages/cem_ml/README.md",
+                "{workspaceRoot}/packages/cem_ml_cli/README.md",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/README.md",
+                "{workspaceRoot}/packages/cem_ql/README.md",
                 "{workspaceRoot}/packages/cem-ml-npm/README.md",
                 "{workspaceRoot}/packages/cem-ml-cli-npm/README.md",
                 "{workspaceRoot}/examples/cem-ml/README.md",
@@ -73,7 +84,7 @@
         "verify": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build", "verify:determinism", "verify:interactive", "verify:search"],
+            "dependsOn": ["build", "verify:determinism", "verify:interactive", "verify:production", "verify:search"],
             "options": {
                 "command": "node apps/cem-site/scripts/verify.mjs",
                 "cwd": "{workspaceRoot}"
@@ -85,7 +96,9 @@
                 "{projectRoot}/runtime/*.module-map.json",
                 "{workspaceRoot}/nx.json",
                 "{workspaceRoot}/package.json",
+                "{workspaceRoot}/Cargo.toml",
                 "{workspaceRoot}/apps/*/project.json",
+                "{workspaceRoot}/packages/**/Cargo.toml",
                 "{workspaceRoot}/packages/*/project.json",
                 "{workspaceRoot}/packages/*/package.json",
                 {
@@ -130,6 +143,24 @@
                 }
             ],
             "outputs": ["{workspaceRoot}/dist/reports/cem-site/search.json"]
+        },
+        "verify:production": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:determinism"],
+            "options": {
+                "command": "node apps/cem-site/scripts/verify-production.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/site.routes.json",
+                "{projectRoot}/scripts/verify-production.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-site/production.json"]
         },
         "verify:determinism": {
             "cache": true,
