@@ -4,7 +4,8 @@ This Nx application publishes a static site through the native CEM-ML CLI. Its
 checked-in `site.cem` graph is the publication manifest: every source, transform,
 route, and output is explicit.
 
-The checked-in `site.routes.json` is the audited publication allowlist. It
+The checked-in `site.routes.json` is the audited publication and search
+allowlist. It
 records each route or resource, its canonical source, owning Nx project, and
 the upstream target required for generated inputs. Every entry also declares a
 content role and relative-link policy. Authored sources have no upstream
@@ -66,3 +67,14 @@ CEM-ML transform publishes and rewrites that graph into the app-relative browser
 import map. `cem-site:verify:interactive` exercises the route in Chromium, while
 the static verifier rejects undeclared dependencies and byte drift for every
 published runtime resource.
+
+The `/search/` route consumes the same route manifest through native CEMT and a
+paired module-map v2 contract. CEMT renders the manifest's `searchDocuments`
+projection as the route's semantic HTML index; site-owned code only filters that
+native projection. The search field and action are `@epa-wg/cem-components`
+rendered on the `cem-elements`-backed custom-element light DOM, without a
+bundler, JSON sidecar, or post-build copy. Every searchable fragment is
+manifest-owned and verified against a unique rendered heading ID.
+`cem-site:verify:search` covers URL queries, live filtering, CEM component
+composition, import-map scope, and navigation to a stable heading fragment in
+Chromium.

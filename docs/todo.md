@@ -866,8 +866,41 @@ until final Phases 10 and 11, after Phase 9 release governance.
           Aggregate verification serializes determinism before Chromium to avoid
           output replacement races, lint passes, and the repeat restored all 19
           Nx tasks from local cache.
-- [ ] Add search, stable deep links, root navigation, and optional Angular Material
-      coverage comparison from the pinned parity evidence.
+- [x] Add search, stable deep links, and root navigation.
+    - [x] Generate a deterministic search index from the route manifest through
+          the native CEM-ML transformation graph.
+    - [x] Give rendered headings stable fragment identifiers and verify every
+          declared fragment against the published HTML.
+    - [x] Publish a dedicated search route/runtime through a paired module map,
+          link it from the shared navigation, and cover query/deep-link behavior.
+    - [x] Compose the search controls and interaction from production
+          `@epa-wg/cem-components` on the `cem-elements`-backed custom-element
+          runtime; keep site code limited to search orchestration.
+    - [x] Verify clean deterministic output and Nx cache replay for the completed
+          search/deep-link/navigation slice.
+        - Completed 2026-08-20: the route manifest now owns 16 searchable
+          documents and selected heading metadata, and native CEMT renders the
+          semantic `/search/` index without a JSON sidecar or post-build copy.
+          The search field and action are production `cem-field` and `cem-action`
+          controls installed through the shared `cem-elements`-backed
+          custom-element runtime; site JavaScript only filters/ranks the rendered
+          index and maintains the `q` URL state. The paired module map now owns 39
+          exact JavaScript, CSS, worker, and WASM declarations for both interactive
+          routes, and all primary navigation exposes Search and Interactive
+          examples. Native CEMT gives all 145 headings across 17 routes unique
+          deterministic IDs, while static verification rejects missing/duplicate
+          fragments and proves every indexed heading's level and text. Chromium
+          proves initial and live search, exact-heading ranking, the stable
+          `Graph Semantics` deep link, CEM light-DOM controls, stylesheet/import-map
+          scope, and zero runtime errors. Two clean builds contain the same 113
+          files with aggregate digest
+          `c38e634aa647055b2381a367de79c46db78c83c5333e0b18cc16543a922d4fa9`;
+          the repeat aggregate restored all 20 Nx tasks from local cache, and
+          lint plus scoped Prettier checks pass. The CEM Site/CEM Studio shared
+          component-composition principle is now durable in `CLAUDE.md` and the
+          roadmap.
+- [ ] Decide whether to add an Angular Material coverage comparison from the
+      pinned parity evidence; scope and presentation remain TBD.
 - [ ] Add cached Nx verification for site build, links, generated-content drift,
       accessibility, and clean deployment output before closing Phase 6.
 

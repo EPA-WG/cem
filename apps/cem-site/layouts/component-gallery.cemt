@@ -46,10 +46,22 @@
                 {attribute @name="href" @value="/components/"}
                 Components
               }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/examples/interactive/"}
+                Interactive examples
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/search/"}
+                Search
+              }
             }
           }
           {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
-            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" | CEM component gallery}
+            {attribute @name="id" @value="content"}
+            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="id" @value="component-gallery"}
+              CEM component gallery
+            }
             {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
               This static catalog presents package-owned component semantics and verified state coverage without copying executable fixtures.
             }
@@ -61,7 +73,10 @@
               {$input.stateCoverage.summary.gaps}.
             }
             {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
-              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" | Public components}
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="public-components"}
+                Public components
+              }
               {element @name="table" @namespace="http://www.w3.org/1999/xhtml" |
                 {element @name="caption" @namespace="http://www.w3.org/1999/xhtml" |
                   Component semantics, token families, and category state coverage
@@ -135,7 +150,10 @@
               }
             }
             {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
-              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" | Storybook}
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="storybook"}
+                Storybook
+              }
               {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
                 Interactive stories remain a separately owned local build. Run
                 {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | yarn nx run {$input.relatedSurfaces.storybook.devTarget}}
@@ -150,7 +168,10 @@
               }
             }
             {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
-              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" | Workflow example sources}
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="workflow-example-sources"}
+                Workflow example sources
+              }
               {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
                 {cem:for-each @select="$input.relatedSurfaces.examples" @as="example" |
                   {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |

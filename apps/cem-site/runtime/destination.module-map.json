@@ -1,7 +1,9 @@
 {
     "$schema": "https://cem.dev/ns/data/module-map/2",
     "imports": {
+        "@epa-wg/cem-site/components-runtime": "./assets/cem-site/components-runtime.js",
         "@epa-wg/cem-site/runtime": "./assets/cem-site/runtime.js",
+        "@epa-wg/cem-site/search": "./assets/cem-site/search.js",
         "@epa-wg/custom-element": "./assets/custom-element/custom-element.js",
         "@epa-wg/cem-components/primitives": "./assets/cem-components/primitives.js"
     },

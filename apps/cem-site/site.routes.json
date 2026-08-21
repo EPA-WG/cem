@@ -9,13 +9,162 @@
         "**/cem.tokens.intermediate.json",
         "**/cem.tokens.resolved.json"
     ],
-    "runtime": {
-        "schema": "https://cem.dev/ns/data/module-map/2",
-        "sourceMap": "apps/cem-site/runtime/source.module-map.json",
-        "destinationMap": "apps/cem-site/runtime/destination.module-map.json",
-        "entrySpecifier": "@epa-wg/cem-site/runtime",
-        "routes": ["/examples/interactive/"]
-    },
+    "runtimes": [
+        {
+            "id": "interactive",
+            "schema": "https://cem.dev/ns/data/module-map/2",
+            "sourceMap": "apps/cem-site/runtime/source.module-map.json",
+            "destinationMap": "apps/cem-site/runtime/destination.module-map.json",
+            "entrySpecifier": "@epa-wg/cem-site/runtime",
+            "routes": ["/examples/interactive/"]
+        },
+        {
+            "id": "search",
+            "schema": "https://cem.dev/ns/data/module-map/2",
+            "sourceMap": "apps/cem-site/runtime/source.module-map.json",
+            "destinationMap": "apps/cem-site/runtime/destination.module-map.json",
+            "entrySpecifier": "@epa-wg/cem-site/search",
+            "routes": ["/search/"]
+        }
+    ],
+    "searchImportMap": "{\"imports\":{\"@epa-wg/cem-site/components-runtime\":\"components-runtime.js\",\"@epa-wg/cem-site/runtime\":\"site-runtime.js\",\"@epa-wg/cem-site/search\":\"search-runtime.js\",\"@epa-wg/custom-element\":\"../../../packages/custom-element/dist/custom-element.js\",\"@epa-wg/cem-components/primitives\":\"../../../packages/cem-components/dist/lib/primitives.js\"}}",
+    "searchDocuments": [
+        {
+            "route": "/",
+            "title": "CEM Site",
+            "summary": "Native CEM-ML static-site entry point and currently published surfaces.",
+            "headings": [
+                { "id": "heading-1", "level": 1, "text": "CEM Site" },
+                { "id": "heading-5", "level": 2, "text": "Published now" }
+            ]
+        },
+        {
+            "route": "/guides/",
+            "title": "Guides",
+            "summary": "Start points for the CEM-ML CLI, transform graph, runtime, tokens, and components.",
+            "headings": [
+                { "id": "heading-1", "level": 1, "text": "Guides" },
+                { "id": "heading-5", "level": 2, "text": "Start here" }
+            ]
+        },
+        {
+            "route": "/guides/cem-ml/cli/",
+            "title": "CEM-ML CLI guide",
+            "summary": "Browser and Node CLI package usage and transformation workflows.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "@epa-wg/cem-ml-cli" }]
+        },
+        {
+            "route": "/reference/cem-ml/transform-config/",
+            "title": "CEM-ML transform graph reference",
+            "summary": "Generated transform configuration schema, graph semantics, templates, and parameters.",
+            "headings": [
+                {
+                    "id": "heading-1",
+                    "level": 1,
+                    "text": "CEM-ML CLI Transform Config Schema ( https://cem.dev/ns/cli/transform-config/1 )"
+                },
+                { "id": "heading-9", "level": 2, "text": "Element Vocabulary" },
+                { "id": "heading-13", "level": 2, "text": "Graph Semantics" },
+                { "id": "heading-17", "level": 2, "text": "Template Identity" },
+                { "id": "heading-21", "level": 2, "text": "Template Entrypoints And Params" },
+                { "id": "heading-25", "level": 2, "text": "Example" }
+            ]
+        },
+        {
+            "route": "/reference/cem-ml/wasm-runtime/",
+            "title": "CEM-ML WASM runtime",
+            "summary": "The browser and package contract for the CEM-ML WebAssembly runtime.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "@epa-wg/cem-ml" }]
+        },
+        {
+            "route": "/tokens/",
+            "title": "CEM token browser",
+            "summary": "Read-only public theme token metadata generated from canonical Markdown tables.",
+            "headings": [{ "id": "token-browser", "level": 1, "text": "CEM token browser" }]
+        },
+        {
+            "route": "/components/",
+            "title": "CEM component gallery",
+            "summary": "Public components, state coverage, Storybook ownership, and workflow examples.",
+            "headings": [
+                { "id": "component-gallery", "level": 1, "text": "CEM component gallery" },
+                { "id": "public-components", "level": 2, "text": "Public components" },
+                { "id": "storybook", "level": 2, "text": "Storybook" },
+                { "id": "workflow-example-sources", "level": 2, "text": "Workflow example sources" }
+            ]
+        },
+        {
+            "route": "/examples/cem-ml/",
+            "title": "Canonical CEM-ML fixtures",
+            "summary": "Package-owned CEM-ML examples and transformation fixtures.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "Canonical CEM-ML Fixtures" }]
+        },
+        {
+            "route": "/examples/components/",
+            "title": "CEM component examples",
+            "summary": "Package-owned component workflow examples.",
+            "headings": [{ "id": "heading-1", "level": 1, "text": "CEM Component Examples" }]
+        },
+        {
+            "route": "/examples/interactive/",
+            "title": "Interactive CEM examples",
+            "summary": "Production token, component, custom-element, native output, worker, and WASM examples.",
+            "headings": [
+                { "id": "interactive-examples", "level": 1, "text": "Interactive CEM examples" },
+                { "id": "token-example-heading", "level": 2, "text": "Interactive token filter" },
+                { "id": "component-example-heading", "level": 2, "text": "Production component examples" },
+                { "id": "cem-fixture-heading", "level": 2, "text": "CEM fixture and native light-DOM output" },
+                { "id": "cem-source", "level": 3, "text": "CEM source" },
+                { "id": "native-output", "level": 3, "text": "Native output" }
+            ]
+        },
+        {
+            "route": "/reference/components/",
+            "title": "CEM component reference",
+            "summary": "Authoring contracts, production gates, actions, inputs, layout, navigation, content, and feedback.",
+            "headings": [
+                { "id": "heading-1", "level": 1, "text": "CEM Component Reference" },
+                { "id": "heading-9", "level": 2, "text": "Authoring Contract" },
+                { "id": "heading-13", "level": 2, "text": "Production Gate" },
+                { "id": "heading-35", "level": 2, "text": "Actions" },
+                { "id": "heading-41", "level": 2, "text": "Inputs" },
+                { "id": "heading-61", "level": 2, "text": "Layout" },
+                { "id": "heading-67", "level": 2, "text": "Navigation" },
+                { "id": "heading-75", "level": 2, "text": "Content" },
+                { "id": "heading-89", "level": 2, "text": "Feedback" }
+            ]
+        },
+        {
+            "route": "/releases/",
+            "title": "Workspace releases",
+            "summary": "Workspace-wide CEM release notes.",
+            "headings": [{ "id": "heading-1", "level": 2, "text": "0.1.1 (2026-06-21)" }]
+        },
+        {
+            "route": "/releases/cem-components/",
+            "title": "CEM components releases",
+            "summary": "Release notes for the CEM component package.",
+            "headings": [{ "id": "heading-1", "level": 2, "text": "0.1.1 (2026-06-21)" }]
+        },
+        {
+            "route": "/releases/cem-elements/",
+            "title": "CEM elements releases",
+            "summary": "Release notes for the CEM elements package.",
+            "headings": [{ "id": "heading-1", "level": 2, "text": "0.1.1 (2026-06-21)" }]
+        },
+        {
+            "route": "/releases/cem-theme/",
+            "title": "CEM theme releases",
+            "summary": "Release notes for the CEM theme package.",
+            "headings": [{ "id": "heading-1", "level": 2, "text": "0.1.1 (2026-06-21)" }]
+        },
+        {
+            "route": "/releases/custom-element/",
+            "title": "Custom element releases",
+            "summary": "Release notes for the custom-element package.",
+            "headings": [{ "id": "heading-1", "level": 2, "text": "0.1.1 (2026-06-21)" }]
+        }
+    ],
     "entries": [
         {
             "kind": "page",
@@ -256,6 +405,19 @@
             "upstreamTarget": null,
             "importId": "custom-element-releases-source",
             "exportId": "custom-element-releases"
+        },
+        {
+            "kind": "page",
+            "route": "/search/",
+            "output": "search/index.html",
+            "source": "apps/cem-site/site.routes.json",
+            "sourceKind": "authored",
+            "contentRole": "search",
+            "relativeLinkPolicy": "none",
+            "owner": "cem-site",
+            "upstreamTarget": null,
+            "importId": "search-page-source",
+            "exportId": "search-page"
         }
     ]
 }

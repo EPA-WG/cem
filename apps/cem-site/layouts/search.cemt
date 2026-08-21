@@ -1,0 +1,135 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+  {param @name="input" @type="object" @required=true}
+  {template @name="search" @visibility="public" |
+    {body |
+      {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
+        {attribute @name="lang" @value="en"}
+        {element @name="head" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="charset" @value="utf-8"}
+          }
+          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="name" @value="viewport"}
+            {attribute @name="content" @value="width=device-width, initial-scale=1"}
+          }
+          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | Search CEM Site}
+          {element @name="link" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="rel" @value="stylesheet"}
+            {attribute @name="href" @value="./assets/theme/cem-combined.css"}
+          }
+          {element @name="link" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="rel" @value="stylesheet"}
+            {attribute @name="href" @value="./assets/cem-components/styles.css"}
+          }
+          {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="type" @value="importmap"}
+            {$input.searchImportMap}
+          }
+          {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="type" @value="module"}
+            import "@epa-wg/cem-site/search";
+          }
+        }
+        {element @name="body" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="header" @namespace="http://www.w3.org/1999/xhtml" |
+            {element @name="nav" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="aria-label" @value="Primary"}
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/"}
+                CEM Site
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/"}
+                Guides
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/cem-ml/cli/"}
+                CLI guide
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/reference/cem-ml/transform-config/"}
+                CEM-ML reference
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/tokens/"}
+                Tokens
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/components/"}
+                Components
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/examples/interactive/"}
+                Interactive examples
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/search/"}
+                Search
+              }
+            }
+          }
+          {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="id" @value="content"}
+            {attribute @name="data-search-index" @value="route-manifest"}
+            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="id" @value="site-search"}
+              Search CEM Site
+            }
+            {element @name="form" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="action" @value="/search/"}
+              {attribute @name="method" @value="get"}
+              {element @name="cem-field" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="data-search-field" @value=""}
+                {attribute @name="label" @value="Search routes and headings"}
+                {attribute @name="name" @value="q"}
+                {attribute @name="type" @value="search"}
+              }
+              {element @name="cem-action" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="data-search-action" @value=""}
+                {attribute @name="label" @value="Search"}
+                Search
+              }
+            }
+            {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="data-search-status" @value=""}
+              {attribute @name="role" @value="status"}
+              {attribute @name="aria-live" @value="polite"}
+              {$input.searchDocuments.length} searchable documents
+            }
+            {element @name="ol" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="id" @value="search-results"}
+              {attribute @name="data-search-results" @value=""}
+              {cem:for-each @select="$input.searchDocuments" @as="document" |
+                {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                  {attribute @name="data-search-document" @value="{$document.route}"}
+                  {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="href" @value="{$document.route}"}
+                    {$document.title}
+                  }
+                  {element @name="p" @namespace="http://www.w3.org/1999/xhtml" | {$document.summary}}
+                  {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                    {cem:for-each @select="$document.headings" @as="heading" |
+                      {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                          {attribute @name="href" @value='{str:concat((document.route, "#", heading.id))}'}
+                          {$heading.text}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          {element @name="footer" @namespace="http://www.w3.org/1999/xhtml" |
+            Generated by the native CEM-ML transformation graph.
+          }
+        }
+      }
+    }
+  }
+}

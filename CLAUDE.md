@@ -1,6 +1,7 @@
 # Claude Code Instructions
 
 Codex shorthand:
+
 - `.` means “where are we, and what is next?”
 - `>` means “continue”
 
@@ -107,6 +108,17 @@ owned local Storybook Nx targets. It must not contain copied CEM-ML declarations
 example markup, Figma projections, or a site-owned Storybook build. Prefer the
 `@epa-wg/cem-components/catalog/cem.components.catalog.json` package export.
 
+## Application UI composition contract
+
+CEM Site and CEM Studio must build their interactive user interfaces from
+production `@epa-wg/cem-components` running on the `cem-elements`-backed
+`@epa-wg/custom-element` light-DOM substrate. App-owned code may orchestrate
+routing, persistence, search/query state, workers, and other application
+services, but it must not replace an available shared CEM control or interaction
+with a native one-off widget. Add or finish the reusable CEM component first
+when an app needs a missing control; application-local UI is reserved for a
+capability absent from the shared component set.
+
 ## Dev server
 
 ```bash
@@ -126,10 +138,10 @@ not the place to discover core transformation semantics.
 
 1. Start with the contract case as a small fixture string or AST/event-stream input.
 2. Add the failing Rust test first at the smallest relevant layer:
-   - parser/tokenizer changes test token or AST shape;
-   - transformation changes test input AST/event stream to output artifact/event stream;
-   - render changes test `render_template` or `render_compiled_template`;
-   - resource/load changes test lifecycle states and diagnostics, not only final output.
+    - parser/tokenizer changes test token or AST shape;
+    - transformation changes test input AST/event stream to output artifact/event stream;
+    - render changes test `render_template` or `render_compiled_template`;
+    - resource/load changes test lifecycle states and diagnostics, not only final output.
 3. Keep tests layered: unit test the transformation function first, then add integration fixtures, then add
    Storybook/browser coverage for wiring and runtime behavior.
 4. Assert the contract details that matter: produced nodes/artifacts, AST stream lifecycle state, diagnostics,

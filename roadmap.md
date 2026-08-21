@@ -41,9 +41,10 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
     Studio npm/PWA, and native target packages are separate projects that publish the exact same version from one
     release commit.
 11. Treat the current official Angular Material component catalog as the reusable-component parity baseline. When
-    Studio needs a control or interaction that Angular Material already provides, implement and verify its
-    `<cem-element>`-based `@epa-wg/cem-components` counterpart first, then consume it from Studio. A Studio-specific
-    component or application-local implementation may lead only when no Angular Material counterpart exists.
+    CEM Site or CEM Studio needs a control or interaction that Angular Material already provides, implement and verify
+    its `<cem-element>`-based `@epa-wg/cem-components` counterpart first, then consume it from the app. Site- or
+    Studio-specific components and application-local controls may lead only when no shared CEM counterpart exists;
+    app code owns orchestration, not replacement widgets.
 12. Keep Markdown token specifications under `packages/cem-theme/src/lib/tokens/` canonical. Generated Figma mode
     files are pull-only projections, and live Figma library/prototype updates run only after the site, Studio, Hugo
     integration, native package, and release-governance phases are complete.
@@ -481,7 +482,10 @@ Deliverables:
 
 Implementation note:
 
-- Prefer a CEM/custom-element implementation first because the site should prove the library.
+- Compose all interactive CEM Site controls from production `@epa-wg/cem-components` on the
+  `cem-elements`-backed `@epa-wg/custom-element` light-DOM substrate because the site must prove the same UI stack as
+  CEM Studio. Site-owned JavaScript may orchestrate routing, search state, and application services, but must not
+  replace an available shared CEM control.
 - Make the `apps/cem-site` Nx target invoke and cache the CEM-ML CLI build graph.
   Nx owns task orchestration and declared inputs/outputs; CEM-ML owns content,
   module, JavaScript, WASM, inlining, emission, and import-rewrite semantics.

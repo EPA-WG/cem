@@ -1,17 +1,9 @@
-import { diagnosticsFor, installCustomElementRuntime, whenRenderSettled } from '@epa-wg/custom-element';
-import { installCemComponentPrimitives } from '@epa-wg/cem-components/primitives';
+import { diagnosticsFor, whenRenderSettled } from '@epa-wg/custom-element';
+import { componentRuntimeErrors } from '@epa-wg/cem-site/components-runtime';
 
-const errors = [];
+const errors = [...componentRuntimeErrors];
 
 try {
-    const runtime = installCustomElementRuntime();
-    const installed = await installCemComponentPrimitives(runtime);
-    errors.push(
-        ...installed.diagnostics
-            .filter(({ severity }) => severity === 'error' || severity === 'fatal')
-            .map(({ code, message }) => `${code}: ${message}`),
-    );
-
     const tokenFilter = document.querySelector('[data-token-filter]');
     const tokenStatus = document.querySelector('[data-token-status]');
     const tokenExamples = [...document.querySelectorAll('[data-token-example]')];

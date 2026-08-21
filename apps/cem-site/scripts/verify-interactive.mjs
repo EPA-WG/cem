@@ -114,7 +114,13 @@ try {
         throw new Error(`interactive light-DOM contract drifted: ${JSON.stringify(contract)}`);
     }
 
-    const expectedImports = ['@epa-wg/cem-components/primitives', '@epa-wg/cem-site/runtime', '@epa-wg/custom-element'];
+    const expectedImports = [
+        '@epa-wg/cem-components/primitives',
+        '@epa-wg/cem-site/components-runtime',
+        '@epa-wg/cem-site/runtime',
+        '@epa-wg/cem-site/search',
+        '@epa-wg/custom-element',
+    ];
     if (JSON.stringify(Object.keys(contract.importMap.imports ?? {}).sort()) !== JSON.stringify(expectedImports)) {
         throw new Error('the browser import map does not expose the exact interactive entrypoints');
     }

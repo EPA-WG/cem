@@ -47,6 +47,14 @@
                 Guides
               }
               {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/cem-ml/cli/"}
+                CLI guide
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/reference/cem-ml/transform-config/"}
+                CEM-ML reference
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
                 {attribute @name="href" @value="/tokens/"}
                 Tokens
               }
@@ -58,10 +66,18 @@
                 {attribute @name="href" @value="/examples/interactive/"}
                 Interactive examples
               }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/search/"}
+                Search
+              }
             }
           }
           {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
-            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" | {$input.title}}
+            {attribute @name="id" @value="content"}
+            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="id" @value="interactive-examples"}
+              {$input.title}
+            }
             {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
               This page loads only resources declared by the CEM-ML module-map transformation.
             }
@@ -134,14 +150,20 @@
                 {attribute @name="name" @value="{$input.cemFixture.name}"}
                 {attribute @name="data-cem-fixture-instance" @value=""}
               }
-              {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" | CEM source}
+              {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="cem-source"}
+                CEM source
+              }
               {element @name="pre" @namespace="http://www.w3.org/1999/xhtml" |
                 {element @name="code" @namespace="http://www.w3.org/1999/xhtml" |
                   {attribute @name="data-cem-source" @value=""}
                   {$input.cemFixture.source}
                 }
               }
-              {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" | Native output}
+              {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="native-output"}
+                Native output
+              }
               {element @name="pre" @namespace="http://www.w3.org/1999/xhtml" |
                 {element @name="code" @namespace="http://www.w3.org/1999/xhtml" |
                   {attribute @name="data-native-output" @value=""}

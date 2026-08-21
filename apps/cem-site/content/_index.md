@@ -12,7 +12,9 @@ the CEMT layout owns the shared semantic shell.
 - Review the [WASM runtime package contract](/reference/cem-ml/wasm-runtime/).
 - Browse the read-only [CEM token catalog](/tokens/).
 - Browse the static [CEM component gallery](/components/).
+- Exercise the production-backed [interactive CEM examples](/examples/interactive/).
+- [Search routes and stable heading links](/search/) from the manifest-owned index.
 
-The current shell deliberately has no JavaScript runtime dependency. Interactive
-examples will add exact npm assets through schema-owned module maps when their
-dedicated roadmap item begins.
+Static documentation, token, and component routes deliberately have no JavaScript
+runtime dependency. The interactive and search routes load only their exact
+assets through schema-owned module maps.

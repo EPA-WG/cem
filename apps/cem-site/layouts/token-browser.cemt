@@ -46,10 +46,22 @@
                 {attribute @name="href" @value="/components/"}
                 Components
               }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/examples/interactive/"}
+                Interactive examples
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/search/"}
+                Search
+              }
             }
           }
           {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
-            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" | CEM token browser}
+            {attribute @name="id" @value="content"}
+            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="id" @value="token-browser"}
+              CEM token browser
+            }
             {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
               These read-only values are generated from the canonical CEM theme Markdown token tables.
             }

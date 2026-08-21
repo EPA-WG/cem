@@ -9,16 +9,19 @@ const outputRoot = resolve(workspaceRoot, 'dist/apps/cem-site');
 const reportRoot = resolve(workspaceRoot, 'dist/reports/cem-site');
 const buildScript = resolve(projectRoot, 'scripts/build.mjs');
 const manifest = JSON.parse(await readFile(resolve(projectRoot, 'site.routes.json'), 'utf8'));
-const runtimeDestinationMap = JSON.parse(
-    await readFile(resolve(workspaceRoot, manifest.runtime.destinationMap), 'utf8'),
-);
-const runtimeTargets = [
-    ...Object.values(runtimeDestinationMap.imports),
-    ...Object.values(runtimeDestinationMap.resources).map(({ path }) => path),
-];
-const runtimeOutputs = manifest.runtime.routes.flatMap((route) =>
-    runtimeTargets.map((target) => new URL(target, `https://cem.invalid${route}`).pathname.slice(1)),
-);
+const runtimeOutputs = [];
+for (const runtime of manifest.runtimes) {
+    const destinationMap = JSON.parse(await readFile(resolve(workspaceRoot, runtime.destinationMap), 'utf8'));
+    const targets = [
+        ...Object.values(destinationMap.imports),
+        ...Object.values(destinationMap.resources).map(({ path }) => path),
+    ];
+    runtimeOutputs.push(
+        ...runtime.routes.flatMap((route) =>
+            targets.map((target) => new URL(target, `https://cem.invalid${route}`).pathname.slice(1)),
+        ),
+    );
+}
 
 const expectedFiles = [
     ...manifest.entries.flatMap((entry) => [entry.output, `${entry.output}.map`]),

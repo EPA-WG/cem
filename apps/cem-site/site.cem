@@ -368,4 +368,22 @@
       }
     }
   }
+
+  {import @id=search-page-source @src="site.routes.json"
+      @content-type="application/json"
+      @schema="https://cem.dev/ns/data/json/1" |
+    {transform @id=search-page-layout @src="layouts/search.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @entrypoint="search" |
+      {rewrite-importmap @id=search-page-runtime
+          @source-map="runtime/source.module-map.json"
+          @target-map="runtime/destination.module-map.json" |
+        {export @id=search-page
+            @out="../../dist/apps/cem-site/search/index.html"
+            @content-type="text/html"
+            @schema="https://cem.dev/ns/data/html/1"}
+      }
+    }
+  }
 }

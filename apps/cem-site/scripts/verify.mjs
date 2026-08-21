@@ -59,6 +59,7 @@ const allowedContentRoles = new Set([
     'catalog',
     'example-index',
     'interactive-example',
+    'search',
     'release-notes',
 ]);
 const allowedRelativeLinkPolicies = new Set(['none', 'site-routes', 'canonical-source']);
@@ -74,6 +75,18 @@ function markdownLinks(source) {
 
 function isRelativeRepositoryLink(href) {
     return !href.startsWith('#') && !href.startsWith('/') && !/^[a-z][a-z0-9+.-]*:/i.test(href);
+}
+
+function normalizedHtmlText(source) {
+    return source
+        .replace(/<[^>]*>/g, ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 function expectedCanonicalSourceBase(source) {
@@ -101,9 +114,9 @@ function canonicalOwner(source) {
     return owners[0];
 }
 
-async function loadRuntimeContract() {
-    const runtime = manifest.runtime;
+async function loadRuntimeContract(runtime, outputs) {
     if (
+        typeof runtime?.id !== 'string' ||
         runtime?.schema !== 'https://cem.dev/ns/data/module-map/2' ||
         typeof runtime.sourceMap !== 'string' ||
         typeof runtime.destinationMap !== 'string' ||
@@ -112,7 +125,7 @@ async function loadRuntimeContract() {
         runtime.routes.length === 0 ||
         new Set(runtime.routes).size !== runtime.routes.length
     ) {
-        throw new Error('site runtime must declare one exact module-map v2 contract');
+        throw new Error('each site runtime must declare one exact module-map v2 contract');
     }
     const sourceMapPath = resolve(workspaceRoot, runtime.sourceMap);
     const destinationMapPath = resolve(workspaceRoot, runtime.destinationMap);
@@ -144,7 +157,7 @@ async function loadRuntimeContract() {
         sourceImportKeys.some((key) => sourceResourceKeys.includes(key)) ||
         !sourceImportKeys.includes(runtime.entrySpecifier)
     ) {
-        throw new Error('runtime module-map source/destination identities drifted');
+        throw new Error(`${runtime.id} runtime module-map source/destination identities drifted`);
     }
 
     const declarations = [
@@ -174,12 +187,21 @@ async function loadRuntimeContract() {
             };
         }),
     ];
-    if (
-        declarations.filter(({ contentType }) => contentType === 'application/wasm').length !== 1 ||
-        declarations.filter(({ contentType }) => contentType === 'text/css').length !== 2 ||
-        !declarations.some(({ specifier }) => specifier.endsWith('/processing-worker'))
+    if (runtime.id === 'interactive') {
+        if (
+            declarations.filter(({ contentType }) => contentType === 'application/wasm').length !== 1 ||
+            declarations.filter(({ contentType }) => contentType === 'text/css').length !== 2 ||
+            !declarations.some(({ specifier }) => specifier.endsWith('/processing-worker'))
+        ) {
+            throw new Error('interactive runtime must declare one WASM, two stylesheets, and its worker');
+        }
+    } else if (
+        runtime.id === 'search' &&
+        (!sourceImportKeys.includes('@epa-wg/cem-site/components-runtime') ||
+            !sourceImportKeys.includes('@epa-wg/custom-element') ||
+            !sourceImportKeys.includes('@epa-wg/cem-components/primitives'))
     ) {
-        throw new Error('runtime module map must declare one WASM, two stylesheets, and its worker');
+        throw new Error('search runtime must declare the production CEM component stack');
     }
 
     const upstreamByOwner = new Map([
@@ -188,7 +210,6 @@ async function loadRuntimeContract() {
         ['@epa-wg/cem-theme', '@epa-wg/cem-theme:build:tokens'],
     ]);
     const assets = [];
-    const outputs = new Set();
     for (const declaration of declarations) {
         if (
             typeof declaration.source !== 'string' ||
@@ -213,7 +234,7 @@ async function loadRuntimeContract() {
         }
         for (const route of runtime.routes) {
             if (!route.startsWith('/') || !route.endsWith('/')) {
-                throw new Error(`interactive runtime route ${route} is not canonical`);
+                throw new Error(`${runtime.id} runtime route ${route} is not canonical`);
             }
             const output = new URL(declaration.target, `https://cem.invalid${route}`).pathname.slice(1);
             if (outputs.has(output)) {
@@ -224,15 +245,43 @@ async function loadRuntimeContract() {
         }
     }
     return {
+        runtime,
         assets,
-        assetOutputs: outputs,
+        assetOutputs: new Set(assets.map(({ output }) => output)),
         declarationCount: declarations.length,
         sourceMap,
         destinationMap,
     };
 }
 
-const runtimeContract = await loadRuntimeContract();
+if (!Array.isArray(manifest.runtimes) || manifest.runtimes.length === 0) {
+    throw new Error('site.routes.json must declare a non-empty runtimes array');
+}
+const runtimeIds = manifest.runtimes.map(({ id }) => id);
+if (
+    new Set(runtimeIds).size !== runtimeIds.length ||
+    JSON.stringify([...runtimeIds].sort()) !== JSON.stringify(['interactive', 'search'])
+) {
+    throw new Error('site runtimes must declare unique interactive and search contracts');
+}
+const runtimeOutputs = new Set();
+const runtimeContracts = [];
+for (const runtime of manifest.runtimes) {
+    runtimeContracts.push(await loadRuntimeContract(runtime, runtimeOutputs));
+}
+const runtimeById = new Map(runtimeContracts.map((contract) => [contract.runtime.id, contract]));
+const interactiveRuntimeContract = runtimeById.get('interactive');
+const searchRuntimeContract = runtimeById.get('search');
+const runtimeContract = {
+    assets: runtimeContracts.flatMap(({ assets }) => assets),
+    assetOutputs: runtimeOutputs,
+};
+if (
+    JSON.stringify(JSON.parse(manifest.searchImportMap)) !==
+    JSON.stringify({ imports: searchRuntimeContract.sourceMap.imports })
+) {
+    throw new Error('search import-map placeholder drifted from its source module map');
+}
 
 async function loadDeclaredSources(entry, field, destination) {
     if (entry[field] === undefined) {
@@ -395,6 +444,50 @@ for (const entry of manifest.entries) {
     exportIds.add(entry.exportId);
 }
 
+if (!Array.isArray(manifest.searchDocuments) || manifest.searchDocuments.length === 0) {
+    throw new Error('site.routes.json must declare searchable route documents');
+}
+const searchableRoutes = manifest.entries
+    .filter(({ kind, contentRole }) => kind === 'page' && contentRole !== 'search')
+    .map(({ route }) => route)
+    .sort();
+const searchDocumentRoutes = manifest.searchDocuments.map(({ route }) => route).sort();
+if (
+    new Set(searchDocumentRoutes).size !== searchDocumentRoutes.length ||
+    JSON.stringify(searchDocumentRoutes) !== JSON.stringify(searchableRoutes)
+) {
+    throw new Error('search documents must cover every non-search page route exactly once');
+}
+for (const document of manifest.searchDocuments) {
+    if (
+        typeof document.title !== 'string' ||
+        !document.title.trim() ||
+        typeof document.summary !== 'string' ||
+        !document.summary.trim() ||
+        !Array.isArray(document.headings) ||
+        document.headings.length === 0
+    ) {
+        throw new Error(`search document ${document.route} is incomplete`);
+    }
+    const headingIds = document.headings.map(({ id }) => id);
+    if (new Set(headingIds).size !== headingIds.length) {
+        throw new Error(`search document ${document.route} has duplicate heading fragments`);
+    }
+    for (const heading of document.headings) {
+        if (
+            typeof heading.id !== 'string' ||
+            !heading.id ||
+            !Number.isInteger(heading.level) ||
+            heading.level < 1 ||
+            heading.level > 6 ||
+            typeof heading.text !== 'string' ||
+            !heading.text.trim()
+        ) {
+            throw new Error(`search document ${document.route} has an invalid heading`);
+        }
+    }
+}
+
 async function filesUnder(directory) {
     const entries = await readdir(directory, { withFileTypes: true });
     const files = [];
@@ -419,6 +512,34 @@ if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
     throw new Error(
         `CEM Site output is not clean.\nExpected: ${expectedFiles.join(', ')}\nActual: ${actualFiles.join(', ')}`,
     );
+}
+
+const idsByRoute = new Map();
+const headingsByRoute = new Map();
+for (const entry of manifest.entries.filter(({ kind }) => kind === 'page')) {
+    const output = await readFile(join(outputRoot, entry.output), 'utf8');
+    const ids = [...output.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
+    if (new Set(ids).size !== ids.length) {
+        throw new Error(`${entry.output} has duplicate fragment identifiers`);
+    }
+    idsByRoute.set(entry.route, new Set(ids));
+    const headings = [...output.matchAll(/<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/g)].map((match) => {
+        const id = match[2].match(/\sid="([^"]+)"/)?.[1];
+        if (!id) {
+            throw new Error(`${entry.output} has a heading without a stable fragment identifier`);
+        }
+        return { id, level: Number(match[1]), text: normalizedHtmlText(match[3]) };
+    });
+    headingsByRoute.set(entry.route, new Map(headings.map((heading) => [heading.id, heading])));
+}
+for (const document of manifest.searchDocuments) {
+    const renderedHeadings = headingsByRoute.get(document.route);
+    for (const heading of document.headings) {
+        const rendered = renderedHeadings.get(heading.id);
+        if (!rendered || rendered.level !== heading.level || rendered.text !== heading.text) {
+            throw new Error(`${document.route} search heading ${heading.id} drifted from rendered HTML`);
+        }
+    }
 }
 
 const verification = {
@@ -456,9 +577,6 @@ for (const entry of manifest.entries) {
             }
         }
         for (const href of links) {
-            if (href.startsWith('#')) {
-                continue;
-            }
             const target = new URL(href, `https://cem.invalid${entry.route}`);
             if (
                 target.origin === 'https://cem.invalid' &&
@@ -466,6 +584,12 @@ for (const entry of manifest.entries) {
                 !runtimeContract.assetOutputs.has(target.pathname.slice(1))
             ) {
                 throw new Error(`${entry.output} links to unpublished route ${target.pathname}`);
+            }
+            if (target.origin === 'https://cem.invalid' && target.hash) {
+                const fragment = decodeURIComponent(target.hash.slice(1));
+                if (!idsByRoute.get(target.pathname)?.has(fragment)) {
+                    throw new Error(`${entry.output} links to missing fragment ${target.pathname}#${fragment}`);
+                }
             }
         }
         const verificationEntry = {
@@ -641,7 +765,7 @@ for (const entry of manifest.entries) {
         }
 
         if (entry.contentRole === 'interactive-example') {
-            if (!manifest.runtime.routes.includes(entry.route)) {
+            if (!interactiveRuntimeContract.runtime.routes.includes(entry.route)) {
                 throw new Error(`${entry.route} is not declared as an interactive runtime consumer`);
             }
             const fixture = JSON.parse(await readFile(resolve(workspaceRoot, entry.source), 'utf8'));
@@ -707,7 +831,46 @@ for (const entry of manifest.entries) {
                 tokenExamples: fixtureTokenNames,
                 componentExamples: fixtureComponentTags,
                 cemFixtureTag: fixture.cemFixture.tag,
-                runtimeAssetCount: runtimeContract.declarationCount,
+                runtimeAssetCount: interactiveRuntimeContract.declarationCount,
+                javascript: true,
+            });
+        }
+
+        if (entry.contentRole === 'search') {
+            if (!searchRuntimeContract.runtime.routes.includes(entry.route)) {
+                throw new Error(`${entry.route} is not declared as a search runtime consumer`);
+            }
+            for (const token of [
+                '<form action="/search/" method="get">',
+                'data-search-index="route-manifest"',
+                '<ol data-search-results',
+                '<cem-field data-search-field',
+                '<cem-action data-search-action',
+                '<script type="importmap">',
+                'import "@epa-wg/cem-site/search";',
+                '@epa-wg/cem-site/search',
+                '@epa-wg/cem-site/components-runtime',
+                '@epa-wg/custom-element',
+                '@epa-wg/cem-components/primitives',
+            ]) {
+                if (!output.includes(token)) {
+                    throw new Error(`${entry.output} is missing search contract token ${token}`);
+                }
+            }
+            if ([...output.matchAll(/data-search-document="/g)].length !== manifest.searchDocuments.length) {
+                throw new Error(`${entry.output} does not render every searchable document without JavaScript`);
+            }
+            for (const graphToken of [
+                '@source-map="runtime/source.module-map.json"',
+                '@target-map="runtime/destination.module-map.json"',
+            ]) {
+                if (!publicationGraph.includes(graphToken)) {
+                    throw new Error(`search publication graph is missing ${graphToken}`);
+                }
+            }
+            Object.assign(verificationEntry, {
+                searchDocuments: manifest.searchDocuments.length,
+                runtimeAssetCount: searchRuntimeContract.declarationCount,
                 javascript: true,
             });
         }
@@ -730,9 +893,15 @@ for (const entry of manifest.entries) {
     }
 }
 
-for (const route of manifest.runtime.routes) {
+for (const route of interactiveRuntimeContract.runtime.routes) {
     if (entriesByRoute.get(route)?.contentRole !== 'interactive-example') {
         throw new Error(`runtime route ${route} is not an allowlisted interactive example`);
+    }
+}
+
+for (const route of searchRuntimeContract.runtime.routes) {
+    if (entriesByRoute.get(route)?.contentRole !== 'search') {
+        throw new Error(`runtime route ${route} is not an allowlisted search page`);
     }
 }
 
@@ -743,32 +912,34 @@ for (const asset of runtimeContract.assets) {
     }
 }
 
-const runtimeImports = new Set(Object.keys(runtimeContract.destinationMap.imports));
-for (const asset of runtimeContract.assets.filter(({ contentType }) => contentType === 'text/javascript')) {
-    const source = await readFile(join(outputRoot, asset.output), 'utf8');
-    const moduleSpecifiers = [...source.matchAll(/(?:import|export)\s+(?:[^'";]*?\sfrom\s*)?['"]([^'"]+)['"]/g)].map(
-        (match) => match[1],
-    );
-    for (const specifier of moduleSpecifiers) {
-        if (specifier.startsWith('.')) {
-            const dependency = new URL(specifier, `https://cem.invalid/${asset.output}`).pathname.slice(1);
-            if (!runtimeContract.assetOutputs.has(dependency)) {
-                throw new Error(`${asset.output} has undeclared relative dependency ${specifier}`);
+for (const contract of runtimeContracts) {
+    const runtimeImports = new Set(Object.keys(contract.destinationMap.imports));
+    for (const asset of contract.assets.filter(({ contentType }) => contentType === 'text/javascript')) {
+        const source = await readFile(join(outputRoot, asset.output), 'utf8');
+        const moduleSpecifiers = [
+            ...source.matchAll(/(?:import|export)\s+(?:[^'";]*?\sfrom\s*)?['"]([^'"]+)['"]/g),
+        ].map((match) => match[1]);
+        for (const specifier of moduleSpecifiers) {
+            if (specifier.startsWith('.')) {
+                const dependency = new URL(specifier, `https://cem.invalid/${asset.output}`).pathname.slice(1);
+                if (!contract.assetOutputs.has(dependency)) {
+                    throw new Error(`${asset.output} has undeclared relative dependency ${specifier}`);
+                }
+            } else if (!runtimeImports.has(specifier)) {
+                throw new Error(`${asset.output} has undeclared bare dependency ${specifier}`);
             }
-        } else if (!runtimeImports.has(specifier)) {
-            throw new Error(`${asset.output} has undeclared bare dependency ${specifier}`);
         }
-    }
-    const urlSpecifiers = [...source.matchAll(/new URL\(\s*['"]([^'"]+)['"]\s*,\s*import\.meta\.url\s*\)/g)].map(
-        (match) => match[1],
-    );
-    for (const specifier of urlSpecifiers) {
-        if (specifier.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(specifier)) {
-            throw new Error(`${asset.output} has non-relative module URL dependency ${specifier}`);
-        }
-        const dependency = new URL(specifier, `https://cem.invalid/${asset.output}`).pathname.slice(1);
-        if (!runtimeContract.assetOutputs.has(dependency)) {
-            throw new Error(`${asset.output} has undeclared module URL dependency ${specifier}`);
+        const urlSpecifiers = [...source.matchAll(/new URL\(\s*['"]([^'"]+)['"]\s*,\s*import\.meta\.url\s*\)/g)].map(
+            (match) => match[1],
+        );
+        for (const specifier of urlSpecifiers) {
+            if (specifier.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(specifier)) {
+                throw new Error(`${asset.output} has non-relative module URL dependency ${specifier}`);
+            }
+            const dependency = new URL(specifier, `https://cem.invalid/${asset.output}`).pathname.slice(1);
+            if (!contract.assetOutputs.has(dependency)) {
+                throw new Error(`${asset.output} has undeclared module URL dependency ${specifier}`);
+            }
         }
     }
 }

@@ -66,7 +66,7 @@
         "verify": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build", "verify:determinism", "verify:interactive"],
+            "dependsOn": ["build", "verify:determinism", "verify:interactive", "verify:search"],
             "options": {
                 "command": "node apps/cem-site/scripts/verify.mjs",
                 "cwd": "{workspaceRoot}"
@@ -106,6 +106,24 @@
             ],
             "outputs": ["{workspaceRoot}/dist/reports/cem-site/interactive.json"]
         },
+        "verify:search": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:determinism"],
+            "options": {
+                "command": "node apps/cem-site/scripts/verify-search.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/site.routes.json",
+                "{projectRoot}/scripts/verify-search.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-site/search.json"]
+        },
         "verify:determinism": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -116,7 +134,7 @@
             },
             "inputs": [
                 "{projectRoot}/site.routes.json",
-                "{projectRoot}/runtime/destination.module-map.json",
+                "{projectRoot}/runtime/*destination.module-map.json",
                 "{projectRoot}/scripts/build.mjs",
                 "{projectRoot}/scripts/verify-determinism.mjs",
                 {

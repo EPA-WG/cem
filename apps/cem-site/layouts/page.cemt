@@ -48,11 +48,21 @@
                 {attribute @name="href" @value="/components/"}
                 Components
               }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/examples/interactive/"}
+                Interactive examples
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/search/"}
+                Search
+              }
             }
           }
           {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="id" @value="content"}
             {cem:for-each @select="$input.children" @as="node" |
               {call @template="emit-node" @with:node="{$node}"
+                  @with:nodePath='{str:concat(("", position))}'
                   @with:canonicalSourceBase="{$canonicalSourceBase}"}
             }
           }
@@ -65,11 +75,15 @@
   }
   {template @name="emit-node" |
     {param @name="node" @type="object" @required=true}
+    {param @name="nodePath" @type="string" @required=true}
     {param @name="canonicalSourceBase" @type="string" @default=""}
     {body |
       {cem:choose |
         {cem:when @test='node.kind == "element"' |
           {element @name="{$node.name}" @namespace="{$node.namespace}" |
+            {cem:if @test='node.name == "h1" || node.name == "h2" || node.name == "h3" || node.name == "h4" || node.name == "h5" || node.name == "h6"' |
+              {attribute @name="id" @value='{str:concat(("heading-", nodePath))}'}
+            }
             {cem:for-each @select="$node.attributes" @as="attribute" |
               {cem:choose |
                 {cem:when @test='attribute.name == "href" && canonicalSourceBase != "" && str:starts_with(attribute.value, "#") == false && str:starts_with(attribute.value, "/") == false && str:starts_with(attribute.value, "http:") == false && str:starts_with(attribute.value, "https:") == false && str:starts_with(attribute.value, "mailto:") == false' |
@@ -84,6 +98,7 @@
             }
             {cem:for-each @select="$node.children" @as="child" |
               {call @template="emit-node" @with:node="{$child}"
+                  @with:nodePath='{str:concat((nodePath, "-", position))}'
                   @with:canonicalSourceBase="{$canonicalSourceBase}"}
             }
           }
