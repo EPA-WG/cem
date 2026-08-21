@@ -1,101 +1,131 @@
 {
-  "name": "cem-site",
-  "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "projectType": "application",
-  "sourceRoot": "apps/cem-site/content",
-  "targets": {
-    "build": {
-      "cache": true,
-      "executor": "nx:run-commands",
-      "dependsOn": [
-        {
-          "projects": ["cem_ml_cli"],
-          "target": "build"
+    "name": "cem-site",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "application",
+    "sourceRoot": "apps/cem-site/content",
+    "targets": {
+        "build": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["cem_ml"],
+                    "target": "build:docs"
+                },
+                {
+                    "projects": ["@epa-wg/cem-theme"],
+                    "target": "build:tokens"
+                },
+                {
+                    "projects": ["@epa-wg/cem-components"],
+                    "target": "build:catalog"
+                },
+                {
+                    "projects": ["@epa-wg/cem-components"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/custom-element"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "node apps/cem-site/scripts/build.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/content/**/*.md",
+                "{projectRoot}/fixtures/**/*",
+                "{projectRoot}/layouts/**/*.cemt",
+                "{projectRoot}/runtime/**/*",
+                "{projectRoot}/README.md",
+                "{projectRoot}/site.cem",
+                "{projectRoot}/site.routes.json",
+                "{projectRoot}/scripts/build.mjs",
+                "{workspaceRoot}/packages/cem-ml-npm/README.md",
+                "{workspaceRoot}/packages/cem-ml-cli-npm/README.md",
+                "{workspaceRoot}/examples/cem-ml/README.md",
+                "{workspaceRoot}/packages/cem-components/examples/README.md",
+                "{workspaceRoot}/packages/cem-components/docs/component-reference.md",
+                "{workspaceRoot}/CHANGELOG.md",
+                "{workspaceRoot}/packages/cem-components/CHANGELOG.md",
+                "{workspaceRoot}/packages/cem-elements/CHANGELOG.md",
+                "{workspaceRoot}/packages/cem-theme/CHANGELOG.md",
+                "{workspaceRoot}/packages/custom-element/CHANGELOG.md",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/apps/cem-site"]
         },
-        {
-          "projects": ["cem_ml"],
-          "target": "build:docs"
+        "verify": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build", "verify:determinism", "verify:interactive"],
+            "options": {
+                "command": "node apps/cem-site/scripts/verify.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/site.cem",
+                "{projectRoot}/site.routes.json",
+                "{projectRoot}/scripts/verify.mjs",
+                "{projectRoot}/runtime/*.module-map.json",
+                "{workspaceRoot}/nx.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/apps/*/project.json",
+                "{workspaceRoot}/packages/*/project.json",
+                "{workspaceRoot}/packages/*/package.json",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-site/verification.json"]
         },
-        {
-          "projects": ["@epa-wg/cem-theme"],
-          "target": "build:tokens"
+        "verify:interactive": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:determinism"],
+            "options": {
+                "command": "node apps/cem-site/scripts/verify-interactive.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/site.routes.json",
+                "{projectRoot}/scripts/verify-interactive.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-site/interactive.json"]
         },
-        {
-          "projects": ["@epa-wg/cem-components"],
-          "target": "build:catalog"
+        "verify:determinism": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node apps/cem-site/scripts/verify-determinism.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/site.routes.json",
+                "{projectRoot}/runtime/destination.module-map.json",
+                "{projectRoot}/scripts/build.mjs",
+                "{projectRoot}/scripts/verify-determinism.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-site/determinism.json"]
         }
-      ],
-      "options": {
-        "command": "node apps/cem-site/scripts/build.mjs",
-        "cwd": "{workspaceRoot}"
-      },
-      "inputs": [
-        "{projectRoot}/content/**/*.md",
-        "{projectRoot}/layouts/**/*.cemt",
-        "{projectRoot}/README.md",
-        "{projectRoot}/site.cem",
-        "{projectRoot}/site.routes.json",
-        "{projectRoot}/scripts/build.mjs",
-        "{workspaceRoot}/packages/cem-ml-npm/README.md",
-        "{workspaceRoot}/packages/cem-ml-cli-npm/README.md",
-        "{workspaceRoot}/examples/cem-ml/README.md",
-        "{workspaceRoot}/packages/cem-components/examples/README.md",
-        "{workspaceRoot}/packages/cem-components/docs/component-reference.md",
-        "{workspaceRoot}/CHANGELOG.md",
-        "{workspaceRoot}/packages/cem-components/CHANGELOG.md",
-        "{workspaceRoot}/packages/cem-elements/CHANGELOG.md",
-        "{workspaceRoot}/packages/cem-theme/CHANGELOG.md",
-        "{workspaceRoot}/packages/custom-element/CHANGELOG.md",
-        {
-          "dependentTasksOutputFiles": "**/*",
-          "transitive": false
-        }
-      ],
-      "outputs": ["{workspaceRoot}/dist/apps/cem-site"]
     },
-    "verify": {
-      "cache": true,
-      "executor": "nx:run-commands",
-      "dependsOn": ["build", "verify:determinism"],
-      "options": {
-        "command": "node apps/cem-site/scripts/verify.mjs",
-        "cwd": "{workspaceRoot}"
-      },
-      "inputs": [
-        "{projectRoot}/site.cem",
-        "{projectRoot}/site.routes.json",
-        "{projectRoot}/scripts/verify.mjs",
-        "{workspaceRoot}/nx.json",
-        "{workspaceRoot}/package.json",
-        "{workspaceRoot}/apps/*/project.json",
-        "{workspaceRoot}/packages/*/project.json",
-        "{workspaceRoot}/packages/*/package.json",
-        {
-          "dependentTasksOutputFiles": "**/*",
-          "transitive": false
-        }
-      ],
-      "outputs": ["{workspaceRoot}/dist/reports/cem-site/verification.json"]
-    },
-    "verify:determinism": {
-      "cache": true,
-      "executor": "nx:run-commands",
-      "dependsOn": ["build"],
-      "options": {
-        "command": "node apps/cem-site/scripts/verify-determinism.mjs",
-        "cwd": "{workspaceRoot}"
-      },
-      "inputs": [
-        "{projectRoot}/site.routes.json",
-        "{projectRoot}/scripts/build.mjs",
-        "{projectRoot}/scripts/verify-determinism.mjs",
-        {
-          "dependentTasksOutputFiles": "**/*",
-          "transitive": false
-        }
-      ],
-      "outputs": ["{workspaceRoot}/dist/reports/cem-site/determinism.json"]
-    }
-  },
-  "tags": ["scope:cem-site", "type:application", "lang:cem"]
+    "tags": ["scope:cem-site", "type:application", "lang:cem"]
 }

@@ -833,8 +833,39 @@ until final Phases 10 and 11, after Phase 9 release governance.
           including both schema-owned module-map versions. A repeat of the
           aggregate restored all 37 Nx tasks from local cache, and lint plus
           scoped formatting pass.
-- [ ] Add interactive token, component, CEM fixture, and native-output examples
+- [x] Add interactive token, component, CEM fixture, and native-output examples
       using the production CEM/custom-element implementation.
+    - [x] Add a site-owned interactive example fixture and native CEMT route that
+          reference canonical token and component identities without copying their
+          package-owned declarations.
+    - [x] Declare the site bootstrap, production custom-element runtime,
+          component sidecars, theme/component CSS, processing worker, and CEM-QL
+          WASM exclusively through a paired module-map v2 source/destination map.
+    - [x] Exercise token filtering, production component light-DOM rendering, an
+          inline CEM declaration, and a live native-output projection in the
+          browser without a Vite or asset-copy path.
+    - [x] Verify the exact deployed resource allowlist, module-map rewrite,
+          undeclared-resource exclusion, browser interaction contract, clean
+          deterministic output, and Nx cache replay.
+        - Completed 2026-08-20: `/examples/interactive/` now fuses a site-owned
+          JSON fixture with native CEMT and references canonical theme-token and
+          component identities. A paired module-map v2 graph owns three browser
+          imports and all 34 explicit JavaScript, CSS, worker, and WASM resources;
+          every published byte is compared with its declared source, and static
+          verification rejects undeclared imports, module URLs, source-only paths,
+          and destination drift. Chromium proves token filtering, two native
+          `cem-action` clicks, `cem-field` light DOM, inline `custom-element` CEM
+          compilation, native output, the exact import map, and both stylesheets
+          with no runtime errors. Import-map rewriting now retains the upstream
+          CEMT source-map stack and rebases unchanged output spans; the added Rust
+          regression passes within all 1,970 library tests, and the regenerated
+          module-map README passes all 13 schema-package structure tests. The two
+          clean site publications contain the same 70 files for 16 routes with
+          aggregate digest
+          `61e57b1e30a2d0c15fd81cc33d0d93490da1f32919af62709ab745243ea33bcf`.
+          Aggregate verification serializes determinism before Chromium to avoid
+          output replacement races, lint passes, and the repeat restored all 19
+          Nx tasks from local cache.
 - [ ] Add search, stable deep links, root navigation, and optional Angular Material
       coverage comparison from the pinned parity evidence.
 - [ ] Add cached Nx verification for site build, links, generated-content drift,

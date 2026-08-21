@@ -1,0 +1,36 @@
+{
+    "$schema": "https://cem.dev/ns/data/json/1",
+    "title": "Interactive CEM examples",
+    "importMap": "{\"imports\":{\"@epa-wg/cem-site/runtime\":\"site-runtime.js\",\"@epa-wg/custom-element\":\"../../../packages/custom-element/dist/custom-element.js\",\"@epa-wg/cem-components/primitives\":\"../../../packages/cem-components/dist/lib/primitives.js\"}}",
+    "tokens": [
+        {
+            "name": "--cem-palette-comfort",
+            "label": "Comfort"
+        },
+        {
+            "name": "--cem-palette-calm",
+            "label": "Calm"
+        },
+        {
+            "name": "--cem-palette-conservative",
+            "label": "Conservative"
+        }
+    ],
+    "components": [
+        {
+            "tag": "cem-action",
+            "label": "Increment native count",
+            "kind": "action"
+        },
+        {
+            "tag": "cem-field",
+            "label": "Editable production field",
+            "kind": "field"
+        }
+    ],
+    "cemFixture": {
+        "tag": "cem-site-greeting",
+        "name": "Ada",
+        "source": "{attribute @name=name | friend}{p @class=cem-site-greeting | Hello, {$name}!}"
+    }
+}

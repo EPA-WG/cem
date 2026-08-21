@@ -74,10 +74,10 @@ previews are not used.
 
 ```json
 {
-    "$schema": "https://cem.dev/ns/data/module-map/1",
-    "imports": {
-        "@epa-wg/cem-ml/wasm": "../../node_modules/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js"
-    }
+  "$schema": "https://cem.dev/ns/data/module-map/1",
+  "imports": {
+    "@epa-wg/cem-ml/wasm": "../../node_modules/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js"
+  }
 }
 ```
 
@@ -94,9 +94,9 @@ previews are not used.
 
 ```json
 {
-    "$schema": "https://cem.dev/ns/data/module-map/1",
-    "imports": {
-        "@epa-wg/cem-ml/wasm": "./assets/cem_ml.js"
-    }
+  "$schema": "https://cem.dev/ns/data/module-map/1",
+  "imports": {
+    "@epa-wg/cem-ml/wasm": "./assets/cem_ml.js"
+  }
 }
 ```

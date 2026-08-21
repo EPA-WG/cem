@@ -196,6 +196,26 @@
     }
   }
 
+  {import @id=interactive-example-source
+      @src="fixtures/interactive-examples.json"
+      @content-type="application/json"
+      @schema="https://cem.dev/ns/data/json/1" |
+    {transform @id=interactive-examples-page
+        @src="layouts/interactive-examples.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @entrypoint="interactive-examples" |
+      {rewrite-importmap @id=interactive-examples-runtime
+          @source-map="runtime/source.module-map.json"
+          @target-map="runtime/destination.module-map.json" |
+        {export @id=interactive-examples
+            @out="../../dist/apps/cem-site/examples/interactive/index.html"
+            @content-type="text/html"
+            @schema="https://cem.dev/ns/data/html/1"}
+      }
+    }
+  }
+
   {import @id=component-reference-source
       @src="../../packages/cem-components/docs/component-reference.md"
       @content-type="text/markdown; charset=utf-8; variant=CommonMark"

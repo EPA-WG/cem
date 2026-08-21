@@ -39,8 +39,8 @@ on the static site.
 The authored route set includes the canonical CEM-ML and component example
 indexes, the package-owned component reference, the workspace changelog, and
 the component, element, theme, and custom-element changelogs. Example links
-remain source links in this static phase; executable copies and their runtime
-assets belong to the later interactive-example work.
+remain source links except for the dedicated production-backed interactive
+route described below.
 
 The static `/tokens/` route consumes
 `@epa-wg/cem-theme:build:tokens`' public `cem.tokens.catalog.json` output as
@@ -53,5 +53,16 @@ The static `/components/` route consumes the public
 `@epa-wg/cem-components:build:catalog` JSON output. Its manifest distinguishes
 canonical component sources from generated state-matrix evidence, while site
 verification proves every component row, source link, example owner, and local
-Storybook target. Executable declarations/examples, Figma projections, and the
-Storybook build itself remain outside the site output.
+Storybook target. Figma projections and the Storybook build itself remain
+outside the site output.
+
+The `/examples/interactive/` route fuses a site-owned JSON fixture with a native
+CEMT layout. It demonstrates searchable canonical theme tokens, live
+`cem-action` and `cem-field` primitives, an executable inline CEM custom-element
+fixture, and the resulting native light DOM. Its production custom-element,
+component, CSS, worker, and WASM resources are not special-case copies: paired
+module-map v2 documents declare the exact source and destination graph, and the
+CEM-ML transform publishes and rewrites that graph into the app-relative browser
+import map. `cem-site:verify:interactive` exercises the route in Chromium, while
+the static verifier rejects undeclared dependencies and byte drift for every
+published runtime resource.

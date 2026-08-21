@@ -4025,6 +4025,54 @@ fn apply_importmap_rewrite(
     (Some(rewritten), Vec::new())
 }
 
+fn importmap_rewrite_output_metadata(
+    input: Option<&TransformOutputMetadata>,
+    source: &str,
+    rewritten: &str,
+) -> TransformOutputMetadata {
+    let input = input.cloned().unwrap_or_default();
+    let source_bytes = source.as_bytes();
+    let rewritten_bytes = rewritten.as_bytes();
+    let common_prefix_len = source_bytes
+        .iter()
+        .zip(rewritten_bytes)
+        .take_while(|(source, rewritten)| source == rewritten)
+        .count();
+    let common_suffix_limit = source_bytes
+        .len()
+        .min(rewritten_bytes.len())
+        .saturating_sub(common_prefix_len);
+    let common_suffix_len = source_bytes
+        .iter()
+        .rev()
+        .zip(rewritten_bytes.iter().rev())
+        .take(common_suffix_limit)
+        .take_while(|(source, rewritten)| source == rewritten)
+        .count();
+
+    let mut output_spans = Vec::new();
+    rebase_output_spans(
+        &input.output_spans,
+        0,
+        common_prefix_len,
+        0,
+        &mut output_spans,
+    );
+    rebase_output_spans(
+        &input.output_spans,
+        source_bytes.len() - common_suffix_len,
+        source_bytes.len(),
+        rewritten_bytes.len() - common_suffix_len,
+        &mut output_spans,
+    );
+
+    TransformOutputMetadata {
+        source_map: input.source_map,
+        output_spans,
+        raw_content: Some(rewritten.to_owned()),
+    }
+}
+
 fn select_transform_template_adapter(
     context: &EngineContext,
     template: &TemplateInput,
@@ -11799,6 +11847,11 @@ impl CemMlEngine for RealCemMlEngine {
                         apply_importmap_rewrite(primary_input.uri.clone(), &raw_content, rewrite);
                     diagnostics.append(&mut rewrite_diagnostics);
                     if let Some(rewritten) = rewritten {
+                        let rewritten_metadata = importmap_rewrite_output_metadata(
+                            artifact_metadata.get(&rewrite.primary_input),
+                            &raw_content,
+                            &rewritten,
+                        );
                         artifacts.insert(
                             rewrite.id.clone(),
                             Arc::new(
@@ -11812,14 +11865,7 @@ impl CemMlEngine for RealCemMlEngine {
                                 .expect("rewritten graph import text encoding must be valid"),
                             ),
                         );
-                        artifact_metadata.insert(
-                            rewrite.id.clone(),
-                            TransformOutputMetadata {
-                                source_map: None,
-                                output_spans: Vec::new(),
-                                raw_content: Some(rewritten),
-                            },
-                        );
+                        artifact_metadata.insert(rewrite.id.clone(), rewritten_metadata);
                     }
                 });
                 request.context.ensure_active()?;
@@ -14084,6 +14130,72 @@ mod tests {
             output_range: ByteRange::new(output_start as u64, len as u32),
             origin: test_source_map_stack(origin_start, len as u32),
         }
+    }
+
+    #[test]
+    fn importmap_rewrite_preserves_source_map_and_rebases_unchanged_output_spans() {
+        let source = r#"<html><head><script type="importmap">{"imports":{"pkg":"../../../node_modules/pkg/index.js"}}</script></head><body>Page</body></html>"#;
+        let (content_start, content_end) = find_html_importmap_script(source)
+            .expect("valid importmap script")
+            .expect("importmap script range");
+        let source_map = test_source_map_stack(0, source.len() as u32);
+        let changed_span = test_output_span(
+            content_start,
+            content_end - content_start,
+            content_start as u64,
+        );
+        let input = TransformOutputMetadata {
+            source_map: Some(source_map.clone()),
+            output_spans: vec![
+                test_output_span(0, content_start, 0),
+                changed_span,
+                test_output_span(content_end, source.len() - content_end, content_end as u64),
+            ],
+            raw_content: Some(source.to_owned()),
+        };
+        let rewrite = TransformGraphImportMapRewrite {
+            id: "rewrite-importmap".to_owned(),
+            primary_input: "page".to_owned(),
+            source_imports: BTreeMap::from([(
+                "pkg".to_owned(),
+                "../../../node_modules/pkg/index.js".to_owned(),
+            )]),
+            target_imports: BTreeMap::from([(
+                "pkg".to_owned(),
+                "./assets/pkg/index.js".to_owned(),
+            )]),
+            mode: TransformGraphImportMapRewriteMode::ReplaceImports,
+            missing_policy: TransformGraphImportMapMissingPolicy::Error,
+            scheduler_scope_id: 1,
+        };
+
+        let (rewritten, diagnostics) = apply_importmap_rewrite(None, source, &rewrite);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let rewritten = rewritten.expect("rewritten importmap");
+        let metadata = importmap_rewrite_output_metadata(Some(&input), source, &rewritten);
+
+        assert_eq!(metadata.source_map, Some(source_map));
+        assert_eq!(metadata.raw_content.as_deref(), Some(rewritten.as_str()));
+        assert_eq!(metadata.output_spans.len(), 2);
+        assert_eq!(
+            metadata.output_spans[0].output_range,
+            ByteRange::new(0, content_start as u32)
+        );
+        assert_eq!(
+            metadata.output_spans[1].output_range,
+            ByteRange::new(
+                (rewritten.len() - (source.len() - content_end)) as u64,
+                (source.len() - content_end) as u32,
+            )
+        );
+        assert_eq!(
+            metadata.output_spans[0].origin.frames[0].span,
+            input.output_spans[0].origin.frames[0].span
+        );
+        assert_eq!(
+            metadata.output_spans[1].origin.frames[0].span,
+            input.output_spans[2].origin.frames[0].span
+        );
     }
 
     fn context_with_resolver(
