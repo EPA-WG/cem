@@ -1043,15 +1043,46 @@ including search, is composed from `@epa-wg/cem-components` and
       archive contains all 60 static files and exactly one installed runtime.
       The service worker and cache inventory remain intentionally
       bootstrap-only until the later PWA lifecycle item.
-- [ ] Classify the initial Studio shell and workbench behavior against the
+- [x] Classify the initial Studio shell and workbench behavior against the
       pinned Angular Material inventory before composing it.
-    - [ ] Reuse completed general CEM controls within their proven contracts;
+    - [x] Reuse completed general CEM controls within their proven contracts;
           finish missing general parity in `@epa-wg/cem-components` first.
-    - [ ] Add a `/studio` export only for reusable explorer, editor-frame,
-          diagnostics, preview, or graph behavior with no general counterpart.
-    - [ ] Keep application routing, state, persistence, workers, updates, and
+    - [x] Reserve a future `/studio` export only for reusable explorer,
+          editor-frame, diagnostics, preview, trace, or graph behavior with no
+          general counterpart.
+    - [x] Keep application routing, state, persistence, workers, updates, and
           search orchestration in Studio while rendering every visible control
           through CEM components/elements.
+    - Completed 2026-08-21: the executable
+      [`Studio UI classification`](./cem-studio-phase6.5-ui-classification.md)
+      maps all 23 initial shell/workbench behaviors to the pinned Angular
+      Material `22.1.1` inventory and current 48-component CEM surface. Three
+      behaviors directly reuse general controls, eleven keep only application
+      orchestration in Studio, and seven reserve named reusable `/studio`
+      composites because their workbench capability has no Material catalog
+      counterpart. Both blocked behaviors resolve to one general prerequisite:
+      the partial `cem-tabs` row lacks tab/panel ownership, roving focus,
+      activation, selection events, and stable panel behavior. The cached
+      `verify:ui-classification` target verifies the Material/state inventories,
+      exact benchmark, component owners, evidence, blockers, deferred partial
+      capabilities, documentation coverage, and deterministic reports. Initial
+      popup menus, radio groups, sidenav behavior, and snack-bar lifecycle are
+      explicitly excluded in favor of proven visible actions, select, semantic
+      grid, and persistent alert contracts.
+- [ ] Complete the general `cem-tabs` parity required by Studio pane navigation
+      before composing the shell or Results view switchers.
+    - [ ] Accept the authored tab/panel vocabulary, stable relationship model,
+          automatic/manual activation policy, selection event, and disabled and
+          dynamic-child behavior in a component contract.
+    - [ ] Add failing browser tests for horizontal/vertical roving focus,
+          Home/End and arrow keys, activation, focus-safe panel changes,
+          programmatic selection, mutation, and accessibility semantics.
+    - [ ] Implement the general light-DOM component behavior, state/token and
+          forced-color treatment, docs, package output, and clean-consumer
+          evidence without Studio-specific state.
+    - [ ] Promote the pinned tabs row only after the focused tests, state matrix,
+          Material parity, package verification, and aggregate component gate
+          pass.
 - [ ] Implement the versioned IndexedDB project repository with migrations,
       atomic autosave, trash/restore, revision/hash conflicts, multi-tab
       coordination, quota diagnostics, and validated import/export.

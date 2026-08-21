@@ -111,6 +111,35 @@
             ],
             "outputs": ["{workspaceRoot}/dist/reports/cem-studio/dependencies.json"]
         },
+        "verify:ui-classification": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["@epa-wg/cem-components"],
+                    "target": "verify-material-parity"
+                },
+                {
+                    "projects": ["@epa-wg/cem-components"],
+                    "target": "verify-state-matrix"
+                }
+            ],
+            "options": {
+                "command": "node scripts/verify-ui-classification.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/tests/ui-classification.json",
+                "{projectRoot}/scripts/verify-ui-classification.mjs",
+                "{workspaceRoot}/docs/cem-studio.md",
+                "{workspaceRoot}/docs/cem-studio-phase6.5-ui-classification.md",
+                "{workspaceRoot}/docs/component-mvp.md",
+                "{workspaceRoot}/packages/cem-components/tests/angular-material-parity.json",
+                "{workspaceRoot}/packages/cem-components/tests/state-matrix-coverage.json",
+                "{workspaceRoot}/packages/cem-components/src/lib/primitives.ts"
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/ui-classification.{json,md}"]
+        },
         "verify:output": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -162,6 +191,7 @@
                 "lint",
                 "typecheck",
                 "verify:dependencies",
+                "verify:ui-classification",
                 "verify:output",
                 "verify:determinism"
             ],

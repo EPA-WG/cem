@@ -1,0 +1,355 @@
+{
+    "version": 1,
+    "scope": "initial-studio-shell-and-workbench",
+    "benchmark": {
+        "product": "Angular Material",
+        "version": "22.1.1",
+        "tag": "v22.1.1",
+        "commit": "0b67c3c38141049657b1167479accc80e455d2bd"
+    },
+    "principles": [
+        "Every visible control is rendered by @epa-wg/cem-components on the cem-elements-backed @epa-wg/custom-element substrate.",
+        "A pinned Angular Material counterpart is completed as a general CEM component before Studio composition uses missing behavior.",
+        "A reusable /studio composite may lead only when the pinned catalog has no counterpart for the composite capability.",
+        "Studio owns routes, data, selection, persistence, workers, updates, search, and command orchestration, but not control DOM or interaction semantics."
+    ],
+    "generalParityGates": [
+        {
+            "materialId": "tabs",
+            "blocks": ["compact-pane-navigation", "result-view-navigation"],
+            "missingBehavior": [
+                "owned tab and tabpanel relationships",
+                "roving keyboard focus",
+                "automatic or manual activation policy",
+                "selected-index change events",
+                "stable panel visibility and focus behavior"
+            ],
+            "nextAction": "Complete and verify the general cem-tabs contract before composing either Studio view switcher."
+        }
+    ],
+    "deferredGeneralCapabilities": [
+        {
+            "materialId": "menu",
+            "initialBoundary": "Explorer context commands remain visible cem-action or cem-icon-button controls; no popup menu is authored until the general menu container, trigger, focus, dismissal, and positioning contract is complete."
+        },
+        {
+            "materialId": "radio",
+            "initialBoundary": "Exclusive Studio choices use cem-select until a general labeled radio-group contract is complete."
+        },
+        {
+            "materialId": "sidenav",
+            "initialBoundary": "The shell uses semantic grid layout and the future completed pane switcher; it does not claim drawer, backdrop, push, or modal sidenav behavior."
+        },
+        {
+            "materialId": "snack-bar",
+            "initialBoundary": "Clipboard, update, and storage feedback use persistent cem-alert or status content; Studio does not invent toast duration, queue, dismissal, or focus-restoration behavior."
+        }
+    ],
+    "behaviors": [
+        {
+            "id": "shell-command-bar",
+            "surface": "Application shell",
+            "requirement": "One product/context header containing the current command, run state, theme choice, install/update actions, and global commands.",
+            "disposition": "reuse-general",
+            "compositionGate": "open",
+            "generalComponents": ["cem-app-bar", "cem-action", "cem-icon-button", "cem-select", "cem-badge"],
+            "studioComponents": [],
+            "materialReferences": ["toolbar", "button", "select", "badge"],
+            "contractBounds": [
+                "Use cem-app-bar only as its proven single title/context/action header.",
+                "Use native text/icon action variants, standalone badges, and the covered select contract; do not claim FAB, generic toolbar, or attached-badge behavior."
+            ],
+            "applicationOwns": ["current route and command", "run state", "theme state", "installation and update orchestration"],
+            "evidence": ["docs/cem-studio.md#responsive-layout", "packages/cem-components/tests/angular-material-parity.json"]
+        },
+        {
+            "id": "responsive-workspace-layout",
+            "surface": "Application shell",
+            "requirement": "Expanded explorer/editor/preview/console regions collapse to navigable panes at semantic breakpoints without losing selection.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-grid", "cem-stack", "cem-surface"],
+            "studioComponents": [],
+            "materialReferences": ["grid-list", "sidenav"],
+            "contractBounds": [
+                "cem-grid remains generic responsive layout rather than claiming Material grid-list tile semantics.",
+                "No drawer, backdrop, push mode, modal focus, or resizable-splitter behavior is claimed."
+            ],
+            "applicationOwns": ["semantic breakpoint selection", "pane arrangement", "preserved selected resource, run, diagnostic, and graph node"],
+            "evidence": ["docs/cem-studio.md#responsive-layout", "packages/cem-components/docs/angular-material-parity.md"]
+        },
+        {
+            "id": "compact-pane-navigation",
+            "surface": "Application shell",
+            "requirement": "Compact widths expose explorer, editor, preview, and console as one accessible pane switcher.",
+            "disposition": "complete-general-first",
+            "compositionGate": "blocked",
+            "generalComponents": ["cem-tabs"],
+            "studioComponents": [],
+            "materialReferences": ["tabs"],
+            "contractBounds": ["The current cem-tabs shell and styling are insufficient because tab/panel ownership and keyboard activation are not yet implemented."],
+            "applicationOwns": ["selected pane route", "preserved workbench selection"],
+            "evidence": ["packages/cem-components/tests/angular-material-parity.json#tabs", "docs/cem-studio.md#responsive-layout"]
+        },
+        {
+            "id": "home-and-projects",
+            "surface": "Home",
+            "requirement": "Recent projects, create/import, Feature Tour, storage health, offline/update status, and provider status.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-card", "cem-action", "cem-icon-button", "cem-badge", "cem-alert", "cem-progress"],
+            "studioComponents": [],
+            "materialReferences": ["card", "button", "badge", "progress-bar"],
+            "contractBounds": ["Use cards, native actions, standalone badges, inline alerts, and the linear progress subset; no attached badge, FAB, buffer progress, or action-list contract is claimed."],
+            "applicationOwns": ["project records", "seed installation", "storage estimates", "offline, update, and provider state"],
+            "evidence": ["docs/cem-studio.md#primary-screens", "docs/component-mvp.md#component-list"]
+        },
+        {
+            "id": "project-hierarchy",
+            "surface": "Project explorer",
+            "requirement": "A keyboard-navigable project, subproject, data, resource, configuration, operation, and graph hierarchy.",
+            "disposition": "reuse-general",
+            "compositionGate": "open",
+            "generalComponents": ["cem-tree", "cem-tree-item"],
+            "studioComponents": [],
+            "materialReferences": ["tree"],
+            "contractBounds": ["cem-tree owns hierarchy, expansion, and composite focus; Studio supplies data, loading, stable selection mutation, and navigation."],
+            "applicationOwns": ["project data", "selected stable id", "loading", "route navigation"],
+            "evidence": ["packages/cem-components/docs/tree-contract.md", "docs/cem-studio.md#primary-screens"]
+        },
+        {
+            "id": "explorer-reordering",
+            "surface": "Project explorer",
+            "requirement": "Keyboard-accessible reorder and move operations preserve stable project identities and expose recoverable results.",
+            "disposition": "studio-export",
+            "compositionGate": "open",
+            "generalComponents": ["cem-tree", "cem-tree-item", "cem-action", "cem-icon-button", "cem-alert"],
+            "studioComponents": ["cem-studio-project-explorer"],
+            "materialReferences": ["tree", "button"],
+            "contractBounds": ["The pinned tree row deliberately excludes application data and reordering; the reusable Studio composite may coordinate stable-id moves while retaining cem-tree focus/expansion and CEM actions."],
+            "applicationOwns": ["transactional move command", "revision and conflict handling", "undo history"],
+            "evidence": ["packages/cem-components/tests/angular-material-parity.json#tree", "docs/cem-studio.md#mutation-and-recovery"]
+        },
+        {
+            "id": "explorer-context-actions",
+            "surface": "Project explorer",
+            "requirement": "Create, rename, copy, move, trash, restore, import, export, and run actions remain keyboard reachable.",
+            "disposition": "reuse-general",
+            "compositionGate": "open",
+            "generalComponents": ["cem-action", "cem-icon-button", "cem-tooltip", "cem-dialog"],
+            "studioComponents": [],
+            "materialReferences": ["button", "tooltip", "dialog"],
+            "contractBounds": ["Initial commands remain visible native actions. A popup menu is forbidden until the partial Material menu row gains its general container, trigger, focus, positioning, and dismissal contract."],
+            "applicationOwns": ["command availability", "project mutations", "confirmation policy"],
+            "evidence": ["docs/cem-studio.md#primary-screens", "packages/cem-components/tests/angular-material-parity.json#menu"]
+        },
+        {
+            "id": "project-search",
+            "surface": "Project explorer and command surfaces",
+            "requirement": "Search and suggestion filtering navigate project resources and commands without an app-local search widget.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-autocomplete", "cem-option", "cem-option-group", "cem-tree", "cem-list"],
+            "studioComponents": [],
+            "materialReferences": ["autocomplete", "tree", "list"],
+            "contractBounds": ["cem-autocomplete owns editable-combobox interaction while Studio or CEM-QL owns filtering, ranking, result data, selection routing, and empty/loading outcomes."],
+            "applicationOwns": ["query state", "filtering and ranking", "result loading", "navigation"],
+            "evidence": ["CLAUDE.md#application-ui-composition-contract", "packages/cem-components/docs/autocomplete-contract.md"]
+        },
+        {
+            "id": "source-editor-frame",
+            "surface": "Resource editor",
+            "requirement": "A source editor frame provides a native-textarea baseline, identity/revision status, source-range selection, and future adapter isolation.",
+            "disposition": "studio-export",
+            "compositionGate": "open",
+            "generalComponents": ["cem-textarea", "cem-field", "cem-badge", "cem-alert", "cem-action"],
+            "studioComponents": ["cem-studio-editor-frame"],
+            "materialReferences": ["input", "form-field", "badge", "button"],
+            "contractBounds": ["The canonical editor is cem-textarea; the Studio frame adds document/range/revision vocabulary without implementing text editing, selection, IME, clipboard, or undo behavior itself."],
+            "applicationOwns": ["resource revision", "selection offsets", "autosave state", "editor adapter lifecycle"],
+            "evidence": ["docs/cem-studio.md#editing-options", "packages/cem-components/docs/component-reference.md"]
+        },
+        {
+            "id": "resource-identity-form",
+            "surface": "Resource editor",
+            "requirement": "Edit explicit content type, schema, base URI, URL/snapshot, revision, and validation settings.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-field", "cem-text-field", "cem-select", "cem-autocomplete", "cem-checkbox", "cem-alert"],
+            "studioComponents": [],
+            "materialReferences": ["input", "form-field", "select", "autocomplete", "checkbox"],
+            "contractBounds": ["Use the proven label/help/error and choice contracts without prefix/suffix, floating-label, or projected subscript claims."],
+            "applicationOwns": ["schema and content identity options", "URL policy", "snapshot provenance", "validation"],
+            "evidence": ["docs/cem-studio.md#primary-screens", "packages/cem-components/tests/angular-material-parity.json"]
+        },
+        {
+            "id": "run-workbench-form",
+            "surface": "Run workbench",
+            "requirement": "Generate command-specific controls from the typed request schema and expose normalized configuration separately.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-field", "cem-text-field", "cem-textarea", "cem-select", "cem-autocomplete", "cem-checkbox", "cem-switch", "cem-slider", "cem-expansion", "cem-action", "cem-alert"],
+            "studioComponents": [],
+            "materialReferences": ["input", "form-field", "select", "autocomplete", "checkbox", "slide-toggle", "slider", "expansion", "button"],
+            "contractBounds": ["Schema interpretation and option data stay in Studio/CLI; controls retain their public value, form, validation, keyboard, and accessibility contracts. Exclusive choices use cem-select rather than an unowned radio group."],
+            "applicationOwns": ["schema-to-form projection", "normalized config", "capability gating", "run plan"],
+            "evidence": ["docs/cem-studio.md#primary-screens", "docs/cem-studio.md#browser-command-service"]
+        },
+        {
+            "id": "cli-command-roundtrip",
+            "surface": "CLI Command",
+            "requirement": "Edit and copy a command, inspect semantic changes, select an Apply target, confirm incompatible replacement, and apply transactionally.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-textarea", "cem-action", "cem-icon-button", "cem-autocomplete", "cem-option", "cem-dialog", "cem-alert", "cem-table"],
+            "studioComponents": [],
+            "materialReferences": ["input", "button", "autocomplete", "dialog", "table"],
+            "contractBounds": ["Use the passive table subset for the change preview and covered autocomplete/dialog/action contracts; command parsing and mutation remain CLI/application behavior."],
+            "applicationOwns": ["command serialization and parsing", "change preview", "target resolution", "transaction and stale-result state"],
+            "evidence": ["docs/cem-studio.md#cli-command-view-and-round-trip", "docs/cem-studio.md#editing-and-applying-a-command"]
+        },
+        {
+            "id": "result-view-navigation",
+            "surface": "Results",
+            "requirement": "Switch among structured data, safe preview, raw bytes/text, diagnostics, report, event trace, and source trace with stable panels.",
+            "disposition": "complete-general-first",
+            "compositionGate": "blocked",
+            "generalComponents": ["cem-tabs"],
+            "studioComponents": [],
+            "materialReferences": ["tabs"],
+            "contractBounds": ["The current cem-tabs shell cannot be used as a tab/tabpanel controller until its general parity gate is complete."],
+            "applicationOwns": ["selected result projection", "current artifact and source selection"],
+            "evidence": ["packages/cem-components/tests/angular-material-parity.json#tabs", "docs/cem-studio.md#preview-rules"]
+        },
+        {
+            "id": "structured-data-inspector",
+            "surface": "Results",
+            "requirement": "Bounded tree/table inspection, paging, sorting, raw-source fallback, and click-to-source behavior for structured output.",
+            "disposition": "studio-export",
+            "compositionGate": "open",
+            "generalComponents": ["cem-tree", "cem-tree-item", "cem-table", "cem-sort-header", "cem-paginator", "cem-alert", "cem-action"],
+            "studioComponents": ["cem-studio-data-inspector"],
+            "materialReferences": ["tree", "table", "sort", "paginator", "button"],
+            "contractBounds": ["The composite owns bounded projection/navigation vocabulary; tree hierarchy, passive table semantics, sort requests, paginator requests, and actions remain general component behavior. Studio owns data loading and row ordering."],
+            "applicationOwns": ["artifact projection", "paging data", "sort application", "source navigation"],
+            "evidence": ["docs/cem-studio.md#preview-rules", "packages/cem-components/docs/tree-contract.md", "packages/cem-components/docs/paginator-contract.md"]
+        },
+        {
+            "id": "diagnostics-panel",
+            "surface": "Results and console",
+            "requirement": "Group and navigate diagnostics by severity, resource, and exact source range while preserving stale/current run status.",
+            "disposition": "studio-export",
+            "compositionGate": "open",
+            "generalComponents": ["cem-list", "cem-badge", "cem-alert", "cem-action", "cem-paginator"],
+            "studioComponents": ["cem-studio-diagnostics"],
+            "materialReferences": ["list", "badge", "button", "paginator"],
+            "contractBounds": ["The composite adds diagnostic/source-range vocabulary absent from the Material catalog; its list remains passive, badges standalone, and navigation actions native."],
+            "applicationOwns": ["diagnostic data", "filter state", "resource and range navigation", "stale/current result ownership"],
+            "evidence": ["docs/cem-studio.md#primary-screens", "docs/cem-studio.md#preview-rules"]
+        },
+        {
+            "id": "report-event-source-trace",
+            "surface": "Results and console",
+            "requirement": "Inspect reports, event traces, source maps, and graph-stage provenance as bounded navigable records.",
+            "disposition": "studio-export",
+            "compositionGate": "open",
+            "generalComponents": ["cem-tree", "cem-tree-item", "cem-table", "cem-paginator", "cem-badge", "cem-action"],
+            "studioComponents": ["cem-studio-trace-view"],
+            "materialReferences": ["tree", "table", "paginator", "badge", "button"],
+            "contractBounds": ["Trace/provenance relationships have no Material catalog counterpart; general components retain hierarchy, table, paging, badge, and action behavior."],
+            "applicationOwns": ["report and trace data", "paging", "selected frame", "source navigation"],
+            "evidence": ["docs/cem-studio.md#primary-screens", "docs/cem-studio.md#preview-rules"]
+        },
+        {
+            "id": "safe-preview-frame",
+            "surface": "Results",
+            "requirement": "Render bounded output in an isolated, non-scriptable preview while retaining metadata and safe text/download fallbacks.",
+            "disposition": "studio-export",
+            "compositionGate": "open",
+            "generalComponents": ["cem-media-preview", "cem-card", "cem-alert", "cem-action", "cem-progress-spinner"],
+            "studioComponents": ["cem-studio-preview-frame"],
+            "materialReferences": ["card", "button", "progress-spinner"],
+            "contractBounds": ["Sandbox, CSP, byte limits, projection identity, and fallback behavior have no Material counterpart; all surrounding actions and feedback remain general CEM controls."],
+            "applicationOwns": ["projection selection", "sandbox policy", "resource limits", "download lifecycle"],
+            "evidence": ["docs/cem-studio.md#preview-rules", "docs/cem-studio.md#security-and-privacy"]
+        },
+        {
+            "id": "transformation-graph-view",
+            "surface": "Transformation graph",
+            "requirement": "Author nodes and edges, expose validation and execution state, inspect edge data, timings, provenance, and navigate to source.",
+            "disposition": "studio-export",
+            "compositionGate": "open",
+            "generalComponents": ["cem-action", "cem-icon-button", "cem-badge", "cem-alert", "cem-progress", "cem-tree", "cem-table"],
+            "studioComponents": ["cem-studio-graph-view"],
+            "materialReferences": ["button", "badge", "progress-bar", "tree", "table"],
+            "contractBounds": ["A transformation graph and execution overlay have no Material catalog counterpart; the composite must not recreate general actions, status, hierarchy, progress, or table behavior."],
+            "applicationOwns": ["authored graph", "validation", "execution overlay", "selected stage and source navigation"],
+            "evidence": ["docs/cem-studio.md#primary-screens", "docs/cem-studio.md#preview-rules"]
+        },
+        {
+            "id": "run-status-and-cancellation",
+            "surface": "Shell and workbench",
+            "requirement": "Expose queued/running/completed/failed/cancelled state, bounded progress, cancellation, and accessible status text.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-progress", "cem-progress-spinner", "cem-badge", "cem-alert", "cem-action"],
+            "studioComponents": [],
+            "materialReferences": ["progress-bar", "progress-spinner", "badge", "button"],
+            "contractBounds": ["Use determinate/indeterminate linear or circular progress, standalone badges, inline alerts, and native cancellation actions; do not claim buffer progress or attached badges."],
+            "applicationOwns": ["worker request state", "progress values", "cancellation", "stale-result rejection"],
+            "evidence": ["docs/cem-studio.md#worker-protocol", "packages/cem-components/docs/angular-material-parity.md"]
+        },
+        {
+            "id": "clipboard-download-feedback",
+            "surface": "CLI Command and results",
+            "requirement": "Explicit copy and download actions provide persistent, accessible success or failure feedback and safe fallback content.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-action", "cem-icon-button", "cem-alert", "cem-textarea"],
+            "studioComponents": [],
+            "materialReferences": ["button", "input"],
+            "contractBounds": ["Use persistent cem-alert feedback rather than inventing the partial snack-bar lifecycle; binary output is downloaded rather than guessed as text."],
+            "applicationOwns": ["clipboard permission and result", "download URL lifecycle", "redaction", "bounded fallback text"],
+            "evidence": ["docs/cem-studio.md#cli-command-view-and-round-trip", "docs/cem-studio.md#preview-rules"]
+        },
+        {
+            "id": "confirmation-and-destructive-actions",
+            "surface": "Projects and settings",
+            "requirement": "Incompatible replacement, permanent deletion, migration recovery, reset, and permission changes require an accessible focused decision.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-dialog", "cem-dialog-shell", "cem-action", "cem-alert"],
+            "studioComponents": [],
+            "materialReferences": ["dialog", "button"],
+            "contractBounds": ["Use the covered native dialog lifecycle and native actions; Studio supplies the transaction, recovery, and consequence text."],
+            "applicationOwns": ["confirmation policy", "transaction", "recovery and undo state"],
+            "evidence": ["packages/cem-components/tests/angular-material-parity.json#dialog", "docs/cem-studio.md#mutation-and-recovery"]
+        },
+        {
+            "id": "project-settings",
+            "surface": "Project settings",
+            "requirement": "Edit defaults, resolver/network policy, budgets, storage, export, providers, and destructive settings.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-card", "cem-field", "cem-text-field", "cem-select", "cem-checkbox", "cem-switch", "cem-slider", "cem-action", "cem-dialog", "cem-alert"],
+            "studioComponents": [],
+            "materialReferences": ["card", "input", "form-field", "select", "checkbox", "slide-toggle", "slider", "button", "dialog"],
+            "contractBounds": ["Exclusive choices use cem-select, field composition stays within the proven label/help/error subset, and destructive operations use the covered dialog contract."],
+            "applicationOwns": ["policy schema", "settings values", "provider permissions", "storage and export operations"],
+            "evidence": ["docs/cem-studio.md#primary-screens", "docs/cem-studio.md#url-backed-data"]
+        },
+        {
+            "id": "storage-offline-update-status",
+            "surface": "Home and shell",
+            "requirement": "Communicate storage durability/quota, offline snapshots, installation, update readiness, migration, and recoverable errors.",
+            "disposition": "application-orchestration",
+            "compositionGate": "open",
+            "generalComponents": ["cem-badge", "cem-alert", "cem-progress", "cem-action", "cem-dialog"],
+            "studioComponents": [],
+            "materialReferences": ["badge", "progress-bar", "button", "dialog"],
+            "contractBounds": ["Use standalone status badges, linear progress, persistent alerts, native actions, and covered dialogs; no toast queue or custom install prompt is claimed."],
+            "applicationOwns": ["storage estimates and persistence requests", "network state", "service-worker update coordination", "migration and reload policy"],
+            "evidence": ["docs/cem-studio.md#pwa-and-offline-contract", "docs/cem-studio.md#storage-choice"]
+        }
+    ]
+}
