@@ -1154,6 +1154,24 @@ including search, is composed from `@epa-wg/cem-components` and
 - [ ] Build the installable PWA shell with semantic theme modes, a dedicated
       command worker, versioned app/runtime/sample caches, explicit update
       coordination, offline navigation, and recovery without project loss.
+    - [x] Audit the graph-emitted static module chain before caching it and
+          record the worker-safe deployment decision gate.
+        - Completed 2026-08-21: module-map v2 byte-preserves declared JavaScript
+          and rewrites only the page import map. The emitted CLI command worker
+          still imports bare `@epa-wg/cem-ml/wasm`, which a module worker cannot
+          resolve from the page map, while the browser client also imports
+          `@epa-wg/cem-ml/runtime.json` outside the current JavaScript-only
+          `imports` vocabulary. The Studio design records two valid resolutions
+          and recommends a versioned, syntax-aware CEM-ML module-map extension
+          over package-specific deployment-loader behavior. PWA implementation
+          stops at this decision instead of caching a worker that the static
+          output cannot start.
+    - [ ] Accept and implement the worker-safe module deployment contract, then
+          prove the real graph-emitted CLI worker and bundled WASM command both
+          online and offline without a production bundler.
+    - [ ] Compose the installable CEM-component shell, five semantic theme
+          modes, versioned shell/runtime/sample caches, explicit safe-update
+          barrier, offline navigation, and IndexedDB project-survival test.
 - [ ] Generate an editable CEM-ML Feature Tour seed from actual schema-package
       examples and browser capabilities, then verify every advertised example
       and preserve user copies across seed upgrades.

@@ -515,6 +515,10 @@ Deliverables:
   `@epa-wg/cem-ml-cli` package and tested-compatible `@epa-wg/cem-components` and `@epa-wg/cem-theme` packages.
 - Build an installable, offline-capable PWA shell with a dedicated CEM-ML worker, versioned app/runtime/sample caches,
   explicit update coordination, responsive layout, and Consumer Semantic Theme modes.
+- Before caching the worker/runtime chain, close the versioned worker-safe module deployment gate recorded in
+  [`docs/cem-studio.md`](docs/cem-studio.md#worker-safe-static-module-decision-gate). Module-map v2 rewrites the page
+  import map but deliberately byte-preserves worker JavaScript, so it cannot by itself resolve a worker's bare npm
+  imports. Prefer a graph-owned exact-specifier rewrite contract over package-specific deployment-loader behavior.
 - Use the accepted `studio-project/v1` portable CEM/JSON project hierarchy for data sets, inline and URL resources,
   validation/configuration, conversions, queries, transformations, and transformation graphs. Persist mutable projects
   in IndexedDB and provide validated import/export before remote providers.
