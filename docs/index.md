@@ -26,9 +26,12 @@ This index links the active project, release, and token workflow documents.
   version authority, host matrix, capabilities, host protocol, signing, package channels, and promotion gates.
 - [CEM-ML operation-control design](./cem-ml-operation-control-design.md) — canonical worker-pool, scoped
   cancellation, resource-limit, pause/resume, operation-handle, debugger, DAP, and stripped-build contract.
-- [CEM Studio web application proposal](./cem-studio.md) — PWA architecture, synchronized Studio/runtime/CLI npm
+- [CEM Studio web application contract](./cem-studio.md) — PWA architecture, synchronized Studio/runtime/CLI npm
   packages, focused Node/Linux AMD64/Homebrew ARM64/Windows AMD64 CLI targets, semi-native Node SEA wishlist,
   local-first projects, CEM components/theme boundaries, previews, and storage providers.
+- [CEM Studio Phase 6.5 boundary audit](./cem-studio-phase6.5-boundary-audit.md) — resolved Nx, browser-command,
+  component, persistence, and web-assembly baseline; accepted application boundary; first vertical slice; and the
+  pending portable-project identity decision.
 - [CEM Site Phase 6 inventory](./cem-site-phase6-inventory.md) — resolved Nx ownership, reusable documentation and
   example surfaces, generated projections, site content boundaries, and the pending application-shape decision.
 - [CEM ML Phase 2 run-config audit](./cem-ml-phase2-run-config-audit.md) — current `cem_ml` and `cem_ml_cli`

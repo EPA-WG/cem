@@ -972,14 +972,88 @@ until final Phases 10 and 11, after Phase 9 release governance.
       resolved Nx configuration, JSON parsing, diff checks, and scoped Prettier
       checks pass. The Phase 6 roadmap exit criterion is complete.
 
+## Phase 6.5 Checklist — CEM Studio PWA And Browser Workbench
+
+This checklist executes the accepted Phase 6.5 roadmap and
+[`cem-studio.md`](./cem-studio.md) contract. CEM-ML remains the production
+transformation-graph authority, while all visible Site and Studio functionality,
+including search, is composed from `@epa-wg/cem-components` and
+`@epa-wg/cem-elements` rather than app-local substitute controls.
+
+- [x] Audit the resolved Studio-adjacent Nx projects, browser command surface,
+      component inventory, persistence/PWA foundation, and production web build
+      boundary before scaffolding.
+    - Completed 2026-08-20: the
+      [`Phase 6.5 boundary audit`](./cem-studio-phase6.5-boundary-audit.md)
+      resolved 44 Nx projects and no existing Studio app; confirmed the public
+      browser command service and checked native/Node/browser parity for nine
+      portable operation kinds plus cancellation; mapped the 48-component,
+      37-row Material-parity foundation; and found no existing IndexedDB,
+      File System Access, service-worker, or install-manifest owner. It accepts
+      `packages/cem-studio`, one exact CLI/runtime chain, Nx orchestration, and
+      CEM-ML graph/module-map production assembly. It stops before scaffolding
+      at the still-open portable project schema/content identity.
+- [ ] Accept the Studio portable project v1 schema/content identity and prove
+      its CEM and normalized JSON projections before application persistence.
+    - [ ] Add valid, edge, and deliberate-rejection project fixtures first,
+          covering stable ids, hierarchy, resource identities, relative paths,
+          run-config references, revisions/hashes, and forbidden provider/UI
+          state.
+    - [ ] Decide and register the canonical CEM content type, JSON projection,
+          versioned namespace/schema identities, schema-package ownership, and
+          `project.cem` directory/bundle rules.
+    - [ ] Prove CEM/JSON semantic round trips, deterministic normalization,
+          forward-version rejection, logical `studio://` URI derivation, and
+          validation before import writes.
+- [ ] Create the publishable `@epa-wg/cem-studio` Nx application/package under
+      `packages/cem-studio` with exact `@epa-wg/cem-ml-cli` versioning and one
+      transitive `@epa-wg/cem-ml` runtime.
+    - [ ] Make the CEM-ML transformation graph and source/destination module
+          maps own final app, component, worker, WASM, manifest, service-worker,
+          style, and cache-inventory emission with no post-graph copy exception.
+    - [ ] Add cached build, lint, typecheck, package, resolved-dependency,
+          deterministic-output, and clean-consumer verification targets.
+- [ ] Classify the initial Studio shell and workbench behavior against the
+      pinned Angular Material inventory before composing it.
+    - [ ] Reuse completed general CEM controls within their proven contracts;
+          finish missing general parity in `@epa-wg/cem-components` first.
+    - [ ] Add a `/studio` export only for reusable explorer, editor-frame,
+          diagnostics, preview, or graph behavior with no general counterpart.
+    - [ ] Keep application routing, state, persistence, workers, updates, and
+          search orchestration in Studio while rendering every visible control
+          through CEM components/elements.
+- [ ] Implement the versioned IndexedDB project repository with migrations,
+      atomic autosave, trash/restore, revision/hash conflicts, multi-tab
+      coordination, quota diagnostics, and validated import/export.
+- [ ] Build the installable PWA shell with semantic theme modes, a dedicated
+      command worker, versioned app/runtime/sample caches, explicit update
+      coordination, offline navigation, and recovery without project loss.
+- [ ] Generate an editable CEM-ML Feature Tour seed from actual schema-package
+      examples and browser capabilities, then verify every advertised example
+      and preserve user copies across seed upgrades.
+- [ ] Deliver the first offline vertical slice: edit one Feature Tour CEM
+      resource, persist and reload its exact revision, validate it through the
+      browser worker, and navigate structured diagnostics, report data, and
+      source-map provenance with CEM controls.
+- [ ] Add parse and inspect projections plus the lossless bidirectional CLI
+      Command view for copy, edit, transactional Apply, and current/existing/new
+      page targets.
+- [ ] Add conversion, query, transformation, trace, and transformation-graph
+      workbenches without duplicating engine semantics or component behavior.
+- [ ] Add the opt-in File System Access provider with explicit permissions,
+      retained provider bindings, external-change detection, conflict-safe
+      write-back, and complete IndexedDB/import-export fallback.
+- [ ] Close Phase 6.5 with bounded/sandboxed previews, source/result limits,
+      accessibility and forced-color coverage, offline/update/security tests,
+      package/install verification, dependency audit, and synchronized release
+      evidence.
+
 ## Later Non-Figma Phase Gates
 
 Expand each gate into its task-level checklist when it becomes the immediate
 goal. These gates deliberately keep the deferred Figma work from becoming active
 before the non-Figma roadmap is complete.
 
-- [ ] Complete Phase 6.5, the CEM Studio PWA and browser workbench, after the CEM
-      Site contract is stable.
 - [ ] Complete Phase 8 native platform package hardening and toolchain validation.
 - [ ] Complete Phase 9 release, governance, and compatibility work for the code,
       docs, Studio, and native distribution surfaces.
