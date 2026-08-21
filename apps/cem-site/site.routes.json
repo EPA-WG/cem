@@ -94,6 +94,17 @@
             ]
         },
         {
+            "route": "/components/angular-material/",
+            "title": "Angular Material coverage comparison",
+            "summary": "Pinned Angular Material catalog coverage mapped to CEM component owners and behavioral evidence.",
+            "headings": [
+                { "id": "angular-material-comparison", "level": 1, "text": "Angular Material coverage comparison" },
+                { "id": "pinned-benchmark", "level": 2, "text": "Pinned benchmark" },
+                { "id": "coverage-summary", "level": 2, "text": "Coverage summary" },
+                { "id": "catalog-mappings", "level": 2, "text": "Catalog mappings" }
+            ]
+        },
+        {
             "route": "/examples/cem-ml/",
             "title": "Canonical CEM-ML fixtures",
             "summary": "Package-owned CEM-ML examples and transformation fixtures.",
@@ -276,6 +287,24 @@
                 "packages/cem-components/docs/accessibility.md"
             ],
             "evidenceSources": ["packages/cem-components/dist/reports/component-state-matrix.json"]
+        },
+        {
+            "kind": "page",
+            "route": "/components/angular-material/",
+            "output": "components/angular-material/index.html",
+            "source": "packages/cem-components/tests/angular-material-parity.json",
+            "sourceKind": "authored",
+            "contentRole": "parity-comparison",
+            "relativeLinkPolicy": "none",
+            "owner": "@epa-wg/cem-components",
+            "upstreamTarget": null,
+            "validationTarget": "@epa-wg/cem-components:verify-material-parity",
+            "importId": "angular-material-parity-source",
+            "exportId": "angular-material-comparison",
+            "canonicalSources": [
+                "packages/cem-components/docs/angular-material-parity.md",
+                "packages/cem-components/src/lib/primitives.ts"
+            ]
         },
         {
             "kind": "page",

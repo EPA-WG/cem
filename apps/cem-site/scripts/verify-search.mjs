@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
@@ -8,6 +8,8 @@ const workspaceRoot = resolve(import.meta.dirname, '../../..');
 const outputRoot = resolve(workspaceRoot, 'dist/apps/cem-site');
 const reportRoot = resolve(workspaceRoot, 'dist/reports/cem-site');
 const searchPath = '/search/';
+const manifest = JSON.parse(await readFile(resolve(workspaceRoot, 'apps/cem-site/site.routes.json'), 'utf8'));
+const expectedDocumentCount = manifest.searchDocuments.length;
 
 const server = createServer(async (request, response) => {
     try {
@@ -59,7 +61,7 @@ try {
     if (browserErrors.length > 0 || initialRuntime.errors.length > 0) {
         throw new Error(`search runtime failed: ${[...browserErrors, ...initialRuntime.errors].join('; ')}`);
     }
-    if (initialRuntime.documentCount !== 16 || initialRuntime.resultCount !== 1) {
+    if (initialRuntime.documentCount !== expectedDocumentCount || initialRuntime.resultCount !== 1) {
         throw new Error(`search query contract drifted: ${JSON.stringify(initialRuntime)}`);
     }
 

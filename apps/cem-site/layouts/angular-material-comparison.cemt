@@ -1,0 +1,211 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+  {param @name="input" @type="object" @required=true}
+  {template @name="comparison" @visibility="public" |
+    {body |
+      {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
+        {attribute @name="lang" @value="en"}
+        {element @name="head" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="charset" @value="utf-8"}
+          }
+          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="name" @value="viewport"}
+            {attribute @name="content" @value="width=device-width, initial-scale=1"}
+          }
+          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" |
+            Angular Material coverage comparison
+          }
+        }
+        {element @name="body" @namespace="http://www.w3.org/1999/xhtml" |
+          {element @name="header" @namespace="http://www.w3.org/1999/xhtml" |
+            {element @name="nav" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="aria-label" @value="Primary"}
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/"}
+                CEM Site
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/"}
+                Guides
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/guides/cem-ml/cli/"}
+                CLI guide
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/reference/cem-ml/transform-config/"}
+                CEM-ML reference
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/tokens/"}
+                Tokens
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/components/"}
+                Components
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/components/angular-material/"}
+                Material comparison
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/examples/interactive/"}
+                Interactive examples
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/search/"}
+                Search
+              }
+            }
+          }
+          {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="id" @value="content"}
+            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |
+              {attribute @name="id" @value="angular-material-comparison"}
+              Angular Material coverage comparison
+            }
+            {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+              This static projection maps the complete pinned Angular Material catalog to CEM component and behavior owners. Angular Material is a coverage benchmark, not a runtime dependency or API-compatibility target.
+            }
+            {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+              Browse the
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/components/"}
+                public component gallery
+              }
+              or read the
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/reference/components/"}
+                CEM component reference
+              }.
+            }
+            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="pinned-benchmark"}
+                Pinned benchmark
+              }
+              {element @name="dl" @namespace="http://www.w3.org/1999/xhtml" |
+                {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Product}
+                {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$input.benchmark.product}}
+                {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Version}
+                {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
+                  {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$input.benchmark.tag}}
+                }
+                {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Commit}
+                {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
+                  {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$input.benchmark.commit}}
+                }
+                {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Captured}
+                {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$input.benchmark.capturedAt}}
+              }
+              {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+                {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                  {attribute @name="href" @value="{$input.benchmark.catalogUrl}"}
+                  Official catalog
+                }
+                and
+                {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                  {attribute @name="href" @value="{$input.benchmark.sourceUrl}"}
+                  pinned catalog source
+                }
+              }
+            }
+            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="coverage-summary"}
+                Coverage summary
+              }
+              {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="data-parity-total" @value="{seq:count(input.components.id)}"}
+                {attribute @name="data-parity-covered" @value="17"}
+                {attribute @name="data-parity-partial" @value="20"}
+                {$ seq:count(input.components.id)} retained catalog rows: 17 covered and 20 partial.
+              }
+              {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+                Covered means the bounded CEM behavioral capability is owned. Partial means the mapping is useful but a named behavior or deliberately excluded framework surface remains visible in the notes.
+              }
+            }
+            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
+              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="id" @value="catalog-mappings"}
+                Catalog mappings
+              }
+              {cem:for-each @select="$input.components" @as="component" |
+                {element @name="article" @namespace="http://www.w3.org/1999/xhtml" |
+                  {attribute @name="data-parity-id" @value="{$component.id}"}
+                  {attribute @name="data-parity-status" @value="{$component.status}"}
+                  {attribute @name="data-mapping-kind" @value="{$component.mapping.kind}"}
+                  {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" |
+                    {attribute @name="id" @value='{str:concat(("angular-material-", component.id))}'}
+                    {$component.name}
+                  }
+                  {element @name="dl" @namespace="http://www.w3.org/1999/xhtml" |
+                    {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Coverage}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$component.status}}
+                    {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Mapping kind}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$component.mapping.kind}}
+                    {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | CEM owners}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                        {cem:for-each @select="$component.mapping.owners" @as="owner" |
+                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                            {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$owner}}
+                          }
+                        }
+                      }
+                    }
+                    {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | States}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                        {cem:for-each @select="$component.mapping.states" @as="state" |
+                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$state}}
+                        }
+                      }
+                    }
+                    {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Keyboard}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                        {cem:for-each @select="$component.mapping.keyboard" @as="keyboard" |
+                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$keyboard}}
+                        }
+                      }
+                    }
+                    {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Accessibility}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                        {cem:for-each @select="$component.mapping.accessibility" @as="accessibility" |
+                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$accessibility}}
+                        }
+                      }
+                    }
+                    {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Evidence}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
+                        {cem:for-each @select="$component.mapping.evidence" @as="evidence" |
+                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
+                            {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$evidence}}
+                          }
+                        }
+                      }
+                    }
+                  }
+                  {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
+                    {element @name="strong" @namespace="http://www.w3.org/1999/xhtml" | Scope:}
+                    {$component.mapping.notes}
+                  }
+                }
+              }
+            }
+          }
+          {element @name="footer" @namespace="http://www.w3.org/1999/xhtml" |
+            Generated by the native CEM-ML transformation graph.
+          }
+        }
+      }
+    }
+  }
+}

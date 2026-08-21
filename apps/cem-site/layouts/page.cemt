@@ -49,6 +49,10 @@
                 Components
               }
               {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/components/angular-material/"}
+                Material comparison
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
                 {attribute @name="href" @value="/examples/interactive/"}
                 Interactive examples
               }

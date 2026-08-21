@@ -26,6 +26,10 @@
                 },
                 {
                     "projects": ["@epa-wg/cem-components"],
+                    "target": "verify-material-parity"
+                },
+                {
+                    "projects": ["@epa-wg/cem-components"],
                     "target": "build"
                 },
                 {
@@ -51,6 +55,9 @@
                 "{workspaceRoot}/examples/cem-ml/README.md",
                 "{workspaceRoot}/packages/cem-components/examples/README.md",
                 "{workspaceRoot}/packages/cem-components/docs/component-reference.md",
+                "{workspaceRoot}/packages/cem-components/docs/angular-material-parity.md",
+                "{workspaceRoot}/packages/cem-components/src/lib/primitives.ts",
+                "{workspaceRoot}/packages/cem-components/tests/angular-material-parity.json",
                 "{workspaceRoot}/CHANGELOG.md",
                 "{workspaceRoot}/packages/cem-components/CHANGELOG.md",
                 "{workspaceRoot}/packages/cem-elements/CHANGELOG.md",

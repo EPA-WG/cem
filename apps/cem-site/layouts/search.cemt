@@ -63,6 +63,10 @@
                 Components
               }
               {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="href" @value="/components/angular-material/"}
+                Material comparison
+              }
+              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
                 {attribute @name="href" @value="/examples/interactive/"}
                 Interactive examples
               }
@@ -98,7 +102,7 @@
               {attribute @name="data-search-status" @value=""}
               {attribute @name="role" @value="status"}
               {attribute @name="aria-live" @value="polite"}
-              {$input.searchDocuments.length} searchable documents
+              {$ seq:count(input.searchDocuments.route)} searchable documents
             }
             {element @name="ol" @namespace="http://www.w3.org/1999/xhtml" |
               {attribute @name="id" @value="search-results"}

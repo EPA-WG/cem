@@ -57,6 +57,13 @@ verification proves every component row, source link, example owner, and local
 Storybook target. Figma projections and the Storybook build itself remain
 outside the site output.
 
+The static `/components/angular-material/` route consumes the exact pinned
+Angular Material parity inventory owned by `@epa-wg/cem-components`. The site
+build schedules that package's cached parity verifier, retains all catalog rows,
+and renders benchmark provenance, coverage status, CEM owners, states, keyboard
+and accessibility contracts, evidence, and deliberate scope boundaries. It
+ships no JavaScript and does not add Angular as a runtime dependency.
+
 The `/examples/interactive/` route fuses a site-owned JSON fixture with a native
 CEMT layout. It demonstrates searchable canonical theme tokens, live
 `cem-action` and `cem-field` primitives, an executable inline CEM custom-element

@@ -143,6 +143,22 @@
     }
   }
 
+  {import @id=angular-material-parity-source
+      @src="../../packages/cem-components/tests/angular-material-parity.json"
+      @content-type="application/json"
+      @schema="https://cem.dev/ns/data/json/1" |
+    {transform @id=angular-material-comparison-page
+        @src="layouts/angular-material-comparison.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @entrypoint="comparison" |
+      {export @id=angular-material-comparison
+          @out="../../dist/apps/cem-site/components/angular-material/index.html"
+          @content-type="text/html"
+          @schema="https://cem.dev/ns/data/html/1"}
+    }
+  }
+
   {import @id=cem-ml-examples-source @src="../../examples/cem-ml/README.md"
       @content-type="text/markdown; charset=utf-8; variant=CommonMark"
       @schema="https://cem.dev/ns/data/markdown/1" |

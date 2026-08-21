@@ -12,6 +12,7 @@ the CEMT layout owns the shared semantic shell.
 - Review the [WASM runtime package contract](/reference/cem-ml/wasm-runtime/).
 - Browse the read-only [CEM token catalog](/tokens/).
 - Browse the static [CEM component gallery](/components/).
+- Compare the pinned [Angular Material catalog coverage](/components/angular-material/).
 - Exercise the production-backed [interactive CEM examples](/examples/interactive/).
 - [Search routes and stable heading links](/search/) from the manifest-owned index.
 

@@ -899,8 +899,35 @@ until final Phases 10 and 11, after Phase 9 release governance.
           lint plus scoped Prettier checks pass. The CEM Site/CEM Studio shared
           component-composition principle is now durable in `CLAUDE.md` and the
           roadmap.
-- [ ] Decide whether to add an Angular Material coverage comparison from the
-      pinned parity evidence; scope and presentation remain TBD.
+- [x] Add a static Angular Material coverage comparison generated from the
+      pinned parity evidence, without an Angular runtime dependency.
+    - [x] Make the exact pinned parity inventory a validated, cached site-build
+          input and retain every catalog row.
+    - [x] Publish a semantic comparison route with benchmark provenance,
+          covered/partial totals, CEM owners, states, accessibility, keyboard,
+          evidence, and bounded notes.
+    - [x] Add the route to primary navigation and the generated search index.
+    - [x] Verify source/render parity, stable fragments, zero Angular runtime
+          assets, deterministic output, and production-site checks through Nx.
+        - Completed 2026-08-20: native CEMT now publishes
+          `/components/angular-material/` directly from the package-owned parity
+          inventory pinned to Angular Material `v22.1.1` at commit
+          `0b67c3c38141049657b1167479accc80e455d2bd`. The route retains all 37
+          catalog rows—17 covered and 20 partial—and renders every CEM owner,
+          state, keyboard contract, accessibility contract, evidence locator,
+          and scope note with stable row fragments. The site build hashes the
+          inventory, parity documentation, and primitive inventory and schedules
+          cached `@epa-wg/cem-components:verify-material-parity` validation.
+          All primary navigation and the static search projection expose the
+          route; native `seq:count` now renders the exact 17-document search and
+          37-row coverage totals. Static verification rejects source/render
+          drift, missing package owners, scripts, `node_modules`, and Angular
+          runtime imports. The full 21-task `cem-site:verify` graph passed links,
+          186 stable headings across 18 routes, Chromium search and interactive
+          checks, and two clean 115-file builds with aggregate SHA-256
+          `04d025e2544701282f3183165493f817f2a3630aca7980c27d5f1293a0753314`;
+          the repeat graph restored all 21 tasks from local cache. Site lint and
+          scoped Prettier checks pass.
 - [ ] Add cached Nx verification for site build, links, generated-content drift,
       accessibility, and clean deployment output before closing Phase 6.
 

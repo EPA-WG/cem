@@ -57,6 +57,7 @@ const allowedContentRoles = new Set([
     'authored-reference',
     'generated-reference',
     'catalog',
+    'parity-comparison',
     'example-index',
     'interactive-example',
     'search',
@@ -366,6 +367,20 @@ for (const entry of manifest.entries) {
         );
     }
     ownersByRoute.set(entry.route, resolvedOwner);
+    if (entry.validationTarget !== undefined) {
+        const ownerTargetPrefix = `${entry.owner}:`;
+        if (
+            typeof entry.validationTarget !== 'string' ||
+            !entry.validationTarget.startsWith(ownerTargetPrefix) ||
+            !buildDependencies.has(entry.validationTarget)
+        ) {
+            throw new Error(`${entry.route} does not schedule an owner-scoped validation target`);
+        }
+        const targetName = entry.validationTarget.slice(ownerTargetPrefix.length);
+        if (!projectGraph.nodes[entry.owner].data.targets?.[targetName]) {
+            throw new Error(`${entry.route} validation target ${entry.validationTarget} is absent from the Nx graph`);
+        }
+    }
     if (entry.sourceKind === 'generated') {
         if (!entry.upstreamTarget || !buildDependencies.has(entry.upstreamTarget)) {
             throw new Error(`${entry.route} does not schedule ${entry.upstreamTarget}`);
@@ -600,6 +615,7 @@ for (const entry of manifest.entries) {
             owner: entry.owner,
             ownerRoot: ownersByRoute.get(entry.route).root,
             upstreamTarget: entry.upstreamTarget,
+            validationTarget: entry.validationTarget ?? null,
             links,
             outputSpans: sourceMap.outputSpans.length,
         };
@@ -761,6 +777,124 @@ for (const entry of manifest.entries) {
                 exampleLinks: examples.length,
                 storybookAvailability: storybook.availability,
                 javascript: false,
+            });
+        }
+
+        if (entry.contentRole === 'parity-comparison') {
+            const expectedSource = 'packages/cem-components/tests/angular-material-parity.json';
+            const expectedValidationTarget = '@epa-wg/cem-components:verify-material-parity';
+            const expectedCanonicalSources = [
+                'packages/cem-components/docs/angular-material-parity.md',
+                'packages/cem-components/src/lib/primitives.ts',
+            ];
+            if (
+                entry.route !== '/components/angular-material/' ||
+                entry.source !== expectedSource ||
+                entry.validationTarget !== expectedValidationTarget ||
+                JSON.stringify(entry.canonicalSources) !== JSON.stringify(expectedCanonicalSources)
+            ) {
+                throw new Error('the Angular Material comparison provenance contract drifted');
+            }
+            for (const source of [expectedSource, ...expectedCanonicalSources]) {
+                if (!buildInputs.has(`{workspaceRoot}/${source}`)) {
+                    throw new Error(`Angular Material comparison source is absent from the Nx build hash: ${source}`);
+                }
+            }
+            if (output.includes('<script') || output.includes('node_modules') || output.includes('@angular/')) {
+                throw new Error(
+                    'the static Angular Material comparison must not load an Angular or JavaScript runtime',
+                );
+            }
+
+            const inventoryText = await readFile(resolve(workspaceRoot, entry.source), 'utf8');
+            const inventory = JSON.parse(inventoryText);
+            const records = inventory.components;
+            const benchmark = inventory.benchmark;
+            if (
+                inventory.version !== 1 ||
+                benchmark?.product !== 'Angular Material' ||
+                benchmark?.version !== '22.1.1' ||
+                benchmark?.tag !== 'v22.1.1' ||
+                benchmark?.commit !== '0b67c3c38141049657b1167479accc80e455d2bd' ||
+                !Array.isArray(records) ||
+                records.length !== 37
+            ) {
+                throw new Error('the Angular Material comparison lost its exact pinned benchmark');
+            }
+            const counts = Object.fromEntries(
+                ['covered', 'partial', 'gap', 'unreviewed'].map((status) => [
+                    status,
+                    records.filter((record) => record.status === status).length,
+                ]),
+            );
+            if (
+                counts.covered !== 17 ||
+                counts.partial !== 20 ||
+                counts.gap !== 0 ||
+                counts.unreviewed !== 0 ||
+                inventory.recommendedAudit !== null
+            ) {
+                throw new Error(`Angular Material comparison coverage drifted: ${JSON.stringify(counts)}`);
+            }
+            const renderedRows = [...output.matchAll(/data-parity-id="([^"]+)"/g)].map((match) => match[1]);
+            if (
+                renderedRows.length !== records.length ||
+                JSON.stringify(renderedRows) !== JSON.stringify(records.map(({ id }) => id)) ||
+                !output.includes(`data-parity-total="${records.length}"`) ||
+                !output.includes(`data-parity-covered="${counts.covered}"`) ||
+                !output.includes(`data-parity-partial="${counts.partial}"`)
+            ) {
+                throw new Error('the Angular Material comparison does not retain every row and exact coverage total');
+            }
+            const renderedText = normalizedHtmlText(output);
+            const primitiveSource = canonicalSourceText.get('packages/cem-components/src/lib/primitives.ts');
+            for (const record of records) {
+                const mapping = record.mapping;
+                if (
+                    !mapping ||
+                    !['component', 'behavior'].includes(mapping.kind) ||
+                    !['covered', 'partial'].includes(record.status) ||
+                    !output.includes(`id="angular-material-${record.id}"`) ||
+                    !output.includes(`data-parity-status="${record.status}"`) ||
+                    !output.includes(`data-mapping-kind="${mapping.kind}"`)
+                ) {
+                    throw new Error(`Angular Material comparison record is incomplete: ${record.id}`);
+                }
+                for (const owner of mapping.owners) {
+                    if (
+                        (mapping.kind === 'component' && !primitiveSource.includes(`tag: '${owner}'`)) ||
+                        (mapping.kind === 'behavior' && !owner.startsWith('behavior:'))
+                    ) {
+                        throw new Error(`${record.id} has an unknown rendered CEM owner ${owner}`);
+                    }
+                }
+                for (const value of [
+                    record.name,
+                    ...mapping.owners,
+                    ...mapping.states,
+                    ...mapping.keyboard,
+                    ...mapping.accessibility,
+                    ...mapping.evidence,
+                    mapping.notes,
+                ]) {
+                    if (!renderedText.includes(value)) {
+                        throw new Error(`${record.id} does not render its complete parity evidence: ${value}`);
+                    }
+                }
+            }
+
+            Object.assign(verificationEntry, {
+                canonicalSources: entry.canonicalSources,
+                benchmark: {
+                    product: benchmark.product,
+                    version: benchmark.version,
+                    tag: benchmark.tag,
+                    commit: benchmark.commit,
+                    capturedAt: benchmark.capturedAt,
+                },
+                coverage: { total: records.length, ...counts },
+                javascript: false,
+                angularRuntime: false,
             });
         }
 
