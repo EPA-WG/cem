@@ -47,6 +47,10 @@
     {export @id="sample-cem-transform-output" @out="../../dist/static/samples/feature-tour/resources/cem-transform-basic-transform.cemt" @content-type="application/vnd.cem.transform+cem"}
   }
 
+  {import @id="sample-cli-command" @src="../../../cem_ml/schema-packages/cli-command/v1/examples/parse-ast.command.json" @content-type="application/vnd.cem.cli-command+json" @opaque=true |
+    {export @id="sample-cli-command-output" @out="../../dist/static/samples/feature-tour/resources/cli-command-parse-ast.json" @content-type="application/vnd.cem.cli-command+json"}
+  }
+
   {import @id="sample-css" @src="../../../cem_ml/schema-packages/css/v1/examples/basic-stylesheet.css" @content-type="text/css" @opaque=true |
     {export @id="sample-css-output" @out="../../dist/static/samples/feature-tour/resources/css-basic-stylesheet.css" @content-type="text/css"}
   }

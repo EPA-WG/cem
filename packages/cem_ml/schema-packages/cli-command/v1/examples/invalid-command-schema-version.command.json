@@ -1,0 +1,8 @@
+{
+  "$schema": "https://cem.dev/ns/cli/command/1",
+  "schemaVersion": 1,
+  "commandSchemaVersion": 2,
+  "commonVersion": "0.1.0",
+  "binaryName": "cem-ml",
+  "argv": ["parse", "input.cem"]
+}

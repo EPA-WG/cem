@@ -129,7 +129,7 @@ try {
     assert.ok(['installed', 'preserved'].includes(featureTour.status));
     assert.equal(featureTour.seedId, 'cem-ml-feature-tour-seed');
     assert.equal(featureTour.projectId, 'feature-tour');
-    assert.equal(featureTour.exampleCount, 30);
+    assert.equal(featureTour.exampleCount, 31);
     assert.equal(featureTour.validatedCount, featureTour.exampleCount);
     assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount);
 

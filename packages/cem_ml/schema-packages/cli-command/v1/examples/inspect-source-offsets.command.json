@@ -1,0 +1,15 @@
+{
+  "$schema": "https://cem.dev/ns/cli/command/1",
+  "schemaVersion": 1,
+  "commandSchemaVersion": 1,
+  "commonVersion": "0.1.0",
+  "binaryName": "cem-ml",
+  "argv": [
+    "inspect",
+    "studio://feature-tour/data/cem ml/basic.cem",
+    "--show",
+    "source-offsets",
+    "--format",
+    "cem"
+  ]
+}

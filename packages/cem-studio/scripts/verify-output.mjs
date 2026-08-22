@@ -142,9 +142,9 @@ assert.equal(sampleIndex.commonVersion, packageMetadata.version);
 assert.equal(sampleIndex.samples.length, 1);
 assert.equal(sampleIndex.samples[0].id, 'cem-ml-feature-tour-seed');
 assert.equal(featureTourCatalog.commonVersion, packageMetadata.version);
-assert.equal(featureTourCatalog.packageCount, 30);
-assert.equal(featureTourCatalog.exampleCount, 30);
-assert.equal(featureTourCatalog.examples.length, 30);
+assert.equal(featureTourCatalog.packageCount, 31);
+assert.equal(featureTourCatalog.exampleCount, 31);
+assert.equal(featureTourCatalog.examples.length, 31);
 assert.equal(featureTourProject.id, featureTourCatalog.seed.id);
 assert.equal(featureTourProject.resources.length, featureTourCatalog.projectResourceCount);
 assert.equal(

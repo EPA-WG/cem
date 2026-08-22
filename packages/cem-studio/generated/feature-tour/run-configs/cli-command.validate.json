@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/cli-command/parse-ast.json",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

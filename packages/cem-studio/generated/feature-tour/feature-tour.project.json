@@ -157,6 +157,23 @@
       ]
     },
     {
+      "id": "validate-cli-command",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cli Command: Parse Ast",
+      "description": "Validate parse-ast from cli-command@1.0.0.",
+      "runConfigResourceId": "run-cli-command",
+      "resourceIds": [
+        "example-cli-command",
+        "run-cli-command"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cli-command"
+      ]
+    },
+    {
       "id": "validate-css",
       "parentId": "schema-package-examples",
       "kind": "validation",
@@ -692,6 +709,26 @@
       "schema": "https://cem.dev/ns/cli/run-config/1",
       "revision": 1,
       "sha256": "56d096decaecb44a4f0231192e4e95c8339c3304034121aa6f16ce85ff43f16b"
+    },
+    {
+      "id": "example-cli-command",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cli-command/parse-ast.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "revision": 1,
+      "sha256": "821b658ec9d9152501d049c1bc764225c7ba00f1780ad6316e3ac945028449d3"
+    },
+    {
+      "id": "run-cli-command",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cli-command.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "8fe1b5ba9f05779a9b07051bf08a499ed2a12664731e2cdb02b1322b96897714"
     },
     {
       "id": "example-css",

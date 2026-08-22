@@ -1,0 +1,84 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cli-command" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/cli/command/1"
+        @source="schema/cli-command.cem"
+    }
+
+    {content-type @value="application/vnd.cem.cli-command+json" @primary=true}
+
+    {namespace @prefix="command" @uri="https://cem.dev/ns/cli/command/1"}
+
+    {artifact
+        @kind="json-schema"
+        @path="schema/cli-command.schema.json"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @target-content-type="application/vnd.cem.cli-command+json"
+        @target-schema="https://cem.dev/ns/cli/command/1"
+    }
+
+    {example
+        @id="parse-ast"
+        @path="examples/parse-ast.command.json"
+        @content-type="application/vnd.cem.cli-command+json"
+        @schema="https://cem.dev/ns/cli/command/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="inspect-source-offsets"
+        @path="examples/inspect-source-offsets.command.json"
+        @content-type="application/vnd.cem.cli-command+json"
+        @schema="https://cem.dev/ns/cli/command/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-forward-version"
+        @path="examples/invalid-forward-version.command.json"
+        @content-type="application/vnd.cem.cli-command+json"
+        @schema="https://cem.dev/ns/cli/command/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.cli_command.schema_version_unsupported"
+    }
+
+    {example
+        @id="invalid-binary"
+        @path="examples/invalid-binary.command.json"
+        @content-type="application/vnd.cem.cli-command+json"
+        @schema="https://cem.dev/ns/cli/command/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.cli_command.binary_name_invalid"
+    }
+
+    {example
+        @id="invalid-command-schema-version"
+        @path="examples/invalid-command-schema-version.command.json"
+        @content-type="application/vnd.cem.cli-command+json"
+        @schema="https://cem.dev/ns/cli/command/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.cli_command.command_schema_version_unsupported"
+    }
+
+    {example
+        @id="invalid-common-version"
+        @path="examples/invalid-common-version.command.json"
+        @content-type="application/vnd.cem.cli-command+json"
+        @schema="https://cem.dev/ns/cli/command/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.cli_command.common_version_invalid"
+    }
+
+    {example
+        @id="invalid-control"
+        @path="examples/invalid-control.command.json"
+        @content-type="application/vnd.cem.cli-command+json"
+        @schema="https://cem.dev/ns/cli/command/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.cli_command.argument_control"
+    }
+}

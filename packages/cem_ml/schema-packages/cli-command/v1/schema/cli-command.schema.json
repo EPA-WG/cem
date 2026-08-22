@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cem.dev/schema/cli/command.schema.json",
+  "title": "CEM-ML Authored CLI Command v1",
+  "description": "Portable authored CEM-ML command identity and literal argv. Lowered requests, effective configuration, and run plans are excluded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "commandSchemaVersion",
+    "commonVersion",
+    "binaryName",
+    "argv"
+  ],
+  "properties": {
+    "$schema": { "const": "https://cem.dev/ns/cli/command/1" },
+    "schemaVersion": { "const": 1 },
+    "commandSchemaVersion": { "const": 1 },
+    "commonVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "binaryName": { "const": "cem-ml" },
+    "argv": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[^\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]*$"
+      }
+    }
+  }
+}

@@ -940,6 +940,24 @@ schema, disclose its minimum CLI/capability versions, and quote arguments for a
 selected target shell. Do not hand-maintain a second list of flags in the web
 app.
 
+The accepted portable authored-command resource is
+`application/vnd.cem.cli-command+json` with schema
+`https://cem.dev/ns/cli/command/1`, owned by
+`packages/cem_ml/schema-packages/cli-command/v1`. It records its resource and
+generated command-schema versions, compatible common CLI version, the fixed
+`cem-ml` binary identity, and ordered literal argv excluding the binary name.
+The resource is valid authored configuration for a Studio entry's existing
+`run-config` role; it never stores a lowered request, effective configuration,
+resolver snapshot, result, or normalized run plan. Node and browser hosts parse
+that argv through the same generated native command grammar before Apply or
+execution. Canonical command text is a projection of argv, so shell quoting is
+not portable authority.
+
+Studio maps both `parse` and `inspect` commands to the portable project's
+existing `inspection` entry kind. Their distinct operation and projection/view
+semantics remain in the authored command resource. This avoids inventing a
+second project entry kind while keeping the page state lossless.
+
 Command generation includes all semantically relevant current inputs, output
 specs, transformation/conversion config, explicit content/schema/query
 identities, policy/budget choices, and report options. Defaults may be omitted
@@ -1419,6 +1437,10 @@ any import write.
 2. Keep sources, schemas, queries, templates, and transformation configs as
    separate files in their native formats. Do not embed every resource into one
    huge manifest.
+   Executable entries may reference authored CLI-command JSON as their
+   `run-config` resource when command argv is the page authority; generic CLI
+   RunConfig JSON remains appropriate when only inputs, outputs, schema
+   packages, resolvers, and scheduler configuration are authored.
 3. Use normalized JSON records internally for IndexedDB, NoSQL documents, API
    requests, migrations, and deterministic snapshots. JSON is a projection of
    the same project schema, not an alternate semantic model.

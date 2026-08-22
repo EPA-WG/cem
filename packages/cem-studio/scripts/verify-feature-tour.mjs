@@ -19,7 +19,7 @@ const sampleIndex = await readJson(resolve(projectRoot, 'dist/static/samples/ind
 const featureTourBuild = await readJson(resolve(workspaceRoot, 'dist/reports/cem-studio/feature-tour-build.json'));
 
 assert.equal(catalog.selection, 'first-manifest-declared-pass-example-per-registered-package');
-assert.equal(catalog.packageCount, 30);
+assert.equal(catalog.packageCount, 31);
 assert.equal(catalog.exampleCount, catalog.packageCount);
 assert.equal(catalog.capability.operation, 'validate');
 assert.equal(catalog.capability.availability, 'available');

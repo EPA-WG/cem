@@ -1327,6 +1327,23 @@ including search, is composed from `@epa-wg/cem-components` and
           `cem-components`, execute the shared preview online and after an
           offline reload, and retain selectable command text as the clipboard
           fallback.
+    - [x] Fixture: register a portable authored CLI-command JSON resource that
+          stores command-schema/common versions plus literal argv, validates
+          through native CEM-ML and the shared Node/browser command grammar,
+          and round trips deterministically without persisting a normalized
+          run plan.
+    - Completed 2026-08-22: `cli-command/v1` now owns
+      `application/vnd.cem.cli-command+json` and
+      `https://cem.dev/ns/cli/command/1`, with a JSON Schema artifact, two
+      passing authored commands, and forward-version, grammar-version,
+      SemVer, binary, and control-character rejection fixtures. Native CEM-ML
+      validates the resource identity and deterministic projection without a
+      CEM-tokenizer fallback; the universal Node/browser package validates the
+      exact argv with its generated command grammar and regenerates canonical
+      resource bytes without a lowered run-plan field. Studio maps parse and
+      inspect resources to the existing inspection page kind. The parent
+      remains open for repository target resolution, the atomic Apply command,
+      incompatible replacement confirmation, and Apply & Run.
     - Completed 2026-08-21: the workbench now exposes a Studio command as a
       lossless literal-argv projection of the shared generated CLI grammar. Its
       semantic preview comes from the Rust-lowered browser invocation and

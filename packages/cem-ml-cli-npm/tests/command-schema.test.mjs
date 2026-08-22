@@ -101,6 +101,40 @@ test('literal command text preserves normalized argv without evaluating shell sy
     );
 });
 
+test('authored CLI command resources preserve literal argv without persisting a run plan', () => {
+    const parsed = nodeApi.parseCemMlCommand([
+        'inspect',
+        'studio://feature-tour/data/cem ml/basic.cem',
+        '--show',
+        'source-offsets',
+        '--format',
+        'cem',
+    ], { runtime: 'wasm-node' });
+    const source = nodeApi.serializeCemMlCommandResource(parsed);
+    const nodeResource = nodeApi.parseCemMlCommandResource(source, { runtime: 'wasm-node' });
+    const browserResource = browserApi.parseCemMlCommandResource(source, {
+        runtime: 'wasm-browser-worker',
+    });
+
+    assert.deepEqual(browserResource.resource, nodeResource.resource);
+    assert.deepEqual(browserResource.command, nodeResource.command);
+    assert.deepEqual(nodeResource.resource.argv, nodeApi.serializeCemMlCommand(parsed));
+    assert.equal(nodeResource.resource.binaryName, 'cem-ml');
+    assert.equal(nodeResource.resource.commandSchemaVersion, nodeApi.commandSchema.schemaVersion);
+    assert.equal(nodeResource.resource.commonVersion, nodeApi.commandSchema.commonVersion);
+    assert.ok(!('runPlan' in nodeResource.resource));
+    assert.equal(nodeApi.serializeCemMlCommandResource(nodeResource.command), source);
+
+    assert.throws(
+        () => nodeApi.parseCemMlCommandResource(source.replace('"cem-ml"', '"other-cli"')),
+        (error) => error instanceof nodeApi.CemMlCommandError && error.code === 'cem.cli_command.binary_name_invalid',
+    );
+    assert.throws(
+        () => nodeApi.parseCemMlCommandResource(source.replace('"0.1.0"', '"0.1.0-01"')),
+        (error) => error instanceof nodeApi.CemMlCommandError && error.code === 'cem.cli_command.common_version_invalid',
+    );
+});
+
 test('schema-driven parser rejects invalid fixtures with stable codes', () => {
     for (const fixtureCase of fixture.invalidCases) {
         assert.throws(

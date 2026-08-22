@@ -84,16 +84,22 @@ export type {
 } from '@epa-wg/cem-ml/wasm';
 
 export {
+    CEM_ML_CLI_COMMAND_CONTENT_TYPE,
+    CEM_ML_CLI_COMMAND_SCHEMA,
     CemMlCommandError,
     commandSchema,
     parseCemMlCommand,
+    parseCemMlCommandResource,
     parseCemMlCommandText,
     serializeCemMlCommand,
+    serializeCemMlCommandResource,
     serializeCemMlCommandText,
 } from './command.js';
 export type {
+    CemMlCommandResourceV1,
     CommandRuntime,
     ParsedCemMlCommand,
+    ParsedCemMlCommandResource,
     ParseCemMlCommandOptions,
     SharedCommandSchema,
 } from './command.js';

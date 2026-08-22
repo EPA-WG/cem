@@ -3,6 +3,7 @@
 //! The CLI selects input and output identities; this module owns the library
 //! side of input identity dispatch into the internal CEM event/AST pipeline.
 
+use crate::cli_command::parse_cli_command;
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
 use crate::schema::ir::CEM_CORE_NAMESPACE;
@@ -15,7 +16,8 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CLI_COMMAND_CONTENT_TYPE,
+    CLI_COMMAND_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
     CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
     JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
@@ -206,6 +208,7 @@ impl LifecycleRegistry {
         registry.register(CsvAdapter);
         registry.register(YamlAdapter);
         registry.register(JsonSchemaAdapter);
+        registry.register(CliCommandAdapter);
         registry.register(StudioProjectAdapter);
         registry.register(JsonAdapter);
         registry.register(MarkdownAdapter);
@@ -1431,6 +1434,65 @@ fn matches_json_schema_identity(identity: &FormatIdentity) -> bool {
 
 struct JsonAdapter;
 
+struct CliCommandAdapter;
+
+impl LifecycleAdapter for CliCommandAdapter {
+    fn id(&self) -> &'static str {
+        "cli-command"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_cli_command_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(CLI_COMMAND_CONTENT_TYPE);
+        let diagnostics = parse_cli_command(&input.bytes, content_type, CLI_COMMAND_SCHEMA_URI)
+            .err()
+            .map(|error| Diagnostic {
+                uri: Some(input.uri.clone()),
+                code: error.code.to_owned(),
+                severity: Severity::Error,
+                message: error.message,
+                details: Some(json!({
+                    "fieldPath": error.field_path,
+                    "lifecycle": {
+                        "adapterId": self.id(),
+                        "operation": "load",
+                        "profile": "cli-command-v1",
+                    },
+                })),
+                ..Diagnostic::default()
+            })
+            .into_iter()
+            .collect();
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: None,
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+}
+
+fn matches_cli_command_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == CLI_COMMAND_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return content_type_essence(content_type) == CLI_COMMAND_CONTENT_TYPE
+            && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+}
+
 struct StudioProjectAdapter;
 
 impl LifecycleAdapter for StudioProjectAdapter {
@@ -2229,6 +2291,39 @@ mod tests {
         assert_eq!(
             invalid.diagnostics[0].code,
             "cem.studio_project.schema_version_unsupported"
+        );
+    }
+
+    #[test]
+    fn builtins_validate_cli_command_json_without_cem_tokenizer_fallback() {
+        let valid = LifecycleRegistry::with_builtin_adapters().load_for_source_validation(
+            &input(include_bytes!(
+                "../schema-packages/cli-command/v1/examples/parse-ast.command.json"
+            )),
+            &EngineContext {
+                content_type: Some(CLI_COMMAND_CONTENT_TYPE.to_owned()),
+                schema: Some(CLI_COMMAND_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(valid.adapter_id, Some("cli-command"));
+        assert!(valid.diagnostics.is_empty(), "{:?}", valid.diagnostics);
+
+        let invalid = LifecycleRegistry::with_builtin_adapters().load_for_source_validation(
+            &input(include_bytes!(
+                "../schema-packages/cli-command/v1/examples/invalid-command-schema-version.command.json"
+            )),
+            &EngineContext {
+                content_type: Some(CLI_COMMAND_CONTENT_TYPE.to_owned()),
+                schema: Some(CLI_COMMAND_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(invalid.adapter_id, Some("cli-command"));
+        assert_eq!(invalid.diagnostics.len(), 1);
+        assert_eq!(
+            invalid.diagnostics[0].code,
+            "cem.cli_command.command_schema_version_unsupported"
         );
     }
 

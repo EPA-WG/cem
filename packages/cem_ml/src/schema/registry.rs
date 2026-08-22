@@ -30,6 +30,7 @@ pub const MARKDOWN_SCHEMA_URI: &str = "https://cem.dev/ns/data/markdown/1";
 pub const MODULE_MAP_SCHEMA_URI: &str = "https://cem.dev/ns/data/module-map/1";
 pub const MODULE_MAP_V2_SCHEMA_URI: &str = "https://cem.dev/ns/data/module-map/2";
 pub const MODULE_MAP_V3_SCHEMA_URI: &str = "https://cem.dev/ns/data/module-map/3";
+pub const CLI_COMMAND_SCHEMA_URI: &str = crate::cli_command::CLI_COMMAND_SCHEMA_URI;
 pub const STUDIO_PROJECT_SCHEMA_URI: &str = crate::studio_project::STUDIO_PROJECT_SCHEMA_URI;
 pub const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
 pub const RELAX_NG_SCHEMA_URI: &str = "https://cem.dev/ns/data/relax-ng/1";
@@ -68,6 +69,7 @@ pub const YAML_CONTENT_TYPE: &str = "application/yaml";
 pub const CSV_CONTENT_TYPE: &str = "text/csv";
 pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown";
 pub const MODULE_MAP_CONTENT_TYPE: &str = "application/vnd.cem.module-map+json";
+pub const CLI_COMMAND_CONTENT_TYPE: &str = crate::cli_command::CLI_COMMAND_CONTENT_TYPE;
 pub const STUDIO_PROJECT_CEM_CONTENT_TYPE: &str =
     crate::studio_project::STUDIO_PROJECT_CEM_CONTENT_TYPE;
 pub const STUDIO_PROJECT_JSON_CONTENT_TYPE: &str =

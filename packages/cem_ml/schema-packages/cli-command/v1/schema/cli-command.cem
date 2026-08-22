@@ -1,0 +1,66 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="cli-command" @namespace="https://cem.dev/ns/cli/command/1" @version="1.0.0" |
+    {summary |
+        {text | Portable authored CEM-ML command resource. JSON stores the command schema version, compatible common CLI version, binary identity, and literal argv. It excludes lowered requests, effective configuration, resolver snapshots, execution results, and normalized run plans.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.cli-command+json" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="command" @uri="https://cem.dev/ns/cli/command/1" @role="schema"}
+    }
+
+    {elements |
+        {element @name="command" @required-attributes="schema-version command-schema-version common-version binary-name" @children="argument+"}
+        {element @name="argument" @required-attributes="value"}
+    }
+
+    {attributes |
+        {attribute @name="schema-version" @type="cemml:integer" @minInclusive=1 @maxInclusive=1}
+        {attribute @name="command-schema-version" @type="cemml:integer" @minInclusive=1 @maxInclusive=1}
+        {attribute @name="common-version" @type="schema:semver"}
+        {attribute @name="binary-name" @type="schema:string" @values="cem-ml"}
+        {attribute @name="value" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="fixed-schema-identity" @target="command" @policy="the schema identity is exactly https://cem.dev/ns/cli/command/1 and schema-version is exactly 1"}
+        {constraint @kind="command-schema-version" @target="command" @policy="command-schema-version identifies the generated CLI grammar and is exactly 1"}
+        {constraint @kind="literal-argv" @target="argument" @policy="argv excludes the binary name, preserves order and empty values, permits tab and line-ending text, and rejects other C0 controls plus DEL"}
+        {constraint @kind="authored-boundary" @target="command" @policy="lowered requests, effective configuration, resolver snapshots, execution results, and normalized run plans are forbidden"}
+        {constraint @kind="deterministic-json" @target="command" @policy="parse and serialization are deterministic without changing argv semantics"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.cli_command.invalid_json" @severity="error"}
+        {diagnostic @code="cem.cli_command.json_serialization_failed" @severity="error"}
+        {diagnostic @code="cem.cli_command.content_type_unsupported" @severity="error"}
+        {diagnostic @code="cem.cli_command.schema_identity_unsupported" @severity="error"}
+        {diagnostic @code="cem.cli_command.schema_version_unsupported" @severity="error"}
+        {diagnostic @code="cem.cli_command.command_schema_version_unsupported" @severity="error"}
+        {diagnostic @code="cem.cli_command.common_version_invalid" @severity="error"}
+        {diagnostic @code="cem.cli_command.binary_name_invalid" @severity="error"}
+        {diagnostic @code="cem.cli_command.argv_empty" @severity="error"}
+        {diagnostic @code="cem.cli_command.argument_control" @severity="error"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="Version 1 fixes explicit JSON identity, literal argv ownership, generated command-schema versioning, compatible common CLI versioning, deterministic serialization, and the authored-versus-lowered boundary."}
+        {source @schema="https://cem.dev/ns/cli/command/1" @content-type="application/vnd.cem.cli-command+json"}
+    }
+
+    {open-content |
+        {accept @kind="future-command-field" @policy="reject-unless-a-later-schema-version-declares-it"}
+    }
+}

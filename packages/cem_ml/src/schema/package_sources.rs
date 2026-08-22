@@ -46,6 +46,13 @@ pub fn builtin_schema_package_artifact_source(
 
 static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSource] = &[
     BuiltinSchemaPackageArtifactSource {
+        package_id: "cli-command",
+        path: "schema-packages/cli-command/v1/schema/cli-command.schema.json",
+        source: include_str!(
+            "../../schema-packages/cli-command/v1/schema/cli-command.schema.json"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
         package_id: "studio-project",
         path: "schema-packages/studio-project/v1/schema/studio-project.schema.json",
         source: include_str!(
@@ -864,6 +871,14 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         schema_path: "schema-packages/module-map-v3/v1/schema/module-map-v3.cem",
         manifest_source: include_str!("../../schema-packages/module-map-v3/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/module-map-v3/v1/schema/module-map-v3.cem"),
+    },
+    BuiltinSchemaPackageSource {
+        package_id: "cli-command",
+        schema_path: "schema-packages/cli-command/v1/schema/cli-command.cem",
+        manifest_source: include_str!("../../schema-packages/cli-command/v1/package.cem"),
+        schema_source: include_str!(
+            "../../schema-packages/cli-command/v1/schema/cli-command.cem"
+        ),
     },
     BuiltinSchemaPackageSource {
         package_id: "studio-project",

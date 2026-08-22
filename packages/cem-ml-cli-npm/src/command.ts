@@ -79,6 +79,23 @@ export interface ParseCemMlCommandOptions {
     readonly runtime?: CommandRuntime;
 }
 
+export const CEM_ML_CLI_COMMAND_CONTENT_TYPE = 'application/vnd.cem.cli-command+json' as const;
+export const CEM_ML_CLI_COMMAND_SCHEMA = 'https://cem.dev/ns/cli/command/1' as const;
+
+export interface CemMlCommandResourceV1 {
+    readonly $schema: typeof CEM_ML_CLI_COMMAND_SCHEMA;
+    readonly schemaVersion: 1;
+    readonly commandSchemaVersion: number;
+    readonly commonVersion: string;
+    readonly binaryName: 'cem-ml';
+    readonly argv: readonly string[];
+}
+
+export interface ParsedCemMlCommandResource {
+    readonly resource: CemMlCommandResourceV1;
+    readonly command: ParsedCemMlCommand;
+}
+
 export class CemMlCommandError extends Error {
     readonly code: string;
     readonly argumentId: string | undefined;
@@ -241,6 +258,126 @@ export function serializeCemMlCommandText(command: ParsedCemMlCommand): string {
     return [commandSchema.binaryName, ...serializeCemMlCommand(command)]
         .map(quoteCemMlCommandTextToken)
         .join(' ');
+}
+
+/** Parse one portable authored command resource through the shared CLI grammar. */
+export function parseCemMlCommandResource(
+    source: string | Uint8Array,
+    parseOptions: ParseCemMlCommandOptions = {},
+): ParsedCemMlCommandResource {
+    let value: unknown;
+    try {
+        const text = typeof source === 'string'
+            ? source
+            : new TextDecoder('utf-8', { fatal: true }).decode(source);
+        value = JSON.parse(text);
+    } catch (error) {
+        throw new CemMlCommandError(
+            'cem.cli_command.invalid_json',
+            `CLI command JSON could not be parsed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+    }
+    const resource = validateCemMlCommandResource(value);
+    const command = parseCemMlCommand(resource.argv, parseOptions);
+    return Object.freeze({ resource, command });
+}
+
+/** Serialize authored configuration from a command without persisting its lowered run plan. */
+export function serializeCemMlCommandResource(command: ParsedCemMlCommand): string {
+    const resource: CemMlCommandResourceV1 = {
+        $schema: CEM_ML_CLI_COMMAND_SCHEMA,
+        schemaVersion: 1,
+        commandSchemaVersion: commandSchema.schemaVersion,
+        commonVersion: command.commonVersion,
+        binaryName: 'cem-ml',
+        argv: serializeCemMlCommand(command),
+    };
+    return `${JSON.stringify(resource, null, 2)}\n`;
+}
+
+function validateCemMlCommandResource(value: unknown): CemMlCommandResourceV1 {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new CemMlCommandError('cem.cli_command.invalid_json', 'CLI command JSON must be an object');
+    }
+    const candidate = value as Record<string, unknown>;
+    const expected = new Set([
+        '$schema',
+        'schemaVersion',
+        'commandSchemaVersion',
+        'commonVersion',
+        'binaryName',
+        'argv',
+    ]);
+    const unknown = Object.keys(candidate).find((key) => !expected.has(key));
+    if (unknown !== undefined) {
+        throw new CemMlCommandError(
+            'cem.cli_command.invalid_json',
+            `CLI command JSON field \`${unknown}\` is unsupported`,
+        );
+    }
+    if (candidate.$schema !== CEM_ML_CLI_COMMAND_SCHEMA) {
+        throw new CemMlCommandError(
+            'cem.cli_command.schema_identity_unsupported',
+            `CLI command schema must be \`${CEM_ML_CLI_COMMAND_SCHEMA}\``,
+        );
+    }
+    if (candidate.schemaVersion !== 1) {
+        throw new CemMlCommandError(
+            'cem.cli_command.schema_version_unsupported',
+            'CLI command schemaVersion must be 1',
+        );
+    }
+    if (candidate.commandSchemaVersion !== commandSchema.schemaVersion) {
+        throw new CemMlCommandError(
+            'cem.cli_command.command_schema_version_unsupported',
+            `CLI command commandSchemaVersion must be ${commandSchema.schemaVersion}`,
+        );
+    }
+    if (typeof candidate.commonVersion !== 'string' || !isCanonicalSemver(candidate.commonVersion)) {
+        throw new CemMlCommandError(
+            'cem.cli_command.common_version_invalid',
+            'CLI command commonVersion must be canonical SemVer',
+        );
+    }
+    if (candidate.binaryName !== commandSchema.binaryName) {
+        throw new CemMlCommandError(
+            'cem.cli_command.binary_name_invalid',
+            `CLI command binaryName must be \`${commandSchema.binaryName}\``,
+        );
+    }
+    if (!Array.isArray(candidate.argv) || candidate.argv.length === 0) {
+        throw new CemMlCommandError('cem.cli_command.argv_empty', 'CLI command argv must contain an argument');
+    }
+    const argv = candidate.argv.map((argument, index) => {
+        if (typeof argument !== 'string') {
+            throw new CemMlCommandError(
+                'cem.cli_command.invalid_json',
+                `CLI command argv[${index}] must be text`,
+            );
+        }
+        for (const character of argument) {
+            const code = character.charCodeAt(0);
+            if ((code < 0x20 && !['\t', '\n', '\r'].includes(character)) || code === 0x7f) {
+                throw new CemMlCommandError(
+                    'cem.cli_command.argument_control',
+                    `CLI command argv[${index}] contains an unsupported control character`,
+                );
+            }
+        }
+        return argument;
+    });
+    return Object.freeze({
+        $schema: CEM_ML_CLI_COMMAND_SCHEMA,
+        schemaVersion: 1,
+        commandSchemaVersion: candidate.commandSchemaVersion,
+        commonVersion: candidate.commonVersion,
+        binaryName: 'cem-ml',
+        argv: Object.freeze(argv),
+    });
+}
+
+function isCanonicalSemver(value: string): boolean {
+    return /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u.test(value);
 }
 
 function tokenizeCemMlCommandText(source: string): readonly string[] {

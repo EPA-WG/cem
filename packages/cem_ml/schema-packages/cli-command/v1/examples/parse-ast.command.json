@@ -1,0 +1,18 @@
+{
+  "$schema": "https://cem.dev/ns/cli/command/1",
+  "schemaVersion": 1,
+  "commandSchemaVersion": 1,
+  "commonVersion": "0.1.0",
+  "binaryName": "cem-ml",
+  "argv": [
+    "parse",
+    "studio://feature-tour/data/cem-ml/basic.cem",
+    "--content-type",
+    "application/cem",
+    "--schema",
+    "https://cem.dev/ns/cem-ml/1",
+    "--format",
+    "ast",
+    "--no-color"
+  ]
+}

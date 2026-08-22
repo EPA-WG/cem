@@ -6,7 +6,7 @@
     "name": "CEM-ML Feature Tour",
     "version": "1.0.0",
     "project": "./feature-tour.project.json",
-    "projectSha256": "537b6279e698e6ca720f456b3bf371495665eef15f5dfbd900fe9f3d5484050c"
+    "projectSha256": "7d733eca032cfc311cbaa9bb1fec7236acd0d5ae6b0529d8746851b9be828107"
   },
   "capability": {
     "contractVersion": 2,
@@ -17,11 +17,11 @@
     "availability": "available"
   },
   "selection": "first-manifest-declared-pass-example-per-registered-package",
-  "packageCount": 30,
-  "exampleCount": 30,
+  "packageCount": 31,
+  "exampleCount": 31,
   "dependencyCount": 1,
-  "projectResourceCount": 61,
-  "cacheUrlCount": 64,
+  "projectResourceCount": 63,
+  "cacheUrlCount": 66,
   "examples": [
     {
       "id": "cem-ast-projection-basic-ast",
@@ -181,6 +181,26 @@
       "sha256": "f07dd3aae7fabf8fa5594f327c2890d90f4f960d25caee4147a6b70132d443d5",
       "source": "packages/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt",
       "manifest": "packages/cem_ml/schema-packages/cem-transform/v1/package.cem",
+      "dependencies": []
+    },
+    {
+      "id": "cli-command-parse-ast",
+      "packageId": "cli-command",
+      "packageVersion": "1.0.0",
+      "exampleId": "parse-ast",
+      "operation": "validate",
+      "capabilityAvailability": "available",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "expectedResult": "pass",
+      "resourceId": "example-cli-command",
+      "runConfigResourceId": "run-cli-command",
+      "path": "data/cli-command/parse-ast.json",
+      "asset": "./resources/cli-command-parse-ast.json",
+      "runConfig": "./run-configs/cli-command.validate.json",
+      "sha256": "821b658ec9d9152501d049c1bc764225c7ba00f1780ad6316e3ac945028449d3",
+      "source": "packages/cem_ml/schema-packages/cli-command/v1/examples/parse-ast.command.json",
+      "manifest": "packages/cem_ml/schema-packages/cli-command/v1/package.cem",
       "dependencies": []
     },
     {
