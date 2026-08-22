@@ -37,6 +37,12 @@ callers use versioned clone-safe `query` and `execute` envelopes. Project saves,
 imports, trash, and restore are strict multi-store transactions with expected
 revision checks, SHA-256 content addressing, a durable change journal,
 `BroadcastChannel` invalidation, and derived deterministic search documents.
+The `apply-command-page` command additionally parses portable authored command
+resources through the shared CLI grammar, resolves project-local `studio://`
+resources, validates the proposed project, and commits current/existing/new page
+targets with their exact command bytes in one transaction. Shared run configs
+are isolated, incompatible replacement is confirmation-gated, and the result
+returns the committed project/entry/resource revisions for later Apply & Run.
 Search and storage status render through CEM components when the workbench shell
 is composed; persistence does not introduce application-local visible controls.
 

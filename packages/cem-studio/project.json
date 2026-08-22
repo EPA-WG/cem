@@ -54,6 +54,10 @@
                 {
                     "projects": ["cem-elements"],
                     "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "target": "build"
                 }
             ],
             "options": {
@@ -62,6 +66,7 @@
             },
             "inputs": [
                 "{projectRoot}/src/repository.js",
+                "{projectRoot}/src/repository.d.ts",
                 "{projectRoot}/src/repository.browser.spec.js",
                 "{projectRoot}/vitest.config.mts",
                 "{workspaceRoot}/package.json",

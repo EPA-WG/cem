@@ -1014,6 +1014,24 @@ After a successful apply:
 - **Apply & Run** executes exactly the applied revision; and
 - the whole structural update is undoable according to project recovery rules.
 
+The MVP repository boundary is the versioned `apply-command-page` command. It
+accepts the exact authored CLI-command resource bytes, expected project
+revision, explicitly resolved non-command resource ids, and a `current`,
+`existing`, or `new` target. The repository parses the resource with the shared
+browser CLI grammar, maps `parse` and `inspect` to `inspection`, resolves every
+parsed `studio://` URI within the selected project, and validates the complete
+proposed portable project before opening a strict IndexedDB write transaction.
+The transaction writes the entry, command resource/blob, project revision,
+search documents, and change journal together. Entry revision is the enclosing
+project revision because Studio project v1 entries have no independent revision.
+An unshared local run config retains its stable resource id and advances its
+revision; a shared or URL-backed run config is isolated into a new local command
+resource before the entry is relinked. Incompatible existing kinds fail closed
+with `new` as the recommended disposition and require an explicit replacement
+confirmation. The result returns the exact committed command bytes and
+project/entry/resource revisions so Apply & Run can execute that commit rather
+than an in-memory draft.
+
 This round trip requires a tested invariant:
 
 ```text

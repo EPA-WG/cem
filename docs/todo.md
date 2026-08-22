@@ -1238,13 +1238,13 @@ including search, is composed from `@epa-wg/cem-components` and
           a simulated seed upgrade, and create a separately identified reset
           copy from the upgraded seed.
     - Completed 2026-08-21: the deterministic generator selects the first
-      manifest-declared passing example from all 30 registered schema packages,
+      manifest-declared passing example from all 31 registered schema packages,
       records exact source hashes and browser capability identity, and discovers
       referenced local schema resources transitively. Its generated CEM-ML
-      graph emits the 61-resource Studio project, run configurations, original
-      example/dependency bytes, catalog, and 64-URL offline sample inventory.
+      graph emits the 63-resource Studio project, run configurations, original
+      example/dependency bytes, catalog, and 66-URL offline sample inventory.
       Native CEM-ML validates the project and all advertised sources. Real
-      Chromium integrity-checks the seed, validates all 30 examples through one
+      Chromium integrity-checks the seed, validates all 31 examples through one
       reusable browser command worker using the `cem-studio://` inline-resource
       resolver, and proves the cache online/offline. IndexedDB keeps the
       read-only seed identity separate from `feature-tour`, preserves edited or
@@ -1332,6 +1332,26 @@ including search, is composed from `@epa-wg/cem-components` and
           through native CEM-ML and the shared Node/browser command grammar,
           and round trips deterministically without persisting a normalized
           run plan.
+    - [x] Fixture: resolve current, compatible existing, and explicitly named
+          new command-page targets by stable id; atomically commit the authored
+          command bytes, entry reference, project/resource revisions, search
+          records, and change cursor; reject stale, unresolved, duplicate, or
+          incompatible targets without mutation unless incompatible replacement
+          is explicitly confirmed.
+    - Completed 2026-08-22: the `apply-command-page` repository command parses
+      the portable resource with the shared browser CLI grammar, resolves every
+      parsed `studio://` URI to an explicitly supplied existing project
+      resource, and validates the proposed portable project before opening the
+      strict write transaction. Current and name/id-selected compatible pages
+      update atomically; explicit new targets receive collision-safe stable ids;
+      shared or URL-backed run configs are isolated into a dedicated local
+      command resource. One IndexedDB commit advances project/resource/search
+      revisions, stores exact command bytes by SHA-256, and appends the change
+      cursor. Chromium proves exact reload, shared-resource isolation, new page
+      creation, case-normalized name resolution, incompatible confirmation,
+      validator rollback, unresolved-resource rejection, and stale revision
+      conflicts. The parent remains open for the CEM-component target/confirm
+      UI and Apply & Run against the exact returned committed revision.
     - Completed 2026-08-22: `cli-command/v1` now owns
       `application/vnd.cem.cli-command+json` and
       `https://cem.dev/ns/cli/command/1`, with a JSON Schema artifact, two
@@ -1341,19 +1361,20 @@ including search, is composed from `@epa-wg/cem-components` and
       CEM-tokenizer fallback; the universal Node/browser package validates the
       exact argv with its generated command grammar and regenerates canonical
       resource bytes without a lowered run-plan field. Studio maps parse and
-      inspect resources to the existing inspection page kind. The parent
-      remains open for repository target resolution, the atomic Apply command,
-      incompatible replacement confirmation, and Apply & Run.
+      inspect resources to the existing inspection page kind. That schema
+      package fixture left repository target resolution, atomic Apply,
+      incompatible replacement confirmation, and Apply & Run to following
+      fixtures.
     - Completed 2026-08-21: the workbench now exposes a Studio command as a
       lossless literal-argv projection of the shared generated CLI grammar. Its
       semantic preview comes from the Rust-lowered browser invocation and
       normalized run plan rather than app-owned flag interpretation. Chromium
       proves canonical edit/parse/reset, exact explicit-action clipboard copy,
       semantic change classification, stable invalid-option diagnostics,
-      project non-mutation, CEM-only controls, and offline preview. The parent
-      remains open only for current/existing/new page target resolution,
+      project non-mutation, CEM-only controls, and offline preview. That
+      workbench fixture left current/existing/new page targeting,
       incompatible-replacement confirmation, transactional Apply, and Apply &
-      Run.
+      Run to subsequent fixtures.
 - [ ] Add conversion, query, transformation, trace, and transformation-graph
       workbenches without duplicating engine semantics or component behavior.
 - [ ] Add the opt-in File System Access provider with explicit permissions,

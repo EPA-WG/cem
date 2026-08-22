@@ -1,4 +1,9 @@
 import { CEM_REPOSITORY_PROTOCOL_VERSION } from '@epa-wg/cem-elements';
+import {
+    CEM_ML_CLI_COMMAND_CONTENT_TYPE,
+    CEM_ML_CLI_COMMAND_SCHEMA,
+    parseCemMlCommandResource,
+} from '@epa-wg/cem-ml-cli/browser';
 
 export const CEM_STUDIO_REPOSITORY_ID = 'studio-projects';
 export const CEM_STUDIO_DATABASE_VERSION = 1;
@@ -187,6 +192,9 @@ export class CemStudioIndexedDbRepository {
                 break;
             case 'save-resource':
                 mutation = await this.saveResource(database, request, signal);
+                break;
+            case 'apply-command-page':
+                mutation = await this.applyCommandPage(database, request, signal);
                 break;
             case 'trash-project':
                 mutation = await this.setProjectTrash(database, request, true);
@@ -485,6 +493,181 @@ export class CemStudioIndexedDbRepository {
                         projectRevision: nextProject.revision,
                         resourceRevision: nextResource.revision,
                         sha256,
+                    },
+                    repositoryRevision,
+                    changeCursor,
+                };
+            },
+            'strict',
+        );
+    }
+
+    /** @param {IDBDatabase} database @param {CemStudioRepositoryRequest} request @param {AbortSignal} [signal] */
+    async applyCommandPage(database, request, signal) {
+        const input = parameters(request);
+        const projectId = stringParameter(request, 'projectId');
+        const bytes = toBytes(input.commandResource);
+        let parsed;
+        try {
+            parsed = parseCemMlCommandResource(bytes, { runtime: 'wasm-browser-worker' });
+        } catch (error) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_invalid',
+                `authored CLI command validation failed: ${error instanceof Error ? error.message : String(error)}`,
+                { commandCode: typeof error?.code === 'string' ? error.code : undefined },
+                error,
+            );
+        }
+        const operation = parsed.command.commandPath[0];
+        const pageKind = commandPageKind(operation);
+        const target = normalizeCommandTarget(input.target);
+        const referencedResourceIds = normalizeReferencedResourceIds(input.referencedResourceIds);
+        const sha256 = await sha256Hex(this.crypto, bytes);
+        assertNotAborted(signal);
+
+        const bundle = await this.getProject(database, projectId, true);
+        if (!bundle) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.project_not_found',
+                `project \`${projectId}\` was not found`,
+            );
+        }
+        assertExpectedRevision('project', projectId, input.expectedProjectRevision, bundle.project.revision);
+        assertCommandResourceResolution(bundle.project, parsed.command, referencedResourceIds);
+        const committedAt = typeof input.updatedAt === 'string' ? input.updatedAt : this.now();
+        const proposal = prepareCommandPageProposal({
+            bundle,
+            bytes,
+            sha256,
+            operation,
+            pageKind,
+            target,
+            referencedResourceIds,
+            committedAt,
+        });
+
+        let validated;
+        try {
+            validated = await this.validateProject(structuredClone({
+                project: proposal.project,
+                contents: proposal.contents,
+            }), { signal, operation: 'import' });
+        } catch (error) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.apply_validation_failed',
+                `CEM-ML rejected the proposed command page: ${error instanceof Error ? error.message : String(error)}`,
+                {},
+                error,
+            );
+        }
+        assertNotAborted(signal);
+        const normalized = normalizeValidatedBundle(validated);
+        await prepareImport(normalized, this.crypto);
+        assertValidatedCommandProposal(normalized, proposal, bytes);
+        assertNotAborted(signal);
+
+        return withTransaction(
+            database,
+            ['meta', 'projects', 'entries', 'resources', 'blobs', 'changes', 'searchDocuments'],
+            'readwrite',
+            async (transaction) => {
+                const projects = transaction.objectStore('projects');
+                const entries = transaction.objectStore('entries');
+                const resources = transaction.objectStore('resources');
+                const project = await requestValue(projects.get(projectId));
+                if (!project) {
+                    throw new CemStudioRepositoryError(
+                        'cem.studio.repository.project_not_found',
+                        `project \`${projectId}\` was not found`,
+                    );
+                }
+                if (project.trashedAt) {
+                    throw new CemStudioRepositoryError(
+                        'cem.studio.repository.project_trashed',
+                        `project \`${projectId}\` must be restored before applying a command page`,
+                    );
+                }
+                assertExpectedRevision('project', projectId, input.expectedProjectRevision, project.revision);
+                const storedEntry = await requestValue(entries.get([projectId, proposal.entry.id]));
+                if (proposal.disposition === 'created' && storedEntry) {
+                    throw new CemStudioRepositoryError(
+                        'cem.studio.repository.command_target_conflict',
+                        `entry \`${proposal.entry.id}\` already exists in project \`${projectId}\``,
+                        { entryId: proposal.entry.id },
+                    );
+                }
+                if (proposal.disposition === 'updated' && !storedEntry) {
+                    throw new CemStudioRepositoryError(
+                        'cem.studio.repository.command_target_not_found',
+                        `entry \`${proposal.entry.id}\` no longer exists in project \`${projectId}\``,
+                        { entryId: proposal.entry.id },
+                    );
+                }
+                const storedCommandResource = await requestValue(
+                    resources.get([projectId, proposal.commandResource.id]),
+                );
+                if (proposal.commandResourceCreated && storedCommandResource) {
+                    throw new CemStudioRepositoryError(
+                        'cem.studio.repository.command_resource_conflict',
+                        `resource \`${proposal.commandResource.id}\` already exists in project \`${projectId}\``,
+                        { resourceId: proposal.commandResource.id },
+                    );
+                }
+                if (!proposal.commandResourceCreated && !storedCommandResource) {
+                    throw new CemStudioRepositoryError(
+                        'cem.studio.repository.command_resource_unresolved',
+                        `command resource \`${proposal.commandResource.id}\` no longer exists`,
+                        { resourceId: proposal.commandResource.id },
+                    );
+                }
+
+                const projectRecord = projectStorageRecord(proposal.project);
+                const entryRecord = entryStorageRecord(projectId, proposal.entry);
+                const resourceRecord = resourceStorageRecord(projectId, {
+                    ...proposal.commandResource,
+                    blobHash: sha256,
+                });
+                projects.put(projectRecord);
+                entries.put(entryRecord);
+                resources.put(resourceRecord);
+                transaction.objectStore('blobs').put({
+                    sha256,
+                    bytes: exactArrayBuffer(bytes),
+                    byteLength: bytes.byteLength,
+                });
+                const search = transaction.objectStore('searchDocuments');
+                search.put(searchDocumentForProject(proposal.project, false));
+                search.put(searchDocumentForEntry(projectId, proposal.entry, proposal.project.revision, false));
+                search.put(searchDocumentForResource(resourceRecord, bytes, false));
+                const repositoryRevision = await advanceRepositoryRevision(transaction);
+                const changeCursor = await appendChange(transaction, {
+                    repositoryRevision,
+                    projectId,
+                    entryId: proposal.entry.id,
+                    resourceId: proposal.commandResource.id,
+                    operation: 'apply-command-page',
+                    commandOperation: operation,
+                    pageKind,
+                    disposition: proposal.disposition,
+                    projectRevision: proposal.project.revision,
+                    entryRevision: proposal.project.revision,
+                    resourceRevision: proposal.commandResource.revision,
+                    sha256,
+                    committedAt,
+                });
+                return {
+                    value: {
+                        disposition: proposal.disposition,
+                        operation,
+                        pageKind,
+                        projectId,
+                        projectRevision: proposal.project.revision,
+                        entryRevision: proposal.project.revision,
+                        resourceRevision: proposal.commandResource.revision,
+                        sha256,
+                        entry: proposal.entry,
+                        commandResource: proposal.commandResource,
+                        commandBytes: exactArrayBuffer(bytes),
                     },
                     repositoryRevision,
                     changeCursor,
@@ -815,6 +998,449 @@ async function prepareImport(bundle, crypto) {
     return { resources };
 }
 
+/** @param {unknown} operation */
+function commandPageKind(operation) {
+    if (operation === 'parse' || operation === 'inspect') return 'inspection';
+    throw new CemStudioRepositoryError(
+        'cem.studio.repository.command_operation_unsupported',
+        `CLI command operation \`${String(operation)}\` cannot be applied to the current Studio workbench`,
+        { operation },
+    );
+}
+
+/** @param {unknown} value */
+function normalizeCommandTarget(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_invalid',
+            'apply-command-page requires a current, existing, or new target object',
+        );
+    }
+    const mode = value.mode;
+    if (!['current', 'existing', 'new'].includes(mode)) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_invalid',
+            'command target mode must be current, existing, or new',
+        );
+    }
+    const entryId = value.entryId === undefined ? undefined : stableId(value.entryId, 'command target entry id');
+    const parentId = value.parentId === undefined ? undefined : stableId(value.parentId, 'command target parent id');
+    const name = value.name === undefined ? undefined : commandPageName(value.name);
+    if (mode === 'current' && (!entryId || name !== undefined)) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_invalid',
+            'current command targets require entryId and forbid name lookup',
+        );
+    }
+    if (mode === 'existing' && Number(entryId !== undefined) + Number(name !== undefined) !== 1) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_invalid',
+            'existing command targets require exactly one of entryId or name',
+        );
+    }
+    if (mode === 'new' && name === undefined) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_invalid',
+            'new command targets require a visible page name',
+        );
+    }
+    return Object.freeze({
+        mode,
+        entryId,
+        parentId,
+        name,
+        confirmIncompatibleReplacement: value.confirmIncompatibleReplacement === true,
+    });
+}
+
+/** @param {unknown} value */
+function normalizeReferencedResourceIds(value) {
+    if (!Array.isArray(value) || value.length === 0) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_resources_invalid',
+            'apply-command-page requires at least one resolved non-command resource id',
+        );
+    }
+    const ids = value.map((id) => stableId(id, 'referenced resource id'));
+    if (new Set(ids).size !== ids.length) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_resources_invalid',
+            'referenced command resources must not contain duplicate ids',
+        );
+    }
+    return Object.freeze(ids);
+}
+
+/** @param {Record<string, any>} project @param {Record<string, any>} command @param {readonly string[]} referencedResourceIds */
+function assertCommandResourceResolution(project, command, referencedResourceIds) {
+    const referenced = new Set(referencedResourceIds);
+    const resourcesByPath = new Map(project.resources.map((resource) => [resource.path, resource]));
+    const studioUris = commandStudioUris(command);
+    if (studioUris.length === 0) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_resource_unresolved',
+            'a Studio parse or inspect command must reference at least one studio:// project resource',
+            { projectId: project.id },
+        );
+    }
+    for (const uri of studioUris) {
+        if (!uri.startsWith(project.rootUri)) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_resource_unresolved',
+                `command resource URI \`${uri}\` is outside project \`${project.id}\``,
+                { projectId: project.id, uri },
+            );
+        }
+        const path = uri.slice(project.rootUri.length);
+        const resource = resourcesByPath.get(path);
+        if (!resource || !referenced.has(resource.id)) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_resource_unresolved',
+                `command resource URI \`${uri}\` has no matching resolved project resource`,
+                { projectId: project.id, uri, path, resourceId: resource?.id },
+            );
+        }
+    }
+}
+
+/** @param {unknown} value */
+function commandStudioUris(value) {
+    const uris = [];
+    const visit = (candidate) => {
+        if (typeof candidate === 'string') {
+            if (candidate.startsWith('studio://')) uris.push(candidate);
+            return;
+        }
+        if (Array.isArray(candidate)) {
+            for (const item of candidate) visit(item);
+            return;
+        }
+        if (!candidate || typeof candidate !== 'object') return;
+        for (const item of Object.values(candidate)) visit(item);
+    };
+    visit(value);
+    return unique(uris);
+}
+
+/**
+ * @param {{
+ *   bundle: {project: Record<string, any>, contents: Record<string, unknown>},
+ *   bytes: Uint8Array,
+ *   sha256: string,
+ *   operation: string,
+ *   pageKind: string,
+ *   target: Readonly<Record<string, any>>,
+ *   referencedResourceIds: readonly string[],
+ *   committedAt: string,
+ * }} input
+ */
+function prepareCommandPageProposal(input) {
+    const project = structuredClone(input.bundle.project);
+    const entries = project.entries.map((entry) => structuredClone(entry));
+    const resources = project.resources.map((resource) => structuredClone(resource));
+    const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
+    for (const resourceId of input.referencedResourceIds) {
+        const resource = resourceById.get(resourceId);
+        if (!resource) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_resource_unresolved',
+                `referenced resource \`${resourceId}\` was not found in project \`${project.id}\``,
+                { projectId: project.id, resourceId },
+            );
+        }
+        if (resource.role === 'run-config') {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_resources_invalid',
+                `run-config resource \`${resourceId}\` cannot be a command input reference`,
+                { resourceId },
+            );
+        }
+    }
+
+    const parentId = input.target.parentId;
+    assertCommandParent(entries, parentId);
+    const usedIds = new Set([project.id, ...entries.map(({ id }) => id), ...resources.map(({ id }) => id)]);
+    const usedPaths = new Set(resources.map(({ path }) => path));
+    let entry;
+    let disposition;
+    if (input.target.mode === 'new') {
+        const duplicate = entries.find((candidate) =>
+            sameParent(candidate.parentId, parentId)
+            && normalizedCommandPageName(candidate.name) === normalizedCommandPageName(input.target.name));
+        if (duplicate) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_target_name_conflict',
+                `page name \`${input.target.name}\` already resolves to entry \`${duplicate.id}\``,
+                { existingEntryId: duplicate.id, parentId },
+            );
+        }
+        let entryId = input.target.entryId;
+        if (entryId && usedIds.has(entryId)) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_target_conflict',
+                `stable id \`${entryId}\` is already used in project \`${project.id}\``,
+                { entryId },
+            );
+        }
+        entryId ??= allocateStableId(input.target.name, usedIds);
+        usedIds.add(entryId);
+        entry = {
+            id: entryId,
+            ...(parentId === undefined ? {} : { parentId }),
+            kind: input.pageKind,
+            name: input.target.name,
+            tags: ['command', input.operation],
+        };
+        disposition = 'created';
+    } else {
+        entry = resolveExistingCommandTarget(entries, input.target);
+        if (entry.kind !== input.pageKind && !input.target.confirmIncompatibleReplacement) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_target_incompatible',
+                `entry \`${entry.id}\` is ${entry.kind}; applying ${input.operation} requires ${input.pageKind}`,
+                {
+                    entryId: entry.id,
+                    existingKind: entry.kind,
+                    requiredKind: input.pageKind,
+                    recommendedDisposition: 'new',
+                    requiresConfirmation: true,
+                },
+            );
+        }
+        entry = { ...entry, kind: input.pageKind };
+        disposition = 'updated';
+    }
+
+    let commandResource;
+    let commandResourceCreated;
+    if (disposition === 'updated') {
+        const currentResource = resourceById.get(entry.runConfigResourceId);
+        if (!currentResource) {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_resource_unresolved',
+                `entry \`${entry.id}\` references missing run-config \`${String(entry.runConfigResourceId)}\``,
+                { entryId: entry.id, resourceId: entry.runConfigResourceId },
+            );
+        }
+        if (currentResource.role !== 'run-config') {
+            throw new CemStudioRepositoryError(
+                'cem.studio.repository.command_resource_role_invalid',
+                `entry \`${entry.id}\` run-config \`${currentResource.id}\` has role \`${currentResource.role}\``,
+                { entryId: entry.id, resourceId: currentResource.id, role: currentResource.role },
+            );
+        }
+        const shared = entries.filter(({ runConfigResourceId }) => runConfigResourceId === currentResource.id).length > 1;
+        if (!shared && currentResource.sourceKind === 'project-file') {
+            commandResource = {
+                ...currentResource,
+                contentType: CEM_ML_CLI_COMMAND_CONTENT_TYPE,
+                schema: CEM_ML_CLI_COMMAND_SCHEMA,
+                revision: currentResource.revision + 1,
+                sha256: input.sha256,
+            };
+            commandResourceCreated = false;
+        }
+    }
+    if (!commandResource) {
+        commandResource = allocateCommandResource(entry.id, usedIds, usedPaths, input.sha256);
+        commandResourceCreated = true;
+    }
+    entry = {
+        ...entry,
+        runConfigResourceId: commandResource.id,
+        resourceIds: [...input.referencedResourceIds, commandResource.id],
+    };
+
+    const nextProject = {
+        ...project,
+        revision: project.revision + 1,
+        updatedAt: input.committedAt,
+        entries: disposition === 'created'
+            ? [...entries, entry].sort((left, right) => left.id.localeCompare(right.id))
+            : entries.map((candidate) => candidate.id === entry.id ? entry : candidate)
+                .sort((left, right) => left.id.localeCompare(right.id)),
+        resources: commandResourceCreated
+            ? [...resources, commandResource].sort((left, right) => left.id.localeCompare(right.id))
+            : resources.map((candidate) => candidate.id === commandResource.id ? commandResource : candidate)
+                .sort((left, right) => left.id.localeCompare(right.id)),
+    };
+    const contents = structuredClone(input.bundle.contents);
+    contents[commandResource.id] = exactArrayBuffer(input.bytes);
+    return Object.freeze({
+        project: nextProject,
+        contents,
+        entry: Object.freeze(entry),
+        commandResource: Object.freeze(commandResource),
+        commandResourceCreated,
+        disposition,
+    });
+}
+
+/** @param {Record<string, any>[]} entries @param {Readonly<Record<string, any>>} target */
+function resolveExistingCommandTarget(entries, target) {
+    let matches;
+    if (target.entryId) {
+        matches = entries.filter(({ id }) => id === target.entryId);
+    } else {
+        matches = entries.filter((entry) =>
+            sameParent(entry.parentId, target.parentId)
+            && normalizedCommandPageName(entry.name) === normalizedCommandPageName(target.name));
+    }
+    if (matches.length === 0) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_not_found',
+            'the selected command-page target was not found',
+            { entryId: target.entryId, name: target.name, parentId: target.parentId },
+        );
+    }
+    if (matches.length > 1) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_ambiguous',
+            `page name \`${target.name}\` resolves to more than one stable entry`,
+            { entryIds: matches.map(({ id }) => id), name: target.name, parentId: target.parentId },
+        );
+    }
+    const entry = matches[0];
+    if (target.parentId !== undefined && !sameParent(entry.parentId, target.parentId)) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_not_found',
+            `entry \`${entry.id}\` is not under parent \`${target.parentId}\``,
+            { entryId: entry.id, parentId: target.parentId },
+        );
+    }
+    return structuredClone(entry);
+}
+
+/** @param {Record<string, any>[]} entries @param {string | undefined} parentId */
+function assertCommandParent(entries, parentId) {
+    if (parentId === undefined) return;
+    const parent = entries.find(({ id }) => id === parentId);
+    if (!parent) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_parent_unresolved',
+            `command-page parent \`${parentId}\` was not found`,
+            { parentId },
+        );
+    }
+    if (parent.kind !== 'subproject') {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_parent_invalid',
+            `command-page parent \`${parentId}\` must be a subproject`,
+            { parentId, parentKind: parent.kind },
+        );
+    }
+}
+
+/** @param {string} entryId @param {Set<string>} usedIds @param {Set<string>} usedPaths @param {string} sha256 */
+function allocateCommandResource(entryId, usedIds, usedPaths, sha256) {
+    const base = `${entryId}-command`;
+    let ordinal = 1;
+    while (true) {
+        const id = stableIdCandidate(base, ordinal);
+        const path = `config/${id}.command.json`;
+        if (!usedIds.has(id) && !usedPaths.has(path)) {
+            return {
+                id,
+                role: 'run-config',
+                sourceKind: 'project-file',
+                path,
+                contentType: CEM_ML_CLI_COMMAND_CONTENT_TYPE,
+                schema: CEM_ML_CLI_COMMAND_SCHEMA,
+                revision: 1,
+                sha256,
+            };
+        }
+        ordinal += 1;
+    }
+}
+
+/** @param {string} name @param {Set<string>} usedIds */
+function allocateStableId(name, usedIds) {
+    const base = name
+        .normalize('NFKD')
+        .replace(/\p{M}+/gu, '')
+        .toLocaleLowerCase('und')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'inspection';
+    let ordinal = 1;
+    while (true) {
+        const candidate = stableIdCandidate(base, ordinal);
+        if (!usedIds.has(candidate)) return candidate;
+        ordinal += 1;
+    }
+}
+
+/** @param {string} base @param {number} ordinal */
+function stableIdCandidate(base, ordinal) {
+    const suffix = ordinal === 1 ? '' : `-${ordinal}`;
+    const room = 64 - suffix.length;
+    const head = base.slice(0, room).replace(/-+$/g, '') || 'inspection';
+    return `${head}${suffix}`;
+}
+
+/** @param {unknown} value @param {string} label */
+function stableId(value, label) {
+    if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(value)) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_invalid',
+            `${label} must use the Studio stable-id grammar`,
+        );
+    }
+    return value;
+}
+
+/** @param {unknown} value */
+function commandPageName(value) {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.command_target_invalid',
+            'command page name must be non-empty text',
+        );
+    }
+    return value.trim();
+}
+
+/** @param {string} value */
+function normalizedCommandPageName(value) {
+    return value.trim().normalize('NFKC').toLocaleLowerCase('und');
+}
+
+/** @param {string | undefined} left @param {string | undefined} right */
+function sameParent(left, right) {
+    return (left ?? undefined) === (right ?? undefined);
+}
+
+/** @param {{project: Record<string, any>, contents: Record<string, unknown>}} normalized @param {Record<string, any>} proposal @param {Uint8Array} bytes */
+function assertValidatedCommandProposal(normalized, proposal, bytes) {
+    const project = normalized.project;
+    const entry = project.entries.find(({ id }) => id === proposal.entry.id);
+    const resource = project.resources.find(({ id }) => id === proposal.commandResource.id);
+    const content = normalized.contents[proposal.commandResource.id];
+    if (
+        project.id !== proposal.project.id
+        || project.revision !== proposal.project.revision
+        || !entry
+        || entry.kind !== proposal.entry.kind
+        || entry.runConfigResourceId !== proposal.commandResource.id
+        || !resource
+        || resource.role !== 'run-config'
+        || resource.sha256 !== proposal.commandResource.sha256
+        || content === undefined
+        || !equalBytes(toBytes(content), bytes)
+    ) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.apply_validation_changed_proposal',
+            'the CEM-ML project validator changed the command-page proposal instead of validating it',
+            { entryId: proposal.entry.id, resourceId: proposal.commandResource.id },
+        );
+    }
+}
+
+/** @param {Uint8Array} left @param {Uint8Array} right */
+function equalBytes(left, right) {
+    return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
+}
+
 /** @param {Record<string, any>} project */
 function projectStorageRecord(project) {
     const { entries: _entries, resources: _resources, ...metadata } = project;
@@ -848,34 +1474,42 @@ function portableProject(project, entries, resources) {
 /** @param {Record<string, any>} project @param {Array<{resource: Record<string, any>, bytes: Uint8Array}>} resources */
 function searchDocumentsForBundle(project, resources) {
     return [
-        searchDocument(
-            'project',
-            project.id,
-            project.id,
-            project.name,
-            '',
-            project.description ?? '',
-            [],
-            project.revision,
-            false,
-        ),
-        ...project.entries.map((entry) =>
-            searchDocument(
-                'entry',
-                project.id,
-                entry.id,
-                entry.name,
-                '',
-                entry.description ?? '',
-                entry.tags ?? [],
-                project.revision,
-                false,
-            ),
-        ),
+        searchDocumentForProject(project, false),
+        ...project.entries.map((entry) => searchDocumentForEntry(project.id, entry, project.revision, false)),
         ...resources.map(({ resource, bytes }) =>
             searchDocumentForResource(resourceStorageRecord(project.id, resource), bytes, false),
         ),
     ];
+}
+
+/** @param {Record<string, any>} project @param {boolean} trashed */
+function searchDocumentForProject(project, trashed) {
+    return searchDocument(
+        'project',
+        project.id,
+        project.id,
+        project.name,
+        '',
+        project.description ?? '',
+        [],
+        project.revision,
+        trashed,
+    );
+}
+
+/** @param {string} projectId @param {Record<string, any>} entry @param {number} projectRevision @param {boolean} trashed */
+function searchDocumentForEntry(projectId, entry, projectRevision, trashed) {
+    return searchDocument(
+        'entry',
+        projectId,
+        entry.id,
+        entry.name,
+        '',
+        entry.description ?? '',
+        entry.tags ?? [],
+        projectRevision,
+        trashed,
+    );
 }
 
 /** @param {Record<string, any>} resource @param {Uint8Array} bytes @param {boolean} trashed */

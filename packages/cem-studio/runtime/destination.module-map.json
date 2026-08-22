@@ -28,6 +28,7 @@
             "path": "./assets/@epa-wg/cem-studio/repository.js",
             "contentType": "text/javascript",
             "moduleImports": {
+                "@epa-wg/cem-ml-cli/browser": "@epa-wg/cem-ml-cli/browser",
                 "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
             }
         },
