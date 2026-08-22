@@ -87,6 +87,27 @@ try {
     ]);
     console.log('[cem-studio:static-worker] deployment caches verified');
 
+    const projections = await exerciseProjections(page);
+    assert.deepEqual(projections.parse.map(({ mode }) => mode), ['ast', 'events']);
+    assert.deepEqual(
+        projections.inspect.map(({ mode }) => mode),
+        ['summary', 'ast', 'events', 'diagnostics', 'source-offsets', 'tree'],
+    );
+    for (const projection of [...projections.parse, ...projections.inspect]) {
+        assert.equal(projection.status, 'projected');
+        assert.equal(projection.projectRevision, 1);
+        assert.equal(projection.resourceRevision, 1);
+        assert.equal(projection.runtime, 'wasm-browser-worker');
+        assert.equal(projection.nativeKind, projection.kind);
+        assert.equal(projection.stale, false);
+        assert.ok(projection.contentType.includes('cem'));
+        assert.ok(projection.byteLength > 0);
+        assert.equal(projection.sha256.length, 64);
+        assert.ok(projection.text.includes('@doc cem-ml 1'));
+    }
+    assert.equal(projections.componentsOnly, true);
+    assert.equal(projections.controlsInstalled, true);
+
     const featureTour = await validateFeatureTour(page, initialFeatureTourStatus);
     assert.equal(featureTour.initialStatus, 'installed');
     assert.ok(['installed', 'preserved'].includes(featureTour.status));
@@ -113,6 +134,9 @@ try {
 
     const stored = await importOfflineProject(page);
     assert.equal(stored.repositoryRevision, 3);
+    const onlineOfflineProjectProjections = await projectOfflineResource(page);
+    assert.equal(onlineOfflineProjectProjections.parse.status, 'projected');
+    assert.equal(onlineOfflineProjectProjections.inspect.status, 'projected');
 
     const online = await executeVersionCommand(page, 'static-worker-online');
     assert.equal(online.exitCode, 0);
@@ -125,7 +149,7 @@ try {
     assert.ok(await page.evaluate(() => navigator.serviceWorker.controller !== null));
     assert.equal(await page.getAttribute('[data-cem-studio-root]', 'data-theme'), 'cem-theme-contrast-dark');
     const recovered = await exportOfflineProject(page);
-    assert.equal(recovered.content, 'Offline project bytes');
+    assert.equal(recovered.content, '{main | Offline project bytes}\n');
     assert.equal(recovered.projectId, 'offline-project');
     const recoveredWorkbench = await recoverWorkbenchOffline(page, workbench.content);
     assert.equal(recoveredWorkbench.status, 'invalid');
@@ -136,6 +160,13 @@ try {
     assert.ok(recoveredWorkbench.diagnosticCount > 0);
     assert.ok(recoveredWorkbench.provenanceCount > 0);
     assert.equal(recoveredWorkbench.runtime, 'wasm-browser-worker');
+    const recoveredProjections = await projectOfflineResource(page);
+    assert.equal(recoveredProjections.parse.sha256, onlineOfflineProjectProjections.parse.sha256);
+    assert.equal(recoveredProjections.parse.text, onlineOfflineProjectProjections.parse.text);
+    assert.equal(recoveredProjections.inspect.sha256, onlineOfflineProjectProjections.inspect.sha256);
+    assert.equal(recoveredProjections.inspect.text, onlineOfflineProjectProjections.inspect.text);
+    assert.equal(recoveredProjections.parse.runtime, 'wasm-browser-worker');
+    assert.equal(recoveredProjections.inspect.runtime, 'wasm-browser-worker');
     const offline = await executeVersionCommand(page, 'static-worker-offline');
     assert.equal(offline.exitCode, 0);
     assert.equal(offline.runtime, 'wasm-browser-worker');
@@ -152,7 +183,10 @@ try {
         indexedDbSurvival: recovered,
         featureTour,
         workbench,
+        projections,
+        onlineOfflineProjectProjections,
         recoveredWorkbench,
+        recoveredProjections,
         offlineNavigation: '/projects/offline-project',
         online,
         offline,
@@ -287,7 +321,7 @@ async function exerciseWorkbench(page) {
             diagnosticSelection,
             provenanceSelection,
             componentsOnly: document.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-tabs button)',
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
             ).length === 0,
             reportVisible: Boolean(document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')),
         };
@@ -310,6 +344,94 @@ async function recoverWorkbenchOffline(page, expectedContent) {
             runtime: snapshot.validation.executionIdentity.runtime,
         };
     }, expectedContent);
+}
+
+async function exerciseProjections(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const project = async (kind, mode) => {
+            const snapshot = kind === 'parse'
+                ? await application.workbench.parsePersisted(mode)
+                : await application.workbench.inspectPersisted(mode);
+            const projection = snapshot.projection;
+            const nativeOperation = projection.nativeResult.result?.storage === 'inline'
+                ? projection.nativeResult.result.value
+                : undefined;
+            return {
+                kind,
+                mode,
+                status: snapshot.status,
+                projectRevision: projection.revision.projectRevision,
+                resourceRevision: projection.revision.resourceRevision,
+                runtime: projection.executionIdentity.runtime,
+                nativeKind: nativeOperation?.kind,
+                stale: projection.stale,
+                contentType: projection.output.contentType,
+                byteLength: projection.output.byteLength,
+                sha256: projection.output.sha256,
+                text: projection.output.text,
+                diagnosticCount: projection.diagnostics.length,
+                provenanceCount: projection.provenance.length,
+            };
+        };
+        const parse = [];
+        for (const mode of ['ast', 'events']) parse.push(await project('parse', mode));
+        const inspect = [];
+        for (const mode of ['summary', 'ast', 'events', 'diagnostics', 'source-offsets', 'tree']) {
+            inspect.push(await project('inspect', mode));
+        }
+        await application.workbenchView.whenSettled();
+        return {
+            parse,
+            inspect,
+            componentsOnly: document.querySelectorAll(
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+            ).length === 0,
+            controlsInstalled: Boolean(
+                document.querySelector('[data-cem-studio-workbench] cem-select .cem-select__control')
+                && document.querySelector('[data-cem-studio-workbench] cem-action button')
+                && document.querySelector('[data-cem-studio-workbench] cem-textarea[readonly] textarea')
+                && document.querySelector('[data-cem-studio-workbench] cem-tabs [role="tablist"]')
+                && document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')
+            ),
+        };
+    });
+}
+
+async function projectOfflineResource(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const { createCemStudioFeatureTourWorkbench } = await import('@epa-wg/cem-studio/workbench');
+        const workbench = await createCemStudioFeatureTourWorkbench({
+            repository: application.repository,
+            validator: application.validator,
+            seed: application.seed,
+            projectId: 'offline-project',
+            example: {
+                resourceId: 'source',
+                path: 'source.cem',
+                contentType: 'application/cem',
+                schema: 'https://cem.dev/ns/cem-ml/1',
+                dependencies: [],
+            },
+        });
+        const parseSnapshot = await workbench.parsePersisted('ast');
+        const parse = {
+            status: parseSnapshot.status,
+            runtime: parseSnapshot.projection.executionIdentity.runtime,
+            sha256: parseSnapshot.projection.output.sha256,
+            text: parseSnapshot.projection.output.text,
+        };
+        const inspectSnapshot = await workbench.inspectPersisted('tree');
+        const inspect = {
+            status: inspectSnapshot.status,
+            runtime: inspectSnapshot.projection.executionIdentity.runtime,
+            sha256: inspectSnapshot.projection.output.sha256,
+            text: inspectSnapshot.projection.output.text,
+        };
+        workbench.dispose();
+        return { parse, inspect };
+    });
 }
 
 async function inspectShell(page) {
@@ -353,7 +475,7 @@ async function importOfflineProject(page) {
         const { createCemStudioProjectRepository } = await import('@epa-wg/cem-studio/repository');
         const repository = createCemStudioProjectRepository({ validateProject: async (bundle) => bundle });
         globalThis.__cemStudioAcceptanceRepository = repository;
-        const content = new TextEncoder().encode('Offline project bytes');
+        const content = new TextEncoder().encode('{main | Offline project bytes}\n');
         const digest = await crypto.subtle.digest('SHA-256', content);
         const sha256 = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
         const result = await repository.execute({

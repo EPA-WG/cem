@@ -4,6 +4,16 @@ import { installCemStudioShellComponents } from './shell.js';
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
+export const CEM_STUDIO_PARSE_PROJECTIONS = Object.freeze(['ast', 'events']);
+export const CEM_STUDIO_INSPECT_VIEWS = Object.freeze([
+    'summary',
+    'ast',
+    'events',
+    'diagnostics',
+    'source-offsets',
+    'tree',
+]);
+
 /**
  * Own one editable Feature Tour resource and its durable validation revision.
  * @param {{repository: object, validator: object, seed: object, projectId: string, example?: object}} options
@@ -11,7 +21,9 @@ const textDecoder = new TextDecoder();
 export async function createCemStudioFeatureTourWorkbench(options) {
     const { repository, validator, seed, projectId } = options;
     if (!repository?.query || !repository?.execute) throw new TypeError('Feature Tour workbench requires a repository');
-    if (!validator?.validateResource) throw new TypeError('Feature Tour workbench requires a browser validator');
+    if (!validator?.validateResource || !validator?.parseResource || !validator?.inspectResource) {
+        throw new TypeError('Feature Tour workbench requires a browser command validator');
+    }
     if (typeof projectId !== 'string' || projectId.length === 0) {
         throw new TypeError('Feature Tour workbench requires a project id');
     }
@@ -32,6 +44,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         draft: '',
         dirty: false,
         validation: undefined,
+        projection: undefined,
         selection: undefined,
         error: undefined,
     });
@@ -94,6 +107,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             draft: persisted.text,
             dirty: false,
             validation: undefined,
+            projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
             selection: undefined,
             error: undefined,
         });
@@ -108,6 +122,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             draft,
             dirty: draft !== state.persistedText,
             validation: state.validation ? freezeValidation({ ...state.validation, stale: true }) : undefined,
+            projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
             selection: undefined,
             error: undefined,
         });
@@ -163,6 +178,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             draft: changedDuringSave ? state.draft : persisted.text,
             dirty: changedDuringSave,
             validation: undefined,
+            projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
             selection: undefined,
             error: undefined,
         });
@@ -231,6 +247,75 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         return state;
     }
 
+    async function parsePersisted(projection = 'ast', options = {}) {
+        if (!CEM_STUDIO_PARSE_PROJECTIONS.includes(projection)) {
+            throw new TypeError(`unsupported CEM-ML parse projection: ${projection}`);
+        }
+        return projectPersisted('parse', projection, options);
+    }
+
+    async function inspectPersisted(view = 'summary', options = {}) {
+        if (!CEM_STUDIO_INSPECT_VIEWS.includes(view)) {
+            throw new TypeError(`unsupported CEM-ML inspect view: ${view}`);
+        }
+        return projectPersisted('inspect', view, options);
+    }
+
+    async function projectPersisted(kind, mode, options) {
+        const persisted = await readPersisted();
+        const capturedVersion = editVersion;
+        const draftMatches = state.draft === persisted.text;
+        publish({
+            ...state,
+            status: 'projecting',
+            projectRevision: persisted.projectRevision,
+            resourceRevision: persisted.resourceRevision,
+            repositoryRevision: persisted.repositoryRevision,
+            persistedText: persisted.text,
+            error: undefined,
+        });
+        let outcome;
+        try {
+            outcome = await validator[`${kind}Resource`]({
+                bytes: persisted.bytes,
+                contentType: example.contentType,
+                schema: example.schema,
+                uri: example.path,
+                dependencies: persisted.dependencies,
+                projectId,
+                projectRevision: persisted.projectRevision,
+                resourceRevision: persisted.resourceRevision,
+                [kind === 'parse' ? 'projection' : 'view']: mode,
+                signal: options.signal,
+            });
+        } catch (error) {
+            if (!error?.result || !error?.output) {
+                publish({ ...state, status: 'failed', error: normalizedError(error) });
+                throw error;
+            }
+            outcome = { result: error.result, presentation: error.presentation, output: error.output };
+        }
+        const projected = projectCommandProjection(kind, mode, outcome, persisted.text, {
+            projectRevision: persisted.projectRevision,
+            resourceRevision: persisted.resourceRevision,
+            sha256: persisted.sha256,
+        });
+        const stale = editVersion !== capturedVersion
+            || !draftMatches
+            || state.projectRevision !== persisted.projectRevision
+            || state.resourceRevision !== persisted.resourceRevision
+            || Boolean(outcome.result.stale);
+        const projection = freezeProjection({ ...projected, stale });
+        publish({
+            ...state,
+            status: stale ? 'projection-stale' : projected.exitCode === 0 ? 'projected' : 'projection-invalid',
+            projection,
+            selection: undefined,
+            error: undefined,
+        });
+        return state;
+    }
+
     function navigateDiagnostic(index) {
         const diagnostic = state.validation?.diagnostics[index];
         if (!diagnostic) throw new RangeError(`diagnostic ${index} is unavailable`);
@@ -264,6 +349,8 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         reload,
         saveAndValidate,
         validatePersisted,
+        parsePersisted,
+        inspectPersisted,
         navigateDiagnostic,
         navigateProvenance,
         dispose() {
@@ -288,6 +375,10 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
     const editorHost = host.querySelector('cem-textarea[data-cem-studio-editor]');
     const saveAction = host.querySelector('cem-action[data-cem-studio-save]');
     const reloadAction = host.querySelector('cem-action[data-cem-studio-reload]');
+    const parseAction = host.querySelector('cem-action[data-cem-studio-parse]');
+    const inspectAction = host.querySelector('cem-action[data-cem-studio-inspect]');
+    const parseSelect = host.querySelector('cem-select[data-cem-studio-parse-projection]');
+    const inspectSelect = host.querySelector('cem-select[data-cem-studio-inspect-view]');
     let renderPromise = Promise.resolve();
     let actionPromise = Promise.resolve();
 
@@ -297,6 +388,10 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
             await settleWorkbench(components.runtime, host);
             const editor = host.querySelector('cem-textarea[data-cem-studio-editor] textarea');
             if (editor && editor.value !== snapshot.draft) editor.value = snapshot.draft;
+            const projectionOutput = host.querySelector('cem-textarea[data-cem-studio-projection-output] textarea');
+            if (projectionOutput && projectionOutput.value !== (snapshot.projection?.output.text ?? '')) {
+                projectionOutput.value = snapshot.projection?.output.text ?? '';
+            }
             if (editor && snapshot.selection) {
                 editor.focus();
                 editor.setSelectionRange(snapshot.selection.start, snapshot.selection.end);
@@ -313,6 +408,12 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
     const reload = () => {
         actionPromise = workbench.reload().catch(() => undefined);
     };
+    const parse = () => {
+        actionPromise = workbench.parsePersisted(parseSelect.value).catch(() => undefined);
+    };
+    const inspect = () => {
+        actionPromise = workbench.inspectPersisted(inspectSelect.value).catch(() => undefined);
+    };
     const navigate = (event) => {
         if (!(event.target instanceof HTMLSelectElement)) return;
         const list = event.target.closest('cem-list');
@@ -323,6 +424,8 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
     editorHost.addEventListener('input', edited);
     saveAction.addEventListener('click', save);
     reloadAction.addEventListener('click', reload);
+    parseAction.addEventListener('click', parse);
+    inspectAction.addEventListener('click', inspect);
     host.addEventListener('change', navigate);
     await renderPromise;
 
@@ -338,6 +441,8 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
             editorHost.removeEventListener('input', edited);
             saveAction.removeEventListener('click', save);
             reloadAction.removeEventListener('click', reload);
+            parseAction.removeEventListener('click', parse);
+            inspectAction.removeEventListener('click', inspect);
             host.removeEventListener('change', navigate);
             host.remove();
         },
@@ -381,6 +486,38 @@ function projectValidation(result, presentation, source, revision) {
         diagnostics: Object.freeze(diagnostics),
         provenance: Object.freeze(provenance),
         presentation,
+        sourceByteLength: textEncoder.encode(source).byteLength,
+        stale: false,
+    };
+}
+
+function projectCommandProjection(kind, mode, outcome, source, revision) {
+    const result = outcome.result;
+    const diagnostics = (result?.diagnostics?.items ?? []).map((diagnostic) => normalizeDiagnostic(diagnostic));
+    const provenance = [];
+    diagnostics.forEach((diagnostic, diagnosticIndex) => {
+        diagnostic.sourceMap?.frames?.forEach((frame, frameIndex) => {
+            provenance.push(normalizeFrame(frame, { diagnosticIndex, frameIndex }));
+        });
+    });
+    for (const reference of result?.sourceMaps?.items ?? []) {
+        const stack = reference.sourceMap?.storage === 'inline' ? reference.sourceMap.value : undefined;
+        stack?.frames?.forEach((frame, frameIndex) => {
+            provenance.push(normalizeFrame(frame, { sourceMapId: reference.sourceMapId, frameIndex }));
+        });
+    }
+    return {
+        kind,
+        mode,
+        requestId: result?.requestId,
+        exitCode: result?.exitCode,
+        executionIdentity: result?.identity,
+        revision,
+        output: outcome.output,
+        nativeResult: result,
+        diagnostics: Object.freeze(diagnostics),
+        provenance: Object.freeze(provenance),
+        presentation: outcome.presentation,
         sourceByteLength: textEncoder.encode(source).byteLength,
         stale: false,
     };
@@ -461,6 +598,10 @@ function freezeValidation(value) {
     return Object.freeze({ ...value });
 }
 
+function freezeProjection(value) {
+    return Object.freeze({ ...value });
+}
+
 function normalizedError(error) {
     return Object.freeze({
         code: error?.code ?? 'cem.studio.workbench.failed',
@@ -521,6 +662,31 @@ function workbenchMarkup() {
                 <cem-alert data-cem-studio-workbench-alert label="Load a resource to begin" tone="info"></cem-alert>
             </div>
         </cem-card>
+        <section aria-label="CEM-ML projections">
+            <cem-select data-cem-studio-parse-projection name="parse-projection" value="ast">
+                <span slot="label">Parse projection</span>
+                <option value="ast">AST</option>
+                <option value="events">Events</option>
+            </cem-select>
+            <cem-action data-cem-studio-parse variant="secondary">Parse persisted revision</cem-action>
+            <cem-select data-cem-studio-inspect-view name="inspect-view" value="summary">
+                <span slot="label">Inspect view</span>
+                <option value="summary">Summary</option>
+                <option value="ast">AST</option>
+                <option value="events">Events</option>
+                <option value="diagnostics">Diagnostics</option>
+                <option value="source-offsets">Source offsets</option>
+                <option value="tree">Tree</option>
+            </cem-select>
+            <cem-action data-cem-studio-inspect variant="secondary">Inspect persisted revision</cem-action>
+            <cem-alert data-cem-studio-projection-alert label="Run parse or inspect against the persisted revision" tone="info"></cem-alert>
+        </section>
+        <cem-tabs label="Projection results" value="output">
+            <cem-tab value="output" label="CEM-ML output">
+                <cem-textarea data-cem-studio-projection-output name="projection-output" label="Target-native CEM-ML output" readonly></cem-textarea>
+            </cem-tab>
+            <cem-tab value="metadata" label="Execution"><div data-cem-studio-projection-metadata></div></cem-tab>
+        </cem-tabs>
         <cem-tabs label="Validation results" value="diagnostics">
             <cem-tab value="diagnostics" label="Diagnostics"><div data-cem-studio-diagnostics></div></cem-tab>
             <cem-tab value="report" label="Report"><div data-cem-studio-report></div></cem-tab>
@@ -529,27 +695,40 @@ function workbenchMarkup() {
 }
 
 function renderWorkbench(host, state) {
-    const busy = state.status === 'saving' || state.status === 'validating';
+    const busy = state.status === 'saving' || state.status === 'validating' || state.status === 'projecting';
     const status = host.querySelector('[data-cem-studio-workbench-status]');
     const revision = host.querySelector('[data-cem-studio-workbench-revision]');
     const alert = host.querySelector('[data-cem-studio-workbench-alert]');
     const save = host.querySelector('[data-cem-studio-save]');
     const reload = host.querySelector('[data-cem-studio-reload]');
+    const parse = host.querySelector('[data-cem-studio-parse]');
+    const inspect = host.querySelector('[data-cem-studio-inspect]');
+    const projectionAlert = host.querySelector('[data-cem-studio-projection-alert]');
     status.setAttribute('label', statusLabel(state));
     status.setAttribute('tone', statusTone(state.status));
     revision.setAttribute('label', `Project ${state.projectRevision}; resource ${state.resourceRevision}`);
     save.toggleAttribute('disabled', busy || !state.dirty);
     save.toggleAttribute('loading', busy);
     reload.toggleAttribute('disabled', busy);
+    parse.toggleAttribute('disabled', busy);
+    parse.toggleAttribute('loading', state.status === 'projecting');
+    inspect.toggleAttribute('disabled', busy);
+    inspect.toggleAttribute('loading', state.status === 'projecting');
     alert.setAttribute('label', alertLabel(state));
     alert.setAttribute('tone', state.error || state.status === 'invalid' || state.status === 'conflict' ? 'danger' : 'info');
     host.querySelector('[data-cem-studio-diagnostics]').innerHTML = diagnosticsMarkup(state.validation?.diagnostics ?? []);
     host.querySelector('[data-cem-studio-report]').innerHTML = reportMarkup(state.validation?.reportSummary);
     host.querySelector('[data-cem-studio-provenance]').innerHTML = provenanceMarkup(state.validation?.provenance ?? []);
+    projectionAlert.setAttribute('label', projectionAlertLabel(state));
+    projectionAlert.setAttribute(
+        'tone',
+        state.status === 'projection-invalid' || state.error ? 'danger' : state.projection?.stale ? 'warning' : 'info',
+    );
+    host.querySelector('[data-cem-studio-projection-metadata]').innerHTML = projectionMetadataMarkup(state.projection);
 }
 
 function statusLabel(state) {
-    if (state.validation?.stale) return 'Validation result stale';
+    if (state.status === 'stale') return 'Validation result stale';
     return {
         loading: 'Loading resource',
         loaded: 'Persisted revision loaded',
@@ -557,6 +736,10 @@ function statusLabel(state) {
         saving: 'Saving revision',
         saved: 'Revision saved',
         validating: 'Validating saved revision',
+        projecting: 'Projecting saved revision',
+        projected: 'Saved revision projected',
+        'projection-invalid': 'Projection has diagnostics',
+        'projection-stale': 'Projection result stale',
         valid: 'Saved revision valid',
         invalid: 'Saved revision has diagnostics',
         stale: 'Validation result stale',
@@ -566,9 +749,9 @@ function statusLabel(state) {
 }
 
 function statusTone(status) {
-    if (status === 'valid' || status === 'saved' || status === 'loaded') return 'success';
-    if (status === 'invalid' || status === 'failed' || status === 'conflict') return 'danger';
-    if (status === 'dirty' || status === 'stale') return 'warning';
+    if (status === 'valid' || status === 'saved' || status === 'loaded' || status === 'projected') return 'success';
+    if (status === 'invalid' || status === 'failed' || status === 'conflict' || status === 'projection-invalid') return 'danger';
+    if (status === 'dirty' || status === 'stale' || status === 'projection-stale') return 'warning';
     return 'info';
 }
 
@@ -579,6 +762,29 @@ function alertLabel(state) {
         return `${state.validation.diagnostics.length} diagnostics; ${state.validation.hardViolationCount} hard violations.`;
     }
     return `${state.path}; ${state.contentType}`;
+}
+
+function projectionAlertLabel(state) {
+    if (!state.projection) return 'Run parse or inspect against the persisted revision.';
+    const freshness = state.projection.stale ? 'stale' : 'current';
+    return `${state.projection.kind} ${state.projection.mode}; ${state.projection.output.byteLength} CEM-ML bytes; ${freshness} revision.`;
+}
+
+function projectionMetadataMarkup(projection) {
+    if (!projection) return '<cem-alert label="No parse or inspect result yet" tone="info"></cem-alert>';
+    const rows = [
+        ['Operation', projection.kind],
+        ['Projection', projection.mode],
+        ['Runtime', projection.executionIdentity?.runtime ?? 'unknown'],
+        ['Project revision', projection.revision.projectRevision],
+        ['Resource revision', projection.revision.resourceRevision],
+        ['Output content type', projection.output.contentType],
+        ['Output bytes', projection.output.byteLength],
+        ['Diagnostics', projection.diagnostics.length],
+        ['Source-map frames', projection.provenance.length],
+        ['Freshness', projection.stale ? 'stale' : 'current'],
+    ];
+    return `<cem-table label="Projection execution"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Value</strong></div>${rows.map(([label, value]) => `<div role="row"><span role="cell">${escapeHtml(label)}</span><span role="cell">${escapeHtml(value)}</span></div>`).join('')}</cem-table>`;
 }
 
 function diagnosticsMarkup(diagnostics) {
@@ -618,7 +824,7 @@ function escapeHtml(value) {
 async function settleWorkbench(runtime, root) {
     await Promise.resolve();
     const instances = [...root.querySelectorAll(
-        'cem-card, cem-badge, cem-textarea, cem-action, cem-alert, cem-tabs, cem-list, cem-table',
+        'cem-card, cem-badge, cem-textarea, cem-select, cem-action, cem-alert, cem-tabs, cem-list, cem-table',
     )];
     await Promise.all(instances.map((instance) => runtime.whenRenderSettled(instance)));
     await Promise.resolve();

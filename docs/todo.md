@@ -1282,6 +1282,35 @@ including search, is composed from `@epa-wg/cem-components` and
 - [ ] Add parse and inspect projections plus the lossless bidirectional CLI
       Command view for copy, edit, transactional Apply, and current/existing/new
       page targets.
+    - [x] Fixture: execute CEM-ML `parse` (`ast` and `events`) and every
+          browser-capable `inspect` view against exact IndexedDB bytes with the
+          durable project/resource revisions carried into the command ledger.
+    - [x] Fixture: retain the native command result, execution identity,
+          diagnostics, source maps, and target-native CEM-ML output artifact;
+          render the CEM-ML bytes without routing them through a JSON AST/DOM
+          handoff.
+    - [x] Fixture: reproduce browser command-service CEM events presentation
+          with the native engine, preserve legal tabs and line endings in CEM
+          quoted attributes, and continue rejecting non-text control bytes.
+    - [x] Fixture: select and run parse/inspect projections, show status and
+          read-only output, and switch result panes exclusively with production
+          `cem-components` controls on the shared `cem-elements` runtime.
+    - [x] Fixture: prove real-worker parse/inspect output online and after an
+          offline reload, and mark a projection stale when the draft or durable
+          revision advances while it is running.
+    - Completed 2026-08-21: the Feature Tour workbench executes target-native
+      CEM-ML `parse` AST/events projections and all six browser `inspect` views
+      through the Rust-owned command grammar and real dedicated worker. Each
+      request reads the exact IndexedDB resource and dependency bytes, carries
+      optimistic project/resource revisions into the command ledger, retains
+      the native result/identity/diagnostics/source maps, verifies the published
+      output bytes by length and SHA-256, and renders those CEM-ML bytes in
+      `cem-select`, `cem-action`, `cem-alert`, `cem-tabs`, `cem-textarea`, and
+      `cem-table` controls. Chromium proves the projection matrix, stale draft
+      handling, and identical online/offline output. The typed CEM writer now
+      preserves tabs and line endings in quoted event payloads while rejecting
+      non-text controls. The parent remains open for the lossless bidirectional
+      CLI Command view and transactional Apply target workflow.
 - [ ] Add conversion, query, transformation, trace, and transformation-graph
       workbenches without duplicating engine semantics or component behavior.
 - [ ] Add the opt-in File System Access provider with explicit permissions,

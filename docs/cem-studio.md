@@ -77,6 +77,32 @@ unrestricted operating-system filesystem into the page. In Node, a thin host
 adapter may provide files, streams, environment, and exit-code projections
 without creating another semantic engine.
 
+## Implemented Phase 6.5 Baseline (2026-08-21)
+
+The graph-built `@epa-wg/cem-studio` PWA now owns the accepted IndexedDB
+repository, generated Feature Tour, offline shell, and first editable workbench.
+The workbench saves and reloads exact optimistic project/resource revisions,
+validates them through the dedicated browser command worker, and keeps native
+diagnostics, report facts, execution identity, and source-map provenance.
+
+The same workbench now executes CEM-ML `parse` AST/events projections and all
+six browser-capable `inspect` views (`summary`, `ast`, `events`, `diagnostics`,
+`source-offsets`, and `tree`). These commands are parsed and lowered by the
+shared Rust-owned CLI contract, receive the exact IndexedDB bytes and durable
+revision ledger, and retain the native command result plus the verified
+target-native CEM-ML output artifact. The application does not reshape that
+output through a JSON AST or DOM handoff. All visible selection, action, status,
+output, and execution-metadata surfaces use production `cem-components` on the
+shared `cem-elements` runtime. Real Chromium verifies every projection online,
+identical output after offline reload, and stale-result handling when a draft or
+durable revision advances during execution.
+
+The remaining part of the parse/validate/inspect MVP is the lossless
+bidirectional CLI Command view: serialize the normalized command, copy/edit it,
+parse it back through the shared command grammar, show its semantic change, and
+apply it transactionally to a selected current, existing, or explicitly named
+new page.
+
 ## Goals
 
 - Let a user learn and exercise CEM-ML without installing a native executable.
@@ -116,9 +142,9 @@ without creating another semantic engine.
 
 ## Existing Workspace Foundation and Gaps
 
-The current evidence is detailed in the
+The phase-start evidence is detailed in the
 [`Phase 6.5 boundary audit`](./cem-studio-phase6.5-boundary-audit.md). The live
-baseline is:
+implementation baseline above supersedes the starting gaps recorded here:
 
 | Existing asset                                                                                    | Value to Studio                                                                                                                                                                   | Remaining gap work                                                                                                                                                             |
 | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

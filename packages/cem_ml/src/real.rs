@@ -20716,6 +20716,58 @@ mod tests {
     }
 
     #[test]
+    fn parse_cem_events_presents_multiline_trivia_through_typed_writer() {
+        let bytes = br#"@doc cem-ml 1
+
+{article @id="welcome" @attr1="abc" @attr2="long attr value"
+    @attr3="abc" @attr4="abc" |
+    {h1 | Welcome}
+    {p | This is a minimal CEM-ML document.}
+}
+"#;
+        let mut source = input(bytes, "cem-studio://feature-tour/data/cem-ml/basic.cem");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        source.root_scope.default_content_type = Some(CEM_ML_CONTENT_TYPE.to_owned());
+        source.root_scope.schema = Some(CEM_ML_SCHEMA_URI.to_owned());
+        let req = ParseRequest {
+            input: source,
+            projection: ParseProjection::Events,
+            fail_level: FailLevel::Parse,
+            preserve_source_offsets: true,
+            presentation_scope: Some(ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                output_color_type: Some("none".to_owned()),
+                ..ScopeConfig::default()
+            }),
+            context: EngineContext {
+                content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+                ..ctx()
+            },
+        };
+
+        let resp = RealCemMlEngine::new().parse(req).unwrap();
+        let presentation = std::str::from_utf8(
+            &resp
+                .primary_bytes
+                .as_ref()
+                .expect("CEM-ML events presentation")
+                .bytes,
+        )
+        .unwrap();
+        assert!(presentation.starts_with("@doc cem-ml 1\n"), "{presentation}");
+        assert!(presentation.contains("@ns cemevents"), "{presentation}");
+        assert!(presentation.contains("{event-stream "), "{presentation}");
+        assert!(presentation.contains("@kind=trivia"), "{presentation}");
+        assert!(presentation.contains("@value=\"\n"), "{presentation:?}");
+        assert!(!presentation.contains("\u{1b}["), "{presentation:?}");
+    }
+
+    #[test]
     fn inspect_css_ast_presents_typed_cem_ml_without_a_json_bridge() {
         let css = b".card { color: red; }";
         let mut source = input(css, "component.css");

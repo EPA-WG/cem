@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCemStudioProjectRepository } from './repository.js';
 import { mountCemStudioApplicationShell } from './shell.js';
 import {
+    CEM_STUDIO_INSPECT_VIEWS,
+    CEM_STUDIO_PARSE_PROJECTIONS,
     createCemStudioFeatureTourWorkbench,
     mountCemStudioFeatureTourWorkbench,
 } from './workbench.js';
@@ -87,6 +89,71 @@ describe('CEM Studio Feature Tour workbench', () => {
         provenance.dispatchEvent(new Event('change', { bubbles: true }));
         await view.whenSettled();
         expect(workbench.snapshot().selection).toMatchObject({ kind: 'provenance', byteStart: rangeStart });
+
+        const parseSelect = root.querySelector('cem-select[data-cem-studio-parse-projection]');
+        parseSelect.value = 'events';
+        root.querySelector('cem-action[data-cem-studio-parse] button').click();
+        await view.whenSettled();
+        expect(workbench.snapshot()).toMatchObject({
+            status: 'projected',
+            projection: {
+                kind: 'parse',
+                mode: 'events',
+                revision: { projectRevision: 2, resourceRevision: 2 },
+                output: { contentType: 'application/cem', text: 'parse events projection\n' },
+                nativeResult: { operation: 'parse' },
+                stale: false,
+            },
+        });
+        expect(root.querySelector('cem-textarea[data-cem-studio-projection-output] textarea').value)
+            .toBe('parse events projection\n');
+
+        const inspectSelect = root.querySelector('cem-select[data-cem-studio-inspect-view]');
+        inspectSelect.value = 'tree';
+        root.querySelector('cem-action[data-cem-studio-inspect] button').click();
+        await view.whenSettled();
+        expect(workbench.snapshot().projection).toMatchObject({
+            kind: 'inspect',
+            mode: 'tree',
+            output: { text: 'inspect tree projection\n' },
+        });
+        expect(root.querySelector('cem-table[label="Projection execution"] [role="table"]')).not.toBeNull();
+    });
+
+    it('executes every CEM-ML parse projection and inspect view against the durable revision', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Durable projection}\n');
+        const workbench = await createWorkbench(repository, validator);
+
+        for (const projection of CEM_STUDIO_PARSE_PROJECTIONS) {
+            const snapshot = await workbench.parsePersisted(projection);
+            expect(snapshot.projection).toMatchObject({
+                kind: 'parse',
+                mode: projection,
+                revision: { projectRevision: 1, resourceRevision: 1 },
+                output: { text: `parse ${projection} projection\n` },
+                stale: false,
+            });
+        }
+        for (const view of CEM_STUDIO_INSPECT_VIEWS) {
+            const snapshot = await workbench.inspectPersisted(view);
+            expect(snapshot.projection).toMatchObject({
+                kind: 'inspect',
+                mode: view,
+                revision: { projectRevision: 1, resourceRevision: 1 },
+                output: { text: `inspect ${view} projection\n` },
+                stale: false,
+            });
+        }
+
+        expect(validator.parseResource).toHaveBeenCalledTimes(CEM_STUDIO_PARSE_PROJECTIONS.length);
+        expect(validator.inspectResource).toHaveBeenCalledTimes(CEM_STUDIO_INSPECT_VIEWS.length);
+        expect(validator.inspectResource).toHaveBeenLastCalledWith(expect.objectContaining({
+            projectId: 'feature-tour',
+            projectRevision: 1,
+            resourceRevision: 1,
+            view: 'tree',
+        }));
     });
 
     it('marks an in-flight saved-revision result stale when the draft advances', async () => {
@@ -116,6 +183,37 @@ describe('CEM Studio Feature Tour workbench', () => {
             validation: { stale: true, revision: { projectRevision: 2, resourceRevision: 2 } },
         });
     });
+
+    it('marks an in-flight persisted projection stale when the draft advances', async () => {
+        let releaseProjection;
+        let startedProjection;
+        const started = new Promise((resolve) => {
+            startedProjection = resolve;
+        });
+        const validator = validatorFor(validResult());
+        validator.parseResource.mockImplementation(() => new Promise((resolve) => {
+            releaseProjection = () => resolve(projectionOutcome('parse', 'ast'));
+            startedProjection();
+        }));
+        const repository = await repositoryWithSource('{main | Persisted}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const projecting = workbench.parsePersisted('ast');
+        await started;
+        workbench.updateDraft('{main | New draft}\n');
+        releaseProjection();
+        await projecting;
+
+        expect(workbench.snapshot()).toMatchObject({
+            status: 'projection-stale',
+            dirty: true,
+            projection: {
+                kind: 'parse',
+                mode: 'ast',
+                revision: { projectRevision: 1, resourceRevision: 1 },
+                stale: true,
+            },
+        });
+    });
 });
 
 async function createWorkbench(repository, validator) {
@@ -132,6 +230,8 @@ async function createWorkbench(repository, validator) {
 function validatorFor(outcome) {
     return {
         validateProject: async (bundle) => bundle,
+        parseResource: vi.fn(async ({ projection = 'ast' }) => projectionOutcome('parse', projection)),
+        inspectResource: vi.fn(async ({ view = 'summary' }) => projectionOutcome('inspect', view)),
         validateResource: vi.fn(async (options) => {
             const value = typeof outcome === 'function' ? await outcome(options) : outcome;
             if (value.result.exitCode === 0) return value;
@@ -140,6 +240,32 @@ function validatorFor(outcome) {
             error.presentation = value.presentation;
             throw error;
         }),
+    };
+}
+
+function projectionOutcome(kind, mode) {
+    const text = `${kind} ${mode} projection\n`;
+    const bytes = [...new TextEncoder().encode(text)];
+    return {
+        result: {
+            protocolVersion: 1,
+            requestId: `workbench-${kind}-${mode}`,
+            operation: kind,
+            exitCode: 0,
+            result: { storage: 'inline', value: { kind, value: { projection: mode } } },
+            diagnostics: { items: [], originalCount: 0 },
+            sourceMaps: { items: [], originalCount: 0 },
+            identity: { runtime: 'wasm-browser-worker' },
+        },
+        presentation: { writes: [] },
+        output: {
+            uri: 'cem-stdio://stdout',
+            contentType: 'application/cem',
+            byteLength: bytes.length,
+            sha256: 'fixture-output-sha256',
+            bytes,
+            text,
+        },
     };
 }
 

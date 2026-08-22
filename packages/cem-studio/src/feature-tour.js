@@ -3,6 +3,9 @@ export const CEM_STUDIO_FEATURE_TOUR_COPY_ID = 'feature-tour';
 export const CEM_STUDIO_PROJECT_CONTENT_TYPE = 'application/vnd.cem.studio-project+json';
 export const CEM_STUDIO_PROJECT_SCHEMA = 'https://cem.dev/ns/studio/project/1';
 
+const CEM_STDOUT_URI = 'cem-stdio://stdout';
+const ARTIFACT_READ_BYTES = 1024 * 1024;
+
 /** Create one reusable real CEM-ML browser command validator. */
 export async function createCemStudioBrowserValidator() {
     const {
@@ -12,27 +15,34 @@ export async function createCemStudioBrowserValidator() {
         projectBrowserCommandPresentation,
     } = await import('@epa-wg/cem-ml-cli/browser');
     const ledgers = new Map();
-    const pendingWrites = new Set();
+    const pendingWrites = new Map();
+    const committedWrites = new Map();
     let nextWrite = 1;
     const client = await createBrowserCommandServiceClient({
         host: {
             currentRevision: async ({ requestId }) => {
                 const ledger = ledgers.get(requestId);
-                if (!ledger) throw new Error(`missing CEM Studio validation ledger ${requestId}`);
+                if (!ledger) throw new Error(`missing CEM Studio command ledger ${requestId}`);
                 return ledger;
             },
             readResource: async ({ uri }) => {
-                throw new Error(`inline CEM Studio validation unexpectedly read ${uri}`);
+                throw new Error(`inline CEM Studio command unexpectedly read ${uri}`);
             },
-            prepareWrite: async ({ requestId }) => {
-                const token = `${requestId}:validation-output:${nextWrite++}`;
-                pendingWrites.add(token);
+            prepareWrite: async (request, bytes) => {
+                const { requestId } = request;
+                const token = `${requestId}:command-output:${nextWrite++}`;
+                pendingWrites.set(token, { request, bytes: new Uint8Array(bytes) });
                 return { token };
             },
             commitWrite: async (token) => {
-                if (!pendingWrites.delete(token)) {
-                    throw new Error(`CEM Studio validation publication token is unknown: ${token}`);
+                const staged = pendingWrites.get(token);
+                if (!staged) {
+                    throw new Error(`CEM Studio command publication token is unknown: ${token}`);
                 }
+                pendingWrites.delete(token);
+                const writes = committedWrites.get(staged.request.requestId) ?? [];
+                writes.push(staged);
+                committedWrites.set(staged.request.requestId, writes);
                 return { uri: `memory:${token}` };
             },
             rollbackWrite: async (token) => {
@@ -42,46 +52,42 @@ export async function createCemStudioBrowserValidator() {
     });
     let nextRequest = 1;
 
-    const validateResource = async ({
+    const executeResourceCommand = async ({
+        operation,
+        argv,
         bytes,
-        contentType,
-        schema,
         uri = 'input.cem',
         dependencies = [],
-        projectId = 'cem-studio-validation',
+        projectId = 'cem-studio-command',
         projectRevision = 1,
         resourceRevision = 1,
         signal,
+        readOutput = false,
     }) => {
-        const requestId = `cem-studio-validation-${nextRequest++}`;
+        const requestId = `cem-studio-${operation}-${nextRequest++}`;
         const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
         const inputResourceUri = /^[a-z][a-z0-9+.-]*:/i.test(uri)
             ? uri
             : new URL(uri, `cem-studio://${projectId}/`).href;
-        const parsed = parseCemMlCommand([
-            'validate',
-            '--format',
-            'json',
-            '--content-type',
-            contentType,
-            '--schema',
-            schema,
-            inputResourceUri,
-        ], { runtime: 'wasm-browser-worker' });
-        let inputUri;
-        const dependencyUris = new Map();
+        const parsed = parseCemMlCommand(argv(inputResourceUri), { runtime: 'wasm-browser-worker' });
+        const dependencyUris = new Map(dependencies.map((dependency) => [
+            dependency.path,
+            resolveVirtualUri(inputResourceUri, dependency.path),
+        ]));
+        const availableResources = new Map([
+            [inputResourceUri, { uri: inputResourceUri, bytes: source }],
+            ...dependencies.map((dependency) => {
+                const dependencyUri = dependencyUris.get(dependency.path);
+                return [dependencyUri, { uri: dependencyUri, bytes: dependency.bytes }];
+            }),
+        ]);
         const invocation = await buildBrowserCommandInvocation(
             parsed,
             async (requirement) => {
-                inputUri = requirement.uri;
-                return [
-                    { uri: requirement.uri, bytes: source },
-                    ...dependencies.map((dependency) => {
-                        const dependencyUri = resolveVirtualUri(requirement.uri, dependency.path);
-                        dependencyUris.set(dependency.path, dependencyUri);
-                        return { uri: dependencyUri, bytes: dependency.bytes };
-                    }),
-                ];
+                if (!availableResources.has(requirement.uri)) {
+                    throw new Error(`CEM-ML ${operation} requested undeclared resource ${requirement.uri}`);
+                }
+                return [...availableResources.values()];
             },
             {
                 requestId,
@@ -91,13 +97,13 @@ export async function createCemStudioBrowserValidator() {
                 cwd: `/${projectId}`,
             },
         );
-        if (!inputUri) throw new Error(`CEM-ML validation did not request ${inputResourceUri}`);
         const resources = { ...invocation.request.resources };
+        if (!resources[inputResourceUri]) throw new Error(`CEM-ML ${operation} omitted input ${inputResourceUri}`);
         for (const dependency of dependencies) {
             const dependencyUri = dependencyUris.get(dependency.path);
-            if (!dependencyUri) throw new Error(`CEM-ML validation did not resolve dependency ${dependency.path}`);
+            if (!dependencyUri) throw new Error(`CEM-ML ${operation} did not resolve dependency ${dependency.path}`);
             const resource = resources[dependencyUri];
-            if (!resource) throw new Error(`CEM-ML validation omitted dependency ${dependency.path}`);
+            if (!resource) throw new Error(`CEM-ML ${operation} omitted dependency ${dependency.path}`);
             resources[dependencyUri] = {
                 ...resource,
                 identity: {
@@ -116,29 +122,104 @@ export async function createCemStudioBrowserValidator() {
         try {
             const result = await handle.result();
             const presentation = projectBrowserCommandPresentation(invocation.presentation, result);
+            let output;
+            if (readOutput) {
+                try {
+                    output = await readCommandOutput(
+                        handle,
+                        result,
+                        invocation.presentation.stdoutArtifactUri,
+                        committedWrites.get(requestId),
+                    );
+                } catch (error) {
+                    if (result.exitCode === 0) throw error;
+                }
+            }
             if (result.exitCode !== 0) {
                 const diagnostics = result.diagnostics?.items
                     ?.map(({ code, message }) => `${code}: ${message}`)
                     .join('; ');
                 const error = new Error(
-                    `CEM-ML validation rejected ${uri} with exit code ${result.exitCode}`
+                    `CEM-ML ${operation} rejected ${uri} with exit code ${result.exitCode}`
                     + (diagnostics ? ` (${diagnostics})` : ''),
                 );
-                error.code = 'cem.studio.validation_failed';
+                error.code = `cem.studio.${operation}_failed`;
                 error.result = result;
                 error.presentation = presentation;
+                error.output = output;
                 throw error;
             }
-            return Object.freeze({ result, presentation });
+            return Object.freeze({ result, presentation, output });
         } finally {
             ledgers.delete(requestId);
+            committedWrites.delete(requestId);
             await handle.dispose().catch(() => undefined);
         }
     };
 
+    const resourceCommandOptions = (options, operation, argv, readOutput = false) => ({
+        ...options,
+        operation,
+        argv,
+        readOutput,
+    });
+
+    const validateResource = async (options) => executeResourceCommand(resourceCommandOptions(
+        options,
+        'validate',
+        (inputResourceUri) => [
+            'validate',
+            '--format',
+            'json',
+            '--content-type',
+            options.contentType,
+            '--schema',
+            options.schema,
+            inputResourceUri,
+        ],
+    ));
+
+    const parseResource = async (options) => executeResourceCommand(resourceCommandOptions(
+        options,
+        'parse',
+        (inputResourceUri) => [
+            'parse',
+            '--no-color',
+            '--format',
+            options.projection ?? 'ast',
+            '--content-type',
+            options.contentType,
+            '--schema',
+            options.schema,
+            inputResourceUri,
+        ],
+        true,
+    ));
+
+    const inspectResource = async (options) => executeResourceCommand(resourceCommandOptions(
+        options,
+        'inspect',
+        (inputResourceUri) => [
+            'inspect',
+            '--no-color',
+            '--show',
+            options.view ?? 'summary',
+            '--format',
+            'cem',
+            '--content-type',
+            options.contentType,
+            '--schema',
+            options.schema,
+            inputResourceUri,
+        ],
+        true,
+    ));
+
     return Object.freeze({
         capability: client.capability,
         commonVersion: client.worker.commonVersion,
+        parseResource,
+        inspectResource,
         validateResource,
         async validateProject(bundle, { signal } = {}) {
             if (!bundle?.project) throw new TypeError('CEM Studio project bundle is missing project metadata');
@@ -299,6 +380,65 @@ function resolveVirtualUri(baseUri, relativePath) {
     if (/^[a-z][a-z0-9+.-]*:/i.test(baseUri)) return new URL(relativePath, baseUri).href;
     const absoluteBase = baseUri.startsWith('/') ? baseUri : `/${baseUri}`;
     return new URL(relativePath, `https://cem.invalid${absoluteBase}`).pathname;
+}
+
+async function readCommandOutput(handle, result, requestedUri = CEM_STDOUT_URI, committed = []) {
+    const artifacts = result?.artifacts?.items ?? [];
+    const artifact = artifacts.find(({ uri }) => uri === requestedUri)
+        ?? artifacts.find(({ kind }) => kind === 'output');
+    let metadata;
+    let bytes;
+    if (artifact) {
+        metadata = artifact;
+        bytes = new Uint8Array(artifact.byteLength);
+        let offset = 0;
+        while (offset < artifact.byteLength) {
+            const read = await handle.readArtifact(artifact, {
+                offset,
+                maxBytes: Math.min(ARTIFACT_READ_BYTES, artifact.byteLength - offset),
+            });
+            if (read.metadata.offset !== offset || read.bytes.byteLength === 0) {
+                throw new Error(`CEM-ML command returned an invalid artifact range at byte ${offset}`);
+            }
+            bytes.set(read.bytes, offset);
+            offset += read.bytes.byteLength;
+        }
+    } else {
+        const publication = committed.find(({ request }) => request.uri === requestedUri)
+            ?? committed.find(({ request }) => request.kind === 'output');
+        if (!publication) {
+            throw new Error(
+                `CEM-ML command omitted its ${requestedUri} output publication: ${JSON.stringify({
+                    operation: result?.operation,
+                    status: result?.status,
+                    exitCode: result?.exitCode,
+                    artifacts: artifacts.map(({ kind, uri, byteLength }) => ({ kind, uri, byteLength })),
+                    committed: committed.map(({ request }) => ({
+                        kind: request.kind,
+                        uri: request.uri,
+                        byteLength: request.byteLength,
+                    })),
+                })}`,
+            );
+        }
+        metadata = publication.request;
+        bytes = publication.bytes;
+    }
+    if (bytes.byteLength !== metadata.byteLength) {
+        throw new Error(`CEM-ML command output length ${bytes.byteLength} does not match ${metadata.byteLength}`);
+    }
+    const digest = await sha256(bytes);
+    if (digest !== metadata.sha256) {
+        throw new Error(`CEM-ML command output hash ${digest} does not match ${metadata.sha256}`);
+    }
+    return Object.freeze({
+        uri: metadata.uri ?? requestedUri,
+        contentType: metadata.contentType,
+        byteLength: metadata.byteLength,
+        sha256: metadata.sha256,
+        bytes: Object.freeze([...bytes]),
+        text: new TextDecoder().decode(bytes),
+    });
 }
 
 async function fetchJson(url, fetchResource) {

@@ -1,5 +1,14 @@
-import type { CemStudioFeatureTourSeed, CemStudioBrowserValidator } from './feature-tour.js';
+import type {
+    CemStudioBrowserValidator,
+    CemStudioCommandOutput,
+    CemStudioFeatureTourSeed,
+    CemStudioInspectView,
+    CemStudioParseProjection,
+} from './feature-tour.js';
 import type { CemStudioIndexedDbRepository } from './repository.js';
+
+export declare const CEM_STUDIO_PARSE_PROJECTIONS: readonly CemStudioParseProjection[];
+export declare const CEM_STUDIO_INSPECT_VIEWS: readonly CemStudioInspectView[];
 
 export interface CemStudioWorkbenchSelection {
     readonly kind: 'diagnostic' | 'provenance';
@@ -24,8 +33,29 @@ export interface CemStudioWorkbenchState {
     readonly draft: string;
     readonly dirty: boolean;
     readonly validation?: Readonly<Record<string, unknown>>;
+    readonly projection?: CemStudioWorkbenchProjection;
     readonly selection?: CemStudioWorkbenchSelection;
     readonly error?: Readonly<{ code: string; message: string }>;
+}
+
+export interface CemStudioWorkbenchProjection {
+    readonly kind: 'parse' | 'inspect';
+    readonly mode: CemStudioParseProjection | CemStudioInspectView;
+    readonly requestId?: string;
+    readonly exitCode?: number;
+    readonly executionIdentity?: Readonly<Record<string, unknown>>;
+    readonly revision: Readonly<{
+        projectRevision: number;
+        resourceRevision: number;
+        sha256: string;
+    }>;
+    readonly output: CemStudioCommandOutput;
+    readonly nativeResult: unknown;
+    readonly diagnostics: readonly Readonly<Record<string, unknown>>[];
+    readonly provenance: readonly Readonly<Record<string, unknown>>[];
+    readonly presentation: unknown;
+    readonly sourceByteLength: number;
+    readonly stale: boolean;
 }
 
 export interface CemStudioFeatureTourWorkbench {
@@ -35,6 +65,14 @@ export interface CemStudioFeatureTourWorkbench {
     reload(): Promise<CemStudioWorkbenchState>;
     saveAndValidate(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     validatePersisted(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
+    parsePersisted(
+        projection?: CemStudioParseProjection,
+        options?: { signal?: AbortSignal },
+    ): Promise<CemStudioWorkbenchState>;
+    inspectPersisted(
+        view?: CemStudioInspectView,
+        options?: { signal?: AbortSignal },
+    ): Promise<CemStudioWorkbenchState>;
     navigateDiagnostic(index: number): CemStudioWorkbenchSelection;
     navigateProvenance(index: number): CemStudioWorkbenchSelection;
     dispose(): void;

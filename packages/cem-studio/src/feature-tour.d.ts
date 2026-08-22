@@ -13,25 +13,51 @@ export interface CemStudioFeatureTourSeed {
     };
 }
 
+export type CemStudioParseProjection = 'ast' | 'events';
+export type CemStudioInspectView = 'summary' | 'ast' | 'events' | 'diagnostics' | 'source-offsets' | 'tree';
+
+export interface CemStudioResourceCommandOptions {
+    readonly bytes: Uint8Array | ArrayBuffer;
+    readonly contentType: string;
+    readonly schema: string;
+    readonly uri?: string;
+    readonly dependencies?: readonly {
+        readonly bytes: Uint8Array | ArrayBuffer;
+        readonly contentType: string;
+        readonly schema: string;
+        readonly path: string;
+    }[];
+    readonly projectId?: string;
+    readonly projectRevision?: number;
+    readonly resourceRevision?: number;
+    readonly signal?: AbortSignal;
+}
+
+export interface CemStudioCommandOutput {
+    readonly uri: string;
+    readonly contentType: string;
+    readonly byteLength: number;
+    readonly sha256: string;
+    readonly bytes: readonly number[];
+    readonly text: string;
+}
+
+export interface CemStudioBrowserCommandOutcome {
+    readonly result: unknown;
+    readonly presentation: unknown;
+    readonly output?: CemStudioCommandOutput;
+}
+
 export interface CemStudioBrowserValidator {
     readonly capability: Readonly<Record<string, unknown>>;
     readonly commonVersion: string;
-    validateResource(options: {
-        bytes: Uint8Array | ArrayBuffer;
-        contentType: string;
-        schema: string;
-        uri?: string;
-        dependencies?: readonly {
-            bytes: Uint8Array | ArrayBuffer;
-            contentType: string;
-            schema: string;
-            path: string;
-        }[];
-        projectId?: string;
-        projectRevision?: number;
-        resourceRevision?: number;
-        signal?: AbortSignal;
-    }): Promise<Readonly<{ result: unknown; presentation: unknown }>>;
+    parseResource(options: CemStudioResourceCommandOptions & {
+        readonly projection?: CemStudioParseProjection;
+    }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
+    inspectResource(options: CemStudioResourceCommandOptions & {
+        readonly view?: CemStudioInspectView;
+    }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
+    validateResource(options: CemStudioResourceCommandOptions): Promise<CemStudioBrowserCommandOutcome>;
     validateProject(bundle: unknown, options?: { signal?: AbortSignal }): Promise<unknown>;
     assertCatalog(catalog: unknown): void;
     close(): Promise<void>;

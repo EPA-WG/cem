@@ -6367,8 +6367,10 @@ pub fn transform_template_encode_cem_attribute_value(
     value: &str,
     context: &str,
 ) -> Result<String, String> {
-    if value.chars().any(char::is_control) {
-        return Err(format!("{context} cannot contain control characters"));
+    if value.chars().any(transform_template_cem_string_control_is_unsupported) {
+        return Err(format!(
+            "{context} cannot contain control characters other than tab or line endings"
+        ));
     }
     if transform_template_cem_attribute_bare_value_is_safe(value) {
         return Ok(value.to_owned());
@@ -6377,8 +6379,11 @@ pub fn transform_template_encode_cem_attribute_value(
 }
 
 pub fn transform_template_encode_cem_string_literal(value: &str) -> Result<String, String> {
-    if value.chars().any(char::is_control) {
-        return Err("CEM string literal cannot contain control characters".to_owned());
+    if value.chars().any(transform_template_cem_string_control_is_unsupported) {
+        return Err(
+            "CEM string literal cannot contain control characters other than tab or line endings"
+                .to_owned(),
+        );
     }
     if !value.contains('"') {
         return Ok(format!("\"{value}\""));
@@ -6390,6 +6395,10 @@ pub fn transform_template_encode_cem_string_literal(value: &str) -> Result<Strin
         "CEM string literal cannot contain both single and double quotes with the current tokenizer"
             .to_owned(),
     )
+}
+
+fn transform_template_cem_string_control_is_unsupported(ch: char) -> bool {
+    ch.is_control() && !matches!(ch, '\t' | '\n' | '\r')
 }
 
 pub fn transform_template_encode_cem_content_text(value: &str) -> Result<String, String> {
@@ -10398,9 +10407,10 @@ fn transform_template_typed_cem_attribute_to_text(
     let Some(value) = attribute.value.as_deref() else {
         return Ok(format!("@{name}"));
     };
+    let value_context = format!("CEM tree attribute `{name}` value");
     Ok(format!(
         "@{name}={}",
-        transform_template_encode_cem_attribute_value(value, "CEM tree attribute value")?
+        transform_template_encode_cem_attribute_value(value, &value_context)?
     ))
 }
 
@@ -36400,6 +36410,17 @@ mod tests {
             .expect("CEM attribute-value encoder runs");
         assert_eq!(encoded_attr, Value::String("\"Hello world\"".to_owned()));
 
+        let encoded_multiline_attr = registry
+            .encode(
+                &attr_binding,
+                &Value::String("Line 1\n\tLine 2\r\n".to_owned()),
+            )
+            .expect("CEM attribute-value encoder preserves textual whitespace controls");
+        assert_eq!(
+            encoded_multiline_attr,
+            Value::String("\"Line 1\n\tLine 2\r\n\"".to_owned())
+        );
+
         let text_request = TransformTemplateEncodeBindingRequest::new(
             Value::String("Use {literal} safely".to_owned()),
             TransformTemplateEncodingTarget::new(
@@ -36460,6 +36481,11 @@ mod tests {
             )
             .expect_err("CEM attribute-value encoder refuses unrepresentable quotes");
         assert!(quote_error.contains("both single and double quotes"));
+
+        let control_error = registry
+            .encode(&attr_binding, &Value::String("unsafe\0value".to_owned()))
+            .expect_err("CEM attribute-value encoder rejects non-text controls");
+        assert!(control_error.contains("other than tab or line endings"));
 
         let name_error = registry
             .encode(&name_binding, &Value::String("1bad".to_owned()))
