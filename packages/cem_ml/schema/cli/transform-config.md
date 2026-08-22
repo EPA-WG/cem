@@ -15,16 +15,16 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 
 ## Element Vocabulary
 
-| Element | Required attributes | Optional attributes | Child elements |
-| ------- | ------------------- | ------------------- | -------------- |
-| `run` | none | none | `import` |
-| `import` | `src` | `id`, `content-type`, `contentType`, `schema`, `opaque` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
-| `join` | `mode` | `id`, `input`, `by`, `with:*` | `convert`, `transform`, `rewrite-importmap`, `export` |
-| `convert` | none | `id`, `input`, `content-type`, `contentType`, `schema`, `converter` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
-| `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
-| `rewrite-importmap` | `target-map` | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing` | `export` |
-| `param` | `name`, `value` | none | none |
-| `export` | `out` | `id`, `content-type`, `contentType`, `schema`, `style-policy`, `stylePolicy` | none |
+| Element             | Required attributes | Optional attributes                                                                                                        | Child elements                                                         |
+| ------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `run`               | none                | none                                                                                                                       | `import`                                                               |
+| `import`            | `src`               | `id`, `content-type`, `contentType`, `schema`, `opaque`                                                                    | `join`, `convert`, `transform`, `rewrite-importmap`, `export`          |
+| `join`              | `mode`              | `id`, `input`, `by`, `with:*`                                                                                              | `convert`, `transform`, `rewrite-importmap`, `export`                  |
+| `convert`           | none                | `id`, `input`, `content-type`, `contentType`, `schema`, `converter`                                                        | `join`, `convert`, `transform`, `rewrite-importmap`, `export`          |
+| `transform`         | `src`               | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `rewrite-importmap` | `target-map`        | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing`                                                   | `export`                                                               |
+| `param`             | `name`, `value`     | none                                                                                                                       | none                                                                   |
+| `export`            | `out`               | `id`, `content-type`, `contentType`, `schema`, `style-policy`, `stylePolicy`                                               | none                                                                   |
 
 ## Graph Semantics
 
@@ -71,19 +71,24 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `rewrite-importmap @source-map` optionally validates the source `imports`
   entries before rewriting. Legacy browser import-map JSON remains validation
   only.
-- When both maps declare `$schema` as
-  `https://cem.dev/ns/data/module-map/1`, they use the dedicated
-  `application/vnd.cem.module-map+json` contract. Their exact bare-specifier key
-  sets must match. Source values resolve `.js`/`.mjs` resources relative to the
-  source map; destination values are safe app-relative `./` URLs.
-- Dedicated module-map sources lower into opaque `text/javascript` graph imports
-  and byte-preserving exports beside each HTML export. Destination values are
-  written into the HTML browser import map. JavaScript is not parsed and only
-  declared assets are copied.
+- When both maps declare `$schema` as module-map v1, v2, or v3, they use the
+  dedicated `application/vnd.cem.module-map+json` contract and must declare
+  matching keys. V1 retains string JavaScript `imports`; v2 adds typed
+  deployment-only JavaScript/CSS/WASM `resources`; both remain byte-preserving.
+- V3 uses typed JavaScript/JSON `imports` and permits JavaScript imports or
+  resources to declare exact `moduleImports` edges. Lowering rewrites only
+  declared static import, export-from, and quoted dynamic-import bare
+  specifiers to relative deployed URLs. Undeclared/unused edges, mismatched map
+  pairs, and unsafe destinations are errors; no dependency is discovered or
+  copied from JavaScript source.
+- Destination `imports` paths are written into the HTML browser import map;
+  resources remain deployment-only. Every declared asset lowers through an
+  ordinary typed graph import/export beside each HTML export.
 - Lowering also produces a deterministic module-asset manifest with resolved
-  source and destination provenance, byte lengths, per-asset SHA-256 digests,
-  and a host-neutral aggregate SHA-256. The common transform-graph response and
-  CLI reports retain the full manifest. CLI
+  source and destination provenance plus source/output byte lengths and SHA-256
+  digests. Byte-identical v1/v2 manifests retain contract/hash version 1; a v3
+  rewrite selects contract/hash version 2. The common transform-graph response
+  and CLI reports retain the full manifest. CLI
   `--module-asset-cache-key` prints only the aggregate `sha256:<digest>` and
   stops before execution/publication for use as an Nx runtime input.
 - `rewrite-importmap @target-map` points to either a legacy browser import-map

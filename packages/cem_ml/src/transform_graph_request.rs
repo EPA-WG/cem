@@ -32,6 +32,7 @@ use crate::resolver::{
 use crate::run_config::{self, ScopeConfig};
 use crate::schema::registry::{
     content_type_essence, MODULE_MAP_CONTENT_TYPE, MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI,
+    MODULE_MAP_V3_SCHEMA_URI,
 };
 use crate::transform_config::{
     self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphJoinMode as ConfigJoinMode,
@@ -792,6 +793,8 @@ struct PendingModuleAsset {
     source_uri: String,
     target: String,
     content_type: String,
+    source_byte_length: u64,
+    source_sha256: String,
     byte_length: u64,
     sha256: String,
 }
@@ -800,14 +803,22 @@ struct PendingModuleAsset {
 struct ModuleMapDocument {
     uri: String,
     schema: Option<String>,
-    imports: BTreeMap<String, String>,
+    imports: BTreeMap<String, ModuleMapImport>,
     resources: BTreeMap<String, ModuleMapResource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ModuleMapImport {
+    path: String,
+    content_type: String,
+    module_imports: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ModuleMapResource {
     path: String,
     content_type: String,
+    module_imports: BTreeMap<String, String>,
 }
 
 impl TransformGraphRequestLowerer<'_> {
@@ -1183,9 +1194,19 @@ impl TransformGraphRequestLowerer<'_> {
                 (None, None) => {}
             }
             let source_imports = source_map
-                .map(|document| document.imports)
+                .map(|document| {
+                    document
+                        .imports
+                        .into_iter()
+                        .map(|(specifier, entry)| (specifier, entry.path))
+                        .collect()
+                })
                 .unwrap_or_default();
-            let target_imports = target_map.imports;
+            let target_imports = target_map
+                .imports
+                .into_iter()
+                .map(|(specifier, entry)| (specifier, entry.path))
+                .collect();
             let scheduler_scope_id = self.take_scope();
             self.importmap_rewrites
                 .push(TransformGraphImportMapRewrite {
@@ -1252,7 +1273,7 @@ impl TransformGraphRequestLowerer<'_> {
                     self.config_uri,
                     "cem.module_map.schema_unsupported",
                     format!(
-                        "module map `{}` uses unsupported `$schema` `{schema}`; expected `{MODULE_MAP_SCHEMA_URI}` or `{MODULE_MAP_V2_SCHEMA_URI}`",
+                        "module map `{}` uses unsupported `$schema` `{schema}`; expected `{MODULE_MAP_SCHEMA_URI}`, `{MODULE_MAP_V2_SCHEMA_URI}`, or `{MODULE_MAP_V3_SCHEMA_URI}`",
                         resource.uri
                     ),
                 ));
@@ -1287,29 +1308,63 @@ impl TransformGraphRequestLowerer<'_> {
         let imports = imports
             .iter()
             .map(|(key, value)| {
-                value
-                    .as_str()
-                    .map(|value| (key.clone(), value.to_owned()))
-                    .ok_or_else(|| {
-                        config_error(
-                            self.config_uri,
-                            "cem.transform_config.importmap_entry_invalid",
-                            format!(
-                                "importmap `{}` entry `{key}` must be a string",
-                                resource.uri
-                            ),
+                if schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI) {
+                    parse_module_map_v3_asset_entry(
+                        self.config_uri,
+                        &resource.uri,
+                        "import",
+                        key,
+                        value,
+                    )
+                    .map(|entry| {
+                        (
+                            key.clone(),
+                            ModuleMapImport {
+                                path: entry.path,
+                                content_type: entry.content_type,
+                                module_imports: entry.module_imports,
+                            },
                         )
                     })
+                } else {
+                    value
+                        .as_str()
+                        .map(|value| {
+                            (
+                                key.clone(),
+                                ModuleMapImport {
+                                    path: value.to_owned(),
+                                    content_type: "text/javascript".to_owned(),
+                                    module_imports: BTreeMap::new(),
+                                },
+                            )
+                        })
+                        .ok_or_else(|| {
+                            config_error(
+                                self.config_uri,
+                                "cem.transform_config.importmap_entry_invalid",
+                                format!(
+                                    "importmap `{}` entry `{key}` must be a string",
+                                    resource.uri
+                                ),
+                            )
+                        })
+                }
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
         let resources = match value.get("resources") {
             None => BTreeMap::new(),
-            Some(_) if schema.as_deref() != Some(MODULE_MAP_V2_SCHEMA_URI) => {
+            Some(_)
+                if !matches!(
+                    schema.as_deref(),
+                    Some(MODULE_MAP_V2_SCHEMA_URI | MODULE_MAP_V3_SCHEMA_URI)
+                ) =>
+            {
                 return Err(config_error(
                     self.config_uri,
                     "cem.module_map.resources_unsupported",
                     format!(
-                        "module map `{}` may declare `resources` only with schema `{MODULE_MAP_V2_SCHEMA_URI}`",
+                        "module map `{}` may declare `resources` only with schema `{MODULE_MAP_V2_SCHEMA_URI}` or `{MODULE_MAP_V3_SCHEMA_URI}`",
                         resource.uri
                     ),
                 ));
@@ -1317,6 +1372,25 @@ impl TransformGraphRequestLowerer<'_> {
             Some(serde_json::Value::Object(resources)) => resources
                 .iter()
                 .map(|(name, value)| {
+                    if schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI) {
+                        return parse_module_map_v3_asset_entry(
+                            self.config_uri,
+                            &resource.uri,
+                            "resource",
+                            name,
+                            value,
+                        )
+                        .map(|entry| {
+                            (
+                                name.clone(),
+                                ModuleMapResource {
+                                    path: entry.path,
+                                    content_type: entry.content_type,
+                                    module_imports: entry.module_imports,
+                                },
+                            )
+                        });
+                    }
                     let entry = value.as_object().ok_or_else(|| {
                         config_error(
                             self.config_uri,
@@ -1373,6 +1447,7 @@ impl TransformGraphRequestLowerer<'_> {
                         ModuleMapResource {
                             path: path.to_owned(),
                             content_type: content_type.to_owned(),
+                            module_imports: BTreeMap::new(),
                         },
                     ))
                 })
@@ -1455,28 +1530,82 @@ impl TransformGraphRequestLowerer<'_> {
             ));
         }
 
+        let v3 = source_map.schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI);
+        let mut deployment_assets = BTreeMap::new();
+        for (identity, asset) in &target_map.imports {
+            deployment_assets.insert(
+                identity.clone(),
+                (asset.path.clone(), content_type_essence(&asset.content_type)),
+            );
+        }
+        for (identity, asset) in &target_map.resources {
+            deployment_assets.insert(
+                identity.clone(),
+                (asset.path.clone(), content_type_essence(&asset.content_type)),
+            );
+        }
+
         let mut assets = Vec::with_capacity(source_map.imports.len() + source_map.resources.len());
         for (index, (specifier, source)) in source_map.imports.iter().enumerate() {
             validate_module_specifier(self.config_uri, specifier)?;
             let target = &target_map.imports[specifier];
-            validate_module_asset_target(self.config_uri, specifier, target)?;
-            let source_uri = resolve_transform_graph_reference(&source_map.uri, source);
-            let source_content_type = run_config::infer_content_type_from_path(&source_uri);
-            if source_content_type.as_deref() != Some("text/javascript") {
+            if source.module_imports != target.module_imports {
                 return Err(config_error(
                     self.config_uri,
-                    "cem.module_map.asset_type_unsupported",
+                    "cem.module_map.module_imports_mismatch",
                     format!(
-                        "module-map entry `{specifier}` source `{source}` must identify a `.js` or `.mjs` JavaScript module"
+                        "module-map import `{specifier}` source and target `moduleImports` must match exactly"
                     ),
                 ));
             }
-            let resource = self.provider.read_resource_relative_to(
-                &source_map.uri,
-                source,
-                ResolvePurpose::Input,
-                Some("text/javascript"),
+            let source_content_type = validate_module_import_content_type(
+                self.config_uri,
+                specifier,
+                &source.path,
+                &source.content_type,
+                v3,
             )?;
+            let target_content_type = validate_module_import_content_type(
+                self.config_uri,
+                specifier,
+                &target.path,
+                &target.content_type,
+                v3,
+            )?;
+            if source_content_type != target_content_type {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.import_type_mismatch",
+                    format!(
+                        "module-map import `{specifier}` source content type `{}` does not match target content type `{}`",
+                        source.content_type, target.content_type
+                    ),
+                ));
+            }
+            validate_module_import_target(
+                self.config_uri,
+                specifier,
+                &target.path,
+                &target_content_type,
+            )?;
+            let mut resource = self.provider.read_resource_relative_to(
+                &source_map.uri,
+                &source.path,
+                ResolvePurpose::Input,
+                Some(&source_content_type),
+            )?;
+            let source_byte_length = resource.bytes.len() as u64;
+            let source_sha256 = crate::command_service::sha256_hex(&resource.bytes);
+            if v3 && source_content_type == "text/javascript" {
+                resource.bytes = rewrite_declared_module_specifiers(
+                    self.config_uri,
+                    specifier,
+                    &target.path,
+                    &resource.bytes,
+                    &source.module_imports,
+                    &deployment_assets,
+                )?;
+            }
             let byte_length = resource.bytes.len() as u64;
             let sha256 = crate::command_service::sha256_hex(&resource.bytes);
             let source_uri = resource.uri.clone();
@@ -1484,11 +1613,7 @@ impl TransformGraphRequestLowerer<'_> {
             let scheduler_scope_id = self.take_scope();
             self.imports.push(TransformGraphImport {
                 id: import_id.clone(),
-                input: engine_input_from_resource(
-                    resource,
-                    Some("text/javascript".to_owned()),
-                    None,
-                ),
+                input: engine_input_from_resource(resource, Some(source_content_type.clone()), None),
                 opaque: true,
                 scheduler_scope_id,
             });
@@ -1497,8 +1622,10 @@ impl TransformGraphRequestLowerer<'_> {
                 specifier: specifier.clone(),
                 source_map_uri: source_map.uri.clone(),
                 source_uri,
-                target: target.clone(),
-                content_type: "text/javascript".to_owned(),
+                target: target.path.clone(),
+                content_type: source_content_type,
+                source_byte_length,
+                source_sha256,
                 byte_length,
                 sha256,
             });
@@ -1506,6 +1633,15 @@ impl TransformGraphRequestLowerer<'_> {
         for (index, (name, source)) in source_map.resources.iter().enumerate() {
             validate_module_specifier(self.config_uri, name)?;
             let target = &target_map.resources[name];
+            if source.module_imports != target.module_imports {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.module_imports_mismatch",
+                    format!(
+                        "module-map resource `{name}` source and target `moduleImports` must match exactly"
+                    ),
+                ));
+            }
             let source_content_type = validate_module_resource_content_type(
                 self.config_uri,
                 name,
@@ -1534,12 +1670,40 @@ impl TransformGraphRequestLowerer<'_> {
                 &target.path,
                 &target_content_type,
             )?;
-            let resource = self.provider.read_resource_relative_to(
+            if !v3 && !source.module_imports.is_empty() {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.module_imports_invalid",
+                    format!("module-map resource `{name}` cannot declare `moduleImports` before v3"),
+                ));
+            }
+            if !source.module_imports.is_empty() && source_content_type != "text/javascript" {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.module_import_target_invalid",
+                    format!(
+                        "module-map resource `{name}` may declare `moduleImports` only for JavaScript"
+                    ),
+                ));
+            }
+            let mut resource = self.provider.read_resource_relative_to(
                 &source_map.uri,
                 &source.path,
                 ResolvePurpose::Input,
                 Some(&source_content_type),
             )?;
+            let source_byte_length = resource.bytes.len() as u64;
+            let source_sha256 = crate::command_service::sha256_hex(&resource.bytes);
+            if v3 && source_content_type == "text/javascript" {
+                resource.bytes = rewrite_declared_module_specifiers(
+                    self.config_uri,
+                    name,
+                    &target.path,
+                    &resource.bytes,
+                    &source.module_imports,
+                    &deployment_assets,
+                )?;
+            }
             let byte_length = resource.bytes.len() as u64;
             let sha256 = crate::command_service::sha256_hex(&resource.bytes);
             let source_uri = resource.uri.clone();
@@ -1562,6 +1726,8 @@ impl TransformGraphRequestLowerer<'_> {
                 source_uri,
                 target: target.path.clone(),
                 content_type: source_content_type,
+                source_byte_length,
+                source_sha256,
                 byte_length,
                 sha256,
             });
@@ -1670,6 +1836,8 @@ impl TransformGraphRequestLowerer<'_> {
                     target: asset.target,
                     destination: asset_destination,
                     content_type: asset.content_type,
+                    source_byte_length: asset.source_byte_length,
+                    source_sha256: asset.source_sha256,
                     byte_length: asset.byte_length,
                     sha256: asset.sha256,
                 });
@@ -1790,6 +1958,108 @@ fn config_error(uri: &str, code: &str, message: impl Into<String>) -> TransformG
     TransformGraphRequestError::diagnostic(uri, code, message)
 }
 
+struct ParsedModuleMapV3AssetEntry {
+    path: String,
+    content_type: String,
+    module_imports: BTreeMap<String, String>,
+}
+
+fn parse_module_map_v3_asset_entry(
+    config_uri: &str,
+    map_uri: &str,
+    kind: &str,
+    identity: &str,
+    value: &serde_json::Value,
+) -> Result<ParsedModuleMapV3AssetEntry, TransformGraphRequestError> {
+    let diagnostic = if kind == "import" {
+        "cem.module_map.import_entry_invalid"
+    } else {
+        "cem.module_map.resource_entry_invalid"
+    };
+    let entry = value.as_object().ok_or_else(|| {
+        config_error(
+            config_uri,
+            diagnostic,
+            format!("module map `{map_uri}` {kind} `{identity}` must be an object"),
+        )
+    })?;
+    if entry
+        .keys()
+        .any(|key| !matches!(key.as_str(), "path" | "contentType" | "moduleImports"))
+    {
+        return Err(config_error(
+            config_uri,
+            diagnostic,
+            format!(
+                "module map `{map_uri}` {kind} `{identity}` permits only `path`, `contentType`, and `moduleImports`"
+            ),
+        ));
+    }
+    let path = entry
+        .get("path")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            config_error(
+                config_uri,
+                diagnostic,
+                format!(
+                    "module map `{map_uri}` {kind} `{identity}` requires a non-empty string `path`"
+                ),
+            )
+        })?;
+    let content_type = entry
+        .get("contentType")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            config_error(
+                config_uri,
+                diagnostic,
+                format!(
+                    "module map `{map_uri}` {kind} `{identity}` requires a non-empty string `contentType`"
+                ),
+            )
+        })?;
+    let module_imports = match entry.get("moduleImports") {
+        None => BTreeMap::new(),
+        Some(serde_json::Value::Object(edges)) => edges
+            .iter()
+            .map(|(specifier, asset)| {
+                validate_module_specifier(config_uri, specifier)?;
+                let asset = asset
+                    .as_str()
+                    .filter(|value| !value.trim().is_empty())
+                    .ok_or_else(|| {
+                        config_error(
+                            config_uri,
+                            "cem.module_map.module_imports_invalid",
+                            format!(
+                                "module map `{map_uri}` {kind} `{identity}` module import `{specifier}` must name a declared asset"
+                            ),
+                        )
+                    })?;
+                validate_module_specifier(config_uri, asset)?;
+                Ok::<_, TransformGraphRequestError>((specifier.clone(), asset.to_owned()))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?,
+        Some(_) => {
+            return Err(config_error(
+                config_uri,
+                "cem.module_map.module_imports_invalid",
+                format!(
+                    "module map `{map_uri}` {kind} `{identity}` `moduleImports` must be an object"
+                ),
+            ));
+        }
+    };
+    Ok(ParsedModuleMapV3AssetEntry {
+        path: path.to_owned(),
+        content_type: content_type.to_owned(),
+        module_imports,
+    })
+}
+
 fn module_asset_manifest(
     mut assets: Vec<TransformGraphModuleAsset>,
 ) -> TransformGraphModuleAssetManifest {
@@ -1807,16 +2077,38 @@ fn module_asset_manifest(
                 &right.destination,
             ))
     });
+    let contract_version = if assets.iter().any(|asset| {
+        asset.source_byte_length != asset.byte_length || asset.source_sha256 != asset.sha256
+    }) {
+        2
+    } else {
+        1
+    };
     let mut canonical = Vec::new();
-    append_module_asset_hash_field(&mut canonical, b"cem-module-asset-manifest-v1");
+    append_module_asset_hash_field(
+        &mut canonical,
+        if contract_version == 1 {
+            b"cem-module-asset-manifest-v1"
+        } else {
+            b"cem-module-asset-manifest-v2"
+        },
+    );
     for asset in &assets {
         append_module_asset_hash_field(&mut canonical, asset.specifier.as_bytes());
         append_module_asset_hash_field(&mut canonical, asset.target.as_bytes());
         append_module_asset_hash_field(&mut canonical, asset.content_type.as_bytes());
+        if contract_version >= 2 {
+            append_module_asset_hash_field(
+                &mut canonical,
+                &asset.source_byte_length.to_be_bytes(),
+            );
+            append_module_asset_hash_field(&mut canonical, asset.source_sha256.as_bytes());
+        }
         append_module_asset_hash_field(&mut canonical, &asset.byte_length.to_be_bytes());
         append_module_asset_hash_field(&mut canonical, asset.sha256.as_bytes());
     }
     TransformGraphModuleAssetManifest {
+        contract_version,
         hash_scheme: "sha256".to_owned(),
         hash: crate::command_service::sha256_hex(&canonical),
         asset_count: assets.len() as u64,
@@ -1830,7 +2122,476 @@ fn append_module_asset_hash_field(canonical: &mut Vec<u8>, field: &[u8]) {
 }
 
 fn is_module_map_schema(schema: &str) -> bool {
-    matches!(schema, MODULE_MAP_SCHEMA_URI | MODULE_MAP_V2_SCHEMA_URI)
+    matches!(
+        schema,
+        MODULE_MAP_SCHEMA_URI | MODULE_MAP_V2_SCHEMA_URI | MODULE_MAP_V3_SCHEMA_URI
+    )
+}
+
+fn validate_module_import_content_type(
+    config_uri: &str,
+    specifier: &str,
+    path: &str,
+    content_type: &str,
+    v3: bool,
+) -> Result<String, TransformGraphRequestError> {
+    let content_type = content_type_essence(content_type);
+    let expected_extensions: &[&str] = match content_type.as_str() {
+        "text/javascript" => &["js", "mjs"],
+        "application/json" if v3 => &["json"],
+        _ => {
+            return Err(config_error(
+                config_uri,
+                if v3 {
+                    "cem.module_map.import_type_unsupported"
+                } else {
+                    "cem.module_map.asset_type_unsupported"
+                },
+                format!(
+                    "module-map import `{specifier}` content type `{content_type}` is unsupported"
+                ),
+            ));
+        }
+    };
+    let extension = Path::new(path)
+        .extension()
+        .and_then(OsStr::to_str)
+        .map(str::to_ascii_lowercase);
+    if !extension
+        .as_deref()
+        .is_some_and(|extension| expected_extensions.contains(&extension))
+    {
+        return Err(config_error(
+            config_uri,
+            if v3 {
+                "cem.module_map.import_type_mismatch"
+            } else {
+                "cem.module_map.asset_type_unsupported"
+            },
+            format!(
+                "module-map import `{specifier}` path `{path}` does not match content type `{content_type}`"
+            ),
+        ));
+    }
+    Ok(content_type)
+}
+
+fn validate_module_import_target(
+    config_uri: &str,
+    specifier: &str,
+    target: &str,
+    content_type: &str,
+) -> Result<(), TransformGraphRequestError> {
+    let relative = target.strip_prefix("./").ok_or_else(|| {
+        config_error(
+            config_uri,
+            "cem.module_map.target_invalid",
+            format!(
+                "module-map import `{specifier}` target `{target}` must be an app-relative `./` URL"
+            ),
+        )
+    })?;
+    let path = Path::new(relative);
+    let contained = !relative.is_empty()
+        && !target
+            .chars()
+            .any(|character| matches!(character, '\\' | '?' | '#'))
+        && path
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)));
+    if !contained {
+        return Err(config_error(
+            config_uri,
+            "cem.module_map.target_invalid",
+            format!(
+                "module-map import `{specifier}` target `{target}` must stay within the app output"
+            ),
+        ));
+    }
+    validate_module_import_content_type(config_uri, specifier, target, content_type, true)
+        .map(|_| ())
+}
+
+#[derive(Debug)]
+struct JavaScriptModuleSpecifier {
+    start: usize,
+    end: usize,
+    value: String,
+    escaped: bool,
+}
+
+#[derive(Debug)]
+enum JavaScriptTokenKind {
+    Identifier(String),
+    String { value: String, escaped: bool },
+    Punct(u8),
+    Other,
+}
+
+#[derive(Debug)]
+struct JavaScriptToken {
+    kind: JavaScriptTokenKind,
+    start: usize,
+    end: usize,
+}
+
+fn rewrite_declared_module_specifiers(
+    config_uri: &str,
+    asset_identity: &str,
+    asset_target: &str,
+    source: &[u8],
+    declared: &BTreeMap<String, String>,
+    deployment_assets: &BTreeMap<String, (String, String)>,
+) -> Result<Vec<u8>, TransformGraphRequestError> {
+    let source_text = std::str::from_utf8(source).map_err(|_| {
+        config_error(
+            config_uri,
+            "cem.module_map.javascript_utf8_invalid",
+            format!("module-map JavaScript asset `{asset_identity}` must be valid UTF-8"),
+        )
+    })?;
+    for (specifier, target_identity) in declared {
+        validate_module_specifier(config_uri, specifier)?;
+        let Some((_, content_type)) = deployment_assets.get(target_identity) else {
+            return Err(config_error(
+                config_uri,
+                "cem.module_map.module_import_target_missing",
+                format!(
+                    "module-map JavaScript asset `{asset_identity}` maps `{specifier}` to undeclared asset `{target_identity}`"
+                ),
+            ));
+        };
+        if !matches!(content_type.as_str(), "text/javascript" | "application/json") {
+            return Err(config_error(
+                config_uri,
+                "cem.module_map.module_import_target_invalid",
+                format!(
+                    "module-map JavaScript asset `{asset_identity}` maps `{specifier}` to non-module asset `{target_identity}` with content type `{content_type}`"
+                ),
+            ));
+        }
+    }
+
+    let specifiers = javascript_module_specifiers(source_text);
+    let mut used = BTreeSet::new();
+    let mut replacements = Vec::new();
+    for specifier in specifiers {
+        if !is_bare_javascript_specifier(&specifier.value) {
+            continue;
+        }
+        if specifier.escaped {
+            return Err(config_error(
+                config_uri,
+                "cem.module_map.javascript_specifier_invalid",
+                format!(
+                    "module-map JavaScript asset `{asset_identity}` bare specifier uses unsupported escapes"
+                ),
+            ));
+        }
+        let Some(target_identity) = declared.get(&specifier.value) else {
+            return Err(config_error(
+                config_uri,
+                "cem.module_map.javascript_bare_specifier_undeclared",
+                format!(
+                    "module-map JavaScript asset `{asset_identity}` uses undeclared bare specifier `{}`",
+                    specifier.value
+                ),
+            ));
+        };
+        let (target, _) = &deployment_assets[target_identity];
+        let replacement = relative_module_target(asset_target, target);
+        used.insert(specifier.value.clone());
+        replacements.push((specifier.start, specifier.end, replacement));
+    }
+    if let Some(unused) = declared.keys().find(|specifier| !used.contains(*specifier)) {
+        return Err(config_error(
+            config_uri,
+            "cem.module_map.javascript_rewrite_unused",
+            format!(
+                "module-map JavaScript asset `{asset_identity}` declares unused module import `{unused}`"
+            ),
+        ));
+    }
+
+    let mut output = source.to_vec();
+    for (start, end, replacement) in replacements.into_iter().rev() {
+        output.splice(start..end, replacement.bytes());
+    }
+    Ok(output)
+}
+
+fn javascript_module_specifiers(source: &str) -> Vec<JavaScriptModuleSpecifier> {
+    let tokens = javascript_tokens(source.as_bytes());
+    let mut specifiers = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        let JavaScriptTokenKind::Identifier(keyword) = &token.kind else {
+            continue;
+        };
+        if !matches!(keyword.as_str(), "import" | "export")
+            || index
+                .checked_sub(1)
+                .and_then(|previous| tokens.get(previous))
+                .is_some_and(|previous| matches!(previous.kind, JavaScriptTokenKind::Punct(b'.')))
+        {
+            continue;
+        }
+        let Some(next) = tokens.get(index + 1) else {
+            continue;
+        };
+        if keyword == "import" {
+            match &next.kind {
+                JavaScriptTokenKind::String { .. } => {
+                    push_javascript_module_specifier(&mut specifiers, next)
+                }
+                JavaScriptTokenKind::Punct(b'(') => {
+                    if let Some(argument) = tokens.get(index + 2) {
+                        push_javascript_module_specifier(&mut specifiers, argument);
+                    }
+                }
+                JavaScriptTokenKind::Punct(b'.' | b':') => {}
+                _ => find_from_module_specifier(&tokens, index + 1, &mut specifiers),
+            }
+        } else {
+            find_from_module_specifier(&tokens, index + 1, &mut specifiers);
+        }
+    }
+    specifiers.sort_by_key(|specifier| specifier.start);
+    specifiers.dedup_by_key(|specifier| specifier.start);
+    specifiers
+}
+
+fn find_from_module_specifier(
+    tokens: &[JavaScriptToken],
+    start: usize,
+    output: &mut Vec<JavaScriptModuleSpecifier>,
+) {
+    for (offset, token) in tokens[start..].iter().enumerate() {
+        if matches!(token.kind, JavaScriptTokenKind::Punct(b';')) {
+            break;
+        }
+        if matches!(&token.kind, JavaScriptTokenKind::Identifier(value) if value == "from") {
+            if let Some(specifier) = tokens.get(start + offset + 1) {
+                push_javascript_module_specifier(output, specifier);
+            }
+            break;
+        }
+    }
+}
+
+fn push_javascript_module_specifier(
+    output: &mut Vec<JavaScriptModuleSpecifier>,
+    token: &JavaScriptToken,
+) {
+    if let JavaScriptTokenKind::String { value, escaped } = &token.kind {
+        output.push(JavaScriptModuleSpecifier {
+            start: token.start + 1,
+            end: token.end - 1,
+            value: value.clone(),
+            escaped: *escaped,
+        });
+    }
+}
+
+fn javascript_tokens(source: &[u8]) -> Vec<JavaScriptToken> {
+    let mut tokens = Vec::new();
+    let mut index = 0;
+    while index < source.len() {
+        let byte = source[index];
+        if byte.is_ascii_whitespace() {
+            index += 1;
+            continue;
+        }
+        if byte == b'/' && source.get(index + 1) == Some(&b'/') {
+            index += 2;
+            while index < source.len() && !matches!(source[index], b'\n' | b'\r') {
+                index += 1;
+            }
+            continue;
+        }
+        if byte == b'/' && source.get(index + 1) == Some(&b'*') {
+            index += 2;
+            while index + 1 < source.len()
+                && !(source[index] == b'*' && source[index + 1] == b'/')
+            {
+                index += 1;
+            }
+            index = (index + 2).min(source.len());
+            continue;
+        }
+        if byte == b'/' && javascript_regex_can_start(tokens.last()) {
+            let start = index;
+            index += 1;
+            let mut character_class = false;
+            while index < source.len() {
+                if source[index] == b'\\' {
+                    index = (index + 2).min(source.len());
+                    continue;
+                }
+                if source[index] == b'[' {
+                    character_class = true;
+                } else if source[index] == b']' {
+                    character_class = false;
+                } else if source[index] == b'/' && !character_class {
+                    index += 1;
+                    while index < source.len() && is_javascript_identifier_continue(source[index]) {
+                        index += 1;
+                    }
+                    break;
+                }
+                index += 1;
+            }
+            tokens.push(JavaScriptToken {
+                kind: JavaScriptTokenKind::Other,
+                start,
+                end: index,
+            });
+            continue;
+        }
+        if matches!(byte, b'\'' | b'"') {
+            let quote = byte;
+            let start = index;
+            index += 1;
+            let content_start = index;
+            let mut escaped = false;
+            while index < source.len() {
+                if source[index] == b'\\' {
+                    escaped = true;
+                    index = (index + 2).min(source.len());
+                    continue;
+                }
+                if source[index] == quote {
+                    break;
+                }
+                index += 1;
+            }
+            let content_end = index.min(source.len());
+            index = (index + 1).min(source.len());
+            tokens.push(JavaScriptToken {
+                kind: JavaScriptTokenKind::String {
+                    value: String::from_utf8_lossy(&source[content_start..content_end]).into_owned(),
+                    escaped,
+                },
+                start,
+                end: index,
+            });
+            continue;
+        }
+        if byte == b'`' {
+            let start = index;
+            index += 1;
+            while index < source.len() {
+                if source[index] == b'\\' {
+                    index = (index + 2).min(source.len());
+                    continue;
+                }
+                if source[index] == b'`' {
+                    index += 1;
+                    break;
+                }
+                index += 1;
+            }
+            tokens.push(JavaScriptToken {
+                kind: JavaScriptTokenKind::Other,
+                start,
+                end: index,
+            });
+            continue;
+        }
+        if is_javascript_identifier_start(byte) {
+            let start = index;
+            index += 1;
+            while index < source.len() && is_javascript_identifier_continue(source[index]) {
+                index += 1;
+            }
+            tokens.push(JavaScriptToken {
+                kind: JavaScriptTokenKind::Identifier(
+                    String::from_utf8_lossy(&source[start..index]).into_owned(),
+                ),
+                start,
+                end: index,
+            });
+            continue;
+        }
+        tokens.push(JavaScriptToken {
+            kind: if byte.is_ascii_punctuation() {
+                JavaScriptTokenKind::Punct(byte)
+            } else {
+                JavaScriptTokenKind::Other
+            },
+            start: index,
+            end: index + 1,
+        });
+        index += 1;
+    }
+    tokens
+}
+
+fn javascript_regex_can_start(previous: Option<&JavaScriptToken>) -> bool {
+    match previous.map(|token| &token.kind) {
+        None => true,
+        Some(JavaScriptTokenKind::Punct(b')' | b']' | b'}' | b'.')) => false,
+        Some(JavaScriptTokenKind::Punct(_)) => true,
+        Some(JavaScriptTokenKind::Identifier(value)) => matches!(
+            value.as_str(),
+            "await"
+                | "case"
+                | "delete"
+                | "do"
+                | "else"
+                | "in"
+                | "instanceof"
+                | "new"
+                | "return"
+                | "throw"
+                | "typeof"
+                | "void"
+                | "yield"
+        ),
+        Some(JavaScriptTokenKind::String { .. } | JavaScriptTokenKind::Other) => false,
+    }
+}
+
+fn is_javascript_identifier_start(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$') || !byte.is_ascii()
+}
+
+fn is_javascript_identifier_continue(byte: u8) -> bool {
+    is_javascript_identifier_start(byte) || byte.is_ascii_digit()
+}
+
+fn is_bare_javascript_specifier(specifier: &str) -> bool {
+    !specifier.is_empty()
+        && !specifier.starts_with('.')
+        && !specifier.starts_with('/')
+        && !specifier.starts_with('#')
+        && uri_scheme(specifier).is_none()
+}
+
+fn relative_module_target(from: &str, to: &str) -> String {
+    let from_parts = from
+        .strip_prefix("./")
+        .unwrap_or(from)
+        .split('/')
+        .collect::<Vec<_>>();
+    let to_parts = to
+        .strip_prefix("./")
+        .unwrap_or(to)
+        .split('/')
+        .collect::<Vec<_>>();
+    let from_directory = &from_parts[..from_parts.len().saturating_sub(1)];
+    let common = from_directory
+        .iter()
+        .zip(&to_parts)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut parts = vec![".."; from_directory.len().saturating_sub(common)];
+    parts.extend_from_slice(&to_parts[common..]);
+    let relative = parts.join("/");
+    if relative.starts_with("../") {
+        relative
+    } else {
+        format!("./{relative}")
+    }
 }
 
 fn validate_module_resource_content_type(
@@ -1926,49 +2687,6 @@ fn validate_module_specifier(
             "cem.module_map.specifier_invalid",
             format!(
                 "module-map import key `{specifier}` must be an exact bare npm module specifier"
-            ),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_module_asset_target(
-    config_uri: &str,
-    specifier: &str,
-    target: &str,
-) -> Result<(), TransformGraphRequestError> {
-    let relative = target.strip_prefix("./").ok_or_else(|| {
-        config_error(
-            config_uri,
-            "cem.module_map.target_invalid",
-            format!(
-                "module-map entry `{specifier}` target `{target}` must be an app-relative `./` JavaScript URL"
-            ),
-        )
-    })?;
-    let path = Path::new(relative);
-    let has_only_normal_segments = path
-        .components()
-        .all(|component| matches!(component, std::path::Component::Normal(_)));
-    let is_javascript = matches!(
-        path.extension()
-            .and_then(OsStr::to_str)
-            .map(str::to_ascii_lowercase)
-            .as_deref(),
-        Some("js" | "mjs")
-    );
-    if relative.is_empty()
-        || target
-            .chars()
-            .any(|character| matches!(character, '\\' | '?' | '#'))
-        || !has_only_normal_segments
-        || !is_javascript
-    {
-        return Err(config_error(
-            config_uri,
-            "cem.module_map.target_invalid",
-            format!(
-                "module-map entry `{specifier}` target `{target}` must stay within the app output and end in `.js` or `.mjs`"
             ),
         ));
     }
@@ -2864,6 +3582,150 @@ mod tests {
     }
 
     #[test]
+    fn dedicated_module_map_v3_rewrites_only_declared_module_edges() {
+        let fixture = FixtureDir::new();
+        let graph_bytes = br#"{run | {import @id=page @src="src/page.html" @content-type="text/html" | {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" | {export @id=html @out="dist/page.html" @content-type="text/html"}}}}"#;
+        let config_uri = fixture.write("graph.cem", graph_bytes);
+        fixture.write(
+            "src/page.html",
+            br#"<script type="importmap">{"imports":{"@pkg/app":"../runtime/app.js","@pkg/metadata":"../runtime/runtime.json","@pkg/runtime":"../runtime/runtime.js"}}</script>"#,
+        );
+        fixture.write(
+            "maps/source.module-map.json",
+            br#"{
+  "$schema": "https://cem.dev/ns/data/module-map/3",
+  "imports": {
+    "@pkg/app": {"path":"../runtime/app.js","contentType":"text/javascript","moduleImports":{"@pkg/metadata":"@pkg/metadata","@pkg/runtime":"@pkg/runtime"}},
+    "@pkg/metadata": {"path":"../runtime/runtime.json","contentType":"application/json"},
+    "@pkg/runtime": {"path":"../runtime/runtime.js","contentType":"text/javascript"}
+  },
+  "resources": {
+    "@pkg/worker": {"path":"../runtime/worker.js","contentType":"text/javascript","moduleImports":{"@pkg/runtime":"@pkg/runtime"}}
+  }
+}"#,
+        );
+        fixture.write(
+            "maps/dist.module-map.json",
+            br#"{
+  "$schema": "https://cem.dev/ns/data/module-map/3",
+  "imports": {
+    "@pkg/app": {"path":"./assets/app/app.js","contentType":"text/javascript","moduleImports":{"@pkg/metadata":"@pkg/metadata","@pkg/runtime":"@pkg/runtime"}},
+    "@pkg/metadata": {"path":"./assets/runtime/runtime.json","contentType":"application/json"},
+    "@pkg/runtime": {"path":"./assets/runtime/runtime.js","contentType":"text/javascript"}
+  },
+  "resources": {
+    "@pkg/worker": {"path":"./workers/worker.js","contentType":"text/javascript","moduleImports":{"@pkg/runtime":"@pkg/runtime"}}
+  }
+}"#,
+        );
+        let app_source = br#"const quoted = "import '@pkg/ignored'";
+/* export { fake } from '@pkg/ignored'; */
+const expression = /import '@pkg\/ignored'/;
+import metadata from '@pkg/metadata' with { type: 'json' };
+export { runtime } from '@pkg/runtime';
+export const loadRuntime = () => import('@pkg/runtime');
+export { metadata };
+"#;
+        let app_uri = fixture.write("runtime/app.js", app_source);
+        fixture.write("runtime/runtime.json", br#"{"abi":"v1"}"#);
+        fixture.write("runtime/runtime.js", b"export const runtime = true;\n");
+        let worker_uri = fixture.write(
+            "runtime/worker.js",
+            b"import { runtime } from '@pkg/runtime';\nself.postMessage(runtime);\n",
+        );
+        let graph = graph(&config_uri, graph_bytes);
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+
+        let request = lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+            .expect("dedicated module-map v3 lowers");
+
+        let app = request
+            .imports
+            .iter()
+            .find(|import| import.input.uri == app_uri)
+            .expect("rewritten app import");
+        let app_output = std::str::from_utf8(&app.input.bytes).expect("rewritten app UTF-8");
+        assert!(app_output.contains("from '../runtime/runtime.json'"));
+        assert!(app_output.contains("from '../runtime/runtime.js'"));
+        assert!(app_output.contains("import('../runtime/runtime.js')"));
+        assert!(app_output.contains("import '@pkg/ignored'"));
+        assert!(app_output.contains("from '@pkg/ignored'"));
+
+        let worker = request
+            .imports
+            .iter()
+            .find(|import| import.input.uri == worker_uri)
+            .expect("rewritten worker import");
+        assert_eq!(
+            std::str::from_utf8(&worker.input.bytes).unwrap(),
+            "import { runtime } from '../assets/runtime/runtime.js';\nself.postMessage(runtime);\n"
+        );
+        assert_eq!(
+            request.importmap_rewrites[0].target_imports["@pkg/metadata"],
+            "./assets/runtime/runtime.json"
+        );
+        let app_asset = request
+            .module_asset_manifest
+            .assets
+            .iter()
+            .find(|asset| asset.specifier == "@pkg/app")
+            .expect("app manifest record");
+        assert_eq!(app_asset.source_byte_length, app_source.len() as u64);
+        assert_eq!(
+            app_asset.source_sha256,
+            crate::command_service::sha256_hex(app_source)
+        );
+        assert_ne!(app_asset.source_sha256, app_asset.sha256);
+        assert_eq!(request.module_asset_manifest.contract_version, 2);
+    }
+
+    #[test]
+    fn module_map_v3_rejects_undeclared_unused_and_mismatched_edges() {
+        fn lowering_error(source: &str, target: &str, javascript: &[u8]) -> String {
+            let fixture = FixtureDir::new();
+            let graph_bytes = br#"{run | {import @id=page @src="src/page.html" @content-type="text/html" | {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" | {export @id=html @out="dist/page.html" @content-type="text/html"}}}}"#;
+            let config_uri = fixture.write("graph.cem", graph_bytes);
+            fixture.write("src/page.html", b"<html></html>");
+            fixture.write("maps/source.module-map.json", source.as_bytes());
+            fixture.write("maps/dist.module-map.json", target.as_bytes());
+            fixture.write("runtime/app.js", javascript);
+            fixture.write("runtime/runtime.js", b"export const runtime = true;\n");
+            let graph = graph(&config_uri, graph_bytes);
+            let context = EngineContext::default();
+            let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+            lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+                .unwrap_err()
+                .code()
+                .to_owned()
+        }
+
+        let source_without_edges = r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"@pkg/app":{"path":"../runtime/app.js","contentType":"text/javascript"},"@pkg/runtime":{"path":"../runtime/runtime.js","contentType":"text/javascript"}}}"#;
+        let target_without_edges = r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"@pkg/app":{"path":"./app.js","contentType":"text/javascript"},"@pkg/runtime":{"path":"./runtime.js","contentType":"text/javascript"}}}"#;
+        assert_eq!(
+            lowering_error(
+                source_without_edges,
+                target_without_edges,
+                b"import '@pkg/runtime';\n"
+            ),
+            "cem.module_map.javascript_bare_specifier_undeclared"
+        );
+
+        let source_with_edge = r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"@pkg/app":{"path":"../runtime/app.js","contentType":"text/javascript","moduleImports":{"@pkg/runtime":"@pkg/runtime"}},"@pkg/runtime":{"path":"../runtime/runtime.js","contentType":"text/javascript"}}}"#;
+        let target_with_edge = r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"@pkg/app":{"path":"./app.js","contentType":"text/javascript","moduleImports":{"@pkg/runtime":"@pkg/runtime"}},"@pkg/runtime":{"path":"./runtime.js","contentType":"text/javascript"}}}"#;
+        assert_eq!(
+            lowering_error(source_with_edge, target_with_edge, b"export const app = true;\n"),
+            "cem.module_map.javascript_rewrite_unused"
+        );
+
+        let target_mismatch = target_with_edge.replace("@pkg/runtime\"}", "@pkg/app\"}");
+        assert_eq!(
+            lowering_error(source_with_edge, &target_mismatch, b"import '@pkg/runtime';\n"),
+            "cem.module_map.module_imports_mismatch"
+        );
+    }
+
+    #[test]
     fn module_map_v2_rejects_invalid_resource_contracts() {
         fn lowering_error(source_map: &str, target_map: &str) -> String {
             let fixture = FixtureDir::new();
@@ -2950,8 +3812,13 @@ mod tests {
             "./runtime.css",
             "./runtime.js?x=1",
         ] {
-            let error =
-                validate_module_asset_target("graph.cem", "@pkg/runtime", target).unwrap_err();
+            let error = validate_module_import_target(
+                "graph.cem",
+                "@pkg/runtime",
+                target,
+                "text/javascript",
+            )
+            .unwrap_err();
             assert_eq!(error.code(), "cem.module_map.target_invalid");
         }
     }

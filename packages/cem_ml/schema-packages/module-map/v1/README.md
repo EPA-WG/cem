@@ -28,8 +28,10 @@ select npm package exports, or copy undeclared files.
 The first version accepts exact bare npm specifiers and `.js`/`.mjs` files only.
 [Schema v2](../../module-map-v2/v1/README.md) preserves this contract and adds
 explicit deployment-only entries for JavaScript sidecars, workers, CSS, and
-WASM. JSON resources, prefix mappings, inlining, and fingerprinting remain for
-later schema versions or graph policy.
+WASM. [Schema v3](../../module-map-v3/v1/README.md) adds typed JavaScript/JSON
+imports and explicit bare-specifier edges for worker-safe relative deployment
+rewrites. Prefix mappings, inlining, and fingerprinting remain for later schema
+versions or graph policy.
 
 Every lowered graph exposes a deterministic module-asset manifest. Each record
 contains the exact specifier, resolved source-map and source URIs, app-relative

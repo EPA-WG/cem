@@ -1,0 +1,124 @@
+{
+    "name": "cem_ml_schema_package_module_map_v3_v1",
+    "$schema": "../../../../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "library",
+    "sourceRoot": "packages/cem_ml/schema-packages/module-map-v3/v1",
+    "targets": {
+        "build": {
+            "cache": true,
+            "executor": "nx:noop",
+            "dependsOn": ["samples2readme"],
+            "inputs": [
+                "{projectRoot}/package.cem",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/examples/**/*",
+                "!{projectRoot}/examples/previews/**/*",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/cem_ml/schema-packages/module-map-v3/v1/examples/*.html",
+                "{projectRoot}/examples/previews/*.svg"
+            ]
+        },
+        "samples2readme": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ml_cli"], "target": "build" }],
+            "options": {
+                "commands": ["node packages/cem_ml/schema-packages/scripts/samples2readme.mjs {projectRoot}"],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.cem",
+                "{projectRoot}/README.md",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/examples/**/*",
+                "!{projectRoot}/examples/previews/**/*",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
+            ],
+            "outputs": [
+                "{projectRoot}/README.md",
+                "{workspaceRoot}/dist/cem_ml/schema-packages/module-map-v3/v1/examples/*.html",
+                "{projectRoot}/examples/previews/*.svg"
+            ]
+        },
+        "verify": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:nx-cache-input",
+                { "projects": ["cem_ml"], "target": "test:command-types" },
+                { "projects": ["cem_ml"], "target": "build:wasm" },
+                { "projects": ["cem_ml_cli"], "target": "build" }
+            ],
+            "options": {
+                "commands": [
+                    "mkdir -p packages/cem_ml/schema-packages/module-map-v3/v1/dist",
+                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/module-map-v3/v1/dist packages/cem_ml/schema-packages/module-map-v3/v1/package.cem",
+                    "cargo test -p cem-ml module_map_v3_package_examples_are_manifest_indexed -- --nocapture",
+                    "cargo test -p cem-ml dedicated_module_map_v3_rewrites_only_declared_module_edges -- --nocapture",
+                    "cargo test -p cem-ml module_map_v3_rejects_undeclared_unused_and_mismatched_edges -- --nocapture",
+                    "cargo test -p cem-ml-cli schema_owned_module_map_v3_examples_validate_through_cli --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml-cli transform_config_module_map_v3_rewrites_declared_module_edges -- --nocapture"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.cem",
+                "{projectRoot}/README.md",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/examples/**/*",
+                "{projectRoot}/fixtures/**/*",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/tests/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
+            ],
+            "outputs": ["{projectRoot}/dist/cem-ml.report.json"]
+        },
+        "verify:nx-cache-input": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ml_cli"], "target": "build" }],
+            "options": {
+                "command": "./dist/target/cem_ml_cli/debug/cem-ml --quiet transform --config packages/cem_ml/schema-packages/module-map-v3/v1/fixtures/nx-cache/graph.cem --module-asset-cache-key",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/fixtures/nx-cache/graph.cem",
+                "{projectRoot}/fixtures/nx-cache/page.html",
+                "{projectRoot}/fixtures/nx-cache/source.module-map.json",
+                "{projectRoot}/fixtures/nx-cache/destination.module-map.json",
+                "{projectRoot}/fixtures/nx-cache/runtime/**/*",
+                "{workspaceRoot}/yarn.lock",
+                {
+                    "dependentTasksOutputFiles": "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml",
+                    "transitive": false
+                },
+                {
+                    "runtime": "./dist/target/cem_ml_cli/debug/cem-ml --quiet transform --config packages/cem_ml/schema-packages/module-map-v3/v1/fixtures/nx-cache/graph.cem --module-asset-cache-key"
+                }
+            ],
+            "outputs": []
+        }
+    },
+    "tags": ["scope:cem-ml", "type:schema-package", "lang:cem"]
+}

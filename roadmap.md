@@ -464,13 +464,14 @@ Deliverables:
   imports; schema `https://cem.dev/ns/data/module-map/2` adds paired explicit
   resources for relative JavaScript sidecars, workers, CSS, and WASM. Source and
   destination maps enumerate the complete source files (including
-  `node_modules` paths), content types, and app-relative deployed URLs. The graph
-  treats every declaration as an opaque typed import/export, byte-preserves it
-  beside the HTML output, and projects only `imports` destination URLs into the
-  browser import map. JavaScript/CSS parsing, transitive discovery,
-  package-export selection, and undeclared asset copying are not part of this
-  phase. A deterministic resolved-read manifest records per-asset SHA-256
-  evidence and provides a host-neutral aggregate cache key shared by
+  `node_modules` paths), content types, and app-relative deployed URLs. Schema
+  `https://cem.dev/ns/data/module-map/3` adds typed JavaScript/JSON imports and
+  exact declared module edges so the graph can rewrite worker imports to
+  relative deployed URLs. V1/v2 remain byte-preserving; v3 changes only declared
+  static/export/quoted-dynamic specifiers and retains source/output digest
+  evidence. JavaScript dependency discovery, package-export selection, and
+  undeclared asset copying remain outside the contract. A deterministic
+  resolved-read manifest provides a host-neutral aggregate cache key shared by
   native/WASM responses, CLI reports, and Nx runtime inputs.
 - Root-wired docs site with guides, token browser, component gallery, examples, API/reference, and release notes.
 - Generated docs imported from package markdown and token reports.
@@ -515,10 +516,10 @@ Deliverables:
   `@epa-wg/cem-ml-cli` package and tested-compatible `@epa-wg/cem-components` and `@epa-wg/cem-theme` packages.
 - Build an installable, offline-capable PWA shell with a dedicated CEM-ML worker, versioned app/runtime/sample caches,
   explicit update coordination, responsive layout, and Consumer Semantic Theme modes.
-- Before caching the worker/runtime chain, close the versioned worker-safe module deployment gate recorded in
-  [`docs/cem-studio.md`](docs/cem-studio.md#worker-safe-static-module-decision-gate). Module-map v2 rewrites the page
-  import map but deliberately byte-preserves worker JavaScript, so it cannot by itself resolve a worker's bare npm
-  imports. Prefer a graph-owned exact-specifier rewrite contract over package-specific deployment-loader behavior.
+- The versioned worker-safe module deployment gate in
+  [`docs/cem-studio.md`](docs/cem-studio.md#worker-safe-static-module-decision-gate) is closed by module-map v3. Its
+  graph-owned exact-specifier rewrite deploys JavaScript/JSON worker dependencies, preserves v1/v2 compatibility, and
+  is proven by a real Chromium CLI/WASM command online and offline from graph-emitted static output.
 - Use the accepted `studio-project/v1` portable CEM/JSON project hierarchy for data sets, inline and URL resources,
   validation/configuration, conversions, queries, transformations, and transformation graphs. Persist mutable projects
   in IndexedDB and provide validated import/export before remote providers.

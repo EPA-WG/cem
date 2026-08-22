@@ -1,0 +1,16 @@
+{
+    "$schema": "https://cem.dev/ns/data/module-map/3",
+    "imports": {
+        "@example/app": {
+            "path": "./runtime/app.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@example/metadata": "@example/metadata"
+            }
+        },
+        "@example/metadata": {
+            "path": "./runtime/runtime.json",
+            "contentType": "application/json"
+        }
+    }
+}

@@ -1,0 +1,66 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="module-map" @namespace="https://cem.dev/ns/data/module-map/3" @version="3.0.0" |
+    {summary |
+        {text | Worker-safe explicit web module deployment map. Paired source and destination documents declare typed module imports and resources plus the exact bare module edges that CEM-ML may rewrite. CEM-ML never discovers or copies a dependency from JavaScript source.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.module-map+json" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="module-map" @uri="https://cem.dev/ns/data/module-map/3" @role="schema"}
+    }
+
+    {elements |
+        {element @name="module-map" @required-attributes="schema-uri" @children="import* resource*"}
+        {element @name="import" @required-attributes="specifier target content-type" @children="module-import*"}
+        {element @name="resource" @required-attributes="name target content-type" @children="module-import*"}
+        {element @name="module-import" @required-attributes="specifier asset"}
+    }
+
+    {attributes |
+        {attribute @name="schema-uri" @type="schema:uri"}
+        {attribute @name="specifier" @type="schema:string"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="asset" @type="schema:string"}
+        {attribute @name="target" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:media-type"}
+    }
+
+    {constraints |
+        {constraint @kind="module-map-schema-identity" @target="module-map" @policy="the JSON $schema member must equal https://cem.dev/ns/data/module-map/3"}
+        {constraint @kind="module-map-typed-imports" @target="import" @policy="imports values are objects with exactly path, contentType, and optional moduleImports; text/javascript and application/json are supported"}
+        {constraint @kind="module-map-explicit-edges" @target="module-import" @policy="moduleImports maps an exact bare source specifier to one declared imports or resources asset identity"}
+        {constraint @kind="module-map-pair-complete" @target="module-map" @policy="paired source and destination documents declare identical imports, resources, content types, and moduleImports edges"}
+        {constraint @kind="module-map-worker-rewrite" @target="module-import" @policy="CEM-ML rewrites only declared static import, export-from, and quoted dynamic-import specifiers to app-relative deployed URLs"}
+        {constraint @kind="module-map-no-discovery" @target="module-map" @policy="undeclared bare JavaScript specifiers are errors; relative and URL specifiers remain unchanged; no discovered file is copied"}
+        {constraint @kind="module-map-destination-contained" @target="module-map" @policy="all destination paths are app-relative ./ URLs, remain inside the HTML export directory, and match their content type"}
+        {constraint @kind="module-map-browser-projection" @target="module-map" @policy="typed imports paths are projected into the page import map; resources remain deployment-only"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.module_map.import_entry_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.import_type_unsupported" @severity="error"}
+        {diagnostic @code="cem.module_map.module_imports_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.module_imports_mismatch" @severity="error"}
+        {diagnostic @code="cem.module_map.module_import_target_missing" @severity="error"}
+        {diagnostic @code="cem.module_map.module_import_target_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.javascript_utf8_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.javascript_specifier_invalid" @severity="error"}
+        {diagnostic @code="cem.module_map.javascript_bare_specifier_undeclared" @severity="error"}
+        {diagnostic @code="cem.module_map.javascript_rewrite_unused" @severity="error"}
+    }
+
+    {compatibility |
+        {note @version="3.0.0" @value="Version 3 replaces string imports values with typed objects and permits exact declared-edge rewrites. Versions 1 and 2 remain byte-preserving and retain their existing syntax."}
+        {note @version="3.0.0" @value="Dependency discovery, package-export selection, prefix maps, CommonJS rewriting, computed dynamic imports, fingerprinting, and bundling remain outside this version."}
+    }
+}

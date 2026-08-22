@@ -1454,6 +1454,10 @@ schema_owned_package_validation_test!(
     "module-map-v2"
 );
 schema_owned_package_validation_test!(
+    schema_owned_module_map_v3_examples_validate_through_cli,
+    "module-map-v3"
+);
+schema_owned_package_validation_test!(
     schema_owned_relax_ng_examples_validate_through_cli,
     "relax-ng"
 );

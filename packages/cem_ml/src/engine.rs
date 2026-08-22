@@ -952,6 +952,7 @@ pub struct TransformGraphRequest {
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphModuleAssetManifest {
+    pub contract_version: u32,
     pub hash_scheme: String,
     pub hash: String,
     pub asset_count: u64,
@@ -965,6 +966,7 @@ impl Default for TransformGraphModuleAssetManifest {
         canonical.extend_from_slice(&(marker.len() as u64).to_be_bytes());
         canonical.extend_from_slice(marker);
         Self {
+            contract_version: 1,
             hash_scheme: "sha256".to_owned(),
             hash: crate::command_service::sha256_hex(&canonical),
             asset_count: 0,
@@ -983,6 +985,8 @@ pub struct TransformGraphModuleAsset {
     pub target: String,
     pub destination: String,
     pub content_type: String,
+    pub source_byte_length: u64,
+    pub source_sha256: String,
     pub byte_length: u64,
     pub sha256: String,
 }

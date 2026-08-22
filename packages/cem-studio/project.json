@@ -191,6 +191,24 @@
             ],
             "outputs": ["{workspaceRoot}/dist/reports/cem-studio/output.json"]
         },
+        "verify:static-worker": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:determinism"],
+            "options": {
+                "command": "node scripts/verify-static-worker.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/static-worker.json"]
+        },
         "verify:determinism": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -222,6 +240,7 @@
                 "verify:dependencies",
                 "verify:ui-classification",
                 "verify:output",
+                "verify:static-worker",
                 "verify:determinism"
             ],
             "options": {

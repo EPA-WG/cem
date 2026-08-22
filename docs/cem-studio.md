@@ -1250,37 +1250,29 @@ under an explicit migration plan.
 
 #### Worker-safe static module decision gate
 
-The graph-built Studio bootstrap currently cannot start its dedicated command
-worker without another deployment contract. Module-map v2 intentionally copies
-declared JavaScript as opaque bytes and rewrites only the page's HTML import map.
-The emitted `@epa-wg/cem-ml-cli/browser-worker` retains its bare
-`@epa-wg/cem-ml/wasm` import, but a module worker does not inherit the importing
-page's import map. The browser command client also retains its
-`@epa-wg/cem-ml/runtime.json` module import, which the current JavaScript-only
-`imports` vocabulary cannot declare. Caching those files would therefore make a
-broken worker available offline rather than prove offline command execution.
+Status: **accepted and completed 2026-08-21**.
 
-The preferred resolution is a new versioned module-map contract that can declare
-module-compatible non-JavaScript imports and syntax-aware, exact-specifier
-rewrites for declared JavaScript assets. It should rewrite only explicitly
-mapped import/export edges, preserve every other byte and source relationship,
-copy no discovered dependency, reject unresolved bare specifiers, and expose the
-same deterministic manifest/cache-key evidence as v2. This keeps npm dependency
-decoupling and deployed worker assembly inside the CEM-ML transformation graph,
-as required by the site and Studio build boundary.
+Module-map v3 (`https://cem.dev/ns/data/module-map/3`) is the accepted graph
+contract. Its typed JavaScript/JSON imports and exact `moduleImports` edges let
+CEM-ML rewrite only declared static imports, export-from edges, and quoted
+dynamic imports to relative deployed URLs. It rejects undeclared or unused bare
+edges, copies no discovered dependency, preserves v1/v2 byte and hash
+compatibility, and reports deterministic source/output digest evidence when an
+edge changes emitted bytes.
 
-The narrower alternative is to change `@epa-wg/cem-ml-cli/browser` so its worker
-receives deployed runtime URLs and ABI metadata from the page and dynamically
-loads them. That avoids JavaScript transformation but makes the CLI package
-encode deployment-loader behavior and does not solve worker-safe assembly for
-other declared npm modules. A Vite/Rollup production bundle remains outside the
-accepted build authority.
+Studio now declares its CLI browser client, command worker, WASM wrapper/binary,
+runtime JSON, CEM components/elements, theme, and application modules through
+the paired v3 maps. The destination map is also emitted as the runtime-cache
+inventory authority. A Playwright fixture serves only `dist/static`, starts the
+real dedicated CLI module worker, initializes the bundled WASM, and executes the
+CLI `version` command online. It then reloads with Chromium network access
+disabled and repeats the command from the versioned shell/runtime caches. No
+Vite/Rollup production bundle or package-specific CLI deployment loader is used.
 
-Accept the versioned graph contract or the narrower CLI-loader contract before
-implementing service-worker caches and PWA update activation. In either case, a
-static-output browser test must start the real command worker and execute a
-bundled-WASM command online and offline; a Vite-bundled package test is not
-sufficient evidence for the graph-emitted deployment.
+The acceptance cache deliberately stops short of the full PWA shell contract.
+Semantic theme composition, user-visible install/update state, a safe activation
+barrier around active work, sample-cache policy, recovery UI, and IndexedDB
+project-survival coverage remain in the next shell item.
 
 ## URL-Backed Data
 

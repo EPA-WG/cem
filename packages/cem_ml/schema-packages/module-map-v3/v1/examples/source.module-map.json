@@ -1,0 +1,25 @@
+{
+    "$schema": "https://cem.dev/ns/data/module-map/3",
+    "imports": {
+        "@example/app": {
+            "path": "../runtime/app.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@example/runtime-metadata": "@example/runtime-metadata"
+            }
+        },
+        "@example/runtime-metadata": {
+            "path": "../runtime/runtime.json",
+            "contentType": "application/json"
+        }
+    },
+    "resources": {
+        "@example/worker": {
+            "path": "../runtime/worker.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@example/app": "@example/app"
+            }
+        }
+    }
+}

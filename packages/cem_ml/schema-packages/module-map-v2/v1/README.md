@@ -47,7 +47,9 @@ module-asset manifest records every import and resource with its resolved source
 destination, content type, byte length, SHA-256, and host-neutral aggregate cache
 key. Existing v1-only manifests keep the same hash construction.
 
-JSON resources, prefix mappings, inlining, fingerprinting, and dependency
+[Schema v3](../../module-map-v3/v1/README.md) adds typed JavaScript/JSON imports
+and exact declared-edge rewrites for module workers while preserving v2's
+no-discovery boundary. Prefix mappings, inlining, fingerprinting, and dependency
 discovery remain outside v2.
 
 ## Verification

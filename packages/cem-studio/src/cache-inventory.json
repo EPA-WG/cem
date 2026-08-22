@@ -1,7 +1,7 @@
 {
     "schemaVersion": 1,
     "commonVersion": "0.1.0",
-    "status": "bootstrap-only",
+    "status": "worker-runtime-cache-v1",
     "groups": [
         {
             "id": "shell",
@@ -9,8 +9,15 @@
                 "./index.html",
                 "./manifest.webmanifest",
                 "./icon.svg",
-                "./build.json"
+                "./build.json",
+                "./cache-inventory.json",
+                "./module-map.json",
+                "./service-worker.js"
             ]
+        },
+        {
+            "id": "runtime",
+            "moduleMap": "./module-map.json"
         }
     ]
 }

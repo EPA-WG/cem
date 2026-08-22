@@ -1,14 +1,57 @@
 {
-    "$schema": "https://cem.dev/ns/data/module-map/2",
+    "$schema": "https://cem.dev/ns/data/module-map/3",
     "imports": {
-        "@epa-wg/cem-studio": "./assets/@epa-wg/cem-studio/bootstrap.js",
-        "@epa-wg/cem-studio/main": "./assets/@epa-wg/cem-studio/main.js",
-        "@epa-wg/cem-studio/repository": "./assets/@epa-wg/cem-studio/repository.js",
-        "@epa-wg/cem-ml-cli/browser": "./assets/@epa-wg/cem-ml-cli/dist/browser.js",
-        "@epa-wg/cem-ml/wasm": "./assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js",
-        "@epa-wg/cem-components": "./assets/@epa-wg/cem-components/dist/index.js",
-        "@epa-wg/cem-theme": "./assets/@epa-wg/cem-theme/dist/index.js",
-        "@epa-wg/custom-element": "./assets/@epa-wg/custom-element/custom-element.js"
+        "@epa-wg/cem-studio": {
+            "path": "./assets/@epa-wg/cem-studio/bootstrap.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-ml-cli/browser": "@epa-wg/cem-ml-cli/browser"
+            }
+        },
+        "@epa-wg/cem-studio/main": {
+            "path": "./assets/@epa-wg/cem-studio/main.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-components": "@epa-wg/cem-components",
+                "@epa-wg/cem-studio": "@epa-wg/cem-studio",
+                "@epa-wg/custom-element": "@epa-wg/custom-element"
+            }
+        },
+        "@epa-wg/cem-studio/repository": {
+            "path": "./assets/@epa-wg/cem-studio/repository.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
+            }
+        },
+        "@epa-wg/cem-ml-cli/browser": {
+            "path": "./assets/@epa-wg/cem-ml-cli/dist/browser.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-ml/runtime.json": "@epa-wg/cem-ml/runtime.json",
+                "@epa-wg/cem-ml/wasm": "@epa-wg/cem-ml/wasm"
+            }
+        },
+        "@epa-wg/cem-ml/runtime.json": {
+            "path": "./assets/@epa-wg/cem-ml/dist/cem-ml-runtime.json",
+            "contentType": "application/json"
+        },
+        "@epa-wg/cem-ml/wasm": {
+            "path": "./assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components": {
+            "path": "./assets/@epa-wg/cem-components/dist/index.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-theme": {
+            "path": "./assets/@epa-wg/cem-theme/dist/index.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/custom-element": {
+            "path": "./assets/@epa-wg/custom-element/custom-element.js",
+            "contentType": "text/javascript"
+        }
     },
     "resources": {
         "@epa-wg/cem-studio/service-worker": {
@@ -17,15 +60,24 @@
         },
         "@epa-wg/cem-ml-cli/browser-command": {
             "path": "./assets/@epa-wg/cem-ml-cli/dist/browser-command.js",
-            "contentType": "text/javascript"
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-ml/runtime.json": "@epa-wg/cem-ml/runtime.json"
+            }
         },
         "@epa-wg/cem-ml-cli/browser-invocation": {
             "path": "./assets/@epa-wg/cem-ml-cli/dist/browser-invocation.js",
-            "contentType": "text/javascript"
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-ml/wasm": "@epa-wg/cem-ml/wasm"
+            }
         },
         "@epa-wg/cem-ml-cli/browser-worker": {
             "path": "./assets/@epa-wg/cem-ml-cli/dist/browser-worker.js",
-            "contentType": "text/javascript"
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-ml/wasm": "@epa-wg/cem-ml/wasm"
+            }
         },
         "@epa-wg/cem-ml-cli/command": {
             "path": "./assets/@epa-wg/cem-ml-cli/dist/command.js",
@@ -49,7 +101,10 @@
         },
         "@epa-wg/cem-components/cem-components": {
             "path": "./assets/@epa-wg/cem-components/dist/lib/cem-components.js",
-            "contentType": "text/javascript"
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-theme": "@epa-wg/cem-theme"
+            }
         },
         "@epa-wg/cem-components/primitives": {
             "path": "./assets/@epa-wg/cem-components/dist/lib/primitives.js",
@@ -101,6 +156,10 @@
         },
         "@epa-wg/cem-components/stepper-behavior": {
             "path": "./assets/@epa-wg/cem-components/dist/lib/stepper-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/tabs-behavior": {
+            "path": "./assets/@epa-wg/cem-components/dist/lib/tabs-behavior.js",
             "contentType": "text/javascript"
         },
         "@epa-wg/cem-components/timepicker-behavior": {

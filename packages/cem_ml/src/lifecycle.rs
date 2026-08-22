@@ -21,6 +21,7 @@ use crate::schema::registry::{
     JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
     MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
     MODULE_MAP_CONTENT_TYPE, MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI,
+    MODULE_MAP_V3_SCHEMA_URI,
     RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
     SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
     XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
@@ -1471,11 +1472,17 @@ fn matches_json_identity(identity: &FormatIdentity) -> bool {
     let explicit_schema_matches = explicit_schema.is_some_and(|schema| {
         matches!(
             schema,
-            JSON_VALUE_SCHEMA_URI | MODULE_MAP_SCHEMA_URI | MODULE_MAP_V2_SCHEMA_URI
+            JSON_VALUE_SCHEMA_URI
+                | MODULE_MAP_SCHEMA_URI
+                | MODULE_MAP_V2_SCHEMA_URI
+                | MODULE_MAP_V3_SCHEMA_URI
         )
     });
     let explicit_module_map_schema = explicit_schema.is_some_and(|schema| {
-        matches!(schema, MODULE_MAP_SCHEMA_URI | MODULE_MAP_V2_SCHEMA_URI)
+        matches!(
+            schema,
+            MODULE_MAP_SCHEMA_URI | MODULE_MAP_V2_SCHEMA_URI | MODULE_MAP_V3_SCHEMA_URI
+        )
     });
     if let Some(content_type) = identity.content_type.as_deref() {
         return match content_type_essence(content_type).as_str() {
@@ -2423,7 +2430,11 @@ mod tests {
 
     #[test]
     fn builtins_load_versioned_module_maps_through_json_syntax_adapter() {
-        for schema in [MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI] {
+        for schema in [
+            MODULE_MAP_SCHEMA_URI,
+            MODULE_MAP_V2_SCHEMA_URI,
+            MODULE_MAP_V3_SCHEMA_URI,
+        ] {
             let mut context = context(MODULE_MAP_CONTENT_TYPE);
             context.schema = Some(schema.to_owned());
             let loaded = LifecycleRegistry::with_builtin_adapters().load(

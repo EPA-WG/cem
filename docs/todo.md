@@ -1166,11 +1166,34 @@ including search, is composed from `@epa-wg/cem-components` and
           over package-specific deployment-loader behavior. PWA implementation
           stops at this decision instead of caching a worker that the static
           output cannot start.
-    - [ ] Accept and implement the worker-safe module deployment contract, then
+    - [x] Accept and implement the worker-safe module deployment contract, then
           prove the real graph-emitted CLI worker and bundled WASM command both
           online and offline without a production bundler.
+        - [x] Add schema-owned module-map v3 source/destination examples and
+              native valid/rejection fixtures first, covering JavaScript and
+              JSON module entries, exact static/export/dynamic specifier
+              rewrites, comments/string false positives, undeclared bare
+              specifiers, mismatched rewrite edges, and unsafe destinations.
+        - [x] Implement the v3 parser/lowering, exact declared-edge rewrite with
+              byte preservation outside specifier spans, deterministic
+              source/output digest evidence, schema
+              registration, reports, and v1/v2 compatibility lane.
+        - [x] Adopt v3 in Studio and add a static-output browser fixture that
+              executes the real CLI worker and bundled WASM online and offline.
+        - Completed 2026-08-21: schema-owned module-map v3 adds typed
+          JavaScript/JSON imports and exact `moduleImports` edges, with native
+          acceptance/rejection fixtures, v1/v2 compatibility, and deterministic
+          source/output digest evidence in engine and CLI reports. Studio's
+          paired v3 maps now own 57 assets, including the CLI worker, runtime
+          JSON, WASM wrapper/binary, and complete component chain; CEM-ML emits
+          64 static files and the destination map used by versioned
+          shell/runtime caches. Real Chromium executes the CLI `version` command
+          through the dedicated graph-emitted worker online, reloads with the
+          network disabled, and executes it again from Cache Storage. No
+          production bundler or package-specific deployment loader is involved.
     - [ ] Compose the installable CEM-component shell, five semantic theme
-          modes, versioned shell/runtime/sample caches, explicit safe-update
+          modes, evolve the accepted shell/runtime caches with a sample-cache
+          policy, add explicit safe-update
           barrier, offline navigation, and IndexedDB project-survival test.
 - [ ] Generate an editable CEM-ML Feature Tour seed from actual schema-package
       examples and browser capabilities, then verify every advertised example

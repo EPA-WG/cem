@@ -241,18 +241,27 @@ second JavaScript bundler or asset-copy authority:
   Only declared bytes are copied.
 - Destination values are projected into the HTML browser import map. Source and
   `node_modules` paths never become browser output identities.
-- The map is the complete manifest. CEM-ML does not parse JavaScript, walk static
-  or dynamic imports, select npm package exports, infer transitive resources, or
-  copy undeclared siblings. If a runtime module needs another module, the author
-  declares that dependency as another exact map entry.
-- The first schema version excludes prefix maps, CommonJS, JSON, CSS, WASM,
-  inlining, and fingerprinting. Those require a later versioned contract rather
-  than silent discovery.
+- Schema `https://cem.dev/ns/data/module-map/2` preserves string `imports` and
+  adds typed deployment-only `resources` for JavaScript sidecars/workers, CSS,
+  and WASM. Versions 1 and 2 copy every declared asset byte-for-byte.
+- Schema `https://cem.dev/ns/data/module-map/3` uses typed JavaScript/JSON
+  `imports`; JavaScript imports and resources may declare `moduleImports` from
+  an exact authored bare specifier to another declared asset identity. CEM-ML
+  rewrites declared static imports, export-from edges, and quoted dynamic
+  imports to relative deployed URLs, rejects undeclared or unused bare edges,
+  and leaves relative/URL specifiers and non-edge bytes unchanged. This makes
+  module-worker dependency assembly part of the graph without giving the page
+  import map authority inside workers.
+- Every version remains a complete authored manifest. CEM-ML does not select npm
+  exports, infer or copy transitive siblings, rewrite CommonJS/computed dynamic
+  imports, or add prefix maps, inlining, bundling, or fingerprinting silently.
 - Every lowered graph carries a deterministic module-asset manifest: exact
   specifier, resolved source-map/source/destination provenance, app-relative
-  target, content type, byte length, and per-asset SHA-256. Its aggregate
-  SHA-256 hashes an ordered host-neutral projection so checkout paths do not
-  fragment remote cache entries. Native/WASM responses and CLI JSON/CEM/
+  target, content type, source/output byte lengths, and source/output per-asset
+  SHA-256. Contract v1 retains the existing hash construction when every asset
+  is byte-identical; contract v2 incorporates both sides when a v3 edge changes
+  output bytes. The aggregate SHA-256 remains host-neutral so checkout paths do
+  not fragment remote cache entries. Native/WASM responses and CLI JSON/CEM/
   Markdown reports expose the same records. CLI `--module-asset-cache-key`
   returns only `sha256:<digest>` before execution or publication, allowing Nx
   runtime inputs to hash dynamically declared `node_modules` bytes without a
@@ -744,11 +753,11 @@ one lifecycle-loaded data input. Query source may be inline or file-backed, but
 its language is selected by schema/content identity rather than filename,
 source syntax, or trial parsing:
 
-| Language | Canonical query identity | Required native input view |
-| --- | --- | --- |
+| Language     | Canonical query identity                                                                       | Required native input view   |
+| ------------ | ---------------------------------------------------------------------------------------------- | ---------------------------- |
 | CSS selector | `application/vnd.cem.query-expression+css-selector`; `https://cem.dev/ns/query/css-selector/1` | Lifecycle-owned element tree |
-| CEM-QL | `application/vnd.cem.query-expression+cem-ql`; `https://cem.dev/ns/query/cem-ql/1#expression` | CEM-QL native items |
-| XPath | `application/vnd.cem.xpath`; `https://cem.dev/ns/query/xpath/1` | Lifecycle-owned XDM tree |
+| CEM-QL       | `application/vnd.cem.query-expression+cem-ql`; `https://cem.dev/ns/query/cem-ql/1#expression`  | CEM-QL native items          |
+| XPath        | `application/vnd.cem.xpath`; `https://cem.dev/ns/query/xpath/1`                                | Lifecycle-owned XDM tree     |
 
 The canonical command is:
 

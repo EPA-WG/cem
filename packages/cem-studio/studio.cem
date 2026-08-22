@@ -32,12 +32,10 @@
         @content-type="application/json"}
   }
 
-  {import @id=cem-ml-runtime-metadata
-      @src="../../node_modules/@epa-wg/cem-ml/dist/cem-ml-runtime.json"
+  {import @id=studio-module-map @src="runtime/destination.module-map.json"
       @content-type="application/json"
       @opaque=true |
-    {export @id=cem-ml-runtime-metadata-output
-        @out="dist/static/assets/@epa-wg/cem-ml/dist/cem-ml-runtime.json"
+    {export @id=studio-module-map-output @out="dist/static/module-map.json"
         @content-type="application/json"}
   }
 

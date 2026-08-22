@@ -5818,6 +5818,7 @@ fn render_transform_graph_report_cem(
     out.push_str(" |\n");
     let manifest = &transform_graph.module_asset_manifest;
     cem_element_start(out, indent + 1, "module-asset-manifest");
+    cem_attr_u64(out, "contract-version", u64::from(manifest.contract_version));
     cem_attr(out, "hash-scheme", &manifest.hash_scheme);
     cem_attr(out, "hash", &manifest.hash);
     cem_attr_u64(out, "asset-count", manifest.asset_count);
@@ -5833,6 +5834,8 @@ fn render_transform_graph_report_cem(
             cem_attr(out, "target", &asset.target);
             cem_attr(out, "destination", &asset.destination);
             cem_attr(out, "content-type", &asset.content_type);
+            cem_attr_u64(out, "source-byte-length", asset.source_byte_length);
+            cem_attr(out, "source-sha256", &asset.source_sha256);
             cem_attr_u64(out, "byte-length", asset.byte_length);
             cem_attr(out, "sha256", &asset.sha256);
             out.push_str("}\n");
@@ -5944,15 +5947,20 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
         out.push_str(&format!("- exports: {}\n", transform_graph.export_count));
         let manifest = &transform_graph.module_asset_manifest;
         out.push_str(&format!(
-            "- module assets: {} [{}:{}]\n",
-            manifest.asset_count, manifest.hash_scheme, manifest.hash
+            "- module assets: {} [contract v{}, {}:{}]\n",
+            manifest.asset_count,
+            manifest.contract_version,
+            manifest.hash_scheme,
+            manifest.hash
         ));
         for asset in &manifest.assets {
             out.push_str(&format!(
-                "  - {}: {} -> {} ({} bytes, sha256:{})\n",
+                "  - {}: {} -> {} (source {} bytes, sha256:{}; output {} bytes, sha256:{})\n",
                 asset.specifier,
                 asset.source_uri,
                 asset.destination,
+                asset.source_byte_length,
+                asset.source_sha256,
                 asset.byte_length,
                 asset.sha256
             ));
@@ -9442,6 +9450,94 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_module_map_v3_rewrites_declared_module_edges() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-module-v3");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(root.join("maps")).unwrap();
+        std::fs::create_dir_all(root.join("runtime")).unwrap();
+        std::fs::write(
+            root.join("src/page.html"),
+            r#"<script type="importmap">{"imports":{"@pkg/app":"../runtime/app.js","@pkg/metadata":"../runtime/runtime.json"}}</script>"#,
+        )
+        .unwrap();
+        let source_bytes = b"import metadata from '@pkg/metadata' with { type: 'json' };\nexport default metadata;\n";
+        std::fs::write(root.join("runtime/app.js"), source_bytes).unwrap();
+        std::fs::write(root.join("runtime/runtime.json"), br#"{"abi":"v3"}"#).unwrap();
+        std::fs::write(
+            root.join("maps/source.module-map.json"),
+            r#"{
+  "$schema":"https://cem.dev/ns/data/module-map/3",
+  "imports":{
+    "@pkg/app":{"path":"../runtime/app.js","contentType":"text/javascript","moduleImports":{"@pkg/metadata":"@pkg/metadata"}},
+    "@pkg/metadata":{"path":"../runtime/runtime.json","contentType":"application/json"}
+  }
+}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("maps/dist.module-map.json"),
+            r#"{
+  "$schema":"https://cem.dev/ns/data/module-map/3",
+  "imports":{
+    "@pkg/app":{"path":"./assets/app.js","contentType":"text/javascript","moduleImports":{"@pkg/metadata":"@pkg/metadata"}},
+    "@pkg/metadata":{"path":"./assets/runtime.json","contentType":"application/json"}
+  }
+}"#,
+        )
+        .unwrap();
+        let config = root.join("rewrite.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=page @src="src/page.html" @content-type="text/html" |
+    {rewrite-importmap @id=modules @source-map="maps/source.module-map.json" @target-map="maps/dist.module-map.json" |
+      {export @id=html @out="dist/page.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let report_path = root.join("report.json");
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--quiet",
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("dist/assets/app.js")).unwrap(),
+            "import metadata from './runtime.json' with { type: 'json' };\nexport default metadata;\n"
+        );
+        assert_eq!(
+            std::fs::read(root.join("dist/assets/runtime.json")).unwrap(),
+            br#"{"abi":"v3"}"#
+        );
+        let report: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(report_path).unwrap()).unwrap();
+        let manifest = &report["reportAst"]["transformGraph"]["moduleAssetManifest"];
+        assert_eq!(manifest["contractVersion"], 2);
+        let app = manifest["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|asset| asset["specifier"] == "@pkg/app")
+            .unwrap();
+        assert_eq!(app["sourceByteLength"], source_bytes.len());
+        assert_ne!(app["sourceSha256"], app["sha256"]);
+    }
+
+    #[test]
     fn transform_config_module_asset_manifest_reports_and_hashes_without_output_writes() {
         let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-module-manifest");
         let _ = std::fs::remove_dir_all(&root);
@@ -10070,6 +10166,7 @@ mod tests {
         ];
 
         let module_asset_manifest = eng::TransformGraphModuleAssetManifest {
+            contract_version: 1,
             hash_scheme: "sha256".to_owned(),
             hash: "b".repeat(64),
             asset_count: 1,
@@ -10080,6 +10177,8 @@ mod tests {
                 target: "./vendor/runtime.js".to_owned(),
                 destination: "out/vendor/runtime.js".to_owned(),
                 content_type: "text/javascript".to_owned(),
+                source_byte_length: 42,
+                source_sha256: "a".repeat(64),
                 byte_length: 42,
                 sha256: "a".repeat(64),
             }],
@@ -10099,16 +10198,23 @@ mod tests {
         let markdown = render_report_markdown(&rendered_report);
         let cem = render_report_cem(&rendered_report);
         assert!(markdown.contains("[sourceMapRef: out/page.html.map]"));
-        assert!(markdown.contains("- module assets: 1 [sha256:"));
+        assert!(markdown.contains("- module assets: 1 [contract v1, sha256:"));
         assert!(markdown.contains("@pkg/runtime: node_modules/@pkg/runtime.js"));
         assert!(markdown.contains("- main <- html -> out/page.html"));
         assert!(markdown.contains("[collectionItems: 1]"));
         assert!(markdown.contains("  - html <- primary -> out/page.html (text/html)"));
-        assert!(cem.contains("{module-asset-manifest @hash-scheme=\"sha256\""));
+        assert!(cem.contains(
+            "{module-asset-manifest @contract-version=1 @hash-scheme=\"sha256\""
+        ));
         assert!(cem.contains("{module-asset @specifier=\"@pkg/runtime\""));
 
         let value = serde_json::to_value(report).unwrap();
         assert_eq!(value["moduleAssetManifest"]["assetCount"], 1);
+        assert_eq!(value["moduleAssetManifest"]["contractVersion"], 1);
+        assert_eq!(
+            value["moduleAssetManifest"]["assets"][0]["sourceSha256"],
+            "a".repeat(64)
+        );
         assert_eq!(
             value["moduleAssetManifest"]["assets"][0]["destination"],
             "out/vendor/runtime.js"

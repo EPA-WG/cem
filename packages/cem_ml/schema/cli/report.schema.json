@@ -1,674 +1,680 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cem.dev/schema/cli/report.schema.json",
-  "title": "CEM-ML CLI JSON Report Projection",
-  "description": "Explicit JSON projection of the CEM-ML CLI report tree. CEM-ML syntax is the default report format; this schema applies only when report output is explicitly requested as JSON.",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["generatedAt", "inputs", "summary", "options", "diagnostics", "reportAst"],
-  "properties": {
-    "generatedAt": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Report generation timestamp. Deterministic fixtures use 1970-01-01T00:00:00.000Z."
-    },
-    "inputs": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "summary": {
-      "$ref": "#/$defs/reportSummary"
-    },
-    "options": {
-      "$ref": "#/$defs/reportOptions"
-    },
-    "diagnostics": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/diagnostic"
-      }
-    },
-    "reportAst": {
-      "$ref": "#/$defs/reportAst"
-    }
-  },
-  "$defs": {
-    "nonNegativeInteger": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "reportSummary": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "inputCount",
-        "infoCount",
-        "warningCount",
-        "errorCount",
-        "fatalCount",
-        "hardViolationCount"
-      ],
-      "properties": {
-        "inputCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://cem.dev/schema/cli/report.schema.json",
+    "title": "CEM-ML CLI JSON Report Projection",
+    "description": "Explicit JSON projection of the CEM-ML CLI report tree. CEM-ML syntax is the default report format; this schema applies only when report output is explicitly requested as JSON.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["generatedAt", "inputs", "summary", "options", "diagnostics", "reportAst"],
+    "properties": {
+        "generatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Report generation timestamp. Deterministic fixtures use 1970-01-01T00:00:00.000Z."
         },
-        "infoCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "warningCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "errorCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "fatalCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "hardViolationCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        }
-      }
-    },
-    "reportOptions": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["failLevel", "schema", "contentType", "baseUri"],
-      "properties": {
-        "failLevel": {
-          "type": "string",
-          "enum": ["parse", "validate", "strict"]
-        },
-        "schema": {
-          "type": ["string", "null"]
-        },
-        "contentType": {
-          "type": ["string", "null"]
-        },
-        "baseUri": {
-          "type": ["string", "null"]
-        }
-      }
-    },
-    "diagnostic": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["uri", "line", "column", "byteOffset", "code", "severity", "message"],
-      "properties": {
-        "uri": {
-          "type": ["string", "null"]
-        },
-        "line": {
-          "type": ["integer", "null"],
-          "minimum": 0,
-          "description": "One-based derived source line for host/report consumers. Null when the diagnostic has no source location."
-        },
-        "column": {
-          "type": ["integer", "null"],
-          "minimum": 0,
-          "description": "One-based derived UTF-16 column for host/report consumers. Byte offsets remain the canonical parser coordinate."
-        },
-        "byteOffset": {
-          "type": ["integer", "null"],
-          "minimum": 0,
-          "description": "Canonical byte offset from the source stream. Null when the diagnostic has no source location."
-        },
-        "code": {
-          "type": "string",
-          "minLength": 1
-        },
-        "severity": {
-          "type": "string",
-          "enum": ["info", "warning", "error", "fatal"]
-        },
-        "message": {
-          "type": "string"
-        },
-        "node": {
-          "type": "string"
-        },
-        "details": {
-          "type": ["object", "null"],
-          "additionalProperties": true,
-          "properties": {
-            "coordinates": {
-              "$ref": "#/$defs/hostCoordinate"
-            },
-            "sourceMapCoordinates": {
-              "$ref": "#/$defs/sourceMapCoordinates"
+        "inputs": {
+            "type": "array",
+            "items": {
+                "type": "string"
             }
-          }
         },
-        "sourceMap": {
-          "$ref": "#/$defs/sourceMapStack"
-        }
-      }
-    },
-    "sourceMapStack": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["frames"],
-      "properties": {
-        "frames": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": true
-          }
-        }
-      }
-    },
-    "hostCoordinate": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["byteOffset", "line", "column", "utf16Offset", "utf16Column", "columnEncoding"],
-      "properties": {
-        "byteOffset": {
-          "$ref": "#/$defs/nonNegativeInteger"
+        "summary": {
+            "$ref": "#/$defs/reportSummary"
         },
-        "line": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "column": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "utf16Offset": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "utf16Column": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "columnEncoding": {
-          "type": "string",
-          "const": "utf-16"
-        }
-      }
-    },
-    "sourceMapCoordinates": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["columnEncoding", "frames"],
-      "properties": {
-        "columnEncoding": {
-          "type": "string",
-          "const": "utf-16"
-        },
-        "frames": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/sourceMapCoordinateFrame"
-          }
-        }
-      }
-    },
-    "sourceMapCoordinateFrame": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["sourceId", "ranges"],
-      "properties": {
-        "sourceId": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "ranges": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/sourceMapCoordinateRange"
-          }
-        }
-      }
-    },
-    "sourceMapCoordinateRange": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["byteStart", "byteLen", "start", "end"],
-      "properties": {
-        "byteStart": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "byteLen": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "start": {
-          "$ref": "#/$defs/hostCoordinate"
-        },
-        "end": {
-          "$ref": "#/$defs/hostCoordinate"
-        }
-      }
-    },
-    "reportAst": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["schedulerTrace"],
-      "properties": {
-        "schedulerTrace": {
-          "$ref": "#/$defs/schedulerTrace"
-        },
-        "parserStages": {
-          "$ref": "#/$defs/parserStageReport"
-        },
-        "convert": {
-          "$ref": "#/$defs/convertReport"
-        },
-        "transform": {
-          "$ref": "#/$defs/transformReport"
-        },
-        "transformGraph": {
-          "$ref": "#/$defs/transformGraphReport"
-        }
-      }
-    },
-    "schedulerTrace": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["eventCount", "events"],
-      "properties": {
-        "eventCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "events": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/schedulerTraceEvent"
-          }
-        }
-      }
-    },
-    "schedulerTraceEvent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["sequence", "scopeId", "kind", "task"],
-      "properties": {
-        "sequence": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "scopeId": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "kind": {
-          "type": "string",
-          "enum": ["enqueue", "dispatch", "finish", "abort", "overflow", "io-acquire", "io-release"]
-        },
-        "task": {
-          "type": "string"
-        }
-      }
-    },
-    "parserStageReport": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["stageCount", "stages"],
-      "properties": {
-        "stageCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "stages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/parserStageReportEntry"
-          }
-        }
-      }
-    },
-    "parserStageReportEntry": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["input", "scopeId", "stage", "identity", "sourceMapBoundary", "diagnostics"],
-      "properties": {
-        "input": {
-          "type": "string"
-        },
-        "scopeId": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "stage": {
-          "type": "string",
-          "enum": ["tokenize", "normalize", "schema", "ast", "validate"]
-        },
-        "identity": {
-          "$ref": "#/$defs/formatIdentity"
-        },
-        "sourceMapBoundary": {
-          "$ref": "#/$defs/parserStageSourceMapBoundary"
+        "options": {
+            "$ref": "#/$defs/reportOptions"
         },
         "diagnostics": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/diagnostic"
-          }
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/diagnostic"
+            }
+        },
+        "reportAst": {
+            "$ref": "#/$defs/reportAst"
         }
-      }
     },
-    "formatIdentity": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["contentType", "schema", "defaultNamespace", "namespaces", "baseUri"],
-      "properties": {
-        "contentType": {
-          "type": ["string", "null"]
+    "$defs": {
+        "nonNegativeInteger": {
+            "type": "integer",
+            "minimum": 0
         },
-        "schema": {
-          "type": ["string", "null"]
+        "reportSummary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["inputCount", "infoCount", "warningCount", "errorCount", "fatalCount", "hardViolationCount"],
+            "properties": {
+                "inputCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "infoCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "warningCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "errorCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "fatalCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "hardViolationCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                }
+            }
         },
-        "defaultNamespace": {
-          "type": ["string", "null"]
+        "reportOptions": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["failLevel", "schema", "contentType", "baseUri"],
+            "properties": {
+                "failLevel": {
+                    "type": "string",
+                    "enum": ["parse", "validate", "strict"]
+                },
+                "schema": {
+                    "type": ["string", "null"]
+                },
+                "contentType": {
+                    "type": ["string", "null"]
+                },
+                "baseUri": {
+                    "type": ["string", "null"]
+                }
+            }
         },
-        "namespaces": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
+        "diagnostic": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["uri", "line", "column", "byteOffset", "code", "severity", "message"],
+            "properties": {
+                "uri": {
+                    "type": ["string", "null"]
+                },
+                "line": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "description": "One-based derived source line for host/report consumers. Null when the diagnostic has no source location."
+                },
+                "column": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "description": "One-based derived UTF-16 column for host/report consumers. Byte offsets remain the canonical parser coordinate."
+                },
+                "byteOffset": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "description": "Canonical byte offset from the source stream. Null when the diagnostic has no source location."
+                },
+                "code": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": ["info", "warning", "error", "fatal"]
+                },
+                "message": {
+                    "type": "string"
+                },
+                "node": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": ["object", "null"],
+                    "additionalProperties": true,
+                    "properties": {
+                        "coordinates": {
+                            "$ref": "#/$defs/hostCoordinate"
+                        },
+                        "sourceMapCoordinates": {
+                            "$ref": "#/$defs/sourceMapCoordinates"
+                        }
+                    }
+                },
+                "sourceMap": {
+                    "$ref": "#/$defs/sourceMapStack"
+                }
+            }
         },
-        "baseUri": {
-          "type": ["string", "null"]
+        "sourceMapStack": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["frames"],
+            "properties": {
+                "frames": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                }
+            }
+        },
+        "hostCoordinate": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["byteOffset", "line", "column", "utf16Offset", "utf16Column", "columnEncoding"],
+            "properties": {
+                "byteOffset": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "line": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "column": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "utf16Offset": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "utf16Column": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "columnEncoding": {
+                    "type": "string",
+                    "const": "utf-16"
+                }
+            }
+        },
+        "sourceMapCoordinates": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["columnEncoding", "frames"],
+            "properties": {
+                "columnEncoding": {
+                    "type": "string",
+                    "const": "utf-16"
+                },
+                "frames": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/sourceMapCoordinateFrame"
+                    }
+                }
+            }
+        },
+        "sourceMapCoordinateFrame": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sourceId", "ranges"],
+            "properties": {
+                "sourceId": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "ranges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/sourceMapCoordinateRange"
+                    }
+                }
+            }
+        },
+        "sourceMapCoordinateRange": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["byteStart", "byteLen", "start", "end"],
+            "properties": {
+                "byteStart": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "byteLen": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "start": {
+                    "$ref": "#/$defs/hostCoordinate"
+                },
+                "end": {
+                    "$ref": "#/$defs/hostCoordinate"
+                }
+            }
+        },
+        "reportAst": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["schedulerTrace"],
+            "properties": {
+                "schedulerTrace": {
+                    "$ref": "#/$defs/schedulerTrace"
+                },
+                "parserStages": {
+                    "$ref": "#/$defs/parserStageReport"
+                },
+                "convert": {
+                    "$ref": "#/$defs/convertReport"
+                },
+                "transform": {
+                    "$ref": "#/$defs/transformReport"
+                },
+                "transformGraph": {
+                    "$ref": "#/$defs/transformGraphReport"
+                }
+            }
+        },
+        "schedulerTrace": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["eventCount", "events"],
+            "properties": {
+                "eventCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/schedulerTraceEvent"
+                    }
+                }
+            }
+        },
+        "schedulerTraceEvent": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sequence", "scopeId", "kind", "task"],
+            "properties": {
+                "sequence": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "scopeId": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": ["enqueue", "dispatch", "finish", "abort", "overflow", "io-acquire", "io-release"]
+                },
+                "task": {
+                    "type": "string"
+                }
+            }
+        },
+        "parserStageReport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["stageCount", "stages"],
+            "properties": {
+                "stageCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/parserStageReportEntry"
+                    }
+                }
+            }
+        },
+        "parserStageReportEntry": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["input", "scopeId", "stage", "identity", "sourceMapBoundary", "diagnostics"],
+            "properties": {
+                "input": {
+                    "type": "string"
+                },
+                "scopeId": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "stage": {
+                    "type": "string",
+                    "enum": ["tokenize", "normalize", "schema", "ast", "validate"]
+                },
+                "identity": {
+                    "$ref": "#/$defs/formatIdentity"
+                },
+                "sourceMapBoundary": {
+                    "$ref": "#/$defs/parserStageSourceMapBoundary"
+                },
+                "diagnostics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/diagnostic"
+                    }
+                }
+            }
+        },
+        "formatIdentity": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["contentType", "schema", "defaultNamespace", "namespaces", "baseUri"],
+            "properties": {
+                "contentType": {
+                    "type": ["string", "null"]
+                },
+                "schema": {
+                    "type": ["string", "null"]
+                },
+                "defaultNamespace": {
+                    "type": ["string", "null"]
+                },
+                "namespaces": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "baseUri": {
+                    "type": ["string", "null"]
+                }
+            }
+        },
+        "parserStageSourceMapBoundary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sourceId", "byteStart", "byteLen", "transform"],
+            "properties": {
+                "sourceId": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "byteStart": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "byteLen": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "transform": {
+                    "type": "string"
+                }
+            }
+        },
+        "convertReport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["outputCount", "outputs"],
+            "properties": {
+                "outputCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "outputs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/convertOutputReport"
+                    }
+                }
+            }
+        },
+        "convertOutputReport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["input", "outputKind"],
+            "properties": {
+                "input": {
+                    "type": "string"
+                },
+                "destination": {
+                    "type": "string",
+                    "description": "Primary target-native destination. Omitted for stdout outputs."
+                },
+                "contentType": {
+                    "type": "string"
+                },
+                "schema": {
+                    "type": "string"
+                },
+                "outputKind": {
+                    "type": "string"
+                },
+                "conversion": {
+                    "$ref": "#/$defs/convertExecutionMetadata"
+                }
+            }
+        },
+        "convertExecutionMetadata": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "converterId": {
+                    "type": "string",
+                    "description": "Selected converter or direct output-pipeline identifier."
+                },
+                "implementation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Implementation strategy identifier. Reserved values include `cemt`, `rust-fallback`, and `direct-cemt-output-pipeline`; typed lifecycle and AST-stream routes use package-owned output-pipeline identifiers."
+                },
+                "rustFallback": {
+                    "type": "string",
+                    "description": "Rust fallback symbol used when implementation is rust-fallback."
+                },
+                "outputPipeline": {
+                    "$ref": "#/$defs/convertOutputPipelineMetadata"
+                }
+            }
+        },
+        "convertOutputPipelineMetadata": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["stages"],
+            "properties": {
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/convertOutputPipelineStageMetadata"
+                    }
+                }
+            }
+        },
+        "convertOutputPipelineStageMetadata": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["stage"],
+            "properties": {
+                "stage": {
+                    "type": "string",
+                    "enum": ["formatter", "colorizer", "writer"]
+                },
+                "function": {
+                    "type": "string"
+                },
+                "profile": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string"
+                },
+                "schema": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "produces": {
+                    "type": "string",
+                    "enum": ["text", "bytes", "cem-tree", "tokens", "chunks", "diagnostics"]
+                }
+            }
+        },
+        "transformReport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["input", "outputKind", "hasSourceMap", "outputSpanCount"],
+            "properties": {
+                "input": {
+                    "type": "string"
+                },
+                "destination": {
+                    "type": "string"
+                },
+                "outputKind": {
+                    "type": "string"
+                },
+                "hasSourceMap": {
+                    "type": "boolean"
+                },
+                "outputSpanCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "sourceMapRef": {
+                    "type": "string"
+                }
+            }
+        },
+        "transformGraphReport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["exportCount", "exports", "moduleAssetManifest"],
+            "properties": {
+                "exportCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "exports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/transformGraphExportReport"
+                    }
+                },
+                "moduleAssetManifest": {
+                    "$ref": "#/$defs/transformGraphModuleAssetManifest"
+                }
+            }
+        },
+        "transformGraphModuleAssetManifest": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["contractVersion", "hashScheme", "hash", "assetCount", "assets"],
+            "properties": {
+                "contractVersion": {
+                    "type": "integer",
+                    "enum": [1, 2]
+                },
+                "hashScheme": {
+                    "const": "sha256"
+                },
+                "hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                },
+                "assetCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "assets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/transformGraphModuleAsset"
+                    }
+                }
+            }
+        },
+        "transformGraphModuleAsset": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "specifier",
+                "sourceMapUri",
+                "sourceUri",
+                "target",
+                "destination",
+                "contentType",
+                "sourceByteLength",
+                "sourceSha256",
+                "byteLength",
+                "sha256"
+            ],
+            "properties": {
+                "specifier": {
+                    "type": "string"
+                },
+                "sourceMapUri": {
+                    "type": "string"
+                },
+                "sourceUri": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                },
+                "destination": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "enum": ["text/javascript", "application/json"]
+                },
+                "sourceByteLength": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "sourceSha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                },
+                "byteLength": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                }
+            }
+        },
+        "transformGraphExportReport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["exportId", "input", "outputKind", "hasSourceMap", "outputSpanCount"],
+            "properties": {
+                "exportId": {
+                    "type": "string"
+                },
+                "input": {
+                    "type": "string"
+                },
+                "destination": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string"
+                },
+                "schema": {
+                    "type": "string"
+                },
+                "outputKind": {
+                    "type": "string"
+                },
+                "hasSourceMap": {
+                    "type": "boolean"
+                },
+                "outputSpanCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                },
+                "sourceMapRef": {
+                    "type": "string"
+                },
+                "collectionItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/transformGraphCollectionItemReport"
+                    }
+                }
+            }
+        },
+        "transformGraphCollectionItemReport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["input", "artifactId", "hasSourceMap", "outputSpanCount"],
+            "properties": {
+                "input": {
+                    "type": "string"
+                },
+                "artifactId": {
+                    "type": "string"
+                },
+                "uri": {
+                    "type": "string"
+                },
+                "destination": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string"
+                },
+                "schema": {
+                    "type": "string"
+                },
+                "hasSourceMap": {
+                    "type": "boolean"
+                },
+                "outputSpanCount": {
+                    "$ref": "#/$defs/nonNegativeInteger"
+                }
+            }
         }
-      }
-    },
-    "parserStageSourceMapBoundary": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["sourceId", "byteStart", "byteLen", "transform"],
-      "properties": {
-        "sourceId": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "byteStart": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "byteLen": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "transform": {
-          "type": "string"
-        }
-      }
-    },
-    "convertReport": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["outputCount", "outputs"],
-      "properties": {
-        "outputCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "outputs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/convertOutputReport"
-          }
-        }
-      }
-    },
-    "convertOutputReport": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["input", "outputKind"],
-      "properties": {
-        "input": {
-          "type": "string"
-        },
-        "destination": {
-          "type": "string",
-          "description": "Primary target-native destination. Omitted for stdout outputs."
-        },
-        "contentType": {
-          "type": "string"
-        },
-        "schema": {
-          "type": "string"
-        },
-        "outputKind": {
-          "type": "string"
-        },
-        "conversion": {
-          "$ref": "#/$defs/convertExecutionMetadata"
-        }
-      }
-    },
-    "convertExecutionMetadata": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "converterId": {
-          "type": "string",
-          "description": "Selected converter or direct output-pipeline identifier."
-        },
-        "implementation": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Implementation strategy identifier. Reserved values include `cemt`, `rust-fallback`, and `direct-cemt-output-pipeline`; typed lifecycle and AST-stream routes use package-owned output-pipeline identifiers."
-        },
-        "rustFallback": {
-          "type": "string",
-          "description": "Rust fallback symbol used when implementation is rust-fallback."
-        },
-        "outputPipeline": {
-          "$ref": "#/$defs/convertOutputPipelineMetadata"
-        }
-      }
-    },
-    "convertOutputPipelineMetadata": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["stages"],
-      "properties": {
-        "stages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/convertOutputPipelineStageMetadata"
-          }
-        }
-      }
-    },
-    "convertOutputPipelineStageMetadata": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["stage"],
-      "properties": {
-        "stage": {
-          "type": "string",
-          "enum": ["formatter", "colorizer", "writer"]
-        },
-        "function": {
-          "type": "string"
-        },
-        "profile": {
-          "type": "string"
-        },
-        "contentType": {
-          "type": "string"
-        },
-        "schema": {
-          "type": "string"
-        },
-        "category": {
-          "type": "string"
-        },
-        "produces": {
-          "type": "string",
-          "enum": ["text", "bytes", "cem-tree", "tokens", "chunks", "diagnostics"]
-        }
-      }
-    },
-    "transformReport": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["input", "outputKind", "hasSourceMap", "outputSpanCount"],
-      "properties": {
-        "input": {
-          "type": "string"
-        },
-        "destination": {
-          "type": "string"
-        },
-        "outputKind": {
-          "type": "string"
-        },
-        "hasSourceMap": {
-          "type": "boolean"
-        },
-        "outputSpanCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "sourceMapRef": {
-          "type": "string"
-        }
-      }
-    },
-    "transformGraphReport": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["exportCount", "exports", "moduleAssetManifest"],
-      "properties": {
-        "exportCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "exports": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/transformGraphExportReport"
-          }
-        },
-        "moduleAssetManifest": {
-          "$ref": "#/$defs/transformGraphModuleAssetManifest"
-        }
-      }
-    },
-    "transformGraphModuleAssetManifest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["hashScheme", "hash", "assetCount", "assets"],
-      "properties": {
-        "hashScheme": {
-          "const": "sha256"
-        },
-        "hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "assetCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "assets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/transformGraphModuleAsset"
-          }
-        }
-      }
-    },
-    "transformGraphModuleAsset": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "specifier",
-        "sourceMapUri",
-        "sourceUri",
-        "target",
-        "destination",
-        "contentType",
-        "byteLength",
-        "sha256"
-      ],
-      "properties": {
-        "specifier": {
-          "type": "string"
-        },
-        "sourceMapUri": {
-          "type": "string"
-        },
-        "sourceUri": {
-          "type": "string"
-        },
-        "target": {
-          "type": "string"
-        },
-        "destination": {
-          "type": "string"
-        },
-        "contentType": {
-          "const": "text/javascript"
-        },
-        "byteLength": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      }
-    },
-    "transformGraphExportReport": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["exportId", "input", "outputKind", "hasSourceMap", "outputSpanCount"],
-      "properties": {
-        "exportId": {
-          "type": "string"
-        },
-        "input": {
-          "type": "string"
-        },
-        "destination": {
-          "type": "string"
-        },
-        "contentType": {
-          "type": "string"
-        },
-        "schema": {
-          "type": "string"
-        },
-        "outputKind": {
-          "type": "string"
-        },
-        "hasSourceMap": {
-          "type": "boolean"
-        },
-        "outputSpanCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        },
-        "sourceMapRef": {
-          "type": "string"
-        },
-        "collectionItems": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/transformGraphCollectionItemReport"
-          }
-        }
-      }
-    },
-    "transformGraphCollectionItemReport": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["input", "artifactId", "hasSourceMap", "outputSpanCount"],
-      "properties": {
-        "input": {
-          "type": "string"
-        },
-        "artifactId": {
-          "type": "string"
-        },
-        "uri": {
-          "type": "string"
-        },
-        "destination": {
-          "type": "string"
-        },
-        "contentType": {
-          "type": "string"
-        },
-        "schema": {
-          "type": "string"
-        },
-        "hasSourceMap": {
-          "type": "boolean"
-        },
-        "outputSpanCount": {
-          "$ref": "#/$defs/nonNegativeInteger"
-        }
-      }
     }
-  }
 }
