@@ -32,6 +32,13 @@
         @content-type="application/json"}
   }
 
+  {import @id=studio-sample-index @src="src/samples/index.json"
+      @content-type="application/json"
+      @opaque=true |
+    {export @id=studio-sample-index-output @out="dist/static/samples/index.json"
+        @content-type="application/json"}
+  }
+
   {import @id=studio-module-map @src="runtime/destination.module-map.json"
       @content-type="application/json"
       @opaque=true |

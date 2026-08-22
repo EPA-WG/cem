@@ -12,9 +12,16 @@
             "path": "../src/main.js",
             "contentType": "text/javascript",
             "moduleImports": {
-                "@epa-wg/cem-components": "@epa-wg/cem-components",
                 "@epa-wg/cem-studio": "@epa-wg/cem-studio",
                 "@epa-wg/custom-element": "@epa-wg/custom-element"
+            }
+        },
+        "@epa-wg/cem-studio/shell": {
+            "path": "../src/shell.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-components": "@epa-wg/cem-components",
+                "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
             }
         },
         "@epa-wg/cem-studio/repository": {

@@ -1,7 +1,7 @@
 {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "commonVersion": "0.1.0",
-    "status": "worker-runtime-cache-v1",
+    "status": "installable-shell-cache-v2",
     "groups": [
         {
             "id": "shell",
@@ -18,6 +18,11 @@
         {
             "id": "runtime",
             "moduleMap": "./module-map.json"
+        },
+        {
+            "id": "samples",
+            "strategy": "cache-first",
+            "urls": ["./samples/index.json"]
         }
     ]
 }

@@ -28,6 +28,7 @@ page.on('response', (response) => {
 
 try {
     await page.goto(`${server.url}/index.html`, { waitUntil: 'load' });
+    await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication));
     await page.evaluate(async () => {
         await navigator.serviceWorker.register('./service-worker.js', {
             scope: './',
@@ -44,14 +45,35 @@ try {
         }
     });
 
+    const shell = await inspectShell(page);
+    assert.equal(shell.state, 'ready');
+    assert.equal(shell.theme, 'cem-theme-contrast-dark');
+    assert.equal(shell.controlsOnly, true);
+    assert.equal(shell.componentsInstalled, true);
+
+    const caches = await page.evaluate(() => globalThis.caches.keys());
+    assert.deepEqual(caches.sort(), [
+        'cem-studio:0.1.0:runtime',
+        'cem-studio:0.1.0:samples',
+        'cem-studio:0.1.0:shell',
+    ]);
+
+    const stored = await importOfflineProject(page);
+    assert.equal(stored.repositoryRevision, 1);
+
     const online = await executeVersionCommand(page, 'static-worker-online');
     assert.equal(online.exitCode, 0);
     assert.equal(online.runtime, 'wasm-browser-worker');
     assert.equal(online.executorTopology, 'browser-worker-pool');
 
     await context.setOffline(true);
-    await page.reload({ waitUntil: 'load' });
+    await page.goto(`${server.url}/projects/offline-project`, { waitUntil: 'load' });
+    await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication));
     assert.ok(await page.evaluate(() => navigator.serviceWorker.controller !== null));
+    assert.equal(await page.getAttribute('[data-cem-studio-root]', 'data-theme'), 'cem-theme-contrast-dark');
+    const recovered = await exportOfflineProject(page);
+    assert.equal(recovered.content, 'Offline project bytes');
+    assert.equal(recovered.projectId, 'offline-project');
     const offline = await executeVersionCommand(page, 'static-worker-offline');
     assert.equal(offline.exitCode, 0);
     assert.equal(offline.runtime, 'wasm-browser-worker');
@@ -63,6 +85,10 @@ try {
         schemaVersion: 1,
         project: '@epa-wg/cem-studio',
         source: 'graph-emitted-static-output',
+        shell,
+        caches,
+        indexedDbSurvival: recovered,
+        offlineNavigation: '/projects/offline-project',
         online,
         offline,
     };
@@ -71,8 +97,99 @@ try {
     console.log('Verified graph-emitted CEM-ML CLI worker and WASM command online and offline.');
 } finally {
     await context.setOffline(false).catch(() => undefined);
+    await page.evaluate(async () => {
+        const repository = globalThis.__cemStudioAcceptanceRepository;
+        repository?.close();
+        await repository?.deleteDatabase();
+    }).catch(() => undefined);
     await browser.close();
     await server.close();
+}
+
+async function inspectShell(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        application.shell.theme.setMode('cem-theme-contrast-dark');
+        await Promise.all(['cem-app-bar', 'cem-action', 'cem-select', 'cem-badge', 'cem-alert'].map(
+            (tag) => customElements.whenDefined(tag),
+        ));
+        return {
+            state: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-cem-studio-state'),
+            theme: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-theme'),
+            controlsOnly: document.querySelectorAll('button:not(cem-action button):not(cem-select button)').length === 0,
+            componentsInstalled: Boolean(
+                document.querySelector('cem-app-bar header')
+                && document.querySelector('cem-action button')
+                && document.querySelector('cem-select .cem-select__control')
+                && document.querySelector('cem-badge .cem-badge')
+                && document.querySelector('cem-alert .cem-alert'),
+            ),
+        };
+    });
+}
+
+async function importOfflineProject(page) {
+    return page.evaluate(async () => {
+        const { createCemStudioProjectRepository } = await import('@epa-wg/cem-studio/repository');
+        const repository = createCemStudioProjectRepository({ validateProject: async (bundle) => bundle });
+        globalThis.__cemStudioAcceptanceRepository = repository;
+        const content = new TextEncoder().encode('Offline project bytes');
+        const digest = await crypto.subtle.digest('SHA-256', content);
+        const sha256 = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+        const result = await repository.execute({
+            protocolVersion: 1,
+            repository: 'studio-projects',
+            operation: 'import-project',
+            requestRevision: 1,
+            parameters: {
+                bundle: {
+                    project: {
+                        $schema: 'https://cem.dev/ns/studio/project/1',
+                        schemaVersion: 1,
+                        id: 'offline-project',
+                        name: 'Offline survival fixture',
+                        rootUri: 'studio://offline-project/',
+                        revision: 1,
+                        createdAt: '2026-08-21T00:00:00Z',
+                        updatedAt: '2026-08-21T00:00:00Z',
+                        entries: [],
+                        resources: [{
+                            id: 'source',
+                            role: 'data',
+                            sourceKind: 'project-file',
+                            path: 'source.cem',
+                            contentType: 'application/cem',
+                            schema: 'https://cem.dev/ns/cem-ml/1',
+                            revision: 1,
+                            sha256,
+                        }],
+                    },
+                    contents: { source: content },
+                },
+            },
+        });
+        return { repositoryRevision: result.repositoryRevision };
+    });
+}
+
+async function exportOfflineProject(page) {
+    return page.evaluate(async () => {
+        const { createCemStudioProjectRepository } = await import('@epa-wg/cem-studio/repository');
+        const repository = createCemStudioProjectRepository({ validateProject: async (bundle) => bundle });
+        globalThis.__cemStudioAcceptanceRepository = repository;
+        const result = await repository.query({
+            protocolVersion: 1,
+            repository: 'studio-projects',
+            operation: 'export-project',
+            requestRevision: 1,
+            parameters: { projectId: 'offline-project' },
+        });
+        return {
+            projectId: result.value.project.id,
+            content: new TextDecoder().decode(result.value.contents.source),
+            repositoryRevision: result.repositoryRevision,
+        };
+    });
 }
 
 async function executeVersionCommand(page, requestId) {

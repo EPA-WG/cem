@@ -10,7 +10,15 @@
         "lib": ["es2022", "dom", "webworker"],
         "noEmit": true
     },
-    "include": ["src/bootstrap.js", "src/main.js", "src/repository.js", "src/bootstrap.d.ts", "src/repository.d.ts"],
+    "include": [
+        "src/bootstrap.js",
+        "src/main.js",
+        "src/repository.js",
+        "src/shell.js",
+        "src/bootstrap.d.ts",
+        "src/repository.d.ts",
+        "src/shell.d.ts"
+    ],
     "references": [
         {
             "path": "../cem-elements"

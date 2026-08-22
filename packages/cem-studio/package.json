@@ -20,6 +20,11 @@
             "import": "./dist/static/assets/@epa-wg/cem-studio/repository.js",
             "default": "./dist/static/assets/@epa-wg/cem-studio/repository.js"
         },
+        "./shell": {
+            "types": "./src/shell.d.ts",
+            "import": "./dist/static/assets/@epa-wg/cem-studio/shell.js",
+            "default": "./dist/static/assets/@epa-wg/cem-studio/shell.js"
+        },
         "./manifest.webmanifest": "./dist/static/manifest.webmanifest",
         "./static/*": "./dist/static/*",
         "./package.json": "./package.json"
@@ -28,6 +33,7 @@
         "dist",
         "src/bootstrap.d.ts",
         "src/repository.d.ts",
+        "src/shell.d.ts",
         "README.md",
         "LICENSE"
     ],

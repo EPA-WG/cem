@@ -4,6 +4,7 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#001010" />
+        <base href="./" data-cem-studio-scope />
         <title>CEM Studio</title>
         <link rel="manifest" href="./manifest.webmanifest" />
         <link rel="icon" href="./icon.svg" type="image/svg+xml" />
@@ -14,6 +15,7 @@
                 "imports": {
                     "@epa-wg/cem-studio": "../src/bootstrap.js",
                     "@epa-wg/cem-studio/main": "../src/main.js",
+                    "@epa-wg/cem-studio/shell": "../src/shell.js",
                     "@epa-wg/cem-studio/repository": "../src/repository.js",
                     "@epa-wg/cem-ml-cli/browser": "../../../node_modules/@epa-wg/cem-ml-cli/dist/browser.js",
                     "@epa-wg/cem-ml/runtime.json": "../../../node_modules/@epa-wg/cem-ml/dist/cem-ml-runtime.json",
@@ -29,7 +31,12 @@
         </script>
     </head>
     <body>
-        <main data-cem-studio-root data-cem-studio-state="bootstrap">
+        <main
+            class="cem-theme-native"
+            data-theme="cem-theme-native"
+            data-cem-studio-root
+            data-cem-studio-state="bootstrap"
+        >
             <h1>CEM Studio</h1>
             <p>The synchronized CEM-ML workbench package is ready for shell composition.</p>
         </main>

@@ -99,22 +99,37 @@ for (const [specifier, entry] of Object.entries(destinationMap.imports)) {
 assert.doesNotMatch(html, /node_modules/);
 assert.match(html, /import '@epa-wg\/cem-studio\/main'/);
 assert.match(html, /data-cem-studio-root/);
+assert.match(html, /<base href="\.\/" data-cem-studio-scope\s*\/?>/);
 
-const [manifest, buildMetadata, inventory, runtimeMetadata, themeMetadata] = await Promise.all([
+const [manifest, buildMetadata, inventory, runtimeMetadata, themeMetadata, sampleCatalog, serviceWorker] = await Promise.all([
     readJson(resolve(outputRoot, 'manifest.webmanifest')),
     readJson(resolve(outputRoot, 'build.json')),
     readJson(resolve(outputRoot, 'cache-inventory.json')),
     readJson(resolve(outputRoot, 'assets/@epa-wg/cem-ml/dist/cem-ml-runtime.json')),
     readJson(resolve(outputRoot, 'assets/@epa-wg/cem-theme/package.json')),
+    readJson(resolve(outputRoot, 'samples/index.json')),
+    readFile(resolve(outputRoot, 'service-worker.js'), 'utf8'),
 ]);
 assert.equal(manifest.start_url, './');
 assert.equal(manifest.icons[0].src, './icon.svg');
 assert.equal(buildMetadata.package, packageMetadata.name);
 assert.equal(buildMetadata.commonVersion, packageMetadata.version);
 assert.equal(inventory.commonVersion, packageMetadata.version);
+assert.equal(inventory.schemaVersion, 2);
+assert.deepEqual(inventory.groups.map(({ id }) => id), ['shell', 'runtime', 'samples']);
+assert.deepEqual(inventory.groups.find(({ id }) => id === 'samples'), {
+    id: 'samples',
+    strategy: 'cache-first',
+    urls: ['./samples/index.json'],
+});
 assert.equal(runtimeMetadata.commonVersion, packageMetadata.version);
 assert.equal(themeMetadata.version, packageMetadata.dependencies['@epa-wg/cem-theme']);
+assert.equal(sampleCatalog.commonVersion, packageMetadata.version);
+assert.deepEqual(sampleCatalog.samples, []);
+assert.match(serviceWorker, /event\.data\?\.type === 'cem-studio-activate-update'/);
+assert.match(serviceWorker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
 assert.equal(packageMetadata.exports['.'].import, './dist/static/assets/@epa-wg/cem-studio/bootstrap.js');
+assert.equal(packageMetadata.exports['./shell'].import, './dist/static/assets/@epa-wg/cem-studio/shell.js');
 
 const files = await filesUnder(outputRoot);
 for (const required of [
@@ -125,6 +140,7 @@ for (const required of [
     'module-map.json',
     'icon.svg',
     'service-worker.js',
+    'samples/index.json',
     ...declaredAssets.map(({ target }) => target.slice(2)),
 ]) {
     assert.ok(files.includes(required), `static output is missing ${required}`);

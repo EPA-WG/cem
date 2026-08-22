@@ -48,6 +48,14 @@ export {
     createCemStudioProjectRepository,
     normalizeRepositoryError,
 } from './repository.js';
+export {
+    CEM_STUDIO_THEME_MODES,
+    createCemStudioInstallController,
+    createCemStudioThemeController,
+    createCemStudioUpdateCoordinator,
+    installCemStudioShellComponents,
+    mountCemStudioApplicationShell,
+} from './shell.js';
 
 /**
  * Register the graph-emitted service worker only after an embedding host opts
@@ -59,7 +67,7 @@ export async function registerCemStudioServiceWorker(options = {}) {
     if (!('serviceWorker' in navigator)) {
         throw new Error('CEM Studio service workers are unavailable in this browser');
     }
-    const serviceWorkerUrl = new URL('../../service-worker.js', import.meta.url);
+    const serviceWorkerUrl = new URL('../../../service-worker.js', import.meta.url);
     return navigator.serviceWorker.register(serviceWorkerUrl, {
         scope: options.scope,
         type: 'module',

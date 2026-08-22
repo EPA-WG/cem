@@ -14,3 +14,4 @@ export function loadCemMlBrowser(): Promise<typeof import('@epa-wg/cem-ml-cli/br
 export function registerCemStudioServiceWorker(options?: RegistrationOptions): Promise<ServiceWorkerRegistration>;
 
 export * from './repository.js';
+export * from './shell.js';

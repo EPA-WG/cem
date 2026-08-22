@@ -57,12 +57,43 @@
                 }
             ],
             "options": {
-                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run --no-file-parallelism",
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/repository.browser.spec.js --no-file-parallelism",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
                 "{projectRoot}/src/repository.js",
                 "{projectRoot}/src/repository.browser.spec.js",
+                "{projectRoot}/vitest.config.mts",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
+        "test:shell": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem-elements"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-components"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/shell.browser.spec.js --no-file-parallelism",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/shell.js",
+                "{projectRoot}/src/shell.browser.spec.js",
+                "{projectRoot}/src/repository.js",
                 "{projectRoot}/vitest.config.mts",
                 "{workspaceRoot}/package.json",
                 "{workspaceRoot}/yarn.lock",
@@ -237,6 +268,7 @@
                 "lint",
                 "typecheck",
                 "test:repository",
+                "test:shell",
                 "verify:dependencies",
                 "verify:ui-classification",
                 "verify:output",
@@ -263,6 +295,7 @@
                 "{projectRoot}/LICENSE",
                 "{projectRoot}/src/bootstrap.d.ts",
                 "{projectRoot}/src/repository.d.ts",
+                "{projectRoot}/src/shell.d.ts",
                 "{projectRoot}/scripts/package.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",

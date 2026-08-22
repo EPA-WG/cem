@@ -4,9 +4,10 @@
 static deployment. Nx schedules its prerequisites and verification; the native
 CEM-ML CLI transformation graph is the final production assembler.
 
-The package includes the typed bootstrap/deployment boundary and the versioned
-local project repository. Workbench controls, offline cache behavior, and
-command execution are delivered by later Phase 6.5 checklist items.
+The package includes the typed bootstrap/deployment boundary, installable
+component shell, versioned local project repository, and graph-owned offline
+deployment. Workbench operations are delivered by later Phase 6.5 checklist
+items.
 
 ## Package surfaces
 
@@ -17,12 +18,18 @@ command execution are delivered by later Phase 6.5 checklist items.
   importing the application bootstrap. A CEM-ML project validator is mandatory;
   import validation completes before a write transaction, and export validation
   rechecks the normalized project and every resource hash.
+- `@epa-wg/cem-studio/shell` exposes the production CEM-component shell, five
+  theme modes, browser install state, and explicit safe-update coordinator.
 - `@epa-wg/cem-studio/manifest.webmanifest` exposes the generated application
   manifest.
 - `@epa-wg/cem-studio/static/*` exposes the graph-emitted deployable tree.
 
 Importing the package never registers a service worker. Hosts must call
 `registerCemStudioServiceWorker()` explicitly.
+
+The static application entry registers that worker, while the public package
+bootstrap remains side-effect free. Cache inventory v2 keeps versioned shell,
+runtime, and sample assets separate; mutable projects remain in IndexedDB.
 
 The repository implements the logical `studio-projects` port from
 `@epa-wg/cem-elements`. Its physical database/stores remain private to Studio;
@@ -38,6 +45,7 @@ is composed; persistence does not introduce application-local visible controls.
 ```bash
 yarn nx run @epa-wg/cem-studio:build
 yarn nx run @epa-wg/cem-studio:test:repository
+yarn nx run @epa-wg/cem-studio:test:shell
 yarn nx run @epa-wg/cem-studio:check
 ```
 

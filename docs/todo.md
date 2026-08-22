@@ -1191,10 +1191,34 @@ including search, is composed from `@epa-wg/cem-components` and
           through the dedicated graph-emitted worker online, reloads with the
           network disabled, and executes it again from Cache Storage. No
           production bundler or package-specific deployment loader is involved.
-    - [ ] Compose the installable CEM-component shell, five semantic theme
+    - [x] Compose the installable CEM-component shell, five semantic theme
           modes, evolve the accepted shell/runtime caches with a sample-cache
           policy, add explicit safe-update
           barrier, offline navigation, and IndexedDB project-survival test.
+        - [x] Fixture: install the production CEM component primitives, render
+              the shell with CEM controls only, and persist each of the five
+              theme modes named by the repository theme Markdown.
+        - [x] Fixture: expose browser-provided install readiness and block a
+              waiting service-worker activation during active work or until a
+              dirty project has been persisted.
+        - [x] Fixture: precache separately versioned shell, runtime, and sample
+              groups, then navigate to an application route with the network
+              disabled.
+        - [x] Fixture: import a project into IndexedDB, reload the offline app,
+              and export the same project bytes from the surviving database.
+        - Completed 2026-08-21: Studio now installs the production
+          `cem-components` declarations through `cem-elements` and composes its
+          visible controls exclusively from that set. The five semantic modes
+          are the exact classes named by the theme Markdown and persist locally.
+          Browser install readiness remains browser-owned. A user-visible
+          update action releases a waiting worker only after active work is
+          idle and dirty state persists successfully; persistence failure keeps
+          the prior worker active. Cache inventory v2 owns separate versioned
+          shell, runtime, and sample groups, with an empty graph-emitted sample
+          catalog reserved for the next Feature Tour item. Real Chromium proves
+          the 58-asset/66-file deterministic deployment, scope-safe deep-route
+          fallback, exact IndexedDB project survival, and CLI worker/WASM
+          execution both online and offline.
 - [ ] Generate an editable CEM-ML Feature Tour seed from actual schema-package
       examples and browser capabilities, then verify every advertised example
       and preserve user copies across seed upgrades.

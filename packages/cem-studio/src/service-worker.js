@@ -19,6 +19,10 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('message', (event) => {
+    if (event.data?.type === 'cem-studio-activate-update') {
+        event.waitUntil(self.skipWaiting());
+        return;
+    }
     if (event.data?.type === 'cem-studio-deployment-inventory') {
         event.source?.postMessage({
             type: 'cem-studio-deployment-inventory',
@@ -57,10 +61,25 @@ async function cachedDeploymentResponse(request) {
     } catch (error) {
         if (request.mode === 'navigate') {
             const shell = await caches.match(SHELL_FALLBACK);
-            if (shell) return shell;
+            if (shell) return scopedShellResponse(shell);
         }
         throw error;
     }
+}
+
+async function scopedShellResponse(shell) {
+    const html = await shell.text();
+    const scopedHtml = html.replace(
+        /<base href="\.\/" data-cem-studio-scope\s*\/?>/,
+        `<base href="${self.registration.scope}" data-cem-studio-scope>`,
+    );
+    const headers = new Headers(shell.headers);
+    headers.delete('content-length');
+    return new Response(scopedHtml, {
+        status: shell.status,
+        statusText: shell.statusText,
+        headers,
+    });
 }
 
 function deploymentPlan() {
@@ -74,7 +93,7 @@ async function loadDeploymentPlan() {
         throw new Error(`CEM Studio cache inventory failed: ${inventoryResponse.status}`);
     }
     const inventory = await inventoryResponse.json();
-    if (inventory?.schemaVersion !== 1 || typeof inventory.commonVersion !== 'string') {
+    if (inventory?.schemaVersion !== 2 || typeof inventory.commonVersion !== 'string') {
         throw new Error('CEM Studio cache inventory is invalid');
     }
 
@@ -98,10 +117,20 @@ async function loadDeploymentPlan() {
                 cacheName: cacheName(inventory.commonVersion, group.id),
                 urls: uniqueUrls([group.moduleMap, ...targets]),
             });
+        } else if (group?.id === 'samples' && group.strategy === 'cache-first' && Array.isArray(group.urls)) {
+            groups.push({
+                cacheName: cacheName(inventory.commonVersion, group.id),
+                urls: uniqueUrls(group.urls),
+            });
         }
     }
     if (!groups.some(({ urls }) => urls.includes(SHELL_FALLBACK))) {
         throw new Error('CEM Studio cache inventory does not include the shell fallback');
+    }
+    for (const requiredGroup of ['shell', 'runtime', 'samples']) {
+        if (!groups.some(({ cacheName }) => cacheName.endsWith(`:${requiredGroup}`))) {
+            throw new Error(`CEM Studio cache inventory is missing the ${requiredGroup} group`);
+        }
     }
     return { groups };
 }

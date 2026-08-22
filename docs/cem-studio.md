@@ -1269,10 +1269,38 @@ CLI `version` command online. It then reloads with Chromium network access
 disabled and repeats the command from the versioned shell/runtime caches. No
 Vite/Rollup production bundle or package-specific CLI deployment loader is used.
 
-The acceptance cache deliberately stops short of the full PWA shell contract.
-Semantic theme composition, user-visible install/update state, a safe activation
-barrier around active work, sample-cache policy, recovery UI, and IndexedDB
-project-survival coverage remain in the next shell item.
+#### Installable shell and offline project-survival gate
+
+Status: **accepted and completed 2026-08-21**.
+
+Studio installs the production `cem-components` declarations through the
+`cem-elements` runtime and composes every visible shell control from that set.
+Its mode selector persists exactly the five selectors defined by the repository
+theme Markdown: `cem-theme-light`, `cem-theme-dark`,
+`cem-theme-contrast-light`, `cem-theme-contrast-dark`, and
+`cem-theme-native`. The install action appears only when the browser raises its
+own install-ready event; Studio does not manufacture or promise an install
+prompt.
+
+Cache inventory v2 separates versioned `shell`, `runtime`, and `samples`
+groups. The samples group currently contains only a graph-emitted empty catalog,
+so generation of Feature Tour content remains a separate next item. Offline
+navigation returns the cached shell with the service-worker registration scope
+as its document base, preserving deep routes without assuming a root deployment.
+Mutable project content never enters these caches.
+
+A waiting service worker does not call `skipWaiting()` on install. The shell's
+update coordinator blocks activation while engine requests are active, persists
+dirty state first, and keeps the current worker active if persistence fails.
+Only the explicit accepted activation message releases the waiting worker, and
+controller replacement then reloads the application.
+
+Browser fixtures install and render the production controls, exercise all five
+theme modes, preserve/reopen/export exact IndexedDB project bytes, and verify the
+activation barrier. The static-output Playwright gate serves only the 58
+module-map assets and 66 graph-emitted files, executes the real CLI worker/WASM
+online, navigates to a deep route with networking disabled, recovers the theme
+and project bytes, and executes the worker again offline.
 
 ## URL-Backed Data
 
