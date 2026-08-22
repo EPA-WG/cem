@@ -2,11 +2,13 @@ import '@epa-wg/custom-element';
 
 import {
     createCemStudioBrowserValidator,
+    createCemStudioFeatureTourWorkbench,
     createCemStudioProjectRepository,
     installCemStudioFeatureTour,
     loadCemStudioFeatureTour,
     mountCemStudio,
     mountCemStudioApplicationShell,
+    mountCemStudioFeatureTourWorkbench,
     registerCemStudioServiceWorker,
 } from '@epa-wg/cem-studio';
 
@@ -25,6 +27,16 @@ const seed = await loadCemStudioFeatureTour({
     validator,
 });
 const featureTour = await installCemStudioFeatureTour(repository, seed);
+const workbench = await createCemStudioFeatureTourWorkbench({
+    repository,
+    validator,
+    seed,
+    projectId: featureTour.projectId,
+});
+const workbenchView = await mountCemStudioFeatureTourWorkbench({
+    root: mounted.root,
+    workbench,
+});
 
 Object.defineProperty(globalThis, '__cemStudioBootstrap', {
     configurable: false,
@@ -40,5 +52,5 @@ Object.defineProperty(globalThis, '__cemStudioApplication', {
     configurable: false,
     enumerable: false,
     writable: false,
-    value: Object.freeze({ shell, repository, validator, seed, featureTour }),
+    value: Object.freeze({ shell, repository, validator, seed, featureTour, workbench, workbenchView }),
 });

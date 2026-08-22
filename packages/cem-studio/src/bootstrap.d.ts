@@ -16,3 +16,4 @@ export function registerCemStudioServiceWorker(options?: RegistrationOptions): P
 export * from './repository.js';
 export * from './feature-tour.js';
 export * from './shell.js';
+export * from './workbench.js';

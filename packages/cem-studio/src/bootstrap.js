@@ -66,6 +66,10 @@ export {
     installCemStudioShellComponents,
     mountCemStudioApplicationShell,
 } from './shell.js';
+export {
+    createCemStudioFeatureTourWorkbench,
+    mountCemStudioFeatureTourWorkbench,
+} from './workbench.js';
 
 /**
  * Register the graph-emitted service worker only after an embedding host opts

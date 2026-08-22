@@ -1249,10 +1249,36 @@ including search, is composed from `@epa-wg/cem-components` and
       resolver, and proves the cache online/offline. IndexedDB keeps the
       read-only seed identity separate from `feature-tour`, preserves edited or
       trashed copies across upgrades, and creates `feature-tour-2` on reset.
-- [ ] Deliver the first offline vertical slice: edit one Feature Tour CEM
+- [x] Deliver the first offline vertical slice: edit one Feature Tour CEM
       resource, persist and reload its exact revision, validate it through the
       browser worker, and navigate structured diagnostics, report data, and
       source-map provenance with CEM controls.
+    - [x] Fixture: save edited CEM bytes with the expected project/resource
+          revisions, reload the committed bundle, and prove exact bytes, hash,
+          and monotonically advanced revisions before validation.
+    - [x] Fixture: validate the committed revision through the real browser
+          worker and retain its native structured diagnostics, report summary,
+          execution identity, and source-map frames without a JSON reshaping
+          boundary in CEM-ML.
+    - [x] Fixture: compose editing, save/reload actions, validation status,
+          result tabs, diagnostic navigation, report rows, and provenance
+          navigation exclusively from production `cem-components` controls on
+          the `cem-elements` runtime.
+    - [x] Fixture: reload the edited project while offline, revalidate the
+          exact persisted revision, and mark an in-flight result stale when the
+          draft or durable revision advances before that result is presented.
+    - Completed 2026-08-21: the first workbench opens the generated CEM-ML
+      example in `cem-textarea`, saves through the IndexedDB optimistic-revision
+      command, reloads and verifies the exact committed bytes/hash/revisions,
+      and passes those durable project/resource revisions into the browser
+      command ledger. Native validation diagnostics, report summary, execution
+      identity, and origin-first source-map frames remain structured in the
+      workbench. `cem-badge`, `cem-alert`, `cem-action`, `cem-tabs`, selectable
+      `cem-list`, and `cem-table` own every visible interaction and status.
+      Chromium proves invalid diagnostic/report/provenance navigation, exact
+      offline reload and revalidation through the WASM worker, while a browser
+      concurrency fixture proves results become stale when a newer draft lands
+      during validation.
 - [ ] Add parse and inspect projections plus the lossless bidirectional CLI
       Command view for copy, edit, transactional Apply, and current/existing/new
       page targets.

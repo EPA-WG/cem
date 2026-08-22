@@ -131,6 +131,39 @@
             ],
             "outputs": []
         },
+        "test:workbench": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem-elements"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-components"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/workbench.browser.spec.js --no-file-parallelism",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/workbench.js",
+                "{projectRoot}/src/workbench.browser.spec.js",
+                "{projectRoot}/src/feature-tour.js",
+                "{projectRoot}/src/repository.js",
+                "{projectRoot}/src/shell.js",
+                "{projectRoot}/vitest.config.mts",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "generate:feature-tour": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -321,7 +354,7 @@
         "verify:determinism": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify:output"],
+            "dependsOn": ["verify:output", "verify:feature-tour"],
             "options": {
                 "command": "node scripts/verify-determinism.mjs",
                 "cwd": "{projectRoot}"
@@ -348,6 +381,7 @@
                 "test:repository",
                 "test:feature-tour",
                 "test:shell",
+                "test:workbench",
                 "verify:dependencies",
                 "verify:feature-tour",
                 "verify:ui-classification",
@@ -377,6 +411,7 @@
                 "{projectRoot}/src/feature-tour.d.ts",
                 "{projectRoot}/src/repository.d.ts",
                 "{projectRoot}/src/shell.d.ts",
+                "{projectRoot}/src/workbench.d.ts",
                 "{projectRoot}/scripts/package.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",

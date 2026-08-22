@@ -38,6 +38,10 @@
                 "@epa-wg/cem-ml-cli/browser": "@epa-wg/cem-ml-cli/browser"
             }
         },
+        "@epa-wg/cem-studio/workbench": {
+            "path": "./assets/@epa-wg/cem-studio/workbench.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-ml-cli/browser": {
             "path": "./assets/@epa-wg/cem-ml-cli/dist/browser.js",
             "contentType": "text/javascript",

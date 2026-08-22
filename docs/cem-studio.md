@@ -753,6 +753,19 @@ The immutable seed ID is `cem-ml-feature-tour-seed`, the first editable copy is
 `feature-tour`, and reset allocates the next unused suffix without replacing an
 existing or trashed copy.
 
+The first offline workbench slice was completed on 2026-08-21. It opens the
+generated CEM-ML example through `cem-textarea`, commits with the repository's
+expected project/resource revisions, and refuses to validate until the exact
+bytes, hash, and advanced revisions reload from IndexedDB. Those durable
+revisions are carried into the browser command ledger. The retained native
+result supplies structured diagnostics, report counts, execution identity, and
+origin-first source-map frames; diagnostic and provenance selection project
+byte ranges back into the editor. All visible editing, status, result switching,
+structured rows, and navigation use production `cem-components` on the shared
+`cem-elements` runtime. Offline Chromium reloads and revalidates the same
+revision, and a result is marked stale whenever its draft or durable revision
+is no longer current.
+
 ```text
 CEM-ML Feature Tour
 ├── 00 Start Here

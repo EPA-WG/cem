@@ -42,12 +42,22 @@ export async function createCemStudioBrowserValidator() {
     });
     let nextRequest = 1;
 
-    const validateResource = async ({ bytes, contentType, schema, uri = 'input.cem', dependencies = [], signal }) => {
+    const validateResource = async ({
+        bytes,
+        contentType,
+        schema,
+        uri = 'input.cem',
+        dependencies = [],
+        projectId = 'cem-studio-validation',
+        projectRevision = 1,
+        resourceRevision = 1,
+        signal,
+    }) => {
         const requestId = `cem-studio-validation-${nextRequest++}`;
         const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
         const inputResourceUri = /^[a-z][a-z0-9+.-]*:/i.test(uri)
             ? uri
-            : new URL(uri, 'cem-studio://validation/').href;
+            : new URL(uri, `cem-studio://${projectId}/`).href;
         const parsed = parseCemMlCommand([
             'validate',
             '--format',
@@ -75,10 +85,10 @@ export async function createCemStudioBrowserValidator() {
             },
             {
                 requestId,
-                projectId: 'cem-studio-validation',
-                projectRevision: 1,
-                resourceRevision: 1,
-                cwd: '/cem-studio-validation',
+                projectId,
+                projectRevision,
+                resourceRevision,
+                cwd: `/${projectId}`,
             },
         );
         if (!inputUri) throw new Error(`CEM-ML validation did not request ${inputResourceUri}`);
@@ -116,6 +126,7 @@ export async function createCemStudioBrowserValidator() {
                 );
                 error.code = 'cem.studio.validation_failed';
                 error.result = result;
+                error.presentation = presentation;
                 throw error;
             }
             return Object.freeze({ result, presentation });

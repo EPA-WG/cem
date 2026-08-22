@@ -160,6 +160,10 @@ assert.equal(
     packageMetadata.exports['./feature-tour'].import,
     './dist/static/assets/@epa-wg/cem-studio/feature-tour.js',
 );
+assert.equal(
+    packageMetadata.exports['./workbench'].import,
+    './dist/static/assets/@epa-wg/cem-studio/workbench.js',
+);
 
 const files = await filesUnder(outputRoot);
 for (const required of [

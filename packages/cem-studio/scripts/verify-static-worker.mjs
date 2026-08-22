@@ -96,8 +96,23 @@ try {
     assert.equal(featureTour.validatedCount, featureTour.exampleCount);
     assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount);
 
+    const workbench = await exerciseWorkbench(page);
+    assert.equal(workbench.status, 'invalid');
+    assert.equal(workbench.projectRevision, 2);
+    assert.equal(workbench.resourceRevision, 2);
+    assert.equal(workbench.exactReload, true);
+    assert.ok(workbench.diagnosticCount > 0);
+    assert.ok(workbench.hardViolationCount > 0);
+    assert.ok(workbench.provenanceCount > 0);
+    assert.equal(workbench.runtime, 'wasm-browser-worker');
+    assert.equal(workbench.componentsOnly, true);
+    assert.equal(workbench.reportVisible, true);
+    assert.equal(workbench.diagnosticSelection.kind, 'diagnostic');
+    assert.ok(workbench.diagnosticSelection.byteLength > 0);
+    assert.equal(workbench.provenanceSelection.kind, 'provenance');
+
     const stored = await importOfflineProject(page);
-    assert.equal(stored.repositoryRevision, 2);
+    assert.equal(stored.repositoryRevision, 3);
 
     const online = await executeVersionCommand(page, 'static-worker-online');
     assert.equal(online.exitCode, 0);
@@ -112,6 +127,15 @@ try {
     const recovered = await exportOfflineProject(page);
     assert.equal(recovered.content, 'Offline project bytes');
     assert.equal(recovered.projectId, 'offline-project');
+    const recoveredWorkbench = await recoverWorkbenchOffline(page, workbench.content);
+    assert.equal(recoveredWorkbench.status, 'invalid');
+    assert.equal(recoveredWorkbench.projectRevision, 2);
+    assert.equal(recoveredWorkbench.resourceRevision, 2);
+    assert.equal(recoveredWorkbench.content, workbench.content);
+    assert.equal(recoveredWorkbench.exactContent, true);
+    assert.ok(recoveredWorkbench.diagnosticCount > 0);
+    assert.ok(recoveredWorkbench.provenanceCount > 0);
+    assert.equal(recoveredWorkbench.runtime, 'wasm-browser-worker');
     const offline = await executeVersionCommand(page, 'static-worker-offline');
     assert.equal(offline.exitCode, 0);
     assert.equal(offline.runtime, 'wasm-browser-worker');
@@ -127,6 +151,8 @@ try {
         caches,
         indexedDbSurvival: recovered,
         featureTour,
+        workbench,
+        recoveredWorkbench,
         offlineNavigation: '/projects/offline-project',
         online,
         offline,
@@ -225,23 +251,98 @@ async function validateFeatureTour(page, initialStatus) {
     }, initialStatus);
 }
 
+async function exerciseWorkbench(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const invalid = '@doc cem-ml 1\n\n{article @id="broken" |\n    {h1 | Missing article close}\n';
+        application.workbench.updateDraft(invalid);
+        const snapshot = await application.workbench.saveAndValidate();
+        const exported = await application.repository.query({
+            protocolVersion: 1,
+            repository: 'studio-projects',
+            operation: 'export-project',
+            requestRevision: 1,
+            parameters: { projectId: application.featureTour.projectId },
+        });
+        const diagnosticIndex = snapshot.validation.diagnostics.findIndex(({ range }) => range.len > 0);
+        if (diagnosticIndex < 0) throw new Error('saved revision diagnostics have no navigable source range');
+        const diagnosticSelection = application.workbench.navigateDiagnostic(diagnosticIndex);
+        const provenanceSelection = application.workbench.navigateProvenance(0);
+        await application.workbenchView.whenSettled();
+        const resource = exported.value.project.resources.find(({ id }) => id === snapshot.resourceId);
+        const persisted = new TextDecoder().decode(exported.value.contents[snapshot.resourceId]);
+        return {
+            status: snapshot.status,
+            projectRevision: snapshot.projectRevision,
+            resourceRevision: snapshot.resourceRevision,
+            repositoryRevision: snapshot.repositoryRevision,
+            content: invalid,
+            exactReload: persisted === invalid
+                && exported.value.project.revision === snapshot.projectRevision
+                && resource.revision === snapshot.resourceRevision,
+            diagnosticCount: snapshot.validation.diagnostics.length,
+            hardViolationCount: snapshot.validation.hardViolationCount,
+            provenanceCount: snapshot.validation.provenance.length,
+            runtime: snapshot.validation.executionIdentity.runtime,
+            diagnosticSelection,
+            provenanceSelection,
+            componentsOnly: document.querySelectorAll(
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-tabs button)',
+            ).length === 0,
+            reportVisible: Boolean(document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')),
+        };
+    });
+}
+
+async function recoverWorkbenchOffline(page, expectedContent) {
+    return page.evaluate(async (content) => {
+        const application = globalThis.__cemStudioApplication;
+        const snapshot = await application.workbench.validatePersisted();
+        await application.workbenchView.whenSettled();
+        return {
+            status: snapshot.status,
+            projectRevision: snapshot.projectRevision,
+            resourceRevision: snapshot.resourceRevision,
+            content: snapshot.persistedText,
+            exactContent: snapshot.persistedText === content,
+            diagnosticCount: snapshot.validation.diagnostics.length,
+            provenanceCount: snapshot.validation.provenance.length,
+            runtime: snapshot.validation.executionIdentity.runtime,
+        };
+    }, expectedContent);
+}
+
 async function inspectShell(page) {
     return page.evaluate(async () => {
         const application = globalThis.__cemStudioApplication;
         application.shell.theme.setMode('cem-theme-contrast-dark');
-        await Promise.all(['cem-app-bar', 'cem-action', 'cem-select', 'cem-badge', 'cem-alert'].map(
+        await Promise.all([
+            'cem-app-bar',
+            'cem-action',
+            'cem-select',
+            'cem-badge',
+            'cem-alert',
+            'cem-textarea',
+            'cem-tabs',
+            'cem-list',
+            'cem-table',
+        ].map(
             (tag) => customElements.whenDefined(tag),
         ));
         return {
             state: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-cem-studio-state'),
             theme: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-theme'),
-            controlsOnly: document.querySelectorAll('button:not(cem-action button):not(cem-select button)').length === 0,
+            controlsOnly: document.querySelectorAll(
+                'button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+            ).length === 0,
             componentsInstalled: Boolean(
                 document.querySelector('cem-app-bar header')
                 && document.querySelector('cem-action button')
                 && document.querySelector('cem-select .cem-select__control')
                 && document.querySelector('cem-badge .cem-badge')
-                && document.querySelector('cem-alert .cem-alert'),
+                && document.querySelector('cem-alert .cem-alert')
+                && document.querySelector('cem-textarea .cem-textarea__control')
+                && document.querySelector('cem-tabs [role="tablist"]')
             ),
         };
     });

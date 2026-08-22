@@ -27,6 +27,9 @@ export interface CemStudioBrowserValidator {
             schema: string;
             path: string;
         }[];
+        projectId?: string;
+        projectRevision?: number;
+        resourceRevision?: number;
         signal?: AbortSignal;
     }): Promise<Readonly<{ result: unknown; presentation: unknown }>>;
     validateProject(bundle: unknown, options?: { signal?: AbortSignal }): Promise<unknown>;
