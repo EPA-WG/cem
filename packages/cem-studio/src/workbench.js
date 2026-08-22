@@ -26,6 +26,8 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         || !validator?.parseResource
         || !validator?.inspectResource
         || !validator?.previewResourceCommand
+        || !validator?.serializeResourceCommand
+        || !validator?.executeAuthoredResourceCommand
     ) {
         throw new TypeError('Feature Tour workbench requires a browser command validator');
     }
@@ -79,6 +81,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         if (!bundle?.project || !bundle?.contents) throw new Error(`Feature Tour project ${projectId} is unavailable`);
         const resource = bundle.project.resources?.find(({ id }) => id === example.resourceId);
         if (!resource) throw new Error(`Feature Tour resource ${example.resourceId} is unavailable`);
+        const currentEntries = bundle.project.entries.filter(({ runConfigResourceId, resourceIds }) =>
+            runConfigResourceId === example.runConfigResourceId
+            || (!example.runConfigResourceId && resourceIds?.includes(example.resourceId)));
+        if (currentEntries.length > 1) {
+            throw new Error(`Feature Tour resource ${example.resourceId} resolves to more than one current page`);
+        }
         const bytes = toBytes(bundle.contents[example.resourceId]);
         const dependencies = example.dependencies.map((dependency) => {
             const dependencyResource = bundle.project.resources.find(({ id }) => id === dependency.resourceId);
@@ -98,6 +106,13 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             resourceRevision: resource.revision,
             repositoryRevision: response.repositoryRevision,
             sha256: resource.sha256,
+            project: bundle.project,
+            contents: bundle.contents,
+            currentEntry: currentEntries[0],
+            referencedResourceIds: Object.freeze([
+                example.resourceId,
+                ...example.dependencies.map(({ resourceId }) => resourceId),
+            ]),
         };
     }
 
@@ -348,7 +363,11 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 draftText: text,
                 diagnostic: undefined,
                 copy: undefined,
+                application: commandApplicationAfterEdit(state.command.application),
             }),
+            projection: state.command.application?.execution && state.projection
+                ? freezeProjection({ ...state.projection, stale: true })
+                : state.projection,
         });
         try {
             const preview = await validator.previewResourceCommand({
@@ -432,6 +451,239 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         return state;
     }
 
+    function setCommandTarget(target) {
+        if (!state.command) throw new Error('CEM Studio command view is unavailable');
+        const application = configureCommandApplication(state.command.application, target);
+        publish({
+            ...state,
+            command: freezeCommand({ ...state.command, application }),
+            error: undefined,
+        });
+        return state;
+    }
+
+    async function applyCommand(options = {}) {
+        return applyCommandPage(false, options);
+    }
+
+    async function applyAndRun(options = {}) {
+        return applyCommandPage(true, options);
+    }
+
+    async function confirmCommandReplacement(options = {}) {
+        const confirmation = state.command?.application?.confirmation;
+        if (!confirmation) throw new Error('No incompatible command-page replacement is awaiting confirmation');
+        return applyCommandPage(confirmation.runAfterApply, options, {
+            ...confirmation.target,
+            confirmIncompatibleReplacement: true,
+        });
+    }
+
+    function useNewCommandTarget() {
+        const application = state.command?.application;
+        if (!application) throw new Error('CEM Studio command target is unavailable');
+        return setCommandTarget({
+            mode: 'new',
+            name: application.newPageName,
+            ...(application.newPageParentId ? { parentId: application.newPageParentId } : {}),
+        });
+    }
+
+    function cancelCommandReplacement() {
+        const command = state.command;
+        if (!command?.application) return state;
+        publish({
+            ...state,
+            command: freezeCommand({
+                ...command,
+                application: freezeCommandApplication({
+                    ...command.application,
+                    status: 'ready',
+                    confirmation: undefined,
+                    error: undefined,
+                }),
+            }),
+        });
+        return state;
+    }
+
+    async function applyCommandPage(runAfterApply, options, confirmedTarget) {
+        const command = state.command;
+        if (!command?.preview?.parsed || command.status === 'invalid' || command.status === 'checking') {
+            throw new Error('A valid checked Studio command is required before Apply');
+        }
+        const capturedVersion = commandEditVersion;
+        const application = command.application;
+        const target = confirmedTarget ?? application.target;
+        const commandResource = validator.serializeResourceCommand(command.preview.parsed);
+        const commandBytes = textEncoder.encode(commandResource);
+        publish({
+            ...state,
+            command: freezeCommand({
+                ...command,
+                application: freezeCommandApplication({
+                    ...application,
+                    status: 'applying',
+                    confirmation: undefined,
+                    error: undefined,
+                }),
+            }),
+            error: undefined,
+        });
+
+        let applied;
+        try {
+            applied = await repository.execute(repositoryRequest('apply-command-page', {
+                projectId,
+                expectedProjectRevision: command.revision.projectRevision,
+                target,
+                commandResource,
+                referencedResourceIds: application.referencedResourceIds,
+            }), options.signal);
+        } catch (error) {
+            if (error?.code === 'cem.studio.repository.command_target_incompatible') {
+                publish({
+                    ...state,
+                    command: freezeCommand({
+                        ...state.command,
+                        application: freezeCommandApplication({
+                            ...state.command.application,
+                            status: 'confirmation-required',
+                            confirmation: Object.freeze({ target, runAfterApply }),
+                            error: normalizedError(error),
+                        }),
+                    }),
+                });
+                return state;
+            }
+            publishCommandApplicationFailure(error);
+            throw error;
+        }
+
+        const persisted = await readPersisted();
+        try {
+            assertAppliedCommandCommit(persisted, applied.value, commandBytes);
+        } catch (error) {
+            publishCommandApplicationFailure(error);
+            throw error;
+        }
+        const refreshedCommand = await commandForPersisted(persisted);
+        const changedDuringApply = capturedVersion !== commandEditVersion;
+        const selectedApplication = commandApplicationState(persisted, {
+            ...refreshedCommand.application,
+            currentEntryId: applied.value.entry.id,
+            target: { mode: 'current', entryId: applied.value.entry.id },
+            result: freezeAppliedCommandResult(applied.value),
+        });
+        const appliedApplication = freezeCommandApplication({
+            ...selectedApplication,
+            status: changedDuringApply ? 'stale' : 'applied',
+            confirmation: undefined,
+            error: undefined,
+        });
+        publish({
+            ...state,
+            status: state.dirty ? 'dirty' : state.validation ? 'stale' : 'loaded',
+            projectRevision: persisted.projectRevision,
+            resourceRevision: persisted.resourceRevision,
+            repositoryRevision: persisted.repositoryRevision,
+            persistedText: persisted.text,
+            command: freezeCommand({ ...refreshedCommand, application: appliedApplication }),
+            validation: state.validation ? freezeValidation({ ...state.validation, stale: true }) : undefined,
+            projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
+            error: undefined,
+        });
+        if (!runAfterApply) return state;
+        return runAppliedCommand(persisted, applied.value, commandBytes, capturedVersion, options.signal);
+    }
+
+    async function runAppliedCommand(persisted, applied, commandBytes, capturedVersion, signal) {
+        publish({
+            ...state,
+            command: freezeCommand({
+                ...state.command,
+                application: freezeCommandApplication({
+                    ...state.command.application,
+                    status: 'running',
+                }),
+            }),
+        });
+        let outcome;
+        try {
+            outcome = await validator.executeAuthoredResourceCommand({
+                ...commandResourceOptions(persisted),
+                commandResource: commandBytes,
+                signal,
+            });
+        } catch (error) {
+            if (!error?.result || !error?.output) {
+                publishCommandApplicationFailure(error);
+                throw error;
+            }
+            outcome = {
+                result: error.result,
+                presentation: error.presentation,
+                output: error.output,
+                parsed: error.parsed ?? state.command.preview?.parsed,
+            };
+        }
+        const latest = await readPersisted();
+        const stale = capturedVersion !== commandEditVersion
+            || !isAppliedCommandCommit(latest, applied, commandBytes)
+            || Boolean(outcome.result?.stale);
+        const operation = outcome.parsed?.commandPath?.[0] ?? applied.operation;
+        const mode = commandProjectionMode(outcome.parsed, operation);
+        const projection = freezeProjection({
+            ...projectCommandProjection(operation, mode, outcome, persisted.text, {
+                projectRevision: applied.projectRevision,
+                resourceRevision: applied.resourceRevision,
+                sha256: applied.sha256,
+            }),
+            stale,
+        });
+        publish({
+            ...state,
+            status: stale
+                ? 'projection-stale'
+                : projection.exitCode === 0 ? 'projected' : 'projection-invalid',
+            projection,
+            command: freezeCommand({
+                ...state.command,
+                application: freezeCommandApplication({
+                    ...state.command.application,
+                    status: stale ? 'run-stale' : projection.exitCode === 0 ? 'ran' : 'run-invalid',
+                    execution: Object.freeze({
+                        requestId: projection.requestId,
+                        exitCode: projection.exitCode,
+                        projectRevision: applied.projectRevision,
+                        resourceRevision: applied.resourceRevision,
+                        sha256: applied.sha256,
+                        stale,
+                    }),
+                }),
+            }),
+            error: undefined,
+        });
+        return state;
+    }
+
+    function publishCommandApplicationFailure(error) {
+        const command = state.command;
+        publish({
+            ...state,
+            command: command ? freezeCommand({
+                ...command,
+                application: freezeCommandApplication({
+                    ...command.application,
+                    status: error?.code === 'cem.studio.repository.revision_conflict' ? 'conflict' : 'failed',
+                    confirmation: undefined,
+                    error: normalizedError(error),
+                }),
+            }) : command,
+            error: normalizedError(error),
+        });
+    }
+
     async function commandForPersisted(persisted) {
         if (state.command?.current?.text) {
             const current = await validator.previewResourceCommand({
@@ -439,7 +691,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 text: state.command.current.text,
             });
             if (state.command.draftText === state.command.current.text) {
-                return commandState(current, persisted);
+                return commandState(current, persisted, state.command.application);
             }
             try {
                 const preview = await validator.previewResourceCommand({
@@ -457,6 +709,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     diagnostic: undefined,
                     revision: commandRevision(persisted),
                     copy: undefined,
+                    application: commandApplicationState(persisted, state.command.application),
                 });
             } catch (error) {
                 return freezeCommand({
@@ -469,6 +722,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     diagnostic: normalizedError(error),
                     revision: commandRevision(persisted),
                     copy: undefined,
+                    application: commandApplicationState(persisted, state.command.application),
                 });
             }
         }
@@ -481,7 +735,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             operation: kind,
             [kind === 'parse' ? 'projection' : 'view']: mode,
         });
-        return commandState(preview, persisted);
+        return commandState(preview, persisted, state.command?.application);
     }
 
     function commandResourceOptions(persisted) {
@@ -535,6 +789,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         updateCommandDraft,
         resetCommandDraft,
         copyCommand,
+        setCommandTarget,
+        applyCommand,
+        applyAndRun,
+        confirmCommandReplacement,
+        useNewCommandTarget,
+        cancelCommandReplacement,
         navigateDiagnostic,
         navigateProvenance,
         dispose() {
@@ -583,6 +843,10 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
             if (commandEditor && commandEditor.value !== (snapshot.command?.draftText ?? '')) {
                 commandEditor.value = snapshot.command?.draftText ?? '';
             }
+            const commandTargetName = host.querySelector('cem-text-field[data-cem-studio-command-target-name] input');
+            if (commandTargetName && commandTargetName.value !== (snapshot.command?.application?.newPageName ?? '')) {
+                commandTargetName.value = snapshot.command?.application?.newPageName ?? '';
+            }
             if (editor && snapshot.selection) {
                 editor.focus();
                 editor.setSelectionRange(snapshot.selection.start, snapshot.selection.end);
@@ -619,6 +883,67 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
     const resetCommand = () => {
         actionPromise = workbench.resetCommandDraft().catch(() => undefined);
     };
+    const commandApplicationInput = (event) => {
+        const field = event.target instanceof Element
+            ? event.target.closest('cem-text-field[data-cem-studio-command-target-name]')
+            : null;
+        if (!field || !(event.target instanceof HTMLInputElement)) return;
+        const application = workbench.snapshot().command?.application;
+        workbench.setCommandTarget({
+            mode: 'new',
+            name: event.target.value,
+            ...(application?.newPageParentId ? { parentId: application.newPageParentId } : {}),
+        });
+    };
+    const commandApplicationChange = (event) => {
+        if (!(event.target instanceof Element)) return;
+        const select = event.target.closest('cem-select');
+        if (!select) return;
+        const application = workbench.snapshot().command?.application;
+        if (select.hasAttribute('data-cem-studio-command-target-mode')) {
+            if (select.value === 'current') workbench.setCommandTarget({ mode: 'current' });
+            else if (select.value === 'existing') {
+                const entry = application?.targets.existing.find(({ compatible }) => compatible)
+                    ?? application?.targets.existing[0];
+                if (entry) workbench.setCommandTarget({ mode: 'existing', entryId: entry.id });
+            } else {
+                workbench.setCommandTarget({
+                    mode: 'new',
+                    name: application?.newPageName ?? '',
+                    ...(application?.newPageParentId ? { parentId: application.newPageParentId } : {}),
+                });
+            }
+        } else if (select.hasAttribute('data-cem-studio-command-target-existing')) {
+            workbench.setCommandTarget({ mode: 'existing', entryId: select.value });
+        } else if (select.hasAttribute('data-cem-studio-command-target-parent')) {
+            workbench.setCommandTarget({
+                mode: 'new',
+                name: application?.newPageName ?? '',
+                ...(select.value ? { parentId: select.value } : {}),
+            });
+        }
+    };
+    const commandApplicationAction = (event) => {
+        if (!(event.target instanceof Element)) return;
+        const action = event.target.closest('cem-action');
+        if (!action) return;
+        if (action.hasAttribute('data-cem-studio-command-apply')) {
+            actionPromise = workbench.applyCommand().catch(() => undefined);
+        } else if (action.hasAttribute('data-cem-studio-command-apply-run')) {
+            actionPromise = workbench.applyAndRun().catch(() => undefined);
+        } else if (action.hasAttribute('data-cem-studio-command-replace-confirm')) {
+            actionPromise = workbench.confirmCommandReplacement().catch(() => undefined);
+        } else if (action.hasAttribute('data-cem-studio-command-use-new')) {
+            workbench.useNewCommandTarget();
+        } else if (action.hasAttribute('data-cem-studio-command-replace-cancel')) {
+            workbench.cancelCommandReplacement();
+        }
+    };
+    const commandDialogDismissed = (event) => {
+        if (event.target instanceof Element && event.target.matches('[data-cem-studio-command-replace-dialog]')) {
+            workbench.cancelCommandReplacement();
+        }
+    };
     const navigate = (event) => {
         if (!(event.target instanceof HTMLSelectElement)) return;
         const list = event.target.closest('cem-list');
@@ -634,6 +959,10 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
     commandEditorHost.addEventListener('input', commandEdited);
     commandCopyAction.addEventListener('click', copyCommand);
     commandResetAction.addEventListener('click', resetCommand);
+    host.addEventListener('input', commandApplicationInput);
+    host.addEventListener('change', commandApplicationChange);
+    host.addEventListener('click', commandApplicationAction);
+    host.addEventListener('cem-dismiss', commandDialogDismissed);
     host.addEventListener('change', navigate);
     await renderPromise;
 
@@ -641,8 +970,13 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
         root: host,
         workbench,
         async whenSettled() {
-            await actionPromise;
-            await renderPromise;
+            while (true) {
+                const actions = actionPromise;
+                await actions;
+                const renders = renderPromise;
+                await renders;
+                if (actions === actionPromise && renders === renderPromise) return;
+            }
         },
         dispose() {
             unsubscribe();
@@ -654,6 +988,10 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
             commandEditorHost.removeEventListener('input', commandEdited);
             commandCopyAction.removeEventListener('click', copyCommand);
             commandResetAction.removeEventListener('click', resetCommand);
+            host.removeEventListener('input', commandApplicationInput);
+            host.removeEventListener('change', commandApplicationChange);
+            host.removeEventListener('click', commandApplicationAction);
+            host.removeEventListener('cem-dismiss', commandDialogDismissed);
             host.removeEventListener('change', navigate);
             host.remove();
         },
@@ -820,7 +1158,169 @@ function freezeCommand(value) {
     });
 }
 
-function commandState(preview, persisted) {
+function freezeCommandApplication(value) {
+    return Object.freeze({
+        ...value,
+        target: value.target ? Object.freeze({ ...value.target }) : undefined,
+        referencedResourceIds: Object.freeze([...(value.referencedResourceIds ?? [])]),
+        targets: value.targets ? Object.freeze({
+            current: value.targets.current ? Object.freeze({ ...value.targets.current }) : undefined,
+            existing: Object.freeze(value.targets.existing.map((entry) => Object.freeze({ ...entry }))),
+            parents: Object.freeze(value.targets.parents.map((entry) => Object.freeze({ ...entry }))),
+        }) : undefined,
+    });
+}
+
+function commandApplicationState(persisted, previous) {
+    const entries = persisted.project.entries.filter(({ kind }) => kind !== 'subproject');
+    const preferredCurrentId = previous?.currentEntryId ?? persisted.currentEntry?.id;
+    const currentEntry = entries.find(({ id }) => id === preferredCurrentId) ?? persisted.currentEntry;
+    const describe = (entry) => Object.freeze({
+        id: entry.id,
+        name: entry.name,
+        kind: entry.kind,
+        parentId: entry.parentId,
+        compatible: entry.kind === 'inspection',
+    });
+    const current = currentEntry ? describe(currentEntry) : undefined;
+    const existing = entries.map(describe).sort((left, right) =>
+        Number(right.compatible) - Number(left.compatible)
+        || left.name.localeCompare(right.name)
+        || left.id.localeCompare(right.id));
+    const parents = persisted.project.entries
+        .filter(({ kind }) => kind === 'subproject')
+        .map(({ id, name, parentId }) => Object.freeze({ id, name, parentId }))
+        .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
+    const defaultName = `${current?.name ?? 'Command'} inspection`;
+    const newPageName = previous?.newPageName ?? defaultName;
+    const newPageParentId = previous?.newPageParentId ?? current?.parentId;
+    const defaultExisting = existing.find(({ compatible }) => compatible) ?? existing[0];
+    const defaultMode = current?.compatible ? 'current' : 'new';
+    let target = previous?.target;
+    if (
+        target?.mode === 'current' && !current
+        || target?.mode === 'existing' && !existing.some(({ id }) => id === target.entryId)
+        || !['current', 'existing', 'new'].includes(target?.mode)
+    ) {
+        target = undefined;
+    }
+    target ??= defaultMode === 'current'
+        ? { mode: 'current', entryId: current.id }
+        : { mode: 'new', name: newPageName, ...(newPageParentId ? { parentId: newPageParentId } : {}) };
+    if (target.mode === 'current') target = { mode: 'current', entryId: current.id };
+    if (target.mode === 'existing' && !target.entryId && defaultExisting) {
+        target = { mode: 'existing', entryId: defaultExisting.id };
+    }
+    if (target.mode === 'new') {
+        target = {
+            mode: 'new',
+            name: target.name ?? newPageName,
+            ...(target.parentId ?? newPageParentId ? { parentId: target.parentId ?? newPageParentId } : {}),
+        };
+    }
+    const resultCurrent = previous?.result
+        && previous.result.projectRevision === persisted.projectRevision
+        && persisted.project.resources.some(({ id, revision, sha256 }) =>
+            id === previous.result.commandResource.id
+            && revision === previous.result.resourceRevision
+            && sha256 === previous.result.sha256);
+    return freezeCommandApplication({
+        status: resultCurrent ? previous.status : previous?.result ? 'stale' : 'ready',
+        currentEntryId: current?.id,
+        newPageName,
+        newPageParentId,
+        referencedResourceIds: persisted.referencedResourceIds,
+        targets: { current, existing, parents },
+        target,
+        result: previous?.result,
+        execution: previous?.execution,
+        confirmation: resultCurrent ? previous?.confirmation : undefined,
+        error: resultCurrent ? previous?.error : undefined,
+    });
+}
+
+function configureCommandApplication(application, target) {
+    if (!application || !target || typeof target !== 'object') {
+        throw new TypeError('CEM Studio command target must be an object');
+    }
+    let normalized;
+    let newPageName = application.newPageName;
+    let newPageParentId = application.newPageParentId;
+    if (target.mode === 'current') {
+        if (!application.targets.current) throw new Error('The workbench has no current page target');
+        normalized = { mode: 'current', entryId: application.targets.current.id };
+    } else if (target.mode === 'existing') {
+        const entry = application.targets.existing.find(({ id }) => id === target.entryId);
+        if (!entry) throw new Error(`Existing command-page target ${String(target.entryId)} is unavailable`);
+        normalized = { mode: 'existing', entryId: entry.id };
+    } else if (target.mode === 'new') {
+        if (typeof target.name !== 'string') throw new TypeError('A new command page requires a name');
+        newPageName = target.name;
+        newPageParentId = target.parentId || undefined;
+        normalized = {
+            mode: 'new',
+            name: newPageName,
+            ...(newPageParentId ? { parentId: newPageParentId } : {}),
+        };
+    } else {
+        throw new TypeError(`Unsupported CEM Studio command target mode: ${String(target.mode)}`);
+    }
+    return freezeCommandApplication({
+        ...application,
+        status: application.result ? 'stale' : 'ready',
+        target: normalized,
+        newPageName,
+        newPageParentId,
+        confirmation: undefined,
+        error: undefined,
+    });
+}
+
+function commandApplicationAfterEdit(application) {
+    return freezeCommandApplication({
+        ...application,
+        status: application.result ? 'stale' : 'ready',
+        confirmation: undefined,
+        error: undefined,
+    });
+}
+
+function freezeAppliedCommandResult(value) {
+    return Object.freeze({
+        ...value,
+        entry: Object.freeze({ ...value.entry }),
+        commandResource: Object.freeze({ ...value.commandResource }),
+        commandBytes: value.commandBytes.slice(0),
+    });
+}
+
+function isAppliedCommandCommit(persisted, applied, expectedBytes) {
+    const resource = persisted.project.resources.find(({ id }) => id === applied.commandResource.id);
+    const entry = persisted.project.entries.find(({ id }) => id === applied.entry.id);
+    const content = persisted.contents[applied.commandResource.id];
+    return persisted.projectRevision === applied.projectRevision
+        && resource?.revision === applied.resourceRevision
+        && resource?.sha256 === applied.sha256
+        && entry?.runConfigResourceId === applied.commandResource.id
+        && content !== undefined
+        && equalBytes(toBytes(content), expectedBytes)
+        && equalBytes(toBytes(applied.commandBytes), expectedBytes);
+}
+
+function assertAppliedCommandCommit(persisted, applied, expectedBytes) {
+    if (isAppliedCommandCommit(persisted, applied, expectedBytes)) return;
+    const error = new Error('CEM Studio repository did not reload the exact applied command revision');
+    error.code = 'cem.studio.workbench.apply_persistence_mismatch';
+    throw error;
+}
+
+function commandProjectionMode(parsed, operation) {
+    if (operation === 'parse') return parsed?.options?.format ?? 'ast';
+    if (operation === 'inspect') return parsed?.options?.show ?? 'summary';
+    return 'unknown';
+}
+
+function commandState(preview, persisted, previousApplication) {
     return freezeCommand({
         projection: 'studio',
         status: 'current',
@@ -832,6 +1332,7 @@ function commandState(preview, persisted) {
         diagnostic: undefined,
         copy: undefined,
         revision: commandRevision(persisted),
+        application: commandApplicationState(persisted, previousApplication),
     });
 }
 
@@ -966,6 +1467,7 @@ function workbenchMarkup() {
                         <cem-action data-cem-studio-command-copy variant="secondary">Copy command</cem-action>
                         <cem-action data-cem-studio-command-reset variant="quiet">Reset generated command</cem-action>
                     </div>
+                    <section data-cem-studio-command-application aria-label="Apply Studio command"></section>
                 </cem-tab>
                 <cem-tab value="changes" label="Semantic changes">
                     <div data-cem-studio-command-changes></div>
@@ -986,7 +1488,12 @@ function workbenchMarkup() {
 }
 
 function renderWorkbench(host, state) {
-    const busy = state.status === 'saving' || state.status === 'validating' || state.status === 'projecting';
+    const commandBusy = state.command?.application?.status === 'applying'
+        || state.command?.application?.status === 'running';
+    const busy = state.status === 'saving'
+        || state.status === 'validating'
+        || state.status === 'projecting'
+        || commandBusy;
     const status = host.querySelector('[data-cem-studio-workbench-status]');
     const revision = host.querySelector('[data-cem-studio-workbench-revision]');
     const alert = host.querySelector('[data-cem-studio-workbench-alert]');
@@ -1028,6 +1535,7 @@ function renderWorkbench(host, state) {
         !state.command || state.command.status === 'current' || state.command.status === 'checking',
     );
     host.querySelector('[data-cem-studio-command-changes]').innerHTML = commandChangesMarkup(state.command);
+    renderCommandApplication(host.querySelector('[data-cem-studio-command-application]'), state.command);
 }
 
 function statusLabel(state) {
@@ -1110,6 +1618,123 @@ function commandAlertTone(command) {
     return 'info';
 }
 
+function renderCommandApplication(container, command) {
+    const application = command?.application;
+    if (!application) {
+        container.innerHTML = '<cem-alert label="Command targeting is loading" tone="info"></cem-alert>';
+        return;
+    }
+    const signature = JSON.stringify({
+        mode: application.target.mode,
+        current: application.targets.current?.id,
+        existing: application.targets.existing.map(({ id, kind }) => [id, kind]),
+        parents: application.targets.parents.map(({ id }) => id),
+        confirmation: application.status === 'confirmation-required'
+            ? application.confirmation?.target?.entryId ?? application.confirmation?.target?.mode
+            : undefined,
+    });
+    if (container.dataset.signature !== signature) {
+        container.dataset.signature = signature;
+        container.innerHTML = commandApplicationMarkup(application);
+    }
+    const targetMode = container.querySelector('[data-cem-studio-command-target-mode]');
+    if (targetMode) targetMode.value = application.target.mode;
+    const existing = container.querySelector('[data-cem-studio-command-target-existing]');
+    if (existing && application.target.mode === 'existing') existing.value = application.target.entryId;
+    const parent = container.querySelector('[data-cem-studio-command-target-parent]');
+    if (parent) parent.value = application.newPageParentId ?? '';
+    const alert = container.querySelector('[data-cem-studio-command-apply-alert]');
+    alert?.setAttribute('label', commandApplicationAlertLabel(application));
+    alert?.setAttribute('tone', commandApplicationAlertTone(application));
+    const busy = application.status === 'applying' || application.status === 'running';
+    const targetInvalid = application.target.mode === 'new' && application.newPageName.trim().length === 0;
+    const disabled = busy || targetInvalid || command.status === 'invalid' || command.status === 'checking';
+    const apply = container.querySelector('[data-cem-studio-command-apply]');
+    const applyRun = container.querySelector('[data-cem-studio-command-apply-run]');
+    apply?.toggleAttribute('disabled', disabled);
+    apply?.toggleAttribute('loading', application.status === 'applying');
+    applyRun?.toggleAttribute('disabled', disabled);
+    applyRun?.toggleAttribute('loading', application.status === 'running');
+}
+
+function commandApplicationMarkup(application) {
+    const current = application.targets.current;
+    const existingOptions = application.targets.existing.length === 0
+        ? '<option value="" disabled>No existing pages</option>'
+        : application.targets.existing.map((entry) => `
+            <option value="${escapeHtml(entry.id)}">${escapeHtml(`${entry.name} — ${entry.kind}${entry.compatible ? '' : ' (replacement)'}`)}</option>`).join('');
+    const targetDetail = application.target.mode === 'current'
+        ? `<cem-alert label="${escapeHtml(current
+            ? `${current.name}; ${current.kind}${current.compatible ? '; compatible' : '; replacement confirmation required'}`
+            : 'No current page is available')}" tone="${current?.compatible ? 'success' : 'warning'}"></cem-alert>`
+        : application.target.mode === 'existing'
+            ? `<cem-select data-cem-studio-command-target-existing name="command-target-existing" value="${escapeHtml(application.target.entryId ?? '')}">
+                    <span slot="label">Existing page</span>${existingOptions}
+                </cem-select>`
+            : `<cem-text-field data-cem-studio-command-target-name name="command-target-name" label="New page name" value="${escapeHtml(application.newPageName)}" required>
+                    <span slot="help">A collision-safe stable id is assigned by the repository.</span>
+                </cem-text-field>
+                <cem-select data-cem-studio-command-target-parent name="command-target-parent" value="${escapeHtml(application.newPageParentId ?? '')}">
+                    <span slot="label">Parent</span>
+                    <option value="">Project root</option>
+                    ${application.targets.parents.map(({ id, name }) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}
+                </cem-select>`;
+    const confirmation = application.status === 'confirmation-required'
+        ? `<cem-dialog data-cem-studio-command-replace-dialog transient expanded label="Confirm incompatible page replacement">
+                <p>The selected page has an incompatible kind. Creating a new inspection page is recommended.</p>
+                <div>
+                    <cem-action data-cem-studio-command-use-new variant="primary">Use new page</cem-action>
+                    <cem-action data-cem-studio-command-replace-confirm variant="secondary">Replace selected page</cem-action>
+                    <cem-action data-cem-studio-command-replace-cancel variant="quiet">Cancel</cem-action>
+                </div>
+            </cem-dialog>`
+        : '';
+    return `
+        <cem-select data-cem-studio-command-target-mode name="command-target-mode" value="${application.target.mode}">
+            <span slot="label">Apply to</span>
+            <option value="current"${current ? '' : ' disabled'}>Current page</option>
+            <option value="existing"${application.targets.existing.length ? '' : ' disabled'}>Existing page</option>
+            <option value="new">New page (recommended when incompatible)</option>
+        </cem-select>
+        <div data-cem-studio-command-target-detail>${targetDetail}</div>
+        <cem-alert data-cem-studio-command-apply-alert label="Ready to apply" tone="info"></cem-alert>
+        <div>
+            <cem-action data-cem-studio-command-apply variant="secondary">Apply</cem-action>
+            <cem-action data-cem-studio-command-apply-run variant="primary">Apply &amp; Run</cem-action>
+        </div>
+        ${confirmation}`;
+}
+
+function commandApplicationAlertLabel(application) {
+    if (application.error) return `${application.error.code}: ${application.error.message}`;
+    if (application.status === 'applying') return 'Applying exact authored command bytes in one repository transaction.';
+    if (application.status === 'running') return 'Running the exact committed command revision.';
+    if (application.status === 'confirmation-required') {
+        return 'Replacement is incompatible. Creating a new page is recommended; replacement requires confirmation.';
+    }
+    if (application.status === 'conflict') return 'The project changed before Apply; reload before trying again.';
+    if (application.status === 'stale') return 'The command or project advanced after the last Apply.';
+    if (application.status === 'run-stale') return 'Execution completed, but a newer command, draft, or project revision exists.';
+    if (application.status === 'run-invalid') return 'The exact committed command ran with diagnostics.';
+    if (application.status === 'ran') {
+        return `Ran committed project ${application.result.projectRevision}, command resource ${application.result.resourceRevision}.`;
+    }
+    if (application.status === 'applied') {
+        return `Applied project ${application.result.projectRevision}, command resource ${application.result.resourceRevision}; not executed.`;
+    }
+    if (application.status === 'failed') return 'The command could not be applied or executed.';
+    return application.target.mode === 'new'
+        ? 'Apply will create a new inspection page without executing it.'
+        : 'Apply will update the selected page without executing it.';
+}
+
+function commandApplicationAlertTone(application) {
+    if (['failed', 'conflict', 'run-invalid'].includes(application.status)) return 'danger';
+    if (['confirmation-required', 'stale', 'run-stale'].includes(application.status)) return 'warning';
+    if (['applied', 'ran'].includes(application.status)) return 'success';
+    return 'info';
+}
+
 function commandChangesMarkup(command) {
     if (!command) return '<cem-alert label="Command preview is loading" tone="info"></cem-alert>';
     if (command.status === 'invalid') {
@@ -1162,10 +1787,12 @@ function escapeHtml(value) {
 }
 
 async function settleWorkbench(runtime, root) {
-    await Promise.resolve();
-    const instances = [...root.querySelectorAll(
-        'cem-card, cem-badge, cem-textarea, cem-select, cem-action, cem-alert, cem-tabs, cem-list, cem-table',
-    )];
-    await Promise.all(instances.map((instance) => runtime.whenRenderSettled(instance)));
+    for (let depth = 0; depth < 3; depth += 1) {
+        await Promise.resolve();
+        const instances = [...root.querySelectorAll(
+            'cem-card, cem-badge, cem-text-field, cem-textarea, cem-select, cem-action, cem-alert, cem-tabs, cem-list, cem-table, cem-dialog',
+        )];
+        await Promise.all(instances.map((instance) => runtime.whenRenderSettled(instance)));
+    }
     await Promise.resolve();
 }

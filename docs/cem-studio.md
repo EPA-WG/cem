@@ -1032,6 +1032,18 @@ confirmation. The result returns the exact committed command bytes and
 project/entry/resource revisions so Apply & Run can execute that commit rather
 than an in-memory draft.
 
+The workbench presents that boundary entirely through shared CEM controls.
+`cem-select` chooses current, existing, or new targets; `cem-text-field` owns a
+new page name; `cem-alert` reports persistence and freshness; and a transient
+`cem-dialog` confirmation-gates an incompatible replacement while recommending
+the non-destructive new-page path. Apply serializes the checked literal command
+with the shared CLI resource codec, invokes `apply-command-page`, reloads the
+returned entry and command resource, and byte-compares the commit without
+executing it. Apply & Run invokes the browser worker only after that reload and
+passes the exact committed command bytes and project/command revisions. A
+repository revision observed before or during execution rejects Apply or marks
+the resulting projection stale; it is never silently promoted to current.
+
 This round trip requires a tested invariant:
 
 ```text

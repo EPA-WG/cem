@@ -1279,7 +1279,7 @@ including search, is composed from `@epa-wg/cem-components` and
       offline reload and revalidation through the WASM worker, while a browser
       concurrency fixture proves results become stale when a newer draft lands
       during validation.
-- [ ] Add parse and inspect projections plus the lossless bidirectional CLI
+- [x] Add parse and inspect projections plus the lossless bidirectional CLI
       Command view for copy, edit, transactional Apply, and current/existing/new
       page targets.
     - [x] Fixture: execute CEM-ML `parse` (`ast` and `events`) and every
@@ -1350,8 +1350,28 @@ including search, is composed from `@epa-wg/cem-components` and
       cursor. Chromium proves exact reload, shared-resource isolation, new page
       creation, case-normalized name resolution, incompatible confirmation,
       validator rollback, unresolved-resource rejection, and stale revision
-      conflicts. The parent remains open for the CEM-component target/confirm
-      UI and Apply & Run against the exact returned committed revision.
+      conflicts. That repository fixture left the CEM-component target/confirm
+      UI and exact-revision Apply & Run to the following fixture.
+    - [x] Fixture: choose current, compatible existing, or named new command-page
+          targets through production CEM controls; route incompatible replacement
+          through an explicit CEM dialog whose recommended action is creating a
+          new page; make Apply reload the exact committed command resource and
+          make Apply & Run execute only those returned project/resource revisions,
+          rejecting or marking stale every intervening repository change.
+    - Completed 2026-08-22: the CLI Command view now defaults incompatible
+      current pages to a named new inspection page, exposes current/existing/new
+      targets through `cem-select` and `cem-text-field`, and confirmation-gates
+      replacement in a transient `cem-dialog` whose primary recommendation is
+      creating a new page. Apply serializes the checked draft through the shared
+      CLI resource codec, commits it through `apply-command-page`, reloads and
+      byte-compares the returned command resource, selects the committed stable
+      entry, and never executes. Apply & Run sends only those reloaded bytes to
+      the shared browser worker, carries the returned project/command revisions
+      into the result, and performs a post-run repository check. Chromium covers
+      new and compatible existing Apply, dialog dismissal/new/replacement paths,
+      exact single execution, pre-Apply conflicts, and revisions landing during
+      execution; the deployed static acceptance runs the same codec and WASM
+      worker path against an isolated project copy.
     - Completed 2026-08-22: `cli-command/v1` now owns
       `application/vnd.cem.cli-command+json` and
       `https://cem.dev/ns/cli/command/1`, with a JSON Schema artifact, two

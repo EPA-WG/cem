@@ -43,6 +43,11 @@ resources, validates the proposed project, and commits current/existing/new page
 targets with their exact command bytes in one transaction. Shared run configs
 are isolated, incompatible replacement is confirmation-gated, and the result
 returns the committed project/entry/resource revisions for later Apply & Run.
+The Feature Tour workbench exposes current/existing/new targets with production
+CEM selects and fields, confirmation-gates incompatible replacement in a CEM
+dialog, and distinguishes Apply from Apply & Run. The latter executes only the
+byte-verified committed command revision and marks the result stale if the
+repository or displayed command advances during execution.
 Search and storage status render through CEM components when the workbench shell
 is composed; persistence does not introduce application-local visible controls.
 

@@ -69,7 +69,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         const exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
         expect(new TextDecoder().decode(exported.value.contents.source)).toBe(invalid);
         expect(exported.value.project.revision).toBe(2);
-        expect(exported.value.project.resources[0].revision).toBe(2);
+        expect(exported.value.project.resources.find(({ id }) => id === 'source').revision).toBe(2);
 
         expect(root.querySelector('cem-tabs [role="tablist"]')).not.toBeNull();
         expect(root.querySelector('cem-table [role="table"]')).not.toBeNull();
@@ -214,6 +214,221 @@ describe('CEM Studio Feature Tour workbench', () => {
         )).toHaveLength(0);
     });
 
+    it('applies named new and compatible existing pages through CEM controls without executing', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Apply only}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const root = document.createElement('main');
+        document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench });
+        views.push(view);
+
+        expect(workbench.snapshot().command.application).toMatchObject({
+            status: 'ready',
+            target: { mode: 'new', parentId: 'schema-package-examples' },
+            targets: { current: { id: 'validate-cem-ml', kind: 'validation', compatible: false } },
+        });
+        const name = root.querySelector('cem-text-field[data-cem-studio-command-target-name] input');
+        name.value = 'Applied inspection';
+        name.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await view.whenSettled();
+        root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
+        await view.whenSettled();
+
+        const application = workbench.snapshot().command.application;
+        expect(application).toMatchObject({
+            status: 'applied',
+            target: { mode: 'current', entryId: 'applied-inspection' },
+            result: {
+                disposition: 'created',
+                projectRevision: 2,
+                resourceRevision: 1,
+                entry: { id: 'applied-inspection', kind: 'inspection', name: 'Applied inspection' },
+            },
+        });
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        const exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
+        const commandResourceId = application.result.commandResource.id;
+        expect(new TextDecoder().decode(exported.value.contents[commandResourceId]))
+            .toBe(new TextDecoder().decode(application.result.commandBytes));
+        expect(root.querySelector('cem-alert[data-cem-studio-command-apply-alert]').getAttribute('tone')).toBe('success');
+        selectValue(root, '[data-cem-studio-command-target-mode]', 'existing');
+        await view.whenSettled();
+        expect(workbench.snapshot().command.application.target).toEqual({
+            mode: 'existing',
+            entryId: 'applied-inspection',
+        });
+        root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
+        await view.whenSettled();
+        expect(workbench.snapshot().command.application).toMatchObject({
+            status: 'applied',
+            result: {
+                disposition: 'updated',
+                projectRevision: 3,
+                resourceRevision: 2,
+                entry: { id: 'applied-inspection' },
+            },
+        });
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        expect(root.querySelectorAll(
+            '[data-cem-studio-command-application] button:not(cem-action button):not(cem-select button)',
+        )).toHaveLength(0);
+    });
+
+    it('recommends a new page and confirmation-gates incompatible replacement in a CEM dialog', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Confirm replacement}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const root = document.createElement('main');
+        document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench });
+        views.push(view);
+
+        selectValue(root, '[data-cem-studio-command-target-mode]', 'current');
+        await view.whenSettled();
+        root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
+        await view.whenSettled();
+        expect(workbench.snapshot().command.application).toMatchObject({
+            status: 'confirmation-required',
+            confirmation: { target: { mode: 'current', entryId: 'validate-cem-ml' }, runAfterApply: false },
+        });
+        const dialog = root.querySelector('cem-dialog[data-cem-studio-command-replace-dialog] dialog');
+        expect(dialog.open).toBe(true);
+        expect(dialog.getAttribute('aria-label')).toBe('Confirm incompatible page replacement');
+        let exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
+        expect(exported.value.project.revision).toBe(1);
+
+        const dismissed = new Promise((resolve) => {
+            root.addEventListener('cem-dismiss', resolve, { once: true });
+        });
+        dialog.close();
+        await dismissed;
+        await view.whenSettled();
+        expect(workbench.snapshot().command.application).toMatchObject({
+            status: 'ready',
+            target: { mode: 'current' },
+            confirmation: undefined,
+        });
+        root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
+        await view.whenSettled();
+        dialogAction(root, 'Use new page').click();
+        await view.whenSettled();
+        expect(workbench.snapshot().command.application).toMatchObject({ status: 'ready', target: { mode: 'new' } });
+
+        selectValue(root, '[data-cem-studio-command-target-mode]', 'current');
+        await view.whenSettled();
+        root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
+        await view.whenSettled();
+        expect(workbench.snapshot().command.application.status).toBe('confirmation-required');
+        dialogAction(root, 'Replace selected page').click();
+        await view.whenSettled();
+        expect(workbench.snapshot().command.application).toMatchObject({
+            status: 'applied',
+            result: { disposition: 'updated', entry: { id: 'validate-cem-ml', kind: 'inspection' } },
+        });
+        exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
+        expect(exported.value.project.revision).toBe(2);
+        expect(exported.value.project.entries.find(({ id }) => id === 'validate-cem-ml')).toMatchObject({
+            kind: 'inspection',
+            runConfigResourceId: 'run-cem-ml',
+        });
+    });
+
+    it('runs exactly the command bytes and revisions returned by Apply', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Apply and run}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const root = document.createElement('main');
+        document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench });
+        views.push(view);
+
+        root.querySelector('cem-action[data-cem-studio-command-apply-run] button').click();
+        await view.whenSettled();
+        const snapshot = workbench.snapshot();
+        expect(snapshot.command.application).toMatchObject({
+            status: 'ran',
+            result: { projectRevision: 2, resourceRevision: 1 },
+            execution: { projectRevision: 2, resourceRevision: 1, stale: false },
+        });
+        expect(snapshot.projection).toMatchObject({
+            kind: 'parse',
+            mode: 'ast',
+            revision: { projectRevision: 2, resourceRevision: 1 },
+            stale: false,
+        });
+        expect(validator.executeAuthoredResourceCommand).toHaveBeenCalledTimes(1);
+        const execution = validator.executeAuthoredResourceCommand.mock.calls[0][0];
+        expect(execution.projectRevision).toBe(snapshot.command.application.result.projectRevision);
+        expect([...execution.commandResource]).toEqual([
+            ...new Uint8Array(snapshot.command.application.result.commandBytes),
+        ]);
+    });
+
+    it('marks Apply & Run stale when the repository advances during exact-revision execution', async () => {
+        const validator = validatorFor(validResult());
+        let releaseExecution;
+        let startedExecution;
+        const started = new Promise((resolve) => {
+            startedExecution = resolve;
+        });
+        validator.executeAuthoredResourceCommand.mockImplementation((options) => new Promise((resolve) => {
+            releaseExecution = () => resolve(authoredCommandOutcome(options));
+            startedExecution();
+        }));
+        const repository = await repositoryWithSource('{main | Before run}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const running = workbench.applyAndRun();
+        await started;
+        await repository.execute(request('save-resource', {
+            projectId: 'feature-tour',
+            resourceId: 'source',
+            expectedProjectRevision: 2,
+            expectedResourceRevision: 1,
+            content: '{main | Concurrent revision}\n',
+        }));
+        releaseExecution();
+        await running;
+
+        expect(workbench.snapshot()).toMatchObject({
+            status: 'projection-stale',
+            projection: { stale: true, revision: { projectRevision: 2, resourceRevision: 1 } },
+            command: {
+                application: {
+                    status: 'run-stale',
+                    result: { projectRevision: 2, resourceRevision: 1 },
+                    execution: { stale: true },
+                },
+            },
+        });
+    });
+
+    it('surfaces a stale project conflict without applying the command draft', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Loaded revision}\n');
+        const workbench = await createWorkbench(repository, validator);
+        await repository.execute(request('save-resource', {
+            projectId: 'feature-tour',
+            resourceId: 'source',
+            expectedProjectRevision: 1,
+            expectedResourceRevision: 1,
+            content: '{main | Newer repository revision}\n',
+        }));
+
+        await expect(workbench.applyCommand()).rejects.toMatchObject({
+            code: 'cem.studio.repository.revision_conflict',
+        });
+        expect(workbench.snapshot().command.application).toMatchObject({
+            status: 'conflict',
+            error: { code: 'cem.studio.repository.revision_conflict' },
+            result: undefined,
+        });
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        const exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
+        expect(exported.value.project.entries).toHaveLength(2);
+        expect(exported.value.project.revision).toBe(2);
+    });
+
     it('marks an in-flight saved-revision result stale when the draft advances', async () => {
         let releaseValidation;
         let startedValidation;
@@ -274,6 +489,19 @@ describe('CEM Studio Feature Tour workbench', () => {
     });
 });
 
+function selectValue(root, selector, value) {
+    const select = root.querySelector(`cem-select${selector}`);
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function dialogAction(root, label) {
+    const buttons = [...root.ownerDocument.querySelectorAll('button')];
+    const action = buttons.find((button) => button.textContent.trim() === label);
+    if (!action) throw new Error(`Dialog action ${label} is unavailable`);
+    return action;
+}
+
 async function createWorkbench(repository, validator) {
     const workbench = await createCemStudioFeatureTourWorkbench({
         repository,
@@ -289,6 +517,8 @@ function validatorFor(outcome) {
     return {
         validateProject: async (bundle) => bundle,
         previewResourceCommand: vi.fn(async (options) => commandPreviewOutcome(options)),
+        serializeResourceCommand: vi.fn((parsed) => serializeCommandResource(parsed)),
+        executeAuthoredResourceCommand: vi.fn(async (options) => authoredCommandOutcome(options)),
         parseResource: vi.fn(async ({ projection = 'ast' }) => projectionOutcome('parse', projection)),
         inspectResource: vi.fn(async ({ view = 'summary' }) => projectionOutcome('inspect', view)),
         validateResource: vi.fn(async (options) => {
@@ -302,6 +532,49 @@ function validatorFor(outcome) {
     };
 }
 
+function serializeCommandResource(parsed) {
+    const operation = parsed.commandPath[0];
+    const uri = parsed.positionals.inputs;
+    const argv = operation === 'parse'
+        ? ['parse', uri, '--format', parsed.options.format ?? 'ast']
+        : ['inspect', uri, '--show', parsed.options.show ?? 'summary', '--format', parsed.options.format ?? 'cem'];
+    return `${JSON.stringify({
+        $schema: 'https://cem.dev/ns/cli/command/1',
+        schemaVersion: 1,
+        commandSchemaVersion: 1,
+        commonVersion: '0.1.0',
+        binaryName: 'cem-ml',
+        argv,
+    }, null, 2)}\n`;
+}
+
+function authoredCommandOutcome(options) {
+    const resource = JSON.parse(new TextDecoder().decode(new Uint8Array(options.commandResource)));
+    const operation = resource.argv[0];
+    const mode = operation === 'parse'
+        ? resource.argv[resource.argv.indexOf('--format') + 1]
+        : resource.argv[resource.argv.indexOf('--show') + 1];
+    const outcome = projectionOutcome(operation, mode);
+    const authored = {
+        resource,
+        command: commandPreviewOutcome({
+            operation,
+            projection: operation === 'parse' ? mode : undefined,
+            view: operation === 'inspect' ? mode : undefined,
+            uri: 'data/cem-ml/basic.cem',
+            projectId: options.projectId,
+            contentType: options.contentType,
+            schema: options.schema,
+            projectRevision: options.projectRevision,
+            resourceRevision: options.resourceRevision,
+        }).parsed,
+    };
+    return {
+        ...outcome,
+        parsed: authored.command,
+    };
+}
+
 function commandPreviewOutcome(options) {
     if (options.text?.includes('--unknown-studio-option')) {
         const error = new Error('unknown CEM-ML option `--unknown-studio-option`');
@@ -312,9 +585,9 @@ function commandPreviewOutcome(options) {
     const format = options.text?.match(/--format\s+([^\s]+)/u)?.[1]
         ?? (operation === 'parse' ? options.projection ?? 'ast' : operation === 'inspect' ? 'cem' : 'json');
     const view = options.text?.match(/--show\s+([^\s]+)/u)?.[1] ?? options.view ?? 'summary';
-    const uri = options.uri.startsWith('cem-studio:')
+    const uri = /^[a-z][a-z0-9+.-]*:/iu.test(options.uri)
         ? options.uri
-        : `cem-studio://${options.projectId}/${options.uri}`;
+        : `studio://${options.projectId}/${options.uri}`;
     const argv = operation === 'parse'
         ? ['parse', uri, '--format', format]
         : operation === 'inspect'
@@ -455,6 +728,8 @@ async function repositoryWithSource(content) {
     repositories.push(repository);
     const bytes = new TextEncoder().encode(content);
     const sha256 = await digest(bytes);
+    const runConfigBytes = new TextEncoder().encode('{}\n');
+    const runConfigSha256 = await digest(runConfigBytes);
     await repository.execute(request('import-project', {
         bundle: {
             project: {
@@ -466,7 +741,18 @@ async function repositoryWithSource(content) {
                 revision: 1,
                 createdAt: '2026-08-21T00:00:00Z',
                 updatedAt: '2026-08-21T00:00:00Z',
-                entries: [],
+                entries: [{
+                    id: 'schema-package-examples',
+                    kind: 'subproject',
+                    name: 'Schema package examples',
+                }, {
+                    id: 'validate-cem-ml',
+                    parentId: 'schema-package-examples',
+                    kind: 'validation',
+                    name: 'CEM ML: Basic',
+                    runConfigResourceId: 'run-cem-ml',
+                    resourceIds: ['source', 'run-cem-ml'],
+                }],
                 resources: [{
                     id: 'source',
                     role: 'data',
@@ -476,9 +762,18 @@ async function repositoryWithSource(content) {
                     schema: 'https://cem.dev/ns/cem-ml/1',
                     revision: 1,
                     sha256,
+                }, {
+                    id: 'run-cem-ml',
+                    role: 'run-config',
+                    sourceKind: 'project-file',
+                    path: 'config/cem-ml.validate.json',
+                    contentType: 'application/json',
+                    schema: 'https://cem.dev/ns/cli/run-config/1',
+                    revision: 1,
+                    sha256: runConfigSha256,
                 }],
             },
-            contents: { source: bytes },
+            contents: { source: bytes, 'run-cem-ml': runConfigBytes },
         },
     }));
     return repository;
@@ -490,6 +785,7 @@ function featureTourSeed() {
             examples: [{
                 packageId: 'cem-ml',
                 resourceId: 'source',
+                runConfigResourceId: 'run-cem-ml',
                 path: 'data/cem-ml/basic.cem',
                 contentType: 'application/cem',
                 schema: 'https://cem.dev/ns/cem-ml/1',

@@ -6,7 +6,11 @@ import type {
     CemStudioParseProjection,
     CemStudioResourceCommandPreview,
 } from './feature-tour.js';
-import type { CemStudioIndexedDbRepository } from './repository.js';
+import type {
+    CemStudioApplyCommandPageValue,
+    CemStudioCommandPageTarget,
+    CemStudioIndexedDbRepository,
+} from './repository.js';
 
 export declare const CEM_STUDIO_PARSE_PROJECTIONS: readonly CemStudioParseProjection[];
 export declare const CEM_STUDIO_INSPECT_VIEWS: readonly CemStudioInspectView[];
@@ -66,6 +70,54 @@ export interface CemStudioWorkbenchCommand {
         resourceRevision: number;
         sha256: string;
     }>;
+    readonly application: CemStudioWorkbenchCommandApplication;
+}
+
+export interface CemStudioWorkbenchCommandTargetDescriptor {
+    readonly id: string;
+    readonly name: string;
+    readonly kind: string;
+    readonly parentId?: string;
+    readonly compatible: boolean;
+}
+
+export interface CemStudioWorkbenchCommandApplication {
+    readonly status:
+        | 'ready'
+        | 'applying'
+        | 'applied'
+        | 'running'
+        | 'ran'
+        | 'run-invalid'
+        | 'stale'
+        | 'run-stale'
+        | 'confirmation-required'
+        | 'conflict'
+        | 'failed';
+    readonly currentEntryId?: string;
+    readonly newPageName: string;
+    readonly newPageParentId?: string;
+    readonly referencedResourceIds: readonly string[];
+    readonly target: CemStudioCommandPageTarget;
+    readonly targets: Readonly<{
+        current?: CemStudioWorkbenchCommandTargetDescriptor;
+        existing: readonly CemStudioWorkbenchCommandTargetDescriptor[];
+        parents: readonly Readonly<{ id: string; name: string; parentId?: string }>[];
+    }>;
+    readonly result?: CemStudioApplyCommandPageValue;
+    readonly execution?: Readonly<{
+        requestId?: string;
+        exitCode?: number;
+        projectRevision: number;
+        resourceRevision: number;
+        sha256: string;
+        stale: boolean;
+    }>;
+    readonly confirmation?: Readonly<{
+        target: CemStudioCommandPageTarget;
+        runAfterApply: boolean;
+    }>;
+    readonly error?: Readonly<{ code: string; message: string }>;
 }
 
 export interface CemStudioWorkbenchProjection {
@@ -106,6 +158,12 @@ export interface CemStudioFeatureTourWorkbench {
     updateCommandDraft(text: string): Promise<CemStudioWorkbenchState>;
     resetCommandDraft(): Promise<CemStudioWorkbenchState>;
     copyCommand(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
+    setCommandTarget(target: CemStudioCommandPageTarget): CemStudioWorkbenchState;
+    applyCommand(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
+    applyAndRun(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
+    confirmCommandReplacement(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
+    useNewCommandTarget(): CemStudioWorkbenchState;
+    cancelCommandReplacement(): CemStudioWorkbenchState;
     navigateDiagnostic(index: number): CemStudioWorkbenchSelection;
     navigateProvenance(index: number): CemStudioWorkbenchSelection;
     dispose(): void;

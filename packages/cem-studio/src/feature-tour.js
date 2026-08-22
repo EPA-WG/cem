@@ -13,9 +13,11 @@ export async function createCemStudioBrowserValidator() {
         commandSchema,
         createBrowserCommandServiceClient,
         parseCemMlCommand,
+        parseCemMlCommandResource,
         parseCemMlCommandText,
         projectBrowserCommandPresentation,
         serializeCemMlCommand,
+        serializeCemMlCommandResource,
         serializeCemMlCommandText,
     } = await import('@epa-wg/cem-ml-cli/browser');
     const ledgers = new Map();
@@ -59,18 +61,21 @@ export async function createCemStudioBrowserValidator() {
     const executeResourceCommand = async ({
         operation,
         argv,
+        parsedCommand,
         bytes,
         uri = 'input.cem',
         dependencies = [],
         projectId = 'cem-studio-command',
         projectRevision = 1,
         resourceRevision = 1,
+        resourceScheme = 'cem-studio',
         signal,
         readOutput = false,
     }) => {
         const requestId = `cem-studio-${operation}-${nextRequest++}`;
-        const inputResourceUri = resourceUri(uri, projectId);
-        const parsed = parseCemMlCommand(argv(inputResourceUri), { runtime: 'wasm-browser-worker' });
+        const inputResourceUri = resourceUri(uri, projectId, resourceScheme);
+        const parsed = parsedCommand
+            ?? parseCemMlCommand(argv(inputResourceUri), { runtime: 'wasm-browser-worker' });
         const invocation = await prepareResourceInvocation(parsed, {
             bytes,
             uri,
@@ -78,6 +83,7 @@ export async function createCemStudioBrowserValidator() {
             projectId,
             projectRevision,
             resourceRevision,
+            resourceScheme,
         }, requestId, true);
         const request = invocation.request;
         ledgers.set(requestId, {
@@ -131,10 +137,11 @@ export async function createCemStudioBrowserValidator() {
             projectId = 'cem-studio-command',
             projectRevision = 1,
             resourceRevision = 1,
+            resourceScheme = 'cem-studio',
         } = options;
         const operation = parsed.commandPath[0] ?? parsed.metaAction ?? 'command';
         const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-        const inputResourceUri = resourceUri(uri, projectId);
+        const inputResourceUri = resourceUri(uri, projectId, resourceScheme);
         const dependencyUris = new Map(dependencies.map((dependency) => [
             dependency.path,
             resolveVirtualUri(inputResourceUri, dependency.path),
@@ -217,7 +224,11 @@ export async function createCemStudioBrowserValidator() {
     ));
 
     const previewResourceCommand = async (options) => {
-        const inputResourceUri = resourceUri(options.uri ?? 'input.cem', options.projectId ?? 'cem-studio-command');
+        const inputResourceUri = resourceUri(
+            options.uri ?? 'input.cem',
+            options.projectId ?? 'cem-studio-command',
+            'studio',
+        );
         const parsed = options.text === undefined
             ? parseCemMlCommand(
                 resourceCommandArguments(options.operation ?? 'parse', options, inputResourceUri),
@@ -225,7 +236,12 @@ export async function createCemStudioBrowserValidator() {
             )
             : parseCemMlCommandText(options.text, { runtime: 'wasm-browser-worker' });
         const requestId = `cem-studio-command-preview-${nextRequest++}`;
-        const invocation = await prepareResourceInvocation(parsed, options, requestId, false);
+        const invocation = await prepareResourceInvocation(
+            parsed,
+            { ...options, resourceScheme: 'studio' },
+            requestId,
+            false,
+        );
         return Object.freeze({
             projection: 'studio',
             binaryName: commandSchema.binaryName,
@@ -237,12 +253,44 @@ export async function createCemStudioBrowserValidator() {
         });
     };
 
+    const serializeResourceCommand = (parsed) => serializeCemMlCommandResource(parsed);
+
+    const executeAuthoredResourceCommand = async (options) => {
+        const authored = parseCemMlCommandResource(
+            options.commandResource instanceof ArrayBuffer
+                ? new Uint8Array(options.commandResource)
+                : options.commandResource,
+            { runtime: 'wasm-browser-worker' },
+        );
+        const parsed = authored.command;
+        const operation = parsed.commandPath[0];
+        if (operation !== 'parse' && operation !== 'inspect') {
+            throw new TypeError(`unsupported authored CEM Studio resource command: ${String(operation)}`);
+        }
+        let outcome;
+        try {
+            outcome = await executeResourceCommand({
+                ...options,
+                operation,
+                parsedCommand: parsed,
+                resourceScheme: 'studio',
+                readOutput: true,
+            });
+        } catch (error) {
+            if (error && typeof error === 'object') error.parsed = parsed;
+            throw error;
+        }
+        return Object.freeze({ ...outcome, parsed });
+    };
+
     return Object.freeze({
         capability: client.capability,
         commonVersion: client.worker.commonVersion,
         parseResource,
         inspectResource,
+        executeAuthoredResourceCommand,
         previewResourceCommand,
+        serializeResourceCommand,
         validateResource,
         async validateProject(bundle, { signal } = {}) {
             if (!bundle?.project) throw new TypeError('CEM Studio project bundle is missing project metadata');
@@ -405,10 +453,10 @@ function resolveVirtualUri(baseUri, relativePath) {
     return new URL(relativePath, `https://cem.invalid${absoluteBase}`).pathname;
 }
 
-function resourceUri(uri, projectId) {
+function resourceUri(uri, projectId, scheme = 'cem-studio') {
     return /^[a-z][a-z0-9+.-]*:/i.test(uri)
         ? uri
-        : new URL(uri, `cem-studio://${projectId}/`).href;
+        : new URL(uri, `${scheme}://${projectId}/`).href;
 }
 
 function resourceCommandArguments(operation, options, inputResourceUri) {

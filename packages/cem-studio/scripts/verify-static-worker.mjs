@@ -124,6 +124,21 @@ try {
     assert.equal(commandView.componentsOnly, true);
     assert.equal(commandView.controlsInstalled, true);
 
+    const commandApply = await exerciseCommandApplyAndRun(page);
+    assert.equal(commandApply.recommendedTarget, 'new');
+    assert.equal(commandApply.applyStatus, 'applied');
+    assert.equal(commandApply.applyExecuted, false);
+    assert.equal(commandApply.runStatus, 'ran');
+    assert.equal(commandApply.disposition, 'updated');
+    assert.equal(commandApply.projectRevision, 3);
+    assert.equal(commandApply.resourceRevision, 2);
+    assert.equal(commandApply.executionProjectRevision, commandApply.projectRevision);
+    assert.equal(commandApply.executionResourceRevision, commandApply.resourceRevision);
+    assert.equal(commandApply.exactReload, true);
+    assert.equal(commandApply.runtime, 'wasm-browser-worker');
+    assert.equal(commandApply.componentsOnly, true);
+    assert.equal(commandApply.controlsInstalled, true);
+
     const featureTour = await validateFeatureTour(page, initialFeatureTourStatus);
     assert.equal(featureTour.initialStatus, 'installed');
     assert.ok(['installed', 'preserved'].includes(featureTour.status));
@@ -206,6 +221,7 @@ try {
         workbench,
         projections,
         commandView,
+        commandApply,
         onlineOfflineProjectProjections,
         recoveredWorkbench,
         recoveredCommandView,
@@ -455,9 +471,9 @@ async function exerciseCommandView(page) {
         const copiedState = application.workbench.snapshot().command;
 
         const inputUri = Object.values(initial.current.parsed.positionals)
-            .find((value) => typeof value === 'string' && value.startsWith('cem-studio:'));
+            .find((value) => typeof value === 'string' && value.startsWith('studio:'));
         if (!inputUri) throw new Error('generated command has no Studio input URI');
-        editor.value = changedText.replace(inputUri, 'cem-studio://feature-tour/missing.cem');
+        editor.value = changedText.replace(inputUri, 'studio://feature-tour/missing.cem');
         editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
         await application.workbenchView.whenSettled();
         const unresolved = application.workbench.snapshot().command;
@@ -500,6 +516,86 @@ async function exerciseCommandView(page) {
                 && changesTableVisible
             ),
         };
+    });
+}
+
+async function exerciseCommandApplyAndRun(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const [{ createCemStudioProjectRepository }, { createCemStudioFeatureTourCopy }, { createCemStudioFeatureTourWorkbench }] = await Promise.all([
+            import('@epa-wg/cem-studio/repository'),
+            import('@epa-wg/cem-studio/feature-tour'),
+            import('@epa-wg/cem-studio/workbench'),
+        ]);
+        const repository = createCemStudioProjectRepository({
+            databaseName: `cem-studio-command-apply-${crypto.randomUUID()}`,
+            validateProject: application.validator.validateProject,
+            now: () => '2026-08-22T00:00:00Z',
+        });
+        let workbench;
+        try {
+            const projectId = 'command-apply-acceptance';
+            await repository.execute({
+                protocolVersion: 1,
+                repository: 'studio-projects',
+                operation: 'import-project',
+                requestRevision: 1,
+                parameters: {
+                    bundle: createCemStudioFeatureTourCopy(application.seed, {
+                        projectId,
+                        now: '2026-08-22T00:00:00Z',
+                    }),
+                    mode: 'create',
+                },
+            });
+            workbench = await createCemStudioFeatureTourWorkbench({
+                repository,
+                validator: application.validator,
+                seed: application.seed,
+                projectId,
+            });
+            const recommendedTarget = workbench.snapshot().command.application.target.mode;
+            const applied = await workbench.applyCommand();
+            const applyExecuted = Boolean(applied.projection);
+            const ran = await workbench.applyAndRun();
+            const result = ran.command.application.result;
+            const exported = await repository.query({
+                protocolVersion: 1,
+                repository: 'studio-projects',
+                operation: 'export-project',
+                requestRevision: 1,
+                parameters: { projectId },
+            });
+            const storedBytes = exported.value.contents[result.commandResource.id];
+            const exactReload = storedBytes.byteLength === result.commandBytes.byteLength
+                && new Uint8Array(storedBytes).every((byte, index) =>
+                    byte === new Uint8Array(result.commandBytes)[index]);
+            return {
+                recommendedTarget,
+                applyStatus: applied.command.application.status,
+                applyExecuted,
+                runStatus: ran.command.application.status,
+                disposition: result.disposition,
+                projectRevision: result.projectRevision,
+                resourceRevision: result.resourceRevision,
+                executionProjectRevision: ran.command.application.execution.projectRevision,
+                executionResourceRevision: ran.command.application.execution.resourceRevision,
+                exactReload,
+                runtime: ran.projection.executionIdentity.runtime,
+                componentsOnly: document.querySelectorAll(
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                ).length === 0,
+                controlsInstalled: Boolean(
+                    document.querySelector('[data-cem-studio-workbench] cem-text-field input')
+                    && document.querySelector('[data-cem-studio-workbench] cem-select .cem-select__control')
+                    && document.querySelector('[data-cem-studio-workbench] cem-action button')
+                ),
+            };
+        } finally {
+            workbench?.dispose();
+            repository.close();
+            await repository.deleteDatabase();
+        }
     });
 }
 

@@ -48,6 +48,10 @@ export interface CemStudioBrowserCommandOutcome {
     readonly output?: CemStudioCommandOutput;
 }
 
+export interface CemStudioAuthoredResourceCommandOptions extends CemStudioResourceCommandOptions {
+    readonly commandResource: string | Uint8Array | ArrayBuffer;
+}
+
 export interface CemStudioResourceCommandPreview {
     readonly projection: 'studio';
     readonly binaryName: 'cem-ml';
@@ -74,7 +78,14 @@ export interface CemStudioBrowserValidator {
     inspectResource(options: CemStudioResourceCommandOptions & {
         readonly view?: CemStudioInspectView;
     }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
+    executeAuthoredResourceCommand(
+        options: CemStudioAuthoredResourceCommandOptions,
+    ): Promise<CemStudioBrowserCommandOutcome & {
+        readonly output: CemStudioCommandOutput;
+        readonly parsed: Readonly<Record<string, unknown>>;
+    }>;
     previewResourceCommand(options: CemStudioResourceCommandPreviewOptions): Promise<CemStudioResourceCommandPreview>;
+    serializeResourceCommand(command: Readonly<Record<string, unknown>>): string;
     validateResource(options: CemStudioResourceCommandOptions): Promise<CemStudioBrowserCommandOutcome>;
     validateProject(bundle: unknown, options?: { signal?: AbortSignal }): Promise<unknown>;
     assertCatalog(catalog: unknown): void;
