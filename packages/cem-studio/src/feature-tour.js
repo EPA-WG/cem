@@ -10,9 +10,13 @@ const ARTIFACT_READ_BYTES = 1024 * 1024;
 export async function createCemStudioBrowserValidator() {
     const {
         buildBrowserCommandInvocation,
+        commandSchema,
         createBrowserCommandServiceClient,
         parseCemMlCommand,
+        parseCemMlCommandText,
         projectBrowserCommandPresentation,
+        serializeCemMlCommand,
+        serializeCemMlCommandText,
     } = await import('@epa-wg/cem-ml-cli/browser');
     const ledgers = new Map();
     const pendingWrites = new Map();
@@ -65,55 +69,17 @@ export async function createCemStudioBrowserValidator() {
         readOutput = false,
     }) => {
         const requestId = `cem-studio-${operation}-${nextRequest++}`;
-        const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-        const inputResourceUri = /^[a-z][a-z0-9+.-]*:/i.test(uri)
-            ? uri
-            : new URL(uri, `cem-studio://${projectId}/`).href;
+        const inputResourceUri = resourceUri(uri, projectId);
         const parsed = parseCemMlCommand(argv(inputResourceUri), { runtime: 'wasm-browser-worker' });
-        const dependencyUris = new Map(dependencies.map((dependency) => [
-            dependency.path,
-            resolveVirtualUri(inputResourceUri, dependency.path),
-        ]));
-        const availableResources = new Map([
-            [inputResourceUri, { uri: inputResourceUri, bytes: source }],
-            ...dependencies.map((dependency) => {
-                const dependencyUri = dependencyUris.get(dependency.path);
-                return [dependencyUri, { uri: dependencyUri, bytes: dependency.bytes }];
-            }),
-        ]);
-        const invocation = await buildBrowserCommandInvocation(
-            parsed,
-            async (requirement) => {
-                if (!availableResources.has(requirement.uri)) {
-                    throw new Error(`CEM-ML ${operation} requested undeclared resource ${requirement.uri}`);
-                }
-                return [...availableResources.values()];
-            },
-            {
-                requestId,
-                projectId,
-                projectRevision,
-                resourceRevision,
-                cwd: `/${projectId}`,
-            },
-        );
-        const resources = { ...invocation.request.resources };
-        if (!resources[inputResourceUri]) throw new Error(`CEM-ML ${operation} omitted input ${inputResourceUri}`);
-        for (const dependency of dependencies) {
-            const dependencyUri = dependencyUris.get(dependency.path);
-            if (!dependencyUri) throw new Error(`CEM-ML ${operation} did not resolve dependency ${dependency.path}`);
-            const resource = resources[dependencyUri];
-            if (!resource) throw new Error(`CEM-ML ${operation} omitted dependency ${dependency.path}`);
-            resources[dependencyUri] = {
-                ...resource,
-                identity: {
-                    contentType: dependency.contentType,
-                    schema: dependency.schema,
-                    baseUri: dependencyUri,
-                },
-            };
-        }
-        const request = { ...invocation.request, resources };
+        const invocation = await prepareResourceInvocation(parsed, {
+            bytes,
+            uri,
+            dependencies,
+            projectId,
+            projectRevision,
+            resourceRevision,
+        }, requestId, true);
+        const request = invocation.request;
         ledgers.set(requestId, {
             project: request.project,
             resourceVersions: request.resourceVersions,
@@ -157,6 +123,72 @@ export async function createCemStudioBrowserValidator() {
         }
     };
 
+    const prepareResourceInvocation = async (parsed, options, requestId, requireResourceSet) => {
+        const {
+            bytes,
+            uri = 'input.cem',
+            dependencies = [],
+            projectId = 'cem-studio-command',
+            projectRevision = 1,
+            resourceRevision = 1,
+        } = options;
+        const operation = parsed.commandPath[0] ?? parsed.metaAction ?? 'command';
+        const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        const inputResourceUri = resourceUri(uri, projectId);
+        const dependencyUris = new Map(dependencies.map((dependency) => [
+            dependency.path,
+            resolveVirtualUri(inputResourceUri, dependency.path),
+        ]));
+        const availableResources = new Map([
+            [inputResourceUri, { uri: inputResourceUri, bytes: source }],
+            ...dependencies.map((dependency) => {
+                const dependencyUri = dependencyUris.get(dependency.path);
+                return [dependencyUri, { uri: dependencyUri, bytes: dependency.bytes }];
+            }),
+        ]);
+        const invocation = await buildBrowserCommandInvocation(
+            parsed,
+            async (requirement) => {
+                if (!availableResources.has(requirement.uri)) {
+                    throw new Error(`CEM-ML ${operation} requested undeclared resource ${requirement.uri}`);
+                }
+                return [...availableResources.values()];
+            },
+            {
+                requestId,
+                projectId,
+                projectRevision,
+                resourceRevision,
+                cwd: `/${projectId}`,
+            },
+        );
+        const resources = { ...invocation.request.resources };
+        if (requireResourceSet && !resources[inputResourceUri]) {
+            throw new Error(`CEM-ML ${operation} omitted input ${inputResourceUri}`);
+        }
+        for (const dependency of dependencies) {
+            const dependencyUri = dependencyUris.get(dependency.path);
+            if (!dependencyUri) throw new Error(`CEM-ML ${operation} did not resolve dependency ${dependency.path}`);
+            const resource = resources[dependencyUri];
+            if (!resource) {
+                if (requireResourceSet) throw new Error(`CEM-ML ${operation} omitted dependency ${dependency.path}`);
+                continue;
+            }
+            resources[dependencyUri] = {
+                ...resource,
+                identity: {
+                    contentType: dependency.contentType,
+                    schema: dependency.schema,
+                    baseUri: dependencyUri,
+                },
+            };
+        }
+        return Object.freeze({
+            ...invocation,
+            request: Object.freeze({ ...invocation.request, resources: Object.freeze(resources) }),
+        });
+    };
+
     const resourceCommandOptions = (options, operation, argv, readOutput = false) => ({
         ...options,
         operation,
@@ -167,59 +199,50 @@ export async function createCemStudioBrowserValidator() {
     const validateResource = async (options) => executeResourceCommand(resourceCommandOptions(
         options,
         'validate',
-        (inputResourceUri) => [
-            'validate',
-            '--format',
-            'json',
-            '--content-type',
-            options.contentType,
-            '--schema',
-            options.schema,
-            inputResourceUri,
-        ],
+        (inputResourceUri) => resourceCommandArguments('validate', options, inputResourceUri),
     ));
 
     const parseResource = async (options) => executeResourceCommand(resourceCommandOptions(
         options,
         'parse',
-        (inputResourceUri) => [
-            'parse',
-            '--no-color',
-            '--format',
-            options.projection ?? 'ast',
-            '--content-type',
-            options.contentType,
-            '--schema',
-            options.schema,
-            inputResourceUri,
-        ],
+        (inputResourceUri) => resourceCommandArguments('parse', options, inputResourceUri),
         true,
     ));
 
     const inspectResource = async (options) => executeResourceCommand(resourceCommandOptions(
         options,
         'inspect',
-        (inputResourceUri) => [
-            'inspect',
-            '--no-color',
-            '--show',
-            options.view ?? 'summary',
-            '--format',
-            'cem',
-            '--content-type',
-            options.contentType,
-            '--schema',
-            options.schema,
-            inputResourceUri,
-        ],
+        (inputResourceUri) => resourceCommandArguments('inspect', options, inputResourceUri),
         true,
     ));
+
+    const previewResourceCommand = async (options) => {
+        const inputResourceUri = resourceUri(options.uri ?? 'input.cem', options.projectId ?? 'cem-studio-command');
+        const parsed = options.text === undefined
+            ? parseCemMlCommand(
+                resourceCommandArguments(options.operation ?? 'parse', options, inputResourceUri),
+                { runtime: 'wasm-browser-worker' },
+            )
+            : parseCemMlCommandText(options.text, { runtime: 'wasm-browser-worker' });
+        const requestId = `cem-studio-command-preview-${nextRequest++}`;
+        const invocation = await prepareResourceInvocation(parsed, options, requestId, false);
+        return Object.freeze({
+            projection: 'studio',
+            binaryName: commandSchema.binaryName,
+            commonVersion: parsed.commonVersion,
+            argv: serializeCemMlCommand(parsed),
+            text: serializeCemMlCommandText(parsed),
+            parsed,
+            semantic: projectCommandSemanticPreview(invocation),
+        });
+    };
 
     return Object.freeze({
         capability: client.capability,
         commonVersion: client.worker.commonVersion,
         parseResource,
         inspectResource,
+        previewResourceCommand,
         validateResource,
         async validateProject(bundle, { signal } = {}) {
             if (!bundle?.project) throw new TypeError('CEM Studio project bundle is missing project metadata');
@@ -380,6 +403,98 @@ function resolveVirtualUri(baseUri, relativePath) {
     if (/^[a-z][a-z0-9+.-]*:/i.test(baseUri)) return new URL(relativePath, baseUri).href;
     const absoluteBase = baseUri.startsWith('/') ? baseUri : `/${baseUri}`;
     return new URL(relativePath, `https://cem.invalid${absoluteBase}`).pathname;
+}
+
+function resourceUri(uri, projectId) {
+    return /^[a-z][a-z0-9+.-]*:/i.test(uri)
+        ? uri
+        : new URL(uri, `cem-studio://${projectId}/`).href;
+}
+
+function resourceCommandArguments(operation, options, inputResourceUri) {
+    const identity = [
+        '--content-type',
+        options.contentType,
+        '--schema',
+        options.schema,
+    ];
+    if (operation === 'validate') {
+        return ['validate', '--format', 'json', ...identity, inputResourceUri];
+    }
+    if (operation === 'parse') {
+        return [
+            'parse',
+            '--no-color',
+            '--format',
+            options.projection ?? 'ast',
+            ...identity,
+            inputResourceUri,
+        ];
+    }
+    if (operation === 'inspect') {
+        return [
+            'inspect',
+            '--no-color',
+            '--show',
+            options.view ?? 'summary',
+            '--format',
+            'cem',
+            ...identity,
+            inputResourceUri,
+        ];
+    }
+    throw new TypeError(`unsupported CEM Studio resource command: ${operation}`);
+}
+
+function projectCommandSemanticPreview(invocation) {
+    const { request, presentation } = invocation;
+    const plan = request.runPlan;
+    const resourceIdentities = Object.entries(request.resources)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([uri, resource]) => ({
+            uri,
+            byteLength: resource.bytes.length,
+            identity: resource.identity ?? null,
+        }));
+    return freezeCommandValue({
+        operation: request.operation,
+        inputs: {
+            normalized: plan?.inputs ?? [],
+            resources: resourceIdentities,
+        },
+        identity: {
+            config: plan?.configIdentity ?? null,
+            schemas: plan?.schemaPackages ?? [],
+            versions: request.resourceVersions,
+        },
+        configuration: {
+            commandProfile: plan?.commandProfile ?? null,
+            effective: plan?.effectiveConfig ?? null,
+            authoredSources: plan?.authoredSources ?? [],
+            resolvers: plan?.resolvers ?? [],
+            scheduler: plan?.scheduler ?? null,
+            diagnosticsMode: plan?.diagnosticsMode ?? null,
+        },
+        outputs: {
+            normalized: plan?.outputs ?? [],
+            presentation,
+        },
+        scope: {
+            project: request.project,
+            policy: request.policyStamp,
+            provenance: plan?.provenance ?? [],
+        },
+    });
+}
+
+function freezeCommandValue(value) {
+    if (Array.isArray(value)) return Object.freeze(value.map((entry) => freezeCommandValue(entry)));
+    if (value && typeof value === 'object') {
+        return Object.freeze(Object.fromEntries(
+            Object.entries(value).map(([key, entry]) => [key, freezeCommandValue(entry)]),
+        ));
+    }
+    return value;
 }
 
 async function readCommandOutput(handle, result, requestedUri = CEM_STDOUT_URI, committed = []) {

@@ -21,7 +21,12 @@ export const CEM_STUDIO_INSPECT_VIEWS = Object.freeze([
 export async function createCemStudioFeatureTourWorkbench(options) {
     const { repository, validator, seed, projectId } = options;
     if (!repository?.query || !repository?.execute) throw new TypeError('Feature Tour workbench requires a repository');
-    if (!validator?.validateResource || !validator?.parseResource || !validator?.inspectResource) {
+    if (
+        !validator?.validateResource
+        || !validator?.parseResource
+        || !validator?.inspectResource
+        || !validator?.previewResourceCommand
+    ) {
         throw new TypeError('Feature Tour workbench requires a browser command validator');
     }
     if (typeof projectId !== 'string' || projectId.length === 0) {
@@ -30,6 +35,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     const example = options.example ?? featureTourCemExample(seed);
     const subscribers = new Set();
     let editVersion = 0;
+    let commandEditVersion = 0;
     let state = freezeState({
         status: 'loading',
         projectId,
@@ -45,6 +51,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         dirty: false,
         validation: undefined,
         projection: undefined,
+        command: undefined,
         selection: undefined,
         error: undefined,
     });
@@ -95,7 +102,9 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     }
 
     async function reload() {
+        commandEditVersion += 1;
         const persisted = await readPersisted();
+        const command = await commandForPersisted(persisted);
         editVersion += 1;
         return publish({
             ...state,
@@ -108,6 +117,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             dirty: false,
             validation: undefined,
             projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
+            command,
             selection: undefined,
             error: undefined,
         });
@@ -168,6 +178,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             throw error;
         }
         const changedDuringSave = editVersion !== captured.editVersion;
+        const command = await commandForPersisted(persisted);
         publish({
             ...state,
             status: changedDuringSave ? 'dirty' : 'saved',
@@ -179,6 +190,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             dirty: changedDuringSave,
             validation: undefined,
             projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
+            command,
             selection: undefined,
             error: undefined,
         });
@@ -187,6 +199,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
 
     async function validatePersisted(options = {}) {
         const persisted = await readPersisted();
+        const command = await commandForPersisted(persisted);
         const capturedVersion = editVersion;
         publish({
             ...state,
@@ -195,6 +208,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             resourceRevision: persisted.resourceRevision,
             repositoryRevision: persisted.repositoryRevision,
             persistedText: persisted.text,
+            command,
             error: undefined,
         });
         return validateRevision({
@@ -306,14 +320,181 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             || state.resourceRevision !== persisted.resourceRevision
             || Boolean(outcome.result.stale);
         const projection = freezeProjection({ ...projected, stale });
+        commandEditVersion += 1;
+        const command = await commandForProjection(persisted, kind, mode);
         publish({
             ...state,
             status: stale ? 'projection-stale' : projected.exitCode === 0 ? 'projected' : 'projection-invalid',
             projection,
+            command,
             selection: undefined,
             error: undefined,
         });
         return state;
+    }
+
+    async function updateCommandDraft(text) {
+        if (typeof text !== 'string') throw new TypeError('CEM Studio command draft must be text');
+        if (!state.command) throw new Error('CEM Studio command view is unavailable');
+        const capturedVersion = ++commandEditVersion;
+        const current = state.command.current;
+        const persisted = await readPersisted();
+        if (capturedVersion !== commandEditVersion) return state;
+        publish({
+            ...state,
+            command: freezeCommand({
+                ...state.command,
+                status: 'checking',
+                draftText: text,
+                diagnostic: undefined,
+                copy: undefined,
+            }),
+        });
+        try {
+            const preview = await validator.previewResourceCommand({
+                ...commandResourceOptions(persisted),
+                text,
+            });
+            if (capturedVersion !== commandEditVersion) return state;
+            const changes = semanticChanges(current.semantic, preview.semantic);
+            publish({
+                ...state,
+                command: freezeCommand({
+                    ...state.command,
+                    status: changes.length === 0 ? 'current' : 'changed',
+                    draftText: text,
+                    parsed: preview.parsed,
+                    preview,
+                    changes,
+                    diagnostic: undefined,
+                    copy: undefined,
+                }),
+            });
+        } catch (error) {
+            if (capturedVersion !== commandEditVersion) return state;
+            publish({
+                ...state,
+                command: freezeCommand({
+                    ...state.command,
+                    status: 'invalid',
+                    draftText: text,
+                    parsed: undefined,
+                    preview: undefined,
+                    changes: Object.freeze([]),
+                    diagnostic: normalizedError(error),
+                    copy: undefined,
+                }),
+            });
+        }
+        return state;
+    }
+
+    async function resetCommandDraft() {
+        if (!state.command) throw new Error('CEM Studio command view is unavailable');
+        return updateCommandDraft(state.command.current.text);
+    }
+
+    async function copyCommand(writeText) {
+        if (!state.command) throw new Error('CEM Studio command view is unavailable');
+        publish({
+            ...state,
+            command: freezeCommand({ ...state.command, copy: Object.freeze({ status: 'copying' }) }),
+        });
+        try {
+            if (typeof writeText !== 'function') {
+                const error = new Error('Clipboard writing is unavailable; select and copy the command text instead.');
+                error.code = 'cem.studio.command.clipboard_unavailable';
+                throw error;
+            }
+            await writeText(state.command.draftText);
+            publish({
+                ...state,
+                command: freezeCommand({
+                    ...state.command,
+                    copy: Object.freeze({
+                        status: 'success',
+                        message: 'Displayed Studio command copied.',
+                    }),
+                }),
+            });
+        } catch (error) {
+            publish({
+                ...state,
+                command: freezeCommand({
+                    ...state.command,
+                    copy: Object.freeze({
+                        status: 'failed',
+                        message: normalizedError(error).message,
+                    }),
+                }),
+            });
+        }
+        return state;
+    }
+
+    async function commandForPersisted(persisted) {
+        if (state.command?.current?.text) {
+            const current = await validator.previewResourceCommand({
+                ...commandResourceOptions(persisted),
+                text: state.command.current.text,
+            });
+            if (state.command.draftText === state.command.current.text) {
+                return commandState(current, persisted);
+            }
+            try {
+                const preview = await validator.previewResourceCommand({
+                    ...commandResourceOptions(persisted),
+                    text: state.command.draftText,
+                });
+                const changes = semanticChanges(current.semantic, preview.semantic);
+                return freezeCommand({
+                    ...state.command,
+                    status: changes.length === 0 ? 'current' : 'changed',
+                    current,
+                    parsed: preview.parsed,
+                    preview,
+                    changes,
+                    diagnostic: undefined,
+                    revision: commandRevision(persisted),
+                    copy: undefined,
+                });
+            } catch (error) {
+                return freezeCommand({
+                    ...state.command,
+                    status: 'invalid',
+                    current,
+                    parsed: undefined,
+                    preview: undefined,
+                    changes: Object.freeze([]),
+                    diagnostic: normalizedError(error),
+                    revision: commandRevision(persisted),
+                    copy: undefined,
+                });
+            }
+        }
+        return commandForProjection(persisted, 'parse', 'ast');
+    }
+
+    async function commandForProjection(persisted, kind, mode) {
+        const preview = await validator.previewResourceCommand({
+            ...commandResourceOptions(persisted),
+            operation: kind,
+            [kind === 'parse' ? 'projection' : 'view']: mode,
+        });
+        return commandState(preview, persisted);
+    }
+
+    function commandResourceOptions(persisted) {
+        return {
+            bytes: persisted.bytes,
+            contentType: example.contentType,
+            schema: example.schema,
+            uri: example.path,
+            dependencies: persisted.dependencies,
+            projectId,
+            projectRevision: persisted.projectRevision,
+            resourceRevision: persisted.resourceRevision,
+        };
     }
 
     function navigateDiagnostic(index) {
@@ -351,6 +532,9 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         validatePersisted,
         parsePersisted,
         inspectPersisted,
+        updateCommandDraft,
+        resetCommandDraft,
+        copyCommand,
         navigateDiagnostic,
         navigateProvenance,
         dispose() {
@@ -360,7 +544,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
 }
 
 /** Mount the workbench with production CEM controls only. */
-export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
+export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clipboard = navigator.clipboard }) {
     if (!(root instanceof Element)) throw new TypeError('Feature Tour workbench root must be an Element');
     const components = await installCemStudioShellComponents();
     const host = document.createElement('section');
@@ -377,6 +561,9 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
     const reloadAction = host.querySelector('cem-action[data-cem-studio-reload]');
     const parseAction = host.querySelector('cem-action[data-cem-studio-parse]');
     const inspectAction = host.querySelector('cem-action[data-cem-studio-inspect]');
+    const commandEditorHost = host.querySelector('cem-textarea[data-cem-studio-command-editor]');
+    const commandCopyAction = host.querySelector('cem-action[data-cem-studio-command-copy]');
+    const commandResetAction = host.querySelector('cem-action[data-cem-studio-command-reset]');
     const parseSelect = host.querySelector('cem-select[data-cem-studio-parse-projection]');
     const inspectSelect = host.querySelector('cem-select[data-cem-studio-inspect-view]');
     let renderPromise = Promise.resolve();
@@ -391,6 +578,10 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
             const projectionOutput = host.querySelector('cem-textarea[data-cem-studio-projection-output] textarea');
             if (projectionOutput && projectionOutput.value !== (snapshot.projection?.output.text ?? '')) {
                 projectionOutput.value = snapshot.projection?.output.text ?? '';
+            }
+            const commandEditor = host.querySelector('cem-textarea[data-cem-studio-command-editor] textarea');
+            if (commandEditor && commandEditor.value !== (snapshot.command?.draftText ?? '')) {
+                commandEditor.value = snapshot.command?.draftText ?? '';
             }
             if (editor && snapshot.selection) {
                 editor.focus();
@@ -414,6 +605,20 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
     const inspect = () => {
         actionPromise = workbench.inspectPersisted(inspectSelect.value).catch(() => undefined);
     };
+    const commandEdited = (event) => {
+        if (event.target instanceof HTMLTextAreaElement) {
+            actionPromise = workbench.updateCommandDraft(event.target.value).catch(() => undefined);
+        }
+    };
+    const copyCommand = () => {
+        const writeText = typeof clipboard?.writeText === 'function'
+            ? (text) => clipboard.writeText(text)
+            : undefined;
+        actionPromise = workbench.copyCommand(writeText).catch(() => undefined);
+    };
+    const resetCommand = () => {
+        actionPromise = workbench.resetCommandDraft().catch(() => undefined);
+    };
     const navigate = (event) => {
         if (!(event.target instanceof HTMLSelectElement)) return;
         const list = event.target.closest('cem-list');
@@ -426,6 +631,9 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
     reloadAction.addEventListener('click', reload);
     parseAction.addEventListener('click', parse);
     inspectAction.addEventListener('click', inspect);
+    commandEditorHost.addEventListener('input', commandEdited);
+    commandCopyAction.addEventListener('click', copyCommand);
+    commandResetAction.addEventListener('click', resetCommand);
     host.addEventListener('change', navigate);
     await renderPromise;
 
@@ -443,6 +651,9 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench }) {
             reloadAction.removeEventListener('click', reload);
             parseAction.removeEventListener('click', parse);
             inspectAction.removeEventListener('click', inspect);
+            commandEditorHost.removeEventListener('input', commandEdited);
+            commandCopyAction.removeEventListener('click', copyCommand);
+            commandResetAction.removeEventListener('click', resetCommand);
             host.removeEventListener('change', navigate);
             host.remove();
         },
@@ -602,6 +813,69 @@ function freezeProjection(value) {
     return Object.freeze({ ...value });
 }
 
+function freezeCommand(value) {
+    return Object.freeze({
+        ...value,
+        changes: Object.freeze([...(value.changes ?? [])]),
+    });
+}
+
+function commandState(preview, persisted) {
+    return freezeCommand({
+        projection: 'studio',
+        status: 'current',
+        current: preview,
+        draftText: preview.text,
+        parsed: preview.parsed,
+        preview,
+        changes: [],
+        diagnostic: undefined,
+        copy: undefined,
+        revision: commandRevision(persisted),
+    });
+}
+
+function commandRevision(persisted) {
+    return Object.freeze({
+        projectRevision: persisted.projectRevision,
+        resourceRevision: persisted.resourceRevision,
+        sha256: persisted.sha256,
+    });
+}
+
+function semanticChanges(current, preview) {
+    const before = new Map();
+    const after = new Map();
+    flattenSemanticValue(current, [], before);
+    flattenSemanticValue(preview, [], after);
+    const paths = [...new Set([...before.keys(), ...after.keys()])].sort();
+    return Object.freeze(paths.flatMap((path) => {
+        const left = before.get(path);
+        const right = after.get(path);
+        if (JSON.stringify(left) === JSON.stringify(right)) return [];
+        return [Object.freeze({
+            category: path.split('.')[0] ?? 'command',
+            path,
+            kind: left === undefined ? 'added' : right === undefined ? 'removed' : 'changed',
+            before: left,
+            after: right,
+        })];
+    }));
+}
+
+function flattenSemanticValue(value, path, output) {
+    if (Array.isArray(value) || value === null || typeof value !== 'object') {
+        output.set(path.join('.'), value);
+        return;
+    }
+    const entries = Object.entries(value);
+    if (entries.length === 0) {
+        output.set(path.join('.'), value);
+        return;
+    }
+    for (const [key, entry] of entries) flattenSemanticValue(entry, [...path, key], output);
+}
+
 function normalizedError(error) {
     return Object.freeze({
         code: error?.code ?? 'cem.studio.workbench.failed',
@@ -681,6 +955,23 @@ function workbenchMarkup() {
             <cem-action data-cem-studio-inspect variant="secondary">Inspect persisted revision</cem-action>
             <cem-alert data-cem-studio-projection-alert label="Run parse or inspect against the persisted revision" tone="info"></cem-alert>
         </section>
+        <section aria-label="CLI Command">
+            <cem-tabs label="CLI Command" value="command">
+                <cem-tab value="command" label="Studio command">
+                    <cem-alert data-cem-studio-command-alert label="Loading Studio command" tone="info"></cem-alert>
+                    <cem-textarea data-cem-studio-command-editor name="studio-command" label="Studio command (literal argv)">
+                        <span slot="help">Parsed by the shared CEM-ML grammar without shell expansion. Editing does not mutate the project.</span>
+                    </cem-textarea>
+                    <div>
+                        <cem-action data-cem-studio-command-copy variant="secondary">Copy command</cem-action>
+                        <cem-action data-cem-studio-command-reset variant="quiet">Reset generated command</cem-action>
+                    </div>
+                </cem-tab>
+                <cem-tab value="changes" label="Semantic changes">
+                    <div data-cem-studio-command-changes></div>
+                </cem-tab>
+            </cem-tabs>
+        </section>
         <cem-tabs label="Projection results" value="output">
             <cem-tab value="output" label="CEM-ML output">
                 <cem-textarea data-cem-studio-projection-output name="projection-output" label="Target-native CEM-ML output" readonly></cem-textarea>
@@ -703,6 +994,9 @@ function renderWorkbench(host, state) {
     const reload = host.querySelector('[data-cem-studio-reload]');
     const parse = host.querySelector('[data-cem-studio-parse]');
     const inspect = host.querySelector('[data-cem-studio-inspect]');
+    const commandAlert = host.querySelector('[data-cem-studio-command-alert]');
+    const commandCopy = host.querySelector('[data-cem-studio-command-copy]');
+    const commandReset = host.querySelector('[data-cem-studio-command-reset]');
     const projectionAlert = host.querySelector('[data-cem-studio-projection-alert]');
     status.setAttribute('label', statusLabel(state));
     status.setAttribute('tone', statusTone(state.status));
@@ -725,6 +1019,15 @@ function renderWorkbench(host, state) {
         state.status === 'projection-invalid' || state.error ? 'danger' : state.projection?.stale ? 'warning' : 'info',
     );
     host.querySelector('[data-cem-studio-projection-metadata]').innerHTML = projectionMetadataMarkup(state.projection);
+    commandAlert.setAttribute('label', commandAlertLabel(state.command));
+    commandAlert.setAttribute('tone', commandAlertTone(state.command));
+    commandCopy.toggleAttribute('disabled', !state.command || state.command.status === 'checking');
+    commandCopy.toggleAttribute('loading', state.command?.copy?.status === 'copying');
+    commandReset.toggleAttribute(
+        'disabled',
+        !state.command || state.command.status === 'current' || state.command.status === 'checking',
+    );
+    host.querySelector('[data-cem-studio-command-changes]').innerHTML = commandChangesMarkup(state.command);
 }
 
 function statusLabel(state) {
@@ -785,6 +1088,43 @@ function projectionMetadataMarkup(projection) {
         ['Freshness', projection.stale ? 'stale' : 'current'],
     ];
     return `<cem-table label="Projection execution"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Value</strong></div>${rows.map(([label, value]) => `<div role="row"><span role="cell">${escapeHtml(label)}</span><span role="cell">${escapeHtml(value)}</span></div>`).join('')}</cem-table>`;
+}
+
+function commandAlertLabel(command) {
+    if (!command) return 'Loading Studio command.';
+    if (command.copy?.message) return command.copy.message;
+    if (command.status === 'checking') return 'Checking command with the shared CEM-ML grammar.';
+    if (command.status === 'invalid') {
+        return `${command.diagnostic?.code ?? 'cem.command.invalid'}: ${command.diagnostic?.message ?? 'Command is invalid.'}`;
+    }
+    if (command.status === 'changed') {
+        return `${command.changes.length} semantic changes; project records remain unchanged.`;
+    }
+    return `Generated Studio command for project ${command.revision.projectRevision}, resource ${command.revision.resourceRevision}; CEM-ML ${command.current.commonVersion}.`;
+}
+
+function commandAlertTone(command) {
+    if (command?.copy?.status === 'failed' || command?.status === 'invalid') return 'danger';
+    if (command?.status === 'changed') return 'warning';
+    if (command?.copy?.status === 'success' || command?.status === 'current') return 'success';
+    return 'info';
+}
+
+function commandChangesMarkup(command) {
+    if (!command) return '<cem-alert label="Command preview is loading" tone="info"></cem-alert>';
+    if (command.status === 'invalid') {
+        return `<cem-alert label="${escapeHtml(commandAlertLabel(command))}" tone="danger"></cem-alert>`;
+    }
+    if (command.changes.length === 0) {
+        return '<cem-alert label="The command matches the active normalized run plan" tone="success"></cem-alert>';
+    }
+    return `<cem-table label="CLI Command semantic changes"><div role="row"><strong role="columnheader">Area</strong><strong role="columnheader">Path</strong><strong role="columnheader">Change</strong><strong role="columnheader">Current</strong><strong role="columnheader">Draft</strong></div>${command.changes.map((change) => `<div role="row"><span role="cell">${escapeHtml(change.category)}</span><span role="cell">${escapeHtml(change.path)}</span><span role="cell">${escapeHtml(change.kind)}</span><span role="cell">${escapeHtml(commandChangeValue(change.before))}</span><span role="cell">${escapeHtml(commandChangeValue(change.after))}</span></div>`).join('')}</cem-table>`;
+}
+
+function commandChangeValue(value) {
+    if (value === undefined) return '—';
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    return text.length <= 240 ? text : `${text.slice(0, 239)}…`;
 }
 
 function diagnosticsMarkup(diagnostics) {

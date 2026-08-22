@@ -97,11 +97,22 @@ shared `cem-elements` runtime. Real Chromium verifies every projection online,
 identical output after offline reload, and stale-result handling when a draft or
 durable revision advances during execution.
 
-The remaining part of the parse/validate/inspect MVP is the lossless
-bidirectional CLI Command view: serialize the normalized command, copy/edit it,
-parse it back through the shared command grammar, show its semantic change, and
-apply it transactionally to a selected current, existing, or explicitly named
-new page.
+The workbench also exposes the active invocation as an editable **Studio
+command**. A shared literal command-text codec in `@epa-wg/cem-ml-cli` preserves
+argv without shell expansion, parses edits through the generated CLI grammar,
+and serializes the normalized result canonically. Studio derives its categorized
+input, identity, configuration, output, and scope change preview from the
+Rust-lowered browser invocation and normalized run plan. Copy writes the exact
+displayed draft only from an explicit CEM action, reports success or failure in
+a CEM alert, and keeps the command textarea selectable as the fallback. Invalid
+syntax/options or unresolved resources leave IndexedDB unchanged. Real Chromium
+proves canonical edit/reset, semantic changes, invalid diagnostics, exact copy,
+non-mutation, CEM-only controls, and the same preview after offline reload.
+
+The remaining part of this MVP is transactional Apply: resolve a stable current
+or compatible existing page, or explicitly name a new page; confirm
+incompatible replacement; commit the configuration and references atomically;
+and make Apply & Run execute exactly that committed revision.
 
 ## Goals
 

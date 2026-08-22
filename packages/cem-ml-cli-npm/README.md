@@ -9,7 +9,9 @@ both APIs.
 import {
     commandSchema,
     parseCemMlCommand,
+    parseCemMlCommandText,
     serializeCemMlCommand,
+    serializeCemMlCommandText,
 } from '@epa-wg/cem-ml-cli/node';
 
 const command = parseCemMlCommand(
@@ -18,6 +20,8 @@ const command = parseCemMlCommand(
 );
 console.log(commandSchema.schemaVersion, command);
 console.log(serializeCemMlCommand(command));
+const text = serializeCemMlCommandText(command);
+console.log(text, parseCemMlCommandText(text, { runtime: 'wasm-node' }));
 ```
 
 The schema is generated from the built native Clap command graph and joined to
@@ -25,6 +29,12 @@ the common Rust runtime-capability matrix. Options, defaults, enum values,
 required groups, conflicts, and runtime availability are therefore not copied
 into a separate TypeScript flag table. The same parser and serializer are
 exported from `./browser` and `./node`.
+
+The command-text helpers add a literal argv projection for editable command
+surfaces. They preserve quoted and empty arguments with canonical,
+POSIX-compatible quoting, but never perform variable expansion, substitution,
+redirection, pipelines, globbing, or command execution. Parsed options still
+flow through the same generated command grammar.
 
 ```js
 import { createNodeWorkerPool } from '@epa-wg/cem-ml-cli/node';

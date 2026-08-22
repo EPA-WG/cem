@@ -218,6 +218,111 @@ export function serializeCemMlCommand(command: ParsedCemMlCommand): readonly str
     return Object.freeze(output);
 }
 
+/** Parse one literal command line without shell expansion or evaluation. */
+export function parseCemMlCommandText(
+    source: string,
+    parseOptions: ParseCemMlCommandOptions = {},
+): ParsedCemMlCommand {
+    const tokens = tokenizeCemMlCommandText(source);
+    const binary = tokens[0];
+    if (binary !== commandSchema.binaryName) {
+        throw new CemMlCommandError(
+            'cem.command.binary_name',
+            binary === undefined
+                ? `a ${commandSchema.binaryName} command is required`
+                : `command must start with \`${commandSchema.binaryName}\`, received \`${binary}\``,
+        );
+    }
+    return parseCemMlCommand(tokens.slice(1), parseOptions);
+}
+
+/** Serialize one normalized command with literal, POSIX-compatible quoting. */
+export function serializeCemMlCommandText(command: ParsedCemMlCommand): string {
+    return [commandSchema.binaryName, ...serializeCemMlCommand(command)]
+        .map(quoteCemMlCommandTextToken)
+        .join(' ');
+}
+
+function tokenizeCemMlCommandText(source: string): readonly string[] {
+    if (typeof source !== 'string') {
+        throw new TypeError('CEM-ML command text must be a string');
+    }
+    const tokens: string[] = [];
+    let token = '';
+    let tokenStarted = false;
+    let quote: 'single' | 'double' | undefined;
+    let escaping = false;
+    for (let index = 0; index < source.length; index += 1) {
+        const character = source[index] ?? '';
+        const code = character.charCodeAt(0);
+        if ((code < 0x20 && !['\t', '\n', '\r'].includes(character)) || code === 0x7f) {
+            throw new CemMlCommandError(
+                'cem.command.text_control',
+                `command text contains an unsupported control character at offset ${index}`,
+            );
+        }
+        if (escaping) {
+            token += character;
+            tokenStarted = true;
+            escaping = false;
+            continue;
+        }
+        if (quote === 'single') {
+            if (character === "'") quote = undefined;
+            else token += character;
+            tokenStarted = true;
+            continue;
+        }
+        if (quote === 'double') {
+            if (character === '"') quote = undefined;
+            else if (character === '\\') escaping = true;
+            else token += character;
+            tokenStarted = true;
+            continue;
+        }
+        if (/\s/u.test(character)) {
+            if (tokenStarted) {
+                tokens.push(token);
+                token = '';
+                tokenStarted = false;
+            }
+            continue;
+        }
+        if (character === "'") {
+            quote = 'single';
+            tokenStarted = true;
+        } else if (character === '"') {
+            quote = 'double';
+            tokenStarted = true;
+        } else if (character === '\\') {
+            escaping = true;
+            tokenStarted = true;
+        } else {
+            token += character;
+            tokenStarted = true;
+        }
+    }
+    if (escaping) {
+        throw new CemMlCommandError(
+            'cem.command.text_escape',
+            'command text ends with an incomplete escape',
+        );
+    }
+    if (quote !== undefined) {
+        throw new CemMlCommandError(
+            'cem.command.text_quote',
+            `command text contains an unterminated ${quote}-quoted argument`,
+        );
+    }
+    if (tokenStarted) tokens.push(token);
+    return Object.freeze(tokens);
+}
+
+function quoteCemMlCommandTextToken(token: string): string {
+    if (/^[A-Za-z0-9_@%+=:,./~-]+$/u.test(token)) return token;
+    return `'${token.replaceAll("'", "'\\''")}'`;
+}
+
 function createState(argumentsSchema: readonly CommandArgumentSchema[]): MutableParseState {
     const state: MutableParseState = { values: new Map(), provided: new Set() };
     applyDefaults(argumentsSchema, state);

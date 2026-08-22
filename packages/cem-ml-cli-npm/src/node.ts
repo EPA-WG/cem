@@ -30,7 +30,9 @@ export {
     CemMlCommandError,
     commandSchema,
     parseCemMlCommand,
+    parseCemMlCommandText,
     serializeCemMlCommand,
+    serializeCemMlCommandText,
 } from './command.js';
 export type {
     CommandRuntime,

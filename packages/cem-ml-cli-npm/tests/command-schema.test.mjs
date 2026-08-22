@@ -65,6 +65,42 @@ test('native-accepted command fixtures normalize and round trip through both npm
     assert.equal(query.options.output, 'terminal');
 });
 
+test('literal command text preserves normalized argv without evaluating shell syntax', () => {
+    const parsed = nodeApi.parseCemMlCommand([
+        'parse',
+        'studio://feature-tour/data/cem ml/author\'s basic.cem',
+        '--content-type',
+        'application/cem',
+        '--schema',
+        'https://cem.dev/ns/cem-ml/1',
+        '--format',
+        'events',
+        '--no-color',
+    ], { runtime: 'wasm-node' });
+    const text = nodeApi.serializeCemMlCommandText(parsed);
+    assert.match(text, /^cem-ml .*parse /);
+    assert.ok(text.includes("'studio://feature-tour/data/cem ml/author'\\''s basic.cem'"));
+    assert.deepEqual(
+        browserApi.parseCemMlCommandText(text, { runtime: 'wasm-browser-worker' }),
+        parsed,
+    );
+    assert.throws(
+        () => nodeApi.parseCemMlCommandText('cem-ml parse "unterminated'),
+        (error) => error instanceof nodeApi.CemMlCommandError && error.code === 'cem.command.text_quote',
+    );
+    assert.throws(
+        () => nodeApi.parseCemMlCommandText('other-cli parse input.cem'),
+        (error) => error instanceof nodeApi.CemMlCommandError && error.code === 'cem.command.binary_name',
+    );
+    assert.ok(Object.values(
+        nodeApi.parseCemMlCommandText("cem-ml parse ''").positionals,
+    ).includes(''));
+    assert.throws(
+        () => nodeApi.parseCemMlCommandText("cem-ml parse 'unsafe\0input'"),
+        (error) => error instanceof nodeApi.CemMlCommandError && error.code === 'cem.command.text_control',
+    );
+});
+
 test('schema-driven parser rejects invalid fixtures with stable codes', () => {
     for (const fixtureCase of fixture.invalidCases) {
         assert.throws(

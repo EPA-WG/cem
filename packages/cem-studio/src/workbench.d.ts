@@ -4,6 +4,7 @@ import type {
     CemStudioFeatureTourSeed,
     CemStudioInspectView,
     CemStudioParseProjection,
+    CemStudioResourceCommandPreview,
 } from './feature-tour.js';
 import type { CemStudioIndexedDbRepository } from './repository.js';
 
@@ -34,8 +35,37 @@ export interface CemStudioWorkbenchState {
     readonly dirty: boolean;
     readonly validation?: Readonly<Record<string, unknown>>;
     readonly projection?: CemStudioWorkbenchProjection;
+    readonly command?: CemStudioWorkbenchCommand;
     readonly selection?: CemStudioWorkbenchSelection;
     readonly error?: Readonly<{ code: string; message: string }>;
+}
+
+export interface CemStudioWorkbenchCommandChange {
+    readonly category: string;
+    readonly path: string;
+    readonly kind: 'added' | 'removed' | 'changed';
+    readonly before?: unknown;
+    readonly after?: unknown;
+}
+
+export interface CemStudioWorkbenchCommand {
+    readonly projection: 'studio';
+    readonly status: 'checking' | 'current' | 'changed' | 'invalid';
+    readonly current: CemStudioResourceCommandPreview;
+    readonly draftText: string;
+    readonly parsed?: Readonly<Record<string, unknown>>;
+    readonly preview?: CemStudioResourceCommandPreview;
+    readonly changes: readonly CemStudioWorkbenchCommandChange[];
+    readonly diagnostic?: Readonly<{ code: string; message: string }>;
+    readonly copy?: Readonly<{
+        status: 'copying' | 'success' | 'failed';
+        message?: string;
+    }>;
+    readonly revision: Readonly<{
+        projectRevision: number;
+        resourceRevision: number;
+        sha256: string;
+    }>;
 }
 
 export interface CemStudioWorkbenchProjection {
@@ -73,6 +103,9 @@ export interface CemStudioFeatureTourWorkbench {
         view?: CemStudioInspectView,
         options?: { signal?: AbortSignal },
     ): Promise<CemStudioWorkbenchState>;
+    updateCommandDraft(text: string): Promise<CemStudioWorkbenchState>;
+    resetCommandDraft(): Promise<CemStudioWorkbenchState>;
+    copyCommand(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
     navigateDiagnostic(index: number): CemStudioWorkbenchSelection;
     navigateProvenance(index: number): CemStudioWorkbenchSelection;
     dispose(): void;
@@ -89,6 +122,7 @@ export declare function createCemStudioFeatureTourWorkbench(options: {
 export declare function mountCemStudioFeatureTourWorkbench(options: {
     root: Element;
     workbench: CemStudioFeatureTourWorkbench;
+    clipboard?: Pick<Clipboard, 'writeText'>;
 }): Promise<Readonly<{
     root: Element;
     workbench: CemStudioFeatureTourWorkbench;

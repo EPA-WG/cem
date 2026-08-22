@@ -108,6 +108,22 @@ try {
     assert.equal(projections.componentsOnly, true);
     assert.equal(projections.controlsInstalled, true);
 
+    const commandView = await exerciseCommandView(page);
+    assert.equal(commandView.projection, 'studio');
+    assert.equal(commandView.initialStatus, 'current');
+    assert.equal(commandView.changedStatus, 'changed');
+    assert.ok(commandView.changeCount > 0);
+    assert.ok(commandView.changeCategories.includes('operation'));
+    assert.equal(commandView.copyStatus, 'success');
+    assert.equal(commandView.copiedExactDraft, true);
+    assert.equal(commandView.unresolvedCode, 'cem.browser_command.resolve');
+    assert.equal(commandView.invalidStatus, 'invalid');
+    assert.equal(commandView.invalidCode, 'cem.command.unknown_option');
+    assert.equal(commandView.resetStatus, 'current');
+    assert.equal(commandView.repositoryUnchanged, true);
+    assert.equal(commandView.componentsOnly, true);
+    assert.equal(commandView.controlsInstalled, true);
+
     const featureTour = await validateFeatureTour(page, initialFeatureTourStatus);
     assert.equal(featureTour.initialStatus, 'installed');
     assert.ok(['installed', 'preserved'].includes(featureTour.status));
@@ -160,6 +176,11 @@ try {
     assert.ok(recoveredWorkbench.diagnosticCount > 0);
     assert.ok(recoveredWorkbench.provenanceCount > 0);
     assert.equal(recoveredWorkbench.runtime, 'wasm-browser-worker');
+    const recoveredCommandView = await exerciseOfflineCommandView(page);
+    assert.equal(recoveredCommandView.status, 'changed');
+    assert.ok(recoveredCommandView.changeCount > 0);
+    assert.equal(recoveredCommandView.projection, 'studio');
+    assert.equal(recoveredCommandView.resetStatus, 'current');
     const recoveredProjections = await projectOfflineResource(page);
     assert.equal(recoveredProjections.parse.sha256, onlineOfflineProjectProjections.parse.sha256);
     assert.equal(recoveredProjections.parse.text, onlineOfflineProjectProjections.parse.text);
@@ -184,8 +205,10 @@ try {
         featureTour,
         workbench,
         projections,
+        commandView,
         onlineOfflineProjectProjections,
         recoveredWorkbench,
+        recoveredCommandView,
         recoveredProjections,
         offlineNavigation: '/projects/offline-project',
         online,
@@ -394,6 +417,106 @@ async function exerciseProjections(page) {
                 && document.querySelector('[data-cem-studio-workbench] cem-tabs [role="tablist"]')
                 && document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')
             ),
+        };
+    });
+}
+
+async function exerciseCommandView(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const before = await application.repository.query({
+            protocolVersion: 1,
+            repository: 'studio-projects',
+            operation: 'export-project',
+            requestRevision: 1,
+            parameters: { projectId: application.featureTour.projectId },
+        });
+        const initial = application.workbench.snapshot().command;
+        const changedText = initial.current.text.replace('--show tree', '--show summary');
+        if (changedText === initial.current.text) throw new Error('command fixture could not select inspect summary');
+        const editor = document.querySelector('cem-textarea[data-cem-studio-command-editor] textarea');
+        editor.value = changedText;
+        editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await application.workbenchView.whenSettled();
+        const changed = application.workbench.snapshot().command;
+        const changesTableVisible = Boolean(
+            document.querySelector('cem-table[label="CLI Command semantic changes"] [role="table"]'),
+        );
+
+        let copied = '';
+        Object.defineProperty(navigator.clipboard, 'writeText', {
+            configurable: true,
+            value: async (text) => {
+                copied = text;
+            },
+        });
+        document.querySelector('cem-action[data-cem-studio-command-copy] button').click();
+        await application.workbenchView.whenSettled();
+        const copiedState = application.workbench.snapshot().command;
+
+        const inputUri = Object.values(initial.current.parsed.positionals)
+            .find((value) => typeof value === 'string' && value.startsWith('cem-studio:'));
+        if (!inputUri) throw new Error('generated command has no Studio input URI');
+        editor.value = changedText.replace(inputUri, 'cem-studio://feature-tour/missing.cem');
+        editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await application.workbenchView.whenSettled();
+        const unresolved = application.workbench.snapshot().command;
+
+        editor.value = `${changedText} --not-a-cem-option`;
+        editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await application.workbenchView.whenSettled();
+        const invalid = application.workbench.snapshot().command;
+        document.querySelector('cem-action[data-cem-studio-command-reset] button').click();
+        await application.workbenchView.whenSettled();
+        const reset = application.workbench.snapshot().command;
+        const after = await application.repository.query({
+            protocolVersion: 1,
+            repository: 'studio-projects',
+            operation: 'export-project',
+            requestRevision: 1,
+            parameters: { projectId: application.featureTour.projectId },
+        });
+        return {
+            projection: initial.projection,
+            initialStatus: initial.status,
+            changedStatus: changed.status,
+            changeCount: changed.changes.length,
+            changeCategories: [...new Set(changed.changes.map(({ category }) => category))],
+            copyStatus: copiedState.copy.status,
+            copiedExactDraft: copied === changedText,
+            unresolvedCode: unresolved.diagnostic.code,
+            invalidStatus: invalid.status,
+            invalidCode: invalid.diagnostic.code,
+            resetStatus: reset.status,
+            repositoryUnchanged: before.repositoryRevision === after.repositoryRevision
+                && before.value.project.revision === after.value.project.revision,
+            componentsOnly: document.querySelectorAll(
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+            ).length === 0,
+            controlsInstalled: Boolean(
+                document.querySelector('cem-textarea[data-cem-studio-command-editor] textarea')
+                && document.querySelector('cem-action[data-cem-studio-command-copy] button')
+                && document.querySelector('cem-action[data-cem-studio-command-reset] button')
+                && changesTableVisible
+            ),
+        };
+    });
+}
+
+async function exerciseOfflineCommandView(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const initial = application.workbench.snapshot().command;
+        const changedText = initial.current.text.replace('--format ast', '--format events');
+        const changed = await application.workbench.updateCommandDraft(changedText);
+        const command = changed.command;
+        const reset = await application.workbench.resetCommandDraft();
+        await application.workbenchView.whenSettled();
+        return {
+            projection: command.projection,
+            status: command.status,
+            changeCount: command.changes.length,
+            resetStatus: reset.command.status,
         };
     });
 }

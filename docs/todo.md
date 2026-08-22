@@ -1309,8 +1309,34 @@ including search, is composed from `@epa-wg/cem-components` and
       `cem-table` controls. Chromium proves the projection matrix, stale draft
       handling, and identical online/offline output. The typed CEM writer now
       preserves tabs and line endings in quoted event payloads while rejecting
-      non-text controls. The parent remains open for the lossless bidirectional
-      CLI Command view and transactional Apply target workflow.
+      non-text controls. That projection slice left the CLI Command view and
+      transactional Apply target workflow to subsequent fixtures.
+    - [x] Fixture: add one shared literal command-text codec beside the
+          generated CLI grammar, preserve quoted/empty arguments without shell
+          evaluation, and prove normalized Node/browser round trips plus stable
+          lexical diagnostics.
+    - [x] Fixture: generate the editable Studio command from the active
+          Rust-lowered invocation and exact IndexedDB resource revision; retain
+          its canonical argv, normalized parse, CLI version, and categorized
+          input/identity/configuration/output/scope preview.
+    - [x] Fixture: edit and reset command text, copy the exact displayed draft
+          from an explicit CEM action with accessible success/failure status,
+          and render semantic changes or parser/resolver diagnostics without
+          mutating project records.
+    - [x] Fixture: prove the CLI Command view and change table use production
+          `cem-components`, execute the shared preview online and after an
+          offline reload, and retain selectable command text as the clipboard
+          fallback.
+    - Completed 2026-08-21: the workbench now exposes a Studio command as a
+      lossless literal-argv projection of the shared generated CLI grammar. Its
+      semantic preview comes from the Rust-lowered browser invocation and
+      normalized run plan rather than app-owned flag interpretation. Chromium
+      proves canonical edit/parse/reset, exact explicit-action clipboard copy,
+      semantic change classification, stable invalid-option diagnostics,
+      project non-mutation, CEM-only controls, and offline preview. The parent
+      remains open only for current/existing/new page target resolution,
+      incompatible-replacement confirmation, transactional Apply, and Apply &
+      Run.
 - [ ] Add conversion, query, transformation, trace, and transformation-graph
       workbenches without duplicating engine semantics or component behavior.
 - [ ] Add the opt-in File System Access provider with explicit permissions,

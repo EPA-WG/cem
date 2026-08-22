@@ -156,6 +156,64 @@ describe('CEM Studio Feature Tour workbench', () => {
         }));
     });
 
+    it('round trips the Studio command, copies displayed text, and previews semantic changes without mutation', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Command source}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const root = document.createElement('main');
+        document.body.append(root);
+        const clipboard = { writeText: vi.fn(async () => undefined) };
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench, clipboard });
+        views.push(view);
+
+        const original = workbench.snapshot().command.current.text;
+        const commandEditor = root.querySelector('cem-textarea[data-cem-studio-command-editor] textarea');
+        expect(commandEditor.value).toBe(original);
+        expect(workbench.snapshot().command).toMatchObject({
+            projection: 'studio',
+            status: 'current',
+            changes: [],
+            revision: { projectRevision: 1, resourceRevision: 1 },
+        });
+
+        const changed = original.replace('--format ast', '--format events');
+        commandEditor.value = changed;
+        commandEditor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await view.whenSettled();
+        expect(workbench.snapshot().command).toMatchObject({
+            status: 'changed',
+            draftText: changed,
+            preview: { parsed: { commandPath: ['parse'], options: { format: 'events' } } },
+        });
+        expect(workbench.snapshot().command.changes).toEqual(expect.arrayContaining([
+            expect.objectContaining({ category: 'operation', kind: 'changed' }),
+        ]));
+        expect(root.querySelector('cem-table[label="CLI Command semantic changes"] [role="table"]')).not.toBeNull();
+
+        root.querySelector('cem-action[data-cem-studio-command-copy] button').click();
+        await view.whenSettled();
+        expect(clipboard.writeText).toHaveBeenCalledWith(changed);
+        expect(workbench.snapshot().command.copy).toMatchObject({ status: 'success' });
+
+        commandEditor.value = `${changed} --unknown-studio-option`;
+        commandEditor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await view.whenSettled();
+        expect(workbench.snapshot().command).toMatchObject({
+            status: 'invalid',
+            diagnostic: { code: 'cem.command.unknown_option' },
+        });
+        const exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
+        expect(new TextDecoder().decode(exported.value.contents.source)).toBe('{main | Command source}\n');
+        expect(exported.value.project.revision).toBe(1);
+
+        root.querySelector('cem-action[data-cem-studio-command-reset] button').click();
+        await view.whenSettled();
+        expect(workbench.snapshot().command).toMatchObject({ status: 'current', draftText: original, changes: [] });
+        expect(root.querySelectorAll(
+            '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+        )).toHaveLength(0);
+    });
+
     it('marks an in-flight saved-revision result stale when the draft advances', async () => {
         let releaseValidation;
         let startedValidation;
@@ -230,6 +288,7 @@ async function createWorkbench(repository, validator) {
 function validatorFor(outcome) {
     return {
         validateProject: async (bundle) => bundle,
+        previewResourceCommand: vi.fn(async (options) => commandPreviewOutcome(options)),
         parseResource: vi.fn(async ({ projection = 'ast' }) => projectionOutcome('parse', projection)),
         inspectResource: vi.fn(async ({ view = 'summary' }) => projectionOutcome('inspect', view)),
         validateResource: vi.fn(async (options) => {
@@ -241,6 +300,54 @@ function validatorFor(outcome) {
             throw error;
         }),
     };
+}
+
+function commandPreviewOutcome(options) {
+    if (options.text?.includes('--unknown-studio-option')) {
+        const error = new Error('unknown CEM-ML option `--unknown-studio-option`');
+        error.code = 'cem.command.unknown_option';
+        throw error;
+    }
+    const operation = options.text?.match(/\b(parse|inspect|validate)\b/u)?.[1] ?? options.operation ?? 'parse';
+    const format = options.text?.match(/--format\s+([^\s]+)/u)?.[1]
+        ?? (operation === 'parse' ? options.projection ?? 'ast' : operation === 'inspect' ? 'cem' : 'json');
+    const view = options.text?.match(/--show\s+([^\s]+)/u)?.[1] ?? options.view ?? 'summary';
+    const uri = options.uri.startsWith('cem-studio:')
+        ? options.uri
+        : `cem-studio://${options.projectId}/${options.uri}`;
+    const argv = operation === 'parse'
+        ? ['parse', uri, '--format', format]
+        : operation === 'inspect'
+            ? ['inspect', uri, '--show', view, '--format', format]
+            : ['validate', uri, '--format', format];
+    const text = options.text ?? `cem-ml ${argv.join(' ')} --content-type ${options.contentType} --schema ${options.schema}`;
+    const parsed = Object.freeze({
+        schemaVersion: 1,
+        commonVersion: '0.1.0',
+        commandPath: Object.freeze([operation]),
+        globalOptions: Object.freeze({}),
+        options: Object.freeze({ format, ...(operation === 'inspect' ? { show: view } : {}) }),
+        positionals: Object.freeze({ inputs: uri }),
+    });
+    return Object.freeze({
+        projection: 'studio',
+        binaryName: 'cem-ml',
+        commonVersion: '0.1.0',
+        argv: Object.freeze(argv),
+        text,
+        parsed,
+        semantic: Object.freeze({
+            operation: Object.freeze({ kind: operation, ...(operation === 'parse' ? { projection: format } : {}) }),
+            inputs: Object.freeze({ normalized: Object.freeze([{ uri }]) }),
+            identity: Object.freeze({ contentType: options.contentType, schema: options.schema }),
+            configuration: Object.freeze({ view }),
+            outputs: Object.freeze({ format }),
+            scope: Object.freeze({
+                projectRevision: options.projectRevision,
+                resourceRevision: options.resourceRevision,
+            }),
+        }),
+    });
 }
 
 function projectionOutcome(kind, mode) {
