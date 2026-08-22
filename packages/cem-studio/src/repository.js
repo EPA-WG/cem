@@ -171,6 +171,12 @@ export class CemStudioIndexedDbRepository {
             case 'search':
                 value = await searchRepository(database, parameters(request));
                 break;
+            case 'get-provider-binding':
+                value = await getProviderBinding(database, parameters(request));
+                break;
+            case 'list-provider-bindings':
+                value = await listProviderBindings(database, stringParameter(request, 'projectId'));
+                break;
             default:
                 throw unsupportedOperation(request.operation, 'query');
         }
@@ -201,6 +207,12 @@ export class CemStudioIndexedDbRepository {
                 break;
             case 'restore-project':
                 mutation = await this.setProjectTrash(database, request, false);
+                break;
+            case 'put-provider-binding':
+                mutation = await this.putProviderBinding(database, request);
+                break;
+            case 'delete-provider-binding':
+                mutation = await this.deleteProviderBinding(database, request);
                 break;
             default:
                 throw unsupportedOperation(request.operation, 'command');
@@ -748,6 +760,127 @@ export class CemStudioIndexedDbRepository {
         );
     }
 
+    /** @param {IDBDatabase} database @param {CemStudioRepositoryRequest} request */
+    async putProviderBinding(database, request) {
+        const input = parameters(request);
+        const proposed = normalizeProviderBinding(input.binding);
+        return withTransaction(
+            database,
+            ['meta', 'projects', 'resources', 'providerBindings', 'changes'],
+            'readwrite',
+            async (transaction) => {
+                const project = await requestValue(transaction.objectStore('projects').get(proposed.projectId));
+                if (!project) {
+                    throw new CemStudioRepositoryError(
+                        'cem.studio.repository.project_not_found',
+                        `project \`${proposed.projectId}\` was not found`,
+                    );
+                }
+                assertExpectedRevision(
+                    'project',
+                    proposed.projectId,
+                    input.expectedProjectRevision,
+                    project.revision,
+                );
+                if (proposed.scope === 'resource') {
+                    const resource = await requestValue(
+                        transaction.objectStore('resources').get([proposed.projectId, proposed.resourceId]),
+                    );
+                    if (!resource) {
+                        throw new CemStudioRepositoryError(
+                            'cem.studio.repository.resource_not_found',
+                            `resource \`${proposed.resourceId}\` was not found in project \`${proposed.projectId}\``,
+                        );
+                    }
+                }
+                const bindings = transaction.objectStore('providerBindings');
+                const existing = await requestValue(bindings.get(proposed.key));
+                if (input.expectedBindingRevision !== undefined) {
+                    assertExpectedRevision(
+                        'provider binding',
+                        proposed.key,
+                        input.expectedBindingRevision,
+                        existing?.revision,
+                    );
+                } else if (existing) {
+                    throw conflict('provider binding', proposed.key, undefined, existing.revision, undefined, undefined);
+                }
+                const committedAt = this.now();
+                const binding = {
+                    ...proposed,
+                    revision: (existing?.revision ?? 0) + 1,
+                    createdAt: existing?.createdAt ?? committedAt,
+                    updatedAt: committedAt,
+                };
+                bindings.put(binding);
+                const repositoryRevision = await advanceRepositoryRevision(transaction);
+                const changeCursor = await appendChange(transaction, {
+                    repositoryRevision,
+                    projectId: binding.projectId,
+                    ...(binding.resourceId ? { resourceId: binding.resourceId } : {}),
+                    operation: 'put-provider-binding',
+                    provider: binding.provider,
+                    scope: binding.scope,
+                    bindingRevision: binding.revision,
+                    committedAt,
+                });
+                return { value: structuredClone(binding), repositoryRevision, changeCursor };
+            },
+            'strict',
+        );
+    }
+
+    /** @param {IDBDatabase} database @param {CemStudioRepositoryRequest} request */
+    async deleteProviderBinding(database, request) {
+        const input = parameters(request);
+        const key = providerBindingKey(input);
+        return withTransaction(
+            database,
+            ['meta', 'providerBindings', 'changes'],
+            'readwrite',
+            async (transaction) => {
+                const bindings = transaction.objectStore('providerBindings');
+                const existing = await requestValue(bindings.get(key));
+                if (!existing) {
+                    throw new CemStudioRepositoryError(
+                        'cem.studio.repository.provider_binding_not_found',
+                        `provider binding \`${key}\` was not found`,
+                    );
+                }
+                assertExpectedRevision(
+                    'provider binding',
+                    key,
+                    input.expectedBindingRevision,
+                    existing.revision,
+                );
+                bindings.delete(key);
+                const committedAt = this.now();
+                const repositoryRevision = await advanceRepositoryRevision(transaction);
+                const changeCursor = await appendChange(transaction, {
+                    repositoryRevision,
+                    projectId: existing.projectId,
+                    ...(existing.resourceId ? { resourceId: existing.resourceId } : {}),
+                    operation: 'delete-provider-binding',
+                    provider: existing.provider,
+                    scope: existing.scope,
+                    bindingRevision: existing.revision,
+                    committedAt,
+                });
+                return {
+                    value: {
+                        projectId: existing.projectId,
+                        scope: existing.scope,
+                        ...(existing.resourceId ? { resourceId: existing.resourceId } : {}),
+                        deletedBindingRevision: existing.revision,
+                    },
+                    repositoryRevision,
+                    changeCursor,
+                };
+            },
+            'strict',
+        );
+    }
+
     ensureBroadcastChannel() {
         if (this.channel || !this.BroadcastChannel) return;
         this.channel = new this.BroadcastChannel(`${this.databaseName}:changes`);
@@ -884,6 +1017,105 @@ async function listChanges(database, after) {
         const range = IDBKeyRange.lowerBound(after, true);
         return requestValue(transaction.objectStore('changes').getAll(range));
     });
+}
+
+/** @param {IDBDatabase} database @param {Record<string, unknown>} input */
+async function getProviderBinding(database, input) {
+    const key = providerBindingKey(input);
+    return withTransaction(database, ['providerBindings'], 'readonly', async (transaction) => {
+        const binding = await requestValue(transaction.objectStore('providerBindings').get(key));
+        return binding ? structuredClone(binding) : null;
+    });
+}
+
+/** @param {IDBDatabase} database @param {string} projectId */
+async function listProviderBindings(database, projectId) {
+    assertIdentity(projectId, 'project id');
+    return withTransaction(database, ['providerBindings'], 'readonly', async (transaction) => {
+        const bindings = await requestValue(
+            transaction.objectStore('providerBindings').index('byProject').getAll(projectId),
+        );
+        return bindings
+            .sort((left, right) => left.key.localeCompare(right.key))
+            .map((binding) => structuredClone(binding));
+    });
+}
+
+/** @param {unknown} value */
+function normalizeProviderBinding(value) {
+    if (!value || typeof value !== 'object') {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.provider_binding_invalid',
+            'put-provider-binding requires a binding object',
+        );
+    }
+    const binding = value;
+    const projectId = binding.projectId;
+    const provider = binding.provider;
+    const scope = binding.scope;
+    assertIdentity(projectId, 'provider binding project id');
+    if (provider !== 'file-system-access') {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.provider_binding_invalid',
+            'provider binding provider must be file-system-access',
+        );
+    }
+    if (scope !== 'project' && scope !== 'resource') {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.provider_binding_invalid',
+            'provider binding scope must be project or resource',
+        );
+    }
+    const resourceId = scope === 'resource' ? binding.resourceId : undefined;
+    if (scope === 'resource') assertIdentity(resourceId, 'provider binding resource id');
+    const handle = binding.handle;
+    const expectedHandleKind = scope === 'project' ? 'directory' : 'file';
+    if (!handle || typeof handle !== 'object' || handle.kind !== expectedHandleKind) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.provider_binding_handle_invalid',
+            `${scope} provider binding requires a ${expectedHandleKind} handle`,
+        );
+    }
+    const permission = binding.permission;
+    if (!['granted', 'prompt', 'denied'].includes(permission)) {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.provider_binding_permission_invalid',
+            'provider binding permission must be granted, prompt, or denied',
+        );
+    }
+    if (!binding.base || typeof binding.base !== 'object') {
+        throw new CemStudioRepositoryError(
+            'cem.studio.repository.provider_binding_base_invalid',
+            'provider binding requires a conflict-check base snapshot',
+        );
+    }
+    return {
+        key: providerBindingKey({ projectId, scope, resourceId }),
+        provider,
+        scope,
+        projectId,
+        ...(resourceId ? { resourceId } : {}),
+        handle,
+        name: typeof binding.name === 'string' && binding.name ? binding.name : handle.name,
+        permission,
+        base: structuredClone(binding.base),
+    };
+}
+
+/** @param {Record<string, unknown>} input */
+function providerBindingKey(input) {
+    const projectId = input.projectId;
+    const scope = input.scope;
+    assertIdentity(projectId, 'provider binding project id');
+    if (scope === 'project') return `file-system-access:project:${projectId}`;
+    if (scope === 'resource') {
+        assertIdentity(input.resourceId, 'provider binding resource id');
+        return `file-system-access:resource:${projectId}:${input.resourceId}`;
+    }
+    throw new CemStudioRepositoryError(
+        'cem.studio.repository.provider_binding_invalid',
+        'provider binding scope must be project or resource',
+    );
 }
 
 /** @param {IDBDatabase} database @param {Record<string, unknown>} input */

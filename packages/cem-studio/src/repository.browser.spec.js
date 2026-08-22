@@ -71,6 +71,81 @@ describe('CemStudioIndexedDbRepository', () => {
         });
     });
 
+    it('retains host-only provider bindings without leaking them into portable exports', async () => {
+        const repository = createRepository();
+        const bundle = await projectBundle('Provider source');
+        await repository.execute(command('import-project', { bundle }));
+        const stored = await repository.execute(command('put-provider-binding', {
+            expectedProjectRevision: 1,
+            binding: {
+                provider: 'file-system-access',
+                scope: 'project',
+                projectId: 'feature-tour',
+                handle: { kind: 'directory', name: 'fixture-project' },
+                name: 'fixture-project',
+                permission: 'granted',
+                base: {
+                    projectRevision: 1,
+                    manifest: { state: 'missing' },
+                    resources: [{ resourceId: 'tour-source', path: 'data/tour.cem', sha256: bundle.project.resources[0].sha256 }],
+                },
+            },
+        }));
+        expect(stored.value).toMatchObject({
+            provider: 'file-system-access',
+            scope: 'project',
+            projectId: 'feature-tour',
+            revision: 1,
+        });
+        await expect(repository.query(query('get-provider-binding', {
+            projectId: 'feature-tour',
+            scope: 'project',
+        }))).resolves.toMatchObject({ value: { handle: { kind: 'directory', name: 'fixture-project' } } });
+        await expect(repository.query(query('list-provider-bindings', {
+            projectId: 'feature-tour',
+        }))).resolves.toMatchObject({ value: [{ revision: 1 }] });
+
+        const exported = await repository.query(query('export-project', { projectId: 'feature-tour' }));
+        expect(exported.value.project).toEqual(bundle.project);
+        expect([...new Uint8Array(exported.value.contents['tour-source'])]).toEqual([
+            ...new Uint8Array(bundle.contents['tour-source']),
+        ]);
+        expect(JSON.stringify(exported.value)).not.toContain('provider');
+
+        const updated = await repository.execute(command('put-provider-binding', {
+            expectedProjectRevision: 1,
+            expectedBindingRevision: 1,
+            binding: {
+                ...stored.value,
+                permission: 'prompt',
+                base: { ...stored.value.base, projectRevision: 1 },
+            },
+        }));
+        expect(updated.value).toMatchObject({ revision: 2, permission: 'prompt' });
+        await expect(repository.execute(command('put-provider-binding', {
+            expectedProjectRevision: 1,
+            expectedBindingRevision: 1,
+            binding: updated.value,
+        }))).rejects.toMatchObject({ code: 'cem.studio.repository.revision_conflict' });
+
+        await repository.execute(command('delete-provider-binding', {
+            projectId: 'feature-tour',
+            scope: 'project',
+            expectedBindingRevision: 2,
+        }));
+        await expect(repository.query(query('get-provider-binding', {
+            projectId: 'feature-tour',
+            scope: 'project',
+        }))).resolves.toMatchObject({ value: null });
+        await expect(repository.query(query('list-changes', { after: 1 }))).resolves.toMatchObject({
+            value: [
+                expect.objectContaining({ operation: 'put-provider-binding', bindingRevision: 1 }),
+                expect.objectContaining({ operation: 'put-provider-binding', bindingRevision: 2 }),
+                expect.objectContaining({ operation: 'delete-provider-binding', bindingRevision: 2 }),
+            ],
+        });
+    });
+
     it('rejects failed validation and hash mismatches before any project write', async () => {
         const rejected = createRepository({
             validateProject: async () => {

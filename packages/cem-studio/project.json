@@ -78,6 +78,38 @@
             ],
             "outputs": []
         },
+        "test:file-system-provider": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem-elements"],
+                    "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/file-system-provider.browser.spec.js --no-file-parallelism",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/src/file-system-provider.d.ts",
+                "{projectRoot}/src/file-system-provider.browser.spec.js",
+                "{projectRoot}/src/repository.js",
+                "{projectRoot}/vitest.config.mts",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "test:shell": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -385,6 +417,7 @@
                 "lint",
                 "typecheck",
                 "test:repository",
+                "test:file-system-provider",
                 "test:feature-tour",
                 "test:shell",
                 "test:workbench",
@@ -415,6 +448,7 @@
                 "{projectRoot}/LICENSE",
                 "{projectRoot}/src/bootstrap.d.ts",
                 "{projectRoot}/src/feature-tour.d.ts",
+                "{projectRoot}/src/file-system-provider.d.ts",
                 "{projectRoot}/src/repository.d.ts",
                 "{projectRoot}/src/shell.d.ts",
                 "{projectRoot}/src/workbench.d.ts",

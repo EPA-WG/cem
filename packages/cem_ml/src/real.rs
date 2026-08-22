@@ -77,6 +77,7 @@ use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
+use crate::studio_project::{StudioProject, StudioProjectProjection, STUDIO_PROJECT_SCHEMA_URI};
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
@@ -5617,6 +5618,65 @@ fn primary_bytes_from_text_document(
     }
 }
 
+fn convert_loaded_studio_project_output(
+    project: &StudioProject,
+    export_adapter_id: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = ConvertExecutionMetadata {
+        converter_id: Some("studio-project-projection".to_owned()),
+        implementation: Some("native-studio-project".to_owned()),
+        rust_fallback: None,
+        output_pipeline: None,
+    };
+    let projection = match export_adapter_id {
+        Some("studio-project-cem") => StudioProjectProjection::Cem,
+        Some("studio-project-json") => StudioProjectProjection::Json,
+        _ => {
+            diagnostics.push(Diagnostic {
+                code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
+                severity: Severity::Fatal,
+                message: "Studio project lifecycle input requires an exact Studio project projection target"
+                    .to_owned(),
+                details: Some(json!({
+                    "lifecycle": {
+                        "adapterId": "studio-project",
+                        "operation": "export",
+                        "targetAdapterId": export_adapter_id,
+                    }
+                })),
+                ..Diagnostic::default()
+            });
+            return (Value::Null, None, metadata);
+        }
+    };
+    let content = match project.serialize(projection) {
+        Ok(content) => content,
+        Err(error) => {
+            diagnostics.push(Diagnostic {
+                code: error.code.to_owned(),
+                severity: Severity::Fatal,
+                message: error.message,
+                details: Some(json!({ "fieldPath": error.field_path })),
+                ..Diagnostic::default()
+            });
+            return (Value::Null, None, metadata);
+        }
+    };
+    let primary_bytes = primary_bytes_from_text_document(
+        &content,
+        projection.content_type(),
+        STUDIO_PROJECT_SCHEMA_URI,
+    );
+    let primary = json!({
+        "kind": "document",
+        "contentType": primary_bytes.content_type.clone(),
+        "schema": STUDIO_PROJECT_SCHEMA_URI,
+        "hash": primary_bytes.hash.clone(),
+    });
+    (primary, Some(primary_bytes), metadata)
+}
+
 fn primary_bytes_from_binary_artifact(
     artifact: &projection::BinaryProjectionArtifact,
 ) -> PrimaryBytes {
@@ -10289,6 +10349,31 @@ impl CemMlEngine for RealCemMlEngine {
             let export_adapter_id = export.adapter_id;
             if let Some(ast_stream) = loaded.ast_stream.take() {
                 match ast_stream {
+                    LoadedInputAstStream::StudioProject(project) => {
+                        if diagnostics
+                            .iter()
+                            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                        {
+                            primary = Some(Value::Null);
+                            conversion = Some(ConvertExecutionMetadata {
+                                converter_id: Some("studio-project-projection".to_owned()),
+                                implementation: Some("native-studio-project".to_owned()),
+                                rust_fallback: None,
+                                output_pipeline: None,
+                            });
+                            return;
+                        }
+                        let (project_primary, project_bytes, project_conversion) =
+                            convert_loaded_studio_project_output(
+                                &project,
+                                export_adapter_id,
+                                &mut diagnostics,
+                            );
+                        primary = Some(project_primary);
+                        primary_bytes = project_bytes;
+                        conversion = Some(project_conversion);
+                        return;
+                    }
                     LoadedInputAstStream::CssSelectorExpression(_) => {
                         // CSS selector query expressions require an explicit registered converter.
                     }

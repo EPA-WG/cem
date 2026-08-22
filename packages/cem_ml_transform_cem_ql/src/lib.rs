@@ -6178,6 +6178,7 @@ fn lifecycle_representation_name(stream: &LoadedInputAstStream) -> &'static str 
         LoadedInputAstStream::XPathExpression(_) => "xpath-expression",
         LoadedInputAstStream::XsltStylesheet(_) => "xslt-stylesheet",
         LoadedInputAstStream::RelaxNgDocument(_) => "relax-ng-document",
+        LoadedInputAstStream::StudioProject(_) => "studio-project",
     }
 }
 

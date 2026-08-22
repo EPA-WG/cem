@@ -31,7 +31,7 @@ use crate::schema::registry::{
     XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
     YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
-use crate::studio_project::parse_studio_project;
+use crate::studio_project::{parse_studio_project, StudioProject};
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::css::{
     css_document_ast_from_source_bytes, validate_css_document_ast, CssDocumentAst,
@@ -144,6 +144,7 @@ pub enum LoadedInputAstStream {
     XPathExpression(XPathExpressionAst),
     XsltStylesheet(XsltStylesheetAst),
     RelaxNgDocument(RelaxNgDocumentAst),
+    StudioProject(StudioProject),
 }
 
 #[derive(Debug, Clone)]
@@ -210,6 +211,8 @@ impl LifecycleRegistry {
         registry.register(JsonSchemaAdapter);
         registry.register(CliCommandAdapter);
         registry.register(StudioProjectAdapter);
+        registry.register(StudioProjectCemExportAdapter);
+        registry.register(StudioProjectJsonExportAdapter);
         registry.register(JsonAdapter);
         registry.register(MarkdownAdapter);
         registry.register(CustomElementXsltCompatAdapter);
@@ -1510,10 +1513,15 @@ impl LifecycleAdapter for StudioProjectAdapter {
             .as_deref()
             .or(input.root_scope.default_content_type.as_deref())
             .unwrap_or(STUDIO_PROJECT_CEM_CONTENT_TYPE);
-        let diagnostics =
-            parse_studio_project(&input.bytes, content_type, STUDIO_PROJECT_SCHEMA_URI)
-                .err()
-                .map(|error| Diagnostic {
+        let parsed = parse_studio_project(&input.bytes, content_type, STUDIO_PROJECT_SCHEMA_URI);
+        let (ast_stream, diagnostics) = match parsed {
+            Ok(project) => (
+                Some(LoadedInputAstStream::StudioProject(project)),
+                Vec::new(),
+            ),
+            Err(error) => (
+                None,
+                vec![Diagnostic {
                     uri: Some(input.uri.clone()),
                     code: error.code.to_owned(),
                     severity: Severity::Error,
@@ -1527,13 +1535,13 @@ impl LifecycleAdapter for StudioProjectAdapter {
                         },
                     })),
                     ..Diagnostic::default()
-                })
-                .into_iter()
-                .collect();
+                }],
+            ),
+        };
         LoadedInput {
             bytes: input.bytes.clone(),
             from_format: input.from_format.unwrap_or(InputFormat::Cem),
-            ast_stream: None,
+            ast_stream,
             diagnostics,
             adapter_id: Some(self.id()),
         }
@@ -1553,6 +1561,75 @@ fn matches_studio_project_identity(identity: &FormatIdentity) -> bool {
         ) && (identity.schema.is_none() || explicit_schema_matches);
     }
     explicit_schema_matches
+}
+
+struct StudioProjectCemExportAdapter;
+
+impl LifecycleAdapter for StudioProjectCemExportAdapter {
+    fn id(&self) -> &'static str {
+        "studio-project-cem"
+    }
+
+    fn matches_input(&self, _: &FormatIdentity) -> bool {
+        false
+    }
+
+    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
+        passthrough_load(input, InputFormat::Cem, None)
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_studio_project_target(identity, STUDIO_PROJECT_CEM_CONTENT_TYPE, true)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Cem)
+    }
+}
+
+struct StudioProjectJsonExportAdapter;
+
+impl LifecycleAdapter for StudioProjectJsonExportAdapter {
+    fn id(&self) -> &'static str {
+        "studio-project-json"
+    }
+
+    fn matches_input(&self, _: &FormatIdentity) -> bool {
+        false
+    }
+
+    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
+        passthrough_load(input, InputFormat::Cem, None)
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_studio_project_target(identity, STUDIO_PROJECT_JSON_CONTENT_TYPE, false)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Json)
+    }
+}
+
+fn matches_studio_project_target(
+    identity: &FormatIdentity,
+    content_type: &str,
+    allow_schema_only: bool,
+) -> bool {
+    let schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .filter(|schema| !schema.is_empty())
+        .map(|schema| schema == STUDIO_PROJECT_SCHEMA_URI)
+        .unwrap_or(true);
+    if !schema_matches {
+        return false;
+    }
+    match identity.content_type.as_deref().map(content_type_essence) {
+        Some(value) => value == content_type,
+        None => allow_schema_only && identity.schema.is_some(),
+    }
 }
 
 impl LifecycleAdapter for JsonAdapter {
@@ -2292,6 +2369,31 @@ mod tests {
             invalid.diagnostics[0].code,
             "cem.studio_project.schema_version_unsupported"
         );
+    }
+
+    #[test]
+    fn builtins_select_exact_studio_project_projection_targets() {
+        let registry = LifecycleRegistry::with_builtin_adapters();
+        for (content_type, expected_format) in [
+            (STUDIO_PROJECT_CEM_CONTENT_TYPE, LayerFormat::Cem),
+            (STUDIO_PROJECT_JSON_CONTENT_TYPE, LayerFormat::Json),
+        ] {
+            let selection = registry.select_export(
+                Some(&FormatIdentity {
+                    content_type: Some(content_type.to_owned()),
+                    schema: Some(STUDIO_PROJECT_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                LayerFormat::DomJson,
+            );
+            assert!(
+                selection.diagnostics.is_empty(),
+                "{content_type}: {:?}",
+                selection.diagnostics
+            );
+            assert_eq!(selection.to_format, expected_format, "{content_type}");
+            assert!(selection.adapter_id.is_some(), "{content_type}");
+        }
     }
 
     #[test]

@@ -51,6 +51,7 @@ export {
 export {
     CEM_STUDIO_FEATURE_TOUR_COPY_ID,
     CEM_STUDIO_FEATURE_TOUR_SEED_ID,
+    CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE,
     CEM_STUDIO_PROJECT_CONTENT_TYPE,
     CEM_STUDIO_PROJECT_SCHEMA,
     createCemStudioBrowserValidator,
@@ -59,7 +60,17 @@ export {
     loadCemStudioFeatureTour,
 } from './feature-tour.js';
 export {
+    CEM_STUDIO_FILE_SYSTEM_PROVIDER_ID,
+    CEM_STUDIO_PROJECT_BUNDLE_CONTENT_TYPE,
+    CEM_STUDIO_PROJECT_MANIFEST,
+    CemStudioFileSystemError,
+    createCemStudioFileSystemProvider,
+    parseCemStudioProjectBundle,
+    serializeCemStudioProjectBundle,
+} from './file-system-provider.js';
+export {
     CEM_STUDIO_THEME_MODES,
+    createCemStudioFileSystemController,
     createCemStudioInstallController,
     createCemStudioThemeController,
     createCemStudioUpdateCoordinator,

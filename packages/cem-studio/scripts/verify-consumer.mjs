@@ -58,6 +58,7 @@ try {
         'dist/static/cache-inventory.json',
         'dist/static/assets/@epa-wg/cem-studio/bootstrap.js',
         'dist/static/assets/@epa-wg/cem-studio/repository.js',
+        'dist/static/assets/@epa-wg/cem-studio/file-system-provider.js',
         'dist/static/assets/@epa-wg/cem-studio/feature-tour.js',
         'dist/static/assets/@epa-wg/cem-studio/workbench.js',
         'dist/static/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js',
@@ -66,6 +67,7 @@ try {
         'dist/static/assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css',
         'src/bootstrap.d.ts',
         'src/feature-tour.d.ts',
+        'src/file-system-provider.d.ts',
         'src/repository.d.ts',
         'src/workbench.d.ts',
     ]) {
@@ -79,18 +81,19 @@ try {
   mountCemStudio,
   registerCemStudioServiceWorker,
   createCemStudioProjectRepository,
+  createCemStudioFileSystemProvider,
   installCemStudioFeatureTour,
   createCemStudioFeatureTourWorkbench,
 } from '@epa-wg/cem-studio';
 
 console.log(JSON.stringify({
-  exports: [loadCemMlBrowser, mountCemStudio, registerCemStudioServiceWorker, createCemStudioProjectRepository, installCemStudioFeatureTour, createCemStudioFeatureTourWorkbench].map((value) => typeof value),
+  exports: [loadCemMlBrowser, mountCemStudio, registerCemStudioServiceWorker, createCemStudioProjectRepository, createCemStudioFileSystemProvider, installCemStudioFeatureTour, createCemStudioFeatureTourWorkbench].map((value) => typeof value),
   navigatorPresent: 'navigator' in globalThis,
 }));
 `,
     );
     const probe = JSON.parse(capture(process.execPath, ['probe.mjs']));
-    assert.deepEqual(probe.exports, ['function', 'function', 'function', 'function', 'function', 'function']);
+    assert.deepEqual(probe.exports, ['function', 'function', 'function', 'function', 'function', 'function', 'function']);
 
     const report = {
         schemaVersion: 1,

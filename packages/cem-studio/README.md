@@ -5,10 +5,11 @@ static deployment. Nx schedules its prerequisites and verification; the native
 CEM-ML CLI transformation graph is the final production assembler.
 
 The package includes the typed bootstrap/deployment boundary, installable
-component shell, versioned local project repository, and graph-owned offline
-deployment. The project-backed workbench executes parse, inspect, conversion,
-query, direct transformation, trace, and transformation-graph commands through
-the same browser worker and exact-revision repository boundary.
+component shell, versioned local project repository, opt-in File System Access
+provider, and graph-owned offline deployment. The project-backed workbench
+executes parse, inspect, conversion, query, direct transformation, trace, and
+transformation-graph commands through the same browser worker and exact-revision
+repository boundary.
 
 ## Package surfaces
 
@@ -19,6 +20,10 @@ the same browser worker and exact-revision repository boundary.
   importing the application bootstrap. A CEM-ML project validator is mandatory;
   import validation completes before a write transaction, and export validation
   rechecks the normalized project and every resource hash.
+- `@epa-wg/cem-studio/file-system-provider` exposes the optional local file and
+  portable-project directory adapter plus its deterministic import/export
+  archive codec. It never prompts on status or background work; picker and
+  retained-handle permission requests require an explicit caller action.
 - `@epa-wg/cem-studio/shell` exposes the production CEM-component shell, five
   theme modes, browser install state, and explicit safe-update coordinator.
 - `@epa-wg/cem-studio/manifest.webmanifest` exposes the generated application
@@ -57,11 +62,23 @@ after an offline reload.
 Search and storage status render through CEM components when the workbench shell
 is composed; persistence does not introduce application-local visible controls.
 
+File and directory handles are structured-cloned into host-only
+`providerBindings`, restored across repository reopen, and excluded from every
+portable export. Pull and write-back compare the retained SHA-256 base with both
+the IndexedDB revision and current external bytes before changing either side.
+Directory save preflights all declared files, closes and verifies every staged
+write, and only then advances the retained base. The browser API has no
+cross-file transaction, so a failed multi-file close leaves the binding base
+unchanged and requires review/reopen instead of claiming an atomic directory
+commit. Unsupported or denied access leaves IndexedDB fully usable and exposes
+the same validated deterministic project archive for upload/download recovery.
+
 ## Build and verification
 
 ```bash
 yarn nx run @epa-wg/cem-studio:build
 yarn nx run @epa-wg/cem-studio:test:repository
+yarn nx run @epa-wg/cem-studio:test:file-system-provider
 yarn nx run @epa-wg/cem-studio:test:shell
 yarn nx run @epa-wg/cem-studio:check
 ```

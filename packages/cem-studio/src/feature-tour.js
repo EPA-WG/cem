@@ -1,5 +1,6 @@
 export const CEM_STUDIO_FEATURE_TOUR_SEED_ID = 'cem-ml-feature-tour-seed';
 export const CEM_STUDIO_FEATURE_TOUR_COPY_ID = 'feature-tour';
+export const CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE = 'application/vnd.cem.studio-project+cem';
 export const CEM_STUDIO_PROJECT_CONTENT_TYPE = 'application/vnd.cem.studio-project+json';
 export const CEM_STUDIO_PROJECT_SCHEMA = 'https://cem.dev/ns/studio/project/1';
 
@@ -242,6 +243,30 @@ export async function createCemStudioBrowserValidator() {
         });
     };
 
+    const convertProjectManifest = async (bytes, fromContentType, toContentType, signal) => {
+        const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        const outcome = await executeResourceCommand({
+            operation: 'convert',
+            argv: (inputResourceUri) => [
+                'convert',
+                inputResourceUri,
+                '--content-type',
+                fromContentType,
+                '--schema',
+                CEM_STUDIO_PROJECT_SCHEMA,
+                '--to-content-type',
+                toContentType,
+                '--to-schema',
+                CEM_STUDIO_PROJECT_SCHEMA,
+            ],
+            bytes: source,
+            uri: fromContentType === CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE ? 'project.cem' : 'project.json',
+            signal,
+            readOutput: true,
+        });
+        return new Uint8Array(outcome.output.bytes);
+    };
+
     const previewResourceCommand = async (options) => {
         const inputResourceUri = resourceUri(
             options.uri ?? 'input.cem',
@@ -312,6 +337,23 @@ export async function createCemStudioBrowserValidator() {
         previewResourceCommand,
         serializeResourceCommand,
         validateResource,
+        async decodeProjectManifest(bytes, { signal } = {}) {
+            const converted = await convertProjectManifest(
+                bytes,
+                CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE,
+                CEM_STUDIO_PROJECT_CONTENT_TYPE,
+                signal,
+            );
+            return JSON.parse(new TextDecoder().decode(converted));
+        },
+        async encodeProjectManifest(project, { signal } = {}) {
+            return convertProjectManifest(
+                new TextEncoder().encode(`${JSON.stringify(project)}\n`),
+                CEM_STUDIO_PROJECT_CONTENT_TYPE,
+                CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE,
+                signal,
+            );
+        },
         async validateProject(bundle, { signal } = {}) {
             if (!bundle?.project) throw new TypeError('CEM Studio project bundle is missing project metadata');
             await validateResource({

@@ -161,6 +161,10 @@ assert.match(serviceWorker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
 assert.equal(packageMetadata.exports['.'].import, './dist/static/assets/@epa-wg/cem-studio/bootstrap.js');
 assert.equal(packageMetadata.exports['./shell'].import, './dist/static/assets/@epa-wg/cem-studio/shell.js');
 assert.equal(
+    packageMetadata.exports['./file-system-provider'].import,
+    './dist/static/assets/@epa-wg/cem-studio/file-system-provider.js',
+);
+assert.equal(
     packageMetadata.exports['./feature-tour'].import,
     './dist/static/assets/@epa-wg/cem-studio/feature-tour.js',
 );

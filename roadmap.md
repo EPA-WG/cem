@@ -544,13 +544,13 @@ Deliverables:
 - Keep account-backed S3, NoSQL, Git repository, and GitHub Gist storage behind one revisioned provider contract as a
   post-local-MVP wishlist.
 
-Progress: **publishable package, graph-owned bootstrap, UI ownership
-classification, general tabs, the versioned local project repository, and its
-read-only CEM resource projection complete (2026-08-21).**
+Progress: **publishable package, graph-owned offline workbench, UI ownership,
+versioned local repository, portable operation matrix, and opt-in local-file
+provider complete (2026-08-22).**
 `@epa-wg/cem-studio` participates in the fixed-version CEM-ML platform group,
 resolves one exact CLI-to-runtime chain, and packages its static bootstrap
-as a deterministic 62-file output entirely through the CEM-ML transformation
-graph. The executable UI
+as a deterministic 148-file, 61-declared-asset output entirely through the
+CEM-ML transformation graph. The executable UI
 classification assigns all 23 initial shell/workbench behaviors to general CEM
 controls, seven future reusable `/studio` composites, or Studio application
 orchestration. The completed `cem-tabs`/`cem-tab` Material-parity contract opens
@@ -563,8 +563,13 @@ and `storage-status` resources now project clone-safe lifecycle envelopes into
 CEM data slices through a capability-narrowed reader, abort superseded work,
 reject stale completions, follow durable cursors, and release subscriptions
 without exposing repository mutation or storage-persistence authority. The
-service worker and cache inventory remain bootstrap-only; the next work item is
-the installable offline PWA shell.
+installable shell, service worker, dedicated browser command worker, generated
+Feature Tour, and five portable-operation workbenches are verified online and
+offline. The File System Access provider retains file/directory handles only in
+host-owned bindings, uses explicit permission actions, detects external changes
+before write-back, and falls back to IndexedDB plus a deterministic validated
+import/export archive. The next work item is the final bounded-preview,
+accessibility, offline/update/security, and release-evidence closure gate.
 
 Exit criteria:
 

@@ -20,6 +20,11 @@
             "import": "./dist/static/assets/@epa-wg/cem-studio/repository.js",
             "default": "./dist/static/assets/@epa-wg/cem-studio/repository.js"
         },
+        "./file-system-provider": {
+            "types": "./src/file-system-provider.d.ts",
+            "import": "./dist/static/assets/@epa-wg/cem-studio/file-system-provider.js",
+            "default": "./dist/static/assets/@epa-wg/cem-studio/file-system-provider.js"
+        },
         "./feature-tour": {
             "types": "./src/feature-tour.d.ts",
             "import": "./dist/static/assets/@epa-wg/cem-studio/feature-tour.js",
@@ -43,6 +48,7 @@
         "dist",
         "src/bootstrap.d.ts",
         "src/feature-tour.d.ts",
+        "src/file-system-provider.d.ts",
         "src/repository.d.ts",
         "src/shell.d.ts",
         "src/workbench.d.ts",

@@ -1419,9 +1419,44 @@ including search, is composed from `@epa-wg/cem-components` and
       repository and eleven workbench Chromium tests pass; the 43-task Studio
       check proves the real worker online and offline, deterministic 60-asset,
       147-file output, package verification, and a clean consumer install.
-- [ ] Add the opt-in File System Access provider with explicit permissions,
+- [x] Add the opt-in File System Access provider with explicit permissions,
       retained provider bindings, external-change detection, conflict-safe
       write-back, and complete IndexedDB/import-export fallback.
+    - [x] Fixture: persist file and directory handles only in host-owned
+          `providerBindings`, restore them without exporting provider state, and
+          journal binding changes through the repository protocol.
+    - [x] Fixture: open a project resource or portable project directory through
+          explicit picker/permission actions, retain `studio://` identities,
+          create declared files, and import exact external bytes into IndexedDB.
+    - [x] Fixture: detect external hash/revision changes before pull or
+          write-back, reject stale writes without truncating files, and advance
+          the retained base snapshot only after every staged write succeeds.
+    - [x] Fixture: compose provider availability, permission, reconnect,
+          conflict, import, and export fallback states from production CEM
+          controls and prove them in Chromium with unsupported/denied recovery.
+    - [x] Fixture: verify the provider export, deterministic static deployment,
+          package surface, and clean consumer without adding filesystem access
+          to a worker or silently prompting outside explicit user actions.
+    - Completed 2026-08-22: the public File System Access provider now opens or
+      binds resource/file-directory handles only from explicit CEM actions,
+      retains structured-clone handles and exact revision/hash bases in
+      journaled host-only `providerBindings`, and restores them across IndexedDB
+      reopen without leaking provider state into portable exports. Native
+      Studio-project lifecycle adapters perform exact CEM/JSON manifest
+      projection; directory import preserves `studio://` identities and exact
+      external bytes. Resource and directory write-back preflight external
+      hashes, reject stale writes before truncation, verify closed bytes, and
+      advance the base only after every staged write succeeds. Unsupported and
+      denied states keep IndexedDB active and expose a deterministic validated
+      archive whose SHA-256 matched online/offline
+      (`172f9dc59e2bda140e14038d317b20c30de8b299fd337b3099d838311d9d5374`).
+      Three provider, thirteen repository, five shell, two Feature Tour, and
+      eleven workbench Chromium tests passed. The 44-target Studio check also
+      passed lint/typecheck, 61 declared graph assets and 148 deterministic
+      files (`9e4436c6060167321267ea2d783bc24fd914a13b0f6011b3a303f13f8499deca`),
+      offline worker/fallback verification, package assembly, dependency/UI
+      audits, and a clean consumer install. The native Studio-project schema
+      verifier passed ten contract tests plus its package-structure audit.
 - [ ] Close Phase 6.5 with bounded/sandboxed previews, source/result limits,
       accessibility and forced-color coverage, offline/update/security tests,
       package/install verification, dependency audit, and synchronized release

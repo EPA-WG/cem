@@ -32,6 +32,10 @@
                 "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
             }
         },
+        "@epa-wg/cem-studio/file-system-provider": {
+            "path": "../src/file-system-provider.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-studio/feature-tour": {
             "path": "../src/feature-tour.js",
             "contentType": "text/javascript",

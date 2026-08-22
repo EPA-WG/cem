@@ -10,7 +10,9 @@ also accepted: IndexedDB remains a Studio application repository behind a
 generic `cem-elements` host capability, while visible search and AI states are
 composed entirely from CEM controls. The read-only `repository-query` and
 `storage-status` resource boundary was implemented and browser-verified on
-2026-08-21.
+2026-08-21. The opt-in File System Access provider, retained handle bindings,
+external-conflict protection, and validated import/export fallback were
+implemented and browser-verified on 2026-08-22.
 
 The Phase 2.5 deployment, version, platform, capability, signing, and host-wire
 decisions are canonical in
@@ -52,6 +54,8 @@ The recommended product shape is:
 - validation, data, result, report, source-map, and graph previews;
 - local-first persistence in IndexedDB, with import/export as the user's durable
   backup boundary;
+- opt-in individual-file and portable-directory access through retained browser
+  handles, with explicit permissions and conflict-safe write-back;
 - UI built from light-DOM `@epa-wg/cem-components`, with Studio-specific
   components published from `@epa-wg/cem-components/studio`;
 - Consumer Semantic Theming supplied by `@epa-wg/cem-theme`;
@@ -124,6 +128,19 @@ operation selection, exact source/output, identity and execution metadata,
 expected-result comparison, trace and graph overlays, and explicit copy/download
 actions. Real Chromium executes all five online and repeats byte-identical
 results after offline reload.
+
+The local-file provider now opens an individual project resource or a portable
+directory only from explicit production CEM actions. It stores structured-clone
+file/directory handles and their revision/hash base snapshots in host-only
+`providerBindings`, never in the project model or export. Retained permission is
+queried without prompting; reconnect calls `requestPermission()` only when the
+user activates the reconnect action. Native CEM-ML conversion owns exact
+`project.cem` and normalized JSON projection, while the repository remains the
+validation and transactional import authority. Resource and directory writes
+compare current external SHA-256 snapshots before opening a writable, verify
+the bytes after close, and advance the binding base only after all declared
+writes succeed. Unsupported or denied access keeps the IndexedDB working copy
+available and exposes a deterministic, validated download/upload archive.
 
 ## Goals
 
@@ -1116,7 +1133,8 @@ API.
 | IndexedDB                  | Canonical local working store for projects, records, source text, blobs, reports, and migration metadata. | Asynchronous, transactional, indexed, and intended for significant structured data/files ([MDN IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)).                                                              |
 | `localStorage`             | Tiny preferences only: last workspace id, theme mode, pane preference, dismissed update notice.           | Synchronous operations block JavaScript and Web Storage is size-limited ([MDN Web Storage](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API)).                                                                           |
 | Cache Storage              | Versioned app shell, WASM, bundled capability catalog, and immutable sample assets.                       | Service-worker/offline asset cache, not a transactional project database.                                                                                                                                                                |
-| Origin Private File System | Optional later cache for very large blobs or engine scratch data.                                         | Fast worker-oriented storage, but origin-private, quota-bound, and invisible to the user; it is not backup or Git integration ([MDN OPFS](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)). |
+| Origin Private File System | Test/cache substrate for large private blobs or engine scratch data; never the user's portable owner.                 | Fast worker-oriented storage, but origin-private, quota-bound, and invisible to the user; it is not backup or Git integration ([MDN OPFS](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)). |
+| File System Access handles | Optional user-selected file/directory provider; only the handles and conflict base live in `providerBindings`.        | Direct write-back in supporting secure browsers, but permission can return to `prompt` and there is no cross-file transaction; IndexedDB plus import/export remains required.                                                                  |
 
 The accepted IndexedDB stores are `meta`, `projects`, `entries`, `resources`,
 `blobs`, `runs`, `resultSnapshots`, `providerBindings`, `syncQueue`, `trash`,
@@ -1125,6 +1143,54 @@ the accepted portable `project`/`entry` vocabulary; IndexedDB does not introduce
 parallel `workspace`/`node` domain names. Schema upgrades must be versioned,
 transactional, tested against old fixtures, and recoverable by export when
 migration fails.
+
+### File System Access Provider
+
+`@epa-wg/cem-studio/file-system-provider` is an optional host adapter over the
+repository, not a second project model. It supports two retained binding scopes:
+a file handle for one existing resource and a directory handle for a complete
+portable project. Bindings record the handle, scope, display name, optimistic
+binding revision, exact project/resource revision, local hash, and external hash
+snapshot. Repository binding writes use the current project and binding
+revisions, append to the durable `changes` journal, and remain excluded from
+`export-project`.
+
+Opening a file, selecting a directory, and requesting a retained handle's
+permission are explicit user actions. Passive status and background reconnect
+only call `queryPermission()` and surface `ready`, `prompt-permission`,
+`denied-permission`, `unbound`, or `unsupported`; they never silently escalate.
+The visible shell uses production `cem-action`, `cem-badge`, and `cem-alert`
+components for open, bind, reconnect, save-back, import, export, conflict, and
+fallback states. No filesystem capability is passed to the CEM-ML worker.
+
+A portable directory owns `project.cem` plus every normalized, contained
+resource path, including the retained local snapshot for a URL-backed resource.
+The browser command service converts the manifest through the native
+Studio-project lifecycle adapters, and repository import performs the same
+schema and resource-hash validation used by every other import. The provider
+retains `studio://` root/resource identity and rejects absolute, escaping,
+empty, or reserved `.cem-studio/` paths. Missing declared files may be created
+during explicit write-back; writing a URL snapshot does not fetch or claim that
+the remote resource is current.
+
+Before a resource write, the provider compares the current external SHA-256
+with the retained base and refuses a stale write before calling
+`createWritable()`. Directory write-back performs the same preflight for the
+manifest and every declared resource, opens/stages all writables, closes them,
+rereads every file, and advances the binding snapshot only after exact hashes
+verify. The File System Access API does not provide one atomic transaction over
+multiple files: a close failure can leave a subset externally replaced. In that
+case the IndexedDB project and old binding base remain authoritative, so the
+next operation detects the difference and requires review/reopen instead of
+silently accepting a partial save.
+
+When the API is missing or permission is denied, Studio continues to edit and
+autosave in IndexedDB. Import/export uses a deterministic
+`application/vnd.cem.studio-project-bundle+json` envelope containing the same
+normalized project and exact base64 resource bytes. This is a lossless archive
+of the accepted portable tree, not alternate project semantics; import routes
+back through the repository validator, and provider handles/bases never enter
+the archive.
 
 Browser storage is best-effort by default and quotas/eviction differ by browser.
 Studio should display `navigator.storage.estimate()`, request
@@ -1222,8 +1288,8 @@ Store responsibilities are:
 | `blobs`            | Content-addressed source/result bytes keyed by SHA-256; bounded maintenance reclaims unreachable blobs.              |
 | `runs`             | Bounded command run metadata and provenance.                                                                         |
 | `resultSnapshots`  | Bounded immutable run outputs referenced by run identity.                                                            |
-| `providerBindings` | Host-only file/provider bindings; never exported into the portable project.                                          |
-| `syncQueue`        | Future idempotent provider outbox with base revisions; unused until a provider contract is promoted.                 |
+| `providerBindings` | Active host-only File System Access handles and conflict bases; revisioned/journaled, never exported.                |
+| `syncQueue`        | Future idempotent remote-provider outbox with base revisions; local file write-back does not use it.                 |
 | `trash`            | Tombstones, retention metadata, and restore identity; purge and blob collection are separate maintenance operations. |
 | `changes`          | Durable monotonic commit journal used for subscriptions, multi-tab invalidation, and derived-index recovery.         |
 | `searchDocuments`  | Rebuildable normalized search documents keyed to exact source revisions; never project authority.                    |
@@ -1513,9 +1579,9 @@ and transient run output do not belong in the portable manifest.
 
 The portable tree has `project.cem` at its root. Resource paths must be
 normalized, relative, contained by the project root, and outside the reserved
-`.cem-studio/` provider-state directory. A ZIP or other downloadable bundle is
-only a lossless archive of this tree and cannot add an alternate manifest or
-semantic model.
+`.cem-studio/` provider-state directory. The implemented deterministic JSON
+download envelope, or any future ZIP projection, is only a lossless archive of
+this tree and cannot add an alternate manifest or semantic model.
 
 ### Deployment Format Matrix
 

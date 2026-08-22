@@ -2,13 +2,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
     CEM_STUDIO_FEATURE_TOUR_SEED_ID,
+    createCemStudioBrowserValidator,
     installCemStudioFeatureTour,
 } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
 
 const repositories = [];
+const validators = [];
 
 afterEach(async () => {
+    await Promise.all(validators.splice(0).map((validator) => validator.close()));
     await Promise.all(repositories.splice(0).map(async (repository) => {
         repository.close();
         await repository.deleteDatabase();
@@ -16,6 +19,37 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('uses the real CEM-ML converter for canonical project.cem provider round trips', async () => {
+        const validator = await createCemStudioBrowserValidator();
+        validators.push(validator);
+        const source = new TextEncoder().encode(`@doc cem-ml 1
+@ns studio = "https://cem.dev/ns/studio/project/1"
+@default studio
+
+{project
+    @schema-version=1
+    @id="file-project"
+    @name="File project"
+    @root-uri="studio://file-project/"
+    @revision=1
+    @created-at="2026-08-22T00:00:00Z"
+    @updated-at="2026-08-22T00:00:00Z"
+}
+`);
+
+        const project = await validator.decodeProjectManifest(source);
+        expect(project).toMatchObject({
+            $schema: 'https://cem.dev/ns/studio/project/1',
+            id: 'file-project',
+            rootUri: 'studio://file-project/',
+            entries: [],
+            resources: [],
+        });
+        const encoded = await validator.encodeProjectManifest(project);
+        expect(new TextDecoder().decode(encoded)).toContain('@id=file-project');
+        await expect(validator.decodeProjectManifest(encoded)).resolves.toEqual(project);
+    });
+
     it('preserves an edited or trashed copy across seed upgrades and resets to a separate identity', async () => {
         const repository = createRepository();
         const first = await installCemStudioFeatureTour(repository, await seed('1.0.0', 'original'), {

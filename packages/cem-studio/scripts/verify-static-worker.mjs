@@ -77,6 +77,8 @@ try {
     assert.equal(shell.theme, 'cem-theme-contrast-dark');
     assert.equal(shell.controlsOnly, true);
     assert.equal(shell.componentsInstalled, true);
+    assert.equal(shell.fileSystemControlsInstalled, true);
+    assert.ok(['unbound', 'unsupported'].includes(shell.fileSystemState));
     console.log('[cem-studio:static-worker] shell verified');
 
     const caches = await page.evaluate(() => globalThis.caches.keys());
@@ -182,6 +184,12 @@ try {
 
     const stored = await importOfflineProject(page);
     assert.equal(stored.repositoryRevision, 3);
+    const onlineFileSystemFallback = await exerciseFileSystemFallback(page, 'offline-project');
+    assert.equal(onlineFileSystemFallback.projectId, 'offline-project');
+    assert.equal(onlineFileSystemFallback.exactContent, true);
+    assert.equal(onlineFileSystemFallback.providerStateExcluded, true);
+    assert.equal(onlineFileSystemFallback.importedExact, true);
+    assert.equal(onlineFileSystemFallback.contentType, 'application/vnd.cem.studio-project-bundle+json');
     const onlineOfflineProjectProjections = await projectOfflineResource(page);
     assert.equal(onlineOfflineProjectProjections.parse.status, 'projected');
     assert.equal(onlineOfflineProjectProjections.inspect.status, 'projected');
@@ -230,6 +238,9 @@ try {
     assert.equal(offline.exitCode, 0);
     assert.equal(offline.runtime, 'wasm-browser-worker');
     assert.equal(offline.executorTopology, 'browser-worker-pool');
+    const offlineFileSystemFallback = await exerciseFileSystemFallback(page, 'offline-project');
+    assert.equal(offlineFileSystemFallback.sha256, onlineFileSystemFallback.sha256);
+    assert.equal(offlineFileSystemFallback.importedExact, true);
     assert.deepEqual(browserErrors, []);
     assert.deepEqual(httpFailures, []);
 
@@ -247,6 +258,7 @@ try {
         commandApply,
         portableOperations,
         onlineOfflineProjectProjections,
+        onlineFileSystemFallback,
         recoveredWorkbench,
         recoveredCommandView,
         recoveredPortableOperations,
@@ -254,6 +266,7 @@ try {
         offlineNavigation: '/projects/offline-project',
         online,
         offline,
+        offlineFileSystemFallback,
     };
     await mkdir(dirname(reportPath), { recursive: true });
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
@@ -768,8 +781,73 @@ async function inspectShell(page) {
                 && document.querySelector('cem-textarea .cem-textarea__control')
                 && document.querySelector('cem-tabs [role="tablist"]')
             ),
+            fileSystemState: application.shell.fileSystem.status().state,
+            fileSystemControlsInstalled: Boolean(
+                document.querySelector('cem-action[data-cem-studio-open-project] button')
+                && document.querySelector('cem-action[data-cem-studio-provider-reconnect] button')
+                && document.querySelector('cem-action[data-cem-studio-provider-write] button')
+                && document.querySelector('cem-action[data-cem-studio-import-fallback] button')
+                && document.querySelector('cem-action[data-cem-studio-export-fallback] button')
+                && document.querySelector('[data-cem-studio-provider-alert]')
+            ),
         };
     });
+}
+
+async function exerciseFileSystemFallback(page, projectId) {
+    return page.evaluate(async (id) => {
+        const application = globalThis.__cemStudioApplication;
+        const [{
+            CEM_STUDIO_PROJECT_BUNDLE_CONTENT_TYPE,
+            createCemStudioFileSystemProvider,
+            parseCemStudioProjectBundle,
+        }, { createCemStudioProjectRepository }] = await Promise.all([
+            import('@epa-wg/cem-studio/file-system-provider'),
+            import('@epa-wg/cem-studio/repository'),
+        ]);
+        const fallback = await application.fileSystemProvider.exportFallback({ projectId: id });
+        const decoded = parseCemStudioProjectBundle(fallback.archive.bytes);
+        const digest = await crypto.subtle.digest('SHA-256', fallback.archive.bytes);
+        const sha256 = [...new Uint8Array(digest)]
+            .map((byte) => byte.toString(16).padStart(2, '0'))
+            .join('');
+        const importedRepository = createCemStudioProjectRepository({
+            databaseName: `cem-studio-fallback-${crypto.randomUUID()}`,
+            validateProject: application.validator.validateProject,
+        });
+        try {
+            const provider = createCemStudioFileSystemProvider({
+                repository: importedRepository,
+                showOpenFilePicker: null,
+                showDirectoryPicker: null,
+            });
+            await provider.importFallback({ archive: fallback.archive.bytes });
+            const imported = await importedRepository.query({
+                protocolVersion: 1,
+                repository: 'studio-projects',
+                operation: 'export-project',
+                requestRevision: 1,
+                parameters: { projectId: id },
+            });
+            const source = decoded.project.resources.find(({ id: resourceId }) => resourceId === 'source');
+            const decodedBytes = decoded.contents.source;
+            const importedBytes = imported.value.contents.source;
+            return {
+                projectId: decoded.project.id,
+                contentType: fallback.archive.contentType,
+                sha256,
+                exactContent: source.sha256.length === 64 && decodedBytes.byteLength > 0,
+                providerStateExcluded: !JSON.stringify(decoded.project).includes('provider'),
+                importedExact: imported.value.project.id === decoded.project.id
+                    && importedBytes.byteLength === decodedBytes.byteLength
+                    && new Uint8Array(importedBytes).every((byte, index) => byte === decodedBytes[index]),
+                expectedContentType: CEM_STUDIO_PROJECT_BUNDLE_CONTENT_TYPE,
+            };
+        } finally {
+            importedRepository.close();
+            await importedRepository.deleteDatabase();
+        }
+    }, projectId);
 }
 
 async function importOfflineProject(page) {

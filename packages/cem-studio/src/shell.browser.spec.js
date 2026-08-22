@@ -114,6 +114,83 @@ describe('CEM Studio installable application shell', () => {
         expect(exported.value.project).toEqual(bundle.project);
         expect(new TextDecoder().decode(exported.value.contents.source)).toBe('Offline project bytes');
     });
+
+    it('keeps local-file permission and fallback flows behind production CEM actions', async () => {
+        const provider = {
+            capabilities: () => ({
+                available: true,
+                openFile: true,
+                directory: true,
+                indexedDbFallback: true,
+                importExportFallback: true,
+            }),
+            status: vi.fn(async () => ({
+                provider: 'file-system-access',
+                state: 'prompt-permission',
+                name: 'retained-project',
+            })),
+            reconnect: vi.fn(async () => ({
+                provider: 'file-system-access',
+                state: 'denied-permission',
+                permission: 'denied',
+                name: 'retained-project',
+            })),
+            openProjectDirectory: vi.fn(async () => ({ status: 'imported', projectId: 'opened-project' })),
+            bindProjectDirectory: vi.fn(async () => ({ status: 'bound', projectId: 'offline-project' })),
+            openResource: vi.fn(async () => ({ status: 'opened', projectId: 'offline-project' })),
+            writeProjectDirectory: vi.fn(async () => ({ status: 'written', fileCount: 2 })),
+            importFallback: vi.fn(async () => ({ status: 'imported', project: { id: 'backup-project' } })),
+            exportFallback: vi.fn(async () => ({
+                status: 'exported',
+                archive: {
+                    filename: 'offline-project.cem-studio.json',
+                    contentType: 'application/vnd.cem.studio-project-bundle+json',
+                    bytes: new Uint8Array([1, 2, 3]),
+                },
+            })),
+        };
+        const selectImport = vi.fn(async () => new Uint8Array([4, 5, 6]));
+        const downloadExport = vi.fn(async () => undefined);
+        const root = document.createElement('main');
+        document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({
+            root,
+            fileSystem: {
+                provider,
+                projectId: 'offline-project',
+                resourceId: 'source',
+                selectImport,
+                downloadExport,
+            },
+        });
+        mountedShells.push(shell);
+
+        expect(root.querySelectorAll('button:not(cem-action button):not(cem-select button)')).toHaveLength(0);
+        expect(provider.reconnect).not.toHaveBeenCalled();
+        expect(root.querySelector('[data-cem-studio-provider-state]').getAttribute('label')).toBe(
+            'Local file permission required',
+        );
+
+        root.querySelector('cem-action[data-cem-studio-provider-reconnect] button').click();
+        await vi.waitFor(() => expect(provider.reconnect).toHaveBeenCalledWith({
+            projectId: 'offline-project',
+            requestPermission: true,
+        }));
+        await vi.waitFor(() => expect(shell.fileSystem.status()).toMatchObject({ state: 'denied-permission' }));
+        expect(root.querySelector('[data-cem-studio-provider-alert]').getAttribute('label')).toContain(
+            'IndexedDB',
+        );
+
+        root.querySelector('cem-action[data-cem-studio-export-fallback] button').click();
+        await vi.waitFor(() => expect(downloadExport).toHaveBeenCalledWith(expect.objectContaining({
+            filename: 'offline-project.cem-studio.json',
+        })));
+        root.querySelector('cem-action[data-cem-studio-import-fallback] button').click();
+        await vi.waitFor(() => expect(provider.importFallback).toHaveBeenCalledWith({
+            archive: expect.any(Uint8Array),
+        }));
+        expect(selectImport).toHaveBeenCalledOnce();
+    });
 });
 
 function createRepository(databaseName) {

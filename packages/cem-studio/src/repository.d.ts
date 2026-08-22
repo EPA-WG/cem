@@ -25,6 +25,27 @@ export interface CemStudioRepositoryOptions {
     now?: () => string;
 }
 
+export interface CemStudioProviderBinding {
+    readonly key: string;
+    readonly provider: 'file-system-access';
+    readonly scope: 'project' | 'resource';
+    readonly projectId: string;
+    readonly resourceId?: string;
+    readonly handle: FileSystemFileHandle | FileSystemDirectoryHandle;
+    readonly name: string;
+    readonly permission: PermissionState;
+    readonly base: Readonly<Record<string, unknown>>;
+    readonly revision: number;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface CemStudioPutProviderBindingParameters {
+    readonly binding: Omit<CemStudioProviderBinding, 'key' | 'revision' | 'createdAt' | 'updatedAt'>;
+    readonly expectedProjectRevision: number;
+    readonly expectedBindingRevision?: number;
+}
+
 export type CemStudioCommandPageTarget =
     | Readonly<{
         mode: 'current';

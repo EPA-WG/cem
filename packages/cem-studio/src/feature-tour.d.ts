@@ -2,6 +2,7 @@ import type { CemStudioIndexedDbRepository } from './repository.js';
 
 export declare const CEM_STUDIO_FEATURE_TOUR_SEED_ID = 'cem-ml-feature-tour-seed';
 export declare const CEM_STUDIO_FEATURE_TOUR_COPY_ID = 'feature-tour';
+export declare const CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE = 'application/vnd.cem.studio-project+cem';
 export declare const CEM_STUDIO_PROJECT_CONTENT_TYPE = 'application/vnd.cem.studio-project+json';
 export declare const CEM_STUDIO_PROJECT_SCHEMA = 'https://cem.dev/ns/studio/project/1';
 
@@ -92,6 +93,14 @@ export interface CemStudioBrowserValidator {
     previewResourceCommand(options: CemStudioResourceCommandPreviewOptions): Promise<CemStudioResourceCommandPreview>;
     serializeResourceCommand(command: Readonly<Record<string, unknown>>): string;
     validateResource(options: CemStudioResourceCommandOptions): Promise<CemStudioBrowserCommandOutcome>;
+    decodeProjectManifest(
+        bytes: Uint8Array | ArrayBuffer,
+        options?: { signal?: AbortSignal },
+    ): Promise<Readonly<Record<string, unknown>>>;
+    encodeProjectManifest(
+        project: Readonly<Record<string, unknown>>,
+        options?: { signal?: AbortSignal },
+    ): Promise<Uint8Array>;
     validateProject(bundle: unknown, options?: { signal?: AbortSignal }): Promise<unknown>;
     assertCatalog(catalog: unknown): void;
     close(): Promise<void>;
