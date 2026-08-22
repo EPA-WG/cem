@@ -1219,9 +1219,36 @@ including search, is composed from `@epa-wg/cem-components` and
           the 58-asset/66-file deterministic deployment, scope-safe deep-route
           fallback, exact IndexedDB project survival, and CLI worker/WASM
           execution both online and offline.
-- [ ] Generate an editable CEM-ML Feature Tour seed from actual schema-package
+- [x] Generate an editable CEM-ML Feature Tour seed from actual schema-package
       examples and browser capabilities, then verify every advertised example
       and preserve user copies across seed upgrades.
+    - [x] Fixture: generate exactly one manifest-declared passing example for
+          every registered schema package when the browser capability manifest
+          advertises `validate`, with deterministic identities and source
+          hashes and no hand-copied example content.
+    - [x] Fixture: validate the generated Studio-project manifest and every
+          advertised source through native CEM-ML, then copy the original
+          package-example bytes through a generated CEM-ML transformation
+          graph into the versioned sample cache.
+    - [x] Fixture: load and hash-check the graph-emitted seed in Chromium, use
+          the real browser worker to validate every advertised example, and
+          reject any catalog/runtime capability drift.
+    - [x] Fixture: install an editable IndexedDB copy with an identity separate
+          from the read-only seed, preserve an edited copy byte-for-byte across
+          a simulated seed upgrade, and create a separately identified reset
+          copy from the upgraded seed.
+    - Completed 2026-08-21: the deterministic generator selects the first
+      manifest-declared passing example from all 30 registered schema packages,
+      records exact source hashes and browser capability identity, and discovers
+      referenced local schema resources transitively. Its generated CEM-ML
+      graph emits the 61-resource Studio project, run configurations, original
+      example/dependency bytes, catalog, and 64-URL offline sample inventory.
+      Native CEM-ML validates the project and all advertised sources. Real
+      Chromium integrity-checks the seed, validates all 30 examples through one
+      reusable browser command worker using the `cem-studio://` inline-resource
+      resolver, and proves the cache online/offline. IndexedDB keeps the
+      read-only seed identity separate from `feature-tour`, preserves edited or
+      trashed copies across upgrades, and creates `feature-tour-2` on reset.
 - [ ] Deliver the first offline vertical slice: edit one Feature Tour CEM
       resource, persist and reload its exact revision, validate it through the
       browser worker, and navigate structured diagnostics, report data, and

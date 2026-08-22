@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/cem-ql/basic-query.cemql",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.query+cem-ql",
+        "schema": "https://cem.dev/ns/query/cem-ql/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

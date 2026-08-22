@@ -9413,7 +9413,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
     ) || matches!(
         loaded.adapter_id,
         Some(
-            "scss" | "css" | "css-selector" | "csv" | "yaml" | "json" | "json-schema" | "markdown"
+            "scss" | "css" | "css-selector" | "csv" | "yaml" | "json" | "json-schema" | "markdown" | "studio-project"
         )
     )
 }

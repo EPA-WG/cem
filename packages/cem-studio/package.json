@@ -20,6 +20,11 @@
             "import": "./dist/static/assets/@epa-wg/cem-studio/repository.js",
             "default": "./dist/static/assets/@epa-wg/cem-studio/repository.js"
         },
+        "./feature-tour": {
+            "types": "./src/feature-tour.d.ts",
+            "import": "./dist/static/assets/@epa-wg/cem-studio/feature-tour.js",
+            "default": "./dist/static/assets/@epa-wg/cem-studio/feature-tour.js"
+        },
         "./shell": {
             "types": "./src/shell.d.ts",
             "import": "./dist/static/assets/@epa-wg/cem-studio/shell.js",
@@ -32,6 +37,7 @@
     "files": [
         "dist",
         "src/bootstrap.d.ts",
+        "src/feature-tour.d.ts",
         "src/repository.d.ts",
         "src/shell.d.ts",
         "README.md",

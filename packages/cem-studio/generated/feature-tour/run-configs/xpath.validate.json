@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/xpath/basic-path.xpath",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.xpath",
+        "schema": "https://cem.dev/ns/query/xpath/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

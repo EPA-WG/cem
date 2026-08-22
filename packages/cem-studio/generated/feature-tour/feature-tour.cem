@@ -1,0 +1,141 @@
+{run |
+  {import @id="sample-index" @src="index.json" @content-type="application/json" @opaque=true |
+    {export @id="sample-index-output" @out="../../dist/static/samples/index.json" @content-type="application/json"}
+  }
+
+  {import @id="feature-tour-catalog" @src="catalog.json" @content-type="application/json" @opaque=true |
+    {export @id="feature-tour-catalog-output" @out="../../dist/static/samples/feature-tour/catalog.json" @content-type="application/json"}
+  }
+
+  {import @id="feature-tour-project" @src="feature-tour.project.json" @content-type="application/vnd.cem.studio-project+json" @opaque=true |
+    {export @id="feature-tour-project-output" @out="../../dist/static/samples/feature-tour/feature-tour.project.json" @content-type="application/vnd.cem.studio-project+json"}
+  }
+
+  {import @id=feature-tour-run-configs @src="run-configs/*.json" @content-type="application/json" @opaque=true |
+    {export @id=feature-tour-run-config-output @out="../../dist/static/samples/feature-tour/run-configs/{file}" @content-type="application/json"}
+  }
+
+  {import @id="sample-cem-ast-projection" @src="../../../cem_ml/schema-packages/cem-ast-projection/v1/examples/basic-ast.cem-bin" @content-type="application/vnd.cem.ast+cem-bin" @opaque=true |
+    {export @id="sample-cem-ast-projection-output" @out="../../dist/static/samples/feature-tour/resources/cem-ast-projection-basic-ast.cem-bin" @content-type="application/vnd.cem.ast+cem-bin"}
+  }
+
+  {import @id="sample-cem-dom-projection" @src="../../../cem_ml/schema-packages/cem-dom-projection/v1/examples/basic-dom.cem-bin" @content-type="application/vnd.cem.dom+cem-bin" @opaque=true |
+    {export @id="sample-cem-dom-projection-output" @out="../../dist/static/samples/feature-tour/resources/cem-dom-projection-basic-dom.cem-bin" @content-type="application/vnd.cem.dom+cem-bin"}
+  }
+
+  {import @id="sample-cem-element-template" @src="../../../cem_ml/schema-packages/cem-element-template/v1/examples/basic-card.cem" @content-type="application/vnd.cem.element-template+cem" @opaque=true |
+    {export @id="sample-cem-element-template-output" @out="../../dist/static/samples/feature-tour/resources/cem-element-template-basic-card.cem" @content-type="application/vnd.cem.element-template+cem"}
+  }
+
+  {import @id="sample-cem-events-projection" @src="../../../cem_ml/schema-packages/cem-events-projection/v1/examples/basic-events.cem-bin" @content-type="application/vnd.cem.events+cem-bin" @opaque=true |
+    {export @id="sample-cem-events-projection-output" @out="../../dist/static/samples/feature-tour/resources/cem-events-projection-basic-events.cem-bin" @content-type="application/vnd.cem.events+cem-bin"}
+  }
+
+  {import @id="sample-cem-ml" @src="../../../cem_ml/schema-packages/cem-ml/v1/examples/basic.cem" @content-type="application/cem" @opaque=true |
+    {export @id="sample-cem-ml-output" @out="../../dist/static/samples/feature-tour/resources/cem-ml-basic.cem" @content-type="application/cem"}
+  }
+
+  {import @id="sample-cem-native-template" @src="../../../cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem" @content-type="application/vnd.cem.template+cem" @opaque=true |
+    {export @id="sample-cem-native-template-output" @out="../../dist/static/samples/feature-tour/resources/cem-native-template-basic-template.cem" @content-type="application/vnd.cem.template+cem"}
+  }
+
+  {import @id="sample-cem-ql" @src="../../../cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql" @content-type="application/vnd.cem.query+cem-ql" @opaque=true |
+    {export @id="sample-cem-ql-output" @out="../../dist/static/samples/feature-tour/resources/cem-ql-basic-query.cemql" @content-type="application/vnd.cem.query+cem-ql"}
+  }
+
+  {import @id="sample-cem-transform" @src="../../../cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt" @content-type="application/vnd.cem.transform+cem" @opaque=true |
+    {export @id="sample-cem-transform-output" @out="../../dist/static/samples/feature-tour/resources/cem-transform-basic-transform.cemt" @content-type="application/vnd.cem.transform+cem"}
+  }
+
+  {import @id="sample-css" @src="../../../cem_ml/schema-packages/css/v1/examples/basic-stylesheet.css" @content-type="text/css" @opaque=true |
+    {export @id="sample-css-output" @out="../../dist/static/samples/feature-tour/resources/css-basic-stylesheet.css" @content-type="text/css"}
+  }
+
+  {import @id="sample-css-selector" @src="../../../cem_ml/schema-packages/css-selector/v1/examples/basic.css-selector" @content-type="application/vnd.cem.query-expression+css-selector" @opaque=true |
+    {export @id="sample-css-selector-output" @out="../../dist/static/samples/feature-tour/resources/css-selector-basic-selector.css-selector" @content-type="application/vnd.cem.query-expression+css-selector"}
+  }
+
+  {import @id="sample-csv" @src="../../../cem_ml/schema-packages/csv/v1/examples/basic-table.csv" @content-type="text/csv" @opaque=true |
+    {export @id="sample-csv-output" @out="../../dist/static/samples/feature-tour/resources/csv-basic-table.csv" @content-type="text/csv"}
+  }
+
+  {import @id="sample-html" @src="../../../cem_ml/schema-packages/html/v1/examples/basic-document.html" @content-type="text/html" @opaque=true |
+    {export @id="sample-html-output" @out="../../dist/static/samples/feature-tour/resources/html-basic-document.html" @content-type="text/html"}
+  }
+
+  {import @id="sample-json" @src="../../../cem_ml/schema-packages/json/v1/examples/basic-object.json" @content-type="application/json" @opaque=true |
+    {export @id="sample-json-output" @out="../../dist/static/samples/feature-tour/resources/json-basic-object.json" @content-type="application/json"}
+  }
+
+  {import @id="sample-json-schema" @src="../../../cem_ml/schema-packages/json-schema/v1/examples/basic-schema.schema.json" @content-type="application/schema+json" @opaque=true |
+    {export @id="sample-json-schema-output" @out="../../dist/static/samples/feature-tour/resources/json-schema-basic-schema.json" @content-type="application/schema+json"}
+  }
+
+  {import @id="sample-markdown" @src="../../../cem_ml/schema-packages/markdown/v1/examples/basic-document.md" @content-type="text/markdown; charset=utf-8; variant=CommonMark" @opaque=true |
+    {export @id="sample-markdown-output" @out="../../dist/static/samples/feature-tour/resources/markdown-basic-document.md" @content-type="text/markdown; charset=utf-8; variant=CommonMark"}
+  }
+
+  {import @id="sample-mathml" @src="../../../cem_ml/schema-packages/mathml/v1/examples/basic-presentation.mml" @content-type="application/mathml+xml" @opaque=true |
+    {export @id="sample-mathml-output" @out="../../dist/static/samples/feature-tour/resources/mathml-basic-presentation.mml" @content-type="application/mathml+xml"}
+  }
+
+  {import @id="sample-module-map" @src="../../../cem_ml/schema-packages/module-map/v1/examples/source.module-map.json" @content-type="application/vnd.cem.module-map+json" @opaque=true |
+    {export @id="sample-module-map-output" @out="../../dist/static/samples/feature-tour/resources/module-map-source-modules.json" @content-type="application/vnd.cem.module-map+json"}
+  }
+
+  {import @id="sample-module-map-v2" @src="../../../cem_ml/schema-packages/module-map-v2/v1/examples/source.module-map.json" @content-type="application/vnd.cem.module-map+json" @opaque=true |
+    {export @id="sample-module-map-v2-output" @out="../../dist/static/samples/feature-tour/resources/module-map-v2-source-modules-and-resources.json" @content-type="application/vnd.cem.module-map+json"}
+  }
+
+  {import @id="sample-module-map-v3" @src="../../../cem_ml/schema-packages/module-map-v3/v1/examples/source.module-map.json" @content-type="application/vnd.cem.module-map+json" @opaque=true |
+    {export @id="sample-module-map-v3-output" @out="../../dist/static/samples/feature-tour/resources/module-map-v3-source-worker-safe-modules.json" @content-type="application/vnd.cem.module-map+json"}
+  }
+
+  {import @id="sample-relax-ng" @src="../../../cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rng" @content-type="application/relax-ng+xml" @opaque=true |
+    {export @id="sample-relax-ng-output" @out="../../dist/static/samples/feature-tour/resources/relax-ng-basic-schema-xml.rng" @content-type="application/relax-ng+xml"}
+  }
+
+  {import @id="sample-schema" @src="../../../cem_ml/schema-packages/schema/v1/examples/basic-schema.cem" @content-type="application/vnd.cem.schema+cem" @opaque=true |
+    {export @id="sample-schema-output" @out="../../dist/static/samples/feature-tour/resources/schema-basic-schema.cem" @content-type="application/vnd.cem.schema+cem"}
+  }
+
+  {import @id="sample-schema-package" @src="../../../cem_ml/schema-packages/schema-package/v1/examples/basic-package.cem" @content-type="application/vnd.cem.schema-package+cem" @opaque=true |
+    {export @id="sample-schema-package-output" @out="../../dist/static/samples/feature-tour/resources/schema-package-basic-package.cem" @content-type="application/vnd.cem.schema-package+cem"}
+  }
+
+  {import @id="sample-schema-package-dependency-1" @src="../../../cem_ml/schema-packages/schema-package/v1/examples/schema/note.cem" @content-type="application/vnd.cem.schema+cem" @opaque=true |
+    {export @id="sample-schema-package-dependency-1-output" @out="../../dist/static/samples/feature-tour/resources/dependencies/schema-package/schema/note.cem" @content-type="application/vnd.cem.schema+cem"}
+  }
+
+  {import @id="sample-scss" @src="../../../cem_ml/schema-packages/scss/v1/examples/basic.scss" @content-type="text/vnd.cem.scss" @opaque=true |
+    {export @id="sample-scss-output" @out="../../dist/static/samples/feature-tour/resources/scss-basic-source.scss" @content-type="text/vnd.cem.scss"}
+  }
+
+  {import @id="sample-studio-project" @src="../../../cem_ml/schema-packages/studio-project/v1/examples/feature-tour.project.cem" @content-type="application/vnd.cem.studio-project+cem" @opaque=true |
+    {export @id="sample-studio-project-output" @out="../../dist/static/samples/feature-tour/resources/studio-project-feature-tour-cem.cem" @content-type="application/vnd.cem.studio-project+cem"}
+  }
+
+  {import @id="sample-svg" @src="../../../cem_ml/schema-packages/svg/v1/examples/basic-icon.svg" @content-type="image/svg+xml" @opaque=true |
+    {export @id="sample-svg-output" @out="../../dist/static/samples/feature-tour/resources/svg-basic-icon.svg" @content-type="image/svg+xml"}
+  }
+
+  {import @id="sample-xhtml" @src="../../../cem_ml/schema-packages/xhtml/v1/examples/basic-document.xhtml" @content-type="application/xhtml+xml" @opaque=true |
+    {export @id="sample-xhtml-output" @out="../../dist/static/samples/feature-tour/resources/xhtml-basic-document.xhtml" @content-type="application/xhtml+xml"}
+  }
+
+  {import @id="sample-xml" @src="../../../cem_ml/schema-packages/xml/v1/examples/basic-document.xml" @content-type="application/xml" @opaque=true |
+    {export @id="sample-xml-output" @out="../../dist/static/samples/feature-tour/resources/xml-basic-document.xml" @content-type="application/xml"}
+  }
+
+  {import @id="sample-xpath" @src="../../../cem_ml/schema-packages/xpath/v1/examples/basic-path.xpath" @content-type="application/vnd.cem.xpath" @opaque=true |
+    {export @id="sample-xpath-output" @out="../../dist/static/samples/feature-tour/resources/xpath-basic-path.xpath" @content-type="application/vnd.cem.xpath"}
+  }
+
+  {import @id="sample-xslt" @src="../../../cem_ml/schema-packages/xslt/v1/examples/basic-stylesheet.xsl" @content-type="application/xslt+xml" @opaque=true |
+    {export @id="sample-xslt-output" @out="../../dist/static/samples/feature-tour/resources/xslt-basic-stylesheet.xsl" @content-type="application/xslt+xml"}
+  }
+
+  {import @id="sample-yaml" @src="../../../cem_ml/schema-packages/yaml/v1/examples/basic-document.yaml" @content-type="application/yaml" @opaque=true |
+    {export @id="sample-yaml-output" @out="../../dist/static/samples/feature-tour/resources/yaml-basic-document.yaml" @content-type="application/yaml"}
+  }
+}

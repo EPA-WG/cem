@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/mathml/basic-presentation.mml",
+      "rootScope": {
+        "defaultContentType": "application/mathml+xml",
+        "schema": "https://cem.dev/ns/data/mathml/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

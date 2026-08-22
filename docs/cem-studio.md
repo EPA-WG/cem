@@ -739,6 +739,20 @@ read-only seed named **CEM-ML Feature Tour**. Updating the PWA may install a new
 seed version, but must never overwrite the user's copy. “Reset” creates another
 copy and names the source seed/version.
 
+The initial generated seed baseline was completed on 2026-08-21. A deterministic
+generator selects one manifest-declared passing example from each of the 30
+registered schema packages, carries transitive local schema dependencies, and
+records source hashes plus the exact browser capability identity. A generated
+CEM-ML transformation graph—not application copy code—emits the project,
+catalog, run configurations, original bytes, and sample-cache inventory. Studio
+loads those resources with integrity checks and validates them through one real
+browser command worker. Relative reads use the project-local
+`cem-studio://validation/` URI space backed only by digest-verified inline
+command resources; they never fall through to browser filesystem access.
+The immutable seed ID is `cem-ml-feature-tour-seed`, the first editable copy is
+`feature-tour`, and reset allocates the next unused suffix without replacing an
+existing or trashed copy.
+
 ```text
 CEM-ML Feature Tour
 ├── 00 Start Here

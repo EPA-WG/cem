@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/cem-events-projection/basic-events.cem-bin",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.events+cem-bin",
+        "schema": "https://cem.dev/ns/projection/events/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

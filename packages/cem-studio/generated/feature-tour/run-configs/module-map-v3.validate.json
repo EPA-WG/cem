@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/module-map-v3/source-worker-safe-modules.json",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/3"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

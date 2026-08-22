@@ -21,6 +21,10 @@ use crate::engine::{
     ValidateRequest,
 };
 use crate::query::{QueryExportFormat, QueryRunRequest, QuerySource};
+use crate::resolver::{
+    has_uri_scheme, uri_scheme, ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead,
+    ResolvedWrite, ResolverDiagnostic, ResourceResolver,
+};
 use crate::run_config::{
     infer_content_type_from_path, NormalizedBudgets, NormalizedOutput, NormalizedRootScope,
     NormalizedRunPlan, ScopeConfig,
@@ -68,6 +72,44 @@ pub enum PreparedPortableOperationV1 {
     Transform(PreparedCommandTransformV1),
     Trace(TraceRequest),
     VersionCapabilities(CommandVersionCapabilitiesResultV1),
+}
+
+#[derive(Debug, Clone)]
+struct InlineCommandResourceResolver {
+    resources: crate::command_service::CommandUriMapV1<VirtualResourceV1>,
+}
+
+impl ResourceResolver for InlineCommandResourceResolver {
+    fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+        let uri = resolve_inline_resource_uri(request);
+        let Some(resource) = self.resources.get(&uri) else {
+            return Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::Read,
+            });
+        };
+        Ok(ResolvedRead {
+            uri,
+            bytes: resource.bytes.clone(),
+            content_type: resource
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.clone()),
+        })
+    }
+
+    fn write(
+        &self,
+        request: &ResolveRequest,
+        _bytes: &[u8],
+    ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: ResolveDirection::Write,
+        })
+    }
 }
 
 impl PreparedPortableOperationV1 {
@@ -448,6 +490,30 @@ fn context_from_plan(
 ) -> Result<EngineContext, CommandOperationPreparationError> {
     let mut context = base.clone();
     context.scheduler = plan.scheduler.clone();
+    let inline_resolver = InlineCommandResourceResolver {
+        resources: request.resources.clone(),
+    };
+    let schemes = request
+        .resources
+        .keys()
+        .filter_map(|uri| uri_scheme(uri).map(str::to_owned))
+        .collect::<std::collections::BTreeSet<_>>();
+    for scheme in schemes {
+        for purpose in [
+            ResolvePurpose::Config,
+            ResolvePurpose::Input,
+            ResolvePurpose::Query,
+            ResolvePurpose::Template,
+            ResolvePurpose::ModuleMap,
+        ] {
+            context.resolver_registry.register(
+                &scheme,
+                purpose,
+                ResolveDirection::Read,
+                inline_resolver.clone(),
+            );
+        }
+    }
     for package in &plan.schema_packages {
         let uri = package
             .resolved_uri
@@ -466,6 +532,41 @@ fn context_from_plan(
         });
     }
     Ok(context)
+}
+
+fn resolve_inline_resource_uri(request: &ResolveRequest) -> String {
+    if has_uri_scheme(&request.uri) || request.uri.starts_with('/') {
+        return normalize_inline_resource_uri(&request.uri);
+    }
+    let Some(base_uri) = request.base_uri.as_deref() else {
+        return request.uri.clone();
+    };
+    let base = base_uri
+        .rsplit_once('/')
+        .map(|(directory, _)| directory)
+        .unwrap_or(base_uri);
+    normalize_inline_resource_uri(&format!("{base}/{}", request.uri))
+}
+
+fn normalize_inline_resource_uri(uri: &str) -> String {
+    let scheme_end = uri.find("://").map_or(0, |index| index + 3);
+    let (prefix, path) = uri.split_at(scheme_end);
+    let absolute = path.starts_with('/');
+    let mut segments = Vec::new();
+    for segment in path.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                segments.pop();
+            }
+            segment => segments.push(segment),
+        }
+    }
+    format!(
+        "{prefix}{}{}",
+        if absolute { "/" } else { "" },
+        segments.join("/")
+    )
 }
 
 fn engine_inputs(
@@ -926,6 +1027,37 @@ mod tests {
                 bytes: bytes.to_vec(),
                 identity,
             },
+        );
+    }
+
+    #[test]
+    fn inline_command_resource_resolver_reads_relative_custom_uri() {
+        let dependency_uri = "cem-studio://validation/data/schema/note.cem";
+        let resolver = InlineCommandResourceResolver {
+            resources: CommandUriMapV1::from(BTreeMap::from([(
+                dependency_uri.to_owned(),
+                VirtualResourceV1 {
+                    bytes: b"@doc cem-ml 1".to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some("application/vnd.cem.schema+cem".to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                },
+            )])),
+        };
+        let request = ResolveRequest::new(
+            "schema/note.cem",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+        )
+        .with_base_uri("cem-studio://validation/data/basic-package.cem");
+
+        let read = resolver.read(&request).expect("inline dependency resolves");
+        assert_eq!(read.uri, dependency_uri);
+        assert_eq!(read.bytes, b"@doc cem-ml 1");
+        assert_eq!(
+            read.content_type.as_deref(),
+            Some("application/vnd.cem.schema+cem")
         );
     }
 

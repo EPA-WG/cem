@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/studio-project/feature-tour-cem.cem",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.studio-project+cem",
+        "schema": "https://cem.dev/ns/studio/project/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

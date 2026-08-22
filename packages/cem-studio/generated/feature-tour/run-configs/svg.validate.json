@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/svg/basic-icon.svg",
+      "rootScope": {
+        "defaultContentType": "image/svg+xml",
+        "schema": "https://cem.dev/ns/data/svg/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

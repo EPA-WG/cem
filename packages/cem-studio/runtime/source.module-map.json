@@ -31,6 +31,13 @@
                 "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
             }
         },
+        "@epa-wg/cem-studio/feature-tour": {
+            "path": "../src/feature-tour.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-ml-cli/browser": "@epa-wg/cem-ml-cli/browser"
+            }
+        },
         "@epa-wg/cem-ml-cli/browser": {
             "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/browser.js",
             "contentType": "text/javascript",

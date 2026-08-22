@@ -15,11 +15,20 @@ const context = await browser.newContext({ serviceWorkers: 'allow' });
 const page = await context.newPage();
 const browserErrors = [];
 const httpFailures = [];
+const serviceWorkerErrors = [];
+
+context.on('serviceworker', (worker) => {
+    worker.on('console', (message) => {
+        if (message.type() === 'error') serviceWorkerErrors.push(message.text());
+    });
+});
 
 page.on('pageerror', (error) => browserErrors.push(error.message));
 page.on('console', (message) => {
     if (message.type() === 'error' && !message.text().startsWith('Failed to load resource:')) {
         browserErrors.push(message.text());
+    } else if (message.text().startsWith('[cem-studio:feature-tour]')) {
+        console.log(message.text());
     }
 });
 page.on('response', (response) => {
@@ -28,28 +37,47 @@ page.on('response', (response) => {
 
 try {
     await page.goto(`${server.url}/index.html`, { waitUntil: 'load' });
-    await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication));
-    await page.evaluate(async () => {
-        await navigator.serviceWorker.register('./service-worker.js', {
+    await waitForApplication(page, browserErrors, httpFailures);
+    console.log('[cem-studio:static-worker] application ready');
+    const initialFeatureTourStatus = await page.evaluate(
+        () => globalThis.__cemStudioApplication.featureTour.status,
+    );
+    const serviceWorker = await page.evaluate(async () => {
+        const registration = await navigator.serviceWorker.register('./service-worker.js', {
             scope: './',
             type: 'module',
             updateViaCache: 'none',
         });
-        await navigator.serviceWorker.ready;
-        if (!navigator.serviceWorker.controller) {
-            await new Promise((resolveController) => {
-                navigator.serviceWorker.addEventListener('controllerchange', resolveController, {
-                    once: true,
-                });
-            });
-        }
+        const ready = await Promise.race([
+            navigator.serviceWorker.ready.then(() => true),
+            new Promise((resolveReady) => setTimeout(() => resolveReady(false), 30_000)),
+        ]);
+        return {
+            ready,
+            controlled: navigator.serviceWorker.controller !== null,
+            active: registration.active?.state,
+            installing: registration.installing?.state,
+            waiting: registration.waiting?.state,
+        };
     });
+    assert.equal(
+        serviceWorker.ready,
+        true,
+        `service worker did not become ready: ${JSON.stringify({ serviceWorker, serviceWorkerErrors, httpFailures })}`,
+    );
+    if (!serviceWorker.controlled) {
+        await page.reload({ waitUntil: 'load' });
+        await waitForApplication(page, browserErrors, httpFailures);
+    }
+    assert.ok(await page.evaluate(() => navigator.serviceWorker.controller !== null));
+    console.log('[cem-studio:static-worker] service worker controlling page');
 
     const shell = await inspectShell(page);
     assert.equal(shell.state, 'ready');
     assert.equal(shell.theme, 'cem-theme-contrast-dark');
     assert.equal(shell.controlsOnly, true);
     assert.equal(shell.componentsInstalled, true);
+    console.log('[cem-studio:static-worker] shell verified');
 
     const caches = await page.evaluate(() => globalThis.caches.keys());
     assert.deepEqual(caches.sort(), [
@@ -57,9 +85,19 @@ try {
         'cem-studio:0.1.0:samples',
         'cem-studio:0.1.0:shell',
     ]);
+    console.log('[cem-studio:static-worker] deployment caches verified');
+
+    const featureTour = await validateFeatureTour(page, initialFeatureTourStatus);
+    assert.equal(featureTour.initialStatus, 'installed');
+    assert.ok(['installed', 'preserved'].includes(featureTour.status));
+    assert.equal(featureTour.seedId, 'cem-ml-feature-tour-seed');
+    assert.equal(featureTour.projectId, 'feature-tour');
+    assert.equal(featureTour.exampleCount, 30);
+    assert.equal(featureTour.validatedCount, featureTour.exampleCount);
+    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount);
 
     const stored = await importOfflineProject(page);
-    assert.equal(stored.repositoryRevision, 1);
+    assert.equal(stored.repositoryRevision, 2);
 
     const online = await executeVersionCommand(page, 'static-worker-online');
     assert.equal(online.exitCode, 0);
@@ -68,7 +106,7 @@ try {
 
     await context.setOffline(true);
     await page.goto(`${server.url}/projects/offline-project`, { waitUntil: 'load' });
-    await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication));
+    await waitForApplication(page, browserErrors, httpFailures);
     assert.ok(await page.evaluate(() => navigator.serviceWorker.controller !== null));
     assert.equal(await page.getAttribute('[data-cem-studio-root]', 'data-theme'), 'cem-theme-contrast-dark');
     const recovered = await exportOfflineProject(page);
@@ -88,6 +126,7 @@ try {
         shell,
         caches,
         indexedDbSurvival: recovered,
+        featureTour,
         offlineNavigation: '/projects/offline-project',
         online,
         offline,
@@ -99,11 +138,91 @@ try {
     await context.setOffline(false).catch(() => undefined);
     await page.evaluate(async () => {
         const repository = globalThis.__cemStudioAcceptanceRepository;
+        globalThis.__cemStudioApplication?.repository.close();
+        await globalThis.__cemStudioApplication?.validator.close();
         repository?.close();
         await repository?.deleteDatabase();
     }).catch(() => undefined);
     await browser.close();
     await server.close();
+}
+
+async function waitForApplication(page, browserErrors, httpFailures) {
+    try {
+        await page.waitForFunction(
+            () => Boolean(globalThis.__cemStudioApplication),
+            undefined,
+            { timeout: 30_000 },
+        );
+    } catch (error) {
+        const diagnostic = await page.evaluate(async () => ({
+            documentReadyState: document.readyState,
+            rootState: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-cem-studio-state'),
+            rootMounted: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-cem-studio-mounted'),
+            cacheNames: await caches.keys(),
+            serviceWorkers: (await navigator.serviceWorker.getRegistrations()).map((registration) => ({
+                active: registration.active?.state,
+                installing: registration.installing?.state,
+                waiting: registration.waiting?.state,
+            })),
+            indexedDbDatabases: typeof indexedDB.databases === 'function'
+                ? await indexedDB.databases()
+                : [],
+            resources: performance.getEntriesByType('resource').map(({ name }) => name),
+        }));
+        const details = [
+            ...browserErrors.map((message) => `browser: ${message}`),
+            ...httpFailures.map((message) => `http: ${message}`),
+            `diagnostic: ${JSON.stringify(diagnostic)}`,
+        ];
+        throw new Error(`${error.message}${details.length > 0 ? `\n${details.join('\n')}` : ''}`, { cause: error });
+    }
+}
+
+async function validateFeatureTour(page, initialStatus) {
+    return page.evaluate(async (startupStatus) => {
+        const application = globalThis.__cemStudioApplication;
+        const { catalog, bundle } = application.seed;
+        let validatedCount = 0;
+        for (const [index, example] of catalog.examples.entries()) {
+            console.log(`[cem-studio:feature-tour] validating ${index + 1}/${catalog.exampleCount}: ${example.id}`);
+            const controller = new AbortController();
+            const timeout = setTimeout(
+                () => controller.abort(`Feature Tour validation timed out: ${example.id}`),
+                60_000,
+            );
+            try {
+                await application.validator.validateResource({
+                    bytes: bundle.contents[example.resourceId],
+                    contentType: example.contentType,
+                    schema: example.schema,
+                    uri: example.path,
+                    dependencies: example.dependencies.map((dependency) => ({
+                        bytes: bundle.contents[dependency.resourceId],
+                        contentType: dependency.contentType,
+                        schema: dependency.schema,
+                        path: dependency.path,
+                    })),
+                    signal: controller.signal,
+                });
+            } finally {
+                clearTimeout(timeout);
+            }
+            validatedCount += 1;
+        }
+        const sampleCache = await caches.open('cem-studio:0.1.0:samples');
+        return {
+            initialStatus: startupStatus,
+            status: application.featureTour.status,
+            seedId: catalog.seed.id,
+            projectId: application.featureTour.projectId,
+            exampleCount: catalog.exampleCount,
+            dependencyCount: catalog.dependencyCount,
+            cacheUrlCount: catalog.cacheUrlCount,
+            validatedCount,
+            cachedSampleResponses: (await sampleCache.keys()).length,
+        };
+    }, initialStatus);
 }
 
 async function inspectShell(page) {

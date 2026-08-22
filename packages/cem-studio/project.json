@@ -104,10 +104,63 @@
             ],
             "outputs": []
         },
+        "test:feature-tour": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["cem-elements"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/feature-tour.browser.spec.js --no-file-parallelism",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/feature-tour.js",
+                "{projectRoot}/src/feature-tour.browser.spec.js",
+                "{projectRoot}/src/repository.js",
+                "{projectRoot}/vitest.config.mts",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
+        "generate:feature-tour": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": ["@epa-wg/cem-ml"],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "node scripts/generate-feature-tour.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/generate-feature-tour.mjs",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/**/package.cem",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/**/examples/**/*",
+                "{workspaceRoot}/packages/cem-ml-npm/dist/cem-ml-runtime.json",
+                {
+                    "dependentTasksOutputFiles": "dist/cem-ml-runtime.json",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{projectRoot}/generated/feature-tour"]
+        },
         "build": {
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
+                "generate:feature-tour",
                 {
                     "projects": ["cem_ml_cli"],
                     "target": "build"
@@ -140,6 +193,7 @@
             "inputs": [
                 "{projectRoot}/package.json",
                 "{projectRoot}/studio.cem",
+                "{projectRoot}/generated/feature-tour/**/*",
                 "{projectRoot}/src/**/*",
                 "{projectRoot}/runtime/**/*",
                 "{projectRoot}/scripts/build.mjs",
@@ -148,7 +202,11 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{projectRoot}/dist/static", "{workspaceRoot}/dist/reports/cem-studio/build.json"]
+            "outputs": [
+                "{projectRoot}/dist/static",
+                "{workspaceRoot}/dist/reports/cem-studio/build.json",
+                "{workspaceRoot}/dist/reports/cem-studio/feature-tour-build.json"
+            ]
         },
         "verify:dependencies": {
             "cache": true,
@@ -169,6 +227,26 @@
                 "{workspaceRoot}/yarn.lock"
             ],
             "outputs": ["{workspaceRoot}/dist/reports/cem-studio/dependencies.json"]
+        },
+        "verify:feature-tour": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node scripts/verify-feature-tour.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/generate-feature-tour.mjs",
+                "{projectRoot}/scripts/verify-feature-tour.mjs",
+                "{projectRoot}/generated/feature-tour/**/*",
+                "{projectRoot}/dist/static/samples/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/feature-tour.json"]
         },
         "verify:ui-classification": {
             "cache": true,
@@ -268,8 +346,10 @@
                 "lint",
                 "typecheck",
                 "test:repository",
+                "test:feature-tour",
                 "test:shell",
                 "verify:dependencies",
+                "verify:feature-tour",
                 "verify:ui-classification",
                 "verify:output",
                 "verify:static-worker",
@@ -294,6 +374,7 @@
                 "{projectRoot}/README.md",
                 "{projectRoot}/LICENSE",
                 "{projectRoot}/src/bootstrap.d.ts",
+                "{projectRoot}/src/feature-tour.d.ts",
                 "{projectRoot}/src/repository.d.ts",
                 "{projectRoot}/src/shell.d.ts",
                 "{projectRoot}/scripts/package.mjs",

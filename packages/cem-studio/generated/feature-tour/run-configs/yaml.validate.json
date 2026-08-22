@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/yaml/basic-document.yaml",
+      "rootScope": {
+        "defaultContentType": "application/yaml",
+        "schema": "https://cem.dev/ns/data/yaml/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

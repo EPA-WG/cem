@@ -20,7 +20,9 @@ assert.deepEqual(Object.keys(destinationMap.imports).sort(), Object.keys(sourceM
 assert.deepEqual(Object.keys(destinationMap.resources).sort(), Object.keys(sourceMap.resources).sort());
 assert.equal(buildReport.summary.errorCount, 0);
 assert.equal(buildReport.summary.fatalCount, 0);
-assert.match(buildScript, /'--config',\s*'packages\/cem-studio\/studio\.cem'/);
+assert.match(buildScript, /'packages\/cem-studio\/generated\/feature-tour\/feature-tour\.cem'/);
+assert.match(buildScript, /'packages\/cem-studio\/studio\.cem'/);
+assert.match(buildScript, /'--config',\s*config/);
 assert.doesNotMatch(buildScript, /copyFile|\bcp\b|vite|rollup|webpack/);
 
 const declaredAssets = [
@@ -101,13 +103,25 @@ assert.match(html, /import '@epa-wg\/cem-studio\/main'/);
 assert.match(html, /data-cem-studio-root/);
 assert.match(html, /<base href="\.\/" data-cem-studio-scope\s*\/?>/);
 
-const [manifest, buildMetadata, inventory, runtimeMetadata, themeMetadata, sampleCatalog, serviceWorker] = await Promise.all([
+const [
+    manifest,
+    buildMetadata,
+    inventory,
+    runtimeMetadata,
+    themeMetadata,
+    sampleIndex,
+    featureTourCatalog,
+    featureTourProject,
+    serviceWorker,
+] = await Promise.all([
     readJson(resolve(outputRoot, 'manifest.webmanifest')),
     readJson(resolve(outputRoot, 'build.json')),
     readJson(resolve(outputRoot, 'cache-inventory.json')),
     readJson(resolve(outputRoot, 'assets/@epa-wg/cem-ml/dist/cem-ml-runtime.json')),
     readJson(resolve(outputRoot, 'assets/@epa-wg/cem-theme/package.json')),
     readJson(resolve(outputRoot, 'samples/index.json')),
+    readJson(resolve(outputRoot, 'samples/feature-tour/catalog.json')),
+    readJson(resolve(outputRoot, 'samples/feature-tour/feature-tour.project.json')),
     readFile(resolve(outputRoot, 'service-worker.js'), 'utf8'),
 ]);
 assert.equal(manifest.start_url, './');
@@ -120,16 +134,32 @@ assert.deepEqual(inventory.groups.map(({ id }) => id), ['shell', 'runtime', 'sam
 assert.deepEqual(inventory.groups.find(({ id }) => id === 'samples'), {
     id: 'samples',
     strategy: 'cache-first',
-    urls: ['./samples/index.json'],
+    catalog: './samples/index.json',
 });
 assert.equal(runtimeMetadata.commonVersion, packageMetadata.version);
 assert.equal(themeMetadata.version, packageMetadata.dependencies['@epa-wg/cem-theme']);
-assert.equal(sampleCatalog.commonVersion, packageMetadata.version);
-assert.deepEqual(sampleCatalog.samples, []);
+assert.equal(sampleIndex.commonVersion, packageMetadata.version);
+assert.equal(sampleIndex.samples.length, 1);
+assert.equal(sampleIndex.samples[0].id, 'cem-ml-feature-tour-seed');
+assert.equal(featureTourCatalog.commonVersion, packageMetadata.version);
+assert.equal(featureTourCatalog.packageCount, 30);
+assert.equal(featureTourCatalog.exampleCount, 30);
+assert.equal(featureTourCatalog.examples.length, 30);
+assert.equal(featureTourProject.id, featureTourCatalog.seed.id);
+assert.equal(featureTourProject.resources.length, featureTourCatalog.projectResourceCount);
+assert.equal(
+    featureTourCatalog.projectResourceCount,
+    featureTourCatalog.exampleCount * 2 + featureTourCatalog.dependencyCount,
+);
+assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount);
 assert.match(serviceWorker, /event\.data\?\.type === 'cem-studio-activate-update'/);
 assert.match(serviceWorker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
 assert.equal(packageMetadata.exports['.'].import, './dist/static/assets/@epa-wg/cem-studio/bootstrap.js');
 assert.equal(packageMetadata.exports['./shell'].import, './dist/static/assets/@epa-wg/cem-studio/shell.js');
+assert.equal(
+    packageMetadata.exports['./feature-tour'].import,
+    './dist/static/assets/@epa-wg/cem-studio/feature-tour.js',
+);
 
 const files = await filesUnder(outputRoot);
 for (const required of [
@@ -141,6 +171,7 @@ for (const required of [
     'icon.svg',
     'service-worker.js',
     'samples/index.json',
+    ...sampleIndex.cacheUrls.map((path) => `samples/${path.slice(2)}`),
     ...declaredAssets.map(({ target }) => target.slice(2)),
 ]) {
     assert.ok(files.includes(required), `static output is missing ${required}`);

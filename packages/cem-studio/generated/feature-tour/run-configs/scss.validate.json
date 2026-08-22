@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/scss/basic-source.scss",
+      "rootScope": {
+        "defaultContentType": "text/vnd.cem.scss",
+        "schema": "https://cem.dev/ns/data/scss/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

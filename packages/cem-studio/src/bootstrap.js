@@ -49,6 +49,16 @@ export {
     normalizeRepositoryError,
 } from './repository.js';
 export {
+    CEM_STUDIO_FEATURE_TOUR_COPY_ID,
+    CEM_STUDIO_FEATURE_TOUR_SEED_ID,
+    CEM_STUDIO_PROJECT_CONTENT_TYPE,
+    CEM_STUDIO_PROJECT_SCHEMA,
+    createCemStudioBrowserValidator,
+    createCemStudioFeatureTourCopy,
+    installCemStudioFeatureTour,
+    loadCemStudioFeatureTour,
+} from './feature-tour.js';
+export {
     CEM_STUDIO_THEME_MODES,
     createCemStudioInstallController,
     createCemStudioThemeController,

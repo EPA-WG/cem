@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/csv/basic-table.csv",
+      "rootScope": {
+        "defaultContentType": "text/csv",
+        "schema": "https://cem.dev/ns/data/csv/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

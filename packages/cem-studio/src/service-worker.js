@@ -117,10 +117,26 @@ async function loadDeploymentPlan() {
                 cacheName: cacheName(inventory.commonVersion, group.id),
                 urls: uniqueUrls([group.moduleMap, ...targets]),
             });
-        } else if (group?.id === 'samples' && group.strategy === 'cache-first' && Array.isArray(group.urls)) {
+        } else if (group?.id === 'samples' && group.strategy === 'cache-first' && typeof group.catalog === 'string') {
+            const catalogUrl = new URL(group.catalog, self.registration.scope).href;
+            const catalogResponse = await fetch(catalogUrl, { cache: 'no-store' });
+            if (!catalogResponse.ok) {
+                throw new Error(`CEM Studio sample catalog failed: ${catalogResponse.status}`);
+            }
+            const catalog = await catalogResponse.json();
+            if (
+                catalog?.schemaVersion !== 1
+                || catalog.commonVersion !== inventory.commonVersion
+                || !Array.isArray(catalog.cacheUrls)
+            ) {
+                throw new Error('CEM Studio sample catalog is invalid');
+            }
             groups.push({
                 cacheName: cacheName(inventory.commonVersion, group.id),
-                urls: uniqueUrls(group.urls),
+                urls: uniqueUrls([
+                    catalogUrl,
+                    ...catalog.cacheUrls.map((path) => new URL(path, catalogUrl).href),
+                ]),
             });
         }
     }

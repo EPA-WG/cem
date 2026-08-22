@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/css/basic-stylesheet.css",
+      "rootScope": {
+        "defaultContentType": "text/css",
+        "schema": "https://cem.dev/ns/data/css/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

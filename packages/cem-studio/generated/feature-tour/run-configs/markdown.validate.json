@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/markdown/basic-document.md",
+      "rootScope": {
+        "defaultContentType": "text/markdown; charset=utf-8; variant=CommonMark",
+        "schema": "https://cem.dev/ns/data/markdown/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

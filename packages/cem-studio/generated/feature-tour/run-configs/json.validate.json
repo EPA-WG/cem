@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/json/basic-object.json",
+      "rootScope": {
+        "defaultContentType": "application/json",
+        "schema": "https://cem.dev/ns/data/json/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

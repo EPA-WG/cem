@@ -23,11 +23,13 @@ use crate::schema::registry::{
     MODULE_MAP_CONTENT_TYPE, MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI,
     MODULE_MAP_V3_SCHEMA_URI,
     RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
-    SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
-    XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE,
-    YAML_SCHEMA_URI,
+    SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI, STUDIO_PROJECT_CEM_CONTENT_TYPE,
+    STUDIO_PROJECT_JSON_CONTENT_TYPE, STUDIO_PROJECT_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI,
+    SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
+use crate::studio_project::parse_studio_project;
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::css::{
     css_document_ast_from_source_bytes, validate_css_document_ast, CssDocumentAst,
@@ -204,6 +206,7 @@ impl LifecycleRegistry {
         registry.register(CsvAdapter);
         registry.register(YamlAdapter);
         registry.register(JsonSchemaAdapter);
+        registry.register(StudioProjectAdapter);
         registry.register(JsonAdapter);
         registry.register(MarkdownAdapter);
         registry.register(CustomElementXsltCompatAdapter);
@@ -1428,6 +1431,68 @@ fn matches_json_schema_identity(identity: &FormatIdentity) -> bool {
 
 struct JsonAdapter;
 
+struct StudioProjectAdapter;
+
+impl LifecycleAdapter for StudioProjectAdapter {
+    fn id(&self) -> &'static str {
+        "studio-project"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_studio_project_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(STUDIO_PROJECT_CEM_CONTENT_TYPE);
+        let diagnostics =
+            parse_studio_project(&input.bytes, content_type, STUDIO_PROJECT_SCHEMA_URI)
+                .err()
+                .map(|error| Diagnostic {
+                    uri: Some(input.uri.clone()),
+                    code: error.code.to_owned(),
+                    severity: Severity::Error,
+                    message: error.message,
+                    details: Some(json!({
+                        "fieldPath": error.field_path,
+                        "lifecycle": {
+                            "adapterId": self.id(),
+                            "operation": "load",
+                            "profile": "studio-project-v1",
+                        },
+                    })),
+                    ..Diagnostic::default()
+                })
+                .into_iter()
+                .collect();
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: None,
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+}
+
+fn matches_studio_project_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == STUDIO_PROJECT_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return matches!(
+            content_type_essence(content_type).as_str(),
+            STUDIO_PROJECT_CEM_CONTENT_TYPE | STUDIO_PROJECT_JSON_CONTENT_TYPE
+        ) && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+}
+
 impl LifecycleAdapter for JsonAdapter {
     fn id(&self) -> &'static str {
         "json"
@@ -2132,6 +2197,39 @@ mod tests {
             assert!(expression.syntax_ast.is_some());
             assert_eq!(expression.events.len(), expression.tokens.len() + 2);
         }
+    }
+
+    #[test]
+    fn builtins_validate_studio_project_json_without_cem_tokenizer_fallback() {
+        let valid = LifecycleRegistry::with_builtin_adapters().load_for_source_validation(
+            &input(include_bytes!(
+                "../schema-packages/studio-project/v1/examples/feature-tour.project.json"
+            )),
+            &EngineContext {
+                content_type: Some(STUDIO_PROJECT_JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(STUDIO_PROJECT_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(valid.adapter_id, Some("studio-project"));
+        assert!(valid.diagnostics.is_empty(), "{:?}", valid.diagnostics);
+
+        let invalid = LifecycleRegistry::with_builtin_adapters().load_for_source_validation(
+            &input(include_bytes!(
+                "../schema-packages/studio-project/v1/examples/invalid-forward-version.project.json"
+            )),
+            &EngineContext {
+                content_type: Some(STUDIO_PROJECT_JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(STUDIO_PROJECT_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(invalid.adapter_id, Some("studio-project"));
+        assert_eq!(invalid.diagnostics.len(), 1);
+        assert_eq!(
+            invalid.diagnostics[0].code,
+            "cem.studio_project.schema_version_unsupported"
+        );
     }
 
     #[test]

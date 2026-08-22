@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/schema/basic-schema.cem",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.schema+cem",
+        "schema": "https://cem.dev/ns/schema/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

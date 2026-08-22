@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/cem-element-template/basic-card.cem",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.element-template+cem",
+        "schema": "https://cem.dev/ns/template/cem-element/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

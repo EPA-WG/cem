@@ -1,0 +1,1147 @@
+{
+  "$schema": "https://cem.dev/ns/studio/project/1",
+  "schemaVersion": 1,
+  "id": "cem-ml-feature-tour-seed",
+  "name": "CEM-ML Feature Tour",
+  "description": "Read-only generated seed cem-ml-feature-tour-seed@1.0.0; create an editable copy before changes.",
+  "rootUri": "studio://cem-ml-feature-tour-seed/",
+  "revision": 1,
+  "createdAt": "2026-08-21T00:00:00Z",
+  "updatedAt": "2026-08-21T00:00:00Z",
+  "entries": [
+    {
+      "id": "schema-package-examples",
+      "kind": "subproject",
+      "name": "Schema package examples",
+      "description": "One manifest-declared passing example from every browser-validatable schema package.",
+      "tags": [
+        "tour",
+        "generated",
+        "schema-packages"
+      ]
+    },
+    {
+      "id": "validate-cem-ast-projection",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Ast Projection: Basic Ast",
+      "description": "Validate basic-ast from cem-ast-projection@1.0.0.",
+      "runConfigResourceId": "run-cem-ast-projection",
+      "resourceIds": [
+        "example-cem-ast-projection",
+        "run-cem-ast-projection"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-ast-projection"
+      ]
+    },
+    {
+      "id": "validate-cem-dom-projection",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Dom Projection: Basic Dom",
+      "description": "Validate basic-dom from cem-dom-projection@1.0.0.",
+      "runConfigResourceId": "run-cem-dom-projection",
+      "resourceIds": [
+        "example-cem-dom-projection",
+        "run-cem-dom-projection"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-dom-projection"
+      ]
+    },
+    {
+      "id": "validate-cem-element-template",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Element Template: Basic Card",
+      "description": "Validate basic-card from cem-element-template@1.0.0.",
+      "runConfigResourceId": "run-cem-element-template",
+      "resourceIds": [
+        "example-cem-element-template",
+        "run-cem-element-template"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-element-template"
+      ]
+    },
+    {
+      "id": "validate-cem-events-projection",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Events Projection: Basic Events",
+      "description": "Validate basic-events from cem-events-projection@1.0.0.",
+      "runConfigResourceId": "run-cem-events-projection",
+      "resourceIds": [
+        "example-cem-events-projection",
+        "run-cem-events-projection"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-events-projection"
+      ]
+    },
+    {
+      "id": "validate-cem-ml",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Ml: Basic",
+      "description": "Validate basic from cem-ml@1.0.0.",
+      "runConfigResourceId": "run-cem-ml",
+      "resourceIds": [
+        "example-cem-ml",
+        "run-cem-ml"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-ml"
+      ]
+    },
+    {
+      "id": "validate-cem-native-template",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Native Template: Basic Template",
+      "description": "Validate basic-template from cem-native-template@1.0.0.",
+      "runConfigResourceId": "run-cem-native-template",
+      "resourceIds": [
+        "example-cem-native-template",
+        "run-cem-native-template"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-native-template"
+      ]
+    },
+    {
+      "id": "validate-cem-ql",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Ql: Basic Query",
+      "description": "Validate basic-query from cem-ql@1.0.0.",
+      "runConfigResourceId": "run-cem-ql",
+      "resourceIds": [
+        "example-cem-ql",
+        "run-cem-ql"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-ql"
+      ]
+    },
+    {
+      "id": "validate-cem-transform",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Transform: Basic Transform",
+      "description": "Validate basic-transform from cem-transform@1.0.0.",
+      "runConfigResourceId": "run-cem-transform",
+      "resourceIds": [
+        "example-cem-transform",
+        "run-cem-transform"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-transform"
+      ]
+    },
+    {
+      "id": "validate-css",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Css: Basic Stylesheet",
+      "description": "Validate basic-stylesheet from css@1.0.0.",
+      "runConfigResourceId": "run-css",
+      "resourceIds": [
+        "example-css",
+        "run-css"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "css"
+      ]
+    },
+    {
+      "id": "validate-css-selector",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Css Selector: Basic Selector",
+      "description": "Validate basic-selector from css-selector@1.0.0.",
+      "runConfigResourceId": "run-css-selector",
+      "resourceIds": [
+        "example-css-selector",
+        "run-css-selector"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "css-selector"
+      ]
+    },
+    {
+      "id": "validate-csv",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Csv: Basic Table",
+      "description": "Validate basic-table from csv@1.0.0.",
+      "runConfigResourceId": "run-csv",
+      "resourceIds": [
+        "example-csv",
+        "run-csv"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "csv"
+      ]
+    },
+    {
+      "id": "validate-html",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Html: Basic Document",
+      "description": "Validate basic-document from html@1.0.0.",
+      "runConfigResourceId": "run-html",
+      "resourceIds": [
+        "example-html",
+        "run-html"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "html"
+      ]
+    },
+    {
+      "id": "validate-json",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Json: Basic Object",
+      "description": "Validate basic-object from json@1.0.0.",
+      "runConfigResourceId": "run-json",
+      "resourceIds": [
+        "example-json",
+        "run-json"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "json"
+      ]
+    },
+    {
+      "id": "validate-json-schema",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Json Schema: Basic Schema",
+      "description": "Validate basic-schema from json-schema@1.0.0.",
+      "runConfigResourceId": "run-json-schema",
+      "resourceIds": [
+        "example-json-schema",
+        "run-json-schema"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "json-schema"
+      ]
+    },
+    {
+      "id": "validate-markdown",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Markdown: Basic Document",
+      "description": "Validate basic-document from markdown@1.0.0.",
+      "runConfigResourceId": "run-markdown",
+      "resourceIds": [
+        "example-markdown",
+        "run-markdown"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "markdown"
+      ]
+    },
+    {
+      "id": "validate-mathml",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Mathml: Basic Presentation",
+      "description": "Validate basic-presentation from mathml@1.0.0.",
+      "runConfigResourceId": "run-mathml",
+      "resourceIds": [
+        "example-mathml",
+        "run-mathml"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "mathml"
+      ]
+    },
+    {
+      "id": "validate-module-map",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Module Map: Source Modules",
+      "description": "Validate source-modules from module-map@1.0.0.",
+      "runConfigResourceId": "run-module-map",
+      "resourceIds": [
+        "example-module-map",
+        "run-module-map"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "module-map"
+      ]
+    },
+    {
+      "id": "validate-module-map-v2",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Module Map V2: Source Modules And Resources",
+      "description": "Validate source-modules-and-resources from module-map-v2@1.0.0.",
+      "runConfigResourceId": "run-module-map-v2",
+      "resourceIds": [
+        "example-module-map-v2",
+        "run-module-map-v2"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "module-map-v2"
+      ]
+    },
+    {
+      "id": "validate-module-map-v3",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Module Map V3: Source Worker Safe Modules",
+      "description": "Validate source-worker-safe-modules from module-map-v3@1.0.0.",
+      "runConfigResourceId": "run-module-map-v3",
+      "resourceIds": [
+        "example-module-map-v3",
+        "run-module-map-v3"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "module-map-v3"
+      ]
+    },
+    {
+      "id": "validate-relax-ng",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Relax Ng: Basic Schema Xml",
+      "description": "Validate basic-schema-xml from relax-ng@1.0.0.",
+      "runConfigResourceId": "run-relax-ng",
+      "resourceIds": [
+        "example-relax-ng",
+        "run-relax-ng"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "relax-ng"
+      ]
+    },
+    {
+      "id": "validate-schema",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Schema: Basic Schema",
+      "description": "Validate basic-schema from schema@1.0.0.",
+      "runConfigResourceId": "run-schema",
+      "resourceIds": [
+        "example-schema",
+        "run-schema"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "schema"
+      ]
+    },
+    {
+      "id": "validate-schema-package",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Schema Package: Basic Package",
+      "description": "Validate basic-package from schema-package@1.0.0.",
+      "runConfigResourceId": "run-schema-package",
+      "resourceIds": [
+        "example-schema-package",
+        "run-schema-package",
+        "dependency-schema-package-1"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "schema-package"
+      ]
+    },
+    {
+      "id": "validate-scss",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Scss: Basic Source",
+      "description": "Validate basic-source from scss@1.0.0.",
+      "runConfigResourceId": "run-scss",
+      "resourceIds": [
+        "example-scss",
+        "run-scss"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "scss"
+      ]
+    },
+    {
+      "id": "validate-studio-project",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Studio Project: Feature Tour Cem",
+      "description": "Validate feature-tour-cem from studio-project@1.0.0.",
+      "runConfigResourceId": "run-studio-project",
+      "resourceIds": [
+        "example-studio-project",
+        "run-studio-project"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "studio-project"
+      ]
+    },
+    {
+      "id": "validate-svg",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Svg: Basic Icon",
+      "description": "Validate basic-icon from svg@1.0.0.",
+      "runConfigResourceId": "run-svg",
+      "resourceIds": [
+        "example-svg",
+        "run-svg"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "svg"
+      ]
+    },
+    {
+      "id": "validate-xhtml",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Xhtml: Basic Document",
+      "description": "Validate basic-document from xhtml@1.0.0.",
+      "runConfigResourceId": "run-xhtml",
+      "resourceIds": [
+        "example-xhtml",
+        "run-xhtml"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "xhtml"
+      ]
+    },
+    {
+      "id": "validate-xml",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Xml: Basic Document",
+      "description": "Validate basic-document from xml@1.0.0.",
+      "runConfigResourceId": "run-xml",
+      "resourceIds": [
+        "example-xml",
+        "run-xml"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "xml"
+      ]
+    },
+    {
+      "id": "validate-xpath",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Xpath: Basic Path",
+      "description": "Validate basic-path from xpath@1.0.0.",
+      "runConfigResourceId": "run-xpath",
+      "resourceIds": [
+        "example-xpath",
+        "run-xpath"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "xpath"
+      ]
+    },
+    {
+      "id": "validate-xslt",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Xslt: Basic Stylesheet",
+      "description": "Validate basic-stylesheet from xslt@1.0.0.",
+      "runConfigResourceId": "run-xslt",
+      "resourceIds": [
+        "example-xslt",
+        "run-xslt"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "xslt"
+      ]
+    },
+    {
+      "id": "validate-yaml",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Yaml: Basic Document",
+      "description": "Validate basic-document from yaml@1.0.0.",
+      "runConfigResourceId": "run-yaml",
+      "resourceIds": [
+        "example-yaml",
+        "run-yaml"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "yaml"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "id": "example-cem-ast-projection",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-ast-projection/basic-ast.cem-bin",
+      "contentType": "application/vnd.cem.ast+cem-bin",
+      "schema": "https://cem.dev/ns/projection/ast/1",
+      "revision": 1,
+      "sha256": "e0d7f658400764778ce7083d3ea7785507fbbe7e35e0a0d0469336120476670b"
+    },
+    {
+      "id": "run-cem-ast-projection",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-ast-projection.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "2d037ee47cdf0682b8c5f64d892aa77140a5365f27e7b1c7d1ad6626a87be2c5"
+    },
+    {
+      "id": "example-cem-dom-projection",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-dom-projection/basic-dom.cem-bin",
+      "contentType": "application/vnd.cem.dom+cem-bin",
+      "schema": "https://cem.dev/ns/projection/dom/1",
+      "revision": 1,
+      "sha256": "026e13563bf6a8d2545600167cc55dd6a2636de887561613c16ade9d5a454bfe"
+    },
+    {
+      "id": "run-cem-dom-projection",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-dom-projection.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "18a9918152a3e52fe8ee5b1374d6feda613b0296f2c64fadb73699bed6ccfc1e"
+    },
+    {
+      "id": "example-cem-element-template",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-element-template/basic-card.cem",
+      "contentType": "application/vnd.cem.element-template+cem",
+      "schema": "https://cem.dev/ns/template/cem-element/1",
+      "revision": 1,
+      "sha256": "4705c4145604fcb02111125ab36268f145ee3d2bd62356c6f68a8952e0da739f"
+    },
+    {
+      "id": "run-cem-element-template",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-element-template.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "c527ec9604d2ab34af93f853712f06dddda35528aabecba17f9db0e6f2db1f90"
+    },
+    {
+      "id": "example-cem-events-projection",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-events-projection/basic-events.cem-bin",
+      "contentType": "application/vnd.cem.events+cem-bin",
+      "schema": "https://cem.dev/ns/projection/events/1",
+      "revision": 1,
+      "sha256": "36b8a1bc7615335f6d58671e98dcb8383d0222d7ba409df3b1652fdbeb0f048f"
+    },
+    {
+      "id": "run-cem-events-projection",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-events-projection.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "a6383def039b91955bd8d25140524414aae6b2887ae33f663c32ee8e4e7ffe5b"
+    },
+    {
+      "id": "example-cem-ml",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-ml/basic.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "revision": 1,
+      "sha256": "8273a0217829d71517e89027563e71598e5bb73e041cd258e8ca3299bb5046ff"
+    },
+    {
+      "id": "run-cem-ml",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-ml.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "58803de49dee895b85c0f2a58a12b51c115c16426329029c5156010181af9f9f"
+    },
+    {
+      "id": "example-cem-native-template",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-native-template/basic-template.cem",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "revision": 1,
+      "sha256": "562d82591b1d8bb3d78e644587f2fcc100d9860462fa3f9dc153215ab555fa53"
+    },
+    {
+      "id": "run-cem-native-template",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-native-template.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "4b8e79e206d488575edc7059f7df5469e4445ad919980ed02f5e727ac889997f"
+    },
+    {
+      "id": "example-cem-ql",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-ql/basic-query.cemql",
+      "contentType": "application/vnd.cem.query+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1",
+      "revision": 1,
+      "sha256": "68c8069e5ecd0fa476cf14c484fd1e1e2f2a62093dec2ef69635ea7999a0deb2"
+    },
+    {
+      "id": "run-cem-ql",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-ql.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "5c7554264f7c9e1e5ef79f1d452c5a998c04d25be87628dfd4feb8208a0aabb9"
+    },
+    {
+      "id": "example-cem-transform",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-transform/basic-transform.cemt",
+      "contentType": "application/vnd.cem.transform+cem",
+      "schema": "https://cem.dev/ns/transform/cem/1",
+      "revision": 1,
+      "sha256": "f07dd3aae7fabf8fa5594f327c2890d90f4f960d25caee4147a6b70132d443d5"
+    },
+    {
+      "id": "run-cem-transform",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-transform.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "56d096decaecb44a4f0231192e4e95c8339c3304034121aa6f16ce85ff43f16b"
+    },
+    {
+      "id": "example-css",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/css/basic-stylesheet.css",
+      "contentType": "text/css",
+      "schema": "https://cem.dev/ns/data/css/1",
+      "revision": 1,
+      "sha256": "2efd8945bad18bc176dcf13edb8a26ffd00529eba76d98c58d02daca64e2e2bb"
+    },
+    {
+      "id": "run-css",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/css.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "aaa8c1b89122901fae74cfa0d8b8d51c1dd0561550387bd597dae053390c2d82"
+    },
+    {
+      "id": "example-css-selector",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/css-selector/basic-selector.css-selector",
+      "contentType": "application/vnd.cem.query-expression+css-selector",
+      "schema": "https://cem.dev/ns/query/css-selector/1",
+      "revision": 1,
+      "sha256": "25272ca32ac5c01ee4c30e60086cc6e3b946ea535001a53953e1ca586d21f850"
+    },
+    {
+      "id": "run-css-selector",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/css-selector.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "6354e19c02920d331f4f36254b401ae707a51840dadc8dc7b9e5b637a1c3ad9d"
+    },
+    {
+      "id": "example-csv",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/csv/basic-table.csv",
+      "contentType": "text/csv",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "revision": 1,
+      "sha256": "d0fce71009bba0e1b71d5c2ddc9d9ead00c809ba5483c57375ed5f39de013ef4"
+    },
+    {
+      "id": "run-csv",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/csv.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "fc39c335521e44237a0579df7099f0fb7bbccb81ad6135d100e1d4a4c80f14a4"
+    },
+    {
+      "id": "example-html",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/html/basic-document.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "revision": 1,
+      "sha256": "63544c16f00deb8c4f4d3c240636ef13fa00225ff160d9dd378b6a67499614ed"
+    },
+    {
+      "id": "run-html",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/html.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "f175759ef0508ffe70394136513cc35754de52c48f1dadf6468881b094d89f59"
+    },
+    {
+      "id": "example-json",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/json/basic-object.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "revision": 1,
+      "sha256": "4099cf448f286a2bc52f741bff8a0e25ebaf673bc2dd6a5639e4350cfef6da61"
+    },
+    {
+      "id": "run-json",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/json.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "6f43333ed626dd4d8ef2f9b4f62c94b0c41b210e91186a80ce4cee58d233a268"
+    },
+    {
+      "id": "example-json-schema",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/json-schema/basic-schema.json",
+      "contentType": "application/schema+json",
+      "schema": "https://cem.dev/ns/data/json-schema/1",
+      "revision": 1,
+      "sha256": "351753786da20c35fe7018a97964ad4245b82460456961758f7129740232c45c"
+    },
+    {
+      "id": "run-json-schema",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/json-schema.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "6ca11d419671b870299338cbb4e390a1a6cc549f102f0bd302f5c8a414ee9462"
+    },
+    {
+      "id": "example-markdown",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/markdown/basic-document.md",
+      "contentType": "text/markdown; charset=utf-8; variant=CommonMark",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "revision": 1,
+      "sha256": "dffc140e3a3e8ea04bf2fa3f60edaccdf089ef9bb7744726e388b055f0537bc5"
+    },
+    {
+      "id": "run-markdown",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/markdown.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "6af32452a2ae54757454a9fb702a19e8184febe4a297f794648bbf704067a291"
+    },
+    {
+      "id": "example-mathml",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/mathml/basic-presentation.mml",
+      "contentType": "application/mathml+xml",
+      "schema": "https://cem.dev/ns/data/mathml/1",
+      "revision": 1,
+      "sha256": "81a955264b56daab7f27ca4920a5d4babcc0baf8841e563b4636dd446d3c8be6"
+    },
+    {
+      "id": "run-mathml",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/mathml.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "08d0fc26beed834b90c86b2de33319dcd4b058f3707eb3cb4cc977c425051bea"
+    },
+    {
+      "id": "example-module-map",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/module-map/source-modules.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/1",
+      "revision": 1,
+      "sha256": "ab3fad220016339a3319104c400e1beb174d0b5e1e81bab75ce4778907ac3673"
+    },
+    {
+      "id": "run-module-map",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/module-map.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "be10758018dd760929ec763277a1ab548427fd8ee9238080e5ab34f80400dbe1"
+    },
+    {
+      "id": "example-module-map-v2",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/module-map-v2/source-modules-and-resources.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/2",
+      "revision": 1,
+      "sha256": "eb677e864835322cac205bbe2d4cf41099cd5ef987df4f629a07d7dfbb82d009"
+    },
+    {
+      "id": "run-module-map-v2",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/module-map-v2.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "ca731c3197b704d295458af5e7bd820fc46f001e81ea4eb451eea5f642dae693"
+    },
+    {
+      "id": "example-module-map-v3",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/module-map-v3/source-worker-safe-modules.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/3",
+      "revision": 1,
+      "sha256": "e35ae5459a636ce30593715ce1901a6d00dcf18721190f7b0b3afece90511dda"
+    },
+    {
+      "id": "run-module-map-v3",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/module-map-v3.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "ebbf782a4df529db1af5d382f960c5ececb87dce0f8cc113212556e37965f8ac"
+    },
+    {
+      "id": "example-relax-ng",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/relax-ng/basic-schema-xml.rng",
+      "contentType": "application/relax-ng+xml",
+      "schema": "https://cem.dev/ns/data/relax-ng/1",
+      "revision": 1,
+      "sha256": "1450a795ac8278fe6e2593b54487c1877e0999677ea6f21f6b7503d4f5762424"
+    },
+    {
+      "id": "run-relax-ng",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/relax-ng.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "da23c1552d67f8db3c662c4e8bdb58f7e4fa5fab1f59d722c0d48f98a5770964"
+    },
+    {
+      "id": "example-schema",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/schema/basic-schema.cem",
+      "contentType": "application/vnd.cem.schema+cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "revision": 1,
+      "sha256": "1befcec78f5abc342b37f0e19cf16f2084e07c98480e2c99fe615210429a6e91"
+    },
+    {
+      "id": "run-schema",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/schema.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "4960c3fa50b8bbad4cf4145ef6fc1941e2588ba6c7acee90ffd97e0e31383c0e"
+    },
+    {
+      "id": "example-schema-package",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/schema-package/basic-package.cem",
+      "contentType": "application/vnd.cem.schema-package+cem",
+      "schema": "https://cem.dev/ns/schema-package/1",
+      "revision": 1,
+      "sha256": "64cf89b03abc9db5081d884bcf25aa95e63931440bac11c32e77d67f33f13728"
+    },
+    {
+      "id": "run-schema-package",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/schema-package.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "5d99447a9bfaac0c850862559bddbf2f2708bbf9c6a49dc6b3ef5638ecf090d1"
+    },
+    {
+      "id": "dependency-schema-package-1",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/schema-package/schema/note.cem",
+      "contentType": "application/vnd.cem.schema+cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "revision": 1,
+      "sha256": "b4d0e13e6f6888fd261e686b89e5f8a8dda2f84c6f26b66b13a724d0d6bfe6d1"
+    },
+    {
+      "id": "example-scss",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/scss/basic-source.scss",
+      "contentType": "text/vnd.cem.scss",
+      "schema": "https://cem.dev/ns/data/scss/1",
+      "revision": 1,
+      "sha256": "18897930b085fd3f62b2299e518ad02fc78388b83a34cfa5a4320d20280d1c42"
+    },
+    {
+      "id": "run-scss",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/scss.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "521312a39fc40ee7df776209adb7b54ccd337e89fda082864b80e7b3c1baf4c4"
+    },
+    {
+      "id": "example-studio-project",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/studio-project/feature-tour-cem.cem",
+      "contentType": "application/vnd.cem.studio-project+cem",
+      "schema": "https://cem.dev/ns/studio/project/1",
+      "revision": 1,
+      "sha256": "9e2cb7327e9a4c742d3a2a274f6cf193589cb30d0c71925c1ccb15037e96981b"
+    },
+    {
+      "id": "run-studio-project",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/studio-project.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "961c8dcc10387c58aaf47daa1c7e89f1578a50d9256e9a877187a20d372be008"
+    },
+    {
+      "id": "example-svg",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/svg/basic-icon.svg",
+      "contentType": "image/svg+xml",
+      "schema": "https://cem.dev/ns/data/svg/1",
+      "revision": 1,
+      "sha256": "c332b709d56bb70add27189d2c22f9e8d6881a8e3a45cbf7ffc0b149351c7724"
+    },
+    {
+      "id": "run-svg",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/svg.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "d18d2c4144499628cc4d362e25e58a24600ddee4df785001bdb492ac334f98bd"
+    },
+    {
+      "id": "example-xhtml",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/xhtml/basic-document.xhtml",
+      "contentType": "application/xhtml+xml",
+      "schema": "https://cem.dev/ns/data/xhtml/1",
+      "revision": 1,
+      "sha256": "b4e6d265ad21a0dd8087b96a614dc4588d3118c72295306b4401327347102355"
+    },
+    {
+      "id": "run-xhtml",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/xhtml.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "bff56aac4bcb944fa9d8117c8146c64c790ff84efb044cfcb6ff05709bc61629"
+    },
+    {
+      "id": "example-xml",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/xml/basic-document.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "revision": 1,
+      "sha256": "32ba7d168ce931ce5a44e8a6bf55bcce723b280f72f8426b2d4d2da0b5ce41fe"
+    },
+    {
+      "id": "run-xml",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/xml.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "2b50943a0cc255d7bac1bdfa65b33fa34b780015f9097c5ceffd8ccc5bbfb04f"
+    },
+    {
+      "id": "example-xpath",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/xpath/basic-path.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "revision": 1,
+      "sha256": "c6bd9b81c47d7158df9b51617a44fad129335994854db331aa1c1bb26876de55"
+    },
+    {
+      "id": "run-xpath",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/xpath.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "f019c88369b0e914fcdcf7b60a7edb08185bc63b767e281f926ad4fd830ed503"
+    },
+    {
+      "id": "example-xslt",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/xslt/basic-stylesheet.xsl",
+      "contentType": "application/xslt+xml",
+      "schema": "https://cem.dev/ns/transform/xslt/1",
+      "revision": 1,
+      "sha256": "2e65c33b79f5e51c8bc8759a8cee998a3d1f4a36f915390e50f354e879797865"
+    },
+    {
+      "id": "run-xslt",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/xslt.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "8a42b4b47944d415351ebf43c43132d7f319997f8dc31f1807f55009641a3ee4"
+    },
+    {
+      "id": "example-yaml",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/yaml/basic-document.yaml",
+      "contentType": "application/yaml",
+      "schema": "https://cem.dev/ns/data/yaml/1",
+      "revision": 1,
+      "sha256": "d22db0bec2f0e019485f12706c59f2dd79bbb410f3cff82a94cd7e430e0643b9"
+    },
+    {
+      "id": "run-yaml",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/yaml.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "6111420b63d125af67a07dd1ea6a6dd714bef15b45a2769d8b7b19e56f5305d5"
+    }
+  ]
+}

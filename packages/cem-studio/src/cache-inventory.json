@@ -22,7 +22,7 @@
         {
             "id": "samples",
             "strategy": "cache-first",
-            "urls": ["./samples/index.json"]
+            "catalog": "./samples/index.json"
         }
     ]
 }

@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/xslt/basic-stylesheet.xsl",
+      "rootScope": {
+        "defaultContentType": "application/xslt+xml",
+        "schema": "https://cem.dev/ns/transform/xslt/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

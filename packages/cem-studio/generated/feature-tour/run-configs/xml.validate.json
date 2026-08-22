@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/xml/basic-document.xml",
+      "rootScope": {
+        "defaultContentType": "application/xml",
+        "schema": "https://cem.dev/ns/data/xml/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

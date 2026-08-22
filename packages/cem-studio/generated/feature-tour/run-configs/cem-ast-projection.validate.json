@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/cem-ast-projection/basic-ast.cem-bin",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.ast+cem-bin",
+        "schema": "https://cem.dev/ns/projection/ast/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/relax-ng/basic-schema-xml.rng",
+      "rootScope": {
+        "defaultContentType": "application/relax-ng+xml",
+        "schema": "https://cem.dev/ns/data/relax-ng/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}
