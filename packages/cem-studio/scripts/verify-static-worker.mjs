@@ -139,6 +139,23 @@ try {
     assert.equal(commandApply.componentsOnly, true);
     assert.equal(commandApply.controlsInstalled, true);
 
+    const portableOperations = await exercisePortableOperations(page);
+    assert.deepEqual(portableOperations.results.map(({ kind }) => kind), [
+        'convert',
+        'query',
+        'transform',
+        'trace',
+        'transform',
+    ]);
+    assert.ok(portableOperations.results.every(({ expectedMatches }) => expectedMatches));
+    assert.ok(portableOperations.results.every(({ runtime }) => runtime === 'wasm-browser-worker'));
+    assert.ok(portableOperations.results.every(({ stale }) => !stale));
+    assert.ok(portableOperations.results.every(({ copiedExact, downloadedExact }) => copiedExact && downloadedExact));
+    assert.ok(portableOperations.results.find(({ mode }) => mode === 'graph').graphCount > 0);
+    assert.ok(portableOperations.results.find(({ kind }) => kind === 'trace').traceCount > 0);
+    assert.equal(portableOperations.componentsOnly, true);
+    assert.equal(portableOperations.controlsInstalled, true);
+
     const featureTour = await validateFeatureTour(page, initialFeatureTourStatus);
     assert.equal(featureTour.initialStatus, 'installed');
     assert.ok(['installed', 'preserved'].includes(featureTour.status));
@@ -196,6 +213,12 @@ try {
     assert.ok(recoveredCommandView.changeCount > 0);
     assert.equal(recoveredCommandView.projection, 'studio');
     assert.equal(recoveredCommandView.resetStatus, 'current');
+    const recoveredPortableOperations = await exercisePortableOperations(page);
+    assert.deepEqual(
+        recoveredPortableOperations.results.map(({ sha256 }) => sha256),
+        portableOperations.results.map(({ sha256 }) => sha256),
+    );
+    assert.ok(recoveredPortableOperations.results.every(({ expectedMatches }) => expectedMatches));
     const recoveredProjections = await projectOfflineResource(page);
     assert.equal(recoveredProjections.parse.sha256, onlineOfflineProjectProjections.parse.sha256);
     assert.equal(recoveredProjections.parse.text, onlineOfflineProjectProjections.parse.text);
@@ -222,9 +245,11 @@ try {
         projections,
         commandView,
         commandApply,
+        portableOperations,
         onlineOfflineProjectProjections,
         recoveredWorkbench,
         recoveredCommandView,
+        recoveredPortableOperations,
         recoveredProjections,
         offlineNavigation: '/projects/offline-project',
         online,
@@ -432,6 +457,64 @@ async function exerciseProjections(page) {
                 && document.querySelector('[data-cem-studio-workbench] cem-textarea[readonly] textarea')
                 && document.querySelector('[data-cem-studio-workbench] cem-tabs [role="tablist"]')
                 && document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')
+            ),
+        };
+    });
+}
+
+async function exercisePortableOperations(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const initialWorkbenchId = application.workbench.snapshot().workbenchId;
+        const results = [];
+        for (const scenario of application.seed.catalog.workbenches) {
+            await application.workbench.selectWorkbench(scenario.id);
+            const snapshot = await application.workbench.runPersistedOperation();
+            const projection = snapshot.projection;
+            let copied;
+            let downloaded;
+            await application.workbench.copyProjection(async (text) => {
+                copied = text;
+            });
+            await application.workbench.downloadProjection(async (file) => {
+                downloaded = file;
+            });
+            results.push({
+                scenario: scenario.id,
+                kind: projection.kind,
+                mode: projection.mode,
+                projectRevision: projection.revision.projectRevision,
+                resourceRevision: projection.revision.resourceRevision,
+                runtime: projection.executionIdentity.runtime,
+                stale: projection.stale,
+                expectedMatches: projection.expectedMatches,
+                summary: projection.summary,
+                outputContentType: projection.output.contentType,
+                outputByteLength: projection.output.byteLength,
+                sha256: projection.output.sha256,
+                traceCount: projection.trace.length,
+                graphCount: projection.graph.length,
+                copiedExact: copied === projection.output.text,
+                downloadedExact: downloaded?.contentType === projection.output.contentType
+                    && downloaded?.bytes.byteLength === projection.output.byteLength
+                    && downloaded.bytes.every((byte, index) => byte === projection.output.bytes[index]),
+            });
+        }
+        await application.workbench.selectWorkbench(initialWorkbenchId);
+        await application.workbenchView.whenSettled();
+        return {
+            results,
+            componentsOnly: document.querySelectorAll(
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+            ).length === 0,
+            controlsInstalled: Boolean(
+                document.querySelector('[data-cem-studio-workbench-select] .cem-select__control')
+                && document.querySelector('[data-cem-studio-operation-run] button')
+                && document.querySelector('[data-cem-studio-projection-copy] button')
+                && document.querySelector('[data-cem-studio-projection-download] button')
+                && document.querySelector('[data-cem-studio-projection-expected]')
+                && document.querySelector('[data-cem-studio-projection-trace]')
+                && document.querySelector('[data-cem-studio-projection-graph]')
             ),
         };
     });

@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "workbenches/input.cem",
+      "rootScope": {
+        "defaultContentType": "application/cem",
+        "schema": "https://cem.dev/ns/cem-ml/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

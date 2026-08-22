@@ -184,6 +184,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/generate-feature-tour.mjs",
+                "{projectRoot}/fixtures/portable-operations/**/*",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/**/package.cem",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/**/examples/**/*",
                 "{workspaceRoot}/packages/cem-ml-npm/dist/cem-ml-runtime.json",

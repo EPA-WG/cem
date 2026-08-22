@@ -42,6 +42,10 @@ export interface CemStudioWorkbenchState {
     readonly command?: CemStudioWorkbenchCommand;
     readonly selection?: CemStudioWorkbenchSelection;
     readonly error?: Readonly<{ code: string; message: string }>;
+    readonly workbenchId: string;
+    readonly workbenches: readonly Readonly<Record<string, unknown>>[];
+    readonly operation: string;
+    readonly expected?: Readonly<Record<string, unknown>>;
 }
 
 export interface CemStudioWorkbenchCommandChange {
@@ -121,8 +125,8 @@ export interface CemStudioWorkbenchCommandApplication {
 }
 
 export interface CemStudioWorkbenchProjection {
-    readonly kind: 'parse' | 'inspect';
-    readonly mode: CemStudioParseProjection | CemStudioInspectView;
+    readonly kind: 'parse' | 'inspect' | 'convert' | 'query' | 'transform' | 'trace';
+    readonly mode: string;
     readonly requestId?: string;
     readonly exitCode?: number;
     readonly executionIdentity?: Readonly<Record<string, unknown>>;
@@ -138,6 +142,12 @@ export interface CemStudioWorkbenchProjection {
     readonly presentation: unknown;
     readonly sourceByteLength: number;
     readonly stale: boolean;
+    readonly summary: Readonly<Record<string, unknown>>;
+    readonly expected?: Readonly<Record<string, unknown>>;
+    readonly expectedMatches?: boolean;
+    readonly trace: readonly Readonly<Record<string, unknown>>[];
+    readonly graph: readonly Readonly<Record<string, unknown>>[];
+    readonly transfer?: Readonly<{ status: string; message: string }>;
 }
 
 export interface CemStudioFeatureTourWorkbench {
@@ -145,6 +155,7 @@ export interface CemStudioFeatureTourWorkbench {
     subscribe(notify: (state: CemStudioWorkbenchState) => void): () => void;
     updateDraft(draft: string): CemStudioWorkbenchState;
     reload(): Promise<CemStudioWorkbenchState>;
+    selectWorkbench(workbenchId: string): Promise<CemStudioWorkbenchState>;
     saveAndValidate(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     validatePersisted(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     parsePersisted(
@@ -155,9 +166,16 @@ export interface CemStudioFeatureTourWorkbench {
         view?: CemStudioInspectView,
         options?: { signal?: AbortSignal },
     ): Promise<CemStudioWorkbenchState>;
+    runPersistedOperation(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     updateCommandDraft(text: string): Promise<CemStudioWorkbenchState>;
     resetCommandDraft(): Promise<CemStudioWorkbenchState>;
     copyCommand(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
+    copyProjection(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
+    downloadProjection(save?: (file: {
+        filename: string;
+        contentType: string;
+        bytes: Uint8Array;
+    }) => Promise<void>): Promise<CemStudioWorkbenchState>;
     setCommandTarget(target: CemStudioCommandPageTarget): CemStudioWorkbenchState;
     applyCommand(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     applyAndRun(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
@@ -181,6 +199,7 @@ export declare function mountCemStudioFeatureTourWorkbench(options: {
     root: Element;
     workbench: CemStudioFeatureTourWorkbench;
     clipboard?: Pick<Clipboard, 'writeText'>;
+    download?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>;
 }): Promise<Readonly<{
     root: Element;
     workbench: CemStudioFeatureTourWorkbench;

@@ -1151,7 +1151,7 @@ including search, is composed from `@epa-wg/cem-components` and
       `cem-elements:verify` integration gate passes all 59 Nx tasks, and the
       Studio aggregate passes all 37 tasks with deterministic 55-asset/62-file
       graph output, package verification, and a clean consumer.
-- [ ] Build the installable PWA shell with semantic theme modes, a dedicated
+- [x] Build the installable PWA shell with semantic theme modes, a dedicated
       command worker, versioned app/runtime/sample caches, explicit update
       coordination, offline navigation, and recovery without project loss.
     - [x] Audit the graph-emitted static module chain before caching it and
@@ -1395,8 +1395,30 @@ including search, is composed from `@epa-wg/cem-components` and
       workbench fixture left current/existing/new page targeting,
       incompatible-replacement confirmation, transactional Apply, and Apply &
       Run to subsequent fixtures.
-- [ ] Add conversion, query, transformation, trace, and transformation-graph
+- [x] Add conversion, query, transformation, trace, and transformation-graph
       workbenches without duplicating engine semantics or component behavior.
+    - [x] Fixture: generate project-owned conversion, query, direct-transform,
+          trace, and transformation-graph Feature Tour scenarios with explicit
+          input/query/template/graph identities, pinned expected summaries, and
+          deterministic cache resources.
+    - [x] Fixture: execute every scenario through the shared authored browser
+          command path against exact repository revisions; preserve native
+          results, output artifacts, diagnostics, source maps, stage traces,
+          graph overlays, stale-result checks, and command-page Apply semantics.
+    - [x] Fixture: compose operation selection, identity/configuration details,
+          source/result comparison, expected-result status, trace/graph views,
+          and copy/download actions exclusively from production CEM controls.
+    - [x] Fixture: prove the complete operation matrix through the real WASM
+          worker online and after offline reload, with deterministic generated
+          output, package verification, and no app-owned execution semantics.
+    - Completed 2026-08-22: Feature Tour seed `1.1.0` now owns five portable
+      operation workbenches, 77 project resources, and 80 cached sample URLs
+      with exact shared grammar, worker, and repository revisions. Production
+      CEM controls expose operation selection, source/result and expected-result
+      views, trace/graph records, and exact copy/download artifacts. Twelve
+      repository and eleven workbench Chromium tests pass; the 43-task Studio
+      check proves the real worker online and offline, deterministic 60-asset,
+      147-file output, package verification, and a clean consumer install.
 - [ ] Add the opt-in File System Access provider with explicit permissions,
       retained provider bindings, external-change detection, conflict-safe
       write-back, and complete IndexedDB/import-export fallback.

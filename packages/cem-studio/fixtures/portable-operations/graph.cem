@@ -1,0 +1,7 @@
+{run |
+  {import @id=data @src="data.xml" @content-type="application/xml" |
+    {transform @id=items @src="template.xpath" @template-content-type="application/vnd.cem.xpath" @template-schema="https://cem.dev/ns/query/xpath/1" |
+      {export @id=result @out="graph-output.json" @content-type="application/vnd.cem.xpath-result+json" @schema="https://cem.dev/ns/query/xpath/1"}
+    }
+  }
+}

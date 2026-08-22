@@ -3,11 +3,11 @@
   "schemaVersion": 1,
   "id": "cem-ml-feature-tour-seed",
   "name": "CEM-ML Feature Tour",
-  "description": "Read-only generated seed cem-ml-feature-tour-seed@1.0.0; create an editable copy before changes.",
+  "description": "Read-only generated seed cem-ml-feature-tour-seed@1.1.0; create an editable copy before changes.",
   "rootUri": "studio://cem-ml-feature-tour-seed/",
   "revision": 1,
-  "createdAt": "2026-08-21T00:00:00Z",
-  "updatedAt": "2026-08-21T00:00:00Z",
+  "createdAt": "2026-08-22T00:00:00Z",
+  "updatedAt": "2026-08-22T00:00:00Z",
   "entries": [
     {
       "id": "schema-package-examples",
@@ -546,6 +546,110 @@
         "tour",
         "validation",
         "yaml"
+      ]
+    },
+    {
+      "id": "portable-operation-workbenches",
+      "kind": "subproject",
+      "name": "Portable operation workbenches",
+      "description": "Browser-capable CEM-ML operations executed through the shared command service.",
+      "tags": [
+        "tour",
+        "generated",
+        "workbenches"
+      ]
+    },
+    {
+      "id": "workbench-conversion",
+      "parentId": "portable-operation-workbenches",
+      "kind": "conversion",
+      "name": "CEM-ML to DOM projection",
+      "description": "Execute the conversion fixture through the browser command worker.",
+      "runConfigResourceId": "operation-conversion-run",
+      "resourceIds": [
+        "operation-input",
+        "operation-conversion-expected",
+        "operation-conversion-run"
+      ],
+      "tags": [
+        "tour",
+        "workbench",
+        "conversion"
+      ]
+    },
+    {
+      "id": "workbench-query",
+      "parentId": "portable-operation-workbenches",
+      "kind": "query",
+      "name": "XPath item query",
+      "description": "Execute the query fixture through the browser command worker.",
+      "runConfigResourceId": "operation-query-run",
+      "resourceIds": [
+        "operation-data",
+        "operation-query-expected",
+        "operation-query-run"
+      ],
+      "tags": [
+        "tour",
+        "workbench",
+        "query"
+      ]
+    },
+    {
+      "id": "workbench-transformation",
+      "parentId": "portable-operation-workbenches",
+      "kind": "transformation",
+      "name": "Direct XPath transformation",
+      "description": "Execute the transformation fixture through the browser command worker.",
+      "runConfigResourceId": "operation-transformation-run",
+      "resourceIds": [
+        "operation-data",
+        "operation-template",
+        "operation-transformation-expected",
+        "operation-transformation-run"
+      ],
+      "tags": [
+        "tour",
+        "workbench",
+        "transformation"
+      ]
+    },
+    {
+      "id": "workbench-trace",
+      "parentId": "portable-operation-workbenches",
+      "kind": "trace",
+      "name": "Parser and validation trace",
+      "description": "Execute the trace fixture through the browser command worker.",
+      "runConfigResourceId": "operation-trace-run",
+      "resourceIds": [
+        "operation-input",
+        "operation-trace-expected",
+        "operation-trace-run"
+      ],
+      "tags": [
+        "tour",
+        "workbench",
+        "trace"
+      ]
+    },
+    {
+      "id": "workbench-transformation-graph",
+      "parentId": "portable-operation-workbenches",
+      "kind": "transformation-graph",
+      "name": "Transformation graph",
+      "description": "Execute the transformation-graph fixture through the browser command worker.",
+      "runConfigResourceId": "operation-transformation-graph-run",
+      "resourceIds": [
+        "operation-graph",
+        "operation-data",
+        "operation-template",
+        "operation-transformation-graph-expected",
+        "operation-transformation-graph-run"
+      ],
+      "tags": [
+        "tour",
+        "workbench",
+        "transformation-graph"
       ]
     }
   ],
@@ -1179,6 +1283,146 @@
       "schema": "https://cem.dev/ns/cli/run-config/1",
       "revision": 1,
       "sha256": "6111420b63d125af67a07dd1ea6a6dd714bef15b45a2769d8b7b19e56f5305d5"
+    },
+    {
+      "id": "operation-input",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "workbenches/input.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "revision": 1,
+      "sha256": "c6e68b38ad41dcae64f078fbc87184197022c80a44ebc213d1913e2c296aa89f"
+    },
+    {
+      "id": "operation-data",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "workbenches/data.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "revision": 1,
+      "sha256": "e3866c2bdde033d7122eed5e68876a956de8cfed52dfce3ac67fb8937eadb569"
+    },
+    {
+      "id": "operation-template",
+      "role": "query",
+      "sourceKind": "project-file",
+      "path": "workbenches/template.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "revision": 1,
+      "sha256": "d67fa6fd965b5a0463e961fd06cdf10b923eacca638b31768d55c138ee411c8d"
+    },
+    {
+      "id": "operation-graph",
+      "role": "graph",
+      "sourceKind": "project-file",
+      "path": "workbenches/graph.cem",
+      "contentType": "application/vnd.cem.transform+cem",
+      "schema": "https://cem.dev/ns/transform/cem/1",
+      "revision": 1,
+      "sha256": "b280c18b0a0698e198166d827ec3fc474724a94a88c284e333e3a80ebab69dce"
+    },
+    {
+      "id": "operation-conversion-expected",
+      "role": "expected",
+      "sourceKind": "project-file",
+      "path": "expected/conversion.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "revision": 1,
+      "sha256": "cfe6df44f45c27ce7a08555040da275adf007d9ed631d48445bd8bdebd80e521"
+    },
+    {
+      "id": "operation-conversion-run",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/portable-operations/conversion.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "bccc0cef6f30650f373fe5c93ff18f102f0d3251fd8a4cddb6ace29a12959ad3"
+    },
+    {
+      "id": "operation-query-expected",
+      "role": "expected",
+      "sourceKind": "project-file",
+      "path": "expected/query.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "revision": 1,
+      "sha256": "528d96eaaa376d0771e5b5c220bcddb7198910e8082bac0e101cd4b3f1c24a69"
+    },
+    {
+      "id": "operation-query-run",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/portable-operations/query.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "1f64f515d9d8b26bb590aa4c282a1ed5499be41c87cbfd39ce5cbf8cb50b9692"
+    },
+    {
+      "id": "operation-transformation-expected",
+      "role": "expected",
+      "sourceKind": "project-file",
+      "path": "expected/transformation.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "revision": 1,
+      "sha256": "8d9493f53918a002a7953d94e5cef011a4914ed703f0d0477a5f2b5f0c6cace5"
+    },
+    {
+      "id": "operation-transformation-run",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/portable-operations/transformation.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "1f64f515d9d8b26bb590aa4c282a1ed5499be41c87cbfd39ce5cbf8cb50b9692"
+    },
+    {
+      "id": "operation-trace-expected",
+      "role": "expected",
+      "sourceKind": "project-file",
+      "path": "expected/trace.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "revision": 1,
+      "sha256": "7ebcf86e793aa05323f8aec7bd42d02338491e845ce84859dbfcb30f0bcf6afc"
+    },
+    {
+      "id": "operation-trace-run",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/portable-operations/trace.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "bccc0cef6f30650f373fe5c93ff18f102f0d3251fd8a4cddb6ace29a12959ad3"
+    },
+    {
+      "id": "operation-transformation-graph-expected",
+      "role": "expected",
+      "sourceKind": "project-file",
+      "path": "expected/transformation-graph.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "revision": 1,
+      "sha256": "b40a07887c4793ad9c0568fc3d98f603b4305f257e15ef4f57d9efe346342755"
+    },
+    {
+      "id": "operation-transformation-graph-run",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/portable-operations/transformation-graph.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "41f8ff5f064ee1a9819f1ccc8dfbc9d6266f8a88523d10adfd2def5e88f80763"
     }
   ]
 }

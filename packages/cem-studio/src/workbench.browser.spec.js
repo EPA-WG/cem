@@ -156,6 +156,55 @@ describe('CEM Studio Feature Tour workbench', () => {
         }));
     });
 
+    it('runs a portable operation and exposes expected, copy, and download evidence with CEM controls', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Portable conversion}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const root = document.createElement('main');
+        document.body.append(root);
+        let copied;
+        let downloaded;
+        const view = await mountCemStudioFeatureTourWorkbench({
+            root,
+            workbench,
+            clipboard: { writeText: async (text) => { copied = text; } },
+            download: async (file) => { downloaded = file; },
+        });
+        views.push(view);
+
+        selectValue(root, '[data-cem-studio-workbench-select]', 'conversion');
+        await view.whenSettled();
+        root.querySelector('cem-action[data-cem-studio-operation-run] button').click();
+        await view.whenSettled();
+
+        const projection = workbench.snapshot().projection;
+        expect(projection).toMatchObject({
+            kind: 'convert',
+            mode: 'conversion',
+            summary: { kind: 'convert', outputCount: 1 },
+            expected: { kind: 'convert', outputCount: 1 },
+            expectedMatches: true,
+            stale: false,
+        });
+        expect(validator.runResourceCommand).toHaveBeenCalledTimes(1);
+        expect(validator.runResourceCommand.mock.calls[0][0].argv).toEqual(expect.arrayContaining([
+            'convert',
+            'studio://feature-tour/data/cem-ml/basic.cem',
+            '--to-format',
+            'dom-json',
+        ]));
+        root.querySelector('cem-action[data-cem-studio-projection-copy] button').click();
+        await view.whenSettled();
+        root.querySelector('cem-action[data-cem-studio-projection-download] button').click();
+        await view.whenSettled();
+        expect(copied).toBe(projection.output.text);
+        expect([...downloaded.bytes]).toEqual(projection.output.bytes);
+        expect(root.querySelector('[data-cem-studio-projection-expected] cem-table [role="table"]')).not.toBeNull();
+        expect(root.querySelectorAll(
+            '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+        )).toHaveLength(0);
+    });
+
     it('round trips the Studio command, copies displayed text, and previews semantic changes without mutation', async () => {
         const validator = validatorFor(validResult());
         const repository = await repositoryWithSource('{main | Command source}\n');
@@ -521,6 +570,7 @@ function validatorFor(outcome) {
         executeAuthoredResourceCommand: vi.fn(async (options) => authoredCommandOutcome(options)),
         parseResource: vi.fn(async ({ projection = 'ast' }) => projectionOutcome('parse', projection)),
         inspectResource: vi.fn(async ({ view = 'summary' }) => projectionOutcome('inspect', view)),
+        runResourceCommand: vi.fn(async ({ argv }) => portableOperationOutcome(argv)),
         validateResource: vi.fn(async (options) => {
             const value = typeof outcome === 'function' ? await outcome(options) : outcome;
             if (value.result.exitCode === 0) return value;
@@ -645,6 +695,24 @@ function projectionOutcome(kind, mode) {
             sha256: 'fixture-output-sha256',
             bytes,
             text,
+        },
+    };
+}
+
+function portableOperationOutcome(argv) {
+    const outcome = projectionOutcome('convert', 'conversion');
+    return {
+        ...outcome,
+        result: {
+            ...outcome.result,
+            operation: argv[0],
+            result: {
+                storage: 'inline',
+                value: {
+                    kind: 'convert',
+                    value: { outputs: { items: [{ response: { primary: { kind: 'dom' } } }] } },
+                },
+            },
         },
     };
 }
@@ -790,6 +858,23 @@ function featureTourSeed() {
                 contentType: 'application/cem',
                 schema: 'https://cem.dev/ns/cem-ml/1',
                 dependencies: [],
+            }],
+            workbenches: [{
+                id: 'conversion',
+                operation: 'convert',
+                kind: 'conversion',
+                name: 'CEM-ML conversion',
+                resourceId: 'source',
+                runConfigResourceId: 'run-cem-ml',
+                path: 'data/cem-ml/basic.cem',
+                contentType: 'application/cem',
+                schema: 'https://cem.dev/ns/cem-ml/1',
+                dependencies: [],
+                expectedSummary: { kind: 'convert', outputCount: 1 },
+                commandArguments: [
+                    'convert', '$input', '--content-type', 'application/cem', '--schema',
+                    'https://cem.dev/ns/cem-ml/1', '--to-format', 'dom-json',
+                ],
             }],
         },
     };

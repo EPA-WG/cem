@@ -519,7 +519,7 @@ export class CemStudioIndexedDbRepository {
             );
         }
         const operation = parsed.command.commandPath[0];
-        const pageKind = commandPageKind(operation);
+        const pageKind = commandPageKind(parsed.command);
         const target = normalizeCommandTarget(input.target);
         const referencedResourceIds = normalizeReferencedResourceIds(input.referencedResourceIds);
         const sha256 = await sha256Hex(this.crypto, bytes);
@@ -998,9 +998,14 @@ async function prepareImport(bundle, crypto) {
     return { resources };
 }
 
-/** @param {unknown} operation */
-function commandPageKind(operation) {
+/** @param {Record<string, any>} command */
+function commandPageKind(command) {
+    const operation = command.commandPath?.[0];
     if (operation === 'parse' || operation === 'inspect') return 'inspection';
+    if (operation === 'convert') return 'conversion';
+    if (operation === 'query') return 'query';
+    if (operation === 'trace') return 'trace';
+    if (operation === 'transform') return command.options?.config ? 'transformation-graph' : 'transformation';
     throw new CemStudioRepositoryError(
         'cem.studio.repository.command_operation_unsupported',
         `CLI command operation \`${String(operation)}\` cannot be applied to the current Studio workbench`,
@@ -1079,7 +1084,7 @@ function assertCommandResourceResolution(project, command, referencedResourceIds
     if (studioUris.length === 0) {
         throw new CemStudioRepositoryError(
             'cem.studio.repository.command_resource_unresolved',
-            'a Studio parse or inspect command must reference at least one studio:// project resource',
+            'a Studio workbench command must reference at least one studio:// project resource',
             { projectId: project.id },
         );
     }

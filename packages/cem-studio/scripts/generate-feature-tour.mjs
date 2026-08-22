@@ -7,12 +7,13 @@ const workspaceRoot = resolve(projectRoot, '../..');
 const schemaPackagesRoot = resolve(workspaceRoot, 'packages/cem_ml/schema-packages');
 const runtimeMetadataPath = resolve(workspaceRoot, 'packages/cem-ml-npm/dist/cem-ml-runtime.json');
 const generatedRoot = resolve(projectRoot, 'generated/feature-tour');
+const operationFixturesRoot = resolve(projectRoot, 'fixtures/portable-operations');
 const check = process.argv.includes('--check');
 const seed = Object.freeze({
     id: 'cem-ml-feature-tour-seed',
     name: 'CEM-ML Feature Tour',
-    version: '1.0.0',
-    timestamp: '2026-08-21T00:00:00Z',
+    version: '1.1.0',
+    timestamp: '2026-08-22T00:00:00Z',
 });
 
 const runtime = await readJson(runtimeMetadataPath);
@@ -187,6 +188,226 @@ for (const item of selected) {
     )));
 }
 
+const operationFixtureDefinitions = {
+    input: {
+        file: 'input.cem',
+        role: 'data',
+        path: 'workbenches/input.cem',
+        contentType: 'application/cem',
+        schema: 'https://cem.dev/ns/cem-ml/1',
+    },
+    data: {
+        file: 'data.xml',
+        role: 'data',
+        path: 'workbenches/data.xml',
+        contentType: 'application/xml',
+        schema: 'https://cem.dev/ns/data/xml/1',
+    },
+    template: {
+        file: 'template.xpath',
+        role: 'query',
+        path: 'workbenches/template.xpath',
+        contentType: 'application/vnd.cem.xpath',
+        schema: 'https://cem.dev/ns/query/xpath/1',
+    },
+    graph: {
+        file: 'graph.cem',
+        role: 'graph',
+        path: 'workbenches/graph.cem',
+        contentType: 'application/vnd.cem.transform+cem',
+        schema: 'https://cem.dev/ns/transform/cem/1',
+    },
+};
+const operationFixtures = {};
+for (const [id, definition] of Object.entries(operationFixtureDefinitions)) {
+    const resourceId = `operation-${id}`;
+    const sourcePath = resolve(operationFixturesRoot, definition.file);
+    const bytes = await readFile(sourcePath);
+    const deployedPath = `resources/portable-operations/${definition.file}`;
+    operationFixtures[id] = { ...definition, resourceId, sourcePath, bytes, deployedPath };
+    projectResources.push({
+        id: resourceId,
+        role: definition.role,
+        sourceKind: 'project-file',
+        path: definition.path,
+        contentType: definition.contentType,
+        schema: definition.schema,
+        revision: 1,
+        sha256: sha256(bytes),
+    });
+    graphNodes.push(graphCopyNode(
+        resourceId,
+        workspacePath(sourcePath, generatedRoot),
+        `../../dist/static/samples/feature-tour/${deployedPath}`,
+        definition.contentType,
+    ));
+}
+
+const operationScenarioDefinitions = [
+    {
+        id: 'conversion',
+        expectedFile: 'convert.json',
+        operation: 'convert',
+        kind: 'conversion',
+        name: 'CEM-ML to DOM projection',
+        primary: 'input',
+        dependencies: [],
+        commandArguments: [
+            'convert', '$input', '--content-type', 'application/cem', '--schema',
+            'https://cem.dev/ns/cem-ml/1', '--to-format', 'dom-json', '--preserve-source-offsets',
+        ],
+    },
+    {
+        id: 'query',
+        operation: 'query',
+        kind: 'query',
+        name: 'XPath item query',
+        primary: 'data',
+        dependencies: [],
+        commandArguments: [
+            'query', '$input', '--content-type', 'application/xml', '--schema',
+            'https://cem.dev/ns/data/xml/1', '--query', '//item', '--query-content-type',
+            'application/vnd.cem.xpath', '--output', 'json',
+        ],
+    },
+    {
+        id: 'transformation',
+        expectedFile: 'transform-direct.json',
+        operation: 'transform',
+        kind: 'transformation',
+        name: 'Direct XPath transformation',
+        primary: 'data',
+        dependencies: ['template'],
+        commandArguments: [
+            'transform', '$input', '--data-content-type', 'application/xml', '--data-schema',
+            'https://cem.dev/ns/data/xml/1', '--template', '$resource:operation-template',
+            '--template-content-type', 'application/vnd.cem.xpath', '--template-schema',
+            'https://cem.dev/ns/query/xpath/1', '--to-content-type',
+            'application/vnd.cem.xpath-result+json', '--to-schema', 'https://cem.dev/ns/query/xpath/1',
+        ],
+    },
+    {
+        id: 'trace',
+        operation: 'trace',
+        kind: 'trace',
+        name: 'Parser and validation trace',
+        primary: 'input',
+        dependencies: [],
+        commandArguments: [
+            'trace', '$input', '--content-type', 'application/cem', '--schema',
+            'https://cem.dev/ns/cem-ml/1', '--format', 'json',
+        ],
+    },
+    {
+        id: 'transformation-graph',
+        expectedFile: 'transform-graph.json',
+        operation: 'transform',
+        kind: 'transformation-graph',
+        name: 'Transformation graph',
+        primary: 'graph',
+        dependencies: ['data', 'template'],
+        commandArguments: ['transform', '--config', '$input'],
+    },
+];
+projectEntries.push({
+    id: 'portable-operation-workbenches',
+    kind: 'subproject',
+    name: 'Portable operation workbenches',
+    description: 'Browser-capable CEM-ML operations executed through the shared command service.',
+    tags: ['tour', 'generated', 'workbenches'],
+});
+const workbenches = [];
+for (const scenario of operationScenarioDefinitions) {
+    const primary = operationFixtures[scenario.primary];
+    const dependencies = scenario.dependencies.map((id) => operationFixtures[id]);
+    const expectedSourcePath = resolve(operationFixturesRoot, `expected/${scenario.expectedFile ?? `${scenario.id}.json`}`);
+    const expectedBytes = await readFile(expectedSourcePath);
+    const expectedResourceId = `operation-${scenario.id}-expected`;
+    const expectedPath = `expected/${scenario.id}.json`;
+    const expectedDeployedPath = `resources/portable-operations/${expectedPath}`;
+    const runConfigResourceId = `operation-${scenario.id}-run`;
+    const runConfigPath = `config/portable-operations/${scenario.id}.json`;
+    const runConfigFile = `portable-${scenario.id}.json`;
+    const runConfigBytes = jsonBytes({
+        inputs: [{
+            uri: primary.path,
+            rootScope: { defaultContentType: primary.contentType, schema: primary.schema },
+        }],
+        outputs: [],
+        schemaPackages: [],
+        resolvers: [],
+        scheduler: {},
+    });
+    generated.set(`run-configs/${runConfigFile}`, runConfigBytes);
+    projectResources.push(
+        {
+            id: expectedResourceId,
+            role: 'expected',
+            sourceKind: 'project-file',
+            path: expectedPath,
+            contentType: 'application/json',
+            schema: 'https://cem.dev/ns/data/json/1',
+            revision: 1,
+            sha256: sha256(expectedBytes),
+        },
+        {
+            id: runConfigResourceId,
+            role: 'run-config',
+            sourceKind: 'project-file',
+            path: runConfigPath,
+            contentType: 'application/json',
+            schema: 'https://cem.dev/ns/cli/run-config/1',
+            revision: 1,
+            sha256: sha256(runConfigBytes),
+        },
+    );
+    projectEntries.push({
+        id: `workbench-${scenario.id}`,
+        parentId: 'portable-operation-workbenches',
+        kind: scenario.kind,
+        name: scenario.name,
+        description: `Execute the ${scenario.id} fixture through the browser command worker.`,
+        runConfigResourceId,
+        resourceIds: [
+            primary.resourceId,
+            ...dependencies.map(({ resourceId }) => resourceId),
+            expectedResourceId,
+            runConfigResourceId,
+        ],
+        tags: ['tour', 'workbench', scenario.kind],
+    });
+    graphNodes.push(graphCopyNode(
+        expectedResourceId,
+        workspacePath(expectedSourcePath, generatedRoot),
+        `../../dist/static/samples/feature-tour/${expectedDeployedPath}`,
+        'application/json',
+    ));
+    workbenches.push({
+        ...scenario,
+        expectedFile: undefined,
+        entryId: `workbench-${scenario.id}`,
+        resourceId: primary.resourceId,
+        runConfigResourceId,
+        expectedResourceId,
+        path: primary.path,
+        asset: `./${primary.deployedPath}`,
+        runConfig: `./run-configs/${runConfigFile}`,
+        contentType: primary.contentType,
+        schema: primary.schema,
+        sha256: sha256(primary.bytes),
+        expected: `./${expectedDeployedPath}`,
+        expectedSha256: sha256(expectedBytes),
+        dependencies: dependencies.map((dependency) => ({
+            resourceId: dependency.resourceId,
+            path: relative(dirname(primary.path), dependency.path).replaceAll('\\', '/'),
+            asset: `./${dependency.deployedPath}`,
+            contentType: dependency.contentType,
+            schema: dependency.schema,
+            sha256: sha256(dependency.bytes),
+        })),
+    });
+}
+
 const project = {
     $schema: 'https://cem.dev/ns/studio/project/1',
     schemaVersion: 1,
@@ -204,7 +425,14 @@ const projectBytes = jsonBytes(project);
 generated.set('feature-tour.project.json', projectBytes);
 
 const dependencyCount = examples.reduce((count, example) => count + example.dependencies.length, 0);
-const cacheUrlCount = 3 + examples.length * 2 + dependencyCount;
+const operationCacheUrls = unique([
+    ...Object.values(operationFixtures).map(({ deployedPath }) => `./${deployedPath}`),
+    ...workbenches.flatMap(({ runConfigResourceId, expected }) => [
+        `./run-configs/portable-${runConfigResourceId.slice('operation-'.length, -'-run'.length)}.json`,
+        expected,
+    ]),
+]);
+const cacheUrlCount = 3 + examples.length * 2 + dependencyCount + operationCacheUrls.length;
 const catalog = {
     schemaVersion: 1,
     commonVersion: runtime.commonVersion,
@@ -227,9 +455,12 @@ const catalog = {
     packageCount: selected.length,
     exampleCount: examples.length,
     dependencyCount,
+    workbenchCount: workbenches.length,
+    workbenchResourceCount: projectResources.length - (examples.length * 2 + dependencyCount),
     projectResourceCount: projectResources.length,
     cacheUrlCount,
     examples,
+    workbenches,
 };
 generated.set('catalog.json', jsonBytes(catalog));
 
@@ -242,6 +473,7 @@ const sampleCacheUrls = [
         `./feature-tour/${runConfig.slice(2)}`,
         ...dependencies.map((dependency) => `./feature-tour/${dependency.asset.slice(2)}`),
     ]),
+    ...operationCacheUrls.map((path) => `./feature-tour/${path.slice(2)}`),
 ].sort();
 const index = {
     schemaVersion: 1,
@@ -452,6 +684,10 @@ function jsonBytes(value) {
 
 function sha256(bytes) {
     return createHash('sha256').update(bytes).digest('hex');
+}
+
+function unique(values) {
+    return [...new Set(values)];
 }
 
 function workspacePath(path, base = workspaceRoot) {

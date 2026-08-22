@@ -77,7 +77,7 @@ unrestricted operating-system filesystem into the page. In Node, a thin host
 adapter may provide files, streams, environment, and exit-code projections
 without creating another semantic engine.
 
-## Implemented Phase 6.5 Baseline (2026-08-21)
+## Implemented Phase 6.5 Baseline (2026-08-22)
 
 The graph-built `@epa-wg/cem-studio` PWA now owns the accepted IndexedDB
 repository, generated Feature Tour, offline shell, and first editable workbench.
@@ -109,10 +109,21 @@ syntax/options or unresolved resources leave IndexedDB unchanged. Real Chromium
 proves canonical edit/reset, semantic changes, invalid diagnostics, exact copy,
 non-mutation, CEM-only controls, and the same preview after offline reload.
 
-The remaining part of this MVP is transactional Apply: resolve a stable current
-or compatible existing page, or explicitly name a new page; confirm
-incompatible replacement; commit the configuration and references atomically;
-and make Apply & Run execute exactly that committed revision.
+Transactional Apply now resolves stable current, compatible existing, or named
+new pages, confirmation-gates incompatible replacement, commits the authored
+command and references atomically, reloads the exact bytes, and makes Apply &
+Run execute only that committed revision.
+
+Feature Tour seed `1.1.0` adds project-owned conversion, XPath query, direct
+XPath transformation, parser/validation trace, and transformation-graph
+workbenches. Their commands use the same browser grammar, worker, resolver,
+revision ledger, native result, artifact reader, diagnostics, and source-map
+path as parse/inspect. Each scenario carries explicit input/query/template/graph
+identities and a pinned expected summary. The shared CEM composition presents
+operation selection, exact source/output, identity and execution metadata,
+expected-result comparison, trace and graph overlays, and explicit copy/download
+actions. Real Chromium executes all five online and repeats byte-identical
+results after offline reload.
 
 ## Goals
 
@@ -777,7 +788,7 @@ seed version, but must never overwrite the user's copy. “Reset” creates anot
 copy and names the source seed/version.
 
 The initial generated seed baseline was completed on 2026-08-21. A deterministic
-generator selects one manifest-declared passing example from each of the 30
+generator selects one manifest-declared passing example from each of the 31
 registered schema packages, carries transitive local schema dependencies, and
 records source hashes plus the exact browser capability identity. A generated
 CEM-ML transformation graph—not application copy code—emits the project,
@@ -1395,9 +1406,9 @@ own install-ready event; Studio does not manufacture or promise an install
 prompt.
 
 Cache inventory v2 separates versioned `shell`, `runtime`, and `samples`
-groups. The samples group currently contains only a graph-emitted empty catalog,
-so generation of Feature Tour content remains a separate next item. Offline
-navigation returns the cached shell with the service-worker registration scope
+groups. The graph-emitted samples group contains the integrity-checked Feature
+Tour project, all 31 schema examples, and the five portable-operation
+workbenches. Offline navigation returns the cached shell with the service-worker registration scope
 as its document base, preserving deep routes without assuming a root deployment.
 Mutable project content never enters these caches.
 

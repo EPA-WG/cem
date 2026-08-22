@@ -15,6 +15,7 @@ export interface CemStudioFeatureTourSeed {
 
 export type CemStudioParseProjection = 'ast' | 'events';
 export type CemStudioInspectView = 'summary' | 'ast' | 'events' | 'diagnostics' | 'source-offsets' | 'tree';
+export type CemStudioPortableOperation = 'parse' | 'inspect' | 'convert' | 'query' | 'transform' | 'trace';
 
 export interface CemStudioResourceCommandOptions {
     readonly bytes: Uint8Array | ArrayBuffer;
@@ -31,6 +32,7 @@ export interface CemStudioResourceCommandOptions {
     readonly projectRevision?: number;
     readonly resourceRevision?: number;
     readonly signal?: AbortSignal;
+    readonly argv?: readonly string[];
 }
 
 export interface CemStudioCommandOutput {
@@ -63,7 +65,7 @@ export interface CemStudioResourceCommandPreview {
 }
 
 export interface CemStudioResourceCommandPreviewOptions extends CemStudioResourceCommandOptions {
-    readonly operation?: 'parse' | 'validate' | 'inspect';
+    readonly operation?: CemStudioPortableOperation | 'validate';
     readonly projection?: CemStudioParseProjection;
     readonly view?: CemStudioInspectView;
     readonly text?: string;
@@ -77,6 +79,9 @@ export interface CemStudioBrowserValidator {
     }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
     inspectResource(options: CemStudioResourceCommandOptions & {
         readonly view?: CemStudioInspectView;
+    }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
+    runResourceCommand(options: CemStudioResourceCommandOptions & {
+        readonly argv: readonly string[];
     }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
     executeAuthoredResourceCommand(
         options: CemStudioAuthoredResourceCommandOptions,

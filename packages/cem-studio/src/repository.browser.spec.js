@@ -360,6 +360,45 @@ describe('CemStudioIndexedDbRepository', () => {
         expect(exported.value.project.entries).toContainEqual(expect.objectContaining({ id: 'parse-results' }));
     });
 
+    it('maps every portable authored operation to its exact Studio page kind', async () => {
+        const repository = createRepository();
+        await repository.execute(command('import-project', {
+            bundle: await commandProjectBundle(),
+        }));
+        const input = 'studio://feature-tour/data/tour.cem';
+        const cases = [
+            ['convert', 'conversion', ['convert', input, '--to-format', 'dom-json']],
+            ['query', 'query', [
+                'query', input, '--query', '//item', '--query-content-type',
+                'application/vnd.cem.xpath', '--output', 'json',
+            ]],
+            ['transform', 'transformation', [
+                'transform', input, '--data-content-type', 'application/xml', '--template', input,
+                '--template-content-type', 'application/vnd.cem.xpath', '--to-content-type',
+                'application/vnd.cem.xpath-result+json',
+            ]],
+            ['trace', 'trace', ['trace', input, '--format', 'json']],
+            ['transform-graph', 'transformation-graph', ['transform', '--config', input]],
+        ];
+        let projectRevision = 1;
+        for (const [name, pageKind, argv] of cases) {
+            const applied = await repository.execute(command('apply-command-page', {
+                projectId: 'feature-tour',
+                expectedProjectRevision: projectRevision,
+                target: { mode: 'new', name: `Portable ${name}`, parentId: 'workbenches' },
+                commandResource: portableCommandResource(argv),
+                referencedResourceIds: ['tour-source'],
+            }));
+            projectRevision += 1;
+            expect(applied.value).toMatchObject({
+                operation: argv[0],
+                pageKind,
+                projectRevision,
+                entry: { kind: pageKind },
+            });
+        }
+    });
+
     it('fails closed for invalid, unresolved, duplicate, incompatible, rejected, and stale applies', async () => {
         const repository = createRepository();
         await repository.execute(command('import-project', {
@@ -659,6 +698,17 @@ function commandResource(operation, mode, inputUri = 'studio://feature-tour/data
             '--format',
             'cem',
         ];
+    return `${JSON.stringify({
+        $schema: 'https://cem.dev/ns/cli/command/1',
+        schemaVersion: 1,
+        commandSchemaVersion: commandSchema.schemaVersion,
+        commonVersion: commandSchema.commonVersion,
+        binaryName: commandSchema.binaryName,
+        argv,
+    }, null, 2)}\n`;
+}
+
+function portableCommandResource(argv) {
     return `${JSON.stringify({
         $schema: 'https://cem.dev/ns/cli/command/1',
         schemaVersion: 1,

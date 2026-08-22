@@ -4,9 +4,9 @@
   "seed": {
     "id": "cem-ml-feature-tour-seed",
     "name": "CEM-ML Feature Tour",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "project": "./feature-tour.project.json",
-    "projectSha256": "7d733eca032cfc311cbaa9bb1fec7236acd0d5ae6b0529d8746851b9be828107"
+    "projectSha256": "d24b4b2e9d9029e919f4f4f2a377558f29d1555e1d4edfdea61b5a9460b6d299"
   },
   "capability": {
     "contractVersion": 2,
@@ -20,8 +20,10 @@
   "packageCount": 31,
   "exampleCount": 31,
   "dependencyCount": 1,
-  "projectResourceCount": 63,
-  "cacheUrlCount": 66,
+  "workbenchCount": 5,
+  "workbenchResourceCount": 14,
+  "projectResourceCount": 77,
+  "cacheUrlCount": 80,
   "examples": [
     {
       "id": "cem-ast-projection-basic-ast",
@@ -652,6 +654,192 @@
       "source": "packages/cem_ml/schema-packages/yaml/v1/examples/basic-document.yaml",
       "manifest": "packages/cem_ml/schema-packages/yaml/v1/package.cem",
       "dependencies": []
+    }
+  ],
+  "workbenches": [
+    {
+      "id": "conversion",
+      "operation": "convert",
+      "kind": "conversion",
+      "name": "CEM-ML to DOM projection",
+      "primary": "input",
+      "dependencies": [],
+      "commandArguments": [
+        "convert",
+        "$input",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-format",
+        "dom-json",
+        "--preserve-source-offsets"
+      ],
+      "entryId": "workbench-conversion",
+      "resourceId": "operation-input",
+      "runConfigResourceId": "operation-conversion-run",
+      "expectedResourceId": "operation-conversion-expected",
+      "path": "workbenches/input.cem",
+      "asset": "./resources/portable-operations/input.cem",
+      "runConfig": "./run-configs/portable-conversion.json",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "sha256": "c6e68b38ad41dcae64f078fbc87184197022c80a44ebc213d1913e2c296aa89f",
+      "expected": "./resources/portable-operations/expected/conversion.json",
+      "expectedSha256": "cfe6df44f45c27ce7a08555040da275adf007d9ed631d48445bd8bdebd80e521"
+    },
+    {
+      "id": "query",
+      "operation": "query",
+      "kind": "query",
+      "name": "XPath item query",
+      "primary": "data",
+      "dependencies": [],
+      "commandArguments": [
+        "query",
+        "$input",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query",
+        "//item",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--output",
+        "json"
+      ],
+      "entryId": "workbench-query",
+      "resourceId": "operation-data",
+      "runConfigResourceId": "operation-query-run",
+      "expectedResourceId": "operation-query-expected",
+      "path": "workbenches/data.xml",
+      "asset": "./resources/portable-operations/data.xml",
+      "runConfig": "./run-configs/portable-query.json",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "sha256": "e3866c2bdde033d7122eed5e68876a956de8cfed52dfce3ac67fb8937eadb569",
+      "expected": "./resources/portable-operations/expected/query.json",
+      "expectedSha256": "528d96eaaa376d0771e5b5c220bcddb7198910e8082bac0e101cd4b3f1c24a69"
+    },
+    {
+      "id": "transformation",
+      "operation": "transform",
+      "kind": "transformation",
+      "name": "Direct XPath transformation",
+      "primary": "data",
+      "dependencies": [
+        {
+          "resourceId": "operation-template",
+          "path": "template.xpath",
+          "asset": "./resources/portable-operations/template.xpath",
+          "contentType": "application/vnd.cem.xpath",
+          "schema": "https://cem.dev/ns/query/xpath/1",
+          "sha256": "d67fa6fd965b5a0463e961fd06cdf10b923eacca638b31768d55c138ee411c8d"
+        }
+      ],
+      "commandArguments": [
+        "transform",
+        "$input",
+        "--data-content-type",
+        "application/xml",
+        "--data-schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--template",
+        "$resource:operation-template",
+        "--template-content-type",
+        "application/vnd.cem.xpath",
+        "--template-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--to-content-type",
+        "application/vnd.cem.xpath-result+json",
+        "--to-schema",
+        "https://cem.dev/ns/query/xpath/1"
+      ],
+      "entryId": "workbench-transformation",
+      "resourceId": "operation-data",
+      "runConfigResourceId": "operation-transformation-run",
+      "expectedResourceId": "operation-transformation-expected",
+      "path": "workbenches/data.xml",
+      "asset": "./resources/portable-operations/data.xml",
+      "runConfig": "./run-configs/portable-transformation.json",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "sha256": "e3866c2bdde033d7122eed5e68876a956de8cfed52dfce3ac67fb8937eadb569",
+      "expected": "./resources/portable-operations/expected/transformation.json",
+      "expectedSha256": "8d9493f53918a002a7953d94e5cef011a4914ed703f0d0477a5f2b5f0c6cace5"
+    },
+    {
+      "id": "trace",
+      "operation": "trace",
+      "kind": "trace",
+      "name": "Parser and validation trace",
+      "primary": "input",
+      "dependencies": [],
+      "commandArguments": [
+        "trace",
+        "$input",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "json"
+      ],
+      "entryId": "workbench-trace",
+      "resourceId": "operation-input",
+      "runConfigResourceId": "operation-trace-run",
+      "expectedResourceId": "operation-trace-expected",
+      "path": "workbenches/input.cem",
+      "asset": "./resources/portable-operations/input.cem",
+      "runConfig": "./run-configs/portable-trace.json",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "sha256": "c6e68b38ad41dcae64f078fbc87184197022c80a44ebc213d1913e2c296aa89f",
+      "expected": "./resources/portable-operations/expected/trace.json",
+      "expectedSha256": "7ebcf86e793aa05323f8aec7bd42d02338491e845ce84859dbfcb30f0bcf6afc"
+    },
+    {
+      "id": "transformation-graph",
+      "operation": "transform",
+      "kind": "transformation-graph",
+      "name": "Transformation graph",
+      "primary": "graph",
+      "dependencies": [
+        {
+          "resourceId": "operation-data",
+          "path": "data.xml",
+          "asset": "./resources/portable-operations/data.xml",
+          "contentType": "application/xml",
+          "schema": "https://cem.dev/ns/data/xml/1",
+          "sha256": "e3866c2bdde033d7122eed5e68876a956de8cfed52dfce3ac67fb8937eadb569"
+        },
+        {
+          "resourceId": "operation-template",
+          "path": "template.xpath",
+          "asset": "./resources/portable-operations/template.xpath",
+          "contentType": "application/vnd.cem.xpath",
+          "schema": "https://cem.dev/ns/query/xpath/1",
+          "sha256": "d67fa6fd965b5a0463e961fd06cdf10b923eacca638b31768d55c138ee411c8d"
+        }
+      ],
+      "commandArguments": [
+        "transform",
+        "--config",
+        "$input"
+      ],
+      "entryId": "workbench-transformation-graph",
+      "resourceId": "operation-graph",
+      "runConfigResourceId": "operation-transformation-graph-run",
+      "expectedResourceId": "operation-transformation-graph-expected",
+      "path": "workbenches/graph.cem",
+      "asset": "./resources/portable-operations/graph.cem",
+      "runConfig": "./run-configs/portable-transformation-graph.json",
+      "contentType": "application/vnd.cem.transform+cem",
+      "schema": "https://cem.dev/ns/transform/cem/1",
+      "sha256": "b280c18b0a0698e198166d827ec3fc474724a94a88c284e333e3a80ebab69dce",
+      "expected": "./resources/portable-operations/expected/transformation-graph.json",
+      "expectedSha256": "b40a07887c4793ad9c0568fc3d98f603b4305f257e15ef4f57d9efe346342755"
     }
   ]
 }

@@ -145,11 +145,15 @@ assert.equal(featureTourCatalog.commonVersion, packageMetadata.version);
 assert.equal(featureTourCatalog.packageCount, 31);
 assert.equal(featureTourCatalog.exampleCount, 31);
 assert.equal(featureTourCatalog.examples.length, 31);
+assert.equal(featureTourCatalog.workbenchCount, 5);
+assert.equal(featureTourCatalog.workbenches.length, 5);
 assert.equal(featureTourProject.id, featureTourCatalog.seed.id);
 assert.equal(featureTourProject.resources.length, featureTourCatalog.projectResourceCount);
 assert.equal(
     featureTourCatalog.projectResourceCount,
-    featureTourCatalog.exampleCount * 2 + featureTourCatalog.dependencyCount,
+    featureTourCatalog.exampleCount * 2
+        + featureTourCatalog.dependencyCount
+        + featureTourCatalog.workbenchResourceCount,
 );
 assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount);
 assert.match(serviceWorker, /event\.data\?\.type === 'cem-studio-activate-update'/);

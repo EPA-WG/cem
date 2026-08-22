@@ -6,8 +6,9 @@ CEM-ML CLI transformation graph is the final production assembler.
 
 The package includes the typed bootstrap/deployment boundary, installable
 component shell, versioned local project repository, and graph-owned offline
-deployment. Workbench operations are delivered by later Phase 6.5 checklist
-items.
+deployment. The project-backed workbench executes parse, inspect, conversion,
+query, direct transformation, trace, and transformation-graph commands through
+the same browser worker and exact-revision repository boundary.
 
 ## Package surfaces
 
@@ -48,6 +49,11 @@ CEM selects and fields, confirmation-gates incompatible replacement in a CEM
 dialog, and distinguishes Apply from Apply & Run. The latter executes only the
 byte-verified committed command revision and marks the result stale if the
 repository or displayed command advances during execution.
+Feature Tour seed `1.1.0` also includes five deterministic portable-operation
+scenarios with explicit resource identities and pinned expected summaries.
+Their source/result, execution, expected-result, trace, graph, copy, and download
+surfaces are composed entirely from production CEM controls and remain available
+after an offline reload.
 Search and storage status render through CEM components when the workbench shell
 is composed; persistence does not introduce application-local visible controls.
 

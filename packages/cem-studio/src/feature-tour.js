@@ -5,6 +5,7 @@ export const CEM_STUDIO_PROJECT_SCHEMA = 'https://cem.dev/ns/studio/project/1';
 
 const CEM_STDOUT_URI = 'cem-stdio://stdout';
 const ARTIFACT_READ_BYTES = 1024 * 1024;
+const PORTABLE_STUDIO_OPERATIONS = new Set(['parse', 'inspect', 'convert', 'query', 'transform', 'trace']);
 
 /** Create one reusable real CEM-ML browser command validator. */
 export async function createCemStudioBrowserValidator() {
@@ -223,6 +224,24 @@ export async function createCemStudioBrowserValidator() {
         true,
     ));
 
+    const runResourceCommand = async (options) => {
+        if (!Array.isArray(options.argv) || options.argv.length === 0) {
+            throw new TypeError('CEM Studio resource command requires literal argv');
+        }
+        const parsed = parseCemMlCommand(options.argv, { runtime: 'wasm-browser-worker' });
+        const operation = parsed.commandPath[0];
+        if (!PORTABLE_STUDIO_OPERATIONS.has(operation)) {
+            throw new TypeError(`unsupported CEM Studio resource command: ${String(operation)}`);
+        }
+        return executeResourceCommand({
+            ...options,
+            operation,
+            parsedCommand: parsed,
+            resourceScheme: 'studio',
+            readOutput: true,
+        });
+    };
+
     const previewResourceCommand = async (options) => {
         const inputResourceUri = resourceUri(
             options.uri ?? 'input.cem',
@@ -231,7 +250,7 @@ export async function createCemStudioBrowserValidator() {
         );
         const parsed = options.text === undefined
             ? parseCemMlCommand(
-                resourceCommandArguments(options.operation ?? 'parse', options, inputResourceUri),
+                options.argv ?? resourceCommandArguments(options.operation ?? 'parse', options, inputResourceUri),
                 { runtime: 'wasm-browser-worker' },
             )
             : parseCemMlCommandText(options.text, { runtime: 'wasm-browser-worker' });
@@ -264,7 +283,7 @@ export async function createCemStudioBrowserValidator() {
         );
         const parsed = authored.command;
         const operation = parsed.commandPath[0];
-        if (operation !== 'parse' && operation !== 'inspect') {
+        if (!PORTABLE_STUDIO_OPERATIONS.has(operation)) {
             throw new TypeError(`unsupported authored CEM Studio resource command: ${String(operation)}`);
         }
         let outcome;
@@ -288,6 +307,7 @@ export async function createCemStudioBrowserValidator() {
         commonVersion: client.worker.commonVersion,
         parseResource,
         inspectResource,
+        runResourceCommand,
         executeAuthoredResourceCommand,
         previewResourceCommand,
         serializeResourceCommand,
@@ -359,6 +379,32 @@ export async function loadCemStudioFeatureTour(options = {}) {
         contents[example.runConfigResourceId] = runConfig;
         for (const dependency of dependencies) contents[dependency.dependency.resourceId] = dependency.bytes;
     }));
+    await Promise.all(catalog.workbenches.map(async (workbench) => {
+        const [asset, runConfig, expected, dependencies] = await Promise.all([
+            fetchBytes(new URL(workbench.asset, baseUrl), fetchResource),
+            fetchBytes(new URL(workbench.runConfig, baseUrl), fetchResource),
+            fetchBytes(new URL(workbench.expected, baseUrl), fetchResource),
+            Promise.all(workbench.dependencies.map(async (dependency) => ({
+                dependency,
+                bytes: await fetchBytes(new URL(dependency.asset, baseUrl), fetchResource),
+            }))),
+        ]);
+        if (await sha256(asset) !== workbench.sha256) {
+            throw new Error(`Feature Tour workbench ${workbench.id} failed its SHA-256 integrity check`);
+        }
+        if (await sha256(expected) !== workbench.expectedSha256) {
+            throw new Error(`Feature Tour workbench ${workbench.id} expected result failed its SHA-256 integrity check`);
+        }
+        contents[workbench.resourceId] = asset;
+        contents[workbench.runConfigResourceId] = runConfig;
+        contents[workbench.expectedResourceId] = expected;
+        for (const { dependency, bytes } of dependencies) {
+            if (await sha256(bytes) !== dependency.sha256) {
+                throw new Error(`Feature Tour workbench dependency ${dependency.resourceId} failed its SHA-256 integrity check`);
+            }
+            contents[dependency.resourceId] = bytes;
+        }
+    }));
     if (project.resources.some(({ id }) => !(id in contents))) {
         throw new Error('Feature Tour bundle is missing a declared project resource');
     }
@@ -414,6 +460,8 @@ function assertFeatureTourCatalog(catalog) {
         || catalog.capability?.operation !== 'validate'
         || catalog.capability.availability !== 'available'
         || !Array.isArray(catalog.examples)
+        || !Array.isArray(catalog.workbenches)
+        || catalog.workbenches.length !== 5
         || catalog.examples.length !== catalog.exampleCount
         || catalog.exampleCount !== catalog.packageCount
     ) {
@@ -460,6 +508,7 @@ function resourceUri(uri, projectId, scheme = 'cem-studio') {
 }
 
 function resourceCommandArguments(operation, options, inputResourceUri) {
+    if (Array.isArray(options.argv)) return options.argv;
     const identity = [
         '--content-type',
         options.contentType,

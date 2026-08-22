@@ -21,6 +21,14 @@ const featureTourBuild = await readJson(resolve(workspaceRoot, 'dist/reports/cem
 assert.equal(catalog.selection, 'first-manifest-declared-pass-example-per-registered-package');
 assert.equal(catalog.packageCount, 31);
 assert.equal(catalog.exampleCount, catalog.packageCount);
+assert.equal(catalog.workbenchCount, 5);
+assert.deepEqual(catalog.workbenches.map(({ kind }) => kind), [
+    'conversion',
+    'query',
+    'transformation',
+    'trace',
+    'transformation-graph',
+]);
 assert.equal(catalog.capability.operation, 'validate');
 assert.equal(catalog.capability.availability, 'available');
 assert.equal(project.id, catalog.seed.id);
@@ -28,7 +36,7 @@ assert.equal(project.entries.filter(({ kind }) => kind === 'validation').length,
 assert.equal(project.resources.length, catalog.projectResourceCount);
 assert.equal(
     catalog.projectResourceCount,
-    catalog.exampleCount * 2 + catalog.dependencyCount,
+    catalog.exampleCount * 2 + catalog.dependencyCount + catalog.workbenchResourceCount,
 );
 assert.equal(sampleIndex.samples[0].id, catalog.seed.id);
 assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount);
@@ -79,6 +87,21 @@ for (const example of catalog.examples) {
         example.source,
     ], workspaceRoot));
 }
+for (const workbench of catalog.workbenches) {
+    const [asset, expected, runConfig] = await Promise.all([
+        readFile(resolve(outputRoot, workbench.asset.slice(2))),
+        readFile(resolve(outputRoot, workbench.expected.slice(2))),
+        readFile(resolve(outputRoot, workbench.runConfig.slice(2))),
+    ]);
+    assert.equal(sha256(asset), workbench.sha256, `${workbench.id} input hash drifted`);
+    assert.equal(sha256(expected), workbench.expectedSha256, `${workbench.id} expected result hash drifted`);
+    assert.ok(JSON.parse(expected).kind, `${workbench.id} expected result has no kind`);
+    assert.ok(JSON.parse(runConfig).inputs?.length > 0, `${workbench.id} run config has no input`);
+    for (const dependency of workbench.dependencies) {
+        const bytes = await readFile(resolve(outputRoot, dependency.asset.slice(2)));
+        assert.equal(sha256(bytes), dependency.sha256, `${workbench.id} dependency ${dependency.resourceId} drifted`);
+    }
+}
 
 const report = {
     schemaVersion: 1,
@@ -88,6 +111,8 @@ const report = {
     packageCount: catalog.packageCount,
     exampleCount: catalog.exampleCount,
     dependencyCount: catalog.dependencyCount,
+    workbenchCount: catalog.workbenchCount,
+    workbenchResourceCount: catalog.workbenchResourceCount,
     nativeValidationBytes,
     graphAssembly: 'cem-ml-transform-graph',
 };

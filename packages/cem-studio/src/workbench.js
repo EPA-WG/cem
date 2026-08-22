@@ -34,7 +34,13 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     if (typeof projectId !== 'string' || projectId.length === 0) {
         throw new TypeError('Feature Tour workbench requires a project id');
     }
-    const example = options.example ?? featureTourCemExample(seed);
+    const initialExample = options.example ?? featureTourCemExample(seed);
+    const workbenches = featureTourWorkbenches(seed, initialExample);
+    if (workbenches.some((entry) => !['parse', 'inspect'].includes(workbenchOperation(entry)))
+        && !validator?.runResourceCommand) {
+        throw new TypeError('Portable operation workbenches require a browser command runner');
+    }
+    let [example] = workbenches;
     const subscribers = new Set();
     let editVersion = 0;
     let commandEditVersion = 0;
@@ -56,6 +62,10 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         command: undefined,
         selection: undefined,
         error: undefined,
+        workbenchId: example.id,
+        workbenches: Object.freeze(workbenches.map(workbenchDescriptor)),
+        operation: workbenchOperation(example),
+        expected: undefined,
     });
 
     function snapshot() {
@@ -96,8 +106,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 contentType: dependencyResource.contentType,
                 schema: dependencyResource.schema,
                 path: dependency.path,
+                resourceId: dependency.resourceId,
             };
         });
+        const expected = freezeWorkbenchValue(example.expectedSummary ?? (example.expectedResourceId
+            ? JSON.parse(textDecoder.decode(toBytes(bundle.contents[example.expectedResourceId])))
+            : undefined));
         return {
             bytes,
             text: textDecoder.decode(bytes),
@@ -109,6 +123,9 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             project: bundle.project,
             contents: bundle.contents,
             currentEntry: currentEntries[0],
+            expected,
+            operation: workbenchOperation(example),
+            pageKind: example.kind ?? 'inspection',
             referencedResourceIds: Object.freeze([
                 example.resourceId,
                 ...example.dependencies.map(({ resourceId }) => resourceId),
@@ -135,7 +152,35 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             command,
             selection: undefined,
             error: undefined,
+            workbenchId: example.id,
+            operation: persisted.operation,
+            expected: persisted.expected,
         });
+    }
+
+    async function selectWorkbench(workbenchId) {
+        const selected = workbenches.find(({ id }) => id === workbenchId);
+        if (!selected) throw new RangeError(`Feature Tour workbench ${String(workbenchId)} is unavailable`);
+        example = selected;
+        commandEditVersion += 1;
+        editVersion += 1;
+        publish({
+            ...state,
+            status: 'loading',
+            workbenchId: selected.id,
+            resourceId: selected.resourceId,
+            path: selected.path,
+            contentType: selected.contentType,
+            schema: selected.schema,
+            operation: workbenchOperation(selected),
+            validation: undefined,
+            projection: undefined,
+            command: undefined,
+            selection: undefined,
+            expected: undefined,
+            error: undefined,
+        });
+        return reload();
     }
 
     function updateDraft(draft) {
@@ -290,6 +335,62 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         return projectPersisted('inspect', view, options);
     }
 
+    async function runPersistedOperation(options = {}) {
+        const operation = workbenchOperation(example);
+        if (operation === 'parse') return parsePersisted('ast', options);
+        if (operation === 'inspect') return inspectPersisted('summary', options);
+        const persisted = await readPersisted();
+        const capturedVersion = editVersion;
+        const draftMatches = state.draft === persisted.text;
+        const argv = commandArgumentsForExample(example, projectId, 'studio');
+        publish({
+            ...state,
+            status: 'projecting',
+            projectRevision: persisted.projectRevision,
+            resourceRevision: persisted.resourceRevision,
+            repositoryRevision: persisted.repositoryRevision,
+            persistedText: persisted.text,
+            error: undefined,
+        });
+        let outcome;
+        try {
+            outcome = await validator.runResourceCommand({
+                ...commandResourceOptions(persisted),
+                argv,
+                signal: options.signal,
+            });
+        } catch (error) {
+            if (!error?.result || !error?.output) {
+                publish({ ...state, status: 'failed', error: normalizedError(error) });
+                throw error;
+            }
+            outcome = { result: error.result, presentation: error.presentation, output: error.output };
+        }
+        const mode = commandProjectionMode(undefined, operation, example.kind);
+        const projected = projectCommandProjection(operation, mode, outcome, persisted.text, {
+            projectRevision: persisted.projectRevision,
+            resourceRevision: persisted.resourceRevision,
+            sha256: persisted.sha256,
+        }, persisted.expected);
+        const stale = editVersion !== capturedVersion
+            || !draftMatches
+            || state.projectRevision !== persisted.projectRevision
+            || state.resourceRevision !== persisted.resourceRevision
+            || Boolean(outcome.result.stale);
+        const projection = freezeProjection({ ...projected, stale });
+        commandEditVersion += 1;
+        const command = await commandForProjection(persisted, operation, mode);
+        publish({
+            ...state,
+            status: stale ? 'projection-stale' : projected.exitCode === 0 ? 'projected' : 'projection-invalid',
+            projection,
+            command,
+            selection: undefined,
+            error: undefined,
+        });
+        return state;
+    }
+
     async function projectPersisted(kind, mode, options) {
         const persisted = await readPersisted();
         const capturedVersion = editVersion;
@@ -328,7 +429,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             projectRevision: persisted.projectRevision,
             resourceRevision: persisted.resourceRevision,
             sha256: persisted.sha256,
-        });
+        }, persisted.expected);
         const stale = editVersion !== capturedVersion
             || !draftMatches
             || state.projectRevision !== persisted.projectRevision
@@ -387,6 +488,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     changes,
                     diagnostic: undefined,
                     copy: undefined,
+                    application: commandApplicationState(persisted, state.command.application, preview.parsed),
                 }),
             });
         } catch (error) {
@@ -445,6 +547,64 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                         status: 'failed',
                         message: normalizedError(error).message,
                     }),
+                }),
+            });
+        }
+        return state;
+    }
+
+    async function copyProjection(writeText) {
+        if (!state.projection?.output) throw new Error('CEM Studio has no operation output to copy');
+        try {
+            if (typeof writeText !== 'function') {
+                const error = new Error('Clipboard writing is unavailable; select and copy the result text instead.');
+                error.code = 'cem.studio.projection.clipboard_unavailable';
+                throw error;
+            }
+            await writeText(state.projection.output.text);
+            publish({
+                ...state,
+                projection: freezeProjection({
+                    ...state.projection,
+                    transfer: Object.freeze({ status: 'copied', message: 'Exact operation output copied.' }),
+                }),
+            });
+        } catch (error) {
+            publish({
+                ...state,
+                projection: freezeProjection({
+                    ...state.projection,
+                    transfer: Object.freeze({ status: 'failed', message: normalizedError(error).message }),
+                }),
+            });
+        }
+        return state;
+    }
+
+    async function downloadProjection(save) {
+        if (!state.projection?.output) throw new Error('CEM Studio has no operation output to download');
+        const extension = state.projection.output.contentType?.includes('json') ? 'json' : 'cem';
+        const filename = `${state.projection.kind}-${String(state.projection.mode).replace(/[^a-z0-9-]+/gi, '-')}.${extension}`;
+        try {
+            if (typeof save !== 'function') throw new Error('Result download is unavailable in this browser.');
+            await save({
+                filename,
+                contentType: state.projection.output.contentType,
+                bytes: new Uint8Array(state.projection.output.bytes),
+            });
+            publish({
+                ...state,
+                projection: freezeProjection({
+                    ...state.projection,
+                    transfer: Object.freeze({ status: 'downloaded', message: `Downloaded ${filename}.` }),
+                }),
+            });
+        } catch (error) {
+            publish({
+                ...state,
+                projection: freezeProjection({
+                    ...state.projection,
+                    transfer: Object.freeze({ status: 'failed', message: normalizedError(error).message }),
                 }),
             });
         }
@@ -638,7 +798,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 projectRevision: applied.projectRevision,
                 resourceRevision: applied.resourceRevision,
                 sha256: applied.sha256,
-            }),
+            }, persisted.expected),
             stale,
         });
         publish({
@@ -709,7 +869,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     diagnostic: undefined,
                     revision: commandRevision(persisted),
                     copy: undefined,
-                    application: commandApplicationState(persisted, state.command.application),
+                    application: commandApplicationState(persisted, state.command.application, preview.parsed),
                 });
             } catch (error) {
                 return freezeCommand({
@@ -726,13 +886,21 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 });
             }
         }
-        return commandForProjection(persisted, 'parse', 'ast');
+        const operation = persisted.operation ?? 'parse';
+        return commandForProjection(
+            persisted,
+            operation,
+            operation === 'parse' ? 'ast' : operation === 'inspect' ? 'summary' : example.kind,
+        );
     }
 
     async function commandForProjection(persisted, kind, mode) {
         const preview = await validator.previewResourceCommand({
             ...commandResourceOptions(persisted),
             operation: kind,
+            ...(kind === 'parse' || kind === 'inspect'
+                ? {}
+                : { argv: commandArgumentsForExample(example, projectId, 'studio') }),
             [kind === 'parse' ? 'projection' : 'view']: mode,
         });
         return commandState(preview, persisted, state.command?.application);
@@ -748,17 +916,20 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             projectId,
             projectRevision: persisted.projectRevision,
             resourceRevision: persisted.resourceRevision,
+            ...(example.commandArguments
+                ? { argv: commandArgumentsForExample(example, projectId, 'studio') }
+                : {}),
         };
     }
 
     function navigateDiagnostic(index) {
-        const diagnostic = state.validation?.diagnostics[index];
+        const diagnostic = (state.projection?.diagnostics ?? state.validation?.diagnostics)?.[index];
         if (!diagnostic) throw new RangeError(`diagnostic ${index} is unavailable`);
         return selectRange('diagnostic', index, diagnostic.range);
     }
 
     function navigateProvenance(index) {
-        const frame = state.validation?.provenance[index];
+        const frame = (state.projection?.provenance ?? state.validation?.provenance)?.[index];
         if (!frame) throw new RangeError(`provenance frame ${index} is unavailable`);
         return selectRange('provenance', index, frame.range);
     }
@@ -782,13 +953,17 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         subscribe,
         updateDraft,
         reload,
+        selectWorkbench,
         saveAndValidate,
         validatePersisted,
         parsePersisted,
         inspectPersisted,
+        runPersistedOperation,
         updateCommandDraft,
         resetCommandDraft,
         copyCommand,
+        copyProjection,
+        downloadProjection,
         setCommandTarget,
         applyCommand,
         applyAndRun,
@@ -804,13 +979,18 @@ export async function createCemStudioFeatureTourWorkbench(options) {
 }
 
 /** Mount the workbench with production CEM controls only. */
-export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clipboard = navigator.clipboard }) {
+export async function mountCemStudioFeatureTourWorkbench({
+    root,
+    workbench,
+    clipboard = navigator.clipboard,
+    download = browserDownload,
+}) {
     if (!(root instanceof Element)) throw new TypeError('Feature Tour workbench root must be an Element');
     const components = await installCemStudioShellComponents();
     const host = document.createElement('section');
     host.setAttribute('data-cem-studio-workbench', '');
     host.setAttribute('aria-label', 'Feature Tour workbench');
-    host.innerHTML = workbenchMarkup();
+    host.innerHTML = workbenchMarkup(workbench.snapshot());
     const shell = root.querySelector('[data-cem-studio-shell]');
     if (shell) shell.append(host);
     else root.append(host);
@@ -821,9 +1001,13 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
     const reloadAction = host.querySelector('cem-action[data-cem-studio-reload]');
     const parseAction = host.querySelector('cem-action[data-cem-studio-parse]');
     const inspectAction = host.querySelector('cem-action[data-cem-studio-inspect]');
+    const runAction = host.querySelector('cem-action[data-cem-studio-operation-run]');
+    const workbenchSelect = host.querySelector('cem-select[data-cem-studio-workbench-select]');
     const commandEditorHost = host.querySelector('cem-textarea[data-cem-studio-command-editor]');
     const commandCopyAction = host.querySelector('cem-action[data-cem-studio-command-copy]');
     const commandResetAction = host.querySelector('cem-action[data-cem-studio-command-reset]');
+    const projectionCopyAction = host.querySelector('cem-action[data-cem-studio-projection-copy]');
+    const projectionDownloadAction = host.querySelector('cem-action[data-cem-studio-projection-download]');
     const parseSelect = host.querySelector('cem-select[data-cem-studio-parse-projection]');
     const inspectSelect = host.querySelector('cem-select[data-cem-studio-inspect-view]');
     let renderPromise = Promise.resolve();
@@ -869,6 +1053,12 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
     const inspect = () => {
         actionPromise = workbench.inspectPersisted(inspectSelect.value).catch(() => undefined);
     };
+    const runOperation = () => {
+        actionPromise = workbench.runPersistedOperation().catch(() => undefined);
+    };
+    const selectWorkbench = () => {
+        actionPromise = workbench.selectWorkbench(workbenchSelect.value).catch(() => undefined);
+    };
     const commandEdited = (event) => {
         if (event.target instanceof HTMLTextAreaElement) {
             actionPromise = workbench.updateCommandDraft(event.target.value).catch(() => undefined);
@@ -882,6 +1072,15 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
     };
     const resetCommand = () => {
         actionPromise = workbench.resetCommandDraft().catch(() => undefined);
+    };
+    const copyProjection = () => {
+        const writeText = typeof clipboard?.writeText === 'function'
+            ? (text) => clipboard.writeText(text)
+            : undefined;
+        actionPromise = workbench.copyProjection(writeText).catch(() => undefined);
+    };
+    const downloadProjection = () => {
+        actionPromise = workbench.downloadProjection(download).catch(() => undefined);
     };
     const commandApplicationInput = (event) => {
         const field = event.target instanceof Element
@@ -956,9 +1155,13 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
     reloadAction.addEventListener('click', reload);
     parseAction.addEventListener('click', parse);
     inspectAction.addEventListener('click', inspect);
+    runAction.addEventListener('click', runOperation);
+    workbenchSelect.addEventListener('change', selectWorkbench);
     commandEditorHost.addEventListener('input', commandEdited);
     commandCopyAction.addEventListener('click', copyCommand);
     commandResetAction.addEventListener('click', resetCommand);
+    projectionCopyAction.addEventListener('click', copyProjection);
+    projectionDownloadAction.addEventListener('click', downloadProjection);
     host.addEventListener('input', commandApplicationInput);
     host.addEventListener('change', commandApplicationChange);
     host.addEventListener('click', commandApplicationAction);
@@ -985,9 +1188,13 @@ export async function mountCemStudioFeatureTourWorkbench({ root, workbench, clip
             reloadAction.removeEventListener('click', reload);
             parseAction.removeEventListener('click', parse);
             inspectAction.removeEventListener('click', inspect);
+            runAction.removeEventListener('click', runOperation);
+            workbenchSelect.removeEventListener('change', selectWorkbench);
             commandEditorHost.removeEventListener('input', commandEdited);
             commandCopyAction.removeEventListener('click', copyCommand);
             commandResetAction.removeEventListener('click', resetCommand);
+            projectionCopyAction.removeEventListener('click', copyProjection);
+            projectionDownloadAction.removeEventListener('click', downloadProjection);
             host.removeEventListener('input', commandApplicationInput);
             host.removeEventListener('change', commandApplicationChange);
             host.removeEventListener('click', commandApplicationAction);
@@ -1005,6 +1212,62 @@ function featureTourCemExample(seed) {
         packageId === 'cem-ml' && typeof contentType === 'string' && contentType.includes('cem'));
     if (!example) throw new Error('Feature Tour catalog has no editable CEM-ML example');
     return example;
+}
+
+function featureTourWorkbenches(seed, initialExample) {
+    const scenarios = Array.isArray(seed?.catalog?.workbenches) ? seed.catalog.workbenches : [];
+    const values = [initialExample, ...scenarios.filter(({ id }) => id !== initialExample.id)];
+    return Object.freeze(values.map((entry, index) => Object.freeze({
+        ...entry,
+        id: entry.id ?? (index === 0 ? 'source-editor' : `workbench-${index + 1}`),
+        name: entry.name ?? (index === 0 ? 'CEM-ML source editor' : humanizeKind(entry.kind ?? entry.operation)),
+        dependencies: Object.freeze([...(entry.dependencies ?? [])]),
+        commandArguments: entry.commandArguments ? Object.freeze([...entry.commandArguments]) : undefined,
+    })));
+}
+
+function workbenchDescriptor(example) {
+    return Object.freeze({
+        id: example.id,
+        name: example.name ?? humanizeKind(example.kind ?? 'inspection'),
+        operation: workbenchOperation(example),
+        kind: example.kind ?? 'inspection',
+        contentType: example.contentType,
+        schema: example.schema,
+    });
+}
+
+function workbenchOperation(example) {
+    return example.kind && ['convert', 'query', 'transform', 'trace'].includes(example.operation)
+        ? example.operation
+        : 'parse';
+}
+
+function commandArgumentsForExample(example, projectId, scheme) {
+    if (!Array.isArray(example.commandArguments)) return undefined;
+    const inputUri = resourceUri(example.path, projectId, scheme);
+    const dependencies = new Map((example.dependencies ?? []).map((dependency) => [
+        dependency.resourceId,
+        resolveVirtualUri(inputUri, dependency.path),
+    ]));
+    return Object.freeze(example.commandArguments.map((argument) => {
+        if (argument === '$input') return inputUri;
+        if (argument.startsWith('$resource:')) {
+            const resourceId = argument.slice('$resource:'.length);
+            const uri = dependencies.get(resourceId);
+            if (!uri) throw new Error(`Feature Tour command references unavailable resource ${resourceId}`);
+            return uri;
+        }
+        return argument;
+    }));
+}
+
+function resourceUri(uri, projectId, scheme = 'studio') {
+    return /^[a-z][a-z0-9+.-]*:/i.test(uri) ? uri : new URL(uri, `${scheme}://${projectId}/`).href;
+}
+
+function resolveVirtualUri(baseUri, relativePath) {
+    return new URL(relativePath, baseUri).href;
 }
 
 function projectValidation(result, presentation, source, revision) {
@@ -1040,7 +1303,7 @@ function projectValidation(result, presentation, source, revision) {
     };
 }
 
-function projectCommandProjection(kind, mode, outcome, source, revision) {
+function projectCommandProjection(kind, mode, outcome, source, revision, expected) {
     const result = outcome.result;
     const diagnostics = (result?.diagnostics?.items ?? []).map((diagnostic) => normalizeDiagnostic(diagnostic));
     const provenance = [];
@@ -1055,6 +1318,15 @@ function projectCommandProjection(kind, mode, outcome, source, revision) {
             provenance.push(normalizeFrame(frame, { sourceMapId: reference.sourceMapId, frameIndex }));
         });
     }
+    const summary = summarizePortableOperation(kind, mode, result);
+    const expectedMatches = expected === undefined ? undefined : matchesExpectedSummary(summary, expected);
+    const operation = result?.result?.storage === 'inline' ? result.result.value : undefined;
+    const trace = kind === 'trace' && Array.isArray(operation?.value?.body?.events)
+        ? operation.value.body.events
+        : collectOperationRecords(operation, ['trace', 'stages', 'events']);
+    const graph = kind === 'transform' && mode === 'graph'
+        ? collectOperationRecords(operation, ['artifacts', 'stages', 'nodes', 'edges'])
+        : [];
     return {
         kind,
         mode,
@@ -1068,8 +1340,66 @@ function projectCommandProjection(kind, mode, outcome, source, revision) {
         provenance: Object.freeze(provenance),
         presentation: outcome.presentation,
         sourceByteLength: textEncoder.encode(source).byteLength,
+        summary: Object.freeze(summary),
+        expected: expected === undefined ? undefined : Object.freeze({ ...expected }),
+        expectedMatches,
+        trace: Object.freeze(trace),
+        graph: Object.freeze(graph),
         stale: false,
     };
+}
+
+function summarizePortableOperation(kind, mode, result) {
+    const operation = result?.result?.storage === 'inline' ? result.result.value : undefined;
+    const value = operation?.value;
+    if (kind === 'convert') {
+        return { kind, outputCount: value?.outputs?.items?.length ?? 0 };
+    }
+    if (kind === 'query') {
+        return { kind, itemCount: sequenceItems(value?.output).length };
+    }
+    if (kind === 'transform') {
+        const outputs = value?.value?.outputs?.items ?? [];
+        const artifacts = value?.value?.artifacts ?? [];
+        const primary = mode === 'graph' ? artifacts[0]?.primary : outputs[0]?.response?.primary;
+        return {
+            kind,
+            mode,
+            ...(mode === 'graph' ? { artifactCount: artifacts.length } : {}),
+            itemCount: sequenceItems(primary).length,
+        };
+    }
+    if (kind === 'trace') {
+        return { kind, hasEvents: (value?.body?.events?.length ?? 0) > 0 };
+    }
+    return { kind, mode };
+}
+
+function sequenceItems(value) {
+    return value?.result?.sequence?.items ?? value?.sequence?.items ?? [];
+}
+
+function matchesExpectedSummary(actual, expected) {
+    return Object.entries(expected).every(([key, value]) => JSON.stringify(actual[key]) === JSON.stringify(value));
+}
+
+function collectOperationRecords(value, keys) {
+    const records = [];
+    const visit = (candidate, path = []) => {
+        if (!candidate || typeof candidate !== 'object') return;
+        for (const [key, child] of Object.entries(candidate)) {
+            if (keys.includes(key) && Array.isArray(child)) {
+                child.forEach((entry, index) => records.push(Object.freeze({
+                    path: [...path, key, index].join('.'),
+                    value: entry,
+                })));
+            } else if (path.length < 8) {
+                visit(child, [...path, key]);
+            }
+        }
+    };
+    visit(value);
+    return records;
 }
 
 function inlineValidateReport(result) {
@@ -1143,6 +1473,16 @@ function freezeState(value) {
     return Object.freeze({ ...value });
 }
 
+function freezeWorkbenchValue(value) {
+    if (Array.isArray(value)) return Object.freeze(value.map((entry) => freezeWorkbenchValue(entry)));
+    if (value && typeof value === 'object') {
+        return Object.freeze(Object.fromEntries(
+            Object.entries(value).map(([key, entry]) => [key, freezeWorkbenchValue(entry)]),
+        ));
+    }
+    return value;
+}
+
 function freezeValidation(value) {
     return Object.freeze({ ...value });
 }
@@ -1171,7 +1511,8 @@ function freezeCommandApplication(value) {
     });
 }
 
-function commandApplicationState(persisted, previous) {
+function commandApplicationState(persisted, previous, parsed) {
+    const pageKind = commandPageKindFromParsed(parsed, persisted.pageKind);
     const entries = persisted.project.entries.filter(({ kind }) => kind !== 'subproject');
     const preferredCurrentId = previous?.currentEntryId ?? persisted.currentEntry?.id;
     const currentEntry = entries.find(({ id }) => id === preferredCurrentId) ?? persisted.currentEntry;
@@ -1180,7 +1521,7 @@ function commandApplicationState(persisted, previous) {
         name: entry.name,
         kind: entry.kind,
         parentId: entry.parentId,
-        compatible: entry.kind === 'inspection',
+        compatible: entry.kind === pageKind,
     });
     const current = currentEntry ? describe(currentEntry) : undefined;
     const existing = entries.map(describe).sort((left, right) =>
@@ -1191,7 +1532,7 @@ function commandApplicationState(persisted, previous) {
         .filter(({ kind }) => kind === 'subproject')
         .map(({ id, name, parentId }) => Object.freeze({ id, name, parentId }))
         .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
-    const defaultName = `${current?.name ?? 'Command'} inspection`;
+    const defaultName = `${current?.name ?? 'Command'} ${humanizeKind(pageKind)}`;
     const newPageName = previous?.newPageName ?? defaultName;
     const newPageParentId = previous?.newPageParentId ?? current?.parentId;
     const defaultExisting = existing.find(({ compatible }) => compatible) ?? existing[0];
@@ -1314,10 +1655,28 @@ function assertAppliedCommandCommit(persisted, applied, expectedBytes) {
     throw error;
 }
 
-function commandProjectionMode(parsed, operation) {
+function commandProjectionMode(parsed, operation, fallback) {
     if (operation === 'parse') return parsed?.options?.format ?? 'ast';
     if (operation === 'inspect') return parsed?.options?.show ?? 'summary';
-    return 'unknown';
+    if (operation === 'convert') return parsed?.options?.to_format ?? parsed?.options?.to_content_type ?? fallback ?? 'convert';
+    if (operation === 'query') return parsed?.options?.query_content_type ?? fallback ?? 'query';
+    if (operation === 'transform') return parsed?.options?.config ? 'graph' : fallback === 'transformation-graph' ? 'graph' : 'direct';
+    if (operation === 'trace') return parsed?.options?.format ?? fallback ?? 'trace';
+    return fallback ?? 'unknown';
+}
+
+function humanizeKind(value) {
+    return String(value).split('-').map((part) => part[0]?.toUpperCase() + part.slice(1)).join(' ');
+}
+
+function commandPageKindFromParsed(parsed, fallback = 'inspection') {
+    const operation = parsed?.commandPath?.[0];
+    if (operation === 'parse' || operation === 'inspect') return 'inspection';
+    if (operation === 'convert') return 'conversion';
+    if (operation === 'query') return 'query';
+    if (operation === 'trace') return 'trace';
+    if (operation === 'transform') return parsed?.options?.config ? 'transformation-graph' : 'transformation';
+    return fallback;
 }
 
 function commandState(preview, persisted, previousApplication) {
@@ -1332,7 +1691,7 @@ function commandState(preview, persisted, previousApplication) {
         diagnostic: undefined,
         copy: undefined,
         revision: commandRevision(persisted),
-        application: commandApplicationState(persisted, previousApplication),
+        application: commandApplicationState(persisted, previousApplication, preview.parsed),
     });
 }
 
@@ -1418,10 +1777,14 @@ function utf8ByteOffsetToCodeUnit(value, target) {
     return codeUnits;
 }
 
-function workbenchMarkup() {
+function workbenchMarkup(state) {
     return `
+        <cem-select data-cem-studio-workbench-select name="operation-workbench" value="${escapeHtml(state.workbenchId)}">
+            <span slot="label">Workbench</span>
+            ${state.workbenches.map((workbench) => `<option value="${escapeHtml(workbench.id)}">${escapeHtml(`${workbench.name} — ${workbench.operation}`)}</option>`).join('')}
+        </cem-select>
         <cem-card label="Feature Tour editor">
-            <span slot="title">Feature Tour CEM editor</span>
+            <span slot="title">Feature Tour operation workbenches</span>
             <div data-cem-studio-workbench-content>
                 <div>
                     <cem-badge data-cem-studio-workbench-status label="Loading" tone="info"></cem-badge>
@@ -1438,6 +1801,7 @@ function workbenchMarkup() {
             </div>
         </cem-card>
         <section aria-label="CEM-ML projections">
+            <cem-action data-cem-studio-operation-run variant="primary">Run configured workbench</cem-action>
             <cem-select data-cem-studio-parse-projection name="parse-projection" value="ast">
                 <span slot="label">Parse projection</span>
                 <option value="ast">AST</option>
@@ -1454,7 +1818,8 @@ function workbenchMarkup() {
                 <option value="tree">Tree</option>
             </cem-select>
             <cem-action data-cem-studio-inspect variant="secondary">Inspect persisted revision</cem-action>
-            <cem-alert data-cem-studio-projection-alert label="Run parse or inspect against the persisted revision" tone="info"></cem-alert>
+            <cem-alert data-cem-studio-projection-alert label="Run the configured operation against the persisted revision" tone="info"></cem-alert>
+            <div data-cem-studio-operation-details></div>
         </section>
         <section aria-label="CLI Command">
             <cem-tabs label="CLI Command" value="command">
@@ -1475,10 +1840,18 @@ function workbenchMarkup() {
             </cem-tabs>
         </section>
         <cem-tabs label="Projection results" value="output">
-            <cem-tab value="output" label="CEM-ML output">
-                <cem-textarea data-cem-studio-projection-output name="projection-output" label="Target-native CEM-ML output" readonly></cem-textarea>
+            <cem-tab value="output" label="Operation output">
+                <cem-textarea data-cem-studio-projection-output name="projection-output" label="Target-native operation output" readonly></cem-textarea>
+                <div>
+                    <cem-action data-cem-studio-projection-copy variant="secondary">Copy exact output</cem-action>
+                    <cem-action data-cem-studio-projection-download variant="quiet">Download exact output</cem-action>
+                </div>
+                <cem-alert data-cem-studio-projection-transfer label="No output transfer requested" tone="info"></cem-alert>
             </cem-tab>
             <cem-tab value="metadata" label="Execution"><div data-cem-studio-projection-metadata></div></cem-tab>
+            <cem-tab value="expected" label="Expected"><div data-cem-studio-projection-expected></div></cem-tab>
+            <cem-tab value="trace" label="Trace"><div data-cem-studio-projection-trace></div></cem-tab>
+            <cem-tab value="graph" label="Graph"><div data-cem-studio-projection-graph></div></cem-tab>
         </cem-tabs>
         <cem-tabs label="Validation results" value="diagnostics">
             <cem-tab value="diagnostics" label="Diagnostics"><div data-cem-studio-diagnostics></div></cem-tab>
@@ -1501,10 +1874,16 @@ function renderWorkbench(host, state) {
     const reload = host.querySelector('[data-cem-studio-reload]');
     const parse = host.querySelector('[data-cem-studio-parse]');
     const inspect = host.querySelector('[data-cem-studio-inspect]');
+    const runOperation = host.querySelector('[data-cem-studio-operation-run]');
+    const workbenchSelect = host.querySelector('[data-cem-studio-workbench-select]');
     const commandAlert = host.querySelector('[data-cem-studio-command-alert]');
     const commandCopy = host.querySelector('[data-cem-studio-command-copy]');
     const commandReset = host.querySelector('[data-cem-studio-command-reset]');
     const projectionAlert = host.querySelector('[data-cem-studio-projection-alert]');
+    const projectionCopy = host.querySelector('[data-cem-studio-projection-copy]');
+    const projectionDownload = host.querySelector('[data-cem-studio-projection-download]');
+    const projectionTransfer = host.querySelector('[data-cem-studio-projection-transfer]');
+    workbenchSelect.value = state.workbenchId;
     status.setAttribute('label', statusLabel(state));
     status.setAttribute('tone', statusTone(state.status));
     revision.setAttribute('label', `Project ${state.projectRevision}; resource ${state.resourceRevision}`);
@@ -1515,17 +1894,46 @@ function renderWorkbench(host, state) {
     parse.toggleAttribute('loading', state.status === 'projecting');
     inspect.toggleAttribute('disabled', busy);
     inspect.toggleAttribute('loading', state.status === 'projecting');
+    runOperation.toggleAttribute('disabled', busy);
+    runOperation.toggleAttribute('loading', state.status === 'projecting');
     alert.setAttribute('label', alertLabel(state));
     alert.setAttribute('tone', state.error || state.status === 'invalid' || state.status === 'conflict' ? 'danger' : 'info');
-    host.querySelector('[data-cem-studio-diagnostics]').innerHTML = diagnosticsMarkup(state.validation?.diagnostics ?? []);
+    host.querySelector('[data-cem-studio-diagnostics]').innerHTML = diagnosticsMarkup(
+        state.projection?.diagnostics ?? state.validation?.diagnostics ?? [],
+    );
     host.querySelector('[data-cem-studio-report]').innerHTML = reportMarkup(state.validation?.reportSummary);
-    host.querySelector('[data-cem-studio-provenance]').innerHTML = provenanceMarkup(state.validation?.provenance ?? []);
+    host.querySelector('[data-cem-studio-provenance]').innerHTML = provenanceMarkup(
+        state.projection?.provenance ?? state.validation?.provenance ?? [],
+    );
     projectionAlert.setAttribute('label', projectionAlertLabel(state));
     projectionAlert.setAttribute(
         'tone',
-        state.status === 'projection-invalid' || state.error ? 'danger' : state.projection?.stale ? 'warning' : 'info',
+        state.status === 'projection-invalid' || state.error || state.projection?.expectedMatches === false
+            ? 'danger'
+            : state.projection?.stale ? 'warning' : 'info',
     );
     host.querySelector('[data-cem-studio-projection-metadata]').innerHTML = projectionMetadataMarkup(state.projection);
+    host.querySelector('[data-cem-studio-operation-details]').innerHTML = operationDetailsMarkup(state);
+    host.querySelector('[data-cem-studio-projection-expected]').innerHTML = projectionExpectedMarkup(
+        state.projection,
+        state.expected,
+    );
+    host.querySelector('[data-cem-studio-projection-trace]').innerHTML = operationRecordsMarkup(
+        'Operation trace',
+        state.projection?.trace ?? [],
+    );
+    host.querySelector('[data-cem-studio-projection-graph]').innerHTML = operationRecordsMarkup(
+        'Transformation graph execution overlay',
+        state.projection?.graph ?? [],
+    );
+    const hasOutput = Boolean(state.projection?.output);
+    projectionCopy.toggleAttribute('disabled', !hasOutput || busy);
+    projectionDownload.toggleAttribute('disabled', !hasOutput || busy);
+    projectionTransfer.setAttribute(
+        'label',
+        state.projection?.transfer?.message ?? 'Copy or download the exact verified operation output.',
+    );
+    projectionTransfer.setAttribute('tone', state.projection?.transfer?.status === 'failed' ? 'danger' : 'info');
     commandAlert.setAttribute('label', commandAlertLabel(state.command));
     commandAlert.setAttribute('tone', commandAlertTone(state.command));
     commandCopy.toggleAttribute('disabled', !state.command || state.command.status === 'checking');
@@ -1576,9 +1984,12 @@ function alertLabel(state) {
 }
 
 function projectionAlertLabel(state) {
-    if (!state.projection) return 'Run parse or inspect against the persisted revision.';
+    if (!state.projection) return `Run ${state.operation} against the persisted revision.`;
     const freshness = state.projection.stale ? 'stale' : 'current';
-    return `${state.projection.kind} ${state.projection.mode}; ${state.projection.output.byteLength} CEM-ML bytes; ${freshness} revision.`;
+    const expected = state.projection.expectedMatches === undefined
+        ? ''
+        : state.projection.expectedMatches ? '; pinned expectation matched' : '; pinned expectation differed';
+    return `${state.projection.kind} ${state.projection.mode}; ${state.projection.output.byteLength} output bytes; ${freshness} revision${expected}.`;
 }
 
 function projectionMetadataMarkup(projection) {
@@ -1593,9 +2004,42 @@ function projectionMetadataMarkup(projection) {
         ['Output bytes', projection.output.byteLength],
         ['Diagnostics', projection.diagnostics.length],
         ['Source-map frames', projection.provenance.length],
+        ['Expected result', projection.expectedMatches === undefined ? 'not pinned' : projection.expectedMatches ? 'matched' : 'different'],
         ['Freshness', projection.stale ? 'stale' : 'current'],
     ];
     return `<cem-table label="Projection execution"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Value</strong></div>${rows.map(([label, value]) => `<div role="row"><span role="cell">${escapeHtml(label)}</span><span role="cell">${escapeHtml(value)}</span></div>`).join('')}</cem-table>`;
+}
+
+function operationDetailsMarkup(state) {
+    const rows = [
+        ['Operation', state.operation],
+        ['Input path', state.path],
+        ['Input content type', state.contentType],
+        ['Input schema', state.schema],
+        ['Literal argv', state.command?.current?.argv?.join(' ') ?? 'loading'],
+        ['Pinned expectation', state.expected?.kind ?? 'none'],
+    ];
+    return `<cem-table label="Operation identities and configuration"><div role="row"><strong role="columnheader">Field</strong><strong role="columnheader">Value</strong></div>${rows.map(([label, value]) => `<div role="row"><span role="cell">${escapeHtml(label)}</span><span role="cell">${escapeHtml(value)}</span></div>`).join('')}</cem-table>`;
+}
+
+function projectionExpectedMarkup(projection, expected) {
+    const pinned = projection?.expected ?? expected;
+    if (!pinned) return '<cem-alert label="No pinned expected result for this workbench" tone="info"></cem-alert>';
+    const actual = projection?.summary;
+    const status = projection?.expectedMatches === undefined
+        ? 'Run the operation to compare its native summary.'
+        : projection.expectedMatches ? 'Native result matches the pinned expectation.' : 'Native result differs from the pinned expectation.';
+    const rows = [...new Set([...Object.keys(pinned), ...Object.keys(actual ?? {})])].sort().map((key) => [
+        key,
+        pinned[key] === undefined ? '—' : JSON.stringify(pinned[key]),
+        actual?.[key] === undefined ? '—' : JSON.stringify(actual[key]),
+    ]);
+    return `<cem-alert label="${escapeHtml(status)}" tone="${projection?.expectedMatches === false ? 'danger' : projection?.expectedMatches ? 'success' : 'info'}"></cem-alert><cem-table label="Pinned expected result"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Expected</strong><strong role="columnheader">Actual</strong></div>${rows.map(([key, expectedValue, actualValue]) => `<div role="row"><span role="cell">${escapeHtml(key)}</span><span role="cell">${escapeHtml(expectedValue)}</span><span role="cell">${escapeHtml(actualValue)}</span></div>`).join('')}</cem-table>`;
+}
+
+function operationRecordsMarkup(label, records) {
+    if (records.length === 0) return `<cem-alert label="No ${escapeHtml(label.toLowerCase())} records" tone="info"></cem-alert>`;
+    return `<cem-table label="${escapeHtml(label)}"><div role="row"><strong role="columnheader">Path</strong><strong role="columnheader">Record</strong></div>${records.slice(0, 100).map(({ path, value }) => `<div role="row"><span role="cell">${escapeHtml(path)}</span><span role="cell">${escapeHtml(commandChangeValue(value))}</span></div>`).join('')}</cem-table>`;
 }
 
 function commandAlertLabel(command) {
@@ -1784,6 +2228,21 @@ function escapeHtml(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#39;');
+}
+
+async function browserDownload({ filename, contentType, bytes }) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
+    try {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.hidden = true;
+        document.body.append(link);
+        link.click();
+        link.remove();
+    } finally {
+        URL.revokeObjectURL(url);
+    }
 }
 
 async function settleWorkbench(runtime, root) {

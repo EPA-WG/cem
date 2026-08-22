@@ -142,4 +142,40 @@
   {import @id="sample-yaml" @src="../../../cem_ml/schema-packages/yaml/v1/examples/basic-document.yaml" @content-type="application/yaml" @opaque=true |
     {export @id="sample-yaml-output" @out="../../dist/static/samples/feature-tour/resources/yaml-basic-document.yaml" @content-type="application/yaml"}
   }
+
+  {import @id="operation-input" @src="../../fixtures/portable-operations/input.cem" @content-type="application/cem" @opaque=true |
+    {export @id="operation-input-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/input.cem" @content-type="application/cem"}
+  }
+
+  {import @id="operation-data" @src="../../fixtures/portable-operations/data.xml" @content-type="application/xml" @opaque=true |
+    {export @id="operation-data-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/data.xml" @content-type="application/xml"}
+  }
+
+  {import @id="operation-template" @src="../../fixtures/portable-operations/template.xpath" @content-type="application/vnd.cem.xpath" @opaque=true |
+    {export @id="operation-template-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/template.xpath" @content-type="application/vnd.cem.xpath"}
+  }
+
+  {import @id="operation-graph" @src="../../fixtures/portable-operations/graph.cem" @content-type="application/vnd.cem.transform+cem" @opaque=true |
+    {export @id="operation-graph-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/graph.cem" @content-type="application/vnd.cem.transform+cem"}
+  }
+
+  {import @id="operation-conversion-expected" @src="../../fixtures/portable-operations/expected/convert.json" @content-type="application/json" @opaque=true |
+    {export @id="operation-conversion-expected-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/expected/conversion.json" @content-type="application/json"}
+  }
+
+  {import @id="operation-query-expected" @src="../../fixtures/portable-operations/expected/query.json" @content-type="application/json" @opaque=true |
+    {export @id="operation-query-expected-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/expected/query.json" @content-type="application/json"}
+  }
+
+  {import @id="operation-transformation-expected" @src="../../fixtures/portable-operations/expected/transform-direct.json" @content-type="application/json" @opaque=true |
+    {export @id="operation-transformation-expected-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/expected/transformation.json" @content-type="application/json"}
+  }
+
+  {import @id="operation-trace-expected" @src="../../fixtures/portable-operations/expected/trace.json" @content-type="application/json" @opaque=true |
+    {export @id="operation-trace-expected-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/expected/trace.json" @content-type="application/json"}
+  }
+
+  {import @id="operation-transformation-graph-expected" @src="../../fixtures/portable-operations/expected/transform-graph.json" @content-type="application/json" @opaque=true |
+    {export @id="operation-transformation-graph-expected-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/expected/transformation-graph.json" @content-type="application/json"}
+  }
 }

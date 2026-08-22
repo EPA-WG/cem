@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "workbenches/graph.cem",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.transform+cem",
+        "schema": "https://cem.dev/ns/transform/cem/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}
