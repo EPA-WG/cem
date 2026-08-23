@@ -12,6 +12,16 @@ set (item 5) MUST satisfy.
 ## Scope
 
 - This document is normative for `@epa-wg/cem-components`.
+- The primary source/layout/testing rule is
+  [`declarative-ui-principle.md`](../../../docs/declarative-ui-principle.md).
+  Every component is an XHTML CEM-ML declaration in its own `src/components/<cem-tag>/`
+  folder with an embedded CEM-ML `<style>` node using CEM UI `--cem-*` tokens
+  and a colocated `.stories.xhtml` unit-test document. `cem-elements` scopes the
+  embedded style; standalone component CSS is forbidden. Storybook owns theme
+  selection and executes the story in all five canonical theme modes. Authored
+  JavaScript/TypeScript is forbidden. If the required expression is missing or
+  unreasonably verbose in CEM-ML, stop and implement a reusable declarative
+  capability in `cem-elements` before continuing the component.
 - Components are declarative custom elements rendered into the **light DOM**. No shadow
   DOM. Templates are authored against the `<cem-element>` substrate from
   `@epa-wg/cem-elements` (design home:

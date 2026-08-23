@@ -4,6 +4,14 @@ This Nx application publishes a static site through the native CEM-ML CLI. Its
 checked-in `site.cem` graph is the publication manifest: every source, transform,
 route, and output is explicit.
 
+The site's primary UI authoring contract is the repository's
+[declarative UI principle](../../docs/declarative-ui-principle.md). Visible
+markup, component composition, interaction bindings, and UI state projection
+must be XHTML/CEM-ML. Site JavaScript may provide non-UI host services only; it
+must not render/mutate visible UI or attach app-local UI behavior. A missing or
+overly verbose CEM-ML capability hard-stops route UI work until a reusable
+declarative capability is implemented in `cem-elements`.
+
 The checked-in `site.routes.json` is the audited publication and search
 allowlist. It
 records each route or resource, its canonical source, owning Nx project, and
@@ -89,8 +97,10 @@ published runtime resource.
 
 The `/search/` route consumes the same route manifest through native CEMT and a
 paired module-map v2 contract. CEMT renders the manifest's `searchDocuments`
-projection as the route's semantic HTML index; site-owned code only filters that
-native projection. The search field and action are `@epa-wg/cem-components`
+projection as the route's semantic HTML index. Its current site-owned filtering
+module is migration debt under the primary no-JS UI rule and must move behind a
+declarative `cem-elements` capability rather than become a pattern for another
+route. The search field and action are `@epa-wg/cem-components`
 rendered on the `cem-elements`-backed custom-element light DOM, without a
 bundler, JSON sidecar, or post-build copy. Every searchable fragment is
 manifest-owned and verified against a unique rendered heading ID.

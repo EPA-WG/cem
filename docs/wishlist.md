@@ -69,6 +69,22 @@ in [`todo.md`](todo.md).
       after CEM-QL has a typed signature model that can distinguish arity and parameter/return types deterministically.
       The design must define overload-set encoding in package artifacts, import/export collision rules, ambiguous-call
       diagnostics, and formatter/HTML/example coverage before relaxing duplicate-declaration errors.
+- [ ] **First-class generators and user-defined deferred sources.** Extend CEM-QL's existing lazy `ItemStream` and
+      `cem:stdlib/sequence` pipeline with one authorable generator/source protocol, not a second sequence model. Use
+      [Novatchev's XPath 3.1/4.0 generator design](https://www.balisage.net/Proceedings/vol31/html/Novatchev01/BalisageVol31-Novatchev01.html)
+      and its [executable library and 140-plus-expression test suite](https://github.com/dnovatchev/generators) as
+      behavioral inputs for immutable state, current/advance/end, finite and unbounded yields, demand-driven providers,
+      early termination, and explicit materialization. Define Rust-first CEM-QL source syntax; typed synchronous and
+      asynchronous provider contracts; scope cancellation, budgets, source maps, cleanup, and backpressure; deterministic
+      end/error behavior; and explicit replayable-source versus one-shot-cursor semantics. Require a functional-parity
+      matrix and native/WASM tests against Java [`Iterator`/`Spliterator` and generated, lazy, single-use `Stream`
+      pipelines](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/stream/package-summary.html),
+      including [stateful `Gatherer` operations](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/stream/Gatherer.html), and
+      .NET [`IEnumerable<T>`/`IAsyncEnumerable<T>` iterator methods](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/yield)
+      plus [deferred LINQ](https://learn.microsoft.com/en-us/dotnet/standard/linq/deferred-execution-lazy-evaluation).
+      Cover source construction, one-item pull, existing map/filter/flat-map and take/drop/short-circuit helpers,
+      zip/chunk/concat/distinct, fold/scan, and bounded materialization without importing XPath `gn:*` names or record
+      syntax.
 
 ## CEM Elements Runtime
 

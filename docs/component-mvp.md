@@ -11,6 +11,17 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
   specialized controls.
 - All components render in the light DOM through the `<cem-element>` substrate. No Phase 4 component may depend on the
   legacy `<custom-element>` authoring surface.
+- The primary authoring contract is
+  [`declarative-ui-principle.md`](./declarative-ui-principle.md). Every component
+  owns `packages/cem-components/src/components/<cem-tag>/<cem-tag>.xhtml` with
+  an embedded CEM-ML `<style>` node consuming CEM UI `--cem-*` tokens, plus a
+  colocated `<cem-tag>.stories.xhtml` containing its Storybook unit cases.
+  `cem-elements` scopes the embedded style automatically; a standalone
+  `<cem-tag>.css` file is forbidden. Storybook owns the production-CEM theme
+  switcher and runs the same story under all five canonical theme modes. New
+  JavaScript/TypeScript component declarations, behaviors, installers, stories,
+  and tests are forbidden. If CEM-ML lacks a concise capability, component work
+  hard-stops until that reusable capability is implemented in `cem-elements`.
 
 ## Component List
 
@@ -136,11 +147,19 @@ The MVP is complete only when these workflows can be built without one-off UI co
 
 ## First Validation Flow
 
-Use tests and fixtures outside `examples/` as the executable coverage. Example-shaped cases may mirror
-`examples/cem-ml/` and `examples/semantic/`, but test data should live with the package or crate that owns the behavior.
+Use the component's colocated declarative Storybook document as its executable
+unit coverage. Engine/runtime tests remain with the package or crate that owns
+the reusable behavior; a component must not recreate those tests in a separate
+JavaScript/TypeScript suite. Example-shaped cases may mirror `examples/cem-ml/`
+and `examples/semantic/`.
 
 1. Render each workflow-shaped fixture through the DOM/XSLT or CEM-ML pipeline.
 2. Confirm every component maps to a component row above.
 3. Confirm every visible component state maps to a state row above.
-4. Confirm every visual value comes from CEM token CSS or native Figma variables.
-5. Confirm accessible names, ARIA state mirrors, keyboard behavior, and reference integrity through package tests.
+4. Confirm component CSS is embedded in the CEM-ML declaration and scoped by
+   `cem-elements`, every visual value comes from CEM UI theme tokens, and
+   Storybook resolves those tokens under all five canonical theme modes using
+   its own theme switcher/global.
+5. Confirm accessible names, ARIA state mirrors, keyboard behavior, and
+   reference integrity through the Storybook assertions colocated with each
+   component.

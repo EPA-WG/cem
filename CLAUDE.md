@@ -14,8 +14,23 @@ Decision notes such as docs/indent-vs-tab-size.md are rationale archives only; d
 
 ## Project overview
 
-CEM (Consumer-Experience Model) is a semantic design token framework using `@epa-wg/custom-element` for declarative web
-components. No shadow DOM is used -- all content renders in the light DOM.
+CEM (Consumer-Experience Model) is a semantic design token framework using the
+`cem-elements` runtime for declarative web components. No shadow DOM is used --
+all content renders in the light DOM.
+
+The normative primary UI rule is
+[`docs/declarative-ui-principle.md`](docs/declarative-ui-principle.md). Every
+`cem-components` member is a per-component XHTML `<cem-element>` declaration
+authored in CEM-ML with a colocated XHTML Storybook file containing its unit
+tests. Component CSS is an embedded CEM-ML `<style>` node, automatically scoped
+by `cem-elements`, and consumes CEM UI `--cem-*` tokens; a standalone component
+CSS file is forbidden. Storybook owns an accessible production-`cem-select`
+theme switcher and applies each of the five canonical modes to the preview;
+stories never own theme state.
+`cem-components` must reach zero authored JavaScript/TypeScript. When CEM-ML
+lacks a concise required capability, hard-stop component/app UI work and add
+the reusable declarative capability to `cem-elements`; never add a component-
+or app-local JavaScript behavior workaround.
 
 ### Key paths
 
@@ -95,12 +110,20 @@ Build relationships:
 
 ## Component catalog contract
 
-Component semantics remain owned by `docs/component-mvp.md`, the executable
-`CEM_COMPONENT_PRIMITIVES` declaration, and the package component reference,
+Component semantics remain owned by `docs/component-mvp.md`, the per-component
+XHTML declarations and colocated XHTML Storybook tests under
+`packages/cem-components/src/components/`, and the package component reference,
 conventions, and accessibility documents. The cached
 `@epa-wg/cem-components:build:catalog` target validates those sources and the
 generated state-matrix report, then emits the public beta
 `packages/cem-components/dist/catalog/cem.components.catalog.json` artifact.
+
+The migration-era `CEM_COMPONENT_PRIMITIVES` declaration, behavior modules, and
+separate TypeScript specs are frozen debt recorded in
+`packages/cem-components/declarative-migration.json`; they are not an authoring
+contract or a valid location for new work. The
+`@epa-wg/cem-components:verify-declarative` gate must pass before component
+build/catalog/test gates.
 
 The catalog contains semantic component rows, token families, category-level
 state coverage, GitHub source links for package examples, and the separately
@@ -112,12 +135,17 @@ example markup, Figma projections, or a site-owned Storybook build. Prefer the
 
 CEM Site and CEM Studio must build their interactive user interfaces from
 production `@epa-wg/cem-components` running on the `cem-elements`-backed
-`@epa-wg/custom-element` light-DOM substrate. App-owned code may orchestrate
-routing, persistence, search/query state, workers, and other application
-services, but it must not replace an available shared CEM control or interaction
-with a native one-off widget. Add or finish the reusable CEM component first
-when an app needs a missing control; application-local UI is reserved for a
-capability absent from the shared component set.
+light-DOM substrate. Visible markup, composition, interaction bindings, and UI
+state projection are authored in XHTML/CEM-ML, not application JavaScript.
+App-owned JavaScript may orchestrate routing transport, persistence,
+search/query state, workers, browser APIs, and other non-UI services, but it must
+not render or mutate visible UI, attach app-local UI behavior, or replace an
+available shared CEM control with a native one-off widget.
+
+Add or finish the reusable declarative CEM component first when an app needs a
+missing control. If the component cannot be expressed cleanly in CEM-ML, stop
+and add the missing generic capability to `cem-elements` before resuming. There
+is no application-local UI exception to that hard stop.
 
 ## Dev server
 

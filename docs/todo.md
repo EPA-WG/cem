@@ -24,6 +24,29 @@ registration boundary is also locked: logical declaration lookup is scoped and
 inherited, browser registration remains document-global, and only identical CEM
 registration identities may reuse an inherited or existing definition.
 
+## Declarative UI Architecture Correction
+
+- [x] Promote the no-JS declarative authoring rule to the primary repository,
+      component, Studio, and Site contract.
+- [x] Add the `cem-components:verify-declarative` hard gate with an explicit
+      frozen inventory of the 49 legacy registry members and 62 authored
+      JavaScript/TypeScript files. New component code cannot extend that debt.
+- [ ] Implement the `cem-elements` XHTML Storybook indexer/loader and
+      declarative `<cem-story>` / `<cem-test>` execution contract, including a
+      Storybook-owned accessible theme switcher composed from production
+      `cem-select`, exact five-mode global switching on the preview root, public
+      CEM theme CSS loading, embedded component-style rendering, and per-mode
+      test execution/token resolution. This is a hard stop before adding or migrating any
+      `cem-components` member; a CSF JavaScript/TypeScript fallback is forbidden.
+- [ ] Migrate every legacy `cem-components` member into its own
+      `src/components/<cem-tag>/<cem-tag>.xhtml` folder with embedded,
+      automatically scoped CEM-token `<style>` and colocated
+      `<cem-tag>.stories.xhtml` tests, moving missing reusable behavior into
+      `cem-elements`, until both migration targets are zero.
+- [ ] Migrate remaining Studio and Site visible DOM construction, UI listeners,
+      and state projection to XHTML/CEM-ML, retaining JavaScript only for non-UI
+      services and host adapters.
+
 ## Phase 3 Checklist
 
 - [x] Lock the `<cem-element>` declaration and registration contract.

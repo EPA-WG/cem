@@ -8,7 +8,7 @@
             "dependsOn": ["^build", "build:styles", "build:catalog"]
         },
         "test": {
-            "dependsOn": ["^build", "verify-phase3-harness"],
+            "dependsOn": ["^build", "verify-declarative", "verify-phase3-harness"],
             "options": {
                 "command": "vitest --no-file-parallelism"
             }
@@ -26,7 +26,7 @@
         "build:catalog": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify-primitives", "verify-state-matrix"],
+            "dependsOn": ["verify-declarative", "verify-primitives", "verify-state-matrix"],
             "options": {
                 "command": "node scripts/build-component-catalog.mjs",
                 "cwd": "{projectRoot}"
@@ -34,6 +34,8 @@
             "inputs": [
                 "{projectRoot}/scripts/build-component-catalog.mjs",
                 "{projectRoot}/package.json",
+                "{projectRoot}/declarative-migration.json",
+                "{projectRoot}/src/components/**/*",
                 "{projectRoot}/src/lib/primitives.ts",
                 "{projectRoot}/docs/component-reference.md",
                 "{projectRoot}/docs/conventions.md",
@@ -49,6 +51,26 @@
             ],
             "outputs": ["{projectRoot}/dist/catalog/cem.components.catalog.json"]
         },
+        "verify-declarative": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/verify-cem-components-declarative.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-components-declarative.mjs",
+                "{workspaceRoot}/docs/declarative-ui-principle.md",
+                "{workspaceRoot}/docs/component-mvp.md",
+                "{projectRoot}/declarative-migration.json",
+                "{projectRoot}/src/components/**/*",
+                "{projectRoot}/src/lib/primitives.ts",
+                "{workspaceRoot}/packages/cem-elements/src/lib/storybook/xhtml-stories.ts",
+                "{workspaceRoot}/packages/cem-elements/src/lib/storybook/xhtml-story-themes.ts",
+                "{projectRoot}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"
+            ],
+            "outputs": []
+        },
         "verify-primitives": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -59,6 +81,7 @@
             "inputs": [
                 "{workspaceRoot}/tools/scripts/verify-cem-components-primitives.mjs",
                 "{workspaceRoot}/docs/component-mvp.md",
+                "{projectRoot}/declarative-migration.json",
                 "{projectRoot}/src/lib/primitives.ts"
             ],
             "outputs": []
@@ -502,6 +525,7 @@
         "verify": {
             "executor": "nx:run-commands",
             "dependsOn": [
+                "verify-declarative",
                 "verify-primitives",
                 "verify-figma-inventory",
                 "verify-material-parity",

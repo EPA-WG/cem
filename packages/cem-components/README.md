@@ -6,9 +6,22 @@ Declarative component primitives that consume the CEM theme. No shadow DOM — e
 light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elements` (functional successor to
 `@epa-wg/custom-element`; design home: [`docs/cem-element-design.md`](../../docs/cem-element-design.md)).
 
-> **Status: Phase 3.2 production gate.** The package exports the browser test harness and installable primitive
-> declaration set from the [component MVP](../../docs/component-mvp.md), registered through the production-ready
-> `<cem-element>` substrate.
+> **Primary architecture:** every component is a CEM-ML `<cem-element>`
+> declaration at `src/components/<cem-tag>/<cem-tag>.xhtml`, with CEM-token CSS
+> embedded as an automatically scoped `<style>` node and Storybook cases/unit
+> assertions in the colocated `<cem-tag>.stories.xhtml` file. Do not add a
+> standalone component CSS file. Storybook owns the production-CEM theme
+> switcher and applies all five canonical modes to the same story.
+> This package must reach zero authored JavaScript/TypeScript. If CEM-ML cannot
+> express a requirement concisely, component work hard-stops until the reusable
+> capability is implemented in `cem-elements`. See the normative
+> [declarative UI principle](../../docs/declarative-ui-principle.md).
+
+> **Migration status:** the installable TypeScript primitive registry, behavior
+> modules, and separate browser specs described below predate the primary rule.
+> They are frozen compatibility debt, not examples for new work. The baseline is
+> recorded in [`declarative-migration.json`](./declarative-migration.json) and
+> may only shrink toward zero.
 
 ## Install
 
@@ -27,7 +40,11 @@ source links to separately owned examples and local Storybook configuration.
 It contains no executable declaration or example markup and is not a runtime
 component bundle.
 
-## Runtime install
+## Legacy runtime install
+
+This API remains available only while the frozen primitives migrate to
+declarative XHTML package assets. Do not add another registry member or
+JavaScript behavior.
 
 ```ts
 import { CemElementRuntime } from '@epa-wg/cem-elements';
@@ -190,6 +207,7 @@ CSS exception.
 
 ```bash
 yarn nx run @epa-wg/cem-components:verify
+yarn nx run @epa-wg/cem-components:verify-declarative
 yarn nx run @epa-wg/cem-components:verify-primitives
 yarn nx run @epa-wg/cem-components:verify-figma-inventory
 yarn nx run @epa-wg/cem-components:verify-material-parity
@@ -220,7 +238,16 @@ yarn nx run @epa-wg/cem-components:lint
 
 `yarn build` at the repo root builds every package, including this one.
 
-`yarn nx run @epa-wg/cem-components:verify` is the Phase 3.2 production-ready trigger. It runs the primitive manifest,
+`verify-declarative` runs first and enforces the primary architecture: new
+authored JavaScript/TypeScript is rejected, the legacy implementation cannot
+drift or grow, and every migrated/new component must use its own XHTML folder
+with embedded, automatically scoped CEM-token styles and colocated XHTML
+Storybook tests. It hard-stops component migration until the required
+`cem-elements` declarative Storybook adapter and Storybook-owned five-mode theme
+controller exist.
+
+The remaining gates below preserve migration-era release behavior while that
+debt is removed. `yarn nx run @epa-wg/cem-components:verify` runs the primitive manifest,
 Figma component inventory, state-matrix audit, token-only style contract,
 package publication contract, and Node/Chromium browser coverage gates. The Figma inventory accounts for every public
 primitive, validates its component/payload/structural classification, public
@@ -245,7 +272,7 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 
 | Surface | Path |
 | ------- | ---- |
-| Primitive manifest gate | `tools/scripts/verify-cem-components-primitives.mjs` |
+| Frozen legacy primitive gate | `tools/scripts/verify-cem-components-primitives.mjs` |
 | Figma component inventory | `../../examples/figma/component-library.json` |
 | Figma component review fixture | `../../examples/figma/component-library-fixture.md` |
 | Figma component inventory gate | `tools/scripts/verify-cem-components-figma-inventory.mjs` |
@@ -301,11 +328,13 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 
 ## Handoff Condition
 
-Phase 4 component expansion can start from this package when `yarn nx run @epa-wg/cem-components:verify` passes on the
-branch being promoted and the working tree contains no uncommitted gate changes. That command proves the current MVP
-primitive list matches `docs/component-mvp.md`, renders through the light-DOM `<cem-element>` substrate, covers the first
-workflow surfaces, keeps required state and ARIA evidence explicitly classified without hiding Phase 4 gaps, and does
-not introduce component-specific color or spacing literals.
+Component expansion is currently hard-stopped until `cem-elements` provides the
+declarative XHTML Storybook indexer/loader required by the
+[primary principle](../../docs/declarative-ui-principle.md). Once it exists,
+`yarn nx run @epa-wg/cem-components:verify` must pass with every new or migrated
+component in its own XHTML folder and with its unit tests in the colocated
+Storybook document, its embedded `<style>` consuming CEM UI tokens, and the same
+story verified under every Storybook-owned theme mode.
 
 Known deferrals stay outside this trigger:
 
@@ -319,16 +348,20 @@ Known deferrals stay outside this trigger:
 
 | Purpose | Path |
 | ------- | ---- |
-| Package source | `src/` |
+| Normative architecture | `../../docs/declarative-ui-principle.md` |
+| Declarative component source | `src/components/<cem-tag>/<cem-tag>.xhtml` |
+| Colocated Storybook/unit source | `src/components/<cem-tag>/<cem-tag>.stories.xhtml` |
+| Migration baseline | `declarative-migration.json` |
+| Declarative architecture gate | `../../tools/scripts/verify-cem-components-declarative.mjs` |
 | Public stylesheet source | `src/styles.css` |
-| Current shell entry | `src/lib/cem-components.ts` |
-| Primitive declarations | `src/lib/primitives.ts` |
+| Legacy shell entry (frozen debt) | `src/lib/cem-components.ts` |
+| Legacy primitive declarations (frozen debt) | `src/lib/primitives.ts` |
 | Public component catalog source | `scripts/build-component-catalog.mjs` |
 | Public component catalog output | `dist/catalog/cem.components.catalog.json` |
 | State-matrix catalog evidence | `dist/reports/component-state-matrix.{json,md}` |
-| Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
-| State and ARIA browser coverage | `src/lib/states.browser.spec.ts` |
-| Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
+| Legacy primitive browser coverage (migration debt) | `src/lib/primitives.browser.spec.ts` |
+| Legacy state and ARIA browser coverage (migration debt) | `src/lib/states.browser.spec.ts` |
+| Legacy workflow browser coverage (migration debt) | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
 | Component test harness | `src/lib/testing/component-harness.ts` |
 | Browser harness coverage | `src/lib/testing/component-harness.browser.spec.ts` |

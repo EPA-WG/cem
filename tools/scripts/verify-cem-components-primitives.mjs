@@ -8,6 +8,7 @@ import ts from 'typescript';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const mvpPath = join(repoRoot, 'docs/component-mvp.md');
+const migrationPath = join(repoRoot, 'packages/cem-components/declarative-migration.json');
 const primitivesPath = join(repoRoot, 'packages/cem-components/src/lib/primitives.ts');
 
 const failures = [];
@@ -179,9 +180,11 @@ function duplicateValues(values) {
 }
 
 const mvpComponents = parseMvpComponents(readText(mvpPath));
+const migration = JSON.parse(readText(migrationPath));
 const primitives = parsePrimitiveDeclarations(readText(primitivesPath));
 
 const mvpTags = mvpComponents.map((component) => component.tag);
+const legacyTags = migration.legacyComponentTags;
 const primitiveTags = primitives.map((primitive) => primitive.tag);
 
 for (const duplicate of duplicateValues(mvpTags)) {
@@ -190,17 +193,21 @@ for (const duplicate of duplicateValues(mvpTags)) {
 for (const duplicate of duplicateValues(primitiveTags)) {
     fail(`duplicate primitive tag ${duplicate}`);
 }
+for (const duplicate of duplicateValues(legacyTags)) {
+    fail(`duplicate legacy migration tag ${duplicate}`);
+}
 
-const missing = mvpTags.filter((tag) => !primitiveTags.includes(tag));
-const extra = primitiveTags.filter((tag) => !mvpTags.includes(tag));
+const missing = legacyTags.filter((tag) => !primitiveTags.includes(tag));
+const extra = primitiveTags.filter((tag) => !legacyTags.includes(tag));
 if (missing.length > 0) {
-    fail(`missing primitive declarations for MVP tags: ${missing.join(', ')}`);
+    fail(`missing frozen primitive declarations for legacy tags: ${missing.join(', ')}`);
 }
 if (extra.length > 0) {
-    fail(`primitive declarations not listed in component MVP: ${extra.join(', ')}`);
+    fail(`primitive declarations not listed as frozen migration debt: ${extra.join(', ')}`);
 }
-if (mvpTags.join('\n') !== primitiveTags.join('\n')) {
-    fail('CEM_COMPONENT_PRIMITIVES order must match docs/component-mvp.md component order');
+const orderedLegacyMvpTags = mvpTags.filter((tag) => legacyTags.includes(tag));
+if (orderedLegacyMvpTags.join('\n') !== primitiveTags.join('\n')) {
+    fail('CEM_COMPONENT_PRIMITIVES order must match the legacy subset of docs/component-mvp.md');
 }
 
 for (const component of mvpComponents) {
@@ -234,4 +241,4 @@ if (failures.length > 0) {
     process.exit(1);
 }
 
-console.log(`cem-components primitive manifest verified (${primitiveTags.length} primitives).`);
+console.log(`cem-components frozen legacy primitive manifest verified (${primitiveTags.length} primitives).`);

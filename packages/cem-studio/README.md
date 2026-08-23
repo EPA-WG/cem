@@ -4,8 +4,18 @@
 static deployment. Nx schedules its prerequisites and verification; the native
 CEM-ML CLI transformation graph is the final production assembler.
 
-The package includes the typed bootstrap/deployment boundary, installable
-component shell, versioned local project repository, opt-in File System Access
+Its primary UI authoring contract is the repository's
+[declarative UI principle](../../docs/declarative-ui-principle.md). All visible
+markup, component composition, interaction bindings, and UI state projection
+must be authored in XHTML/CEM-ML from production `cem-components`. Studio
+JavaScript is limited to non-UI services and host adapters; it must not render
+or mutate visible UI or attach app-local UI behavior. If CEM-ML lacks a concise
+capability, Studio UI work hard-stops until that reusable capability is added to
+`cem-elements`.
+
+The package currently includes a migration-era typed bootstrap/deployment
+boundary and installable component shell, plus the versioned local project
+repository, opt-in File System Access
 provider, and graph-owned offline deployment. The project-backed workbench
 executes parse, inspect, conversion, query, direct transformation, trace, and
 transformation-graph commands through the same browser worker and exact-revision
@@ -115,6 +125,10 @@ The source/destination module-map pair declares every JavaScript, CSS, worker,
 and WASM byte copied into the static deployment. JSON manifests and the SVG icon
 are explicit typed graph imports/exports. There is no post-graph production-copy
 step.
+
+Those JavaScript assets may own bootstrap, workers, persistence, and browser
+service adapters. Existing app-local DOM composition or UI listeners are
+migration debt and must not be copied or extended.
 
 The final `check` also packs the npm archive, installs it into a clean consumer,
 audits the exact/transitive runtime dependency path, and writes synchronized

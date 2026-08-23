@@ -2,11 +2,12 @@
 
 **Status:** Phase 4 MVP reference for `@epa-wg/cem-components`.
 
-This document describes the installable MVP declaration set registered by
-`installCemComponentPrimitives()`. It pairs with [`conventions.md`](./conventions.md),
+This document describes component semantics and the current installable legacy
+declaration set registered by `installCemComponentPrimitives()`. It pairs with [`conventions.md`](./conventions.md),
 [`light-dom-rendering.md`](./light-dom-rendering.md), [`accessibility.md`](./accessibility.md), and
 [`../../../docs/component-mvp.md`](../../../docs/component-mvp.md).
 
+The installer is migration compatibility, not the authoring model.
 `installCemComponentPrimitives()` is asynchronous: its result is reported only
 after declaration parsing and browser registration settle. Behavior-backed
 declarations include stable versioned `behaviorIdentity` values so compatible
@@ -14,6 +15,17 @@ registrations can be reused without relying on callback source or object identit
 
 ## Authoring Contract
 
+- The normative source/layout/testing contract is the
+  [declarative UI principle](../../../docs/declarative-ui-principle.md): one
+  `src/components/<cem-tag>/<cem-tag>.xhtml` CEM-ML declaration containing its
+  automatically scoped `<style>` node with CEM UI `--cem-*` tokens, and one
+  colocated `<cem-tag>.stories.xhtml` document containing all component unit
+  cases. Standalone component CSS is forbidden. Storybook owns the five-mode
+  theme switcher/global. No authored JavaScript or TypeScript is allowed.
+- If CEM-ML lacks a concise required capability, hard-stop the component and
+  implement the reusable capability in `cem-elements` before resuming. A
+  behavior module, installer callback, CSF module, or app-local workaround is
+  forbidden.
 - Components render in light DOM through the `<cem-element>` substrate. Authors provide semantic fallback content first;
   the upgraded output keeps the same visible meaning.
 - Component state is expressed through host attributes and ARIA attributes, not private CSS classes. Use
@@ -21,12 +33,14 @@ registrations can be reused without relying on callback source or object identit
   matrix in `docs/component-mvp.md`.
 - Component styling must use CEM token families from `@epa-wg/cem-theme`. The token families listed below are the
   allowed styling surface for the MVP; no component-specific color or spacing literals should be introduced.
-- Examples live under [`../examples`](../examples). Tests stay separate in `src/lib/*.spec.ts` and cover the same
-  workflow-shaped cases with package-owned fixtures.
+- Examples live under [`../examples`](../examples). New and migrated component
+  tests live only inside their colocated declarative Storybook document.
 
 ## Production Gate
 
-The primitive set is production-ready for Phase 4 expansion when this command passes on the branch being promoted:
+The current migration baseline remains verifiable when this command passes on
+the branch being promoted. Component expansion remains hard-stopped until the
+`cem-elements` XHTML Storybook adapter exists:
 
 ```bash
 yarn nx run @epa-wg/cem-components:verify
@@ -36,11 +50,12 @@ The aggregate gate includes:
 
 | Gate | Command | Coverage |
 | --- | --- | --- |
-| Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
+| Declarative architecture | `yarn nx run @epa-wg/cem-components:verify-declarative` | Rejects new or changed authored JavaScript/TypeScript debt, new legacy registry members, non-XHTML component sources, missing embedded CEM-token `<style>` nodes, forbidden standalone component CSS, missing colocated Storybook unit documents, and component migration before the `cem-elements` XHTML Storybook adapter plus Storybook-owned five-mode theme controller exist. Targets zero legacy components and zero authored code files. |
+| Frozen legacy primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches only the frozen legacy subset in `declarative-migration.json`, uses CEM-ML strings, and cannot acquire another component. It is migration evidence, not a source pattern. |
 | Figma component inventory | `yarn nx run @epa-wg/cem-components:verify-figma-inventory` | Accounts for all 49 public primitives, validates component-set/component/payload/structural classification, public property traceability, exact executable states and token families, live documentation, planned/reviewed evidence rules, and the five-mode review fixture. It depends on the native Figma token gate. |
 | Angular Material parity inventory | `yarn nx run @epa-wg/cem-components:verify-material-parity` | Pins the exact stable official catalog and requires every entry to remain visible until it is audited as a component mapping, cross-cutting behavior, partial mapping, or explicit gap. Barebone `cem-elements` compatibility fixtures cannot satisfy product UI parity evidence. |
 | State matrix | `yarn nx run @epa-wg/cem-components:verify-state-matrix` | Resolves every category state to exact browser tests/assertions and supports verifier-checked component-specific evidence so a newly promoted owner does not replace existing evidence. |
-| Public component catalog | `yarn nx run @epa-wg/cem-components:build:catalog` | Emits deterministic public beta JSON from the canonical MVP table, executable primitive inventory, this reference, conventions/accessibility guidance, and the verified state-matrix report. Related examples and Storybook remain source links/local commands rather than copied fixtures or site-owned builds. |
+| Public component catalog | `yarn nx run @epa-wg/cem-components:build:catalog` | Emits deterministic public beta JSON from the canonical MVP table, current migration inventory, this reference, conventions/accessibility guidance, and the verified state-matrix report. Related examples and Storybook remain source links/local commands rather than copied fixtures or site-owned builds. |
 | Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, tabs layout, paginator, feedback, slider, tooltip, and timepicker bindings, component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
 | Divider forced colors | `yarn nx run @epa-wg/cem-components:verify-divider-forced-colors` | Proves `CanvasText` separator color, D5 thickness, D1 inset, and the complete D1/D2 line-plus-margins track in forced colors. |
 | Expansion forced colors | `yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors` | Proves header/panel system colors, contextual hover/active/disabled paint, D5 focus, D2 target size, stable geometry, and event/state isolation. |
@@ -60,13 +75,16 @@ The aggregate gate includes:
 | Feedback focus forced colors | `yarn nx run @epa-wg/cem-components:verify-feedback-focus-forced-colors` | Launches Chromium with forced colors active; proves both transient native-dialog fallback owners retain the D5 width/offset with `CanvasText` and automatic color adjustment while static wrappers, hosts, sheets, and authored descendants remain outside component focus paint. |
 | Stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Builds the canonical component stylesheet byte-for-byte into `dist`, verifies the side-effect-free `./styles.css` export, and checks the dry-run npm file inventory. |
 | Phase 3 substrate harness | `yarn nx run @epa-wg/cem-components:verify-phase3-harness` | Typechecks and lints the package, then proves real CEM-ML action/field registration, render settlement and re-rendering, slice-driven events, native form data/reset/validity, light-DOM accessibility, a reviewed structural/computed-style baseline, and Chromium screenshot capture. |
-| Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
+| Legacy browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Keeps the frozen Node/Chromium migration baseline executable. New/migrated component unit ownership is the colocated `.stories.xhtml` document, not this suite. |
 
-Executable fixture locations:
+Current legacy evidence locations follow. They keep the pre-migration package
+verifiable but are not valid locations or implementation patterns for new work:
 
 | Purpose | Path |
 | --- | --- |
-| Primitive declarations | `../src/lib/primitives.ts` |
+| Declarative architecture and source layout | `../../../docs/declarative-ui-principle.md`, `../src/components/` |
+| Frozen migration baseline | `../declarative-migration.json` |
+| Legacy primitive declarations | `../src/lib/primitives.ts` |
 | Angular Material parity inventory | `../tests/angular-material-parity.json` |
 | Primitive family coverage | `../src/lib/primitives.browser.spec.ts` |
 | Autocomplete behavior and state coverage | `../src/lib/autocomplete.browser.spec.ts` |

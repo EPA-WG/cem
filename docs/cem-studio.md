@@ -57,7 +57,11 @@ The recommended product shape is:
 - opt-in individual-file and portable-directory access through retained browser
   handles, with explicit permissions and conflict-safe write-back;
 - UI built from light-DOM `@epa-wg/cem-components`, with Studio-specific
-  components published from `@epa-wg/cem-components/studio`;
+  components published from `@epa-wg/cem-components/studio`; all visible UI,
+  interaction bindings, and state projection are authored in XHTML/CEM-ML under
+  the normative
+  [`declarative UI principle`](./declarative-ui-principle.md), with no
+  component- or app-local JavaScript behavior;
 - Consumer Semantic Theming supplied by `@epa-wg/cem-theme`;
 - optional account-backed storage adapters for S3, a NoSQL service, Git
   repositories, and GitHub Gists as a later wishlist, not an MVP dependency;
@@ -280,6 +284,15 @@ status list, diff viewer, or bounded preview frame. Components whose vocabulary
 is inherently Studio-specific, such as a transformation-graph inspector, may
 remain in the Studio subpath.
 
+Every general or Studio-specific component still follows the same physical and
+testing contract: its own `src/components/<cem-tag>/<cem-tag>.xhtml` CEM-ML
+declaration with an embedded, automatically scoped `<style>` node consuming CEM
+UI theme tokens, plus colocated `<cem-tag>.stories.xhtml` unit cases. A
+standalone component CSS file is forbidden. Storybook owns the theme switcher
+and verifies the same component under all five modes. The `/studio` subpath is
+not permission to add TypeScript components, behavior callbacks, or separate
+unit specs.
+
 Angular Material parity is a prerequisite gate, not merely inspiration. Before
 implementing any Studio control or interaction, classify it against the pinned
 [Angular Material component catalog](https://material.angular.dev/components/categories).
@@ -294,7 +307,11 @@ the appropriate component-package surface.
 Application orchestration stays in the publishable `@epa-wg/cem-studio`
 project: provider authentication, routes, IndexedDB repositories,
 service-worker registration, seed-project installation, and deployment
-environment configuration are not reusable UI components.
+environment configuration are not reusable UI components. Its JavaScript may
+implement those non-UI services, but it may not create/mutate visible DOM or
+attach UI listeners. When declarative UI would require missing or excessively
+verbose CEM-ML, Studio work hard-stops until the reusable capability is
+implemented and verified in `cem-elements`.
 
 Each folder above is an independent Nx subproject with its own build/package/
 verify/publish targets. This is the complete initial native target list, not an
@@ -1908,7 +1925,9 @@ or todo list by itself.
 - Logical URIs and stable ids survive tree-label changes.
 - `@epa-wg/cem-components` owns reusable functional UI;
   `@epa-wg/cem-components/studio` owns Studio-specific reusable composites; the
-  PWA owns orchestration.
+  PWA owns non-UI orchestration. Visible UI, interaction bindings, and state
+  projection remain XHTML/CEM-ML; app-local JavaScript DOM behavior is
+  forbidden by [`declarative-ui-principle.md`](./declarative-ui-principle.md).
 - An Angular-Material-equivalent control is implemented and verified first as a
   general `<cem-element>`-based CEM component. Studio-first components are
   allowed only when the pinned parity matrix records no Angular counterpart.
