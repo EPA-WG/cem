@@ -1506,27 +1506,39 @@ Expand each gate into its task-level checklist when it becomes the immediate
 goal. These gates deliberately keep the deferred Figma work from becoming active
 before the non-Figma roadmap is complete.
 
-- [ ] Complete Phase 8 iOS and Android token-package hardening and toolchain validation.
-    - [ ] Lock the native consumer contract, supported toolchain versions, generated
+- [x] Complete Phase 8 iOS and Android token-package hardening and toolchain validation.
+    - [x] Lock the native consumer contract, supported toolchain versions, generated
           package layouts, compatibility-copy policy, and host-specific CI boundary.
-    - [ ] Emit an installable Swift Package while preserving the standalone
+    - [x] Emit an installable Swift Package while preserving the standalone
           `CEMTokens.swift` copy workflow.
-        - [ ] Fixture: type-check the sample SwiftUI application against the
+        - [x] Fixture: type-check the sample SwiftUI application against the
               generated package source with the supported iOS SDK.
-    - [ ] Emit a self-contained Android library layout with XML resources and
+    - [x] Emit a self-contained Android library layout with XML resources and
           Kotlin constants while preserving the standalone copy paths.
-        - [ ] Fixture: compile the sample Compose application as a clean Gradle
+        - [x] Fixture: compile the sample Compose application as a clean Gradle
               consumer of the generated Android library.
-    - [ ] Publish and verify native component guidance for every public CEM
+    - [x] Publish and verify native component guidance for every public CEM
           primitive, including name, state, color, typography, and accessibility
           mappings.
-        - [ ] Fixture: map the shared button-and-card sample semantics and token
+        - [x] Fixture: map the shared button-and-card sample semantics and token
               usage across the web, SwiftUI, and Compose examples.
-    - [ ] Add credential-free package validation plus supported-host Swift/Xcode
+    - [x] Add credential-free package validation plus supported-host Swift/Xcode
           and Gradle/Kotlin/Compose CI compile gates.
-    - [ ] Prove install/copy consumption, native sample parity, zero fail-hard
+    - [x] Prove install/copy consumption, native sample parity, zero fail-hard
           reports, and the full CSS/JSON/Swift/Android token-change smoke; record
           the evidence and close Phase 8.
+    - Completed 2026-08-22: the generator now emits a Swift Package plus the
+      standalone Swift compatibility copy, and a self-contained Android Gradle
+      project plus the XML/Compose compatibility copies. Credential-free
+      verification covers all 445 generated tokens across five modes, all 49
+      public primitives, 14 component states, 19 token families, and the shared
+      14-token web/SwiftUI/Compose fixture with zero fail-hard violations. The
+      full token-propagation smoke passed locally through CSS, JSON, Swift, and
+      Android mutation/restoration. GitHub Actions run `32612971989` proved the
+      clean Swift Package and SwiftUI consumer on macOS ARM64/Xcode 16.4 (job
+      `97128816724`) and the Android library plus Compose consumer on Linux AMD64
+      with JDK 17, Gradle 9.4.1, AGP 9.2.0, and the versioned Android 17 SDK
+      package (job `97128816568`). No live Figma parity claim was made.
 - [ ] Complete Phase 9 release, governance, and compatibility work for the code,
       docs, Studio, and Linux native distribution surface.
 
