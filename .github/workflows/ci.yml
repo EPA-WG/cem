@@ -82,7 +82,6 @@ jobs:
 
   native-ios-tokens:
     name: iOS Swift Package and SwiftUI compile
-    needs: ci
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -129,7 +128,6 @@ jobs:
 
   native-android-tokens:
     name: Android library and Compose compile
-    needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
