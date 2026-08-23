@@ -124,8 +124,11 @@
             "inputs": [
                 "{projectRoot}/style-dictionary.config.mjs",
                 "{projectRoot}/scripts/build-token-platforms.mjs",
+                "{projectRoot}/scripts/native-platform-contract.mjs",
                 "{projectRoot}/scripts/validate-platforms.mjs",
-                "{projectRoot}/dist/lib/tokens/cem.tokens.json"
+                "{projectRoot}/dist/lib/tokens/cem.tokens.json",
+                "{workspaceRoot}/examples/ios/CEMTokensExample/CEMTokensExampleApp.swift",
+                "{workspaceRoot}/examples/android/cem-tokens-example/MainActivity.kt"
             ],
             "outputs": [
                 "{projectRoot}/dist/lib/token-platforms/json",
@@ -222,9 +225,91 @@
                 "{projectRoot}/scripts/build-token-platforms.mjs",
                 "{projectRoot}/scripts/export-tokens.mjs",
                 "{projectRoot}/scripts/validate-platforms.mjs",
-                "{projectRoot}/style-dictionary.config.mjs"
+                "{projectRoot}/scripts/native-platform-contract.mjs",
+                "{projectRoot}/style-dictionary.config.mjs",
+                "{workspaceRoot}/examples/ios/CEMTokensExample/CEMTokensExampleApp.swift",
+                "{workspaceRoot}/examples/android/cem-tokens-example/MainActivity.kt"
             ],
             "outputs": []
+        },
+        "verify:native-platforms": {
+            "dependsOn": [
+                "build:token-platforms",
+                { "projects": ["@epa-wg/cem-components"], "target": "build:catalog" }
+            ],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-native-guidance.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/verify-native-guidance.mjs",
+                "{projectRoot}/scripts/native-platform-contract.mjs",
+                "{workspaceRoot}/docs/native-platforms.md",
+                "{workspaceRoot}/examples/native/*",
+                "{workspaceRoot}/examples/ios/CEMTokensExample/*",
+                "{workspaceRoot}/examples/android/cem-tokens-example/*",
+                {
+                    "dependentTasksOutputFiles": "**/cem.components.catalog.json",
+                    "transitive": false
+                },
+                {
+                    "dependentTasksOutputFiles": "dist/lib/token-platforms/**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": ["{projectRoot}/dist/reports/native-component-guidance.{json,md}"]
+        },
+        "verify:phase8": {
+            "dependsOn": ["verify:native-platforms"],
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "yarn nx run @epa-wg/cem-theme:smoke:token-propagation",
+                    "node packages/cem-theme/scripts/validate-platforms.mjs"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "cache": false,
+            "inputs": [
+                "{projectRoot}/scripts/validate-platforms.mjs",
+                "{projectRoot}/scripts/native-platform-contract.mjs",
+                "{projectRoot}/dist/lib/token-platforms/**/*",
+                "{projectRoot}/dist/reports/native-component-guidance.*"
+            ],
+            "outputs": []
+        },
+        "compile:ios-platform": {
+            "dependsOn": ["verify:native-platforms"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/compile-ios-platform.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": false,
+            "inputs": [
+                "{projectRoot}/scripts/compile-ios-platform.mjs",
+                "{projectRoot}/scripts/native-platform-contract.mjs",
+                "{projectRoot}/dist/lib/token-platforms/ios/**/*"
+            ],
+            "outputs": ["{projectRoot}/dist/reports/native/ios-compile-report.json"]
+        },
+        "compile:android-platform": {
+            "dependsOn": ["verify:native-platforms"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/compile-android-platform.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": false,
+            "inputs": [
+                "{projectRoot}/scripts/compile-android-platform.mjs",
+                "{projectRoot}/scripts/native-platform-contract.mjs",
+                "{projectRoot}/dist/lib/token-platforms/android/**/*"
+            ],
+            "outputs": ["{projectRoot}/dist/reports/native/android-compile-report.json"]
         },
         "build:html": {
             "dependsOn": [

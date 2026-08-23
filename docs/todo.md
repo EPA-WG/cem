@@ -1507,6 +1507,26 @@ goal. These gates deliberately keep the deferred Figma work from becoming active
 before the non-Figma roadmap is complete.
 
 - [ ] Complete Phase 8 iOS and Android token-package hardening and toolchain validation.
+    - [ ] Lock the native consumer contract, supported toolchain versions, generated
+          package layouts, compatibility-copy policy, and host-specific CI boundary.
+    - [ ] Emit an installable Swift Package while preserving the standalone
+          `CEMTokens.swift` copy workflow.
+        - [ ] Fixture: type-check the sample SwiftUI application against the
+              generated package source with the supported iOS SDK.
+    - [ ] Emit a self-contained Android library layout with XML resources and
+          Kotlin constants while preserving the standalone copy paths.
+        - [ ] Fixture: compile the sample Compose application as a clean Gradle
+              consumer of the generated Android library.
+    - [ ] Publish and verify native component guidance for every public CEM
+          primitive, including name, state, color, typography, and accessibility
+          mappings.
+        - [ ] Fixture: map the shared button-and-card sample semantics and token
+              usage across the web, SwiftUI, and Compose examples.
+    - [ ] Add credential-free package validation plus supported-host Swift/Xcode
+          and Gradle/Kotlin/Compose CI compile gates.
+    - [ ] Prove install/copy consumption, native sample parity, zero fail-hard
+          reports, and the full CSS/JSON/Swift/Android token-change smoke; record
+          the evidence and close Phase 8.
 - [ ] Complete Phase 9 release, governance, and compatibility work for the code,
       docs, Studio, and Linux native distribution surface.
 

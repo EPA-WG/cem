@@ -170,5 +170,7 @@ Checked propagation surfaces:
 - Android `values`, `values-night`, and Compose constants
 - iOS and Android reports showing zero fail-hard violations
 
-This gate does not compile Swift or Kotlin because the current workspace has neither Xcode nor Java/Gradle/Kotlin
-toolchains. Those compile gates remain deferred to supported native CI environments.
+This portable gate does not pretend to compile Swift or Kotlin when the current host lacks Xcode or the Android
+toolchain. Phase 8 owns real supported-host gates through
+`@epa-wg/cem-theme:compile:ios-platform` and `@epa-wg/cem-theme:compile:android-platform`; CI runs both against clean
+copies of the generated packages.

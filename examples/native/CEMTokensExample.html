@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CEM native token parity reference</title>
+  <link rel="stylesheet" href="../../packages/cem-theme/dist/lib/css/cem-combined.css" />
+  <style>
+    .cem-native-sample {
+      display: grid;
+      gap: var(--cem-gap-block);
+      padding: var(--cem-inset-surface);
+      background: var(--cem-color-cyan-xl);
+      color: var(--cem-color-cyan-xd);
+      font-size: var(--cem-typography-size-m);
+    }
+
+    .cem-native-sample__action {
+      min-block-size: var(--cem-coupling-zone-min);
+      padding-inline: var(--cem-inset-container);
+      border: 0;
+      border-radius: var(--cem-bend-control);
+      background: var(--cem-color-blue-l);
+      color: var(--cem-color-blue-xd);
+      font: inherit;
+      font-weight: var(--cem-thickness-bold);
+    }
+
+    .cem-native-sample__card {
+      display: grid;
+      gap: var(--cem-gap-related);
+      padding: var(--cem-inset-container);
+      border-radius: var(--cem-bend-surface);
+      background: var(--cem-color-cyan-xl);
+    }
+
+    .cem-native-sample__caption {
+      font-size: var(--cem-typography-size-s);
+    }
+  </style>
+</head>
+<body>
+  <main class="cem-native-sample">
+    <h1>CEM Tokens</h1>
+    <button class="cem-native-sample__action" type="button">Primary action</button>
+    <section class="cem-native-sample__card" aria-labelledby="comfort-heading">
+      <h2 id="comfort-heading">Comfort surface</h2>
+      <p class="cem-native-sample__caption">Generated CEM tokens drive color, radius, and spacing.</p>
+    </section>
+  </main>
+</body>
+</html>

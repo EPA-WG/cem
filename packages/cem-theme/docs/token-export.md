@@ -756,9 +756,9 @@ The exporter logs a warning and includes the token in the per-target report (but
 | A     | `export-tokens.mjs` produces JSON with every manifest-derived token name eligible for export; manifest validator confirms parity with CSS output.                                           |
 | B     | 5-token spot check per theme matches manual `getComputedStyle()` capture from `tools/scripts/debug-cem.mjs`.                                                                                |
 | C     | DTCG JSON validates against W3C DTCG schema (`@design-tokens/parser` or `tokens-json-validator`). Figma Variables imports without error. Report file lists every skipped token with reason. |
-| D     | Generated Swift compiles with Xcode 15+; Kotlin with Gradle 8+; TypeScript passes `tsc --noEmit`; SCSS compiles with `dart-sass`. Each per-platform report shows zero fail-hard violations. |
+| D     | Generated Swift Package compiles with Xcode 16.4 / Swift 6.1; Kotlin/Compose compiles with AGP 9.2.0, Gradle 9.4.1, JDK 17, and Kotlin 2.3.21. Each per-platform report shows zero fail-hard violations. |
 | E     | Native Figma library workflow loads the generated JSON into one `CEM Tokens` collection without write-back; direct file import remains documented as a fallback.                              |
-| F     | Sample iOS and Android apps render a button + card using only CEM tokens; visual parity with web reference (manual screenshot diff).                                                        |
+| F     | Sample web, SwiftUI, and Compose apps map the same button/card semantics and 14 color, space, shape, type, weight, and target-size tokens; supported-host CI compiles both native consumers. |
 | G     | `yarn nx affected -t lint test build typecheck` green; `verify:phase13` green.                                                                                                              |
 
 ### 11.4 End-to-end smoke (after Phases A–G land)

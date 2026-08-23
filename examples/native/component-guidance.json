@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "expectedPublicPrimitiveCount": 49,
+  "naming": {
+    "webPrefix": "cem-",
+    "swiftUIPrefix": "CEM",
+    "composePrefix": "Cem"
+  },
+  "tokenFamilyKinds": {
+    "action": "color-and-interaction",
+    "bend": "shape",
+    "content": "color-and-content",
+    "control": "size-and-interaction",
+    "coupling": "size-and-interaction",
+    "gap": "layout",
+    "inset": "layout",
+    "layering": "elevation",
+    "navigation": "color-and-interaction",
+    "palette": "color",
+    "progress": "color-and-interaction",
+    "responsive": "layout",
+    "select": "color-and-interaction",
+    "separator": "color-and-shape",
+    "slider": "size-and-interaction",
+    "stroke": "shape",
+    "timing": "motion",
+    "typography": "typography",
+    "workflow": "color-and-interaction"
+  },
+  "stateMappings": {
+    "active": { "swiftUI": "ButtonStyle.Configuration.isPressed", "compose": "InteractionSource pressed state" },
+    "checked": { "swiftUI": "Toggle isOn binding", "compose": "toggleable checked state" },
+    "default": { "swiftUI": "enabled semantic baseline", "compose": "enabled semantic baseline" },
+    "disabled": { "swiftUI": "disabled(true)", "compose": "enabled = false" },
+    "empty": { "swiftUI": "labeled empty-state view", "compose": "labeled empty-state composable" },
+    "expanded": { "swiftUI": "disclosure binding plus accessibilityValue", "compose": "expanded state plus stateDescription" },
+    "focus-visible": { "swiftUI": "FocusState plus visible focus treatment", "compose": "focusable plus visible focus treatment" },
+    "hover": { "swiftUI": "onHover where pointer input exists", "compose": "hoverable where pointer input exists" },
+    "indeterminate": { "swiftUI": "mixed accessibility value", "compose": "ToggleableState.Indeterminate" },
+    "invalid": { "swiftUI": "error label and accessibilityValue", "compose": "isError plus supporting semantics" },
+    "loading": { "swiftUI": "ProgressView with stable label and disabled activation", "compose": "progress indicator with stable semantics and disabled activation" },
+    "readonly": { "swiftUI": "noneditable content with retained value semantics", "compose": "readOnly input with retained value semantics" },
+    "required": { "swiftUI": "required label or accessibilityHint", "compose": "required label or semantics description" },
+    "selected": { "swiftUI": "isSelected accessibility trait", "compose": "selected semantics" }
+  },
+  "accessibilityByCategory": {
+    "Action": "Preserve native activation, an accessible name, disabled/busy semantics, visible focus, and the CEM minimum target.",
+    "Input": "Preserve the native input owner, label/help/error relationships, value/state semantics, keyboard operation, and the CEM minimum target.",
+    "Layout": "Keep reading order independent of visual arrangement and expose landmarks or labels only when semantically warranted.",
+    "Content": "Preserve headings, lists, tables, selection, empty/loading meaning, text scaling, and non-color cues.",
+    "Navigation": "Expose the navigation structure, current/selected item, composite focus model, labels, and predictable keyboard movement.",
+    "Feedback": "Expose status, progress, modality, focus return, persistent error meaning, and reduced-motion behavior."
+  },
+  "sampleParity": {
+    "web": "examples/native/CEMTokensExample.html",
+    "swiftUI": "examples/ios/CEMTokensExample/CEMTokensExampleApp.swift",
+    "compose": "examples/android/cem-tokens-example/MainActivity.kt",
+    "semantics": ["Primary action", "Comfort surface"],
+    "tokens": [
+      { "css": "--cem-color-cyan-xl", "native": "cemColorCyanXl" },
+      { "css": "--cem-color-cyan-xd", "native": "cemColorCyanXd" },
+      { "css": "--cem-color-blue-l", "native": "cemColorBlueL" },
+      { "css": "--cem-color-blue-xd", "native": "cemColorBlueXd" },
+      { "css": "--cem-gap-block", "native": "cemGapBlock" },
+      { "css": "--cem-gap-related", "native": "cemGapRelated" },
+      { "css": "--cem-inset-container", "native": "cemInsetContainer" },
+      { "css": "--cem-inset-surface", "native": "cemInsetSurface" },
+      { "css": "--cem-bend-control", "native": "cemBendControl" },
+      { "css": "--cem-bend-surface", "native": "cemBendSurface" },
+      { "css": "--cem-coupling-zone-min", "native": "cemCouplingZoneMin" },
+      { "css": "--cem-typography-size-m", "native": "cemTypographySizeM" },
+      { "css": "--cem-typography-size-s", "native": "cemTypographySizeS" },
+      { "css": "--cem-thickness-bold", "native": "cemThicknessBold" }
+    ]
+  }
+}

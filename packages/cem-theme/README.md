@@ -97,12 +97,14 @@ in `cem.tokens.catalog.json`, `cem.tokens.ts`, `cem.tokens.json`, or generated C
 
 ```bash
 yarn build:theme                                # full theme build via Nx
-nx run @epa-wg/cem-theme:build:css              # token CSS only
-nx run @epa-wg/cem-theme:build:tokens           # JSON / TS / Figma exports (depends on build:css)
-nx run @epa-wg/cem-theme:build:token-platforms  # iOS Swift + Android XML/Compose + per-mode JSON
-nx run @epa-wg/cem-theme:verify-package         # public CSS export + npm package inventory
-nx run @epa-wg/cem-theme:test
-nx run @epa-wg/cem-theme:lint
+yarn nx run @epa-wg/cem-theme:build:css                # token CSS only
+yarn nx run @epa-wg/cem-theme:build:tokens             # JSON / TS / Figma exports (depends on build:css)
+yarn nx run @epa-wg/cem-theme:build:token-platforms    # Swift Package + Android project + per-mode JSON
+yarn nx run @epa-wg/cem-theme:verify:native-platforms  # package contracts + component/sample parity
+yarn nx run @epa-wg/cem-theme:verify:phase8            # portable native aggregate + propagation smoke
+yarn nx run @epa-wg/cem-theme:verify-package           # public CSS export + npm package inventory
+yarn nx run @epa-wg/cem-theme:test
+yarn nx run @epa-wg/cem-theme:lint
 ```
 
 `build:tokens` depends on `build:css`. `build:token-platforms` depends on `build:tokens`.
@@ -137,6 +139,7 @@ nx run @epa-wg/cem-theme:lint
 
 - [Token export architecture](docs/token-export.md) — DTCG export, Figma workflow, platform strategy, output contracts.
 - [CEM tokens in Figma](docs/token-figma.md) — native Figma library variable model and UI checks.
+- [Native platform packages](../../docs/native-platforms.md) — supported package layouts, toolchains, component mapping, and compile gates.
 - [Docs generation](docs/docs-generation.md) — markdown → XHTML → CSS pipeline.
 - [HTML compile workflow](docs/html-compile.md) — package HTML compilation notes.
 - [Repository documentation index](../../docs/index.md) — full project map.

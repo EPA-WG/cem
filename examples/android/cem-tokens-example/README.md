@@ -8,20 +8,24 @@ Minimal Compose example showing how a consumer can use generated CEM Android res
 yarn nx run @epa-wg/cem-theme:build:token-platforms
 ```
 
-Use these generated files in an Android app module:
+Open the self-contained generated Gradle project under
+`packages/cem-theme/dist/lib/token-platforms/android/`, or copy its `cem-tokens` library module into an existing
+Android project. The legacy standalone paths remain available:
 
 - `packages/cem-theme/dist/lib/token-platforms/android/values/cem-tokens.xml`
 - `packages/cem-theme/dist/lib/token-platforms/android/values-night/cem-tokens.xml`
 - `packages/cem-theme/dist/lib/token-platforms/android/compose/CEMTokens.kt`
 
-This directory is a source fixture, not a full Gradle project.
+This directory is the checked-in Compose source fixture copied into the generated `sample` module.
 
-Current repository validation is offline:
+Credential-free repository validation is:
 
 ```bash
 yarn nx run @epa-wg/cem-theme:build:token-platforms
 ```
 
-That target builds the Android XML and Compose token artifacts and runs `validate-platforms.mjs`. A true Kotlin/Compose
-compile still requires copying these files into a supported Android Gradle project or running a future CI job with Java,
-Gradle, the Android Gradle plugin, and Kotlin available.
+The supported-host Gradle/Kotlin/Compose compile gate is:
+
+```bash
+yarn nx run @epa-wg/cem-theme:compile:android-platform
+```
