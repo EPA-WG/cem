@@ -8,7 +8,7 @@ changing the Markdown token specifications as the source of truth.
 | Platform | Supported compile contract | CI host |
 | -------- | -------------------------- | ------- |
 | iOS | Xcode 16.4, Swift 6.1 in language mode 6, iOS 15.0+ | GitHub `macos-15` with Xcode 16.4 selected |
-| Android | AGP 9.2.0, Gradle 9.4.1, JDK 17, Kotlin/Compose 2.3.21, Compose BOM 2026.08.00, compileSdk 37 | GitHub `ubuntu-latest` with JDK and Android SDK |
+| Android | AGP 9.2.0, Gradle 9.4.1, JDK 17, Kotlin/Compose 2.3.21, Compose BOM 2026.08.00, compileSdk 37 | GitHub `ubuntu-latest` with JDK and the Android 17 preview SDK channel |
 
 These are reproducible validation pins, not promises that consumers must remain on exactly one patch forever. Newer
 toolchains are supported only after the native CI gates prove them. Android uses AGP's built-in Kotlin support; the
@@ -78,5 +78,7 @@ yarn nx run @epa-wg/cem-theme:compile:android-platform
 ```
 
 The first command requires macOS/Xcode. The second works on Linux AMD64 or another supported host when JDK 17,
-Gradle 9.4.1, and Android SDK 37 are installed. Local static validation remains truthful when those toolchains are
-absent; it never substitutes syntax inspection for the host compile evidence.
+Gradle 9.4.1, and Android SDK 37 are installed. API 37 is currently delivered through the Android SDK preview channel,
+so Linux CI opts into that channel explicitly; this is a toolchain-distribution constraint, not a claim that Android 17
+is a stable runtime target. Local static validation remains truthful when those toolchains are absent; it never
+substitutes syntax inspection for the host compile evidence.

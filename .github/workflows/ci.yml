@@ -120,6 +120,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Install Playwright Chromium
+        run: yarn playwright install chromium
+
       - name: Verify selected Xcode
         run: xcodebuild -version
 
@@ -161,7 +164,9 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android platform and build tools
-        run: sdkmanager "platforms;android-37" "build-tools;36.0.0"
+        # Android 17 / API 37 remains on the SDK preview channel while it is
+        # required by the current Compose release line.
+        run: sdkmanager --channel=3 "platforms;android-37" "build-tools;36.0.0"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -180,6 +185,9 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+
+      - name: Install Playwright Chromium
+        run: yarn playwright install --with-deps chromium
 
       - name: Compile clean Android library and Compose consumer
         run: yarn nx run @epa-wg/cem-theme:compile:android-platform
