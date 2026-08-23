@@ -164,9 +164,9 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android platform and build tools
-        # Android 17 / API 37 remains on the SDK preview channel while it is
-        # required by the current Compose release line.
-        run: sdkmanager --channel=3 "platforms;android-37" "build-tools;36.0.0"
+        # Google publishes the Android 17 / API 37 SDK under this versioned
+        # package identifier while Gradle's compile contract remains API 37.
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
