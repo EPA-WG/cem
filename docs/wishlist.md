@@ -3,6 +3,33 @@
 This file tracks future capability ideas that are not part of the immediate release queue. Active execution tasks live
 in [`todo.md`](todo.md).
 
+## Distribution and Publication
+
+- [ ] **CEM web npm family publication.** Publish and remotely verify the fixed
+      `@epa-wg/cem`, `@epa-wg/cem-theme`, `@epa-wg/cem-components`,
+      `@epa-wg/cem-elements`, and `@epa-wg/custom-element` family from one new
+      Nx-selected SemVer tag. Do not reuse the failed historical `0.1.1` tag or
+      publish obsolete source; retain the protected contract preflight, exact
+      archives, npm provenance, clean-consumer verification, and immutable-byte
+      rule if this work is resumed.
+- [ ] **Final CEM-ML GitHub Release and npm publication.** Promote the verified
+      browser/WASM, Node/WASM, and Linux AMD64 units from one exact CEM-ML source
+      commit, then publish the matching `@epa-wg/cem-ml` and
+      `@epa-wg/cem-ml-cli` tarballs. Preserve the existing draft-first,
+      redownload, checksum, signature, SBOM, provenance, and non-replacement
+      requirements.
+- [ ] **CEM Studio npm and static/PWA publication.** Publish
+      `@epa-wg/cem-studio` and its deterministic static deployment only from the
+      same CEM-ML version and source commit as the verified runtime/CLI family;
+      remotely verify clean installation, service-worker update metadata, and
+      the deployed static digest.
+- [ ] **Immutable public distribution evidence.** If any publication work is
+      resumed, record registry, GitHub Release, provenance, checksum,
+      supported-host native compile, docs/example, static deployment, and
+      clean-consumer URLs for the exact released bytes. Public evidence is a
+      publication acceptance gate, not a prerequisite for credential-free Phase
+      9 roadmap closure.
+
 ## CEM-ML Runtime
 
 - [ ] **macOS ARM64 CEM-ML CLI and Homebrew distribution.** Keep the existing dormant

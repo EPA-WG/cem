@@ -181,6 +181,7 @@
                     "{workspaceRoot}/docs/npm-publish.md",
                     "{workspaceRoot}/docs/cem-ml-native-release.md",
                     "{workspaceRoot}/docs/native-platforms.md",
+                    "{workspaceRoot}/docs/wishlist.md",
                     "{workspaceRoot}/docs/custom-element-bridge-template-policy.md",
                     "{workspaceRoot}/tools/fitness/phase9-release-contract.json",
                     "{workspaceRoot}/tools/fitness/phase9-release-invalid-fixtures.json",
@@ -263,7 +264,7 @@
                     "verify:phase9-readiness"
                 ],
                 "options": {
-                    "command": "node tools/scripts/verify-phase9-release.mjs --mode release",
+                    "command": "node tools/scripts/verify-phase9-release.mjs --mode closure",
                     "cwd": "{workspaceRoot}"
                 },
                 "outputs": [

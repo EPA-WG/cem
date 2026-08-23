@@ -31,11 +31,11 @@
             "expected": "missing required workflow contract"
         },
         {
-            "id": "incomplete-publication-evidence",
-            "kind": "set-publication-evidence",
-            "value": { "schemaVersion": 1, "status": "published" },
-            "mode": "release",
-            "expected": "publication evidence missing"
+            "id": "missing-publication-wishlist",
+            "kind": "remove-publication-deferral-text",
+            "text": "**CEM web npm family publication.**",
+            "mode": "closure",
+            "expected": "publication deferral is missing required wishlist item"
         }
     ]
 }

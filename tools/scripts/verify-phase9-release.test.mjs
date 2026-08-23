@@ -14,10 +14,12 @@ const fixtures = JSON.parse(
 );
 const baseline = await gatherWorkspaceState(contract, workspaceRoot);
 
-test('credential-free Phase 9 readiness passes with public publication pending', () => {
-    const result = validatePhase9Contract(contract, structuredClone(baseline), 'readiness');
-    assert.deepEqual(result.errors, []);
-    assert.ok(result.blockers.some((blocker) => blocker.includes('public release evidence pending')));
+test('credential-free Phase 9 readiness and closure pass with publication deferred', () => {
+    for (const mode of ['readiness', 'closure']) {
+        const result = validatePhase9Contract(contract, structuredClone(baseline), mode);
+        assert.deepEqual(result.errors, []);
+        assert.deepEqual(result.blockers, []);
+    }
 });
 
 for (const fixture of fixtures.cases) {
@@ -48,8 +50,8 @@ function applyFixture(state, fixture) {
         case 'remove-workflow-text':
             state.workflowTexts[fixture.workflow] = state.workflowTexts[fixture.workflow].replace(fixture.text, '');
             return;
-        case 'set-publication-evidence':
-            state.publicationEvidence = fixture.value;
+        case 'remove-publication-deferral-text':
+            state.publicationDeferralText = state.publicationDeferralText.replace(fixture.text, '');
             return;
         default:
             throw new Error(`unsupported fixture kind ${fixture.kind}`);

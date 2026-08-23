@@ -86,8 +86,9 @@ Before proposing a release, run:
 yarn nx run @epa-wg/cem:verify:phase9-readiness --parallel=1
 ```
 
-The readiness target is credential-free. The separate Phase 9 closure target is
-fail-closed and requires checked-in public registry, GitHub Release, checksum,
-attestation/provenance, native compile, and clean-consumer evidence. Protected
-workflows publish the exact verified archives; retries may retain identical
-bytes but never replace them.
+The readiness and Phase 9 closure targets are credential-free. Registry,
+GitHub Release, and static/PWA publication are deliberately deferred in
+`docs/wishlist.md` and are not roadmap-closure requirements. If publication is
+resumed, the protected workflows must publish the exact verified archives and
+record immutable public evidence; retries may retain identical bytes but never
+replace them.

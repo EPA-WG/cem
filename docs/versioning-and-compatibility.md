@@ -95,10 +95,10 @@ normalized result, diagnostic, report, source-map, and exit behavior parity;
 documented host capability differences are not permission to change the command
 contract.
 
-The GitHub Release contains exactly the two npm/WASM units and Linux AMD64 unit.
-macOS ARM64 and Windows AMD64 remain wishlist/local-host work and are not release
-units. Published release bytes are immutable; correction requires a new version
-and tag.
+If public distribution is resumed, its GitHub Release contains exactly the two
+npm/WASM units and Linux AMD64 unit. macOS ARM64 and Windows AMD64 remain
+wishlist/local-host work and are not release units. Published release bytes are
+immutable; correction requires a new version and tag.
 
 ## Deprecation and removal
 
@@ -113,19 +113,20 @@ Deep `dist/` imports, debug token artifacts, undocumented package paths, and
 generated implementation details receive no compatibility promise. A public
 path becomes stable only through the package export map and its package verifier.
 
-## Release evidence
+## Distribution evidence
 
-A Phase 9 release is coherent only when one evidence record connects:
+Phase 9 closes on credential-free distribution readiness. Its local evidence
+connects:
 
-- source commit, family versions, tags, changelog, and migration/deprecation report;
+- source commit, family versions, changelog, and migration/deprecation report;
 - package archives, export maps, clean installs, docs links, and executable examples;
 - token reports, component catalogs/tests, Studio deterministic output/update metadata,
   and supported-host Swift/Android compiles;
 - CEM-ML release assets, checksums, signatures/attestations, SBOMs, provenance,
-  capability identity, and Linux install/upgrade/uninstall smoke results; and
-- registry and GitHub Release URLs proving that the verified bytes, rather than a
-  rebuild, were published.
+  capability identity, and Linux install/upgrade/uninstall smoke results.
 
-The credential-free readiness target may pass before publication. The Phase 9
-closure target is deliberately separate and fails until immutable public
-evidence is checked in and validated.
+Registry, GitHub Release, and Studio static/PWA publication are deliberately
+deferred to `docs/wishlist.md`; they do not block the Phase 9 closure target. If
+publication is resumed, one immutable public evidence record must additionally
+connect the release tag, registry and GitHub Release URLs, deployed static
+digest, provenance, supported-host compile jobs, and the exact verified bytes.

@@ -1,5 +1,5 @@
 {
-    "$comment": "Credential-free Phase 9 product release contract. Public evidence is required only in closure mode.",
+    "$comment": "Credential-free Phase 9 distribution-readiness contract. External publication is explicitly deferred to the wishlist.",
     "schemaVersion": 1,
     "versionFamilies": [
         {
@@ -169,7 +169,8 @@
         "docs/migrations-and-deprecations.md",
         "docs/npm-publish.md",
         "docs/cem-ml-native-release.md",
-        "docs/native-platforms.md"
+        "docs/native-platforms.md",
+        "docs/wishlist.md"
     ],
     "deprecationSources": [
         "tools/fitness/deprecated-forms.json",
@@ -214,22 +215,15 @@
         "readiness": "verify:phase9-readiness",
         "closure": "verify:phase9"
     },
-    "publicationEvidence": {
-        "path": "docs/phase9-publication-evidence.json",
-        "requiredStatus": "published",
-        "requiredPaths": [
-            "source.revision",
-            "web.tag",
-            "web.packages",
-            "cemMl.tag",
-            "cemMl.githubReleaseUrl",
-            "cemMl.packages",
-            "cemMl.linuxAsset",
-            "studio.npmUrl",
-            "studio.staticDeploymentUrl",
-            "verification.ciRunUrl",
-            "verification.nativeIosJobUrl",
-            "verification.nativeAndroidJobUrl"
+    "publicationDeferral": {
+        "status": "wishlist",
+        "path": "docs/wishlist.md",
+        "requiredText": [
+            "## Distribution and Publication",
+            "**CEM web npm family publication.**",
+            "**Final CEM-ML GitHub Release and npm publication.**",
+            "**CEM Studio npm and static/PWA publication.**",
+            "**Immutable public distribution evidence.**"
         ]
     }
 }

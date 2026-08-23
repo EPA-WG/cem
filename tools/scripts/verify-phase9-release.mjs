@@ -53,6 +53,7 @@ export async function gatherWorkspaceState(contract, root = workspaceRoot) {
         ...contract.requiredDocuments,
         ...contract.deprecationSources,
         ...contract.workflows.map((workflow) => workflow.path),
+        contract.publicationDeferral.path,
     ]);
     const existingPaths = [];
     for (const path of requiredPaths) {
@@ -65,7 +66,7 @@ export async function gatherWorkspaceState(contract, root = workspaceRoot) {
     }
 
     const policyText = await readOptionalText(resolve(root, 'docs/versioning-and-compatibility.md'));
-    const publicationEvidence = await readOptionalJson(resolve(root, contract.publicationEvidence.path));
+    const publicationDeferralText = await readOptionalText(resolve(root, contract.publicationDeferral.path));
 
     return {
         manifests,
@@ -77,7 +78,7 @@ export async function gatherWorkspaceState(contract, root = workspaceRoot) {
         existingPaths,
         workflowTexts,
         policyText,
-        publicationEvidence,
+        publicationDeferralText,
         revision: git(['rev-parse', 'HEAD'], root),
     };
 }
@@ -86,6 +87,7 @@ export function validatePhase9Contract(contract, state, mode = 'readiness') {
     const errors = [];
     const blockers = [];
     if (contract.schemaVersion !== 1) errors.push('phase9 contract schemaVersion must be 1');
+    if (!['readiness', 'closure'].includes(mode)) errors.push(`unsupported validation mode ${mode}`);
 
     const familyAuthority = {};
     for (const family of contract.versionFamilies) {
@@ -184,64 +186,16 @@ export function validatePhase9Contract(contract, state, mode = 'readiness') {
         if (!rootTargets.includes(target)) errors.push(`root project missing aggregate target ${target}`);
     }
 
-    if (mode === 'release') {
-        validatePublicationEvidence(contract, state, familyAuthority, errors);
-    } else if (!state.publicationEvidence) {
-        blockers.push(`public release evidence pending at ${contract.publicationEvidence.path}`);
-    } else {
-        const evidenceErrors = [];
-        validatePublicationEvidence(contract, state, familyAuthority, evidenceErrors);
-        if (evidenceErrors.length > 0) blockers.push(...evidenceErrors);
+    if (contract.publicationDeferral.status !== 'wishlist') {
+        errors.push('Phase 9 publication deferral status must be wishlist');
+    }
+    for (const requiredText of contract.publicationDeferral.requiredText) {
+        if (!state.publicationDeferralText.includes(requiredText)) {
+            errors.push(`publication deferral is missing required wishlist item ${requiredText}`);
+        }
     }
 
     return { errors, blockers, familyAuthority };
-}
-
-function validatePublicationEvidence(contract, state, familyAuthority, errors) {
-    const evidence = state.publicationEvidence;
-    if (!evidence) {
-        errors.push(`publication evidence missing at ${contract.publicationEvidence.path}`);
-        return;
-    }
-    if (evidence.schemaVersion !== 1) errors.push('publication evidence schemaVersion must be 1');
-    if (evidence.status !== contract.publicationEvidence.requiredStatus) {
-        errors.push(`publication evidence status must be ${contract.publicationEvidence.requiredStatus}`);
-    }
-    for (const path of contract.publicationEvidence.requiredPaths) {
-        if (!valueAtPath(evidence, path)) errors.push(`publication evidence missing ${path}`);
-    }
-    if (evidence.web?.version !== familyAuthority['cem-web']) {
-        errors.push(`publication evidence web.version must be ${familyAuthority['cem-web']}`);
-    }
-    if (evidence.cemMl?.version !== familyAuthority['cem-ml-platform']) {
-        errors.push(`publication evidence cemMl.version must be ${familyAuthority['cem-ml-platform']}`);
-    }
-    if (evidence.studio?.version !== familyAuthority['cem-ml-platform']) {
-        errors.push(`publication evidence studio.version must be ${familyAuthority['cem-ml-platform']}`);
-    }
-    if (!/^[0-9a-f]{40}$/.test(evidence.source?.revision ?? '')) {
-        errors.push('publication evidence source.revision must be a full Git commit');
-    }
-    for (const url of collectEvidenceUrls(evidence)) {
-        if (!url.startsWith('https://')) errors.push(`publication evidence URL must use HTTPS: ${url}`);
-    }
-}
-
-function collectEvidenceUrls(evidence) {
-    const urls = [];
-    const visit = (value, key = '') => {
-        if (typeof value === 'string' && /(?:url|Url)$/.test(key)) urls.push(value);
-        if (Array.isArray(value)) value.forEach((item) => visit(item));
-        else if (value && typeof value === 'object') {
-            for (const [childKey, child] of Object.entries(value)) visit(child, childKey);
-        }
-    };
-    visit(evidence);
-    return urls;
-}
-
-function valueAtPath(value, path) {
-    return path.split('.').reduce((current, segment) => current?.[segment], value);
 }
 
 function cargoVersion(source) {
@@ -288,15 +242,6 @@ async function readJson(path) {
     return JSON.parse(await readFile(path, 'utf8'));
 }
 
-async function readOptionalJson(path) {
-    try {
-        return await readJson(path);
-    } catch (error) {
-        if (error?.code === 'ENOENT') return null;
-        throw error;
-    }
-}
-
 async function readOptionalText(path) {
     try {
         return await readFile(path, 'utf8');
@@ -330,7 +275,7 @@ async function writeReport(contract, state, mode, result) {
         `- Mode: ${mode}`,
         `- Source revision: \`${state.revision}\``,
         `- Credential-free readiness: ${report.ready ? 'pass' : 'fail'}`,
-        `- Public closure: ${report.closureReady ? 'ready' : 'pending'}`,
+        `- Phase 9 closure: ${report.closureReady ? 'pass' : 'fail'}`,
         `- Public packages checked: ${report.publicPackages.length}`,
         `- Compatibility axes checked: ${report.compatibilityAxes.length}`,
         '',
@@ -351,7 +296,7 @@ async function writeReport(contract, state, mode, result) {
 async function main() {
     const modeIndex = process.argv.indexOf('--mode');
     const mode = modeIndex >= 0 ? process.argv[modeIndex + 1] : 'readiness';
-    if (!['readiness', 'release'].includes(mode)) throw new Error(`unsupported mode ${mode}`);
+    if (!['readiness', 'closure'].includes(mode)) throw new Error(`unsupported mode ${mode}`);
     const contract = await readJson(resolve(workspaceRoot, defaultContractPath));
     const state = await gatherWorkspaceState(contract);
     const result = validatePhase9Contract(contract, state, mode);
@@ -363,7 +308,7 @@ async function main() {
     }
     console.log(
         `Phase 9 ${mode} contract verified (${contract.publicPackages.length} public packages, ` +
-            `${contract.contractAxes.length} compatibility axes, ${result.blockers.length} closure blocker).`,
+            `${contract.contractAxes.length} compatibility axes, ${result.blockers.length} closure blockers).`,
     );
 }
 

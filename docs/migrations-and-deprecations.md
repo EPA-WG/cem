@@ -21,8 +21,9 @@ The 2026-08-22 Phase 9 audit found these public npm versions:
 
 The immutable `cem-ml-v0.1.0-rc.2` GitHub prerelease proves the three-unit
 CEM-ML pipeline, but it is rehearsal evidence rather than a final npm/Studio
-publication claim. Phase 9 remains open until the checked-in public evidence
-replaces this baseline with final registry and release coordinates.
+publication claim. Final web, CEM-ML, and Studio publication plus immutable
+remote evidence are explicitly deferred to `docs/wishlist.md`; this registry
+baseline does not block credential-free Phase 9 closure.
 
 ## Active migrations
 
@@ -85,7 +86,8 @@ Every proposed breaking change must update all applicable items before release:
 - migration guide with before/after usage;
 - token, component, native, CLI, Studio, docs/example, and source-map tests;
 - changelog entry and family version decision; and
-- Phase 9 publication evidence for the exact released bytes.
+- immutable public distribution evidence for the exact released bytes if the
+  wishlist publication work is activated.
 
 No active deprecation authorizes removal by itself. The Phase 9 verifier checks
 that every registered deprecation has policy and migration ownership, while FF-5

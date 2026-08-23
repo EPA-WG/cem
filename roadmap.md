@@ -635,23 +635,29 @@ Deliverables:
   CEM-ML runtime/CLI/Studio deployment family.
 - Migration guides and deprecation reports.
 - CI gates for build, lint, token reports, component tests, docs links, examples, and native compilation.
-- Package export maps and published artifacts for stable public contracts.
-- `cem-ml` CLI public distribution: separate `@epa-wg/cem-ml` WASM runtime and `@epa-wg/cem-ml-cli` Node/WASM CLI npm
-  packages plus Linux AMD64 archives. Preserve those three release units as non-replaced assets on the matching tagged
-  GitHub Release with checksums, signatures, SBOMs, provenance, install docs, and smoke tests; publish only after the
-  complete release-scoped asset set is staged and verified.
-- `@epa-wg/cem-studio` npm/PWA publication from the same fixed CEM-ML version and release commit, including static
-  deployment assets, capability/build metadata, service-worker update checks, and clean-consumer verification.
+- Package export maps and clean packed-artifact verification for stable public contracts.
+- `cem-ml` CLI distribution readiness: separate `@epa-wg/cem-ml` WASM runtime and `@epa-wg/cem-ml-cli` Node/WASM CLI
+  packages plus Linux AMD64 archives, with matching checksums, signatures, SBOMs, provenance, install docs, and smoke
+  tests. Actual npm/GitHub Release publication is wishlist work and is not required for this phase.
+- `@epa-wg/cem-studio` package/PWA readiness at the same fixed CEM-ML version and source commit, including deterministic
+  static assets, capability/build metadata, service-worker update checks, and clean-consumer verification. Actual npm
+  and static deployment are wishlist work.
 - Contribution guidelines for token specs, components, docs, and native package updates.
 
 Exit criteria:
 
 - A release can be cut with confidence that token, web, native, docs, and demo contracts are coherent before the final
   Figma projection phases begin.
-- Users can install `cem-ml` as WASM for Node or from the Linux AMD64 native package and run the same portable CLI smoke
-  test on each published runtime.
-- Every release-scoped binary remains recoverable from the version's GitHub Release, and all CEM-ML npm, native, and Studio
-  artifacts report the exact version originating from common `cem_ml`.
+- Clean consumers can install the locally packed CEM-ML Node/WASM and Linux AMD64 units and run the same portable CLI
+  smoke test without registry or GitHub Release credentials.
+- Every staged CEM-ML npm, Linux native, and Studio artifact reports the exact version originating from common `cem_ml`;
+  remote publication and immutable public evidence remain explicitly owned by [`docs/wishlist.md`](docs/wishlist.md).
+
+Completion: **Phase 9 complete (2026-08-23).** Product-wide versioning,
+compatibility, deprecation, contribution, package/export, CI, native, Studio,
+and deterministic clean-consumer gates are credential-free and green. Registry,
+GitHub Release, and static/PWA publication were deliberately moved to the
+wishlist without creating a tag, release, package publication, or deployment.
 
 ## Phase 10 - Figma UI Kit
 
@@ -721,7 +727,7 @@ Exit criteria:
 | M6.5      | CEM Studio PWA                                            | The browser workbench composes the stable CLI/WASM contract and parity-complete components; only UI absent from Angular Material may begin as Studio-specific.    |
 | M7        | Hugo framework integration scope and proof                | Define the supported Hugo product shape, then prove CEM theme, component, accessibility, and CEM-ML pipeline adoption without creating a second source of truth.  |
 | M8        | Native package hardening                                  | Native artifacts become product-grade once token/component semantics are stable.                                                                                  |
-| M9        | Release governance, CLI artifacts, and Studio publication | Formalize compatibility, preserve release-scoped WASM/Linux assets on tagged GitHub Releases, and publish the fixed-version npm/CLI/native/Studio family.         |
+| M9        | Release governance and distribution readiness             | Formalize compatibility and prove fixed-version npm/CLI/Linux/Studio artifacts locally; keep external publication as explicit wishlist work.                    |
 | M10       | Figma UI Kit MVP                                          | Project the completed code and token contracts into Figma only after the non-Figma product and governance phases are complete.                                    |
 | M11       | Figma site demo plus matching web fixtures                | Finish with a full-flow parity proof across the reviewed UI Kit, fixtures, web implementation, and native guidance.                                               |
 
