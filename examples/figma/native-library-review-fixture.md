@@ -1,9 +1,10 @@
 # Native Figma Library Review Fixture
 
 This fixture governs the manual refresh checkpoint for the native `CEM Tokens`
-collection. `native-library-review.json` is deliberately `pending` until a
-reviewer opens the canonical CEM UI Kit. Repository generation is not evidence
-that the external library changed.
+collection. `native-library-review.json` begins as `pending`, advances to
+`started` only after a reviewer opens the canonical CEM UI Kit and records its
+starting state, and advances to `reviewed` only after the live refresh checks
+pass. Repository generation is not evidence that the external library changed.
 
 ## Review procedure
 

@@ -40,11 +40,11 @@
         ]
     },
     "refresh": {
-        "status": "pending",
-        "startedAt": null,
-        "startingRevision": null,
-        "confirmedCollection": null,
-        "confirmedModes": null,
+        "status": "started",
+        "startedAt": "2026-08-23",
+        "startingRevision": "https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24",
+        "confirmedCollection": "CEM Tokens",
+        "confirmedModes": ["Light", "Dark", "Contrast Light", "Contrast Dark", "Native"],
         "importedModeFiles": null,
         "reviewedAt": null,
         "reviewedRevision": null,

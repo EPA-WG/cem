@@ -1647,7 +1647,7 @@ and must not start before Phase 9 is complete.
           tokens per mode, the component inventory remains at zero reviewed and
           48 planned, and the Foundations inventory remains at zero reviewed and
           15 planned. No live canvas or publication claim was made.
-    - [ ] Record the starting CEM UI Kit revision and confirm that the native
+    - [x] Record the starting CEM UI Kit revision and confirm that the native
           `CEM Tokens` collection has the accepted Light, Dark, Contrast Light,
           Contrast Dark, and Native modes before editing the canvas.
         - [x] Add a checked-in native-library review evidence record and
@@ -1669,6 +1669,17 @@ and must not start before Phase 9 is complete.
           nine tasks restored from cache. The refresh remains `pending`, the
           parent live checkpoint remains open, and no external Figma change was
           claimed.
+        - Completed 2026-08-23: an authenticated read-only review opened the
+          canonical CEM UI Kit and recorded the `01 Tokens` page as the starting
+          locator before any import or canvas edit. The live collection is
+          exactly `CEM Tokens`, its modes remain Light, Dark, Contrast Light,
+          Contrast Dark, and Native in order, and all 230 variables still carry
+          the historical `@epa-wg/cem-theme 0.0.8` description with zero missing
+          mode values and 255 alias mode values. The checked-in refresh evidence
+          is now truthfully `started`; every import and live-result field remains
+          null. The repository gate still expects 252 variables (57 COLOR, 112
+          FLOAT, and 83 STRING), so the refresh and the parent Foundations
+          checkpoint remain open. No external Figma state was changed.
     - [ ] Build color, typography, spacing, shape, stroke, layering, and motion
           guidance with variable bindings or approved composite text styles and
           no raw replacement values.

@@ -52,11 +52,15 @@ Run the focused gate with:
 yarn nx run @epa-wg/cem-theme:verify:figma-native-review
 ```
 
-Refresh status: `pending`. Starting refresh revision: not recorded. The gate
-emits `packages/cem-theme/dist/reports/cem-figma-native-review.{json,md}` and
-will accept a `started` checkpoint only after the live starting revision,
-collection, and exact mode order are recorded. It does not assert that the
-external file was refreshed.
+Refresh status: `started`. Starting refresh revision:
+[`01 Tokens` in the canonical CEM UI Kit](https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24).
+The 2026-08-23 read-only live review confirmed the `CEM Tokens` collection and
+the exact `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, and `Native` mode
+order before any import or canvas edit. The collection remains at the historical
+230-variable `@epa-wg/cem-theme 0.0.8` state; the generated contract is 252
+variables. The live import and result fields remain null, so this checkpoint
+does not assert that the external file was refreshed. The gate emits
+`packages/cem-theme/dist/reports/cem-figma-native-review.{json,md}`.
 
 ## Foundations Composite Inventory
 
