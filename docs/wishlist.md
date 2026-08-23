@@ -10,6 +10,13 @@ in [`todo.md`](todo.md).
       Apple-supported build and native execution environment, a pinned macOS SDK/Xcode/Rust toolchain, Developer ID
       signing and notarization, Homebrew install/upgrade/uninstall smoke tests, checksums, SBOM, provenance, and parity
       with the portable Node/WASM CLI and published Linux native CLI.
+- [ ] **Windows AMD64 CEM-ML CLI, MSI, and WinGet distribution.** Keep the existing dormant
+      `native-windows-amd64` projection outside the active roadmap and release matrix. A raw
+      `x86_64-pc-windows-msvc` executable may be cross-built on Linux AMD64 with `cargo-xwin`, `clang-cl`, `lld-link`,
+      and the Microsoft CRT/Windows SDK; treat that output only as cross-build and static-analysis evidence, not as
+      native Windows validation. Reconsider distribution only with native Windows execution, Authenticode signing,
+      MSI and WinGet validation, Windows Sandbox install/upgrade/uninstall smoke tests, checksums, SBOM, provenance,
+      and parity with the portable Node/WASM CLI and published Linux native CLI.
 - [ ] **Platform-native Linux npm package `@epa-wg/cem-ml-cli-linux-x64`.** Create a separate Linux x64 package for
       the native `cem-ml` executable and let `@epa-wg/cem-ml-cli` select it through an optional platform dependency
       with a deterministic WASM fallback. Keep the ELF binary out of the policy-free `@epa-wg/cem-ml` WASM package,

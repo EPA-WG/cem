@@ -13,7 +13,7 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | CEM token/theme core          | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports.                                                                                                                                                                                                                   | `packages/cem-theme`                                                     |
 | Native platform adapters      | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine.                                                                                                                                                                                                                    | `packages/cem-theme/dist/lib/token-platforms`                            |
 | CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff.                                                                                                                                  | `packages/cem_ml`                                                        |
-| CEM structural lifecycle CLI  | Validation, load into the internal CEM AST/event model, query/transform, and export/convert across schema + content-type identities. Separate synchronized deployments provide the WASM runtime npm package, Node/WASM CLI npm package, and native Linux AMD64 and Windows AMD64 packages.           | `packages/cem_ml`, `packages/cem_ml_cli`, future CLI deployment projects |
+| CEM structural lifecycle CLI  | Validation, load into the internal CEM AST/event model, query/transform, and export/convert across schema + content-type identities. Separate synchronized deployments provide the WASM runtime npm package, Node/WASM CLI npm package, and native Linux AMD64 package.                              | `packages/cem_ml`, `packages/cem_ml_cli`, future CLI deployment projects |
 | CEM Studio                    | Installable local-first PWA and npm package for exercising CEM-ML validation, conversion, query, transformation, source-map, report, and graph workflows through editable projects and a bidirectional CLI Command view.                                                                             | future `packages/cem-studio`, `@epa-wg/cem-components/studio`            |
 | CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element`                |
 | CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                   | `packages/cem-components`, `packages/cem-elements`                       |
@@ -177,14 +177,12 @@ Deliverables:
 - Create a separate `@epa-wg/cem-ml-cli` npm deployment project with an exact same-version dependency on
   `@epa-wg/cem-ml`, browser and Node exports, and the npm `cem-ml` executable. The supported portable CLI target is
   WASM for Node; the browser export is a programmatic Studio/IDE surface rather than another shell platform.
-- Keep Linux AMD64 and Windows AMD64 as the native deployment subprojects in active roadmap scope. Each project builds,
-  packages, signs, and verifies only its platform artifact; the release scope below currently publishes Linux only.
+- Keep Linux AMD64 as the native deployment subproject in active roadmap scope. It builds, packages, signs, and
+  verifies its platform artifact.
 - Preserve the Linux AMD64 CLI archives and both WASM/npm units as assets on the matching tagged GitHub Release. Upload
   target-qualified checksums, signatures, SBOMs, and provenance alongside the release-scoped artifacts; APT metadata
-  must resolve those version-qualified release assets rather than a mutable build URL. Windows/WinGet outputs remain a
-  local validation projection until a later roadmap decision adds it to the release contract.
-  Stage the complete three-unit asset set before publication and never replace or delete published bytes; corrections
-  require a new common version.
+  must resolve those version-qualified release assets rather than a mutable build URL. Stage the complete three-unit
+  asset set before publication and never replace or delete published bytes; corrections require a new common version.
 - Make `packages/cem_ml/Cargo.toml` the authoritative version source and add a fixed `cem-ml-platform` release family.
   Synchronize the exact version into the CLI crate, npm manifests and exact internal dependencies, native package
   metadata, capability/version output, checksums, SBOMs, provenance, and release index.
@@ -193,8 +191,8 @@ Deliverables:
 - Add native/WASM parity fixtures plus clean-consumer npm pack/install tests and per-platform
   install/upgrade/uninstall smoke tests.
 - Keep self-contained semi-native executables as a wishlist experiment: bundle Node, the CLI launcher, and WASM with
-  native Node.js SEA for the same three platform coordinates. Treat archived/deprecated `pkg` as comparison or
-  migration prior art, not the default production packager.
+  native Node.js SEA. Treat archived/deprecated `pkg` as comparison or migration prior art, not the default production
+  packager.
 
 Exit criteria:
 
@@ -202,9 +200,9 @@ Exit criteria:
   Rust library, Node/WASM npm CLI, and every supported native target, with documented capability differences only.
 - `@epa-wg/cem-ml` and `@epa-wg/cem-ml-cli` install independently into clean consumers; only the CLI package installs
   the `cem-ml` npm executable, and it resolves exactly one same-version WASM runtime.
-- Linux AMD64 and Windows AMD64 are separate Nx deployment projects and are the complete active native support matrix.
+- Linux AMD64 is the complete active native support matrix.
 - The release-scoped Linux CLI remains downloadable from its tagged GitHub Release with matching checksum, signature,
-  SBOM, provenance, source commit, target identity, and common version metadata; Windows publication is deferred.
+  SBOM, provenance, source commit, target identity, and common version metadata.
 - Release verification fails on any version, dependency, source-commit, checksum, SBOM, provenance, or capability
   manifest drift from the common `cem_ml` version.
 
@@ -212,13 +210,11 @@ Exit criteria:
 
 Goal: turn the Phase 2.5 artifact generators and guarded upload targets into one resumable release path. CI/CD owns the
 two WASM/npm units and Linux AMD64 unit, and a protected coordinator publishes one immutable GitHub Release only after
-that complete three-unit set verifies. Windows AMD64/WinGet release publication is deferred.
+that complete three-unit set verifies.
 
-Current foundation: the fixed `cem-ml-platform` Nx group, both WASM/npm `package` and `sign` targets, the Linux and
-Windows native development lifecycles, and aggregate `cem_ml:release:stage`, `release:verify`, and
-`release:upload-draft` targets exist.
-Phase 2.6 limits the GitHub Release graph to the three CI-owned units. The Windows Nx project remains a local
-platform-development surface; its retained self-hosted workflow recipe is disabled and cannot publish release assets.
+Current foundation: the fixed `cem-ml-platform` Nx group, both WASM/npm `package` and `sign` targets, the Linux native
+development lifecycle, and aggregate `cem_ml:release:stage`, `release:verify`, and `release:upload-draft` targets exist.
+Phase 2.6 limits the GitHub Release graph to those three CI-owned units.
 
 Deliverables:
 
@@ -233,9 +229,7 @@ Deliverables:
   targets. Run package, signing/attestation, verification, clean-consumer, parity, and Linux lifecycle gates before
   uploading their version-qualified unit assets. GitHub Actions artifacts are job-to-job transport only; the draft
   GitHub Release is the durable release boundary.
-- Keep the reviewed Windows AMD64 self-hosted workflow recipe in-tree but hard-disable every job. Its release preflight
-  and uploader must reject that identity while it is outside the tested release-unit contract.
-  Retain exact-tag manual dispatch of the protected CI workflow as the Linux recovery path without making rebuilt bytes
+- Retain exact-tag manual dispatch of the protected CI workflow as the Linux recovery path without making rebuilt bytes
   interchangeable with already-uploaded CI bytes.
 - Make every unit upload resumable and immutable. An absent asset may be uploaded, an identical existing asset may be
   retained, and an unexpected name or changed byte must stop the release. Failed runs leave the release in draft state;
@@ -255,16 +249,13 @@ Exit criteria:
 
 - Pushing an exact CEM-ML release tag creates or resumes one draft and CI/CD uploads verified WASM/browser, WASM/Node,
   and Linux AMD64 release assets from that commit without publishing the draft.
-- The retained Windows self-hosted workflow schedules no jobs, and its identity is rejected before any GitHub Release
-  mutation while it remains deferred.
 - The finalizer rejects missing, extra, mismatched, unsigned/unattested, wrong-version, wrong-commit, or wrong-target
   assets and publishes only after all three release units plus the aggregate index and checksum manifest redownload
   byte-identically.
 - A retry after interruption preserves identical assets, uploads only missing assets, and cannot overwrite a released
   version. Any byte-changing correction requires a new common CEM-ML version and tag.
 - The published GitHub Release is the sole binary/WASM artifact origin referenced by APT metadata; npm registry
-  publication uses the same verified tarballs and exact common version rather than repacking them. Homebrew and WinGet
-  projections are not published.
+  publication uses the same verified tarballs and exact common version rather than repacking them.
 - One protected release rehearsal records the complete CI-owned path and proves that the generic `cem` npm workflow,
   CEM-ML workflow, and disabled native local-host recipe cannot publish one another's groups or tags.
 
@@ -648,8 +639,7 @@ Deliverables:
 - `cem-ml` CLI public distribution: separate `@epa-wg/cem-ml` WASM runtime and `@epa-wg/cem-ml-cli` Node/WASM CLI npm
   packages plus Linux AMD64 archives. Preserve those three release units as non-replaced assets on the matching tagged
   GitHub Release with checksums, signatures, SBOMs, provenance, install docs, and smoke tests; publish only after the
-  complete release-scoped asset set is staged and verified. Keep the Windows AMD64 deployment project as a local
-  validation surface until separately promoted into distribution scope.
+  complete release-scoped asset set is staged and verified.
 - `@epa-wg/cem-studio` npm/PWA publication from the same fixed CEM-ML version and release commit, including static
   deployment assets, capability/build metadata, service-worker update checks, and clean-consumer verification.
 - Contribution guidelines for token specs, components, docs, and native package updates.

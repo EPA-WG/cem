@@ -1508,7 +1508,7 @@ before the non-Figma roadmap is complete.
 
 - [ ] Complete Phase 8 iOS and Android token-package hardening and toolchain validation.
 - [ ] Complete Phase 9 release, governance, and compatibility work for the code,
-      docs, Studio, and native distribution surfaces.
+      docs, Studio, and Linux native distribution surface.
 
 ## Phase 10 Checklist — Deferred Figma UI Kit
 
