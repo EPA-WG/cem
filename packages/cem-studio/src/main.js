@@ -29,10 +29,19 @@ const fileSystemProvider = createCemStudioFileSystemProvider({
     decodeProjectManifest: validator.decodeProjectManifest,
     encodeProjectManifest: validator.encodeProjectManifest,
 });
+const workbench = await createCemStudioFeatureTourWorkbench({
+    repository,
+    validator,
+    seed,
+    projectId: featureTour.projectId,
+});
 const shell = await mountCemStudioApplicationShell({
     root: mounted.root,
     registration,
     repository,
+    persistState: async () => {
+        if (workbench.snapshot().dirty) await workbench.saveAndValidate();
+    },
     fileSystem: {
         provider: fileSystemProvider,
         projectId: featureTour.projectId,
@@ -40,11 +49,13 @@ const shell = await mountCemStudioApplicationShell({
         downloadExport: downloadProjectArchive,
     },
 });
-const workbench = await createCemStudioFeatureTourWorkbench({
-    repository,
-    validator,
-    seed,
-    projectId: featureTour.projectId,
+const unsubscribeUpdateState = workbench.subscribe((snapshot) => {
+    shell.update.setDirty(snapshot.dirty);
+    const active =
+        ['loading', 'saving', 'validating', 'projecting'].includes(snapshot.status) ||
+        snapshot.command?.application?.status === 'applying' ||
+        snapshot.command?.application?.status === 'running';
+    shell.update.setActiveRequestCount(active ? 1 : 0);
 });
 const workbenchView = await mountCemStudioFeatureTourWorkbench({
     root: mounted.root,
@@ -74,6 +85,7 @@ Object.defineProperty(globalThis, '__cemStudioApplication', {
         fileSystemProvider,
         workbench,
         workbenchView,
+        unsubscribeUpdateState,
     }),
 });
 
@@ -83,15 +95,19 @@ function selectProjectArchive() {
         input.type = 'file';
         input.accept = 'application/vnd.cem.studio-project-bundle+json,.cem-studio.json';
         input.hidden = true;
-        input.addEventListener('change', async () => {
-            const file = input.files?.[0];
-            input.remove();
-            if (!file) {
-                reject(new DOMException('project archive selection was cancelled', 'AbortError'));
-                return;
-            }
-            resolve(new Uint8Array(await file.arrayBuffer()));
-        }, { once: true });
+        input.addEventListener(
+            'change',
+            async () => {
+                const file = input.files?.[0];
+                input.remove();
+                if (!file) {
+                    reject(new DOMException('project archive selection was cancelled', 'AbortError'));
+                    return;
+                }
+                resolve(new Uint8Array(await file.arrayBuffer()));
+            },
+            { once: true },
+        );
         document.body.append(input);
         input.click();
     });

@@ -201,6 +201,23 @@
             ],
             "outputs": []
         },
+        "test:preview": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/preview.browser.spec.js --no-file-parallelism",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/preview.js",
+                "{projectRoot}/src/preview.d.ts",
+                "{projectRoot}/src/preview.browser.spec.js",
+                "{projectRoot}/vitest.config.mts",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        },
         "generate:feature-tour": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -419,6 +436,7 @@
                 "test:repository",
                 "test:file-system-provider",
                 "test:feature-tour",
+                "test:preview",
                 "test:shell",
                 "test:workbench",
                 "verify:dependencies",
@@ -450,6 +468,7 @@
                 "{projectRoot}/src/feature-tour.d.ts",
                 "{projectRoot}/src/file-system-provider.d.ts",
                 "{projectRoot}/src/repository.d.ts",
+                "{projectRoot}/src/preview.d.ts",
                 "{projectRoot}/src/shell.d.ts",
                 "{projectRoot}/src/workbench.d.ts",
                 "{projectRoot}/scripts/package.mjs",
@@ -500,9 +519,28 @@
             ],
             "outputs": ["{workspaceRoot}/dist/reports/cem-studio/consumer.json"]
         },
+        "verify:release-evidence": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:consumer"],
+            "options": {
+                "command": "node scripts/verify-release-evidence.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/scripts/verify-release-evidence.mjs",
+                "{projectRoot}/dist/static/build.json",
+                "{workspaceRoot}/dist/packages/cem-studio/**/*",
+                "{workspaceRoot}/dist/reports/cem-studio/{consumer,dependencies,determinism}.json",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/nx.json"
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/release-evidence.json"]
+        },
         "check": {
             "executor": "nx:run-commands",
-            "dependsOn": ["verify", "verify:consumer"],
+            "dependsOn": ["verify:release-evidence"],
             "options": {
                 "command": "node -e \"console.log('CEM Studio package, deterministic deployment, and clean consumer checks passed.')\"",
                 "cwd": "{workspaceRoot}"

@@ -102,6 +102,7 @@ assert.doesNotMatch(html, /node_modules/);
 assert.match(html, /import '@epa-wg\/cem-studio\/main'/);
 assert.match(html, /data-cem-studio-root/);
 assert.match(html, /<base href="\.\/" data-cem-studio-scope\s*\/?>/);
+assert.match(html, /assets\/@epa-wg\/cem-studio\/preview\.css/);
 
 const [
     manifest,
@@ -113,6 +114,8 @@ const [
     featureTourCatalog,
     featureTourProject,
     serviceWorker,
+    securityHeaders,
+    previewModule,
 ] = await Promise.all([
     readJson(resolve(outputRoot, 'manifest.webmanifest')),
     readJson(resolve(outputRoot, 'build.json')),
@@ -123,19 +126,28 @@ const [
     readJson(resolve(outputRoot, 'samples/feature-tour/catalog.json')),
     readJson(resolve(outputRoot, 'samples/feature-tour/feature-tour.project.json')),
     readFile(resolve(outputRoot, 'service-worker.js'), 'utf8'),
+    readJson(resolve(outputRoot, 'security-headers.json')),
+    readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/preview.js'), 'utf8'),
 ]);
 assert.equal(manifest.start_url, './');
 assert.equal(manifest.icons[0].src, './icon.svg');
 assert.equal(buildMetadata.package, packageMetadata.name);
 assert.equal(buildMetadata.commonVersion, packageMetadata.version);
+assert.equal(buildMetadata.buildIdentity, 'cem-studio-static-v1');
 assert.equal(inventory.commonVersion, packageMetadata.version);
 assert.equal(inventory.schemaVersion, 2);
-assert.deepEqual(inventory.groups.map(({ id }) => id), ['shell', 'runtime', 'samples']);
-assert.deepEqual(inventory.groups.find(({ id }) => id === 'samples'), {
-    id: 'samples',
-    strategy: 'cache-first',
-    catalog: './samples/index.json',
-});
+assert.deepEqual(
+    inventory.groups.map(({ id }) => id),
+    ['shell', 'runtime', 'samples'],
+);
+assert.deepEqual(
+    inventory.groups.find(({ id }) => id === 'samples'),
+    {
+        id: 'samples',
+        strategy: 'cache-first',
+        catalog: './samples/index.json',
+    },
+);
 assert.equal(runtimeMetadata.commonVersion, packageMetadata.version);
 assert.equal(themeMetadata.version, packageMetadata.dependencies['@epa-wg/cem-theme']);
 assert.equal(sampleIndex.commonVersion, packageMetadata.version);
@@ -151,13 +163,26 @@ assert.equal(featureTourProject.id, featureTourCatalog.seed.id);
 assert.equal(featureTourProject.resources.length, featureTourCatalog.projectResourceCount);
 assert.equal(
     featureTourCatalog.projectResourceCount,
-    featureTourCatalog.exampleCount * 2
-        + featureTourCatalog.dependencyCount
-        + featureTourCatalog.workbenchResourceCount,
+    featureTourCatalog.exampleCount * 2 +
+        featureTourCatalog.dependencyCount +
+        featureTourCatalog.workbenchResourceCount,
 );
 assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount);
 assert.match(serviceWorker, /event\.data\?\.type === 'cem-studio-activate-update'/);
 assert.match(serviceWorker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
+const contentSecurityPolicy = securityHeaders.headers['Content-Security-Policy'];
+assert.doesNotMatch(contentSecurityPolicy, /'unsafe-inline'|'unsafe-eval'/);
+assert.match(contentSecurityPolicy, /'wasm-unsafe-eval'/);
+assert.match(contentSecurityPolicy, /default-src 'none'/);
+assert.match(contentSecurityPolicy, /frame-ancestors 'none'/);
+const inlineScriptHashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+    (match) => `'sha256-${createHash('sha256').update(match[1]).digest('base64')}'`,
+);
+assert.equal(inlineScriptHashes.length, 2);
+for (const hash of inlineScriptHashes) assert.ok(contentSecurityPolicy.includes(hash), `app CSP is missing ${hash}`);
+assert.match(previewModule, /default-src 'none'/);
+assert.match(previewModule, /frame\.setAttribute\('sandbox', ''\)/);
+assert.doesNotMatch(previewModule, /allow-scripts|allow-same-origin/);
 assert.equal(packageMetadata.exports['.'].import, './dist/static/assets/@epa-wg/cem-studio/bootstrap.js');
 assert.equal(packageMetadata.exports['./shell'].import, './dist/static/assets/@epa-wg/cem-studio/shell.js');
 assert.equal(
@@ -168,10 +193,8 @@ assert.equal(
     packageMetadata.exports['./feature-tour'].import,
     './dist/static/assets/@epa-wg/cem-studio/feature-tour.js',
 );
-assert.equal(
-    packageMetadata.exports['./workbench'].import,
-    './dist/static/assets/@epa-wg/cem-studio/workbench.js',
-);
+assert.equal(packageMetadata.exports['./workbench'].import, './dist/static/assets/@epa-wg/cem-studio/workbench.js');
+assert.equal(packageMetadata.exports['./preview'].import, './dist/static/assets/@epa-wg/cem-studio/preview.js');
 
 const files = await filesUnder(outputRoot);
 for (const required of [
@@ -180,6 +203,7 @@ for (const required of [
     'build.json',
     'cache-inventory.json',
     'module-map.json',
+    'security-headers.json',
     'icon.svg',
     'service-worker.js',
     'samples/index.json',

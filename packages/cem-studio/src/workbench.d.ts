@@ -6,6 +6,7 @@ import type {
     CemStudioParseProjection,
     CemStudioResourceCommandPreview,
 } from './feature-tour.js';
+import type { CemStudioPreview } from './preview.js';
 import type {
     CemStudioApplyCommandPageValue,
     CemStudioCommandPageTarget,
@@ -136,6 +137,7 @@ export interface CemStudioWorkbenchProjection {
         sha256: string;
     }>;
     readonly output: CemStudioCommandOutput;
+    readonly preview: CemStudioPreview;
     readonly nativeResult: unknown;
     readonly diagnostics: readonly Readonly<Record<string, unknown>>[];
     readonly provenance: readonly Readonly<Record<string, unknown>>[];
@@ -162,20 +164,15 @@ export interface CemStudioFeatureTourWorkbench {
         projection?: CemStudioParseProjection,
         options?: { signal?: AbortSignal },
     ): Promise<CemStudioWorkbenchState>;
-    inspectPersisted(
-        view?: CemStudioInspectView,
-        options?: { signal?: AbortSignal },
-    ): Promise<CemStudioWorkbenchState>;
+    inspectPersisted(view?: CemStudioInspectView, options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     runPersistedOperation(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     updateCommandDraft(text: string): Promise<CemStudioWorkbenchState>;
     resetCommandDraft(): Promise<CemStudioWorkbenchState>;
     copyCommand(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
     copyProjection(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
-    downloadProjection(save?: (file: {
-        filename: string;
-        contentType: string;
-        bytes: Uint8Array;
-    }) => Promise<void>): Promise<CemStudioWorkbenchState>;
+    downloadProjection(
+        save?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>,
+    ): Promise<CemStudioWorkbenchState>;
     setCommandTarget(target: CemStudioCommandPageTarget): CemStudioWorkbenchState;
     applyCommand(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     applyAndRun(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
@@ -200,9 +197,11 @@ export declare function mountCemStudioFeatureTourWorkbench(options: {
     workbench: CemStudioFeatureTourWorkbench;
     clipboard?: Pick<Clipboard, 'writeText'>;
     download?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>;
-}): Promise<Readonly<{
-    root: Element;
-    workbench: CemStudioFeatureTourWorkbench;
-    whenSettled(): Promise<void>;
-    dispose(): void;
-}>>;
+}): Promise<
+    Readonly<{
+        root: Element;
+        workbench: CemStudioFeatureTourWorkbench;
+        whenSettled(): Promise<void>;
+        dispose(): void;
+    }>
+>;

@@ -35,6 +35,11 @@
             "import": "./dist/static/assets/@epa-wg/cem-studio/workbench.js",
             "default": "./dist/static/assets/@epa-wg/cem-studio/workbench.js"
         },
+        "./preview": {
+            "types": "./src/preview.d.ts",
+            "import": "./dist/static/assets/@epa-wg/cem-studio/preview.js",
+            "default": "./dist/static/assets/@epa-wg/cem-studio/preview.js"
+        },
         "./shell": {
             "types": "./src/shell.d.ts",
             "import": "./dist/static/assets/@epa-wg/cem-studio/shell.js",
@@ -50,6 +55,7 @@
         "src/feature-tour.d.ts",
         "src/file-system-provider.d.ts",
         "src/repository.d.ts",
+        "src/preview.d.ts",
         "src/shell.d.ts",
         "src/workbench.d.ts",
         "README.md",

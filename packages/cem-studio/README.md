@@ -26,6 +26,10 @@ repository boundary.
   retained-handle permission requests require an explicit caller action.
 - `@epa-wg/cem-studio/shell` exposes the production CEM-component shell, five
   theme modes, browser install state, and explicit safe-update coordinator.
+- `@epa-wg/cem-studio/preview` exposes the bounded result policy and isolated
+  preview frame. Text is inserted only through `textContent`; HTML, XHTML, and
+  SVG use an empty opaque-origin iframe sandbox plus a deny-all preview CSP;
+  binary, invalid UTF-8, and oversized active markup remain download-only.
 - `@epa-wg/cem-studio/manifest.webmanifest` exposes the generated application
   manifest.
 - `@epa-wg/cem-studio/static/*` exposes the graph-emitted deployable tree.
@@ -73,6 +77,29 @@ unchanged and requires review/reopen instead of claiming an atomic directory
 commit. Unsupported or denied access leaves IndexedDB fully usable and exposes
 the same validated deterministic project archive for upload/download recovery.
 
+## Hardening and browser support
+
+Studio v1 accepts at most 8 MiB for a primary source or one dependency, 16 MiB
+for the complete resource set, 128 dependencies, and 16 MiB for an exact result.
+Inline text previews are capped at 256 KiB and structured views retain at most
+100 rows. These application caps sit below the engine transport ceiling and are
+checked before source submission, retained-artifact reads, or DOM projection.
+
+The static deployment requires a current browser with JavaScript modules,
+import maps, WebAssembly, dedicated workers, IndexedDB, and service workers.
+Direct file/directory write-back uses the File System Access API where the
+browser exposes it; Studio keeps validated archive import/export available as
+the fallback. The API is primarily available in Chromium-family browsers, so
+direct folder binding is progressive enhancement rather than a portability
+requirement ([Chrome platform guidance](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)).
+
+Deployers must apply every response header in `static/security-headers.json`.
+The graph-emitted policy is hash-based for the two static inline script blocks,
+allows only same-origin application assets and the narrow `wasm-unsafe-eval`
+capability, and denies framing, forms, objects, ambient network origins, and
+powerful permissions. No policy contains `unsafe-inline` or general
+`unsafe-eval`.
+
 ## Build and verification
 
 ```bash
@@ -80,6 +107,7 @@ yarn nx run @epa-wg/cem-studio:build
 yarn nx run @epa-wg/cem-studio:test:repository
 yarn nx run @epa-wg/cem-studio:test:file-system-provider
 yarn nx run @epa-wg/cem-studio:test:shell
+yarn nx run @epa-wg/cem-studio:test:preview
 yarn nx run @epa-wg/cem-studio:check
 ```
 
@@ -87,3 +115,8 @@ The source/destination module-map pair declares every JavaScript, CSS, worker,
 and WASM byte copied into the static deployment. JSON manifests and the SVG icon
 are explicit typed graph imports/exports. There is no post-graph production-copy
 step.
+
+The final `check` also packs the npm archive, installs it into a clean consumer,
+audits the exact/transitive runtime dependency path, and writes synchronized
+local release evidence to `dist/reports/cem-studio/release-evidence.json`.
+Publication signing and protected-release evidence remain owned by Phase 9.

@@ -41,7 +41,7 @@ export interface CemStudioCommandOutput {
     readonly contentType: string;
     readonly byteLength: number;
     readonly sha256: string;
-    readonly bytes: readonly number[];
+    readonly bytes: Uint8Array;
     readonly text: string;
 }
 
@@ -75,21 +75,27 @@ export interface CemStudioResourceCommandPreviewOptions extends CemStudioResourc
 export interface CemStudioBrowserValidator {
     readonly capability: Readonly<Record<string, unknown>>;
     readonly commonVersion: string;
-    parseResource(options: CemStudioResourceCommandOptions & {
-        readonly projection?: CemStudioParseProjection;
-    }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
-    inspectResource(options: CemStudioResourceCommandOptions & {
-        readonly view?: CemStudioInspectView;
-    }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
-    runResourceCommand(options: CemStudioResourceCommandOptions & {
-        readonly argv: readonly string[];
-    }): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
-    executeAuthoredResourceCommand(
-        options: CemStudioAuthoredResourceCommandOptions,
-    ): Promise<CemStudioBrowserCommandOutcome & {
-        readonly output: CemStudioCommandOutput;
-        readonly parsed: Readonly<Record<string, unknown>>;
-    }>;
+    parseResource(
+        options: CemStudioResourceCommandOptions & {
+            readonly projection?: CemStudioParseProjection;
+        },
+    ): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
+    inspectResource(
+        options: CemStudioResourceCommandOptions & {
+            readonly view?: CemStudioInspectView;
+        },
+    ): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
+    runResourceCommand(
+        options: CemStudioResourceCommandOptions & {
+            readonly argv: readonly string[];
+        },
+    ): Promise<CemStudioBrowserCommandOutcome & { readonly output: CemStudioCommandOutput }>;
+    executeAuthoredResourceCommand(options: CemStudioAuthoredResourceCommandOptions): Promise<
+        CemStudioBrowserCommandOutcome & {
+            readonly output: CemStudioCommandOutput;
+            readonly parsed: Readonly<Record<string, unknown>>;
+        }
+    >;
     previewResourceCommand(options: CemStudioResourceCommandPreviewOptions): Promise<CemStudioResourceCommandPreview>;
     serializeResourceCommand(command: Readonly<Record<string, unknown>>): string;
     validateResource(options: CemStudioResourceCommandOptions): Promise<CemStudioBrowserCommandOutcome>;
@@ -116,12 +122,14 @@ export declare function installCemStudioFeatureTour(
     repository: CemStudioIndexedDbRepository,
     seed: CemStudioFeatureTourSeed,
     options?: { reset?: boolean; now?: () => string },
-): Promise<Readonly<{
-    status: 'installed' | 'preserved' | 'reset';
-    projectId: string;
-    seedVersion: string;
-    repositoryRevision?: number;
-}>>;
+): Promise<
+    Readonly<{
+        status: 'installed' | 'preserved' | 'reset';
+        projectId: string;
+        seedVersion: string;
+        repositoryRevision?: number;
+    }>
+>;
 export declare function createCemStudioFeatureTourCopy(
     seed: CemStudioFeatureTourSeed,
     options: { projectId: string; now: string },

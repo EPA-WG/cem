@@ -61,11 +61,13 @@ describe('CEM Studio Feature Tour workbench', () => {
             diagnostics: [{ code: 'cem.tokenizer.unterminated_node' }],
             provenance: [{ transform: 'CemTokenizer', range: { start: rangeStart, len: 10 } }],
         });
-        expect(validator.validateResource).toHaveBeenCalledWith(expect.objectContaining({
-            projectId: 'feature-tour',
-            projectRevision: 2,
-            resourceRevision: 2,
-        }));
+        expect(validator.validateResource).toHaveBeenCalledWith(
+            expect.objectContaining({
+                projectId: 'feature-tour',
+                projectRevision: 2,
+                resourceRevision: 2,
+            }),
+        );
         const exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
         expect(new TextDecoder().decode(exported.value.contents.source)).toBe(invalid);
         expect(exported.value.project.revision).toBe(2);
@@ -74,9 +76,9 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(root.querySelector('cem-tabs [role="tablist"]')).not.toBeNull();
         expect(root.querySelector('cem-table [role="table"]')).not.toBeNull();
         expect(root.querySelector('cem-list')).not.toBeNull();
-        expect(root.querySelectorAll(
-            'button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-        )).toHaveLength(0);
+        expect(
+            root.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button)'),
+        ).toHaveLength(0);
 
         const diagnostics = root.querySelector('cem-list[data-diagnostic-list] select');
         diagnostics.value = '0';
@@ -105,8 +107,7 @@ describe('CEM Studio Feature Tour workbench', () => {
                 stale: false,
             },
         });
-        expect(root.querySelector('cem-textarea[data-cem-studio-projection-output] textarea').value)
-            .toBe('parse events projection\n');
+        expect(root.querySelector('[data-cem-studio-preview] pre').textContent).toBe('parse events projection\n');
 
         const inspectSelect = root.querySelector('cem-select[data-cem-studio-inspect-view]');
         inspectSelect.value = 'tree';
@@ -148,12 +149,14 @@ describe('CEM Studio Feature Tour workbench', () => {
 
         expect(validator.parseResource).toHaveBeenCalledTimes(CEM_STUDIO_PARSE_PROJECTIONS.length);
         expect(validator.inspectResource).toHaveBeenCalledTimes(CEM_STUDIO_INSPECT_VIEWS.length);
-        expect(validator.inspectResource).toHaveBeenLastCalledWith(expect.objectContaining({
-            projectId: 'feature-tour',
-            projectRevision: 1,
-            resourceRevision: 1,
-            view: 'tree',
-        }));
+        expect(validator.inspectResource).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                projectId: 'feature-tour',
+                projectRevision: 1,
+                resourceRevision: 1,
+                view: 'tree',
+            }),
+        );
     });
 
     it('runs a portable operation and exposes expected, copy, and download evidence with CEM controls', async () => {
@@ -167,8 +170,14 @@ describe('CEM Studio Feature Tour workbench', () => {
         const view = await mountCemStudioFeatureTourWorkbench({
             root,
             workbench,
-            clipboard: { writeText: async (text) => { copied = text; } },
-            download: async (file) => { downloaded = file; },
+            clipboard: {
+                writeText: async (text) => {
+                    copied = text;
+                },
+            },
+            download: async (file) => {
+                downloaded = file;
+            },
         });
         views.push(view);
 
@@ -187,22 +196,26 @@ describe('CEM Studio Feature Tour workbench', () => {
             stale: false,
         });
         expect(validator.runResourceCommand).toHaveBeenCalledTimes(1);
-        expect(validator.runResourceCommand.mock.calls[0][0].argv).toEqual(expect.arrayContaining([
-            'convert',
-            'studio://feature-tour/data/cem-ml/basic.cem',
-            '--to-format',
-            'dom-json',
-        ]));
+        expect(validator.runResourceCommand.mock.calls[0][0].argv).toEqual(
+            expect.arrayContaining([
+                'convert',
+                'studio://feature-tour/data/cem-ml/basic.cem',
+                '--to-format',
+                'dom-json',
+            ]),
+        );
         root.querySelector('cem-action[data-cem-studio-projection-copy] button').click();
         await view.whenSettled();
         root.querySelector('cem-action[data-cem-studio-projection-download] button').click();
         await view.whenSettled();
         expect(copied).toBe(projection.output.text);
-        expect([...downloaded.bytes]).toEqual(projection.output.bytes);
+        expect([...downloaded.bytes]).toEqual([...projection.output.bytes]);
         expect(root.querySelector('[data-cem-studio-projection-expected] cem-table [role="table"]')).not.toBeNull();
-        expect(root.querySelectorAll(
-            '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-        )).toHaveLength(0);
+        expect(
+            root.querySelectorAll(
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+            ),
+        ).toHaveLength(0);
     });
 
     it('round trips the Studio command, copies displayed text, and previews semantic changes without mutation', async () => {
@@ -234,9 +247,9 @@ describe('CEM Studio Feature Tour workbench', () => {
             draftText: changed,
             preview: { parsed: { commandPath: ['parse'], options: { format: 'events' } } },
         });
-        expect(workbench.snapshot().command.changes).toEqual(expect.arrayContaining([
-            expect.objectContaining({ category: 'operation', kind: 'changed' }),
-        ]));
+        expect(workbench.snapshot().command.changes).toEqual(
+            expect.arrayContaining([expect.objectContaining({ category: 'operation', kind: 'changed' })]),
+        );
         expect(root.querySelector('cem-table[label="CLI Command semantic changes"] [role="table"]')).not.toBeNull();
 
         root.querySelector('cem-action[data-cem-studio-command-copy] button').click();
@@ -258,9 +271,11 @@ describe('CEM Studio Feature Tour workbench', () => {
         root.querySelector('cem-action[data-cem-studio-command-reset] button').click();
         await view.whenSettled();
         expect(workbench.snapshot().command).toMatchObject({ status: 'current', draftText: original, changes: [] });
-        expect(root.querySelectorAll(
-            '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-        )).toHaveLength(0);
+        expect(
+            root.querySelectorAll(
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+            ),
+        ).toHaveLength(0);
     });
 
     it('applies named new and compatible existing pages through CEM controls without executing', async () => {
@@ -298,9 +313,12 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
         const exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
         const commandResourceId = application.result.commandResource.id;
-        expect(new TextDecoder().decode(exported.value.contents[commandResourceId]))
-            .toBe(new TextDecoder().decode(application.result.commandBytes));
-        expect(root.querySelector('cem-alert[data-cem-studio-command-apply-alert]').getAttribute('tone')).toBe('success');
+        expect(new TextDecoder().decode(exported.value.contents[commandResourceId])).toBe(
+            new TextDecoder().decode(application.result.commandBytes),
+        );
+        expect(root.querySelector('cem-alert[data-cem-studio-command-apply-alert]').getAttribute('tone')).toBe(
+            'success',
+        );
         selectValue(root, '[data-cem-studio-command-target-mode]', 'existing');
         await view.whenSettled();
         expect(workbench.snapshot().command.application.target).toEqual({
@@ -319,9 +337,11 @@ describe('CEM Studio Feature Tour workbench', () => {
             },
         });
         expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
-        expect(root.querySelectorAll(
-            '[data-cem-studio-command-application] button:not(cem-action button):not(cem-select button)',
-        )).toHaveLength(0);
+        expect(
+            root.querySelectorAll(
+                '[data-cem-studio-command-application] button:not(cem-action button):not(cem-select button)',
+            ),
+        ).toHaveLength(0);
     });
 
     it('recommends a new page and confirmation-gates incompatible replacement in a CEM dialog', async () => {
@@ -421,21 +441,26 @@ describe('CEM Studio Feature Tour workbench', () => {
         const started = new Promise((resolve) => {
             startedExecution = resolve;
         });
-        validator.executeAuthoredResourceCommand.mockImplementation((options) => new Promise((resolve) => {
-            releaseExecution = () => resolve(authoredCommandOutcome(options));
-            startedExecution();
-        }));
+        validator.executeAuthoredResourceCommand.mockImplementation(
+            (options) =>
+                new Promise((resolve) => {
+                    releaseExecution = () => resolve(authoredCommandOutcome(options));
+                    startedExecution();
+                }),
+        );
         const repository = await repositoryWithSource('{main | Before run}\n');
         const workbench = await createWorkbench(repository, validator);
         const running = workbench.applyAndRun();
         await started;
-        await repository.execute(request('save-resource', {
-            projectId: 'feature-tour',
-            resourceId: 'source',
-            expectedProjectRevision: 2,
-            expectedResourceRevision: 1,
-            content: '{main | Concurrent revision}\n',
-        }));
+        await repository.execute(
+            request('save-resource', {
+                projectId: 'feature-tour',
+                resourceId: 'source',
+                expectedProjectRevision: 2,
+                expectedResourceRevision: 1,
+                content: '{main | Concurrent revision}\n',
+            }),
+        );
         releaseExecution();
         await running;
 
@@ -456,13 +481,15 @@ describe('CEM Studio Feature Tour workbench', () => {
         const validator = validatorFor(validResult());
         const repository = await repositoryWithSource('{main | Loaded revision}\n');
         const workbench = await createWorkbench(repository, validator);
-        await repository.execute(request('save-resource', {
-            projectId: 'feature-tour',
-            resourceId: 'source',
-            expectedProjectRevision: 1,
-            expectedResourceRevision: 1,
-            content: '{main | Newer repository revision}\n',
-        }));
+        await repository.execute(
+            request('save-resource', {
+                projectId: 'feature-tour',
+                resourceId: 'source',
+                expectedProjectRevision: 1,
+                expectedResourceRevision: 1,
+                content: '{main | Newer repository revision}\n',
+            }),
+        );
 
         await expect(workbench.applyCommand()).rejects.toMatchObject({
             code: 'cem.studio.repository.revision_conflict',
@@ -484,10 +511,13 @@ describe('CEM Studio Feature Tour workbench', () => {
         const started = new Promise((resolve) => {
             startedValidation = resolve;
         });
-        const validator = validatorFor(() => new Promise((resolve) => {
-            releaseValidation = () => resolve(validResult());
-            startedValidation();
-        }));
+        const validator = validatorFor(
+            () =>
+                new Promise((resolve) => {
+                    releaseValidation = () => resolve(validResult());
+                    startedValidation();
+                }),
+        );
         const repository = await repositoryWithSource('original');
         const workbench = await createWorkbench(repository, validator);
         workbench.updateDraft('saved revision');
@@ -513,10 +543,13 @@ describe('CEM Studio Feature Tour workbench', () => {
             startedProjection = resolve;
         });
         const validator = validatorFor(validResult());
-        validator.parseResource.mockImplementation(() => new Promise((resolve) => {
-            releaseProjection = () => resolve(projectionOutcome('parse', 'ast'));
-            startedProjection();
-        }));
+        validator.parseResource.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    releaseProjection = () => resolve(projectionOutcome('parse', 'ast'));
+                    startedProjection();
+                }),
+        );
         const repository = await repositoryWithSource('{main | Persisted}\n');
         const workbench = await createWorkbench(repository, validator);
         const projecting = workbench.parsePersisted('ast');
@@ -585,25 +618,31 @@ function validatorFor(outcome) {
 function serializeCommandResource(parsed) {
     const operation = parsed.commandPath[0];
     const uri = parsed.positionals.inputs;
-    const argv = operation === 'parse'
-        ? ['parse', uri, '--format', parsed.options.format ?? 'ast']
-        : ['inspect', uri, '--show', parsed.options.show ?? 'summary', '--format', parsed.options.format ?? 'cem'];
-    return `${JSON.stringify({
-        $schema: 'https://cem.dev/ns/cli/command/1',
-        schemaVersion: 1,
-        commandSchemaVersion: 1,
-        commonVersion: '0.1.0',
-        binaryName: 'cem-ml',
-        argv,
-    }, null, 2)}\n`;
+    const argv =
+        operation === 'parse'
+            ? ['parse', uri, '--format', parsed.options.format ?? 'ast']
+            : ['inspect', uri, '--show', parsed.options.show ?? 'summary', '--format', parsed.options.format ?? 'cem'];
+    return `${JSON.stringify(
+        {
+            $schema: 'https://cem.dev/ns/cli/command/1',
+            schemaVersion: 1,
+            commandSchemaVersion: 1,
+            commonVersion: '0.1.0',
+            binaryName: 'cem-ml',
+            argv,
+        },
+        null,
+        2,
+    )}\n`;
 }
 
 function authoredCommandOutcome(options) {
     const resource = JSON.parse(new TextDecoder().decode(new Uint8Array(options.commandResource)));
     const operation = resource.argv[0];
-    const mode = operation === 'parse'
-        ? resource.argv[resource.argv.indexOf('--format') + 1]
-        : resource.argv[resource.argv.indexOf('--show') + 1];
+    const mode =
+        operation === 'parse'
+            ? resource.argv[resource.argv.indexOf('--format') + 1]
+            : resource.argv[resource.argv.indexOf('--show') + 1];
     const outcome = projectionOutcome(operation, mode);
     const authored = {
         resource,
@@ -632,18 +671,21 @@ function commandPreviewOutcome(options) {
         throw error;
     }
     const operation = options.text?.match(/\b(parse|inspect|validate)\b/u)?.[1] ?? options.operation ?? 'parse';
-    const format = options.text?.match(/--format\s+([^\s]+)/u)?.[1]
-        ?? (operation === 'parse' ? options.projection ?? 'ast' : operation === 'inspect' ? 'cem' : 'json');
+    const format =
+        options.text?.match(/--format\s+([^\s]+)/u)?.[1] ??
+        (operation === 'parse' ? (options.projection ?? 'ast') : operation === 'inspect' ? 'cem' : 'json');
     const view = options.text?.match(/--show\s+([^\s]+)/u)?.[1] ?? options.view ?? 'summary';
     const uri = /^[a-z][a-z0-9+.-]*:/iu.test(options.uri)
         ? options.uri
         : `studio://${options.projectId}/${options.uri}`;
-    const argv = operation === 'parse'
-        ? ['parse', uri, '--format', format]
-        : operation === 'inspect'
-            ? ['inspect', uri, '--show', view, '--format', format]
-            : ['validate', uri, '--format', format];
-    const text = options.text ?? `cem-ml ${argv.join(' ')} --content-type ${options.contentType} --schema ${options.schema}`;
+    const argv =
+        operation === 'parse'
+            ? ['parse', uri, '--format', format]
+            : operation === 'inspect'
+              ? ['inspect', uri, '--show', view, '--format', format]
+              : ['validate', uri, '--format', format];
+    const text =
+        options.text ?? `cem-ml ${argv.join(' ')} --content-type ${options.contentType} --schema ${options.schema}`;
     const parsed = Object.freeze({
         schemaVersion: 1,
         commonVersion: '0.1.0',
@@ -729,11 +771,13 @@ function invalidResult(start, len) {
         node: 'article',
         details: null,
         sourceMap: {
-            frames: [{
-                source_id: 7,
-                span: { kind: 'Single', ranges: { start, len } },
-                transform: { kind: 'CemTokenizer' },
-            }],
+            frames: [
+                {
+                    source_id: 7,
+                    span: { kind: 'Single', ranges: { start, len } },
+                    transform: { kind: 'CemTokenizer' },
+                },
+            ],
         },
     };
     const report = {
@@ -755,21 +799,25 @@ function invalidResult(start, len) {
 }
 
 function validResult() {
-    return commandOutcome(0, {
-        generatedAt: '2026-08-21T00:00:00Z',
-        inputs: ['data/cem-ml/basic.cem'],
-        summary: {
-            inputCount: 1,
-            infoCount: 0,
-            warningCount: 0,
-            errorCount: 0,
-            fatalCount: 0,
-            hardViolationCount: 0,
+    return commandOutcome(
+        0,
+        {
+            generatedAt: '2026-08-21T00:00:00Z',
+            inputs: ['data/cem-ml/basic.cem'],
+            summary: {
+                inputCount: 1,
+                infoCount: 0,
+                warningCount: 0,
+                errorCount: 0,
+                fatalCount: 0,
+                hardViolationCount: 0,
+            },
+            options: {},
+            diagnostics: [],
+            reportAst: {},
         },
-        options: {},
-        diagnostics: [],
-        reportAst: {},
-    }, []);
+        [],
+    );
 }
 
 function commandOutcome(exitCode, report, diagnostics) {
@@ -798,84 +846,102 @@ async function repositoryWithSource(content) {
     const sha256 = await digest(bytes);
     const runConfigBytes = new TextEncoder().encode('{}\n');
     const runConfigSha256 = await digest(runConfigBytes);
-    await repository.execute(request('import-project', {
-        bundle: {
-            project: {
-                $schema: 'https://cem.dev/ns/studio/project/1',
-                schemaVersion: 1,
-                id: 'feature-tour',
-                name: 'Feature Tour',
-                rootUri: 'studio://feature-tour/',
-                revision: 1,
-                createdAt: '2026-08-21T00:00:00Z',
-                updatedAt: '2026-08-21T00:00:00Z',
-                entries: [{
-                    id: 'schema-package-examples',
-                    kind: 'subproject',
-                    name: 'Schema package examples',
-                }, {
-                    id: 'validate-cem-ml',
-                    parentId: 'schema-package-examples',
-                    kind: 'validation',
-                    name: 'CEM ML: Basic',
-                    runConfigResourceId: 'run-cem-ml',
-                    resourceIds: ['source', 'run-cem-ml'],
-                }],
-                resources: [{
-                    id: 'source',
-                    role: 'data',
-                    sourceKind: 'project-file',
-                    path: 'data/cem-ml/basic.cem',
-                    contentType: 'application/cem',
-                    schema: 'https://cem.dev/ns/cem-ml/1',
+    await repository.execute(
+        request('import-project', {
+            bundle: {
+                project: {
+                    $schema: 'https://cem.dev/ns/studio/project/1',
+                    schemaVersion: 1,
+                    id: 'feature-tour',
+                    name: 'Feature Tour',
+                    rootUri: 'studio://feature-tour/',
                     revision: 1,
-                    sha256,
-                }, {
-                    id: 'run-cem-ml',
-                    role: 'run-config',
-                    sourceKind: 'project-file',
-                    path: 'config/cem-ml.validate.json',
-                    contentType: 'application/json',
-                    schema: 'https://cem.dev/ns/cli/run-config/1',
-                    revision: 1,
-                    sha256: runConfigSha256,
-                }],
+                    createdAt: '2026-08-21T00:00:00Z',
+                    updatedAt: '2026-08-21T00:00:00Z',
+                    entries: [
+                        {
+                            id: 'schema-package-examples',
+                            kind: 'subproject',
+                            name: 'Schema package examples',
+                        },
+                        {
+                            id: 'validate-cem-ml',
+                            parentId: 'schema-package-examples',
+                            kind: 'validation',
+                            name: 'CEM ML: Basic',
+                            runConfigResourceId: 'run-cem-ml',
+                            resourceIds: ['source', 'run-cem-ml'],
+                        },
+                    ],
+                    resources: [
+                        {
+                            id: 'source',
+                            role: 'data',
+                            sourceKind: 'project-file',
+                            path: 'data/cem-ml/basic.cem',
+                            contentType: 'application/cem',
+                            schema: 'https://cem.dev/ns/cem-ml/1',
+                            revision: 1,
+                            sha256,
+                        },
+                        {
+                            id: 'run-cem-ml',
+                            role: 'run-config',
+                            sourceKind: 'project-file',
+                            path: 'config/cem-ml.validate.json',
+                            contentType: 'application/json',
+                            schema: 'https://cem.dev/ns/cli/run-config/1',
+                            revision: 1,
+                            sha256: runConfigSha256,
+                        },
+                    ],
+                },
+                contents: { source: bytes, 'run-cem-ml': runConfigBytes },
             },
-            contents: { source: bytes, 'run-cem-ml': runConfigBytes },
-        },
-    }));
+        }),
+    );
     return repository;
 }
 
 function featureTourSeed() {
     return {
         catalog: {
-            examples: [{
-                packageId: 'cem-ml',
-                resourceId: 'source',
-                runConfigResourceId: 'run-cem-ml',
-                path: 'data/cem-ml/basic.cem',
-                contentType: 'application/cem',
-                schema: 'https://cem.dev/ns/cem-ml/1',
-                dependencies: [],
-            }],
-            workbenches: [{
-                id: 'conversion',
-                operation: 'convert',
-                kind: 'conversion',
-                name: 'CEM-ML conversion',
-                resourceId: 'source',
-                runConfigResourceId: 'run-cem-ml',
-                path: 'data/cem-ml/basic.cem',
-                contentType: 'application/cem',
-                schema: 'https://cem.dev/ns/cem-ml/1',
-                dependencies: [],
-                expectedSummary: { kind: 'convert', outputCount: 1 },
-                commandArguments: [
-                    'convert', '$input', '--content-type', 'application/cem', '--schema',
-                    'https://cem.dev/ns/cem-ml/1', '--to-format', 'dom-json',
-                ],
-            }],
+            examples: [
+                {
+                    packageId: 'cem-ml',
+                    resourceId: 'source',
+                    runConfigResourceId: 'run-cem-ml',
+                    path: 'data/cem-ml/basic.cem',
+                    contentType: 'application/cem',
+                    schema: 'https://cem.dev/ns/cem-ml/1',
+                    dependencies: [],
+                },
+            ],
+            workbenches: [
+                {
+                    id: 'conversion',
+                    operation: 'convert',
+                    kind: 'conversion',
+                    name: 'CEM-ML conversion',
+                    resourceId: 'source',
+                    runConfigResourceId: 'run-cem-ml',
+                    path: 'data/cem-ml/basic.cem',
+                    contentType: 'application/cem',
+                    schema: 'https://cem.dev/ns/cem-ml/1',
+                    dependencies: [],
+                    expectedSummary: { kind: 'convert', outputCount: 1 },
+                    commandArguments: [
+                        'convert',
+                        '$input',
+                        '--content-type',
+                        'application/cem',
+                        '--schema',
+                        'https://cem.dev/ns/cem-ml/1',
+                        '--to-format',
+                        'dom-json',
+                    ],
+                },
+            ],
         },
     };
 }

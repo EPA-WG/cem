@@ -1099,6 +1099,12 @@ project storage or engine requests.
 ### Preview Rules
 
 - Structured data uses an expandable tree/table plus a raw-source tab.
+- Studio v1 caps a primary source and each dependency at 8 MiB, the complete
+  submitted resource set at 16 MiB and 129 resources, an exact result at 16 MiB,
+  inline text/markup projection at 256 KiB, and retained structured views at 100
+  rows. Oversize results remain available only when the exact byte result fits
+  the result cap; oversize active markup is download-only rather than truncated
+  into a potentially misleading document.
 - Conversion always shows input and output identities, text/bytes, diagnostics,
   loss metadata, and source mapping side by side.
 - Transformation shows input data set, effective config/template/query, result,
@@ -1119,6 +1125,12 @@ and an explicit opt-in if a future scenario needs more capability. `srcdoc` is
 an injection sink and unsandboxed content can access its parent origin
 ([MDN `srcdoc` security](https://developer.mozilla.org/en-US/docs/Web/API/HTMLIFrameElement/srcdoc)).
 Plain source views must use text nodes or equivalent escaped rendering.
+For the first public release, declared UTF-8 text uses this bounded raw-text
+projection; HTML, XHTML, and SVG may additionally use only the isolated preview
+above; binary, unknown, invalid-text, and oversize active results are
+download-only. The current textarea editor is sufficient for that release.
+Richer schema-aware editing remains an adapter upgrade only after profiling and
+user evidence justify its bundle, memory, and accessibility cost.
 
 ## Local-First Persistence
 
@@ -1128,13 +1140,13 @@ Plain source views must use text nodes or equivalent escaped rendering.
 storage, not putting full projects into the synchronous `window.localStorage`
 API.
 
-| Browser storage            | Use in Studio                                                                                             | Reason                                                                                                                                                                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| IndexedDB                  | Canonical local working store for projects, records, source text, blobs, reports, and migration metadata. | Asynchronous, transactional, indexed, and intended for significant structured data/files ([MDN IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)).                                                              |
-| `localStorage`             | Tiny preferences only: last workspace id, theme mode, pane preference, dismissed update notice.           | Synchronous operations block JavaScript and Web Storage is size-limited ([MDN Web Storage](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API)).                                                                           |
-| Cache Storage              | Versioned app shell, WASM, bundled capability catalog, and immutable sample assets.                       | Service-worker/offline asset cache, not a transactional project database.                                                                                                                                                                |
-| Origin Private File System | Test/cache substrate for large private blobs or engine scratch data; never the user's portable owner.                 | Fast worker-oriented storage, but origin-private, quota-bound, and invisible to the user; it is not backup or Git integration ([MDN OPFS](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)). |
-| File System Access handles | Optional user-selected file/directory provider; only the handles and conflict base live in `providerBindings`.        | Direct write-back in supporting secure browsers, but permission can return to `prompt` and there is no cross-file transaction; IndexedDB plus import/export remains required.                                                                  |
+| Browser storage            | Use in Studio                                                                                                  | Reason                                                                                                                                                                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| IndexedDB                  | Canonical local working store for projects, records, source text, blobs, reports, and migration metadata.      | Asynchronous, transactional, indexed, and intended for significant structured data/files ([MDN IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)).                                                              |
+| `localStorage`             | Tiny preferences only: last workspace id, theme mode, pane preference, dismissed update notice.                | Synchronous operations block JavaScript and Web Storage is size-limited ([MDN Web Storage](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API)).                                                                           |
+| Cache Storage              | Versioned app shell, WASM, bundled capability catalog, and immutable sample assets.                            | Service-worker/offline asset cache, not a transactional project database.                                                                                                                                                                |
+| Origin Private File System | Test/cache substrate for large private blobs or engine scratch data; never the user's portable owner.          | Fast worker-oriented storage, but origin-private, quota-bound, and invisible to the user; it is not backup or Git integration ([MDN OPFS](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)). |
+| File System Access handles | Optional user-selected file/directory provider; only the handles and conflict base live in `providerBindings`. | Direct write-back in supporting secure browsers, but permission can return to `prompt` and there is no cross-file transaction; IndexedDB plus import/export remains required.                                                            |
 
 The accepted IndexedDB stores are `meta`, `projects`, `entries`, `resources`,
 `blobs`, `runs`, `resultSnapshots`, `providerBindings`, `syncQueue`, `trash`,
@@ -1924,12 +1936,6 @@ Studio proposal.
 - What executable-size, startup, performance, signing, asset-loading, and
   security-update thresholds must a Node SEA semi-native package meet before it
   leaves the wishlist?
-- Which source/result size limits are safe defaults for desktop and mobile
-  browsers?
-- Is textarea sufficient for the first public release, or is schema-driven
-  completion a launch requirement?
-- Which output formats may be rendered, and which only receive text/tree/download
-  previews?
 - Which first permanent provider has validated user demand and a sustainable
   authentication/service model?
 

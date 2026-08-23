@@ -1,4 +1,5 @@
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
+import { CEM_STUDIO_LIMITS, createCemStudioPreview, mountCemStudioPreview, redactCemStudioSecrets } from './preview.js';
 import { installCemStudioShellComponents } from './shell.js';
 
 const textEncoder = new TextEncoder();
@@ -22,12 +23,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     const { repository, validator, seed, projectId } = options;
     if (!repository?.query || !repository?.execute) throw new TypeError('Feature Tour workbench requires a repository');
     if (
-        !validator?.validateResource
-        || !validator?.parseResource
-        || !validator?.inspectResource
-        || !validator?.previewResourceCommand
-        || !validator?.serializeResourceCommand
-        || !validator?.executeAuthoredResourceCommand
+        !validator?.validateResource ||
+        !validator?.parseResource ||
+        !validator?.inspectResource ||
+        !validator?.previewResourceCommand ||
+        !validator?.serializeResourceCommand ||
+        !validator?.executeAuthoredResourceCommand
     ) {
         throw new TypeError('Feature Tour workbench requires a browser command validator');
     }
@@ -36,8 +37,10 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     }
     const initialExample = options.example ?? featureTourCemExample(seed);
     const workbenches = featureTourWorkbenches(seed, initialExample);
-    if (workbenches.some((entry) => !['parse', 'inspect'].includes(workbenchOperation(entry)))
-        && !validator?.runResourceCommand) {
+    if (
+        workbenches.some((entry) => !['parse', 'inspect'].includes(workbenchOperation(entry))) &&
+        !validator?.runResourceCommand
+    ) {
         throw new TypeError('Portable operation workbenches require a browser command runner');
     }
     let [example] = workbenches;
@@ -91,9 +94,11 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         if (!bundle?.project || !bundle?.contents) throw new Error(`Feature Tour project ${projectId} is unavailable`);
         const resource = bundle.project.resources?.find(({ id }) => id === example.resourceId);
         if (!resource) throw new Error(`Feature Tour resource ${example.resourceId} is unavailable`);
-        const currentEntries = bundle.project.entries.filter(({ runConfigResourceId, resourceIds }) =>
-            runConfigResourceId === example.runConfigResourceId
-            || (!example.runConfigResourceId && resourceIds?.includes(example.resourceId)));
+        const currentEntries = bundle.project.entries.filter(
+            ({ runConfigResourceId, resourceIds }) =>
+                runConfigResourceId === example.runConfigResourceId ||
+                (!example.runConfigResourceId && resourceIds?.includes(example.resourceId)),
+        );
         if (currentEntries.length > 1) {
             throw new Error(`Feature Tour resource ${example.resourceId} resolves to more than one current page`);
         }
@@ -109,9 +114,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 resourceId: dependency.resourceId,
             };
         });
-        const expected = freezeWorkbenchValue(example.expectedSummary ?? (example.expectedResourceId
-            ? JSON.parse(textDecoder.decode(toBytes(bundle.contents[example.expectedResourceId])))
-            : undefined));
+        const expected = freezeWorkbenchValue(
+            example.expectedSummary ??
+                (example.expectedResourceId
+                    ? JSON.parse(textDecoder.decode(toBytes(bundle.contents[example.expectedResourceId])))
+                    : undefined),
+        );
         return {
             bytes,
             text: textDecoder.decode(bytes),
@@ -208,13 +216,16 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         publish({ ...state, status: 'saving', error: undefined });
         let saved;
         try {
-            saved = await repository.execute(repositoryRequest('save-resource', {
-                projectId,
-                resourceId: example.resourceId,
-                expectedProjectRevision: captured.projectRevision,
-                expectedResourceRevision: captured.resourceRevision,
-                content: captured.draft,
-            }), options.signal);
+            saved = await repository.execute(
+                repositoryRequest('save-resource', {
+                    projectId,
+                    resourceId: example.resourceId,
+                    expectedProjectRevision: captured.projectRevision,
+                    expectedResourceRevision: captured.resourceRevision,
+                    content: captured.draft,
+                }),
+                options.signal,
+            );
         } catch (error) {
             publish({
                 ...state,
@@ -227,10 +238,10 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         const persisted = await readPersisted();
         const expectedBytes = textEncoder.encode(captured.draft);
         if (
-            !equalBytes(expectedBytes, persisted.bytes)
-            || persisted.sha256 !== saved.value.sha256
-            || persisted.projectRevision !== saved.value.projectRevision
-            || persisted.resourceRevision !== saved.value.resourceRevision
+            !equalBytes(expectedBytes, persisted.bytes) ||
+            persisted.sha256 !== saved.value.sha256 ||
+            persisted.projectRevision !== saved.value.projectRevision ||
+            persisted.resourceRevision !== saved.value.resourceRevision
         ) {
             const error = new Error('Feature Tour repository did not reload the exact committed revision');
             error.code = 'cem.studio.workbench.persistence_mismatch';
@@ -254,7 +265,10 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             selection: undefined,
             error: undefined,
         });
-        return validateRevision({ ...persisted, editVersion: captured.editVersion, draftMatches: true }, options.signal);
+        return validateRevision(
+            { ...persisted, editVersion: captured.editVersion, draftMatches: true },
+            options.signal,
+        );
     }
 
     async function validatePersisted(options = {}) {
@@ -271,11 +285,14 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             command,
             error: undefined,
         });
-        return validateRevision({
-            ...persisted,
-            editVersion: capturedVersion,
-            draftMatches: state.draft === persisted.text,
-        }, options.signal);
+        return validateRevision(
+            {
+                ...persisted,
+                editVersion: capturedVersion,
+                draftMatches: state.draft === persisted.text,
+            },
+            options.signal,
+        );
     }
 
     async function validateRevision(persisted, signal) {
@@ -305,11 +322,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             resourceRevision: persisted.resourceRevision,
             sha256: persisted.sha256,
         });
-        const stale = editVersion !== persisted.editVersion
-            || persisted.draftMatches === false
-            || state.projectRevision !== persisted.projectRevision
-            || state.resourceRevision !== persisted.resourceRevision
-            || Boolean(outcome.result.stale);
+        const stale =
+            editVersion !== persisted.editVersion ||
+            persisted.draftMatches === false ||
+            state.projectRevision !== persisted.projectRevision ||
+            state.resourceRevision !== persisted.resourceRevision ||
+            Boolean(outcome.result.stale);
         const nextValidation = freezeValidation({ ...validation, stale });
         publish({
             ...state,
@@ -367,16 +385,24 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             outcome = { result: error.result, presentation: error.presentation, output: error.output };
         }
         const mode = commandProjectionMode(undefined, operation, example.kind);
-        const projected = projectCommandProjection(operation, mode, outcome, persisted.text, {
-            projectRevision: persisted.projectRevision,
-            resourceRevision: persisted.resourceRevision,
-            sha256: persisted.sha256,
-        }, persisted.expected);
-        const stale = editVersion !== capturedVersion
-            || !draftMatches
-            || state.projectRevision !== persisted.projectRevision
-            || state.resourceRevision !== persisted.resourceRevision
-            || Boolean(outcome.result.stale);
+        const projected = projectCommandProjection(
+            operation,
+            mode,
+            outcome,
+            persisted.text,
+            {
+                projectRevision: persisted.projectRevision,
+                resourceRevision: persisted.resourceRevision,
+                sha256: persisted.sha256,
+            },
+            persisted.expected,
+        );
+        const stale =
+            editVersion !== capturedVersion ||
+            !draftMatches ||
+            state.projectRevision !== persisted.projectRevision ||
+            state.resourceRevision !== persisted.resourceRevision ||
+            Boolean(outcome.result.stale);
         const projection = freezeProjection({ ...projected, stale });
         commandEditVersion += 1;
         const command = await commandForProjection(persisted, operation, mode);
@@ -425,16 +451,24 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             }
             outcome = { result: error.result, presentation: error.presentation, output: error.output };
         }
-        const projected = projectCommandProjection(kind, mode, outcome, persisted.text, {
-            projectRevision: persisted.projectRevision,
-            resourceRevision: persisted.resourceRevision,
-            sha256: persisted.sha256,
-        }, persisted.expected);
-        const stale = editVersion !== capturedVersion
-            || !draftMatches
-            || state.projectRevision !== persisted.projectRevision
-            || state.resourceRevision !== persisted.resourceRevision
-            || Boolean(outcome.result.stale);
+        const projected = projectCommandProjection(
+            kind,
+            mode,
+            outcome,
+            persisted.text,
+            {
+                projectRevision: persisted.projectRevision,
+                resourceRevision: persisted.resourceRevision,
+                sha256: persisted.sha256,
+            },
+            persisted.expected,
+        );
+        const stale =
+            editVersion !== capturedVersion ||
+            !draftMatches ||
+            state.projectRevision !== persisted.projectRevision ||
+            state.resourceRevision !== persisted.resourceRevision ||
+            Boolean(outcome.result.stale);
         const projection = freezeProjection({ ...projected, stale });
         commandEditVersion += 1;
         const command = await commandForProjection(persisted, kind, mode);
@@ -466,9 +500,10 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 copy: undefined,
                 application: commandApplicationAfterEdit(state.command.application),
             }),
-            projection: state.command.application?.execution && state.projection
-                ? freezeProjection({ ...state.projection, stale: true })
-                : state.projection,
+            projection:
+                state.command.application?.execution && state.projection
+                    ? freezeProjection({ ...state.projection, stale: true })
+                    : state.projection,
         });
         try {
             const preview = await validator.previewResourceCommand({
@@ -555,6 +590,9 @@ export async function createCemStudioFeatureTourWorkbench(options) {
 
     async function copyProjection(writeText) {
         if (!state.projection?.output) throw new Error('CEM Studio has no operation output to copy');
+        if (state.projection.preview?.kind === 'download') {
+            throw new Error('Binary, invalid-text, and oversized active results must be downloaded as exact bytes.');
+        }
         try {
             if (typeof writeText !== 'function') {
                 const error = new Error('Clipboard writing is unavailable; select and copy the result text instead.');
@@ -693,13 +731,16 @@ export async function createCemStudioFeatureTourWorkbench(options) {
 
         let applied;
         try {
-            applied = await repository.execute(repositoryRequest('apply-command-page', {
-                projectId,
-                expectedProjectRevision: command.revision.projectRevision,
-                target,
-                commandResource,
-                referencedResourceIds: application.referencedResourceIds,
-            }), options.signal);
+            applied = await repository.execute(
+                repositoryRequest('apply-command-page', {
+                    projectId,
+                    expectedProjectRevision: command.revision.projectRevision,
+                    target,
+                    commandResource,
+                    referencedResourceIds: application.referencedResourceIds,
+                }),
+                options.signal,
+            );
         } catch (error) {
             if (error?.code === 'cem.studio.repository.command_target_incompatible') {
                 publish({
@@ -788,24 +829,30 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             };
         }
         const latest = await readPersisted();
-        const stale = capturedVersion !== commandEditVersion
-            || !isAppliedCommandCommit(latest, applied, commandBytes)
-            || Boolean(outcome.result?.stale);
+        const stale =
+            capturedVersion !== commandEditVersion ||
+            !isAppliedCommandCommit(latest, applied, commandBytes) ||
+            Boolean(outcome.result?.stale);
         const operation = outcome.parsed?.commandPath?.[0] ?? applied.operation;
         const mode = commandProjectionMode(outcome.parsed, operation);
         const projection = freezeProjection({
-            ...projectCommandProjection(operation, mode, outcome, persisted.text, {
-                projectRevision: applied.projectRevision,
-                resourceRevision: applied.resourceRevision,
-                sha256: applied.sha256,
-            }, persisted.expected),
+            ...projectCommandProjection(
+                operation,
+                mode,
+                outcome,
+                persisted.text,
+                {
+                    projectRevision: applied.projectRevision,
+                    resourceRevision: applied.resourceRevision,
+                    sha256: applied.sha256,
+                },
+                persisted.expected,
+            ),
             stale,
         });
         publish({
             ...state,
-            status: stale
-                ? 'projection-stale'
-                : projection.exitCode === 0 ? 'projected' : 'projection-invalid',
+            status: stale ? 'projection-stale' : projection.exitCode === 0 ? 'projected' : 'projection-invalid',
             projection,
             command: freezeCommand({
                 ...state.command,
@@ -831,15 +878,17 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         const command = state.command;
         publish({
             ...state,
-            command: command ? freezeCommand({
-                ...command,
-                application: freezeCommandApplication({
-                    ...command.application,
-                    status: error?.code === 'cem.studio.repository.revision_conflict' ? 'conflict' : 'failed',
-                    confirmation: undefined,
-                    error: normalizedError(error),
-                }),
-            }) : command,
+            command: command
+                ? freezeCommand({
+                      ...command,
+                      application: freezeCommandApplication({
+                          ...command.application,
+                          status: error?.code === 'cem.studio.repository.revision_conflict' ? 'conflict' : 'failed',
+                          confirmation: undefined,
+                          error: normalizedError(error),
+                      }),
+                  })
+                : command,
             error: normalizedError(error),
         });
     }
@@ -916,9 +965,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             projectId,
             projectRevision: persisted.projectRevision,
             resourceRevision: persisted.resourceRevision,
-            ...(example.commandArguments
-                ? { argv: commandArgumentsForExample(example, projectId, 'studio') }
-                : {}),
+            ...(example.commandArguments ? { argv: commandArgumentsForExample(example, projectId, 'studio') } : {}),
         };
     }
 
@@ -1019,10 +1066,6 @@ export async function mountCemStudioFeatureTourWorkbench({
             await settleWorkbench(components.runtime, host);
             const editor = host.querySelector('cem-textarea[data-cem-studio-editor] textarea');
             if (editor && editor.value !== snapshot.draft) editor.value = snapshot.draft;
-            const projectionOutput = host.querySelector('cem-textarea[data-cem-studio-projection-output] textarea');
-            if (projectionOutput && projectionOutput.value !== (snapshot.projection?.output.text ?? '')) {
-                projectionOutput.value = snapshot.projection?.output.text ?? '';
-            }
             const commandEditor = host.querySelector('cem-textarea[data-cem-studio-command-editor] textarea');
             if (commandEditor && commandEditor.value !== (snapshot.command?.draftText ?? '')) {
                 commandEditor.value = snapshot.command?.draftText ?? '';
@@ -1065,27 +1108,24 @@ export async function mountCemStudioFeatureTourWorkbench({
         }
     };
     const copyCommand = () => {
-        const writeText = typeof clipboard?.writeText === 'function'
-            ? (text) => clipboard.writeText(text)
-            : undefined;
+        const writeText = typeof clipboard?.writeText === 'function' ? (text) => clipboard.writeText(text) : undefined;
         actionPromise = workbench.copyCommand(writeText).catch(() => undefined);
     };
     const resetCommand = () => {
         actionPromise = workbench.resetCommandDraft().catch(() => undefined);
     };
     const copyProjection = () => {
-        const writeText = typeof clipboard?.writeText === 'function'
-            ? (text) => clipboard.writeText(text)
-            : undefined;
+        const writeText = typeof clipboard?.writeText === 'function' ? (text) => clipboard.writeText(text) : undefined;
         actionPromise = workbench.copyProjection(writeText).catch(() => undefined);
     };
     const downloadProjection = () => {
         actionPromise = workbench.downloadProjection(download).catch(() => undefined);
     };
     const commandApplicationInput = (event) => {
-        const field = event.target instanceof Element
-            ? event.target.closest('cem-text-field[data-cem-studio-command-target-name]')
-            : null;
+        const field =
+            event.target instanceof Element
+                ? event.target.closest('cem-text-field[data-cem-studio-command-target-name]')
+                : null;
         if (!field || !(event.target instanceof HTMLInputElement)) return;
         const application = workbench.snapshot().command?.application;
         workbench.setCommandTarget({
@@ -1102,8 +1142,9 @@ export async function mountCemStudioFeatureTourWorkbench({
         if (select.hasAttribute('data-cem-studio-command-target-mode')) {
             if (select.value === 'current') workbench.setCommandTarget({ mode: 'current' });
             else if (select.value === 'existing') {
-                const entry = application?.targets.existing.find(({ compatible }) => compatible)
-                    ?? application?.targets.existing[0];
+                const entry =
+                    application?.targets.existing.find(({ compatible }) => compatible) ??
+                    application?.targets.existing[0];
                 if (entry) workbench.setCommandTarget({ mode: 'existing', entryId: entry.id });
             } else {
                 workbench.setCommandTarget({
@@ -1208,8 +1249,10 @@ export async function mountCemStudioFeatureTourWorkbench({
 function featureTourCemExample(seed) {
     const examples = seed?.catalog?.examples;
     if (!Array.isArray(examples)) throw new Error('Feature Tour catalog has no examples');
-    const example = examples.find(({ packageId, contentType }) =>
-        packageId === 'cem-ml' && typeof contentType === 'string' && contentType.includes('cem'));
+    const example = examples.find(
+        ({ packageId, contentType }) =>
+            packageId === 'cem-ml' && typeof contentType === 'string' && contentType.includes('cem'),
+    );
     if (!example) throw new Error('Feature Tour catalog has no editable CEM-ML example');
     return example;
 }
@@ -1217,13 +1260,18 @@ function featureTourCemExample(seed) {
 function featureTourWorkbenches(seed, initialExample) {
     const scenarios = Array.isArray(seed?.catalog?.workbenches) ? seed.catalog.workbenches : [];
     const values = [initialExample, ...scenarios.filter(({ id }) => id !== initialExample.id)];
-    return Object.freeze(values.map((entry, index) => Object.freeze({
-        ...entry,
-        id: entry.id ?? (index === 0 ? 'source-editor' : `workbench-${index + 1}`),
-        name: entry.name ?? (index === 0 ? 'CEM-ML source editor' : humanizeKind(entry.kind ?? entry.operation)),
-        dependencies: Object.freeze([...(entry.dependencies ?? [])]),
-        commandArguments: entry.commandArguments ? Object.freeze([...entry.commandArguments]) : undefined,
-    })));
+    return Object.freeze(
+        values.map((entry, index) =>
+            Object.freeze({
+                ...entry,
+                id: entry.id ?? (index === 0 ? 'source-editor' : `workbench-${index + 1}`),
+                name:
+                    entry.name ?? (index === 0 ? 'CEM-ML source editor' : humanizeKind(entry.kind ?? entry.operation)),
+                dependencies: Object.freeze([...(entry.dependencies ?? [])]),
+                commandArguments: entry.commandArguments ? Object.freeze([...entry.commandArguments]) : undefined,
+            }),
+        ),
+    );
 }
 
 function workbenchDescriptor(example) {
@@ -1246,20 +1294,24 @@ function workbenchOperation(example) {
 function commandArgumentsForExample(example, projectId, scheme) {
     if (!Array.isArray(example.commandArguments)) return undefined;
     const inputUri = resourceUri(example.path, projectId, scheme);
-    const dependencies = new Map((example.dependencies ?? []).map((dependency) => [
-        dependency.resourceId,
-        resolveVirtualUri(inputUri, dependency.path),
-    ]));
-    return Object.freeze(example.commandArguments.map((argument) => {
-        if (argument === '$input') return inputUri;
-        if (argument.startsWith('$resource:')) {
-            const resourceId = argument.slice('$resource:'.length);
-            const uri = dependencies.get(resourceId);
-            if (!uri) throw new Error(`Feature Tour command references unavailable resource ${resourceId}`);
-            return uri;
-        }
-        return argument;
-    }));
+    const dependencies = new Map(
+        (example.dependencies ?? []).map((dependency) => [
+            dependency.resourceId,
+            resolveVirtualUri(inputUri, dependency.path),
+        ]),
+    );
+    return Object.freeze(
+        example.commandArguments.map((argument) => {
+            if (argument === '$input') return inputUri;
+            if (argument.startsWith('$resource:')) {
+                const resourceId = argument.slice('$resource:'.length);
+                const uri = dependencies.get(resourceId);
+                if (!uri) throw new Error(`Feature Tour command references unavailable resource ${resourceId}`);
+                return uri;
+            }
+            return argument;
+        }),
+    );
 }
 
 function resourceUri(uri, projectId, scheme = 'studio') {
@@ -1274,17 +1326,22 @@ function projectValidation(result, presentation, source, revision) {
     const report = inlineValidateReport(result);
     const terminalDiagnostics = Array.isArray(result?.diagnostics?.items) ? result.diagnostics.items : [];
     const diagnostics = (Array.isArray(report?.diagnostics) ? report.diagnostics : terminalDiagnostics)
+        .slice(0, CEM_STUDIO_LIMITS.structuredRows)
         .map((diagnostic) => normalizeDiagnostic(diagnostic));
     const provenance = [];
     diagnostics.forEach((diagnostic, diagnosticIndex) => {
         diagnostic.sourceMap?.frames?.forEach((frame, frameIndex) => {
-            provenance.push(normalizeFrame(frame, { diagnosticIndex, frameIndex }));
+            if (provenance.length < CEM_STUDIO_LIMITS.structuredRows) {
+                provenance.push(normalizeFrame(frame, { diagnosticIndex, frameIndex }));
+            }
         });
     });
     for (const reference of result?.sourceMaps?.items ?? []) {
         const stack = reference.sourceMap?.storage === 'inline' ? reference.sourceMap.value : undefined;
         stack?.frames?.forEach((frame, frameIndex) => {
-            provenance.push(normalizeFrame(frame, { sourceMapId: reference.sourceMapId, frameIndex }));
+            if (provenance.length < CEM_STUDIO_LIMITS.structuredRows) {
+                provenance.push(normalizeFrame(frame, { sourceMapId: reference.sourceMapId, frameIndex }));
+            }
         });
     }
     const summary = report?.summary ?? summaryFromDiagnostics(diagnostics);
@@ -1305,28 +1362,36 @@ function projectValidation(result, presentation, source, revision) {
 
 function projectCommandProjection(kind, mode, outcome, source, revision, expected) {
     const result = outcome.result;
-    const diagnostics = (result?.diagnostics?.items ?? []).map((diagnostic) => normalizeDiagnostic(diagnostic));
+    const diagnostics = (result?.diagnostics?.items ?? [])
+        .slice(0, CEM_STUDIO_LIMITS.structuredRows)
+        .map((diagnostic) => normalizeDiagnostic(diagnostic));
     const provenance = [];
     diagnostics.forEach((diagnostic, diagnosticIndex) => {
         diagnostic.sourceMap?.frames?.forEach((frame, frameIndex) => {
-            provenance.push(normalizeFrame(frame, { diagnosticIndex, frameIndex }));
+            if (provenance.length < CEM_STUDIO_LIMITS.structuredRows) {
+                provenance.push(normalizeFrame(frame, { diagnosticIndex, frameIndex }));
+            }
         });
     });
     for (const reference of result?.sourceMaps?.items ?? []) {
         const stack = reference.sourceMap?.storage === 'inline' ? reference.sourceMap.value : undefined;
         stack?.frames?.forEach((frame, frameIndex) => {
-            provenance.push(normalizeFrame(frame, { sourceMapId: reference.sourceMapId, frameIndex }));
+            if (provenance.length < CEM_STUDIO_LIMITS.structuredRows) {
+                provenance.push(normalizeFrame(frame, { sourceMapId: reference.sourceMapId, frameIndex }));
+            }
         });
     }
     const summary = summarizePortableOperation(kind, mode, result);
     const expectedMatches = expected === undefined ? undefined : matchesExpectedSummary(summary, expected);
     const operation = result?.result?.storage === 'inline' ? result.result.value : undefined;
-    const trace = kind === 'trace' && Array.isArray(operation?.value?.body?.events)
-        ? operation.value.body.events
-        : collectOperationRecords(operation, ['trace', 'stages', 'events']);
-    const graph = kind === 'transform' && mode === 'graph'
-        ? collectOperationRecords(operation, ['artifacts', 'stages', 'nodes', 'edges'])
-        : [];
+    const trace =
+        kind === 'trace' && Array.isArray(operation?.value?.body?.events)
+            ? operation.value.body.events
+            : collectOperationRecords(operation, ['trace', 'stages', 'events']);
+    const graph =
+        kind === 'transform' && mode === 'graph'
+            ? collectOperationRecords(operation, ['artifacts', 'stages', 'nodes', 'edges'])
+            : [];
     return {
         kind,
         mode,
@@ -1335,6 +1400,11 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         executionIdentity: result?.identity,
         revision,
         output: outcome.output,
+        preview: createCemStudioPreview({
+            bytes: outcome.output.bytes,
+            contentType: outcome.output.contentType,
+            label: `${humanizeKind(kind)} result preview`,
+        }),
         nativeResult: result,
         diagnostics: Object.freeze(diagnostics),
         provenance: Object.freeze(provenance),
@@ -1386,13 +1456,18 @@ function matchesExpectedSummary(actual, expected) {
 function collectOperationRecords(value, keys) {
     const records = [];
     const visit = (candidate, path = []) => {
-        if (!candidate || typeof candidate !== 'object') return;
+        if (!candidate || typeof candidate !== 'object' || records.length >= CEM_STUDIO_LIMITS.structuredRows) return;
         for (const [key, child] of Object.entries(candidate)) {
             if (keys.includes(key) && Array.isArray(child)) {
-                child.forEach((entry, index) => records.push(Object.freeze({
-                    path: [...path, key, index].join('.'),
-                    value: entry,
-                })));
+                for (const [index, entry] of child.entries()) {
+                    if (records.length >= CEM_STUDIO_LIMITS.structuredRows) break;
+                    records.push(
+                        Object.freeze({
+                            path: [...path, key, index].join('.'),
+                            value: entry,
+                        }),
+                    );
+                }
             } else if (path.length < 8) {
                 visit(child, [...path, key]);
             }
@@ -1476,9 +1551,9 @@ function freezeState(value) {
 function freezeWorkbenchValue(value) {
     if (Array.isArray(value)) return Object.freeze(value.map((entry) => freezeWorkbenchValue(entry)));
     if (value && typeof value === 'object') {
-        return Object.freeze(Object.fromEntries(
-            Object.entries(value).map(([key, entry]) => [key, freezeWorkbenchValue(entry)]),
-        ));
+        return Object.freeze(
+            Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, freezeWorkbenchValue(entry)])),
+        );
     }
     return value;
 }
@@ -1503,11 +1578,13 @@ function freezeCommandApplication(value) {
         ...value,
         target: value.target ? Object.freeze({ ...value.target }) : undefined,
         referencedResourceIds: Object.freeze([...(value.referencedResourceIds ?? [])]),
-        targets: value.targets ? Object.freeze({
-            current: value.targets.current ? Object.freeze({ ...value.targets.current }) : undefined,
-            existing: Object.freeze(value.targets.existing.map((entry) => Object.freeze({ ...entry }))),
-            parents: Object.freeze(value.targets.parents.map((entry) => Object.freeze({ ...entry }))),
-        }) : undefined,
+        targets: value.targets
+            ? Object.freeze({
+                  current: value.targets.current ? Object.freeze({ ...value.targets.current }) : undefined,
+                  existing: Object.freeze(value.targets.existing.map((entry) => Object.freeze({ ...entry }))),
+                  parents: Object.freeze(value.targets.parents.map((entry) => Object.freeze({ ...entry }))),
+              })
+            : undefined,
     });
 }
 
@@ -1516,18 +1593,23 @@ function commandApplicationState(persisted, previous, parsed) {
     const entries = persisted.project.entries.filter(({ kind }) => kind !== 'subproject');
     const preferredCurrentId = previous?.currentEntryId ?? persisted.currentEntry?.id;
     const currentEntry = entries.find(({ id }) => id === preferredCurrentId) ?? persisted.currentEntry;
-    const describe = (entry) => Object.freeze({
-        id: entry.id,
-        name: entry.name,
-        kind: entry.kind,
-        parentId: entry.parentId,
-        compatible: entry.kind === pageKind,
-    });
+    const describe = (entry) =>
+        Object.freeze({
+            id: entry.id,
+            name: entry.name,
+            kind: entry.kind,
+            parentId: entry.parentId,
+            compatible: entry.kind === pageKind,
+        });
     const current = currentEntry ? describe(currentEntry) : undefined;
-    const existing = entries.map(describe).sort((left, right) =>
-        Number(right.compatible) - Number(left.compatible)
-        || left.name.localeCompare(right.name)
-        || left.id.localeCompare(right.id));
+    const existing = entries
+        .map(describe)
+        .sort(
+            (left, right) =>
+                Number(right.compatible) - Number(left.compatible) ||
+                left.name.localeCompare(right.name) ||
+                left.id.localeCompare(right.id),
+        );
     const parents = persisted.project.entries
         .filter(({ kind }) => kind === 'subproject')
         .map(({ id, name, parentId }) => Object.freeze({ id, name, parentId }))
@@ -1539,15 +1621,16 @@ function commandApplicationState(persisted, previous, parsed) {
     const defaultMode = current?.compatible ? 'current' : 'new';
     let target = previous?.target;
     if (
-        target?.mode === 'current' && !current
-        || target?.mode === 'existing' && !existing.some(({ id }) => id === target.entryId)
-        || !['current', 'existing', 'new'].includes(target?.mode)
+        (target?.mode === 'current' && !current) ||
+        (target?.mode === 'existing' && !existing.some(({ id }) => id === target.entryId)) ||
+        !['current', 'existing', 'new'].includes(target?.mode)
     ) {
         target = undefined;
     }
-    target ??= defaultMode === 'current'
-        ? { mode: 'current', entryId: current.id }
-        : { mode: 'new', name: newPageName, ...(newPageParentId ? { parentId: newPageParentId } : {}) };
+    target ??=
+        defaultMode === 'current'
+            ? { mode: 'current', entryId: current.id }
+            : { mode: 'new', name: newPageName, ...(newPageParentId ? { parentId: newPageParentId } : {}) };
     if (target.mode === 'current') target = { mode: 'current', entryId: current.id };
     if (target.mode === 'existing' && !target.entryId && defaultExisting) {
         target = { mode: 'existing', entryId: defaultExisting.id };
@@ -1556,15 +1639,18 @@ function commandApplicationState(persisted, previous, parsed) {
         target = {
             mode: 'new',
             name: target.name ?? newPageName,
-            ...(target.parentId ?? newPageParentId ? { parentId: target.parentId ?? newPageParentId } : {}),
+            ...((target.parentId ?? newPageParentId) ? { parentId: target.parentId ?? newPageParentId } : {}),
         };
     }
-    const resultCurrent = previous?.result
-        && previous.result.projectRevision === persisted.projectRevision
-        && persisted.project.resources.some(({ id, revision, sha256 }) =>
-            id === previous.result.commandResource.id
-            && revision === previous.result.resourceRevision
-            && sha256 === previous.result.sha256);
+    const resultCurrent =
+        previous?.result &&
+        previous.result.projectRevision === persisted.projectRevision &&
+        persisted.project.resources.some(
+            ({ id, revision, sha256 }) =>
+                id === previous.result.commandResource.id &&
+                revision === previous.result.resourceRevision &&
+                sha256 === previous.result.sha256,
+        );
     return freezeCommandApplication({
         status: resultCurrent ? previous.status : previous?.result ? 'stale' : 'ready',
         currentEntryId: current?.id,
@@ -1639,13 +1725,15 @@ function isAppliedCommandCommit(persisted, applied, expectedBytes) {
     const resource = persisted.project.resources.find(({ id }) => id === applied.commandResource.id);
     const entry = persisted.project.entries.find(({ id }) => id === applied.entry.id);
     const content = persisted.contents[applied.commandResource.id];
-    return persisted.projectRevision === applied.projectRevision
-        && resource?.revision === applied.resourceRevision
-        && resource?.sha256 === applied.sha256
-        && entry?.runConfigResourceId === applied.commandResource.id
-        && content !== undefined
-        && equalBytes(toBytes(content), expectedBytes)
-        && equalBytes(toBytes(applied.commandBytes), expectedBytes);
+    return (
+        persisted.projectRevision === applied.projectRevision &&
+        resource?.revision === applied.resourceRevision &&
+        resource?.sha256 === applied.sha256 &&
+        entry?.runConfigResourceId === applied.commandResource.id &&
+        content !== undefined &&
+        equalBytes(toBytes(content), expectedBytes) &&
+        equalBytes(toBytes(applied.commandBytes), expectedBytes)
+    );
 }
 
 function assertAppliedCommandCommit(persisted, applied, expectedBytes) {
@@ -1658,15 +1746,20 @@ function assertAppliedCommandCommit(persisted, applied, expectedBytes) {
 function commandProjectionMode(parsed, operation, fallback) {
     if (operation === 'parse') return parsed?.options?.format ?? 'ast';
     if (operation === 'inspect') return parsed?.options?.show ?? 'summary';
-    if (operation === 'convert') return parsed?.options?.to_format ?? parsed?.options?.to_content_type ?? fallback ?? 'convert';
+    if (operation === 'convert')
+        return parsed?.options?.to_format ?? parsed?.options?.to_content_type ?? fallback ?? 'convert';
     if (operation === 'query') return parsed?.options?.query_content_type ?? fallback ?? 'query';
-    if (operation === 'transform') return parsed?.options?.config ? 'graph' : fallback === 'transformation-graph' ? 'graph' : 'direct';
+    if (operation === 'transform')
+        return parsed?.options?.config ? 'graph' : fallback === 'transformation-graph' ? 'graph' : 'direct';
     if (operation === 'trace') return parsed?.options?.format ?? fallback ?? 'trace';
     return fallback ?? 'unknown';
 }
 
 function humanizeKind(value) {
-    return String(value).split('-').map((part) => part[0]?.toUpperCase() + part.slice(1)).join(' ');
+    return String(value)
+        .split('-')
+        .map((part) => part[0]?.toUpperCase() + part.slice(1))
+        .join(' ');
 }
 
 function commandPageKindFromParsed(parsed, fallback = 'inspection') {
@@ -1709,18 +1802,22 @@ function semanticChanges(current, preview) {
     flattenSemanticValue(current, [], before);
     flattenSemanticValue(preview, [], after);
     const paths = [...new Set([...before.keys(), ...after.keys()])].sort();
-    return Object.freeze(paths.flatMap((path) => {
-        const left = before.get(path);
-        const right = after.get(path);
-        if (JSON.stringify(left) === JSON.stringify(right)) return [];
-        return [Object.freeze({
-            category: path.split('.')[0] ?? 'command',
-            path,
-            kind: left === undefined ? 'added' : right === undefined ? 'removed' : 'changed',
-            before: left,
-            after: right,
-        })];
-    }));
+    return Object.freeze(
+        paths.flatMap((path) => {
+            const left = before.get(path);
+            const right = after.get(path);
+            if (JSON.stringify(left) === JSON.stringify(right)) return [];
+            return [
+                Object.freeze({
+                    category: path.split('.')[0] ?? 'command',
+                    path,
+                    kind: left === undefined ? 'added' : right === undefined ? 'removed' : 'changed',
+                    before: left,
+                    after: right,
+                }),
+            ];
+        }),
+    );
 }
 
 function flattenSemanticValue(value, path, output) {
@@ -1739,7 +1836,7 @@ function flattenSemanticValue(value, path, output) {
 function normalizedError(error) {
     return Object.freeze({
         code: error?.code ?? 'cem.studio.workbench.failed',
-        message: error instanceof Error ? error.message : String(error),
+        message: redactCemStudioSecrets(error instanceof Error ? error.message : String(error)),
     });
 }
 
@@ -1786,7 +1883,7 @@ function workbenchMarkup(state) {
         <cem-card label="Feature Tour editor">
             <span slot="title">Feature Tour operation workbenches</span>
             <div data-cem-studio-workbench-content>
-                <div>
+                <div role="status" aria-live="polite" aria-atomic="true">
                     <cem-badge data-cem-studio-workbench-status label="Loading" tone="info"></cem-badge>
                     <cem-badge data-cem-studio-workbench-revision label="Revision loading" tone="info"></cem-badge>
                 </div>
@@ -1841,7 +1938,9 @@ function workbenchMarkup(state) {
         </section>
         <cem-tabs label="Projection results" value="output">
             <cem-tab value="output" label="Operation output">
-                <cem-textarea data-cem-studio-projection-output name="projection-output" label="Target-native operation output" readonly></cem-textarea>
+                <section data-cem-studio-preview aria-label="Result preview">
+                    <cem-alert label="Run an operation to preview its bounded result" tone="info"></cem-alert>
+                </section>
                 <div>
                     <cem-action data-cem-studio-projection-copy variant="secondary">Copy exact output</cem-action>
                     <cem-action data-cem-studio-projection-download variant="quiet">Download exact output</cem-action>
@@ -1861,12 +1960,10 @@ function workbenchMarkup(state) {
 }
 
 function renderWorkbench(host, state) {
-    const commandBusy = state.command?.application?.status === 'applying'
-        || state.command?.application?.status === 'running';
-    const busy = state.status === 'saving'
-        || state.status === 'validating'
-        || state.status === 'projecting'
-        || commandBusy;
+    const commandBusy =
+        state.command?.application?.status === 'applying' || state.command?.application?.status === 'running';
+    const busy =
+        state.status === 'saving' || state.status === 'validating' || state.status === 'projecting' || commandBusy;
     const status = host.querySelector('[data-cem-studio-workbench-status]');
     const revision = host.querySelector('[data-cem-studio-workbench-revision]');
     const alert = host.querySelector('[data-cem-studio-workbench-alert]');
@@ -1897,7 +1994,10 @@ function renderWorkbench(host, state) {
     runOperation.toggleAttribute('disabled', busy);
     runOperation.toggleAttribute('loading', state.status === 'projecting');
     alert.setAttribute('label', alertLabel(state));
-    alert.setAttribute('tone', state.error || state.status === 'invalid' || state.status === 'conflict' ? 'danger' : 'info');
+    alert.setAttribute(
+        'tone',
+        state.error || state.status === 'invalid' || state.status === 'conflict' ? 'danger' : 'info',
+    );
     host.querySelector('[data-cem-studio-diagnostics]').innerHTML = diagnosticsMarkup(
         state.projection?.diagnostics ?? state.validation?.diagnostics ?? [],
     );
@@ -1910,7 +2010,9 @@ function renderWorkbench(host, state) {
         'tone',
         state.status === 'projection-invalid' || state.error || state.projection?.expectedMatches === false
             ? 'danger'
-            : state.projection?.stale ? 'warning' : 'info',
+            : state.projection?.stale
+              ? 'warning'
+              : 'info',
     );
     host.querySelector('[data-cem-studio-projection-metadata]').innerHTML = projectionMetadataMarkup(state.projection);
     host.querySelector('[data-cem-studio-operation-details]').innerHTML = operationDetailsMarkup(state);
@@ -1926,8 +2028,16 @@ function renderWorkbench(host, state) {
         'Transformation graph execution overlay',
         state.projection?.graph ?? [],
     );
+    const previewRoot = host.querySelector('[data-cem-studio-preview]');
+    if (state.projection?.preview) {
+        mountCemStudioPreview(previewRoot, state.projection.preview);
+    } else {
+        previewRoot.innerHTML =
+            '<cem-alert label="Run an operation to preview its bounded result" tone="info"></cem-alert>';
+    }
     const hasOutput = Boolean(state.projection?.output);
-    projectionCopy.toggleAttribute('disabled', !hasOutput || busy);
+    const copyableOutput = hasOutput && state.projection?.preview?.kind !== 'download';
+    projectionCopy.toggleAttribute('disabled', !copyableOutput || busy);
     projectionDownload.toggleAttribute('disabled', !hasOutput || busy);
     projectionTransfer.setAttribute(
         'label',
@@ -1948,28 +2058,31 @@ function renderWorkbench(host, state) {
 
 function statusLabel(state) {
     if (state.status === 'stale') return 'Validation result stale';
-    return {
-        loading: 'Loading resource',
-        loaded: 'Persisted revision loaded',
-        dirty: 'Unsaved changes',
-        saving: 'Saving revision',
-        saved: 'Revision saved',
-        validating: 'Validating saved revision',
-        projecting: 'Projecting saved revision',
-        projected: 'Saved revision projected',
-        'projection-invalid': 'Projection has diagnostics',
-        'projection-stale': 'Projection result stale',
-        valid: 'Saved revision valid',
-        invalid: 'Saved revision has diagnostics',
-        stale: 'Validation result stale',
-        conflict: 'Revision conflict',
-        failed: 'Workbench failed',
-    }[state.status] ?? state.status;
+    return (
+        {
+            loading: 'Loading resource',
+            loaded: 'Persisted revision loaded',
+            dirty: 'Unsaved changes',
+            saving: 'Saving revision',
+            saved: 'Revision saved',
+            validating: 'Validating saved revision',
+            projecting: 'Projecting saved revision',
+            projected: 'Saved revision projected',
+            'projection-invalid': 'Projection has diagnostics',
+            'projection-stale': 'Projection result stale',
+            valid: 'Saved revision valid',
+            invalid: 'Saved revision has diagnostics',
+            stale: 'Validation result stale',
+            conflict: 'Revision conflict',
+            failed: 'Workbench failed',
+        }[state.status] ?? state.status
+    );
 }
 
 function statusTone(status) {
     if (status === 'valid' || status === 'saved' || status === 'loaded' || status === 'projected') return 'success';
-    if (status === 'invalid' || status === 'failed' || status === 'conflict' || status === 'projection-invalid') return 'danger';
+    if (status === 'invalid' || status === 'failed' || status === 'conflict' || status === 'projection-invalid')
+        return 'danger';
     if (status === 'dirty' || status === 'stale' || status === 'projection-stale') return 'warning';
     return 'info';
 }
@@ -1986,9 +2099,12 @@ function alertLabel(state) {
 function projectionAlertLabel(state) {
     if (!state.projection) return `Run ${state.operation} against the persisted revision.`;
     const freshness = state.projection.stale ? 'stale' : 'current';
-    const expected = state.projection.expectedMatches === undefined
-        ? ''
-        : state.projection.expectedMatches ? '; pinned expectation matched' : '; pinned expectation differed';
+    const expected =
+        state.projection.expectedMatches === undefined
+            ? ''
+            : state.projection.expectedMatches
+              ? '; pinned expectation matched'
+              : '; pinned expectation differed';
     return `${state.projection.kind} ${state.projection.mode}; ${state.projection.output.byteLength} output bytes; ${freshness} revision${expected}.`;
 }
 
@@ -2004,7 +2120,14 @@ function projectionMetadataMarkup(projection) {
         ['Output bytes', projection.output.byteLength],
         ['Diagnostics', projection.diagnostics.length],
         ['Source-map frames', projection.provenance.length],
-        ['Expected result', projection.expectedMatches === undefined ? 'not pinned' : projection.expectedMatches ? 'matched' : 'different'],
+        [
+            'Expected result',
+            projection.expectedMatches === undefined
+                ? 'not pinned'
+                : projection.expectedMatches
+                  ? 'matched'
+                  : 'different',
+        ],
         ['Freshness', projection.stale ? 'stale' : 'current'],
     ];
     return `<cem-table label="Projection execution"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Value</strong></div>${rows.map(([label, value]) => `<div role="row"><span role="cell">${escapeHtml(label)}</span><span role="cell">${escapeHtml(value)}</span></div>`).join('')}</cem-table>`;
@@ -2026,20 +2149,32 @@ function projectionExpectedMarkup(projection, expected) {
     const pinned = projection?.expected ?? expected;
     if (!pinned) return '<cem-alert label="No pinned expected result for this workbench" tone="info"></cem-alert>';
     const actual = projection?.summary;
-    const status = projection?.expectedMatches === undefined
-        ? 'Run the operation to compare its native summary.'
-        : projection.expectedMatches ? 'Native result matches the pinned expectation.' : 'Native result differs from the pinned expectation.';
-    const rows = [...new Set([...Object.keys(pinned), ...Object.keys(actual ?? {})])].sort().map((key) => [
-        key,
-        pinned[key] === undefined ? '—' : JSON.stringify(pinned[key]),
-        actual?.[key] === undefined ? '—' : JSON.stringify(actual[key]),
-    ]);
+    const status =
+        projection?.expectedMatches === undefined
+            ? 'Run the operation to compare its native summary.'
+            : projection.expectedMatches
+              ? 'Native result matches the pinned expectation.'
+              : 'Native result differs from the pinned expectation.';
+    const rows = [...new Set([...Object.keys(pinned), ...Object.keys(actual ?? {})])]
+        .sort()
+        .map((key) => [
+            key,
+            pinned[key] === undefined ? '—' : JSON.stringify(pinned[key]),
+            actual?.[key] === undefined ? '—' : JSON.stringify(actual[key]),
+        ]);
     return `<cem-alert label="${escapeHtml(status)}" tone="${projection?.expectedMatches === false ? 'danger' : projection?.expectedMatches ? 'success' : 'info'}"></cem-alert><cem-table label="Pinned expected result"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Expected</strong><strong role="columnheader">Actual</strong></div>${rows.map(([key, expectedValue, actualValue]) => `<div role="row"><span role="cell">${escapeHtml(key)}</span><span role="cell">${escapeHtml(expectedValue)}</span><span role="cell">${escapeHtml(actualValue)}</span></div>`).join('')}</cem-table>`;
 }
 
 function operationRecordsMarkup(label, records) {
-    if (records.length === 0) return `<cem-alert label="No ${escapeHtml(label.toLowerCase())} records" tone="info"></cem-alert>`;
-    return `<cem-table label="${escapeHtml(label)}"><div role="row"><strong role="columnheader">Path</strong><strong role="columnheader">Record</strong></div>${records.slice(0, 100).map(({ path, value }) => `<div role="row"><span role="cell">${escapeHtml(path)}</span><span role="cell">${escapeHtml(commandChangeValue(value))}</span></div>`).join('')}</cem-table>`;
+    if (records.length === 0)
+        return `<cem-alert label="No ${escapeHtml(label.toLowerCase())} records" tone="info"></cem-alert>`;
+    return `<cem-table label="${escapeHtml(label)}"><div role="row"><strong role="columnheader">Path</strong><strong role="columnheader">Record</strong></div>${records
+        .slice(0, CEM_STUDIO_LIMITS.structuredRows)
+        .map(
+            ({ path, value }) =>
+                `<div role="row"><span role="cell">${escapeHtml(path)}</span><span role="cell">${escapeHtml(commandChangeValue(value))}</span></div>`,
+        )
+        .join('')}</cem-table>`;
 }
 
 function commandAlertLabel(command) {
@@ -2073,9 +2208,10 @@ function renderCommandApplication(container, command) {
         current: application.targets.current?.id,
         existing: application.targets.existing.map(({ id, kind }) => [id, kind]),
         parents: application.targets.parents.map(({ id }) => id),
-        confirmation: application.status === 'confirmation-required'
-            ? application.confirmation?.target?.entryId ?? application.confirmation?.target?.mode
-            : undefined,
+        confirmation:
+            application.status === 'confirmation-required'
+                ? (application.confirmation?.target?.entryId ?? application.confirmation?.target?.mode)
+                : undefined,
     });
     if (container.dataset.signature !== signature) {
         container.dataset.signature = signature;
@@ -2103,19 +2239,27 @@ function renderCommandApplication(container, command) {
 
 function commandApplicationMarkup(application) {
     const current = application.targets.current;
-    const existingOptions = application.targets.existing.length === 0
-        ? '<option value="" disabled>No existing pages</option>'
-        : application.targets.existing.map((entry) => `
-            <option value="${escapeHtml(entry.id)}">${escapeHtml(`${entry.name} — ${entry.kind}${entry.compatible ? '' : ' (replacement)'}`)}</option>`).join('');
-    const targetDetail = application.target.mode === 'current'
-        ? `<cem-alert label="${escapeHtml(current
-            ? `${current.name}; ${current.kind}${current.compatible ? '; compatible' : '; replacement confirmation required'}`
-            : 'No current page is available')}" tone="${current?.compatible ? 'success' : 'warning'}"></cem-alert>`
-        : application.target.mode === 'existing'
-            ? `<cem-select data-cem-studio-command-target-existing name="command-target-existing" value="${escapeHtml(application.target.entryId ?? '')}">
+    const existingOptions =
+        application.targets.existing.length === 0
+            ? '<option value="" disabled>No existing pages</option>'
+            : application.targets.existing
+                  .map(
+                      (entry) => `
+            <option value="${escapeHtml(entry.id)}">${escapeHtml(`${entry.name} — ${entry.kind}${entry.compatible ? '' : ' (replacement)'}`)}</option>`,
+                  )
+                  .join('');
+    const targetDetail =
+        application.target.mode === 'current'
+            ? `<cem-alert label="${escapeHtml(
+                  current
+                      ? `${current.name}; ${current.kind}${current.compatible ? '; compatible' : '; replacement confirmation required'}`
+                      : 'No current page is available',
+              )}" tone="${current?.compatible ? 'success' : 'warning'}"></cem-alert>`
+            : application.target.mode === 'existing'
+              ? `<cem-select data-cem-studio-command-target-existing name="command-target-existing" value="${escapeHtml(application.target.entryId ?? '')}">
                     <span slot="label">Existing page</span>${existingOptions}
                 </cem-select>`
-            : `<cem-text-field data-cem-studio-command-target-name name="command-target-name" label="New page name" value="${escapeHtml(application.newPageName)}" required>
+              : `<cem-text-field data-cem-studio-command-target-name name="command-target-name" label="New page name" value="${escapeHtml(application.newPageName)}" required>
                     <span slot="help">A collision-safe stable id is assigned by the repository.</span>
                 </cem-text-field>
                 <cem-select data-cem-studio-command-target-parent name="command-target-parent" value="${escapeHtml(application.newPageParentId ?? '')}">
@@ -2123,8 +2267,9 @@ function commandApplicationMarkup(application) {
                     <option value="">Project root</option>
                     ${application.targets.parents.map(({ id, name }) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}
                 </cem-select>`;
-    const confirmation = application.status === 'confirmation-required'
-        ? `<cem-dialog data-cem-studio-command-replace-dialog transient expanded label="Confirm incompatible page replacement">
+    const confirmation =
+        application.status === 'confirmation-required'
+            ? `<cem-dialog data-cem-studio-command-replace-dialog transient expanded label="Confirm incompatible page replacement">
                 <p>The selected page has an incompatible kind. Creating a new inspection page is recommended.</p>
                 <div>
                     <cem-action data-cem-studio-command-use-new variant="primary">Use new page</cem-action>
@@ -2132,7 +2277,7 @@ function commandApplicationMarkup(application) {
                     <cem-action data-cem-studio-command-replace-cancel variant="quiet">Cancel</cem-action>
                 </div>
             </cem-dialog>`
-        : '';
+            : '';
     return `
         <cem-select data-cem-studio-command-target-mode name="command-target-mode" value="${application.target.mode}">
             <span slot="label">Apply to</span>
@@ -2151,14 +2296,16 @@ function commandApplicationMarkup(application) {
 
 function commandApplicationAlertLabel(application) {
     if (application.error) return `${application.error.code}: ${application.error.message}`;
-    if (application.status === 'applying') return 'Applying exact authored command bytes in one repository transaction.';
+    if (application.status === 'applying')
+        return 'Applying exact authored command bytes in one repository transaction.';
     if (application.status === 'running') return 'Running the exact committed command revision.';
     if (application.status === 'confirmation-required') {
         return 'Replacement is incompatible. Creating a new page is recommended; replacement requires confirmation.';
     }
     if (application.status === 'conflict') return 'The project changed before Apply; reload before trying again.';
     if (application.status === 'stale') return 'The command or project advanced after the last Apply.';
-    if (application.status === 'run-stale') return 'Execution completed, but a newer command, draft, or project revision exists.';
+    if (application.status === 'run-stale')
+        return 'Execution completed, but a newer command, draft, or project revision exists.';
     if (application.status === 'run-invalid') return 'The exact committed command ran with diagnostics.';
     if (application.status === 'ran') {
         return `Ran committed project ${application.result.projectRevision}, command resource ${application.result.resourceRevision}.`;
@@ -2198,8 +2345,12 @@ function commandChangeValue(value) {
 
 function diagnosticsMarkup(diagnostics) {
     if (diagnostics.length === 0) return '<cem-alert label="No diagnostics" tone="success"></cem-alert>';
-    return `<cem-list data-diagnostic-list selectable label="Diagnostics" size="${Math.min(8, diagnostics.length)}">${diagnostics.map((diagnostic, index) => `
-        <cem-list-option value="${index}">${escapeHtml(`${diagnostic.severity}: ${diagnostic.code}: ${diagnostic.message}`)}</cem-list-option>`).join('')}</cem-list>`;
+    return `<cem-list data-diagnostic-list selectable label="Diagnostics" size="${Math.min(8, diagnostics.length)}">${diagnostics
+        .map(
+            (diagnostic, index) => `
+        <cem-list-option value="${index}">${escapeHtml(`${diagnostic.severity}: ${diagnostic.code}: ${diagnostic.message}`)}</cem-list-option>`,
+        )
+        .join('')}</cem-list>`;
 }
 
 function reportMarkup(summary) {
@@ -2217,8 +2368,12 @@ function reportMarkup(summary) {
 
 function provenanceMarkup(provenance) {
     if (provenance.length === 0) return '<cem-alert label="No source-map provenance" tone="info"></cem-alert>';
-    return `<cem-list data-provenance-list selectable label="Source-map provenance" size="${Math.min(8, provenance.length)}">${provenance.map((frame, index) => `
-        <cem-list-option value="${index}">${escapeHtml(`Source ${frame.sourceId ?? 'unknown'}: ${frame.transform}; bytes ${frame.range.start}–${frame.range.start + frame.range.len}`)}</cem-list-option>`).join('')}</cem-list>`;
+    return `<cem-list data-provenance-list selectable label="Source-map provenance" size="${Math.min(8, provenance.length)}">${provenance
+        .map(
+            (frame, index) => `
+        <cem-list-option value="${index}">${escapeHtml(`Source ${frame.sourceId ?? 'unknown'}: ${frame.transform}; bytes ${frame.range.start}–${frame.range.start + frame.range.len}`)}</cem-list-option>`,
+        )
+        .join('')}</cem-list>`;
 }
 
 function escapeHtml(value) {
@@ -2248,9 +2403,11 @@ async function browserDownload({ filename, contentType, bytes }) {
 async function settleWorkbench(runtime, root) {
     for (let depth = 0; depth < 3; depth += 1) {
         await Promise.resolve();
-        const instances = [...root.querySelectorAll(
-            'cem-card, cem-badge, cem-text-field, cem-textarea, cem-select, cem-action, cem-alert, cem-tabs, cem-list, cem-table, cem-dialog',
-        )];
+        const instances = [
+            ...root.querySelectorAll(
+                'cem-card, cem-badge, cem-text-field, cem-textarea, cem-select, cem-action, cem-alert, cem-tabs, cem-list, cem-table, cem-dialog',
+            ),
+        ];
         await Promise.all(instances.map((instance) => runtime.whenRenderSettled(instance)));
     }
     await Promise.resolve();

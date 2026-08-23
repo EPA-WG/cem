@@ -77,10 +77,18 @@ export {
     installCemStudioShellComponents,
     mountCemStudioApplicationShell,
 } from './shell.js';
+export { createCemStudioFeatureTourWorkbench, mountCemStudioFeatureTourWorkbench } from './workbench.js';
 export {
-    createCemStudioFeatureTourWorkbench,
-    mountCemStudioFeatureTourWorkbench,
-} from './workbench.js';
+    CEM_STUDIO_LIMITS,
+    CEM_STUDIO_PREVIEW_CSP,
+    CemStudioLimitError,
+    assertCemStudioResourceUri,
+    assertCemStudioResultSize,
+    assertCemStudioSourceSet,
+    createCemStudioPreview,
+    mountCemStudioPreview,
+    redactCemStudioSecrets,
+} from './preview.js';
 
 /**
  * Register the graph-emitted service worker only after an embedding host opts

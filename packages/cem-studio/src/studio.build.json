@@ -2,6 +2,7 @@
     "schemaVersion": 1,
     "package": "@epa-wg/cem-studio",
     "commonVersion": "0.1.0",
+    "buildIdentity": "cem-studio-static-v1",
     "dependencies": {
         "@epa-wg/cem-ml-cli": "0.1.0",
         "@epa-wg/cem-components": "0.1.1",

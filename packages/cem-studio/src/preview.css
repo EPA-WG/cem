@@ -1,0 +1,42 @@
+[data-cem-studio-preview] {
+    box-sizing: border-box;
+    max-inline-size: 100%;
+    overflow: auto;
+}
+
+[data-cem-studio-preview] iframe {
+    box-sizing: border-box;
+    inline-size: 100%;
+    min-block-size: 16rem;
+    border: 1px solid currentcolor;
+    background: Canvas;
+    color: CanvasText;
+}
+
+[data-cem-studio-preview] pre {
+    max-block-size: 28rem;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+[data-cem-studio-preview] :focus-visible {
+    outline: 3px solid currentcolor;
+    outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+    [data-cem-studio-preview] iframe,
+    [data-cem-studio-preview] :focus-visible {
+        border-color: CanvasText;
+        outline-color: Highlight;
+        forced-color-adjust: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-cem-studio-preview] {
+        scroll-behavior: auto;
+    }
+}

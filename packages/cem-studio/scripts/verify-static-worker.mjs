@@ -36,12 +36,11 @@ page.on('response', (response) => {
 });
 
 try {
-    await page.goto(`${server.url}/index.html`, { waitUntil: 'load' });
+    const initialResponse = await page.goto(`${server.url}/index.html`, { waitUntil: 'load' });
+    assert.ok(initialResponse);
     await waitForApplication(page, browserErrors, httpFailures);
     console.log('[cem-studio:static-worker] application ready');
-    const initialFeatureTourStatus = await page.evaluate(
-        () => globalThis.__cemStudioApplication.featureTour.status,
-    );
+    const initialFeatureTourStatus = await page.evaluate(() => globalThis.__cemStudioApplication.featureTour.status);
     const serviceWorker = await page.evaluate(async () => {
         const registration = await navigator.serviceWorker.register('./service-worker.js', {
             scope: './',
@@ -82,15 +81,14 @@ try {
     console.log('[cem-studio:static-worker] shell verified');
 
     const caches = await page.evaluate(() => globalThis.caches.keys());
-    assert.deepEqual(caches.sort(), [
-        'cem-studio:0.1.0:runtime',
-        'cem-studio:0.1.0:samples',
-        'cem-studio:0.1.0:shell',
-    ]);
+    assert.deepEqual(caches.sort(), ['cem-studio:0.1.0:runtime', 'cem-studio:0.1.0:samples', 'cem-studio:0.1.0:shell']);
     console.log('[cem-studio:static-worker] deployment caches verified');
 
     const projections = await exerciseProjections(page);
-    assert.deepEqual(projections.parse.map(({ mode }) => mode), ['ast', 'events']);
+    assert.deepEqual(
+        projections.parse.map(({ mode }) => mode),
+        ['ast', 'events'],
+    );
     assert.deepEqual(
         projections.inspect.map(({ mode }) => mode),
         ['summary', 'ast', 'events', 'diagnostics', 'source-offsets', 'tree'],
@@ -142,13 +140,10 @@ try {
     assert.equal(commandApply.controlsInstalled, true);
 
     const portableOperations = await exercisePortableOperations(page);
-    assert.deepEqual(portableOperations.results.map(({ kind }) => kind), [
-        'convert',
-        'query',
-        'transform',
-        'trace',
-        'transform',
-    ]);
+    assert.deepEqual(
+        portableOperations.results.map(({ kind }) => kind),
+        ['convert', 'query', 'transform', 'trace', 'transform'],
+    );
     assert.ok(portableOperations.results.every(({ expectedMatches }) => expectedMatches));
     assert.ok(portableOperations.results.every(({ runtime }) => runtime === 'wasm-browser-worker'));
     assert.ok(portableOperations.results.every(({ stale }) => !stale));
@@ -182,8 +177,25 @@ try {
     assert.ok(workbench.diagnosticSelection.byteLength > 0);
     assert.equal(workbench.provenanceSelection.kind, 'provenance');
 
+    const hardening = await inspectHardening(page, initialResponse);
+    assert.equal(hardening.cspDefaultDeny, true);
+    assert.equal(hardening.cspNoUnsafeScript, true);
+    assert.equal(hardening.forcedColors, true);
+    assert.equal(hardening.reducedMotion, true);
+    assert.equal(hardening.previewReflows, true);
+    assert.equal(hardening.liveStatusNamed, true);
+    assert.equal(hardening.nonColorStateCue, true);
+    assert.equal(hardening.keyboardReachable, true);
+
+    const updateBarrier = await exerciseUpdateBarrier(page);
+    assert.equal(updateBarrier.blockedWithActiveWork, true);
+    assert.equal(updateBarrier.dirtyBeforeActivation, true);
+    assert.equal(updateBarrier.persistedExactDraft, true);
+    assert.equal(updateBarrier.revisionAdvanced, true);
+    assert.deepEqual(updateBarrier.messages, [{ type: 'cem-studio-activate-update' }]);
+
     const stored = await importOfflineProject(page);
-    assert.equal(stored.repositoryRevision, 3);
+    assert.equal(stored.repositoryRevision, updateBarrier.repositoryRevisionAfter + 1);
     const onlineFileSystemFallback = await exerciseFileSystemFallback(page, 'offline-project');
     assert.equal(onlineFileSystemFallback.projectId, 'offline-project');
     assert.equal(onlineFileSystemFallback.exactContent, true);
@@ -207,11 +219,11 @@ try {
     const recovered = await exportOfflineProject(page);
     assert.equal(recovered.content, '{main | Offline project bytes}\n');
     assert.equal(recovered.projectId, 'offline-project');
-    const recoveredWorkbench = await recoverWorkbenchOffline(page, workbench.content);
+    const recoveredWorkbench = await recoverWorkbenchOffline(page, updateBarrier.persistedContent);
     assert.equal(recoveredWorkbench.status, 'invalid');
-    assert.equal(recoveredWorkbench.projectRevision, 2);
-    assert.equal(recoveredWorkbench.resourceRevision, 2);
-    assert.equal(recoveredWorkbench.content, workbench.content);
+    assert.equal(recoveredWorkbench.projectRevision, updateBarrier.projectRevisionAfter);
+    assert.equal(recoveredWorkbench.resourceRevision, updateBarrier.resourceRevisionAfter);
+    assert.equal(recoveredWorkbench.content, updateBarrier.persistedContent);
     assert.equal(recoveredWorkbench.exactContent, true);
     assert.ok(recoveredWorkbench.diagnosticCount > 0);
     assert.ok(recoveredWorkbench.provenanceCount > 0);
@@ -253,6 +265,8 @@ try {
         indexedDbSurvival: recovered,
         featureTour,
         workbench,
+        hardening,
+        updateBarrier,
         projections,
         commandView,
         commandApply,
@@ -273,24 +287,22 @@ try {
     console.log('Verified graph-emitted CEM-ML CLI worker and WASM command online and offline.');
 } finally {
     await context.setOffline(false).catch(() => undefined);
-    await page.evaluate(async () => {
-        const repository = globalThis.__cemStudioAcceptanceRepository;
-        globalThis.__cemStudioApplication?.repository.close();
-        await globalThis.__cemStudioApplication?.validator.close();
-        repository?.close();
-        await repository?.deleteDatabase();
-    }).catch(() => undefined);
+    await page
+        .evaluate(async () => {
+            const repository = globalThis.__cemStudioAcceptanceRepository;
+            globalThis.__cemStudioApplication?.repository.close();
+            await globalThis.__cemStudioApplication?.validator.close();
+            repository?.close();
+            await repository?.deleteDatabase();
+        })
+        .catch(() => undefined);
     await browser.close();
     await server.close();
 }
 
 async function waitForApplication(page, browserErrors, httpFailures) {
     try {
-        await page.waitForFunction(
-            () => Boolean(globalThis.__cemStudioApplication),
-            undefined,
-            { timeout: 30_000 },
-        );
+        await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication), undefined, { timeout: 30_000 });
     } catch (error) {
         const diagnostic = await page.evaluate(async () => ({
             documentReadyState: document.readyState,
@@ -302,9 +314,7 @@ async function waitForApplication(page, browserErrors, httpFailures) {
                 installing: registration.installing?.state,
                 waiting: registration.waiting?.state,
             })),
-            indexedDbDatabases: typeof indexedDB.databases === 'function'
-                ? await indexedDB.databases()
-                : [],
+            indexedDbDatabases: typeof indexedDB.databases === 'function' ? await indexedDB.databases() : [],
             resources: performance.getEntriesByType('resource').map(({ name }) => name),
         }));
         const details = [
@@ -314,6 +324,126 @@ async function waitForApplication(page, browserErrors, httpFailures) {
         ];
         throw new Error(`${error.message}${details.length > 0 ? `\n${details.join('\n')}` : ''}`, { cause: error });
     }
+}
+
+async function inspectHardening(page, initialResponse) {
+    const policy = await initialResponse.headerValue('content-security-policy');
+    assert.ok(policy, 'static deployment did not return Content-Security-Policy');
+    await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.evaluate(async () => {
+        const previewApi = await import('@epa-wg/cem-studio/preview');
+        const previewRoot = document.createElement('section');
+        previewRoot.setAttribute('data-cem-studio-preview', '');
+        previewRoot.setAttribute('data-cem-studio-hardening-preview', '');
+        document.body.append(previewRoot);
+        const output = previewApi.mountCemStudioPreview(
+            previewRoot,
+            previewApi.createCemStudioPreview({
+                bytes: new TextEncoder().encode('Keyboard and reflow preview'),
+                contentType: 'text/plain',
+            }),
+        );
+        const probe = document.createElement('span');
+        probe.tabIndex = 0;
+        probe.setAttribute('data-cem-studio-keyboard-probe', '');
+        output.before(probe);
+        probe.focus();
+    });
+    await page.keyboard.press('Tab');
+    const keyboardReachable = await page.evaluate(
+        () => document.activeElement === document.querySelector('[data-cem-studio-hardening-preview] pre'),
+    );
+    await page.evaluate(() => document.querySelector('[data-cem-studio-keyboard-probe]')?.remove());
+    const result = await page.evaluate(
+        async ({ contentSecurityPolicy, keyboardReached }) => {
+            const preview = document.querySelector('[data-cem-studio-hardening-preview]');
+            const previewOutput = preview?.querySelector('pre');
+            previewOutput?.focus();
+            const previewRect = preview?.getBoundingClientRect();
+            const status = document.querySelector('[data-cem-studio-workbench-content] [role="status"]');
+            const statusBadge = document.querySelector('[data-cem-studio-workbench-status]');
+            const previewApi = await import('@epa-wg/cem-studio/preview');
+            const frameRoot = document.createElement('section');
+            frameRoot.setAttribute('data-cem-studio-preview', '');
+            document.body.append(frameRoot);
+            const frame = previewApi.mountCemStudioPreview(
+                frameRoot,
+                previewApi.createCemStudioPreview({
+                    bytes: new TextEncoder().encode('<p>Forced color preview</p>'),
+                    contentType: 'text/html',
+                }),
+            );
+            const frameStyles = getComputedStyle(frame);
+            const forcedColors =
+                matchMedia('(forced-colors: active)').matches &&
+                frameStyles.borderTopStyle === 'solid' &&
+                frame.getAttribute('sandbox') === '';
+            frameRoot.remove();
+            return {
+                cspDefaultDeny: contentSecurityPolicy.includes("default-src 'none'"),
+                cspNoUnsafeScript:
+                    !contentSecurityPolicy.includes("'unsafe-inline'") &&
+                    !contentSecurityPolicy.includes("'unsafe-eval'"),
+                forcedColors,
+                reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+                previewReflows: Boolean(previewRect && previewRect.left >= 0 && previewRect.right <= innerWidth),
+                liveStatusNamed:
+                    status?.getAttribute('aria-live') === 'polite' && status?.getAttribute('aria-atomic') === 'true',
+                nonColorStateCue: Boolean(statusBadge?.getAttribute('label')),
+                keyboardReachable: keyboardReached && previewOutput?.tabIndex === 0,
+            };
+        },
+        { contentSecurityPolicy: policy, keyboardReached: keyboardReachable },
+    );
+    await page.evaluate(() => document.querySelector('[data-cem-studio-hardening-preview]')?.remove());
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.emulateMedia({ forcedColors: 'none', reducedMotion: 'no-preference' });
+    return result;
+}
+
+async function exerciseUpdateBarrier(page) {
+    return page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const workbench = application.workbench;
+        const update = application.shell.update;
+        const messages = [];
+        update.setWaitingWorker({ postMessage: (message) => messages.push(message) });
+        update.setActiveRequestCount(1);
+        const blocked = await update.activateUpdate();
+        update.setActiveRequestCount(0);
+        const before = await application.repository.query({
+            protocolVersion: 1,
+            repository: 'studio-projects',
+            operation: 'export-project',
+            requestRevision: 1,
+            parameters: { projectId: application.featureTour.projectId },
+        });
+        const draft = `${workbench.snapshot().draft}\n{p | Persisted before update}\n`;
+        workbench.updateDraft(draft);
+        const dirtyBeforeActivation = update.status().dirty;
+        await update.activateUpdate();
+        const after = await application.repository.query({
+            protocolVersion: 1,
+            repository: 'studio-projects',
+            operation: 'export-project',
+            requestRevision: 1,
+            parameters: { projectId: application.featureTour.projectId },
+        });
+        const bytes = after.value.contents[workbench.snapshot().resourceId];
+        const resource = after.value.project.resources.find(({ id }) => id === workbench.snapshot().resourceId);
+        return {
+            blockedWithActiveWork: blocked.state === 'blocked' && blocked.reason === 'active-work',
+            dirtyBeforeActivation,
+            persistedExactDraft: new TextDecoder().decode(bytes) === draft,
+            revisionAdvanced: after.value.project.revision === before.value.project.revision + 1,
+            persistedContent: draft,
+            projectRevisionAfter: after.value.project.revision,
+            resourceRevisionAfter: resource.revision,
+            repositoryRevisionAfter: after.repositoryRevision,
+            messages,
+        };
+    });
 }
 
 async function validateFeatureTour(page, initialStatus) {
@@ -388,18 +518,20 @@ async function exerciseWorkbench(page) {
             resourceRevision: snapshot.resourceRevision,
             repositoryRevision: snapshot.repositoryRevision,
             content: invalid,
-            exactReload: persisted === invalid
-                && exported.value.project.revision === snapshot.projectRevision
-                && resource.revision === snapshot.resourceRevision,
+            exactReload:
+                persisted === invalid &&
+                exported.value.project.revision === snapshot.projectRevision &&
+                resource.revision === snapshot.resourceRevision,
             diagnosticCount: snapshot.validation.diagnostics.length,
             hardViolationCount: snapshot.validation.hardViolationCount,
             provenanceCount: snapshot.validation.provenance.length,
             runtime: snapshot.validation.executionIdentity.runtime,
             diagnosticSelection,
             provenanceSelection,
-            componentsOnly: document.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-            ).length === 0,
+            componentsOnly:
+                document.querySelectorAll(
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                ).length === 0,
             reportVisible: Boolean(document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')),
         };
     });
@@ -427,13 +559,13 @@ async function exerciseProjections(page) {
     return page.evaluate(async () => {
         const application = globalThis.__cemStudioApplication;
         const project = async (kind, mode) => {
-            const snapshot = kind === 'parse'
-                ? await application.workbench.parsePersisted(mode)
-                : await application.workbench.inspectPersisted(mode);
+            const snapshot =
+                kind === 'parse'
+                    ? await application.workbench.parsePersisted(mode)
+                    : await application.workbench.inspectPersisted(mode);
             const projection = snapshot.projection;
-            const nativeOperation = projection.nativeResult.result?.storage === 'inline'
-                ? projection.nativeResult.result.value
-                : undefined;
+            const nativeOperation =
+                projection.nativeResult.result?.storage === 'inline' ? projection.nativeResult.result.value : undefined;
             return {
                 kind,
                 mode,
@@ -461,15 +593,16 @@ async function exerciseProjections(page) {
         return {
             parse,
             inspect,
-            componentsOnly: document.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-            ).length === 0,
+            componentsOnly:
+                document.querySelectorAll(
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                ).length === 0,
             controlsInstalled: Boolean(
-                document.querySelector('[data-cem-studio-workbench] cem-select .cem-select__control')
-                && document.querySelector('[data-cem-studio-workbench] cem-action button')
-                && document.querySelector('[data-cem-studio-workbench] cem-textarea[readonly] textarea')
-                && document.querySelector('[data-cem-studio-workbench] cem-tabs [role="tablist"]')
-                && document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')
+                document.querySelector('[data-cem-studio-workbench] cem-select .cem-select__control') &&
+                document.querySelector('[data-cem-studio-workbench] cem-action button') &&
+                document.querySelector('[data-cem-studio-workbench] [data-cem-studio-preview] pre') &&
+                document.querySelector('[data-cem-studio-workbench] cem-tabs [role="tablist"]') &&
+                document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]'),
             ),
         };
     });
@@ -508,26 +641,28 @@ async function exercisePortableOperations(page) {
                 traceCount: projection.trace.length,
                 graphCount: projection.graph.length,
                 copiedExact: copied === projection.output.text,
-                downloadedExact: downloaded?.contentType === projection.output.contentType
-                    && downloaded?.bytes.byteLength === projection.output.byteLength
-                    && downloaded.bytes.every((byte, index) => byte === projection.output.bytes[index]),
+                downloadedExact:
+                    downloaded?.contentType === projection.output.contentType &&
+                    downloaded?.bytes.byteLength === projection.output.byteLength &&
+                    downloaded.bytes.every((byte, index) => byte === projection.output.bytes[index]),
             });
         }
         await application.workbench.selectWorkbench(initialWorkbenchId);
         await application.workbenchView.whenSettled();
         return {
             results,
-            componentsOnly: document.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-            ).length === 0,
+            componentsOnly:
+                document.querySelectorAll(
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                ).length === 0,
             controlsInstalled: Boolean(
-                document.querySelector('[data-cem-studio-workbench-select] .cem-select__control')
-                && document.querySelector('[data-cem-studio-operation-run] button')
-                && document.querySelector('[data-cem-studio-projection-copy] button')
-                && document.querySelector('[data-cem-studio-projection-download] button')
-                && document.querySelector('[data-cem-studio-projection-expected]')
-                && document.querySelector('[data-cem-studio-projection-trace]')
-                && document.querySelector('[data-cem-studio-projection-graph]')
+                document.querySelector('[data-cem-studio-workbench-select] .cem-select__control') &&
+                document.querySelector('[data-cem-studio-operation-run] button') &&
+                document.querySelector('[data-cem-studio-projection-copy] button') &&
+                document.querySelector('[data-cem-studio-projection-download] button') &&
+                document.querySelector('[data-cem-studio-projection-expected]') &&
+                document.querySelector('[data-cem-studio-projection-trace]') &&
+                document.querySelector('[data-cem-studio-projection-graph]'),
             ),
         };
     });
@@ -566,8 +701,9 @@ async function exerciseCommandView(page) {
         await application.workbenchView.whenSettled();
         const copiedState = application.workbench.snapshot().command;
 
-        const inputUri = Object.values(initial.current.parsed.positionals)
-            .find((value) => typeof value === 'string' && value.startsWith('studio:'));
+        const inputUri = Object.values(initial.current.parsed.positionals).find(
+            (value) => typeof value === 'string' && value.startsWith('studio:'),
+        );
         if (!inputUri) throw new Error('generated command has no Studio input URI');
         editor.value = changedText.replace(inputUri, 'studio://feature-tour/missing.cem');
         editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
@@ -600,16 +736,18 @@ async function exerciseCommandView(page) {
             invalidStatus: invalid.status,
             invalidCode: invalid.diagnostic.code,
             resetStatus: reset.status,
-            repositoryUnchanged: before.repositoryRevision === after.repositoryRevision
-                && before.value.project.revision === after.value.project.revision,
-            componentsOnly: document.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-            ).length === 0,
+            repositoryUnchanged:
+                before.repositoryRevision === after.repositoryRevision &&
+                before.value.project.revision === after.value.project.revision,
+            componentsOnly:
+                document.querySelectorAll(
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                ).length === 0,
             controlsInstalled: Boolean(
-                document.querySelector('cem-textarea[data-cem-studio-command-editor] textarea')
-                && document.querySelector('cem-action[data-cem-studio-command-copy] button')
-                && document.querySelector('cem-action[data-cem-studio-command-reset] button')
-                && changesTableVisible
+                document.querySelector('cem-textarea[data-cem-studio-command-editor] textarea') &&
+                document.querySelector('cem-action[data-cem-studio-command-copy] button') &&
+                document.querySelector('cem-action[data-cem-studio-command-reset] button') &&
+                changesTableVisible,
             ),
         };
     });
@@ -618,7 +756,11 @@ async function exerciseCommandView(page) {
 async function exerciseCommandApplyAndRun(page) {
     return page.evaluate(async () => {
         const application = globalThis.__cemStudioApplication;
-        const [{ createCemStudioProjectRepository }, { createCemStudioFeatureTourCopy }, { createCemStudioFeatureTourWorkbench }] = await Promise.all([
+        const [
+            { createCemStudioProjectRepository },
+            { createCemStudioFeatureTourCopy },
+            { createCemStudioFeatureTourWorkbench },
+        ] = await Promise.all([
             import('@epa-wg/cem-studio/repository'),
             import('@epa-wg/cem-studio/feature-tour'),
             import('@epa-wg/cem-studio/workbench'),
@@ -663,9 +805,9 @@ async function exerciseCommandApplyAndRun(page) {
                 parameters: { projectId },
             });
             const storedBytes = exported.value.contents[result.commandResource.id];
-            const exactReload = storedBytes.byteLength === result.commandBytes.byteLength
-                && new Uint8Array(storedBytes).every((byte, index) =>
-                    byte === new Uint8Array(result.commandBytes)[index]);
+            const exactReload =
+                storedBytes.byteLength === result.commandBytes.byteLength &&
+                new Uint8Array(storedBytes).every((byte, index) => byte === new Uint8Array(result.commandBytes)[index]);
             return {
                 recommendedTarget,
                 applyStatus: applied.command.application.status,
@@ -678,13 +820,14 @@ async function exerciseCommandApplyAndRun(page) {
                 executionResourceRevision: ran.command.application.execution.resourceRevision,
                 exactReload,
                 runtime: ran.projection.executionIdentity.runtime,
-                componentsOnly: document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-                ).length === 0,
+                componentsOnly:
+                    document.querySelectorAll(
+                        '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                    ).length === 0,
                 controlsInstalled: Boolean(
-                    document.querySelector('[data-cem-studio-workbench] cem-text-field input')
-                    && document.querySelector('[data-cem-studio-workbench] cem-select .cem-select__control')
-                    && document.querySelector('[data-cem-studio-workbench] cem-action button')
+                    document.querySelector('[data-cem-studio-workbench] cem-text-field input') &&
+                    document.querySelector('[data-cem-studio-workbench] cem-select .cem-select__control') &&
+                    document.querySelector('[data-cem-studio-workbench] cem-action button'),
                 ),
             };
         } finally {
@@ -753,42 +896,42 @@ async function inspectShell(page) {
     return page.evaluate(async () => {
         const application = globalThis.__cemStudioApplication;
         application.shell.theme.setMode('cem-theme-contrast-dark');
-        await Promise.all([
-            'cem-app-bar',
-            'cem-action',
-            'cem-select',
-            'cem-badge',
-            'cem-alert',
-            'cem-textarea',
-            'cem-tabs',
-            'cem-list',
-            'cem-table',
-        ].map(
-            (tag) => customElements.whenDefined(tag),
-        ));
+        await Promise.all(
+            [
+                'cem-app-bar',
+                'cem-action',
+                'cem-select',
+                'cem-badge',
+                'cem-alert',
+                'cem-textarea',
+                'cem-tabs',
+                'cem-list',
+                'cem-table',
+            ].map((tag) => customElements.whenDefined(tag)),
+        );
         return {
             state: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-cem-studio-state'),
             theme: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-theme'),
-            controlsOnly: document.querySelectorAll(
-                'button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
-            ).length === 0,
+            controlsOnly:
+                document.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button)')
+                    .length === 0,
             componentsInstalled: Boolean(
-                document.querySelector('cem-app-bar header')
-                && document.querySelector('cem-action button')
-                && document.querySelector('cem-select .cem-select__control')
-                && document.querySelector('cem-badge .cem-badge')
-                && document.querySelector('cem-alert .cem-alert')
-                && document.querySelector('cem-textarea .cem-textarea__control')
-                && document.querySelector('cem-tabs [role="tablist"]')
+                document.querySelector('cem-app-bar header') &&
+                document.querySelector('cem-action button') &&
+                document.querySelector('cem-select .cem-select__control') &&
+                document.querySelector('cem-badge .cem-badge') &&
+                document.querySelector('cem-alert .cem-alert') &&
+                document.querySelector('cem-textarea .cem-textarea__control') &&
+                document.querySelector('cem-tabs [role="tablist"]'),
             ),
             fileSystemState: application.shell.fileSystem.status().state,
             fileSystemControlsInstalled: Boolean(
-                document.querySelector('cem-action[data-cem-studio-open-project] button')
-                && document.querySelector('cem-action[data-cem-studio-provider-reconnect] button')
-                && document.querySelector('cem-action[data-cem-studio-provider-write] button')
-                && document.querySelector('cem-action[data-cem-studio-import-fallback] button')
-                && document.querySelector('cem-action[data-cem-studio-export-fallback] button')
-                && document.querySelector('[data-cem-studio-provider-alert]')
+                document.querySelector('cem-action[data-cem-studio-open-project] button') &&
+                document.querySelector('cem-action[data-cem-studio-provider-reconnect] button') &&
+                document.querySelector('cem-action[data-cem-studio-provider-write] button') &&
+                document.querySelector('cem-action[data-cem-studio-import-fallback] button') &&
+                document.querySelector('cem-action[data-cem-studio-export-fallback] button') &&
+                document.querySelector('[data-cem-studio-provider-alert]'),
             ),
         };
     });
@@ -797,20 +940,17 @@ async function inspectShell(page) {
 async function exerciseFileSystemFallback(page, projectId) {
     return page.evaluate(async (id) => {
         const application = globalThis.__cemStudioApplication;
-        const [{
-            CEM_STUDIO_PROJECT_BUNDLE_CONTENT_TYPE,
-            createCemStudioFileSystemProvider,
-            parseCemStudioProjectBundle,
-        }, { createCemStudioProjectRepository }] = await Promise.all([
+        const [
+            { CEM_STUDIO_PROJECT_BUNDLE_CONTENT_TYPE, createCemStudioFileSystemProvider, parseCemStudioProjectBundle },
+            { createCemStudioProjectRepository },
+        ] = await Promise.all([
             import('@epa-wg/cem-studio/file-system-provider'),
             import('@epa-wg/cem-studio/repository'),
         ]);
         const fallback = await application.fileSystemProvider.exportFallback({ projectId: id });
         const decoded = parseCemStudioProjectBundle(fallback.archive.bytes);
         const digest = await crypto.subtle.digest('SHA-256', fallback.archive.bytes);
-        const sha256 = [...new Uint8Array(digest)]
-            .map((byte) => byte.toString(16).padStart(2, '0'))
-            .join('');
+        const sha256 = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
         const importedRepository = createCemStudioProjectRepository({
             databaseName: `cem-studio-fallback-${crypto.randomUUID()}`,
             validateProject: application.validator.validateProject,
@@ -838,9 +978,10 @@ async function exerciseFileSystemFallback(page, projectId) {
                 sha256,
                 exactContent: source.sha256.length === 64 && decodedBytes.byteLength > 0,
                 providerStateExcluded: !JSON.stringify(decoded.project).includes('provider'),
-                importedExact: imported.value.project.id === decoded.project.id
-                    && importedBytes.byteLength === decodedBytes.byteLength
-                    && new Uint8Array(importedBytes).every((byte, index) => byte === decodedBytes[index]),
+                importedExact:
+                    imported.value.project.id === decoded.project.id &&
+                    importedBytes.byteLength === decodedBytes.byteLength &&
+                    new Uint8Array(importedBytes).every((byte, index) => byte === decodedBytes[index]),
                 expectedContentType: CEM_STUDIO_PROJECT_BUNDLE_CONTENT_TYPE,
             };
         } finally {
@@ -875,16 +1016,18 @@ async function importOfflineProject(page) {
                         createdAt: '2026-08-21T00:00:00Z',
                         updatedAt: '2026-08-21T00:00:00Z',
                         entries: [],
-                        resources: [{
-                            id: 'source',
-                            role: 'data',
-                            sourceKind: 'project-file',
-                            path: 'source.cem',
-                            contentType: 'application/cem',
-                            schema: 'https://cem.dev/ns/cem-ml/1',
-                            revision: 1,
-                            sha256,
-                        }],
+                        resources: [
+                            {
+                                id: 'source',
+                                role: 'data',
+                                sourceKind: 'project-file',
+                                path: 'source.cem',
+                                contentType: 'application/cem',
+                                schema: 'https://cem.dev/ns/cem-ml/1',
+                                revision: 1,
+                                sha256,
+                            },
+                        ],
                     },
                     contents: { source: content },
                 },
@@ -964,7 +1107,8 @@ async function executeVersionCommand(page, requestId) {
     }, requestId);
 }
 
-function startStaticServer(root) {
+async function startStaticServer(root) {
+    const security = JSON.parse(await readFile(resolve(root, 'security-headers.json'), 'utf8'));
     return new Promise((resolveServer, reject) => {
         const server = createServer(async (request, response) => {
             try {
@@ -979,6 +1123,7 @@ function startStaticServer(root) {
                 const path = metadata.isDirectory() ? resolve(candidate, 'index.html') : candidate;
                 const bytes = await readFile(path);
                 response.writeHead(200, {
+                    ...security.headers,
                     'content-type': contentType(path),
                     'cache-control': 'no-store',
                     'service-worker-allowed': '/',

@@ -1,3 +1,11 @@
+import {
+    CEM_STUDIO_LIMITS,
+    assertCemStudioResourceUri,
+    assertCemStudioResultSize,
+    assertCemStudioSourceSet,
+    redactCemStudioSecrets,
+} from './preview.js';
+
 export const CEM_STUDIO_FEATURE_TOUR_SEED_ID = 'cem-ml-feature-tour-seed';
 export const CEM_STUDIO_FEATURE_TOUR_COPY_ID = 'feature-tour';
 export const CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE = 'application/vnd.cem.studio-project+cem';
@@ -34,9 +42,11 @@ export async function createCemStudioBrowserValidator() {
                 return ledger;
             },
             readResource: async ({ uri }) => {
-                throw new Error(`inline CEM Studio command unexpectedly read ${uri}`);
+                throw new Error(`inline CEM Studio command unexpectedly read ${redactCemStudioSecrets(uri)}`);
             },
             prepareWrite: async (request, bytes) => {
+                assertCemStudioResultSize(request.byteLength ?? bytes.byteLength);
+                assertCemStudioResultSize(bytes);
                 const { requestId } = request;
                 const token = `${requestId}:command-output:${nextWrite++}`;
                 pendingWrites.set(token, { request, bytes: new Uint8Array(bytes) });
@@ -76,17 +86,21 @@ export async function createCemStudioBrowserValidator() {
     }) => {
         const requestId = `cem-studio-${operation}-${nextRequest++}`;
         const inputResourceUri = resourceUri(uri, projectId, resourceScheme);
-        const parsed = parsedCommand
-            ?? parseCemMlCommand(argv(inputResourceUri), { runtime: 'wasm-browser-worker' });
-        const invocation = await prepareResourceInvocation(parsed, {
-            bytes,
-            uri,
-            dependencies,
-            projectId,
-            projectRevision,
-            resourceRevision,
-            resourceScheme,
-        }, requestId, true);
+        const parsed = parsedCommand ?? parseCemMlCommand(argv(inputResourceUri), { runtime: 'wasm-browser-worker' });
+        const invocation = await prepareResourceInvocation(
+            parsed,
+            {
+                bytes,
+                uri,
+                dependencies,
+                projectId,
+                projectRevision,
+                resourceRevision,
+                resourceScheme,
+            },
+            requestId,
+            true,
+        );
         const request = invocation.request;
         ledgers.set(requestId, {
             project: request.project,
@@ -114,8 +128,8 @@ export async function createCemStudioBrowserValidator() {
                     ?.map(({ code, message }) => `${code}: ${message}`)
                     .join('; ');
                 const error = new Error(
-                    `CEM-ML ${operation} rejected ${uri} with exit code ${result.exitCode}`
-                    + (diagnostics ? ` (${diagnostics})` : ''),
+                    `CEM-ML ${operation} rejected ${uri} with exit code ${result.exitCode}` +
+                        (diagnostics ? ` (${diagnostics})` : ''),
                 );
                 error.code = `cem.studio.${operation}_failed`;
                 error.result = result;
@@ -143,11 +157,14 @@ export async function createCemStudioBrowserValidator() {
         } = options;
         const operation = parsed.commandPath[0] ?? parsed.metaAction ?? 'command';
         const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        assertCemStudioSourceSet(source, dependencies);
         const inputResourceUri = resourceUri(uri, projectId, resourceScheme);
-        const dependencyUris = new Map(dependencies.map((dependency) => [
-            dependency.path,
-            resolveVirtualUri(inputResourceUri, dependency.path),
-        ]));
+        const dependencyUris = new Map(
+            dependencies.map((dependency) => [
+                dependency.path,
+                assertCemStudioResourceUri(resolveVirtualUri(inputResourceUri, dependency.path), resourceScheme),
+            ]),
+        );
         const availableResources = new Map([
             [inputResourceUri, { uri: inputResourceUri, bytes: source }],
             ...dependencies.map((dependency) => {
@@ -205,25 +222,32 @@ export async function createCemStudioBrowserValidator() {
         readOutput,
     });
 
-    const validateResource = async (options) => executeResourceCommand(resourceCommandOptions(
-        options,
-        'validate',
-        (inputResourceUri) => resourceCommandArguments('validate', options, inputResourceUri),
-    ));
+    const validateResource = async (options) =>
+        executeResourceCommand(
+            resourceCommandOptions(options, 'validate', (inputResourceUri) =>
+                resourceCommandArguments('validate', options, inputResourceUri),
+            ),
+        );
 
-    const parseResource = async (options) => executeResourceCommand(resourceCommandOptions(
-        options,
-        'parse',
-        (inputResourceUri) => resourceCommandArguments('parse', options, inputResourceUri),
-        true,
-    ));
+    const parseResource = async (options) =>
+        executeResourceCommand(
+            resourceCommandOptions(
+                options,
+                'parse',
+                (inputResourceUri) => resourceCommandArguments('parse', options, inputResourceUri),
+                true,
+            ),
+        );
 
-    const inspectResource = async (options) => executeResourceCommand(resourceCommandOptions(
-        options,
-        'inspect',
-        (inputResourceUri) => resourceCommandArguments('inspect', options, inputResourceUri),
-        true,
-    ));
+    const inspectResource = async (options) =>
+        executeResourceCommand(
+            resourceCommandOptions(
+                options,
+                'inspect',
+                (inputResourceUri) => resourceCommandArguments('inspect', options, inputResourceUri),
+                true,
+            ),
+        );
 
     const runResourceCommand = async (options) => {
         if (!Array.isArray(options.argv) || options.argv.length === 0) {
@@ -273,12 +297,13 @@ export async function createCemStudioBrowserValidator() {
             options.projectId ?? 'cem-studio-command',
             'studio',
         );
-        const parsed = options.text === undefined
-            ? parseCemMlCommand(
-                options.argv ?? resourceCommandArguments(options.operation ?? 'parse', options, inputResourceUri),
-                { runtime: 'wasm-browser-worker' },
-            )
-            : parseCemMlCommandText(options.text, { runtime: 'wasm-browser-worker' });
+        const parsed =
+            options.text === undefined
+                ? parseCemMlCommand(
+                      options.argv ?? resourceCommandArguments(options.operation ?? 'parse', options, inputResourceUri),
+                      { runtime: 'wasm-browser-worker' },
+                  )
+                : parseCemMlCommandText(options.text, { runtime: 'wasm-browser-worker' });
         const requestId = `cem-studio-command-preview-${nextRequest++}`;
         const invocation = await prepareResourceInvocation(
             parsed,
@@ -393,7 +418,7 @@ export async function loadCemStudioFeatureTour(options = {}) {
     assertFeatureTourCatalog(catalog);
     options.validator?.assertCatalog(catalog);
     const projectBytes = await fetchBytes(new URL(catalog.seed.project, baseUrl), fetchResource);
-    if (await sha256(projectBytes) !== catalog.seed.projectSha256) {
+    if ((await sha256(projectBytes)) !== catalog.seed.projectSha256) {
         throw new Error('Feature Tour project metadata failed its SHA-256 integrity check');
     }
     const project = JSON.parse(new TextDecoder().decode(projectBytes));
@@ -402,51 +427,65 @@ export async function loadCemStudioFeatureTour(options = {}) {
     }
 
     const contents = {};
-    await Promise.all(catalog.examples.map(async (example) => {
-        const [asset, runConfig, dependencies] = await Promise.all([
-            fetchBytes(new URL(example.asset, baseUrl), fetchResource),
-            fetchBytes(new URL(example.runConfig, baseUrl), fetchResource),
-            Promise.all(example.dependencies.map(async (dependency) => {
-                const bytes = await fetchBytes(new URL(dependency.asset, baseUrl), fetchResource);
-                if (await sha256(bytes) !== dependency.sha256) {
-                    throw new Error(`Feature Tour dependency ${dependency.resourceId} failed its SHA-256 integrity check`);
-                }
-                return { dependency, bytes };
-            })),
-        ]);
-        if (await sha256(asset) !== example.sha256) {
-            throw new Error(`Feature Tour example ${example.id} failed its SHA-256 integrity check`);
-        }
-        contents[example.resourceId] = asset;
-        contents[example.runConfigResourceId] = runConfig;
-        for (const dependency of dependencies) contents[dependency.dependency.resourceId] = dependency.bytes;
-    }));
-    await Promise.all(catalog.workbenches.map(async (workbench) => {
-        const [asset, runConfig, expected, dependencies] = await Promise.all([
-            fetchBytes(new URL(workbench.asset, baseUrl), fetchResource),
-            fetchBytes(new URL(workbench.runConfig, baseUrl), fetchResource),
-            fetchBytes(new URL(workbench.expected, baseUrl), fetchResource),
-            Promise.all(workbench.dependencies.map(async (dependency) => ({
-                dependency,
-                bytes: await fetchBytes(new URL(dependency.asset, baseUrl), fetchResource),
-            }))),
-        ]);
-        if (await sha256(asset) !== workbench.sha256) {
-            throw new Error(`Feature Tour workbench ${workbench.id} failed its SHA-256 integrity check`);
-        }
-        if (await sha256(expected) !== workbench.expectedSha256) {
-            throw new Error(`Feature Tour workbench ${workbench.id} expected result failed its SHA-256 integrity check`);
-        }
-        contents[workbench.resourceId] = asset;
-        contents[workbench.runConfigResourceId] = runConfig;
-        contents[workbench.expectedResourceId] = expected;
-        for (const { dependency, bytes } of dependencies) {
-            if (await sha256(bytes) !== dependency.sha256) {
-                throw new Error(`Feature Tour workbench dependency ${dependency.resourceId} failed its SHA-256 integrity check`);
+    await Promise.all(
+        catalog.examples.map(async (example) => {
+            const [asset, runConfig, dependencies] = await Promise.all([
+                fetchBytes(new URL(example.asset, baseUrl), fetchResource),
+                fetchBytes(new URL(example.runConfig, baseUrl), fetchResource),
+                Promise.all(
+                    example.dependencies.map(async (dependency) => {
+                        const bytes = await fetchBytes(new URL(dependency.asset, baseUrl), fetchResource);
+                        if ((await sha256(bytes)) !== dependency.sha256) {
+                            throw new Error(
+                                `Feature Tour dependency ${dependency.resourceId} failed its SHA-256 integrity check`,
+                            );
+                        }
+                        return { dependency, bytes };
+                    }),
+                ),
+            ]);
+            if ((await sha256(asset)) !== example.sha256) {
+                throw new Error(`Feature Tour example ${example.id} failed its SHA-256 integrity check`);
             }
-            contents[dependency.resourceId] = bytes;
-        }
-    }));
+            contents[example.resourceId] = asset;
+            contents[example.runConfigResourceId] = runConfig;
+            for (const dependency of dependencies) contents[dependency.dependency.resourceId] = dependency.bytes;
+        }),
+    );
+    await Promise.all(
+        catalog.workbenches.map(async (workbench) => {
+            const [asset, runConfig, expected, dependencies] = await Promise.all([
+                fetchBytes(new URL(workbench.asset, baseUrl), fetchResource),
+                fetchBytes(new URL(workbench.runConfig, baseUrl), fetchResource),
+                fetchBytes(new URL(workbench.expected, baseUrl), fetchResource),
+                Promise.all(
+                    workbench.dependencies.map(async (dependency) => ({
+                        dependency,
+                        bytes: await fetchBytes(new URL(dependency.asset, baseUrl), fetchResource),
+                    })),
+                ),
+            ]);
+            if ((await sha256(asset)) !== workbench.sha256) {
+                throw new Error(`Feature Tour workbench ${workbench.id} failed its SHA-256 integrity check`);
+            }
+            if ((await sha256(expected)) !== workbench.expectedSha256) {
+                throw new Error(
+                    `Feature Tour workbench ${workbench.id} expected result failed its SHA-256 integrity check`,
+                );
+            }
+            contents[workbench.resourceId] = asset;
+            contents[workbench.runConfigResourceId] = runConfig;
+            contents[workbench.expectedResourceId] = expected;
+            for (const { dependency, bytes } of dependencies) {
+                if ((await sha256(bytes)) !== dependency.sha256) {
+                    throw new Error(
+                        `Feature Tour workbench dependency ${dependency.resourceId} failed its SHA-256 integrity check`,
+                    );
+                }
+                contents[dependency.resourceId] = bytes;
+            }
+        }),
+    );
     if (project.resources.some(({ id }) => !(id in contents))) {
         throw new Error('Feature Tour bundle is missing a declared project resource');
     }
@@ -467,10 +506,12 @@ export async function installCemStudioFeatureTour(repository, seed, options = {}
         projectId,
         now: options.now?.() ?? new Date().toISOString(),
     });
-    const imported = await repository.execute(repositoryRequest('import-project', {
-        bundle,
-        mode: 'create',
-    }));
+    const imported = await repository.execute(
+        repositoryRequest('import-project', {
+            bundle,
+            mode: 'create',
+        }),
+    );
     return Object.freeze({
         status: options.reset ? 'reset' : 'installed',
         projectId,
@@ -497,15 +538,15 @@ export function createCemStudioFeatureTourCopy(seed, { projectId, now }) {
 
 function assertFeatureTourCatalog(catalog) {
     if (
-        catalog?.schemaVersion !== 1
-        || catalog.seed?.id !== CEM_STUDIO_FEATURE_TOUR_SEED_ID
-        || catalog.capability?.operation !== 'validate'
-        || catalog.capability.availability !== 'available'
-        || !Array.isArray(catalog.examples)
-        || !Array.isArray(catalog.workbenches)
-        || catalog.workbenches.length !== 5
-        || catalog.examples.length !== catalog.exampleCount
-        || catalog.exampleCount !== catalog.packageCount
+        catalog?.schemaVersion !== 1 ||
+        catalog.seed?.id !== CEM_STUDIO_FEATURE_TOUR_SEED_ID ||
+        catalog.capability?.operation !== 'validate' ||
+        catalog.capability.availability !== 'available' ||
+        !Array.isArray(catalog.examples) ||
+        !Array.isArray(catalog.workbenches) ||
+        catalog.workbenches.length !== 5 ||
+        catalog.examples.length !== catalog.exampleCount ||
+        catalog.exampleCount !== catalog.packageCount
     ) {
         throw new Error('Feature Tour catalog is incompatible');
     }
@@ -544,31 +585,18 @@ function resolveVirtualUri(baseUri, relativePath) {
 }
 
 function resourceUri(uri, projectId, scheme = 'cem-studio') {
-    return /^[a-z][a-z0-9+.-]*:/i.test(uri)
-        ? uri
-        : new URL(uri, `${scheme}://${projectId}/`).href;
+    const resolved = /^[a-z][a-z0-9+.-]*:/i.test(uri) ? uri : new URL(uri, `${scheme}://${projectId}/`).href;
+    return assertCemStudioResourceUri(resolved, scheme);
 }
 
 function resourceCommandArguments(operation, options, inputResourceUri) {
     if (Array.isArray(options.argv)) return options.argv;
-    const identity = [
-        '--content-type',
-        options.contentType,
-        '--schema',
-        options.schema,
-    ];
+    const identity = ['--content-type', options.contentType, '--schema', options.schema];
     if (operation === 'validate') {
         return ['validate', '--format', 'json', ...identity, inputResourceUri];
     }
     if (operation === 'parse') {
-        return [
-            'parse',
-            '--no-color',
-            '--format',
-            options.projection ?? 'ast',
-            ...identity,
-            inputResourceUri,
-        ];
+        return ['parse', '--no-color', '--format', options.projection ?? 'ast', ...identity, inputResourceUri];
     }
     if (operation === 'inspect') {
         return [
@@ -629,27 +657,28 @@ function projectCommandSemanticPreview(invocation) {
 function freezeCommandValue(value) {
     if (Array.isArray(value)) return Object.freeze(value.map((entry) => freezeCommandValue(entry)));
     if (value && typeof value === 'object') {
-        return Object.freeze(Object.fromEntries(
-            Object.entries(value).map(([key, entry]) => [key, freezeCommandValue(entry)]),
-        ));
+        return Object.freeze(
+            Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, freezeCommandValue(entry)])),
+        );
     }
     return value;
 }
 
 async function readCommandOutput(handle, result, requestedUri = CEM_STDOUT_URI, committed = []) {
     const artifacts = result?.artifacts?.items ?? [];
-    const artifact = artifacts.find(({ uri }) => uri === requestedUri)
-        ?? artifacts.find(({ kind }) => kind === 'output');
+    const artifact =
+        artifacts.find(({ uri }) => uri === requestedUri) ?? artifacts.find(({ kind }) => kind === 'output');
     let metadata;
     let bytes;
     if (artifact) {
         metadata = artifact;
+        assertCemStudioResultSize(artifact.byteLength);
         bytes = new Uint8Array(artifact.byteLength);
         let offset = 0;
         while (offset < artifact.byteLength) {
             const read = await handle.readArtifact(artifact, {
                 offset,
-                maxBytes: Math.min(ARTIFACT_READ_BYTES, artifact.byteLength - offset),
+                maxBytes: Math.min(ARTIFACT_READ_BYTES, CEM_STUDIO_LIMITS.resultBytes, artifact.byteLength - offset),
             });
             if (read.metadata.offset !== offset || read.bytes.byteLength === 0) {
                 throw new Error(`CEM-ML command returned an invalid artifact range at byte ${offset}`);
@@ -658,8 +687,9 @@ async function readCommandOutput(handle, result, requestedUri = CEM_STDOUT_URI, 
             offset += read.bytes.byteLength;
         }
     } else {
-        const publication = committed.find(({ request }) => request.uri === requestedUri)
-            ?? committed.find(({ request }) => request.kind === 'output');
+        const publication =
+            committed.find(({ request }) => request.uri === requestedUri) ??
+            committed.find(({ request }) => request.kind === 'output');
         if (!publication) {
             throw new Error(
                 `CEM-ML command omitted its ${requestedUri} output publication: ${JSON.stringify({
@@ -676,6 +706,8 @@ async function readCommandOutput(handle, result, requestedUri = CEM_STDOUT_URI, 
             );
         }
         metadata = publication.request;
+        assertCemStudioResultSize(metadata.byteLength);
+        assertCemStudioResultSize(publication.bytes);
         bytes = publication.bytes;
     }
     if (bytes.byteLength !== metadata.byteLength) {
@@ -690,7 +722,7 @@ async function readCommandOutput(handle, result, requestedUri = CEM_STDOUT_URI, 
         contentType: metadata.contentType,
         byteLength: metadata.byteLength,
         sha256: metadata.sha256,
-        bytes: Object.freeze([...bytes]),
+        bytes: bytes.slice(),
         text: new TextDecoder().decode(bytes),
     });
 }

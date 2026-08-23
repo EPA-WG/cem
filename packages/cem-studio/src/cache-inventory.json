@@ -12,6 +12,7 @@
                 "./build.json",
                 "./cache-inventory.json",
                 "./module-map.json",
+                "./security-headers.json",
                 "./service-worker.js"
             ]
         },

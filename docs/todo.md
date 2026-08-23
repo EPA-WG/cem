@@ -1457,10 +1457,48 @@ including search, is composed from `@epa-wg/cem-components` and
       offline worker/fallback verification, package assembly, dependency/UI
       audits, and a clean consumer install. The native Studio-project schema
       verifier passed ten contract tests plus its package-structure audit.
-- [ ] Close Phase 6.5 with bounded/sandboxed previews, source/result limits,
+- [x] Close Phase 6.5 with bounded/sandboxed previews, source/result limits,
       accessibility and forced-color coverage, offline/update/security tests,
       package/install verification, dependency audit, and synchronized release
       evidence.
+    - [x] Lock conservative Studio v1 source, result, inline-preview, and
+          structured-row limits; enforce them before worker transfer or DOM
+          projection and retain explicit truncation/oversize diagnostics.
+    - [x] Add an application-owned preview boundary that renders text as text,
+          treats unknown/binary results as downloads, and admits active HTML only
+          through a scriptless, opaque-origin sandbox with a deny-by-default CSP.
+    - [x] Prove keyboard reachability, named live status, non-color state cues,
+          reflow, reduced motion, and forced-color behavior in real Chromium.
+    - [x] Extend real browser evidence for offline startup, the waiting-worker
+          activation barrier, dirty-project persistence, malicious preview and URL
+          inputs, restrictive app/preview CSP, resolver bounds, and secret
+          redaction.
+    - [x] Re-run deterministic packaging, tarball installation in a clean
+          consumer, and the exact/transitive dependency audit under the hardened
+          application boundary.
+    - [x] Emit synchronized local release evidence tying the Studio/common
+          version, source revision and tree digest, build identity, deterministic
+          static digest, package checksum, dependency report, and clean-consumer
+          result together without advancing Phase 9 signing/publication work.
+    - Completed 2026-08-22: Studio v1 now rejects primary/dependency sources over
+      8 MiB, resource sets over 16 MiB or 129 resources, and exact results over
+      16 MiB before submission, retained-artifact allocation, or projection; DOM
+      previews retain at most 256 KiB and structured views 100 rows. The public
+      preview boundary renders UTF-8 as text, keeps binary/unknown/invalid or
+      oversized active output download-only, and admits HTML/XHTML/SVG only into
+      an empty opaque-origin iframe sandbox with a deny-all CSP. The graph emits
+      hash-based application security headers with no `unsafe-inline` or general
+      `unsafe-eval`. Real Chromium proves forced colors, reduced motion, reflow,
+      keyboard/live/non-color cues, dirty-update persistence before explicit
+      worker activation, IndexedDB survival, all 31 examples, and online/offline
+      worker/WASM execution. All 39 Studio browser tests pass; the 46-task Nx
+      check also passes lint/typecheck, the exact one-runtime dependency audit,
+      151-file deterministic output
+      (`09675bf73c4ad68eaf8f62ba6a20075272cb79ea633a0595a887eb6cb186be3b`),
+      the 11,130,846-byte clean-consumer package
+      (`03ab3ec5086957a3fee013ac83d7e1c12b188a38fc8149af3b4497629f35fc63`),
+      and synchronized local SBOM/provenance evidence while leaving protected
+      publication/signing to Phase 9. Phase 6.5 is complete.
 
 ## Later Non-Figma Phase Gates
 

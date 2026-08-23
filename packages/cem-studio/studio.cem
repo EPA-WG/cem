@@ -32,6 +32,13 @@
         @content-type="application/json"}
   }
 
+  {import @id=studio-security-headers @src="src/security-headers.json"
+      @content-type="application/json"
+      @opaque=true |
+    {export @id=studio-security-headers-output @out="dist/static/security-headers.json"
+        @content-type="application/json"}
+  }
+
   {import @id=studio-module-map @src="runtime/destination.module-map.json"
       @content-type="application/json"
       @opaque=true |
