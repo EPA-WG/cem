@@ -15,16 +15,16 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 
 ## Element Vocabulary
 
-| Element             | Required attributes | Optional attributes                                                                                                        | Child elements                                                         |
-| ------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `run`               | none                | none                                                                                                                       | `import`                                                               |
-| `import`            | `src`               | `id`, `content-type`, `contentType`, `schema`, `opaque`                                                                    | `join`, `convert`, `transform`, `rewrite-importmap`, `export`          |
-| `join`              | `mode`              | `id`, `input`, `by`, `with:*`                                                                                              | `convert`, `transform`, `rewrite-importmap`, `export`                  |
-| `convert`           | none                | `id`, `input`, `content-type`, `contentType`, `schema`, `converter`                                                        | `join`, `convert`, `transform`, `rewrite-importmap`, `export`          |
-| `transform`         | `src`               | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
-| `rewrite-importmap` | `target-map`        | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing`                                                   | `export`                                                               |
-| `param`             | `name`, `value`     | none                                                                                                                       | none                                                                   |
-| `export`            | `out`               | `id`, `content-type`, `contentType`, `schema`, `style-policy`, `stylePolicy`                                               | none                                                                   |
+| Element | Required attributes | Optional attributes | Child elements |
+| --- | --- | --- | --- |
+| `run` | none | none | `import` |
+| `import` | `src` | `id`, `content-type`, `contentType`, `schema`, `opaque` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `join` | `mode` | `id`, `input`, `by`, `with:*` | `convert`, `transform`, `rewrite-importmap`, `export` |
+| `convert` | none | `id`, `input`, `content-type`, `contentType`, `schema`, `converter` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `rewrite-importmap` | `target-map` | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing` | `export` |
+| `param` | `name`, `value` | none | none |
+| `export` | `out` | `id`, `content-type`, `contentType`, `schema`, `style-policy`, `stylePolicy` | none |
 
 ## Graph Semantics
 

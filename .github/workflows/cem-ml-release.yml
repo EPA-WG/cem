@@ -47,6 +47,9 @@ jobs:
             - name: Install dependencies
               run: yarn install --immutable
 
+            - name: Verify Phase 9 release contract
+              run: yarn nx run @epa-wg/cem:verify:phase9-contract
+
             - name: Create or resume draft release
               run: yarn nx run cem_ml:release:create-draft --parallel=false
               env:

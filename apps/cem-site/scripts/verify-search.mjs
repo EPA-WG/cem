@@ -56,7 +56,19 @@ try {
         waitUntil: 'networkidle',
         timeout: 120_000,
     });
-    await page.waitForFunction(() => globalThis.__cemSiteSearch?.done === true);
+    try {
+        await page.waitForFunction(() => globalThis.__cemSiteSearch?.done === true);
+    } catch (cause) {
+        const runtimeState = await page.evaluate(() => ({
+            search: globalThis.__cemSiteSearch,
+            components: globalThis.__cemSiteComponents,
+            scripts: [...document.scripts].map(({ src, type }) => ({ src, type })),
+        }));
+        throw new Error(
+            `search readiness timed out: ${JSON.stringify({ browserErrors, runtimeState })}`,
+            { cause },
+        );
+    }
     const initialRuntime = await page.evaluate(() => globalThis.__cemSiteSearch);
     if (browserErrors.length > 0 || initialRuntime.errors.length > 0) {
         throw new Error(`search runtime failed: ${[...browserErrors, ...initialRuntime.errors].join('; ')}`);

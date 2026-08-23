@@ -125,9 +125,9 @@
               }
               {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
                 {attribute @name="data-parity-total" @value="{seq:count(input.components.id)}"}
-                {attribute @name="data-parity-covered" @value="17"}
-                {attribute @name="data-parity-partial" @value="20"}
-                {$ seq:count(input.components.id)} retained catalog rows: 17 covered and 20 partial.
+                {attribute @name="data-parity-covered" @value="18"}
+                {attribute @name="data-parity-partial" @value="19"}
+                {$ seq:count(input.components.id)} retained catalog rows: 18 covered and 19 partial.
               }
               {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
                 Covered means the bounded CEM behavioral capability is owned. Partial means the mapping is useful but a named behavior or deliberately excluded framework surface remains visible in the notes.

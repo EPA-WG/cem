@@ -3809,7 +3809,6 @@ export { metadata };
         for target in [
             "../runtime.js",
             "./../runtime.js",
-            "./runtime.css",
             "./runtime.js?x=1",
         ] {
             let error = validate_module_import_target(
@@ -3821,6 +3820,14 @@ export { metadata };
             .unwrap_err();
             assert_eq!(error.code(), "cem.module_map.target_invalid");
         }
+        let error = validate_module_import_target(
+            "graph.cem",
+            "@pkg/runtime",
+            "./runtime.css",
+            "text/javascript",
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "cem.module_map.import_type_mismatch");
     }
 
     #[test]

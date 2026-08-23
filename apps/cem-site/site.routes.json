@@ -44,6 +44,14 @@
         },
         {
             "kind": "npm",
+            "id": "@epa-wg/cem-studio",
+            "manifest": "packages/cem-studio/package.json",
+            "nxProject": "@epa-wg/cem-studio",
+            "route": "/packages/",
+            "summary": "Installable CEM-ML browser workbench bootstrap and static deployment."
+        },
+        {
+            "kind": "npm",
             "id": "@epa-wg/cem-theme",
             "manifest": "packages/cem-theme/package.json",
             "nxProject": "@epa-wg/cem-theme",

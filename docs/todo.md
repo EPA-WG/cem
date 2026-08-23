@@ -1541,6 +1541,52 @@ before the non-Figma roadmap is complete.
       package (job `97128816568`). No live Figma parity claim was made.
 - [ ] Complete Phase 9 release, governance, and compatibility work for the code,
       docs, Studio, and Linux native distribution surface.
+    - [x] Lock one product-wide versioning, compatibility, deprecation, and
+          release-family policy for token names, component APIs, XML schemas,
+          native outputs, the web package family, and the fixed CEM-ML family.
+    - [x] Publish the current migration/deprecation report and contribution
+          guidance for token specs, components, docs/examples, generated native
+          packages, Studio, and release changes.
+    - [x] Add a machine-readable Phase 9 release contract plus a credential-free
+          verifier for version families, exact dependencies, package exports,
+          migration/deprecation ownership, workflow isolation, native gates, and
+          required public-release evidence.
+        - [x] Fixture: reject version drift, a missing stable export, an
+              unowned deprecation, a missing CI/native gate, and incomplete
+              publication evidence.
+    - [x] Add Nx aggregate readiness and closure targets, wire serialized
+          readiness into CI and the contract preflight into both protected
+          publish lanes, and keep closure fail-closed until immutable public
+          evidence exists.
+    - [x] Prove clean package/export consumption for the fixed web family,
+          CEM-ML runtime/CLI, Studio/PWA assets, token/native outputs, docs links,
+          component examples, and the Linux lifecycle.
+        - [x] Fixture: lock the clean custom-element archive path set after stale
+              compiler outputs are removed and reject every extra or missing path.
+        - [x] Fixture: require every transitive JavaScript dependency used by the
+              search and interactive pages in both site runtime module maps.
+    - [ ] Publish and remotely verify the fixed CEM web npm family from one tag,
+          including the first `@epa-wg/cem-elements` public artifact.
+    - [ ] Promote a final three-unit CEM-ML GitHub Release and publish the exact
+          verified `@epa-wg/cem-ml` and `@epa-wg/cem-ml-cli` tarballs to npm.
+    - [ ] Publish `@epa-wg/cem-studio` and its PWA/static deployment from the same
+          CEM-ML version and source commit; verify clean install and update metadata.
+    - [ ] Record registry, GitHub Release, provenance, checksum, native compile,
+          docs/example, and clean-consumer evidence; run the fail-closed closure
+          target and close Phase 9.
+    - Completed 2026-08-23: the credential-free Phase 9 readiness aggregate passed
+      all 187 serialized Nx tasks (the root target plus 186 dependencies). The
+      machine contract verified seven public packages, five compatibility axes,
+      and all six deliberate-rejection fixtures. Its underlying evidence includes
+      1,982 CEM-ML tests; 522 CLI tests plus 84 schema validations (83 passing and
+      one intentional ignore); all 19 atomized component browser/unit files; the
+      exact 143-file custom-element archive
+      (`46d67f2471ca803a70f132c7807e3286ea6a83e98b278ae4e76487d42b71f43a`);
+      and the deterministic 135-file site output
+      (`1f6c49eaee4ae179a19ecfbb235201647d996991a6633fcf6d9ff68860269b28`).
+      Readiness is true, while closure remains correctly false with the single
+      intentional blocker for immutable public-release evidence. No package was
+      published and no tag, signed release, or deployment was created.
 
 ## Phase 10 Checklist — Deferred Figma UI Kit
 

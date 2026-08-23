@@ -66,6 +66,9 @@ jobs:
           yarn nx run-many -t build
           --exclude=cem_ml_cli_native_brew_arm64,cem_ml_cli_native_windows_amd64
 
+      - name: Verify Phase 9 release contract
+        run: yarn nx run @epa-wg/cem:verify:phase9-contract
+
       - name: Publish packages
         run: yarn nx release publish --groups cem --excludeTaskDependencies --access public --outputStyle static
         env:

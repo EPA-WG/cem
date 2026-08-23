@@ -80,6 +80,9 @@ jobs:
       - name: Verify Phase 8 portable native contracts
         run: yarn nx run @epa-wg/cem-theme:verify:phase8
 
+      - name: Verify Phase 9 release readiness
+        run: yarn nx run @epa-wg/cem:verify:phase9-readiness --parallel=1
+
   native-ios-tokens:
     name: iOS Swift Package and SwiftUI compile
     runs-on: macos-15

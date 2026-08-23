@@ -987,8 +987,8 @@ for (const entry of manifest.entries) {
                 ]),
             );
             if (
-                counts.covered !== 17 ||
-                counts.partial !== 20 ||
+                counts.covered !== 18 ||
+                counts.partial !== 19 ||
                 counts.gap !== 0 ||
                 counts.unreviewed !== 0 ||
                 inventory.recommendedAudit !== null

@@ -15,6 +15,7 @@
                 "!{projectRoot}/src/**/*.spec.ts",
                 "!{projectRoot}/src/**/*.test.ts",
                 "!{projectRoot}/src/**/*.stories.ts",
+                "{projectRoot}/scripts/clean-dist.mjs",
                 "{projectRoot}/scripts/package-runtime-assets.mjs",
                 "{workspaceRoot}/tsconfig.base.json",
                 "{workspaceRoot}/packages/cem_ql/dist/wasm/**",
@@ -25,7 +26,11 @@
             ],
             "outputs": ["{projectRoot}/dist"],
             "options": {
-                "commands": ["tsc --build tsconfig.lib.json", "node scripts/package-runtime-assets.mjs"],
+                "commands": [
+                    "node scripts/clean-dist.mjs",
+                    "tsc --build tsconfig.lib.json",
+                    "node scripts/package-runtime-assets.mjs"
+                ],
                 "parallel": false,
                 "cwd": "{projectRoot}"
             }

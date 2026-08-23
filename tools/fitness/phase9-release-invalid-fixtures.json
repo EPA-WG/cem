@@ -1,0 +1,41 @@
+{
+    "$comment": "Deliberate negative cases for the Phase 9 contract verifier.",
+    "schemaVersion": 1,
+    "cases": [
+        {
+            "id": "version-drift",
+            "kind": "set-family-version",
+            "family": "cem-web",
+            "member": "packages/custom-element/package.json",
+            "value": "9.9.9",
+            "expected": "version family cem-web drift"
+        },
+        {
+            "id": "missing-export",
+            "kind": "remove-export",
+            "manifest": "packages/cem-theme/package.json",
+            "export": "./styles.css",
+            "expected": "missing stable export"
+        },
+        {
+            "id": "unowned-deprecation",
+            "kind": "remove-deprecation-source",
+            "path": "tools/fitness/deprecated-forms.json",
+            "expected": "missing deprecation source"
+        },
+        {
+            "id": "missing-native-gate",
+            "kind": "remove-workflow-text",
+            "workflow": ".github/workflows/ci.yml",
+            "text": "native-ios-tokens:",
+            "expected": "missing required workflow contract"
+        },
+        {
+            "id": "incomplete-publication-evidence",
+            "kind": "set-publication-evidence",
+            "value": { "schemaVersion": 1, "status": "published" },
+            "mode": "release",
+            "expected": "publication evidence missing"
+        }
+    ]
+}

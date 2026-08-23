@@ -32,6 +32,10 @@
             "path": "../../../packages/custom-element/dist/vendor/@epa-wg/cem-elements/dist/lib/projection.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/custom-element/vendor/cem-elements/repository": {
+            "path": "../../../packages/custom-element/dist/vendor/@epa-wg/cem-elements/dist/lib/repository.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/custom-element/vendor/cem-elements/legacy-contract": {
             "path": "../../../packages/custom-element/dist/vendor/@epa-wg/cem-elements/dist/lib/legacy-xslt/contract.js",
             "contentType": "text/javascript"
@@ -122,6 +126,10 @@
         },
         "@epa-wg/cem-components/stepper-behavior": {
             "path": "../../../packages/cem-components/dist/lib/stepper-behavior.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-components/tabs-behavior": {
+            "path": "../../../packages/cem-components/dist/lib/tabs-behavior.js",
             "contentType": "text/javascript"
         },
         "@epa-wg/cem-components/timepicker-behavior": {

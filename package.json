@@ -138,15 +138,21 @@
                 "executor": "nx:run-commands",
                 "dependsOn": [
                     {
-                        "projects": ["cem-elements"],
+                        "projects": [
+                            "cem-elements"
+                        ],
                         "target": "verify"
                     },
                     {
-                        "projects": ["cem-elements"],
+                        "projects": [
+                            "cem-elements"
+                        ],
                         "target": "verify-edge-ssr"
                     },
                     {
-                        "projects": ["@epa-wg/custom-element"],
+                        "projects": [
+                            "@epa-wg/custom-element"
+                        ],
                         "target": "verify"
                     }
                 ],
@@ -155,6 +161,114 @@
                     "cwd": "{workspaceRoot}"
                 },
                 "outputs": []
+            },
+            "verify:phase9-contract": {
+                "executor": "nx:run-commands",
+                "cache": true,
+                "options": {
+                    "commands": [
+                        "yarn eslint tools/scripts/verify-phase9-release.mjs tools/scripts/verify-phase9-release.test.mjs",
+                        "node --test tools/scripts/verify-phase9-release.test.mjs",
+                        "node tools/scripts/verify-phase9-release.mjs --mode readiness"
+                    ],
+                    "parallel": false,
+                    "cwd": "{workspaceRoot}"
+                },
+                "inputs": [
+                    "{workspaceRoot}/CONTRIBUTING.md",
+                    "{workspaceRoot}/docs/versioning-and-compatibility.md",
+                    "{workspaceRoot}/docs/migrations-and-deprecations.md",
+                    "{workspaceRoot}/docs/npm-publish.md",
+                    "{workspaceRoot}/docs/cem-ml-native-release.md",
+                    "{workspaceRoot}/docs/native-platforms.md",
+                    "{workspaceRoot}/docs/custom-element-bridge-template-policy.md",
+                    "{workspaceRoot}/tools/fitness/phase9-release-contract.json",
+                    "{workspaceRoot}/tools/fitness/phase9-release-invalid-fixtures.json",
+                    "{workspaceRoot}/tools/fitness/deprecated-forms.json",
+                    "{workspaceRoot}/tools/scripts/verify-phase9-release.mjs",
+                    "{workspaceRoot}/tools/scripts/verify-phase9-release.test.mjs",
+                    "{workspaceRoot}/package.json",
+                    "{workspaceRoot}/nx.json",
+                    "{workspaceRoot}/packages/*/package.json",
+                    "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                    "{workspaceRoot}/packages/cem-theme/src/lib/tokens/cem-dimension.md",
+                    "{workspaceRoot}/.github/workflows/ci.yml",
+                    "{workspaceRoot}/.github/workflows/publish.yml",
+                    "{workspaceRoot}/.github/workflows/cem-ml-release.yml"
+                ],
+                "outputs": [
+                    "{workspaceRoot}/dist/reports/phase9-release-readiness.{json,md}"
+                ]
+            },
+            "verify:phase9-readiness": {
+                "executor": "nx:run-commands",
+                "cache": false,
+                "dependsOn": [
+                    "verify:phase9-contract",
+                    {
+                        "projects": [
+                            "@epa-wg/cem-theme"
+                        ],
+                        "target": "verify:phase8"
+                    },
+                    {
+                        "projects": [
+                            "@epa-wg/cem-components"
+                        ],
+                        "target": "verify"
+                    },
+                    {
+                        "projects": [
+                            "cem-elements"
+                        ],
+                        "target": "verify"
+                    },
+                    {
+                        "projects": [
+                            "@epa-wg/custom-element"
+                        ],
+                        "target": "verify"
+                    },
+                    {
+                        "projects": [
+                            "cem-site"
+                        ],
+                        "target": "verify"
+                    },
+                    {
+                        "projects": [
+                            "@epa-wg/cem-studio"
+                        ],
+                        "target": "check"
+                    },
+                    {
+                        "projects": [
+                            "cem_ml"
+                        ],
+                        "target": "verify:platform"
+                    }
+                ],
+                "options": {
+                    "command": "node tools/scripts/verify-phase9-release.mjs --mode readiness",
+                    "cwd": "{workspaceRoot}"
+                },
+                "outputs": [
+                    "{workspaceRoot}/dist/reports/phase9-release-readiness.{json,md}"
+                ]
+            },
+            "verify:phase9": {
+                "executor": "nx:run-commands",
+                "cache": false,
+                "dependsOn": [
+                    "verify:phase9-readiness"
+                ],
+                "options": {
+                    "command": "node tools/scripts/verify-phase9-release.mjs --mode release",
+                    "cwd": "{workspaceRoot}"
+                },
+                "outputs": [
+                    "{workspaceRoot}/dist/reports/phase9-release-readiness.{json,md}"
+                ]
             }
         }
     }

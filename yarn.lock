@@ -1414,7 +1414,7 @@ __metadata:
     "@epa-wg/cem-elements": "npm:0.1.1"
     "@epa-wg/cem-ml-cli": "npm:0.1.0"
     "@epa-wg/cem-theme": "npm:0.1.1"
-    "@epa-wg/custom-element": "npm:0.1.0"
+    "@epa-wg/custom-element": "npm:0.1.1"
     "@types/node": "npm:25.6.0"
     typescript: "npm:6.0.3"
   languageName: unknown
@@ -1471,7 +1471,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/custom-element@npm:0.1.0, @epa-wg/custom-element@workspace:^, @epa-wg/custom-element@workspace:packages/custom-element":
+"@epa-wg/custom-element@npm:0.1.1, @epa-wg/custom-element@workspace:^, @epa-wg/custom-element@workspace:packages/custom-element":
   version: 0.0.0-use.local
   resolution: "@epa-wg/custom-element@workspace:packages/custom-element"
   languageName: unknown

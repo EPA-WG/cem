@@ -40,8 +40,8 @@
         "vendor"
     ],
     "archive": {
-        "fileCount": 146,
-        "pathDigestSha256": "cffe367657f279a1ed4baa7f7f6b27eb866cb3c8ca0337e960c2c1cadda5fd80",
+        "fileCount": 143,
+        "pathDigestSha256": "46d67f2471ca803a70f132c7807e3286ea6a83e98b278ae4e76487d42b71f43a",
         "requiredFiles": [
             "LICENSE",
             "README.md",

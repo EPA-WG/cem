@@ -30,6 +30,7 @@ assert.equal(studio.dependencies['@epa-wg/cem-ml'], undefined);
 assert.equal(buildMetadata.commonVersion, commonVersion);
 assert.deepEqual(buildMetadata.dependencies, studio.dependencies);
 
+process.chdir(workspaceRoot);
 const graph = await createProjectGraphAsync({ exitOnError: false });
 for (const project of [
     '@epa-wg/cem-studio',

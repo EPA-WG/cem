@@ -1,0 +1,235 @@
+{
+    "$comment": "Credential-free Phase 9 product release contract. Public evidence is required only in closure mode.",
+    "schemaVersion": 1,
+    "versionFamilies": [
+        {
+            "id": "cem-web",
+            "authority": "package.json",
+            "authorityType": "npm",
+            "releaseGroup": "cem",
+            "members": [
+                { "project": "@epa-wg/cem", "manifest": "package.json" },
+                { "project": "@epa-wg/cem-theme", "manifest": "packages/cem-theme/package.json" },
+                { "project": "@epa-wg/cem-components", "manifest": "packages/cem-components/package.json" },
+                { "project": "cem-elements", "manifest": "packages/cem-elements/package.json" },
+                { "project": "@epa-wg/custom-element", "manifest": "packages/custom-element/package.json" }
+            ]
+        },
+        {
+            "id": "cem-ml-platform",
+            "authority": "packages/cem_ml/Cargo.toml",
+            "authorityType": "cargo",
+            "releaseGroup": "cem-ml-platform",
+            "members": [
+                { "project": "@epa-wg/cem-ml", "manifest": "packages/cem-ml-npm/package.json" },
+                { "project": "@epa-wg/cem-ml-cli", "manifest": "packages/cem-ml-cli-npm/package.json" },
+                { "project": "@epa-wg/cem-studio", "manifest": "packages/cem-studio/package.json" }
+            ],
+            "releaseGroupProjects": [
+                "cem_ml",
+                "cem_ml_cli",
+                "@epa-wg/cem-ml",
+                "@epa-wg/cem-ml-cli",
+                "@epa-wg/cem-studio",
+                "cem_ml_cli_native_linux_amd64",
+                "cem_ml_cli_native_brew_arm64",
+                "cem_ml_cli_native_windows_amd64"
+            ]
+        }
+    ],
+    "exactDependencies": [
+        {
+            "manifest": "packages/cem-ml-cli-npm/package.json",
+            "dependency": "@epa-wg/cem-ml",
+            "family": "cem-ml-platform"
+        },
+        {
+            "manifest": "packages/cem-studio/package.json",
+            "dependency": "@epa-wg/cem-ml-cli",
+            "family": "cem-ml-platform"
+        },
+        {
+            "manifest": "packages/cem-studio/package.json",
+            "dependency": "@epa-wg/cem-components",
+            "family": "cem-web"
+        },
+        {
+            "manifest": "packages/cem-studio/package.json",
+            "dependency": "@epa-wg/cem-elements",
+            "family": "cem-web"
+        },
+        {
+            "manifest": "packages/cem-studio/package.json",
+            "dependency": "@epa-wg/cem-theme",
+            "family": "cem-web"
+        },
+        {
+            "manifest": "packages/cem-studio/package.json",
+            "dependency": "@epa-wg/custom-element",
+            "field": "devDependencies",
+            "family": "cem-web"
+        }
+    ],
+    "publicPackages": [
+        {
+            "project": "@epa-wg/cem-theme",
+            "manifest": "packages/cem-theme/package.json",
+            "verificationTarget": "verify-package",
+            "requiredExports": [
+                ".",
+                "./package.json",
+                "./styles.css",
+                "./tokens/cem.tokens.json",
+                "./tokens/cem.tokens.catalog.json",
+                "./tokens/cem.voice.tokens.json",
+                "./tokens/cem.tokens.report.json",
+                "./tokens/cem.tokens.ts",
+                "./tokens/figma/*"
+            ]
+        },
+        {
+            "project": "@epa-wg/cem-components",
+            "manifest": "packages/cem-components/package.json",
+            "verificationTarget": "verify-package",
+            "requiredExports": [".", "./package.json", "./styles.css", "./catalog/cem.components.catalog.json"]
+        },
+        {
+            "project": "cem-elements",
+            "manifest": "packages/cem-elements/package.json",
+            "verificationTarget": "verify-package",
+            "requiredExports": [".", "./package.json"]
+        },
+        {
+            "project": "@epa-wg/custom-element",
+            "manifest": "packages/custom-element/package.json",
+            "verificationTarget": "verify-packed-archive",
+            "requiredExports": [".", "./package.json", "./CustomElement"]
+        },
+        {
+            "project": "@epa-wg/cem-ml",
+            "manifest": "packages/cem-ml-npm/package.json",
+            "verificationTarget": "check",
+            "requiredExports": ["./package.json", "./wasm", "./runtime.json", "./integrity.json", "./schema-packages/*"]
+        },
+        {
+            "project": "@epa-wg/cem-ml-cli",
+            "manifest": "packages/cem-ml-cli-npm/package.json",
+            "verificationTarget": "check",
+            "requiredExports": ["./package.json", "./browser", "./node"],
+            "requiredBins": ["cem-ml"]
+        },
+        {
+            "project": "@epa-wg/cem-studio",
+            "manifest": "packages/cem-studio/package.json",
+            "verificationTarget": "check",
+            "requiredExports": [
+                ".",
+                "./package.json",
+                "./repository",
+                "./file-system-provider",
+                "./feature-tour",
+                "./workbench",
+                "./preview",
+                "./shell",
+                "./manifest.webmanifest",
+                "./static/*"
+            ]
+        }
+    ],
+    "contractAxes": [
+        {
+            "id": "token-names",
+            "owner": "@epa-wg/cem-theme",
+            "policyText": "### Token names and values"
+        },
+        {
+            "id": "component-apis",
+            "owner": "@epa-wg/cem-components",
+            "policyText": "### Component APIs"
+        },
+        {
+            "id": "xml-schemas",
+            "owner": "cem_ml",
+            "policyText": "### XML and CEM-ML schemas"
+        },
+        {
+            "id": "native-token-outputs",
+            "owner": "@epa-wg/cem-theme",
+            "policyText": "### Native token outputs"
+        },
+        {
+            "id": "cem-ml-deployment-family",
+            "owner": "cem_ml",
+            "policyText": "### CEM-ML runtime, CLI, Studio, and Linux native unit"
+        }
+    ],
+    "requiredDocuments": [
+        "CONTRIBUTING.md",
+        "docs/versioning-and-compatibility.md",
+        "docs/migrations-and-deprecations.md",
+        "docs/npm-publish.md",
+        "docs/cem-ml-native-release.md",
+        "docs/native-platforms.md"
+    ],
+    "deprecationSources": [
+        "tools/fitness/deprecated-forms.json",
+        "docs/migrations-and-deprecations.md",
+        "packages/cem-theme/src/lib/tokens/cem-dimension.md",
+        "docs/custom-element-bridge-template-policy.md"
+    ],
+    "workflows": [
+        {
+            "path": ".github/workflows/ci.yml",
+            "requiredText": [
+                "Verify Phase 9 release readiness",
+                "@epa-wg/cem:verify:phase9-readiness",
+                "native-ios-tokens:",
+                "native-android-tokens:",
+                "compile:ios-platform",
+                "compile:android-platform"
+            ]
+        },
+        {
+            "path": ".github/workflows/publish.yml",
+            "requiredText": [
+                "Verify Phase 9 release contract",
+                "@epa-wg/cem:verify:phase9-contract",
+                "!cem-ml-v*",
+                "nx release publish --groups cem"
+            ]
+        },
+        {
+            "path": ".github/workflows/cem-ml-release.yml",
+            "requiredText": [
+                "Verify Phase 9 release contract",
+                "@epa-wg/cem:verify:phase9-contract",
+                "release:create-draft",
+                "release:collect-draft",
+                "release:promote"
+            ]
+        }
+    ],
+    "aggregateTargets": {
+        "contract": "verify:phase9-contract",
+        "readiness": "verify:phase9-readiness",
+        "closure": "verify:phase9"
+    },
+    "publicationEvidence": {
+        "path": "docs/phase9-publication-evidence.json",
+        "requiredStatus": "published",
+        "requiredPaths": [
+            "source.revision",
+            "web.tag",
+            "web.packages",
+            "cemMl.tag",
+            "cemMl.githubReleaseUrl",
+            "cemMl.packages",
+            "cemMl.linuxAsset",
+            "studio.npmUrl",
+            "studio.staticDeploymentUrl",
+            "verification.ciRunUrl",
+            "verification.nativeIosJobUrl",
+            "verification.nativeAndroidJobUrl"
+        ]
+    }
+}

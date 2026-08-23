@@ -1428,6 +1428,10 @@ schema_owned_package_validation_test!(
     schema_owned_cem_transform_examples_validate_through_cli,
     "cem-transform"
 );
+schema_owned_package_validation_test!(
+    schema_owned_cli_command_examples_validate_through_cli,
+    "cli-command"
+);
 schema_owned_package_validation_test!(schema_owned_css_examples_validate_through_cli, "css");
 schema_owned_package_validation_test!(
     schema_owned_css_selector_examples_validate_through_cli,
@@ -1462,6 +1466,10 @@ schema_owned_package_validation_test!(
     "relax-ng"
 );
 schema_owned_package_validation_test!(schema_owned_schema_examples_validate_through_cli, "schema");
+schema_owned_package_validation_test!(
+    schema_owned_studio_project_examples_validate_through_cli,
+    "studio-project"
+);
 schema_owned_package_validation_test!(schema_owned_svg_examples_validate_through_cli, "svg");
 schema_owned_package_validation_test!(schema_owned_xhtml_examples_validate_through_cli, "xhtml");
 schema_owned_package_validation_test!(schema_owned_xml_examples_validate_through_cli, "xml");
