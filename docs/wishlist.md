@@ -5,6 +5,11 @@ in [`todo.md`](todo.md).
 
 ## CEM-ML Runtime
 
+- [ ] **macOS ARM64 CEM-ML CLI and Homebrew distribution.** Keep the existing dormant
+      `native-macos-arm64` projection outside the active roadmap and release matrix. Reconsider it only with an
+      Apple-supported build and native execution environment, a pinned macOS SDK/Xcode/Rust toolchain, Developer ID
+      signing and notarization, Homebrew install/upgrade/uninstall smoke tests, checksums, SBOM, provenance, and parity
+      with the portable Node/WASM CLI and published Linux native CLI.
 - [ ] **Platform-native Linux npm package `@epa-wg/cem-ml-cli-linux-x64`.** Create a separate Linux x64 package for
       the native `cem-ml` executable and let `@epa-wg/cem-ml-cli` select it through an optional platform dependency
       with a deterministic WASM fallback. Keep the ELF binary out of the policy-free `@epa-wg/cem-ml` WASM package,

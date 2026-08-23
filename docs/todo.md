@@ -1506,7 +1506,7 @@ Expand each gate into its task-level checklist when it becomes the immediate
 goal. These gates deliberately keep the deferred Figma work from becoming active
 before the non-Figma roadmap is complete.
 
-- [ ] Complete Phase 8 native platform package hardening and toolchain validation.
+- [ ] Complete Phase 8 iOS and Android token-package hardening and toolchain validation.
 - [ ] Complete Phase 9 release, governance, and compatibility work for the code,
       docs, Studio, and native distribution surfaces.
 

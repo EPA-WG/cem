@@ -8,20 +8,20 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 
 ## Product Modules
 
-| Module                        | Purpose                                                                                                                                                                                                                                                                                                     | Primary package or path                                                  |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| CEM token/theme core          | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports.                                                                                                                                                                                                                          | `packages/cem-theme`                                                     |
-| Native platform adapters      | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine.                                                                                                                                                                                                                           | `packages/cem-theme/dist/lib/token-platforms`                            |
-| CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff.                                                                                                                                         | `packages/cem_ml`                                                        |
-| CEM structural lifecycle CLI  | Validation, load into the internal CEM AST/event model, query/transform, and export/convert across schema + content-type identities. Separate synchronized deployments provide the WASM runtime npm package, Node/WASM CLI npm package, and native Linux AMD64, Homebrew ARM64, and Windows AMD64 packages. | `packages/cem_ml`, `packages/cem_ml_cli`, future CLI deployment projects |
-| CEM Studio                    | Installable local-first PWA and npm package for exercising CEM-ML validation, conversion, query, transformation, source-map, report, and graph workflows through editable projects and a bidirectional CLI Command view.                                                                                    | future `packages/cem-studio`, `@epa-wg/cem-components/studio`            |
-| CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable.        | `packages/cem-elements`, future `packages/custom-element`                |
-| CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                          | `packages/cem-components`, `packages/cem-elements`                       |
-| CEM site                      | Public docs, token/component gallery, interactive examples, and release documentation built as a static web application by the CEM-ML CLI transformation graph.                                                                                                                                             | future `apps/cem-site`                                                   |
-| Hugo framework integration    | A downstream integration of the CEM-ML stack with Hugo, initially exploring adoption of the CEM theme, component set, and accessibility tooling. Exact product shape and package ownership remain TBD.                                                                                                      | future Hugo integration (TBD)                                            |
-| Repo docs spine               | Root docs, package docs, generated API/token docs, examples index, and contribution/release docs.                                                                                                                                                                                                           | `README.md`, `docs/`, package docs                                       |
-| Figma UI Kit                  | Designer-facing components, variants, variables, usage examples, and governance workflow.                                                                                                                                                                                                                   | `examples/figma`, future design artifacts                                |
-| Figma site demo               | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion.                                                                                                                                                                                                       | future `examples/figma-site-demo`                                        |
+| Module                        | Purpose                                                                                                                                                                                                                                                                                              | Primary package or path                                                  |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| CEM token/theme core          | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports.                                                                                                                                                                                                                   | `packages/cem-theme`                                                     |
+| Native platform adapters      | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine.                                                                                                                                                                                                                    | `packages/cem-theme/dist/lib/token-platforms`                            |
+| CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff.                                                                                                                                  | `packages/cem_ml`                                                        |
+| CEM structural lifecycle CLI  | Validation, load into the internal CEM AST/event model, query/transform, and export/convert across schema + content-type identities. Separate synchronized deployments provide the WASM runtime npm package, Node/WASM CLI npm package, and native Linux AMD64 and Windows AMD64 packages.           | `packages/cem_ml`, `packages/cem_ml_cli`, future CLI deployment projects |
+| CEM Studio                    | Installable local-first PWA and npm package for exercising CEM-ML validation, conversion, query, transformation, source-map, report, and graph workflows through editable projects and a bidirectional CLI Command view.                                                                             | future `packages/cem-studio`, `@epa-wg/cem-components/studio`            |
+| CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element`                |
+| CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                   | `packages/cem-components`, `packages/cem-elements`                       |
+| CEM site                      | Public docs, token/component gallery, interactive examples, and release documentation built as a static web application by the CEM-ML CLI transformation graph.                                                                                                                                      | future `apps/cem-site`                                                   |
+| Hugo framework integration    | A downstream integration of the CEM-ML stack with Hugo, initially exploring adoption of the CEM theme, component set, and accessibility tooling. Exact product shape and package ownership remain TBD.                                                                                               | future Hugo integration (TBD)                                            |
+| Repo docs spine               | Root docs, package docs, generated API/token docs, examples index, and contribution/release docs.                                                                                                                                                                                                    | `README.md`, `docs/`, package docs                                       |
+| Figma UI Kit                  | Designer-facing components, variants, variables, usage examples, and governance workflow.                                                                                                                                                                                                            | `examples/figma`, future design artifacts                                |
+| Figma site demo               | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion.                                                                                                                                                                                                | future `examples/figma-site-demo`                                        |
 
 ## Ordering Principles
 
@@ -177,13 +177,12 @@ Deliverables:
 - Create a separate `@epa-wg/cem-ml-cli` npm deployment project with an exact same-version dependency on
   `@epa-wg/cem-ml`, browser and Node exports, and the npm `cem-ml` executable. The supported portable CLI target is
   WASM for Node; the browser export is a programmatic Studio/IDE surface rather than another shell platform.
-- Create exactly three initial native deployment subprojects: Linux AMD64, macOS ARM64 distributed through Homebrew,
-  and Windows AMD64. Each project builds, packages, signs, and verifies only its platform artifact; the release scope
-  below currently publishes Linux only.
+- Keep Linux AMD64 and Windows AMD64 as the native deployment subprojects in active roadmap scope. Each project builds,
+  packages, signs, and verifies only its platform artifact; the release scope below currently publishes Linux only.
 - Preserve the Linux AMD64 CLI archives and both WASM/npm units as assets on the matching tagged GitHub Release. Upload
   target-qualified checksums, signatures, SBOMs, and provenance alongside the release-scoped artifacts; APT metadata
-  must resolve those version-qualified release assets rather than a mutable build URL. macOS/Homebrew and Windows/
-  WinGet outputs remain local validation projections until a later roadmap decision adds them to the release contract.
+  must resolve those version-qualified release assets rather than a mutable build URL. Windows/WinGet outputs remain a
+  local validation projection until a later roadmap decision adds it to the release contract.
   Stage the complete three-unit asset set before publication and never replace or delete published bytes; corrections
   require a new common version.
 - Make `packages/cem_ml/Cargo.toml` the authoritative version source and add a fixed `cem-ml-platform` release family.
@@ -203,11 +202,9 @@ Exit criteria:
   Rust library, Node/WASM npm CLI, and every supported native target, with documented capability differences only.
 - `@epa-wg/cem-ml` and `@epa-wg/cem-ml-cli` install independently into clean consumers; only the CLI package installs
   the `cem-ml` npm executable, and it resolves exactly one same-version WASM runtime.
-- Linux AMD64, Homebrew ARM64, and Windows AMD64 are separate Nx deployment projects and are the complete initial
-  native support matrix.
+- Linux AMD64 and Windows AMD64 are separate Nx deployment projects and are the complete active native support matrix.
 - The release-scoped Linux CLI remains downloadable from its tagged GitHub Release with matching checksum, signature,
-  SBOM, provenance, source commit, target identity, and common version metadata; macOS and Windows publication is
-  deferred.
+  SBOM, provenance, source commit, target identity, and common version metadata; Windows publication is deferred.
 - Release verification fails on any version, dependency, source-commit, checksum, SBOM, provenance, or capability
   manifest drift from the common `cem_ml` version.
 
@@ -215,12 +212,13 @@ Exit criteria:
 
 Goal: turn the Phase 2.5 artifact generators and guarded upload targets into one resumable release path. CI/CD owns the
 two WASM/npm units and Linux AMD64 unit, and a protected coordinator publishes one immutable GitHub Release only after
-that complete three-unit set verifies. macOS ARM64/Homebrew and Windows AMD64/WinGet release publication is deferred.
+that complete three-unit set verifies. Windows AMD64/WinGet release publication is deferred.
 
-Current foundation: the fixed `cem-ml-platform` Nx group, both WASM/npm `package` and `sign` targets, all three native
-development lifecycles, and aggregate `cem_ml:release:stage`, `release:verify`, and `release:upload-draft` targets exist.
-Phase 2.6 limits the GitHub Release graph to the three CI-owned units. The macOS and Windows Nx projects remain local
-platform-development surfaces; their retained self-hosted workflow recipe is disabled and cannot publish release assets.
+Current foundation: the fixed `cem-ml-platform` Nx group, both WASM/npm `package` and `sign` targets, the Linux and
+Windows native development lifecycles, and aggregate `cem_ml:release:stage`, `release:verify`, and
+`release:upload-draft` targets exist.
+Phase 2.6 limits the GitHub Release graph to the three CI-owned units. The Windows Nx project remains a local
+platform-development surface; its retained self-hosted workflow recipe is disabled and cannot publish release assets.
 
 Deliverables:
 
@@ -235,8 +233,8 @@ Deliverables:
   targets. Run package, signing/attestation, verification, clean-consumer, parity, and Linux lifecycle gates before
   uploading their version-qualified unit assets. GitHub Actions artifacts are job-to-job transport only; the draft
   GitHub Release is the durable release boundary.
-- Keep the reviewed macOS ARM64 and Windows AMD64 self-hosted workflow recipe in-tree but hard-disable every job. Their
-  release preflight and uploader must reject those identities while they are outside the tested release-unit contract.
+- Keep the reviewed Windows AMD64 self-hosted workflow recipe in-tree but hard-disable every job. Its release preflight
+  and uploader must reject that identity while it is outside the tested release-unit contract.
   Retain exact-tag manual dispatch of the protected CI workflow as the Linux recovery path without making rebuilt bytes
   interchangeable with already-uploaded CI bytes.
 - Make every unit upload resumable and immutable. An absent asset may be uploaded, an identical existing asset may be
@@ -257,8 +255,8 @@ Exit criteria:
 
 - Pushing an exact CEM-ML release tag creates or resumes one draft and CI/CD uploads verified WASM/browser, WASM/Node,
   and Linux AMD64 release assets from that commit without publishing the draft.
-- The retained macOS/Windows self-hosted workflow schedules no jobs, and both identities are rejected before any GitHub
-  Release mutation while they remain deferred.
+- The retained Windows self-hosted workflow schedules no jobs, and its identity is rejected before any GitHub Release
+  mutation while it remains deferred.
 - The finalizer rejects missing, extra, mismatched, unsigned/unattested, wrong-version, wrong-commit, or wrong-target
   assets and publishes only after all three release units plus the aggregate index and checksum manifest redownload
   byte-identically.
@@ -650,8 +648,8 @@ Deliverables:
 - `cem-ml` CLI public distribution: separate `@epa-wg/cem-ml` WASM runtime and `@epa-wg/cem-ml-cli` Node/WASM CLI npm
   packages plus Linux AMD64 archives. Preserve those three release units as non-replaced assets on the matching tagged
   GitHub Release with checksums, signatures, SBOMs, provenance, install docs, and smoke tests; publish only after the
-  complete release-scoped asset set is staged and verified. Keep Homebrew ARM64 and Windows AMD64 deployment projects
-  as local validation surfaces until separately promoted into distribution scope.
+  complete release-scoped asset set is staged and verified. Keep the Windows AMD64 deployment project as a local
+  validation surface until separately promoted into distribution scope.
 - `@epa-wg/cem-studio` npm/PWA publication from the same fixed CEM-ML version and release commit, including static
   deployment assets, capability/build metadata, service-worker update checks, and clean-consumer verification.
 - Contribution guidelines for token specs, components, docs, and native package updates.
