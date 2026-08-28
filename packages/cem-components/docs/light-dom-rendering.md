@@ -17,14 +17,14 @@ unupgraded fallback. Substrate design lives in
   matching, global CSS, accessibility tree, form-data submission, and DOM queries
   from the outside. Data-island `<template>` contents remain inert and are excluded
   from that visible surface.
-- Author-supplied children (slot payload, default text, inline payload templates) are
-  visible fallback only before upgrade. When the component upgrades, the
-  `<cem-element>` substrate captures that payload into an associated
-  `<template data-cem-island="instance">` and renders a light-DOM projection from the
-  template + data island. The original payload is preserved as scoped data, not as
-  live UI, so the page never shows both raw payload and rendered output. This keeps
-  parity with `@epa-wg/custom-element`, where instance content is transformed from
-  `/datadom/payload` and then replaced by rendered output.
+- Ordinary author-supplied children are visible fallback before upgrade. When the
+  component upgrades, the `<cem-element>` substrate captures that payload into an
+  associated `<template data-cem-island="instance">` and renders a light-DOM
+  projection from the declaration plus data island. If an instance needs a
+  payload-owned `<style>`, the accepted CSS target instead requires one explicit
+  direct `<template>` envelope so the browser keeps the style inert before upgrade;
+  the runtime adopts that template as the instance data island. The original
+  payload is preserved as scoped data, not duplicate live UI.
 - A component MAY append additional light-DOM children for decoration (icons,
   carets, status indicators). Those decorative children:
   - MUST be unambiguously distinguishable from author content (a documented
@@ -53,6 +53,12 @@ are the ones the cem-components package commits to.
   (`<template data-cem-island="instance">`) containing captured payload, attributes,
   dataset, slice state, validation state, and event payloads. Component rendering
   MUST treat this template as data only and exclude it from visible-output diffs.
+- Under the accepted CSS migration target, one direct instance `<template>` is a
+  reserved explicit payload envelope. It is mandatory when payload contains
+  `<style>`, is adopted rather than nested in another island, and cannot be mixed
+  with non-whitespace siblings. A literal projected template must be nested inside
+  that outer envelope. This remains pending until the native `@scope` todo gate
+  passes.
 - For the bridge-window only, a legacy POC body may be opted into via
   `<template lang="custom-element-v0">`; the substrate then accepts the
   XSLT/XPath surface as a compatibility path. New primitives MUST NOT use this
@@ -108,6 +114,7 @@ attributes to a single, documented target element:
 | `tabindex` | Inner interactive element when one exists, host otherwise. |
 | `aria-*` | Forwarded per [`accessibility.md §4`](./accessibility.md). |
 | `data-*` | Host element. Authors expect to query these on the custom-element tag. |
+| declaration-owned `scope` | Produced DCE host only; it is public styling membership, not inner-element semantics. |
 
 A component MUST document which inner element is the forwarding target. The forwarding
 target MUST NOT change between upgraded and not-yet-upgraded states (so progressive
@@ -133,13 +140,26 @@ component output MUST be valid WHATWG HTML:
 
 ## 5. Style scoping
 
-Because there is no shadow DOM, styles affect — and are affected by — the page. Rules:
+Because there is no shadow DOM, styles affect—and are affected by—the page. The
+complete accepted target is the
+[CEM light-DOM CSS scope contract](../../../docs/cem-ml-uid-and-scoped-css-design.md).
+It requires native `@scope` and remains a migration target until its todo gate
+passes. Component authors still write ordinary CSS inside the declaration:
 
-- Component styles MUST be authored against the element selector (`cem-button {…}`),
-  not a `.cem-button` class. The cem-theme package follows the same rule.
-- Components MUST NOT inject global stylesheets at runtime. Theme CSS is loaded once
-  by the page; per-component styles ship as static stylesheets imported by the
-  author.
+- Use `:host` for the produced host. The target compiler emits
+  `:where(:scope)` beneath the produced-tag scope root; authors do not write the
+  generated outer `@scope`.
+- Use `part="name"` only for stable component-owned internals and `slot="name"`
+  for projected roots. Do not select data-island or render-identity markers.
+- Use declaration-owned `scope="name"` only for an intentionally public shared
+  rule set. It is not complete insulation.
+- Instance CSS MUST use the explicit inert payload-template form described above;
+  a bare style in an uninitialized produced element is page-global and forbidden.
+- Components MUST NOT inject package-global CSS or own standalone component
+  stylesheets.
+- Library selectors MUST stay at or below the contract's `0-2-1` authored
+  specificity ceiling and MUST NOT use IDs, manufactured specificity, generated
+  layers, or `!important`.
 - Component-internal layout MUST use CEM tokens. The list of tokens that apply per
   component lives in [`component-mvp.md` §Component List](../../../docs/component-mvp.md).
 - A component MAY set CSS custom properties on itself to relay an attribute value
@@ -159,6 +179,13 @@ Because there is no shadow DOM, styles affect — and are affected by — the pa
 - If no matching payload exists, the slot instruction renders its fallback content.
 - The `slot="..."` attribute on author payload is preserved inside the instance data
   island for parity, source maps, and downstream tools.
+- In the accepted CSS target, a projected element root also preserves or receives
+  the matching `slot="name"` marker in rendered light DOM; a default projected
+  element root receives `slot=""`. The component may style that root, while the
+  generated `[slot] > *` scope limit excludes its consumer-owned descendants.
+- Projected text roots cannot carry a marker and inherit from their
+  component-owned insertion container. Fallback content is component-owned and
+  MUST NOT receive a projected-root marker.
 - Component docs may also describe child-name roles (`cem-icon` as a leading icon),
   but the substrate MUST support `slot` projection because the material parity set
   relies on it.
@@ -195,6 +222,8 @@ The components in this package commit to the following substrate behaviors:
 | Bridge-window legacy authoring via `<template lang="custom-element-v0">` | NOT used by cem-components; new primitives go straight to cem-ql.                                |
 | Light-DOM rendering from captured author payload                         | Yes; no `attachShadow`, no raw payload left visible after upgrade.                               |
 | Declarative slot projection from captured payload                        | Yes; compatible with legacy material samples.                                                    |
+| Projected `slot` root and component-owned `part` CSS hooks                | Accepted target; pending the native `@scope` migration gate.                                      |
+| Explicit inert payload template for instance CSS                         | Accepted target; pending the native `@scope` migration gate.                                      |
 | `<text>` wrapper to escape `{}` inside CSS blocks                        | Yes; CSS in templates follows this rule.                                                         |
 | Shadow / closed / named-root rendering surfaces                          | NOT used by cem-components.                                                                      |
 | `customElements` registry interaction                                    | Handled by `<cem-element>` runtime; components MUST NOT call `customElements.define` themselves. |
@@ -211,6 +240,9 @@ criteria in [`docs/cem-element-design.md §7`](../../../docs/cem-element-design.
 - [`docs/cem-element-design.md`](../../../docs/cem-element-design.md) — `<cem-element>`
   substrate design, including the `<template>`-wrapped data island and the
   cem-ml/cem-ql template engine.
+- [`docs/cem-ml-uid-and-scoped-css-design.md`](../../../docs/cem-ml-uid-and-scoped-css-design.md)
+  — accepted native `@scope`, public styling-hook, specificity, and instance
+  payload contract.
 - AC-I-6 (WHATWG HTML DOM compliance as transform) — `docs/cem-ml-ac.md`.
 - AC-F-5 (reference slots for `id`/`for`/`aria-*`) — host-attribute forwarding feeds it.
 - AC-T-1 / AC-T-7 (transform contract and template embedding) — produces the markup

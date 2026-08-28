@@ -1364,7 +1364,7 @@ export const Phase2CanonicalLoginRuntimeFixture: Story = {
         }
 
         assertEqual(
-            instance.getAttribute('data-cem-scope')?.startsWith('cem-scope-story-phase2-login-'),
+            instance.getAttribute('data-cem-render-scope')?.startsWith('cem-scope-story-phase2-login-'),
             true,
             'runtime scope uid is attached to the produced instance'
         );
@@ -4321,23 +4321,24 @@ export const ScopedCssUidSeedRuntime: Story = {
         const runtime = root.__runtime;
         assert(runtime, 'story runtime is available for diagnostics');
         const instance = requiredElement(root, 'story-scoped-css-card') as HTMLElement;
-        const scopeUid = instance.getAttribute('data-cem-scope') ?? '';
+        const scopeUid = instance.getAttribute('data-cem-render-scope') ?? '';
         assert(
             /^cem-scope-story-scoped-css-card-ustoriesz2fscoped-cssz2fcard-p[0-9-]+$/.test(scopeUid),
             'uid-seed contributes a deterministic encoded scope UID'
         );
 
-        const style = requiredElement(instance, 'style');
+        const declaration = requiredElement(root, 'cem-element-story-scoped-css');
+        const style = requiredElement(declaration, ':scope > style[data-cem-declaration-style="private"]');
         const css = style.textContent ?? '';
-        assert(css.includes(`[data-cem-scope="${scopeUid}"] {`), 'style rules are wrapped in the generated scope');
+        assert(css.includes(':where(story-scoped-css-card) {'), 'style rules use the low-specificity produced-tag boundary');
         assert(css.includes('& { --scoped-border: rgb(0, 128, 0); }'), ':host rewrites to the nesting parent');
         assert(css.includes('&.legacy, & { color: red; }'), ':global and :root rewrite to scoped aliases');
-        assert(css.includes(`@keyframes pulse-${scopeUid}`), 'keyframes are renamed with the scope UID');
-        assert(css.includes(`animation: pulse-${scopeUid} 1s`), 'animation shorthand references renamed keyframes');
+        assert(css.includes(`@keyframes pulse-${scopeUid}-s1`), 'keyframes are renamed with the declaration stylesheet identity');
+        assert(css.includes(`animation: pulse-${scopeUid}-s1 1s`), 'animation shorthand references renamed keyframes');
         assert(!css.includes('@import'), '@import is suppressed from scoped CSS output');
 
         const button = requiredElement(instance, 'button');
-        assertEqual(button.getAttribute('data-cem-scope'), scopeUid, 'top-level render roots carry the scope UID');
+        assertEqual(button.getAttribute('data-cem-render-scope'), scopeUid, 'top-level render roots carry internal render identity');
         const revision = button.getAttribute('data-cem-data-revision');
         button.dispatchEvent(new Event('click', { bubbles: true }));
         await nextFrame();
@@ -4347,7 +4348,7 @@ export const ScopedCssUidSeedRuntime: Story = {
             'slice events that resolve to the existing value do not rerender the DOM'
         );
 
-        const diagnosticCodes = runtime.diagnosticsFor(instance).map((diagnostic) => diagnostic.code);
+        const diagnosticCodes = runtime.diagnosticsFor(declaration).map((diagnostic) => diagnostic.code);
         assert(diagnosticCodes.includes('cem.scoped_css.import_unsupported'), '@import suppression is diagnosed');
         assert(diagnosticCodes.includes('cem.scoped_css.global_alias'), ':global/:root aliasing is diagnosed');
     },
@@ -4414,25 +4415,25 @@ export const HostAndSourceHashUidSeedFallbacks: Story = {
     play: async ({ canvasElement }) => {
         await nextFrame();
 
-        const hostScope = requiredElement(canvasElement, 'story-host-seed-card').getAttribute('data-cem-scope') ?? '';
+        const hostScope = requiredElement(canvasElement, 'story-host-seed-card').getAttribute('data-cem-render-scope') ?? '';
         assert(
             /^cem-scope-story-host-seed-card-uhost-seedz2fstory-host-seed-card-p[0-9-]+$/.test(hostScope),
             'host uidSeed resolver supplies the fallback seed'
         );
 
-        const blankScope = requiredElement(canvasElement, 'story-blank-seed-card').getAttribute('data-cem-scope') ?? '';
+        const blankScope = requiredElement(canvasElement, 'story-blank-seed-card').getAttribute('data-cem-render-scope') ?? '';
         assert(
             /^cem-scope-story-blank-seed-card-p[0-9-]+$/.test(blankScope),
             'explicit blank uid-seed overrides the host seed and omits the seed token'
         );
 
-        const sourceScope = requiredElement(canvasElement, 'story-source-seed-card').getAttribute('data-cem-scope') ?? '';
+        const sourceScope = requiredElement(canvasElement, 'story-source-seed-card').getAttribute('data-cem-render-scope') ?? '';
         assert(
             /^cem-scope-story-source-seed-card-usource-[0-9a-f]{16}-p[0-9-]+$/.test(sourceScope),
             'build-ssr mode falls back to a stable source hash seed'
         );
 
-        const runtimeScope = requiredElement(canvasElement, 'story-runtime-seed-card').getAttribute('data-cem-scope') ?? '';
+        const runtimeScope = requiredElement(canvasElement, 'story-runtime-seed-card').getAttribute('data-cem-render-scope') ?? '';
         assert(
             /^cem-scope-story-runtime-seed-card-uruntime-[0-9]+-p[0-9-]+$/.test(runtimeScope),
             'normal runtime fallback remains dynamic when no stable seed is supplied'
@@ -4511,7 +4512,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         snapshot.templateArtifactId = 'ssr-template-artifact-1';
         snapshot.dataRevision = '7';
         const serverScopeUid = 'cem-scope-story-ssr-card-userver-p0';
-        snapshot.hostAttributes['data-cem-scope'] = serverScopeUid;
+        snapshot.hostAttributes['data-cem-render-scope'] = serverScopeUid;
         snapshot.payload = {
             ...emptySerializedPayload(),
             text: 'Server detail',
@@ -4555,7 +4556,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
 
         const instance = document.createElement('story-ssr-card');
         instance.setAttribute('label', 'Server Card');
-        instance.setAttribute('data-cem-scope', serverScopeUid);
+        instance.setAttribute('data-cem-render-scope', serverScopeUid);
         const island = document.createElement('template');
         island.setAttribute('data-cem-island', 'instance');
         island.innerHTML = '<span slot="detail">Server detail</span>';
@@ -4588,12 +4589,12 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             'client hydration preserves the server render-plan data revision'
         );
         assertEqual(
-            instance.getAttribute('data-cem-scope'),
+            instance.getAttribute('data-cem-render-scope'),
             'cem-scope-story-ssr-card-userver-p0',
             'client hydration preserves the server host scope UID'
         );
         assertEqual(
-            article.getAttribute('data-cem-scope'),
+            article.getAttribute('data-cem-render-scope'),
             'cem-scope-story-ssr-card-userver-p0',
             'client hydration preserves the server render-root scope UID'
         );
@@ -5778,14 +5779,15 @@ export const DeclarationDiagnosticsAreExposed: Story = {
             'declaration-only diagnostics identify the owning declaration tag when available'
         );
 
-        const missingTag = buildDeclaration({ templates: [{ html: '<button>x</button>' }] });
-        runtime.registerDeclaration(missingTag);
-        const missingTagDiagnostic = findDiagnostic(runtime.diagnosticsFor(missingTag), 'cem-element.tag_missing');
-        assertEqual(
-            missingTagDiagnostic.sourceMapRef?.frame,
-            'decl:unknown',
-            'declaration-only diagnostics fall back to an unknown declaration frame when no tag exists'
+        const anonymous = buildDeclaration({ templates: [{ html: '<button>x</button>' }] });
+        runtime.registerDeclaration(anonymous);
+        assert(
+            /^cem-[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/.test(
+                anonymous.getAttribute('tag') ?? ''
+            ),
+            'a missing tag is normalized into the anonymous declaration contract'
         );
+        assertEqual(runtime.diagnosticsFor(anonymous).length, 0, 'a valid anonymous declaration has no shape error');
 
         const conflict = buildDeclaration({
             tag: 'story-decl-conflict',

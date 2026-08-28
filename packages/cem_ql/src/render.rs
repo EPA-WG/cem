@@ -58,7 +58,14 @@ pub struct CompileTemplateOptions {
 #[derive(Debug, Clone)]
 pub struct TemplateArtifact {
     pub nodes: Vec<TemplateNode>,
+    pub stylesheets: Vec<TemplateStylesheetArtifact>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TemplateStylesheetArtifact {
+    pub css: String,
+    pub scope: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -245,11 +252,105 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         element_stack: Vec::new(),
         skip_cemt_function_bodies: options.skip_cemt_function_bodies,
     };
-    let nodes = compiler.compile_all();
+    let mut nodes = compiler.compile_all();
+    let mut stylesheets = Vec::new();
+    extract_static_stylesheets(
+        &mut nodes,
+        false,
+        &mut stylesheets,
+        &mut compiler.diagnostics,
+    );
     TemplateArtifact {
         nodes,
+        stylesheets,
         diagnostics: compiler.diagnostics,
     }
+}
+
+fn extract_static_stylesheets(
+    nodes: &mut Vec<TemplateNode>,
+    dynamic_ancestor: bool,
+    stylesheets: &mut Vec<TemplateStylesheetArtifact>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut retained = Vec::with_capacity(nodes.len());
+    for mut node in nodes.drain(..) {
+        match &mut node {
+            TemplateNode::Element {
+                tag,
+                attributes,
+                children,
+                source_map,
+            } if local_template_name(tag) == "style" => {
+                let scope = static_stylesheet_scope(attributes);
+                let css = static_stylesheet_text(children);
+                if dynamic_ancestor || scope.is_err() || css.is_none() {
+                    diagnostics.push(render_diagnostic(
+                        "cem.ql.template.stylesheet_dynamic_unsupported",
+                        "declaration stylesheet content and its `scope` attribute must be static"
+                            .to_owned(),
+                        source_map_start(source_map),
+                        source_map.clone(),
+                    ));
+                } else if let (Ok(scope), Some(css)) = (scope, css) {
+                    stylesheets.push(TemplateStylesheetArtifact { css, scope });
+                }
+            }
+            TemplateNode::Element { children, .. } => {
+                extract_static_stylesheets(
+                    children,
+                    dynamic_ancestor,
+                    stylesheets,
+                    diagnostics,
+                );
+                retained.push(node);
+            }
+            TemplateNode::If { children, .. } | TemplateNode::ForEach { children, .. } => {
+                extract_static_stylesheets(children, true, stylesheets, diagnostics);
+                retained.push(node);
+            }
+            TemplateNode::Choose { branches, .. } => {
+                for branch in branches {
+                    extract_static_stylesheets(
+                        &mut branch.children,
+                        true,
+                        stylesheets,
+                        diagnostics,
+                    );
+                }
+                retained.push(node);
+            }
+            _ => retained.push(node),
+        }
+    }
+    *nodes = retained;
+}
+
+fn static_stylesheet_scope(attributes: &[TemplateAttribute]) -> Result<Option<String>, ()> {
+    let Some(attribute) = attributes.iter().find(|attribute| attribute.name == "scope") else {
+        return Ok(None);
+    };
+    match &attribute.value {
+        Some(TemplateAttributeValue::Literal(value)) => Ok(Some(value.trim().to_owned())),
+        None => Ok(Some(String::new())),
+        _ => Err(()),
+    }
+}
+
+fn static_stylesheet_text(children: &[TemplateNode]) -> Option<String> {
+    let mut css = String::new();
+    for child in children {
+        match child {
+            TemplateNode::Text { text, .. } => css.push_str(text),
+            TemplateNode::Comment { text, .. } => {
+                css.push_str("/*");
+                css.push_str(text);
+                css.push_str("*/");
+            }
+            _ => return None,
+        }
+    }
+    Some(css)
 }
 
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
@@ -2883,6 +2984,66 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "cem.ql.render.control_failure"));
+    }
+
+    #[test]
+    fn compile_extracts_static_stylesheets_from_render_nodes() {
+        let artifact = compile_template(
+            r#"{module |
+                {body |
+                    {style |```
+                        :host { display: block; }
+                    ```}
+                    {style @scope="abc-lib" |```
+                        .shared { color: green; }
+                    ```}
+                    {button | Save}
+                }
+            }"#,
+            &CompileTemplateOptions::default(),
+        );
+
+        assert_eq!(artifact.stylesheets.len(), 2);
+        assert_eq!(artifact.stylesheets[0].scope, None);
+        assert!(artifact.stylesheets[0].css.contains(":host { display: block; }"));
+        assert_eq!(artifact.stylesheets[1].scope.as_deref(), Some("abc-lib"));
+        assert!(artifact.stylesheets[1].css.contains(".shared { color: green; }"));
+
+        let plan = render_compiled_template(&artifact, &TemplateData::default());
+        assert!(!render_plan_to_html(&plan).contains("<style"));
+        assert!(render_plan_to_html(&plan).contains("<button>Save</button>"));
+    }
+
+    #[test]
+    fn compile_rejects_dynamic_declaration_stylesheets() {
+        let artifact = compile_template(
+            r#"{module |
+                {slice @name=scope | abc-lib}
+                {body |
+                    {style @scope="{$scope}" |```
+                        :host { color: red; }
+                    ```}
+                    {cem:if @test=scope |
+                        {style |```
+                            :host { display: block; }
+                        ```}
+                    }
+                }
+            }"#,
+            &CompileTemplateOptions::default(),
+        );
+
+        assert!(artifact.stylesheets.is_empty());
+        assert_eq!(
+            artifact
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == "cem.ql.template.stylesheet_dynamic_unsupported")
+                .count(),
+            2,
+        );
+        let plan = render_compiled_template(&artifact, &TemplateData::default());
+        assert!(!render_plan_to_html(&plan).contains("<style"));
     }
 
     #[test]

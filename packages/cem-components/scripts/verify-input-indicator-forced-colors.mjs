@@ -9,6 +9,12 @@ import { chromium } from 'playwright';
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = join(packageRoot, '..', '..');
 const componentCss = await readFile(join(packageRoot, 'src', 'styles.css'), 'utf8');
+const selectDeclaration = await readFile(
+    join(packageRoot, 'src', 'components', 'cem-select', 'cem-select.xhtml'),
+    'utf8',
+);
+const selectCss = selectDeclaration.match(/\{style(?:\s+[^|{}]*)?\s*\|```([\s\S]*?)```\s*\}/i)?.[1];
+if (!selectCss) throw new Error('cem-select.xhtml must contain embedded CEM-ML style content');
 const themeCss = await readFile(join(repoRoot, 'packages', 'cem-theme', 'dist', 'lib', 'css', 'cem-combined.css'), 'utf8');
 const browser = await chromium.launch({ headless: true });
 
@@ -16,7 +22,7 @@ try {
     const context = await browser.newContext({ forcedColors: 'active', javaScriptEnabled: true });
     const page = await context.newPage();
     await page.setContent(`
-        <style>${themeCss}\n${componentCss}</style>
+        <style>${themeCss}\n${componentCss}\n${selectCss}</style>
         <button id="focus-start" type="button">Start</button>
         <cem-field><input id="field" value="alpha"></cem-field>
         <cem-text-field><input id="text-field" value="bravo"></cem-text-field>

@@ -19,11 +19,7 @@
  * this same render-plan materialization path.
  */
 
-import {
-    ingestContractVersion,
-    type DispositionDecision,
-    type RunMode,
-} from './disposition.js';
+import { ingestContractVersion, type DispositionDecision, type RunMode } from './disposition.js';
 
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const ATTRIBUTE_DECLARATION_TAG = 'attribute';
@@ -35,6 +31,7 @@ const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
 const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
 export const DATA_CEM_SCOPE_ATTR = 'data-cem-scope';
 export const DATA_CEM_INSTANCE_SCOPE_ATTR = 'data-cem-instance-scope';
+export const DATA_CEM_RENDER_SCOPE_ATTR = 'data-cem-render-scope';
 const STYLE_TAG = 'style';
 const SCRIPT_TAG = 'script';
 const PAYLOAD_RENDER_NODE_ID_PREFIX = 'payload-';
@@ -188,7 +185,18 @@ export interface ScopeRenderPlanOptions {
 
 export interface ScopeCssTextOptions {
     scopeAttribute?: string;
+    boundarySelector?: string;
 }
+
+export interface DeclarationStyleScopeResult {
+    scope: string | null;
+    valid: boolean;
+}
+
+export type DeclarationStylesheetScopeResolution =
+    | { kind: 'private'; scope: null }
+    | { kind: 'shared'; scope: string }
+    | { kind: 'invalid'; scope: string };
 
 export type GeneratedRenderPlanIdKind = 'render-node' | 'stylesheet';
 
@@ -490,10 +498,7 @@ function readSourceNode(source: Node, frame: string): TemplateSourceNode | undef
  * Top-level `<attribute>` declaration nodes are dropped — they configure the produced
  * element rather than producing visible output.
  */
-export function projectTemplate(
-    source: readonly TemplateSourceNode[],
-    input: TemplateProjectionInput
-): RenderPlan {
+export function projectTemplate(source: readonly TemplateSourceNode[], input: TemplateProjectionInput): RenderPlan {
     return projectTemplateWith(source, input, projectNode, isTopLevelNonOutputNode);
 }
 
@@ -512,13 +517,18 @@ export function renderPlanIdentity(plan: RenderPlan): RenderPlanIdentity {
 export function diffRenderPlansToPatchFrames(
     previous: RenderPlan | null,
     next: RenderPlan,
-    options: EdgePatchOptions = {}
+    options: EdgePatchOptions = {},
 ): PatchFrame[] {
     const batchSize = options.batchSize ?? 16;
     const transactionId = options.transactionId ?? patchTransactionId(next);
     const ops = diffRenderPlans(previous, next);
     const frames: PatchFrame[] = [
-        { type: 'begin', transactionId, revision: renderPlanIdentity(next), renderEngineVersion: RENDER_ENGINE_VERSION },
+        {
+            type: 'begin',
+            transactionId,
+            revision: renderPlanIdentity(next),
+            renderEngineVersion: RENDER_ENGINE_VERSION,
+        },
     ];
 
     for (let index = 0; index < ops.length; index += batchSize) {
@@ -612,14 +622,17 @@ export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRe
         scopePolicyStamp: input.renderPlan.scopePolicyStamp,
         privacyPolicyStamp: input.privacyPolicyStamp,
         renderRevision: identity,
-        currentTemplateArtifact: input.templateArtifact !== undefined
-            ? edgeContentAddress('template-artifact', input.templateArtifact)
-            : undefined,
+        currentTemplateArtifact:
+            input.templateArtifact !== undefined
+                ? edgeContentAddress('template-artifact', input.templateArtifact)
+                : undefined,
         currentRenderPlan,
-        currentSnapshot: input.sanitizedSnapshot !== undefined
-            ? edgeContentAddress('sanitized-snapshot', input.sanitizedSnapshot)
-            : undefined,
-        currentHtml: input.renderedHtml !== undefined ? edgeContentAddress('rendered-html', input.renderedHtml) : undefined,
+        currentSnapshot:
+            input.sanitizedSnapshot !== undefined
+                ? edgeContentAddress('sanitized-snapshot', input.sanitizedSnapshot)
+                : undefined,
+        currentHtml:
+            input.renderedHtml !== undefined ? edgeContentAddress('rendered-html', input.renderedHtml) : undefined,
     };
     return {
         ...recordWithoutEtag,
@@ -629,14 +642,14 @@ export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRe
 
 export function edgeRenderStateRevisionMatches(
     record: EdgeRenderStateRecord,
-    expectedRevision: RenderRevision
+    expectedRevision: RenderRevision,
 ): boolean {
     return renderRevisionKey(record.renderRevision) === renderRevisionKey(expectedRevision);
 }
 
 export function readEdgeContent<T = unknown>(
     store: EdgeRenderStateStore,
-    address: EdgeContentAddress
+    address: EdgeContentAddress,
 ): EdgeContentReadResult<T> {
     const value = store.getContent<T>(address);
     if (value === undefined) {
@@ -652,7 +665,7 @@ export function readEdgeContent<T = unknown>(
 export function readEdgeRenderStateContents(
     store: EdgeRenderStateStore,
     record: EdgeRenderStateRecord,
-    mode: RunMode = 'application'
+    mode: RunMode = 'application',
 ): EdgeRenderStateContentsReadResult {
     // BR-VC-9: the edge render-state record is a data/security contract. If the
     // persisted record declares a schema version this build does not fully
@@ -660,12 +673,7 @@ export function readEdgeRenderStateContents(
     // = must-understand), apply the run-mode disposition before trusting it. An
     // application/build-SSR run rejects rather than honoring/dropping unknown
     // fields from a record written by a newer engine.
-    const ingest = ingestContractVersion(
-        record.schemaVersion,
-        EDGE_RENDER_STATE_VERSION,
-        mode,
-        'edge-render-state'
-    );
+    const ingest = ingestContractVersion(record.schemaVersion, EDGE_RENDER_STATE_VERSION, mode, 'edge-render-state');
     if (!ingest.accept) {
         return { ok: false, reason: 'schema-version-unsupported', record, decision: ingest.decision };
     }
@@ -708,7 +716,7 @@ export function readEdgeRenderStateContents(
 function edgeContentFailureToRecordFailure(
     record: EdgeRenderStateRecord,
     field: EdgeRenderStateContentField,
-    failure: Exclude<EdgeContentReadResult, { ok: true }>
+    failure: Exclude<EdgeContentReadResult, { ok: true }>,
 ): EdgeRenderStateContentsReadResult {
     if (failure.reason === 'missing-content') {
         return {
@@ -732,7 +740,7 @@ function edgeContentFailureToRecordFailure(
 export function advanceEdgeRenderState(
     store: EdgeRenderStateStore,
     input: EdgeRenderStateInput,
-    options: EdgeRenderStateAdvanceOptions = {}
+    options: EdgeRenderStateAdvanceOptions = {},
 ): EdgeRenderStateAdvanceResult {
     const stateKey = input.stateKey ?? edgeRenderStateKey(renderPlanIdentity(input.renderPlan));
     const current = store.readRecord(stateKey);
@@ -768,10 +776,7 @@ export function advanceEdgeRenderState(
         previousRenderPlan = storedPreviousPlan.value;
     }
     const expectedEtag = options.expectedEtag ?? current?.etag;
-    const write = store.writeRenderState(
-        { ...input, stateKey },
-        expectedEtag === undefined ? {} : { expectedEtag }
-    );
+    const write = store.writeRenderState({ ...input, stateKey }, expectedEtag === undefined ? {} : { expectedEtag });
     if (!write.ok) {
         return write;
     }
@@ -786,7 +791,7 @@ export function advanceEdgeRenderState(
 export function projectAndAdvanceEdgeRenderState(
     store: EdgeRenderStateStore,
     input: EdgeProjectionAdvanceInput,
-    options: EdgeRenderStateAdvanceOptions = {}
+    options: EdgeRenderStateAdvanceOptions = {},
 ): EdgeRenderStateAdvanceResult {
     return advanceEdgeRenderState(
         store,
@@ -798,7 +803,7 @@ export function projectAndAdvanceEdgeRenderState(
             privacyPolicyStamp: input.privacyPolicyStamp,
             stateKey: input.stateKey,
         },
-        options
+        options,
     );
 }
 
@@ -814,27 +819,24 @@ export class InMemoryEdgeRenderStateStore implements EdgeRenderStateStore {
 
     getContent<T = unknown>(address: EdgeContentAddress): T | undefined {
         const value = this.contents.get(address.key);
-        return value === undefined ? undefined : cloneStableJsonValue(value) as T;
+        return value === undefined ? undefined : (cloneStableJsonValue(value) as T);
     }
 
     readRecord(stateKey: string): EdgeRenderStateRecord | undefined {
         const record = this.records.get(stateKey);
-        return record ? cloneStableJsonValue(record) as EdgeRenderStateRecord : undefined;
+        return record ? (cloneStableJsonValue(record) as EdgeRenderStateRecord) : undefined;
     }
 
-    writeRecord(
-        record: EdgeRenderStateRecord,
-        options: EdgeRenderStateWriteOptions = {}
-    ): EdgeRenderStateWriteResult {
+    writeRecord(record: EdgeRenderStateRecord, options: EdgeRenderStateWriteOptions = {}): EdgeRenderStateWriteResult {
         const current = this.records.get(record.stateKey);
         if (
-            (options.ifAbsent === true && current !== undefined)
-            || (options.expectedEtag !== undefined && current?.etag !== options.expectedEtag)
+            (options.ifAbsent === true && current !== undefined) ||
+            (options.expectedEtag !== undefined && current?.etag !== options.expectedEtag)
         ) {
             return {
                 ok: false,
                 reason: 'etag-mismatch',
-                current: current ? cloneStableJsonValue(current) as EdgeRenderStateRecord : undefined,
+                current: current ? (cloneStableJsonValue(current) as EdgeRenderStateRecord) : undefined,
             };
         }
         const stored = cloneStableJsonValue(record) as EdgeRenderStateRecord;
@@ -844,7 +846,7 @@ export class InMemoryEdgeRenderStateStore implements EdgeRenderStateStore {
 
     writeRenderState(
         input: EdgeRenderStateInput,
-        options: EdgeRenderStateWriteOptions = {}
+        options: EdgeRenderStateWriteOptions = {},
     ): EdgeRenderStateWriteResult {
         if (input.templateArtifact !== undefined) {
             this.putContent('template-artifact', input.templateArtifact);
@@ -866,9 +868,9 @@ function projectTemplateWith(
     project: (
         source: TemplateSourceNode,
         input: TemplateProjectionInput,
-        nextRenderNodeId: () => string
+        nextRenderNodeId: () => string,
     ) => RenderPlanNode[],
-    isTopLevelNonOutput: (node: TemplateSourceNode) => boolean
+    isTopLevelNonOutput: (node: TemplateSourceNode) => boolean,
 ): RenderPlan {
     let renderNodeSequence = 0;
     const nextRenderNodeId = (): string => {
@@ -899,7 +901,7 @@ function projectTemplateWith(
 function projectNode(
     source: TemplateSourceNode,
     input: TemplateProjectionInput,
-    nextRenderNodeId: () => string
+    nextRenderNodeId: () => string,
 ): RenderPlanNode[] {
     if (source.kind === 'text') {
         return [{ kind: 'text', text: interpolateText(source.text, input.values), sourceMapRef: source.sourceMapRef }];
@@ -916,16 +918,17 @@ function projectNode(
         }
     }
 
-    return [{
-        kind: 'element',
-        namespace: source.namespace,
-        tag: source.tag,
-        attributes,
-        renderNodeId: nextRenderNodeId(),
-        children: source.children
-            .flatMap((child) => projectNode(child, input, nextRenderNodeId)),
-        sourceMapRef: source.sourceMapRef,
-    }];
+    return [
+        {
+            kind: 'element',
+            namespace: source.namespace,
+            tag: source.tag,
+            attributes,
+            renderNodeId: nextRenderNodeId(),
+            children: source.children.flatMap((child) => projectNode(child, input, nextRenderNodeId)),
+            sourceMapRef: source.sourceMapRef,
+        },
+    ];
 }
 
 /**
@@ -952,24 +955,20 @@ export function projectSlotsInRenderPlan(plan: RenderPlan, payload: unknown): Re
 export function scopeRenderPlan(
     plan: RenderPlan,
     scopeUid: string,
-    options: ScopeRenderPlanOptions = {}
+    options: ScopeRenderPlanOptions = {},
 ): ScopedRenderPlanResult {
     const diagnostics: ScopedCssRewriteDiagnostic[] = [];
     const instanceScopeUid = options.instanceScopeUid ?? renderInstanceScopeUid(scopeUid, plan.instanceId);
     return {
         renderPlan: {
             ...plan,
-            nodes: scopeRenderNodes(plan.nodes, scopeUid, instanceScopeUid, diagnostics, true),
+            nodes: scopeRenderNodes(plan.nodes, plan.producedTag, scopeUid, instanceScopeUid, diagnostics, true),
         },
         diagnostics,
     };
 }
 
-export function scopeCssText(
-    css: string,
-    scopeUid: string,
-    options: ScopeCssTextOptions = {}
-): ScopedCssRewriteResult {
+export function scopeCssText(css: string, scopeUid: string, options: ScopeCssTextOptions = {}): ScopedCssRewriteResult {
     const diagnostics: ScopedCssRewriteDiagnostic[] = [];
     let scoped = css;
 
@@ -1029,10 +1028,50 @@ export function scopeCssText(
 
     const body = scoped.trim();
     const scopeAttribute = options.scopeAttribute ?? DATA_CEM_SCOPE_ATTR;
+    const boundarySelector = options.boundarySelector ?? `:where([${scopeAttribute}="${cssString(scopeUid)}"])`;
     return {
-        css: body.length > 0 ? `[${scopeAttribute}="${cssString(scopeUid)}"] {\n${indentCss(body)}\n}` : '',
+        css: body.length > 0 ? `${boundarySelector} {\n${indentCss(body)}\n}` : '',
         diagnostics,
     };
+}
+
+/**
+ * Normalize the optional public declaration style scope without involving DOM
+ * or registration side effects. A present scope is exactly one ASCII policy
+ * identifier beginning with a letter.
+ */
+export function resolveDeclarationStyleScope(present: boolean, value: string | null): DeclarationStyleScopeResult {
+    if (!present) {
+        return { scope: null, valid: true };
+    }
+    const scope = value?.trim() ?? '';
+    return /^[A-Za-z][A-Za-z0-9_-]*$/.test(scope) ? { scope, valid: true } : { scope: null, valid: false };
+}
+
+/**
+ * Resolve every static declaration stylesheet through the presence-based
+ * private/shared matrix. Invalid explicit styles never change how valid bare
+ * styles resolve.
+ */
+export function resolveDeclarationStylesheetScopes(
+    declarationScope: string | null,
+    stylesheetScopes: readonly (string | null)[],
+): DeclarationStylesheetScopeResolution[] {
+    const hasMatchingExplicitScope =
+        declarationScope !== null &&
+        stylesheetScopes.some((scope) => scope !== null && scope.trim() === declarationScope);
+
+    return stylesheetScopes.map((scope) => {
+        if (scope !== null) {
+            const normalized = scope.trim();
+            return declarationScope !== null && normalized === declarationScope
+                ? { kind: 'shared', scope: declarationScope }
+                : { kind: 'invalid', scope: normalized };
+        }
+        return declarationScope !== null && !hasMatchingExplicitScope
+            ? { kind: 'shared', scope: declarationScope }
+            : { kind: 'private', scope: null };
+    });
 }
 
 export function renderInstanceScopeUid(scopeUid: string, instanceId: string): string {
@@ -1080,7 +1119,7 @@ function recordGeneratedRenderPlanId(
         path: string;
         code: string;
         label: string;
-    }
+    },
 ): void {
     const firstPath = seen.get(input.id);
     if (firstPath !== undefined) {
@@ -1098,10 +1137,7 @@ function recordGeneratedRenderPlanId(
     seen.set(input.id, input.path);
 }
 
-function projectSlotNodes(
-    nodes: readonly RenderPlanNode[],
-    payload: ProjectionPayload
-): RenderPlanNode[] {
+function projectSlotNodes(nodes: readonly RenderPlanNode[], payload: ProjectionPayload): RenderPlanNode[] {
     const out: RenderPlanNode[] = [];
     for (const node of nodes) {
         if (node.kind !== 'element') {
@@ -1122,10 +1158,7 @@ function projectSlotNodes(
     return out;
 }
 
-function collectProjectedSlotPayload(
-    payload: ProjectionPayload,
-    name: string
-): RenderPlanNode[] {
+function collectProjectedSlotPayload(payload: ProjectionPayload, name: string): RenderPlanNode[] {
     const projected: RenderPlanNode[] = [];
     for (const node of payload.slots?.[name] ?? []) {
         projected.push(payloadNodeToRenderNode(node));
@@ -1160,41 +1193,47 @@ function coerceProjectionPayload(payload: unknown): ProjectionPayload | null {
 
 function scopeRenderNodes(
     nodes: readonly RenderPlanNode[],
+    producedTag: string,
     scopeUid: string,
     instanceScopeUid: string,
     diagnostics: ScopedCssRewriteDiagnostic[],
-    stampScope: boolean
+    stampScope: boolean,
 ): RenderPlanNode[] {
     return nodes.map((node) => {
         if (node.kind !== 'element') {
             return node;
         }
 
-        const attributes = stampScope
-            ? withRenderPlanAttribute(node.attributes, DATA_CEM_SCOPE_ATTR, scopeUid)
-            : node.attributes;
         if (node.tag === STYLE_TAG && node.namespace === null) {
+            const payload = isPayloadRenderNode(node);
             const rewritten = scopeStyleNode(
                 node,
-                isPayloadRenderNode(node) ? instanceScopeUid : scopeUid,
-                isPayloadRenderNode(node) ? DATA_CEM_INSTANCE_SCOPE_ATTR : DATA_CEM_SCOPE_ATTR
+                payload ? instanceScopeUid : scopeUid,
+                payload ? DATA_CEM_INSTANCE_SCOPE_ATTR : DATA_CEM_RENDER_SCOPE_ATTR,
+                payload
+                    ? `${producedTag}[${DATA_CEM_INSTANCE_SCOPE_ATTR}="${cssString(instanceScopeUid)}"]`
+                    : `:where(${producedTag})`,
             );
             diagnostics.push(...rewritten.diagnostics);
             return {
                 ...node,
-                attributes,
-                children: [{
-                    kind: 'text',
-                    text: rewritten.css,
-                    sourceMapRef: firstTextSourceMapRef(node.children) ?? node.sourceMapRef,
-                }],
+                attributes: node.attributes,
+                children: [
+                    {
+                        kind: 'text',
+                        text: rewritten.css,
+                        sourceMapRef: firstTextSourceMapRef(node.children) ?? node.sourceMapRef,
+                    },
+                ],
             };
         }
 
         return {
             ...node,
-            attributes,
-            children: scopeRenderNodes(node.children, scopeUid, instanceScopeUid, diagnostics, false),
+            attributes: stampScope
+                ? withRenderPlanAttribute(node.attributes, DATA_CEM_RENDER_SCOPE_ATTR, scopeUid)
+                : node.attributes,
+            children: scopeRenderNodes(node.children, producedTag, scopeUid, instanceScopeUid, diagnostics, false),
         };
     });
 }
@@ -1202,7 +1241,8 @@ function scopeRenderNodes(
 function scopeStyleNode(
     node: Extract<RenderPlanNode, { kind: 'element' }>,
     scopeUid: string,
-    scopeAttribute: string
+    scopeAttribute: string,
+    boundarySelector: string,
 ): ScopedCssRewriteResult {
     const css = node.children
         .map((child) => {
@@ -1212,7 +1252,7 @@ function scopeStyleNode(
             return child.kind === 'comment' ? `/*${child.text}*/` : '';
         })
         .join('');
-    return scopeCssText(css, scopeUid, { scopeAttribute });
+    return scopeCssText(css, scopeUid, { scopeAttribute, boundarySelector });
 }
 
 function isPayloadRenderNode(node: RenderPlanNode): boolean {
@@ -1231,7 +1271,7 @@ function firstTextSourceMapRef(nodes: readonly RenderPlanNode[]): SourceMapRef |
 function withRenderPlanAttribute(
     attributes: readonly RenderPlanAttribute[],
     name: string,
-    value: string
+    value: string,
 ): RenderPlanAttribute[] {
     let replaced = false;
     const next = attributes.map((attribute) => {
@@ -1249,11 +1289,13 @@ function rewriteAnimationReferences(css: string, renames: ReadonlyMap<string, st
         return css;
     }
     return css
-        .replace(/((?:-webkit-)?animation-name\s*:\s*)([^;{}]+)/gi, (_match, prefix: string, value: string) =>
-            `${prefix}${replaceCssValueNames(value, renames)}`
+        .replace(
+            /((?:-webkit-)?animation-name\s*:\s*)([^;{}]+)/gi,
+            (_match, prefix: string, value: string) => `${prefix}${replaceCssValueNames(value, renames)}`,
         )
-        .replace(/((?:-webkit-)?animation\s*:\s*)([^;{}]+)/gi, (_match, prefix: string, value: string) =>
-            `${prefix}${replaceCssValueNames(value, renames)}`
+        .replace(
+            /((?:-webkit-)?animation\s*:\s*)([^;{}]+)/gi,
+            (_match, prefix: string, value: string) => `${prefix}${replaceCssValueNames(value, renames)}`,
         );
 }
 
@@ -1262,7 +1304,7 @@ function replaceCssValueNames(value: string, renames: ReadonlyMap<string, string
     for (const [name, scopedName] of renames) {
         rewritten = rewritten.replace(
             new RegExp(`(^|[^-_A-Za-z0-9])(${escapeRegExp(name)})(?=$|[^-_A-Za-z0-9])`, 'g'),
-            (_match, prefix: string) => `${prefix}${scopedName}`
+            (_match, prefix: string) => `${prefix}${scopedName}`,
         );
     }
     return rewritten;
@@ -1310,11 +1352,17 @@ function matchingBraceIndex(css: string, openIndex: number): number {
 }
 
 function indentCss(css: string): string {
-    return css.split(/\r?\n/).map((line) => (line.length > 0 ? `    ${line}` : '')).join('\n');
+    return css
+        .split(/\r?\n/)
+        .map((line) => (line.length > 0 ? `    ${line}` : ''))
+        .join('\n');
 }
 
 function cssIdentifier(value: string): string {
-    const sanitized = value.toLowerCase().replace(/[^-_a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const sanitized = value
+        .toLowerCase()
+        .replace(/[^-_a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
     return sanitized.length > 0 ? sanitized : 'scope';
 }
 
@@ -1341,7 +1389,7 @@ export function materializeRenderPlan(plan: RenderPlan, document: Document): Doc
 export function mergeRenderedFragmentIntoRange(
     bounds: RenderPlanDomRange,
     rendered: DocumentFragment,
-    options: RenderedFragmentMergeOptions = {}
+    options: RenderedFragmentMergeOptions = {},
 ): void {
     const parent = bounds.start.parentNode;
     if (!parent || bounds.end.parentNode !== parent) {
@@ -1349,7 +1397,13 @@ export function mergeRenderedFragmentIntoRange(
     }
     const focus = captureRenderRangeFocus(bounds);
     try {
-        mergeChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, Array.from(rendered.childNodes), options);
+        mergeChildNodes(
+            parent,
+            bounds.start.nextSibling as ChildNode | null,
+            bounds.end,
+            Array.from(rendered.childNodes),
+            options,
+        );
     } finally {
         restoreRenderRangeFocus(focus);
     }
@@ -1359,7 +1413,7 @@ export function applyRenderPlanToRange(
     bounds: RenderPlanDomRange,
     plan: RenderPlan,
     document: Document,
-    options: RenderPlanApplyOptions = {}
+    options: RenderPlanApplyOptions = {},
 ): RenderPlanApplyResult {
     const parent = bounds.start.parentNode;
     if (!parent || bounds.end.parentNode !== parent) {
@@ -1373,17 +1427,25 @@ export function applyRenderPlanToRange(
             replaceRangeWithRenderPlan(bounds, plan, document, options);
             return {
                 mode: 'replaceScope',
-                diagnostics: [{
-                    code: 'cem.render_plan_apply.replace_scope',
-                    severity: recovery.reason === 'first-render' ? 'info' : 'warning',
-                    reason: recovery.reason,
-                    message: recovery.message,
-                }],
+                diagnostics: [
+                    {
+                        code: 'cem.render_plan_apply.replace_scope',
+                        severity: recovery.reason === 'first-render' ? 'info' : 'warning',
+                        reason: recovery.reason,
+                        message: recovery.message,
+                    },
+                ],
             };
         }
 
         const context: RenderPlanApplyContext = { plan, document, options };
-        mergeRenderPlanChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, plan.nodes, context);
+        mergeRenderPlanChildNodes(
+            parent,
+            bounds.start.nextSibling as ChildNode | null,
+            bounds.end,
+            plan.nodes,
+            context,
+        );
         return { mode: 'patch', diagnostics: [] };
     } finally {
         restoreRenderRangeFocus(focus);
@@ -1400,7 +1462,7 @@ export function applyPatchFramesToRange(
     frames: readonly PatchFrame[],
     expectedRevision: RenderRevision,
     document: Document,
-    options: RenderPlanApplyOptions = {}
+    options: RenderPlanApplyOptions = {},
 ): PatchFramesApplyResult {
     const parsed = parseCommittedPatchFrames(frames);
     if (!parsed.ok) {
@@ -1409,16 +1471,18 @@ export function applyPatchFramesToRange(
     if (renderRevisionKey(parsed.revision) !== renderRevisionKey(expectedRevision)) {
         return {
             status: 'stale',
-            diagnostics: [{
-                code: 'cem.patch_frame.stale_revision',
-                severity: 'warning',
-                message: 'the committed patch transaction did not match the latest requested render revision',
-            }],
+            diagnostics: [
+                {
+                    code: 'cem.patch_frame.stale_revision',
+                    severity: 'warning',
+                    message: 'the committed patch transaction did not match the latest requested render revision',
+                },
+            ],
         };
     }
 
     const replaceScope = parsed.ops.filter(
-        (operation): operation is Extract<DomPatchOp, { op: 'replaceScope' }> => operation.op === 'replaceScope'
+        (operation): operation is Extract<DomPatchOp, { op: 'replaceScope' }> => operation.op === 'replaceScope',
     );
     if (replaceScope.length > 0) {
         if (replaceScope.length !== parsed.ops.length) {
@@ -1439,8 +1503,8 @@ export function applyPatchFramesToRange(
         }
         const target = findNodeByRenderIdentityInRange(bounds, operation.target.id);
         if (
-            !target
-            || ((operation.op === 'setAttribute' || operation.op === 'reconcileChildren') && target.nodeType !== 1)
+            !target ||
+            ((operation.op === 'setAttribute' || operation.op === 'reconcileChildren') && target.nodeType !== 1)
         ) {
             return abortedPatch(`patch target \`${operation.target.id}\` was not present in the rendered range`);
         }
@@ -1459,10 +1523,7 @@ export function applyPatchFramesToRange(
                     const currentAttribute = element.getAttributeNode(operation.name);
                     const desired = element.cloneNode(false) as Element;
                     desired.removeAttribute(operation.name);
-                    if (
-                        !currentAttribute
-                        || !options.preserveElementAttribute?.(element, desired, currentAttribute)
-                    ) {
+                    if (!currentAttribute || !options.preserveElementAttribute?.(element, desired, currentAttribute)) {
                         element.removeAttribute(operation.name);
                     }
                 } else {
@@ -1482,7 +1543,7 @@ export function applyPatchFramesToRange(
             } else {
                 target.parentNode?.replaceChild(
                     materializeSerializedNode(operation.node.node, parsed.commit.nextRenderPlan, document),
-                    target
+                    target,
                 );
             }
         }
@@ -1519,9 +1580,9 @@ function parseCommittedPatchFrames(frames: readonly PatchFrame[]):
     let nextBatchIndex = 0;
     for (const frame of frames.slice(1, -1)) {
         if (
-            frame.type !== 'ops'
-            || frame.transactionId !== begin.transactionId
-            || frame.batchIndex !== nextBatchIndex
+            frame.type !== 'ops' ||
+            frame.transactionId !== begin.transactionId ||
+            frame.batchIndex !== nextBatchIndex
         ) {
             return invalidPatch('patch operation batches must be contiguous and ordered from zero');
         }
@@ -1560,18 +1621,14 @@ function deserializePatchNode(node: SerializedNode): RenderPlanNode {
     };
 }
 
-function materializeSerializedNode(
-    node: SerializedNode,
-    identity: RenderPlanIdentity,
-    document: Document
-): Node {
+function materializeSerializedNode(node: SerializedNode, identity: RenderPlanIdentity, document: Document): Node {
     return materializeNode(deserializePatchNode(node), { ...identity, nodes: [] }, document);
 }
 
 function updateCommittedRenderMetadata(
     bounds: RenderPlanDomRange,
     identity: RenderPlanIdentity,
-    options: RenderPlanApplyOptions
+    options: RenderPlanApplyOptions,
 ): void {
     let current = bounds.start.nextSibling;
     while (current && current !== bounds.end) {
@@ -1603,9 +1660,9 @@ function reconcileNodeRenderedAttributes(node: Node, options: RenderPlanApplyOpt
             }
             for (const attribute of Array.from(element.attributes)) {
                 if (
-                    !names.has(attribute.name)
-                    && !isRenderMetadataAttribute(attribute.name)
-                    && !options.preserveElementAttribute?.(element, desired, attribute)
+                    !names.has(attribute.name) &&
+                    !isRenderMetadataAttribute(attribute.name) &&
+                    !options.preserveElementAttribute?.(element, desired, attribute)
                 ) {
                     element.removeAttribute(attribute.name);
                 }
@@ -1625,23 +1682,21 @@ function authoredAttributes(element: Element): Map<string, string> {
     return new Map(
         Array.from(element.attributes)
             .filter((attribute) => !isRenderMetadataAttribute(attribute.name))
-            .map((attribute) => [attribute.name, attribute.value])
+            .map((attribute) => [attribute.name, attribute.value]),
     );
 }
 
 function isRenderMetadataAttribute(name: string): boolean {
-    return name === RENDER_NODE_ID_ATTR
-        || name === TEMPLATE_ARTIFACT_ID_ATTR
-        || name === DATA_REVISION_ATTR
-        || name === SOURCE_FIDELITY_ATTR
-        || name === SOURCE_FRAME_ATTR;
+    return (
+        name === RENDER_NODE_ID_ATTR ||
+        name === TEMPLATE_ARTIFACT_ID_ATTR ||
+        name === DATA_REVISION_ATTR ||
+        name === SOURCE_FIDELITY_ATTR ||
+        name === SOURCE_FRAME_ATTR
+    );
 }
 
-function updateNodeRenderMetadata(
-    node: Node,
-    identity: RenderPlanIdentity,
-    options: RenderPlanApplyOptions
-): void {
+function updateNodeRenderMetadata(node: Node, identity: RenderPlanIdentity, options: RenderPlanApplyOptions): void {
     let preserveChildren = false;
     if (node.nodeType === 1) {
         const element = node as Element;
@@ -1675,7 +1730,10 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
     for (const attribute of node.attributes) {
         element.setAttribute(attribute.name, attribute.value);
     }
-    renderedAttributeValues.set(element, new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])));
+    renderedAttributeValues.set(
+        element,
+        new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])),
+    );
     element.setAttribute(RENDER_NODE_ID_ATTR, node.renderNodeId);
     (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = node.renderNodeId;
     element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
@@ -1724,7 +1782,7 @@ function replaceRangeWithRenderPlan(
     bounds: RenderPlanDomRange,
     plan: RenderPlan,
     document: Document,
-    options: RenderPlanApplyOptions
+    options: RenderPlanApplyOptions,
 ): void {
     let current = bounds.start.nextSibling;
     while (current && current !== bounds.end) {
@@ -1741,11 +1799,11 @@ function replaceRangeWithRenderPlan(
 function renderScopeRecoveryReason(
     bounds: RenderPlanDomRange,
     plan: RenderPlan,
-    options: RenderPlanApplyOptions
+    options: RenderPlanApplyOptions,
 ): RenderScopeRecoveryReason | undefined {
     const currentIds = elementRenderIdentitiesBetween(bounds.start.nextSibling, bounds.end);
     const desiredIds = plan.nodes.flatMap((node) =>
-        node.kind === 'element' && !isTransientRenderPlanElement(node, options) ? [node.renderNodeId] : []
+        node.kind === 'element' && !isTransientRenderPlanElement(node, options) ? [node.renderNodeId] : [],
     );
     if (currentIds.length === 0) {
         return undefined;
@@ -1769,7 +1827,7 @@ function renderScopeRecoveryReason(
 
 function isTransientRenderPlanElement(
     node: Extract<RenderPlanNode, { kind: 'element' }>,
-    options: RenderPlanApplyOptions
+    options: RenderPlanApplyOptions,
 ): boolean {
     return options.transientElementTags?.includes(node.tag) ?? false;
 }
@@ -1794,7 +1852,7 @@ function mergeRenderPlanChildNodes(
     firstCurrent: ChildNode | null,
     end: Node | null,
     desiredNodes: readonly RenderPlanNode[],
-    context: RenderPlanApplyContext
+    context: RenderPlanApplyContext,
 ): void {
     let current: ChildNode | null = firstCurrent;
     for (const desired of desiredNodes) {
@@ -1803,9 +1861,7 @@ function mergeRenderPlanChildNodes(
             const moved = match.first !== current;
             if (moved) moveRenderPlanMatchBefore(parent, match, current ?? end);
             mergeRenderPlanNode(match, desired, context);
-            current = moved
-                ? (match.rangeEnd ?? match.first).nextSibling as ChildNode | null
-                : match.after;
+            current = moved ? ((match.rangeEnd ?? match.first).nextSibling as ChildNode | null) : match.after;
             continue;
         }
 
@@ -1836,7 +1892,7 @@ function matchRenderPlanNode(
     current: ChildNode | null,
     end: Node | null,
     desired: RenderPlanNode,
-    context: RenderPlanApplyContext
+    context: RenderPlanApplyContext,
 ): RenderPlanNodeMatch | null {
     if (!current || current === end) {
         return null;
@@ -1861,7 +1917,7 @@ function matchRenderPlanNode(
 function matchRenderPlanNodeAt(
     current: ChildNode,
     desired: RenderPlanNode,
-    context: RenderPlanApplyContext
+    context: RenderPlanApplyContext,
 ): RenderPlanNodeMatch | null {
     if (desired.kind === 'text' || desired.kind === 'comment') {
         if (context.options.dynamicTextRanges) {
@@ -1869,7 +1925,9 @@ function matchRenderPlanNodeAt(
             return rangeEnd ? { first: current, after: rangeEnd.nextSibling as ChildNode | null, rangeEnd } : null;
         }
         const desiredType = desired.kind === 'text' ? 3 : 8;
-        return current.nodeType === desiredType ? { first: current, after: current.nextSibling as ChildNode | null } : null;
+        return current.nodeType === desiredType
+            ? { first: current, after: current.nextSibling as ChildNode | null }
+            : null;
     }
 
     if (current.nodeType !== 1) {
@@ -1886,7 +1944,11 @@ function matchRenderPlanNodeAt(
     return { first: current, after: current.nextSibling as ChildNode | null };
 }
 
-function mergeRenderPlanNode(match: RenderPlanNodeMatch, desired: RenderPlanNode, context: RenderPlanApplyContext): void {
+function mergeRenderPlanNode(
+    match: RenderPlanNodeMatch,
+    desired: RenderPlanNode,
+    context: RenderPlanApplyContext,
+): void {
     if (desired.kind === 'text' || desired.kind === 'comment') {
         if (match.rangeEnd) {
             mergeDynamicRange(match.first as Comment, match.rangeEnd, desired, context);
@@ -1902,20 +1964,19 @@ function mergeRenderPlanNode(match: RenderPlanNodeMatch, desired: RenderPlanNode
     const element = match.first as Element;
     renderedAttributeValues.set(
         element,
-        new Map(desired.attributes.map((attribute) => [attribute.name, attribute.value]))
+        new Map(desired.attributes.map((attribute) => [attribute.name, attribute.value])),
     );
     mirrorRenderIdentity(element, desired.renderNodeId);
     const preserveElementAttribute = context.options.preserveElementAttribute;
     const preserveElementChildren = context.options.preserveElementChildren;
-    const desiredElement = preserveElementAttribute || preserveElementChildren
-        ? renderPlanElementPreview(desired, context)
-        : null;
+    const desiredElement =
+        preserveElementAttribute || preserveElementChildren ? renderPlanElementPreview(desired, context) : null;
     syncAttributes(
         element,
         renderPlanElementAttributes(desired, context.plan),
         preserveElementAttribute && desiredElement
             ? (attribute) => preserveElementAttribute(element, desiredElement, attribute)
-            : undefined
+            : undefined,
     );
     if (desiredElement && preserveElementChildren?.(element, desiredElement)) {
         return;
@@ -1923,7 +1984,12 @@ function mergeRenderPlanNode(match: RenderPlanNodeMatch, desired: RenderPlanNode
     mergeRenderPlanChildNodes(element, element.firstChild as ChildNode | null, null, desired.children, context);
 }
 
-function mergeDynamicRange(start: Comment, end: Comment, desired: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>, context: RenderPlanApplyContext): void {
+function mergeDynamicRange(
+    start: Comment,
+    end: Comment,
+    desired: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>,
+    context: RenderPlanApplyContext,
+): void {
     const desiredType = desired.kind === 'text' ? 3 : 8;
     let current = start.nextSibling as ChildNode | null;
     if (current && current !== end && current.nodeType === desiredType) {
@@ -1972,20 +2038,23 @@ function createTextLikeNode(node: Extract<RenderPlanNode, { kind: 'text' | 'comm
 function createRenderPlanElement(
     node: Extract<RenderPlanNode, { kind: 'element' }>,
     plan: RenderPlan,
-    document: Document
+    document: Document,
 ): Element {
     const element = node.namespace
         ? document.createElementNS(node.namespace, node.tag)
         : document.createElement(node.tag);
     syncAttributes(element, renderPlanElementAttributes(node, plan));
-    renderedAttributeValues.set(element, new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])));
+    renderedAttributeValues.set(
+        element,
+        new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])),
+    );
     mirrorRenderIdentity(element, node.renderNodeId);
     return element;
 }
 
 function renderPlanElementAttributes(
     node: Extract<RenderPlanNode, { kind: 'element' }>,
-    plan: RenderPlan
+    plan: RenderPlan,
 ): Map<string, string> {
     const attributes = new Map(node.attributes.map((attribute) => [attribute.name, attribute.value]));
     attributes.set(RENDER_NODE_ID_ATTR, node.renderNodeId);
@@ -2000,7 +2069,7 @@ function renderPlanElementAttributes(
 
 function renderPlanElementPreview(
     node: Extract<RenderPlanNode, { kind: 'element' }>,
-    context: RenderPlanApplyContext
+    context: RenderPlanApplyContext,
 ): Element {
     return createRenderPlanElement(node, context.plan, context.document);
 }
@@ -2036,7 +2105,7 @@ function mergeChildNodes(
     firstCurrent: ChildNode | null,
     end: Node | null,
     desiredNodes: readonly Node[],
-    options: RenderedFragmentMergeOptions
+    options: RenderedFragmentMergeOptions,
 ): void {
     let current: ChildNode | null = firstCurrent;
     for (const desired of desiredNodes) {
@@ -2125,7 +2194,7 @@ function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeO
     syncAttributes(
         currentElement,
         desiredElement,
-        (attribute) => options.preserveElementAttribute?.(currentElement, desiredElement, attribute) ?? false
+        (attribute) => options.preserveElementAttribute?.(currentElement, desiredElement, attribute) ?? false,
     );
     if (options.preserveElementChildren?.(currentElement, desiredElement)) {
         return;
@@ -2135,14 +2204,14 @@ function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeO
         currentElement.firstChild as ChildNode | null,
         null,
         Array.from(desiredElement.childNodes),
-        options
+        options,
     );
 }
 
 function syncAttributes(
     current: Element,
     desired: Element | ReadonlyMap<string, string>,
-    preserveCurrentAttribute?: (attribute: Attr) => boolean
+    preserveCurrentAttribute?: (attribute: Attr) => boolean,
 ): void {
     const desiredAttributes = isAttributeElement(desired)
         ? new Map(Array.from(desired.attributes).map((attribute) => [attribute.name, attribute.value]))
@@ -2298,8 +2367,9 @@ function findNodeByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string)
 }
 
 function findNodeByRenderIdentity(node: Node, id: string): Node | null {
-    const identity = (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId
-        ?? (node.nodeType === 1 ? renderIdentity(node) : null);
+    const identity =
+        (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId ??
+        (node.nodeType === 1 ? renderIdentity(node) : null);
     if (identity === id) {
         return node;
     }
@@ -2351,7 +2421,7 @@ function mirrorRenderIdentity(element: Element, id: string): void {
 function resolveAttribute(
     name: string,
     value: string,
-    values: Record<string, TemplateValue>
+    values: Record<string, TemplateValue>,
 ): RenderPlanAttribute | undefined {
     const wholeExpression = value.match(/^\{\s*\$([A-Za-z_][\w.-]*)\s*\}$/);
     if (wholeExpression) {
@@ -2428,10 +2498,7 @@ function diffRenderNode(previous: RenderPlanNode, next: RenderPlanNode, ops: Dom
     }
 
     if (previous.kind === 'element' && next.kind === 'element') {
-        if (
-            previous.tag !== next.tag ||
-            previous.namespace !== next.namespace
-        ) {
+        if (previous.tag !== next.tag || previous.namespace !== next.namespace) {
             ops.push({ op: 'replace', target: renderNodeTarget(previous), node: structuredPatchNode(next) });
             return;
         }
@@ -2454,7 +2521,11 @@ function diffRenderNode(previous: RenderPlanNode, next: RenderPlanNode, ops: Dom
     ops.push({ op: 'replace', target: renderNodeTarget(previous), node: structuredPatchNode(next) });
 }
 
-function diffAttributes(previous: Extract<RenderPlanNode, { kind: 'element' }>, next: Extract<RenderPlanNode, { kind: 'element' }>, ops: DomPatchOp[]): void {
+function diffAttributes(
+    previous: Extract<RenderPlanNode, { kind: 'element' }>,
+    next: Extract<RenderPlanNode, { kind: 'element' }>,
+    ops: DomPatchOp[],
+): void {
     const previousAttributes = attributeRecord(previous.attributes);
     const nextAttributes = attributeRecord(next.attributes);
     const target = renderNodeTarget(previous);

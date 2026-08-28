@@ -7,7 +7,8 @@ use std::path::PathBuf;
 use cem_ml::content_cache::ContentHash;
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
-    compile_template, render_compiled_template, CompileTemplateOptions, TemplateData,
+    compile_template, render_compiled_template, render_plan_to_html, CompileTemplateOptions,
+    TemplateData,
 };
 use cem_ql::template_artifact::{
     compile_template_artifact, CompiledTemplateArtifact, TemplateArtifactLoadContext,
@@ -55,6 +56,34 @@ fn precompiled_template_matches_source_driven_render_without_source_reload() {
         render_compiled_template(&reloaded, &data).nodes,
         render_compiled_template(&source_driven, &data).nodes
     );
+}
+
+#[test]
+fn precompiled_template_preserves_static_declaration_stylesheets() {
+    let source = r#"{module |
+        {body |
+            {style | ```
+                :host { display: block; }
+            ```}
+            {style @scope="abc-lib" | ```
+                .shared { color: green; }
+            ```}
+            {button | Save}
+        }
+    }"#;
+    let options = compile_options();
+    let source_driven = compile_template(source, &options);
+    let compiled =
+        compile_template_artifact(source, &options, TemplateArtifactSourceMapMode::Dev);
+    let reloaded = CompiledTemplateArtifact::from_bytes(compiled.bytes)
+        .expect("stylesheet artifact envelope reloads")
+        .reload(&load_context(source))
+        .expect("stylesheet artifact IR reloads");
+
+    assert_eq!(reloaded.stylesheets, source_driven.stylesheets);
+    assert_eq!(reloaded.stylesheets.len(), 2);
+    let rendered = render_compiled_template(&reloaded, &TemplateData::default());
+    assert!(!render_plan_to_html(&rendered).contains("<style"));
 }
 
 #[test]

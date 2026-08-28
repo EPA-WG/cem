@@ -4167,6 +4167,7 @@ fn template_body_nodes(children: &[TemplateNode]) -> Vec<TemplateNode> {
 fn artifact_from_nodes(source: &TemplateArtifact, nodes: Vec<TemplateNode>) -> TemplateArtifact {
     TemplateArtifact {
         nodes,
+        stylesheets: source.stylesheets.clone(),
         diagnostics: source.diagnostics.clone(),
     }
 }

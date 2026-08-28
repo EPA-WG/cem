@@ -9,7 +9,7 @@ implementation-ready contract; later phases remain roadmap items.
 [`CEM-ML resource lifecycle`](./cem-ml-resource-lifecycle.md),
 [`cem-element` external resource loading contract](./cem-element-src-loading-contract.md),
 [`CEM-ML stack design`](./cem-ml-stack-design.md), and
-[`CEM-ML UID and scoped CSS design`](./cem-ml-uid-and-scoped-css-design.md).
+[`CEM light-DOM CSS scoping rules`](./cem-ml-uid-and-scoped-css-design.md).
 
 This document is the concrete `<http-request>` host-binding design. The base lifecycle, content-type negotiation,
 parser/plugin dispatch, AST stream production, projections, engine diagnostics, hydration, and de-hydration are defined by

@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { CemElementRuntime, analyzeDeclarationShape } from './cem-elements.js';
+import {
+    CemElementRuntime,
+    analyzeDeclarationShape,
+    deterministicAnonymousTag,
+} from './cem-elements.js';
 
 /**
  * Data-island isolation stories (todo §3.1).
@@ -243,6 +247,10 @@ export const DeclarationAndDataIslandIsolationMatrix: Story = {
             declarationTemplate.content,
             'style[data-iso="source-style"]'
         ) as HTMLStyleElement;
+        const managedSourceStyle = requiredElement(
+            declaration,
+            ':scope > style[data-cem-declaration-style="private"]'
+        ) as HTMLStyleElement;
         const islandLayout = requiredFragmentElement(island.content, '[data-iso="island-layout"]');
         const islandButton = requiredFragmentElement(
             island.content,
@@ -279,8 +287,17 @@ export const DeclarationAndDataIslandIsolationMatrix: Story = {
         assertEqual(rawSourceStyle.sheet, null, 'raw declaration styles do not create a stylesheet');
         assertEqual(islandStyle.sheet, null, 'island styles do not create a stylesheet');
         assert(
-            requiredElement(instance, 'style[data-iso="source-style"]') instanceof HTMLStyleElement,
-            'the explicit rendered style is materialized in live output'
+            managedSourceStyle.sheet !== null,
+            'the declaration-owned stylesheet is installed once beside the declaration template'
+        );
+        assert(
+            managedSourceStyle.textContent?.includes(':where(iso-matrix-el)') ?? false,
+            'private declaration CSS uses the zero-specificity produced-tag boundary'
+        );
+        assertEqual(
+            instance.querySelector('style[data-iso="source-style"]'),
+            null,
+            'declaration CSS is not cloned into instance DOM'
         );
         assertEqual(
             getComputedStyle(requiredElement(instance, '[data-iso="source-layout"]')).getPropertyValue(
@@ -364,6 +381,154 @@ export const DeclarationShapeGuardrailsPreventLiveData: Story = {
     },
 };
 
+export const DeclarationAndInstanceStylesHaveSeparateOwnership: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'declaration and instance stylesheet ownership');
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-style-contract' });
+
+        const sharedOnly = styleContractDeclaration(
+            'cem-element-style-contract',
+            'style-shared-only',
+            'abc-lib',
+            '<style>:host { --shared-only: yes; }</style><div><slot></slot></div>'
+        );
+        const mixed = styleContractDeclaration(
+            'cem-element-style-contract',
+            'style-mixed',
+            'abc-lib',
+            [
+                '<style>:host { --private-only: yes; }</style>',
+                '<style scope="abc-lib">:host { --shared-mixed: yes; }</style>',
+                '<div><slot></slot></div>',
+            ].join('')
+        );
+        const mismatch = styleContractDeclaration(
+            'cem-element-style-contract',
+            'style-mismatch',
+            'abc-lib',
+            '<style scope="other-lib">:host { --mismatch: no; }</style><div></div>'
+        );
+        for (const declaration of [sharedOnly, mixed, mismatch]) {
+            runtime.registerDeclaration(declaration);
+        }
+
+        const first = document.createElement('style-shared-only');
+        first.dataset.testInstance = 'shared-only';
+        const second = document.createElement('style-mixed');
+        second.dataset.testInstance = 'mixed';
+        second.innerHTML = '<style>:host { --instance-only: yes; }</style><span>payload</span>';
+        const third = document.createElement('style-mismatch');
+        third.dataset.testInstance = 'mismatch';
+        root.append(sharedOnly, mixed, mismatch, first, second, third);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const sharedOnly = requiredElement(canvasElement, '[data-test-instance="shared-only"]') as HTMLElement;
+        const mixed = requiredElement(canvasElement, '[data-test-instance="mixed"]') as HTMLElement;
+        const sharedDeclaration = requiredElement(canvasElement, 'cem-element-style-contract[tag="style-shared-only"]');
+        const mixedDeclaration = requiredElement(canvasElement, 'cem-element-style-contract[tag="style-mixed"]');
+        const mismatchDeclaration = requiredElement(canvasElement, 'cem-element-style-contract[tag="style-mismatch"]');
+
+        assertEqual(sharedOnly.getAttribute('data-cem-scope'), 'abc-lib', 'a declaration scope marks group membership');
+        assertEqual(mixed.getAttribute('data-cem-scope'), 'abc-lib', 'the same group may span component tags');
+        assert(sharedOnly.hasAttribute('data-cem-render-scope'), 'render identity is stored separately');
+
+        const sharedStyle = requiredElement(
+            sharedDeclaration,
+            ':scope > style[data-cem-declaration-style="shared"]'
+        );
+        assert(
+            sharedStyle.textContent?.startsWith(':where([data-cem-scope="abc-lib"])') ?? false,
+            'a lone bare style on a scoped declaration uses the shared zero-specificity boundary'
+        );
+
+        const privateStyle = requiredElement(
+            mixedDeclaration,
+            ':scope > style[data-cem-declaration-style="private"]'
+        );
+        const explicitSharedStyle = requiredElement(
+            mixedDeclaration,
+            ':scope > style[data-cem-declaration-style="shared"]'
+        );
+        assert(
+            privateStyle.textContent?.startsWith(':where(style-mixed)') ?? false,
+            'a bare style becomes private when an explicit scoped style coexists'
+        );
+        assert(
+            explicitSharedStyle.textContent?.startsWith(':where([data-cem-scope="abc-lib"])') ?? false,
+            'the explicit matching style remains shared'
+        );
+
+        const instanceStyle = requiredElement(mixed, 'style') as HTMLStyleElement;
+        const instanceScope = mixed.getAttribute('data-cem-instance-scope');
+        assert(instanceScope !== null, 'payload CSS receives a deterministic instance boundary');
+        assert(
+            instanceStyle.textContent?.startsWith(`style-mixed[data-cem-instance-scope="${instanceScope}"]`) ?? false,
+            'payload CSS uses the stronger tag-plus-instance selector'
+        );
+        assert(!instanceStyle.hasAttribute('data-cem-render-scope'), 'style nodes are never stamped as render roots');
+
+        assertEqual(
+            getComputedStyle(mixed).getPropertyValue('--shared-only').trim(),
+            'yes',
+            'shared rules from another declaration participate in the ordinary document cascade'
+        );
+        assertEqual(getComputedStyle(mixed).getPropertyValue('--private-only').trim(), 'yes', 'private rules target their tag');
+        assertEqual(getComputedStyle(mixed).getPropertyValue('--instance-only').trim(), 'yes', 'instance rules override in instance scope');
+
+        assertEqual(
+            mismatchDeclaration.querySelectorAll(':scope > style[data-cem-declaration-style]').length,
+            0,
+            'a mismatched shared stylesheet is not installed'
+        );
+    },
+};
+
+export const AnonymousDeclarationGetsDeterministicTagAndInstance: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'anonymous declaration lifecycle');
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-anonymous-contract' });
+        runtime.install(window);
+        const declaration = document.createElement('cem-element-anonymous-contract');
+        declaration.setAttribute('uid-seed', 'anonymous/story');
+        const template = document.createElement('template');
+        template.innerHTML = '<strong>anonymous content</strong>';
+        declaration.append(template);
+        root.append(declaration);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+        await nextFrame();
+        const declaration = requiredElement(canvasElement, 'cem-element-anonymous-contract') as HTMLElement;
+        const tag = declaration.getAttribute('tag') ?? '';
+        assert(
+            /^cem-[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/.test(tag),
+            'anonymous declarations receive a deterministic UUID-shaped custom-element tag'
+        );
+        const instance = requiredElement(canvasElement, `${tag}[data-cem-anonymous-instance]`);
+        assertEqual(instance.textContent?.trim(), 'anonymous content', 'anonymous declarations create and render their instance');
+
+        const repeat = document.createElement('cem-element-anonymous-contract');
+        repeat.setAttribute('uid-seed', 'anonymous/story');
+        const repeatTemplate = document.createElement('template');
+        repeatTemplate.innerHTML = '<strong>anonymous content</strong>';
+        repeat.append(repeatTemplate);
+        const firstDetached = declaration.cloneNode(true) as HTMLElement;
+        firstDetached.removeAttribute('tag');
+        firstDetached.removeAttribute('data-cem-anonymous-declaration');
+        assertEqual(
+            deterministicAnonymousTag(firstDetached),
+            deterministicAnonymousTag(repeat),
+            'the same detached declaration seed and source produce the same anonymous tag'
+        );
+    },
+};
+
 interface IsolationStorySpec {
     declarationTag: string;
     producedTag: string;
@@ -372,6 +537,21 @@ interface IsolationStorySpec {
     payloadHTML?: string;
     wrapInForm?: boolean;
     instanceAttributes?: Record<string, string>;
+}
+
+function styleContractDeclaration(
+    declarationTag: string,
+    producedTag: string,
+    scope: string,
+    templateHTML: string
+): HTMLElement {
+    const declaration = document.createElement(declarationTag);
+    declaration.setAttribute('tag', producedTag);
+    declaration.setAttribute('scope', scope);
+    const template = document.createElement('template');
+    template.innerHTML = templateHTML;
+    declaration.append(template);
+    return declaration;
 }
 
 /**

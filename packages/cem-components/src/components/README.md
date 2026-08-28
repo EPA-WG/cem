@@ -1,27 +1,42 @@
 # Declarative component source root
 
-Every non-legacy component has exactly one folder here:
+Every new or migrated component has exactly one folder here:
 
 ```text
 <cem-tag>/
 ├── <cem-tag>.xhtml
-└── <cem-tag>.stories.xhtml
+└── <cem-tag>.stories.ts
 ```
 
-The first file is a `<cem-element>` declaration with a
-`<template type="text/cem-ml">`. Its component-owned CSS is embedded there as a
-`<style>` node, authored in CEM-ML as `{style |```...```}`, and consumes CEM UI
-theme tokens through `var(--cem-*)`; `cem-elements` scopes it automatically to
-the rendered component instance. Do not add `<cem-tag>.css`. The story file owns
-the component's declarative Storybook cases and unit assertions. Neither the
-folder nor the package may add JavaScript or TypeScript.
+`<cem-tag>.xhtml` is the entire production component implementation: one
+`<cem-element>` declaration with
+`<template id="<cem-tag>" type="text/cem-ml">`. The matching stable template
+ID allows reuse through `<declaration-url>#<cem-tag>` and remains part of the
+component's XHTML structure. Its
+component-owned CSS is embedded as `{style @type="text/css" |```...```}` and
+uses CEM UI `var(--cem-*)` tokens. `cem-elements` installs it once under
+the declaration, not in each instance. The accepted native `@scope` target uses
+the produced tag for private rules, declaration-owned `scope="name"` for a
+public shared group, `slot="name"` for projected roots, and `part="name"` for
+component-owned internals. Per-instance styles require an explicit inert direct
+payload template. Data-island and render identity are internal and must not be
+styled. Do not add `<cem-tag>.css`, component JavaScript/TypeScript, a
+registry entry, or selectors in the package's global stylesheet.
 
-Storybook loads the public CEM theme and component CSS, owns the accessible
-theme switcher through production `cem-select`, and applies the selected one of
-the five canonical theme modes to the preview root. Individual stories do not
-own or persist theme state.
+`<cem-tag>.stories.ts` is the development-only exception to the no-component-TS
+rule. Use CSF Next `preview.meta` / `meta.story`, import the declaration from
+`./<cem-tag>.xhtml?raw`, load it through `loadCemDeclaration`, return example
+HTML strings from `render`, and keep every component unit assertion in an async
+`play` function using `storybook/test`. It must not contain component behavior.
 
-Read [`../../../../docs/declarative-ui-principle.md`](../../../../docs/declarative-ui-principle.md)
-before adding a component. Component work is hard-stopped until
-`cem-elements` supplies the declarative XHTML Storybook adapter named in
-[`../../declarative-migration.json`](../../declarative-migration.json).
+If CEM-ML is missing functionality or expressing the behavior becomes verbose,
+stop. Add the smallest reusable declarative capability to `cem-elements`, test
+it there, and resume the component only after it passes. A component- or
+story-local JavaScript workaround is forbidden.
+
+Use [`cem-select.xhtml`](./cem-select/cem-select.xhtml) and
+[`cem-select.stories.ts`](./cem-select/cem-select.stories.ts) as the proven
+pattern. Read the normative
+[`declarative-ui-principle.md`](../../../../docs/declarative-ui-principle.md)
+and the linked CSS scope contract before adding another component. The native
+`@scope` behavior remains pending until its active migration gate passes.

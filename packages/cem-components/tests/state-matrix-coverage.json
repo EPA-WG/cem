@@ -160,6 +160,15 @@
                         "expect(single.owner.dataset.mode).toBe('single');",
                         "expect(range.owner.dataset.mode).toBe('range');"
                     ]
+                },
+                {
+                    "component": "cem-select",
+                    "owner": "packages/cem-components/src/components/cem-select/cem-select.stories.ts",
+                    "test": "Default",
+                    "assertions": [
+                        "await expect(control).toHaveTextContent('Author');",
+                        "await expect(select?.value).toBe('author');"
+                    ]
                 }
             ]
         },
@@ -301,6 +310,15 @@
                         "expect(document.activeElement).toBe(input);",
                         "expect(input.matches(':focus-visible')).toBe(true);"
                     ]
+                },
+                {
+                    "component": "cem-select",
+                    "owner": "packages/cem-components/src/components/cem-select/cem-select.stories.ts",
+                    "test": "Default",
+                    "assertions": [
+                        "await expect(control).toHaveFocus();",
+                        "await expect(control.matches(':focus-visible')).toBe(true);"
+                    ]
                 }
             ]
         },
@@ -308,7 +326,7 @@
             "id": "input:disabled",
             "category": "Input",
             "state": "disabled",
-            "components": ["cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-radio", "cem-slider"],
+            "components": ["cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select", "cem-radio", "cem-slider"],
             "interaction": "Disable form controls and prevent native interaction.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -350,6 +368,16 @@
                         "expect(input.disabled).toBe(true);",
                         "expect(events).toEqual([]);"
                     ]
+                },
+                {
+                    "component": "cem-select",
+                    "owner": "packages/cem-components/src/components/cem-select/cem-select.stories.ts",
+                    "test": "Disabled",
+                    "assertions": [
+                        "await expect(select?.disabled).toBe(true);",
+                        "await expect(control).toBeDisabled();",
+                        "await expect(new FormData(form as HTMLFormElement).has('role')).toBe(false);"
+                    ]
                 }
             ]
         },
@@ -386,6 +414,16 @@
                         "expect(busyInput.getAttribute('aria-busy')).toBe('true');",
                         "expect(busyInput.disabled).toBe(false);"
                     ]
+                },
+                {
+                    "component": "cem-select",
+                    "owner": "packages/cem-components/src/components/cem-select/cem-select.stories.ts",
+                    "test": "Loading",
+                    "assertions": [
+                        "await expect(control).toHaveAttribute('data-state', 'loading');",
+                        "await expect(control).toHaveAttribute('aria-busy', 'true');",
+                        "await expect(select?.value).toBe('author');"
+                    ]
                 }
             ]
         },
@@ -396,12 +434,11 @@
             "components": ["cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select"],
             "interaction": "Open and close a select-like disclosure and mirror its expanded state.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "renders rich cem-option content with native-like dropdown, listbox, and form behavior",
+            "owner": "packages/cem-components/src/components/cem-select/cem-select.stories.ts",
+            "test": "Default",
             "assertions": [
-                "expect(roleControl.getAttribute('aria-expanded')).toBe('true');",
-                "expect(roleControl.getAttribute('aria-controls')).toBe(popup.id);",
-                "expect(roleControl.getAttribute('aria-expanded')).toBe('false');"
+                "await expect(control).toHaveAttribute('aria-expanded', 'true');",
+                "await expect(control).toHaveAttribute('aria-expanded', 'false');"
             ],
             "componentEvidence": [
                 {
@@ -475,6 +512,15 @@
                         "expect(arrival.input.validity.customError).toBe(true);",
                         "expect(arrival.input.getAttribute('aria-invalid')).toBe('true');"
                     ]
+                },
+                {
+                    "component": "cem-select",
+                    "owner": "packages/cem-components/src/components/cem-select/cem-select.stories.ts",
+                    "test": "FormAndKeyboard",
+                    "assertions": [
+                        "await expect(control).toHaveAttribute('aria-invalid', 'true');",
+                        "await expect(select?.checkValidity()).toBe(false);"
+                    ]
                 }
             ]
         },
@@ -512,6 +558,16 @@
                     "test": "keeps canonical value, locale calendar, validation, form, and reset ownership on the input",
                     "assertions": [
                         "expect(arrival.input.validity.valueMissing).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-select",
+                    "owner": "packages/cem-components/src/components/cem-select/cem-select.stories.ts",
+                    "test": "FormAndKeyboard",
+                    "assertions": [
+                        "await expect(select as CemSelectElement).toHaveAttribute('required');",
+                        "await expect(select?.checkValidity()).toBe(false);",
+                        "await expect(select?.checkValidity()).toBe(true);"
                     ]
                 }
             ]

@@ -8,7 +8,12 @@
             "dependsOn": ["^build", "build:styles", "build:catalog"]
         },
         "test": {
-            "dependsOn": ["^build", "verify-declarative", "verify-phase3-harness"],
+            "dependsOn": [
+                "^build",
+                "verify-declarative",
+                "verify-phase3-harness",
+                { "projects": ["cem-elements"], "target": "test" }
+            ],
             "options": {
                 "command": "vitest --no-file-parallelism"
             }
@@ -65,8 +70,8 @@
                 "{projectRoot}/declarative-migration.json",
                 "{projectRoot}/src/components/**/*",
                 "{projectRoot}/src/lib/primitives.ts",
-                "{workspaceRoot}/packages/cem-elements/src/lib/storybook/xhtml-stories.ts",
-                "{workspaceRoot}/packages/cem-elements/src/lib/storybook/xhtml-story-themes.ts",
+                "{workspaceRoot}/packages/cem-elements/.storybook/main.ts",
+                "{workspaceRoot}/packages/cem-elements/.storybook/preview.ts",
                 "{projectRoot}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"
             ],
             "outputs": []
@@ -101,6 +106,8 @@
                 "{workspaceRoot}/examples/figma/component-library.json",
                 "{workspaceRoot}/examples/figma/component-library-fixture.md",
                 "{projectRoot}/docs/**/*.md",
+                "{projectRoot}/declarative-migration.json",
+                "{projectRoot}/src/components/**/*",
                 "{projectRoot}/src/lib/primitives.ts",
                 "{projectRoot}/tests/state-matrix-coverage.json"
             ],
@@ -116,6 +123,7 @@
             "inputs": [
                 "{workspaceRoot}/tools/scripts/verify-cem-components-material-parity.mjs",
                 "{projectRoot}/tests/angular-material-parity.json",
+                "{projectRoot}/src/components/**/*",
                 "{projectRoot}/src/lib/primitives.ts"
             ],
             "outputs": []
@@ -160,6 +168,7 @@
             "inputs": [
                 "{projectRoot}/scripts/verify-input-indicator-forced-colors.mjs",
                 "{projectRoot}/src/styles.css",
+                "{projectRoot}/src/components/cem-select/cem-select.xhtml",
                 {
                     "dependentTasksOutputFiles": "**/*.css",
                     "transitive": false

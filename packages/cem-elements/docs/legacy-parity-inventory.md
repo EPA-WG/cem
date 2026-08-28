@@ -5,6 +5,13 @@ Scoping inventory for the Phase 3.1 legacy parity-story work in
 `@epa-wg/custom-element` docs and demos to explicit `<cem-element>` Storybook coverage or to a tracked migration
 decision.
 
+> **Historical implementation snapshot:** this inventory records executable
+> legacy parity, including the currently generated `data-cem-scope` and
+> `data-cem-instance-scope` selectors. It is not an active CSS authoring
+> contract. The accepted replacement is the
+> [CEM light-DOM CSS scope contract](../../../docs/cem-ml-uid-and-scoped-css-design.md),
+> whose native `@scope` migration remains tracked in `docs/todo.md`.
+
 Sources reviewed:
 
 - `/home/suns/aWork/custom-element/docs/attributes.md`
@@ -55,8 +62,11 @@ the behavioral reference.
 - The supported XSLT subset is pull-style and fixture-derived: `if`, `choose`, `when`, `otherwise`, `value-of`,
   inline `variable`, and `for-each` over an inline node-set variable lower to CEM-ML. Push-style XSLT and standalone
   stylesheet constructs remain Tier 3 handoff/deferred work.
-- Scoped CSS uses generated light-DOM containment attributes. Template CSS is scoped by `data-cem-scope`, while projected
-  payload CSS is scoped by `data-cem-instance-scope` so sibling same-tag instances do not share payload styles.
+- The legacy scoped-CSS fixture uses generated light-DOM containment
+  attributes. Template CSS uses `data-cem-scope`, while projected payload CSS
+  uses `data-cem-instance-scope` so sibling same-tag instances do not share
+  payload styles. This row describes current parity evidence, not the accepted
+  native `@scope` target.
 
 ## Production Gate Status
 

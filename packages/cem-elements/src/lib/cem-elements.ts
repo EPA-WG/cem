@@ -1,5 +1,6 @@
 import {
     DATA_CEM_INSTANCE_SCOPE_ATTR,
+    DATA_CEM_RENDER_SCOPE_ATTR,
     DATA_CEM_SCOPE_ATTR,
     applyPatchFramesToRange,
     applyRenderPlanToRange,
@@ -9,8 +10,11 @@ import {
     readTemplateSource,
     renderInstanceScopeUid,
     renderedPlanAttributeValue,
+    resolveDeclarationStyleScope,
+    resolveDeclarationStylesheetScopes,
     renderPlansHaveDomChanges,
     scopeRenderPlan,
+    scopeCssText,
     validateRenderPlanGeneratedIds,
     type GeneratedRenderPlanIdDiagnostic,
     type RenderPlan,
@@ -26,6 +30,7 @@ import {
     compileCemMlTemplate,
     convertLegacyTemplate,
     processCemMlTemplate,
+    type CemQlStylesheetArtifact,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
 import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
@@ -75,8 +80,9 @@ import {
     type CemRepositoryDiagnostic,
     type CemRepositoryReader,
     type CemRepositoryRequest,
-    type CemRepositoryStatus
+    type CemRepositoryStatus,
 } from './repository.js';
+import { CEM_CHOICE_SELECT_CAPABILITY } from './choice-select-capability.js';
 
 export * from './edge-ssr-host.js';
 
@@ -445,10 +451,7 @@ export interface CemElementRuntimeOptions {
      * resolution, fetching, and scope-URL policy (and makes external `src` testable). The
      * default resolves the path against the declaring document's base URL and `fetch`es it.
      */
-    loadSrcDocument?: (
-        specifier: string,
-        baseDocument: Document
-    ) => Promise<string | CemSrcDocumentLoadResult>;
+    loadSrcDocument?: (specifier: string, baseDocument: Document) => Promise<string | CemSrcDocumentLoadResult>;
     /**
      * Resolve a `module-url` resource slice specifier to the URL exposed under
      * `datadom.slices.<slice>`. Relative/absolute URLs resolve by default; bare
@@ -462,7 +465,7 @@ export interface CemElementRuntimeOptions {
      */
     resolveResourceUrl?: (
         request: CemResourceResolutionRequest,
-        baseDocument: Document
+        baseDocument: Document,
     ) => CemResourceResolutionResult | Promise<CemResourceResolutionResult>;
     /**
      * Open an authorized HTTP resource. The stream-shaped body is required at the host
@@ -535,12 +538,7 @@ export interface CemProducedElementBehavior {
      * authoritative and this browser-only predicate is never serialized. This
      * is a side-effect-free ownership check, not a lifecycle callback.
      */
-    preserveRenderedAttribute?(
-        instance: HTMLElement,
-        current: Element,
-        desired: Element,
-        attribute: Attr
-    ): boolean;
+    preserveRenderedAttribute?(instance: HTMLElement, current: Element, desired: Element, attribute: Attr): boolean;
     rendered?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     disconnected?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     formDisabled?(instance: HTMLElement, disabled: boolean, context: CemProducedElementBehaviorContext): void;
@@ -549,7 +547,7 @@ export interface CemProducedElementBehavior {
         instance: HTMLElement,
         state: File | FormData | string | null,
         mode: 'restore' | 'autocomplete',
-        context: CemProducedElementBehaviorContext
+        context: CemProducedElementBehaviorContext,
     ): void;
 }
 
@@ -562,6 +560,20 @@ export interface CemDeclarationRegistrationOptions {
      */
     behaviorIdentity?: string;
 }
+
+/**
+ * Reusable browser capabilities that a CEM-ML declaration can request without
+ * supplying component-owned JavaScript. Capability implementations belong to
+ * cem-elements and are versioned as part of the declaration identity.
+ */
+export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
+    'choice-select': {
+        behavior: CEM_CHOICE_SELECT_CAPABILITY,
+        behaviorIdentity: 'cem-elements-choice-select-v1',
+    },
+} as const satisfies Readonly<Record<string, Required<CemDeclarationRegistrationOptions>>>);
+
+export type CemDeclarativeCapabilityName = keyof typeof CEM_DECLARATIVE_CAPABILITIES;
 
 export interface CemProducedElementBehaviorContext {
     readonly runtime: CemElementRuntime;
@@ -602,12 +614,14 @@ interface CompiledDeclaration {
     declarationElement: HTMLElement;
     declarationTag: string;
     producedTag: string;
+    anonymousTag: boolean;
     uidSeed: string | null;
     uidSeedSource: 'declaration' | 'host' | 'source-hash' | 'runtime';
     occurrencePath: string;
     sourceHash: string;
     registrationIdentity: string | null;
     declarationScope: CemDeclarationScope;
+    sharedStyleScope: string | null;
     scopeUid: string;
     artifactId: string;
     sourceRef: CemProcessingSourceRef;
@@ -627,6 +641,8 @@ interface CompiledDeclaration {
     wasmEligible: boolean;
     declaredAttributes: AttributeDeclaration[];
     declaredSlices: SliceDeclaration[];
+    stylesheets: CemQlStylesheetArtifact[];
+    stylesheetsReady: boolean;
     diagnostics: CemElementDiagnostic[];
     behavior?: CemProducedElementBehavior;
 }
@@ -814,8 +830,13 @@ interface ActiveLocationResource {
     destroy?: () => void;
 }
 
-type RenderedResourceResult =
-    { kind: 'module-url'; sliceName: string; specifier: string; value: string; error?: unknown };
+type RenderedResourceResult = {
+    kind: 'module-url';
+    sliceName: string;
+    specifier: string;
+    value: string;
+    error?: unknown;
+};
 
 const DEFAULT_DECLARATION_TAG = 'cem-element';
 const CEM_BROWSER_REGISTRATION_MARKER = Symbol.for('@epa-wg/cem-elements/browser-registration-v1');
@@ -848,6 +869,7 @@ const RUNTIME_PAYLOAD_ATTRIBUTE_NAMES = new Set([
     DATA_ISLAND_ATTR,
     HYDRATION_METADATA_ATTR,
     DATA_CEM_SCOPE_ATTR,
+    DATA_CEM_RENDER_SCOPE_ATTR,
     DATA_CEM_INSTANCE_SCOPE_ATTR,
     RENDER_NODE_ID_ATTR,
     RENDER_TEMPLATE_ARTIFACT_ID_ATTR,
@@ -877,6 +899,7 @@ const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
 ]);
 
 let artifactSequence = 0;
+const installedDeclarationStyles = new WeakMap<CompiledDeclaration, HTMLStyleElement[]>();
 let runtimeUidSeedSequence = 0;
 const localStorageTrackers = new WeakSet<Window>();
 const locationTrackers = new WeakSet<Window>();
@@ -898,7 +921,7 @@ export function isValidCustomElementName(tag: string): boolean {
 
 export function generateScopeUid(input: ScopeUidInput): string {
     const tagPrefix = uidTagPrefix(input.producedTag);
-    const seed = input.uidSeed !== null ? input.uidSeed : input.runtimeSeed ?? nextRuntimeUidSeed();
+    const seed = input.uidSeed !== null ? input.uidSeed : (input.runtimeSeed ?? nextRuntimeUidSeed());
     const seedPart = seed.length > 0 ? `-u${encodeUidComponent(seed)}` : '';
     const pathPart = `-p${encodeUidComponent(input.occurrencePath) || '0'}`;
     return `cem-scope${tagPrefix}${seedPart}${pathPart}`;
@@ -913,7 +936,10 @@ function uidTagPrefix(tag: string | null): string {
     if (!tag) {
         return '';
     }
-    const prefix = tag.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const prefix = tag
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
     return prefix.length > 0 ? `-${prefix}` : '';
 }
 
@@ -937,8 +963,8 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
             declarationDiagnostic(
                 'cem-element.tag_invalid',
                 `declaration tag \`${tag}\` is not a valid custom-element name`,
-                tag
-            )
+                tag,
+            ),
         );
     }
 
@@ -947,8 +973,8 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
             declarationDiagnostic(
                 'cem-element.src_inline_template_conflict',
                 '`src` declarations must not also include an inline declaration template',
-                tag ?? undefined
-            )
+                tag ?? undefined,
+            ),
         );
     }
 
@@ -957,16 +983,16 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
             declarationDiagnostic(
                 'cem-element.inline_template_missing',
                 'inline declarations must contain exactly one direct-child `<template>`',
-                tag ?? undefined
-            )
+                tag ?? undefined,
+            ),
         );
     } else if (!src && input.directTemplateCount > 1) {
         diagnostics.push(
             declarationDiagnostic(
                 'cem-element.inline_template_count',
                 'inline declarations must contain exactly one direct-child `<template>`',
-                tag ?? undefined
-            )
+                tag ?? undefined,
+            ),
         );
     }
 
@@ -975,8 +1001,8 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
             declarationDiagnostic(
                 'cem-element.declaration_live_content',
                 'declaration content outside the associated `<template>` would be live page content',
-                tag ?? undefined
-            )
+                tag ?? undefined,
+            ),
         );
     }
 
@@ -996,7 +1022,7 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
  * decisions before any call to `CustomElementRegistry#define`.
  */
 export function analyzeDeclarationRegistration(
-    input: DeclarationRegistrationContractInput
+    input: DeclarationRegistrationContractInput,
 ): DeclarationRegistrationContractResult {
     const tag = input.tag.trim();
 
@@ -1004,7 +1030,7 @@ export function analyzeDeclarationRegistration(
         return registrationRejection(
             'cem-element.tag_invalid',
             `declaration tag \`${tag}\` is not a valid custom-element name`,
-            tag
+            tag,
         );
     }
 
@@ -1012,7 +1038,7 @@ export function analyzeDeclarationRegistration(
         return registrationRejection(
             'cem-element.registry_same_scope_duplicate',
             `declaration tag \`${tag}\` is already declared in this CEM scope`,
-            tag
+            tag,
         );
     }
 
@@ -1020,19 +1046,18 @@ export function analyzeDeclarationRegistration(
         return registrationRejection(
             'cem-element.registry_inherited_collision',
             `declaration tag \`${tag}\` conflicts with an inherited CEM declaration`,
-            tag
+            tag,
         );
     }
 
     if (
         input.browser &&
-        (input.browser.owner !== 'cem-element' ||
-            input.browser.registrationIdentity !== input.registrationIdentity)
+        (input.browser.owner !== 'cem-element' || input.browser.registrationIdentity !== input.registrationIdentity)
     ) {
         return registrationRejection(
             'cem-element.browser_tag_collision',
             `custom element \`${tag}\` already has an incompatible document-global definition`,
-            tag
+            tag,
         );
     }
 
@@ -1051,9 +1076,9 @@ export function analyzeDeclarationRegistration(
  * callback source text and object identity are not stable across builds/runtimes.
  */
 export function analyzeDeclarationRegistrationIdentity(
-    input: DeclarationRegistrationIdentityInput
+    input: DeclarationRegistrationIdentityInput,
 ): DeclarationRegistrationIdentityResult {
-    const behaviorIdentity = input.hasBehavior ? input.behaviorIdentity?.trim() ?? '' : '';
+    const behaviorIdentity = input.hasBehavior ? (input.behaviorIdentity?.trim() ?? '') : '';
     if (input.hasBehavior && !behaviorIdentity) {
         return {
             registrationIdentity: null,
@@ -1061,7 +1086,7 @@ export function analyzeDeclarationRegistrationIdentity(
                 declarationDiagnostic(
                     'cem-element.behavior_identity_required',
                     `declaration tag \`${input.tag.trim()}\` supplies browser behavior without a stable \`behaviorIdentity\``,
-                    input.tag.trim() || undefined
+                    input.tag.trim() || undefined,
                 ),
             ],
         };
@@ -1081,19 +1106,21 @@ export function analyzeDeclarationRegistrationIdentity(
 }
 
 function inspectBrowserTagRegistration(
-    constructor: CustomElementConstructor | undefined
+    constructor: CustomElementConstructor | undefined,
 ): CemBrowserTagRegistrationLookup | undefined {
     if (!constructor) {
         return undefined;
     }
-    const marker = (constructor as CustomElementConstructor & {
-        [CEM_BROWSER_REGISTRATION_MARKER]?: CemBrowserRegistrationMarker;
-    })[CEM_BROWSER_REGISTRATION_MARKER];
+    const marker = (
+        constructor as CustomElementConstructor & {
+            [CEM_BROWSER_REGISTRATION_MARKER]?: CemBrowserRegistrationMarker;
+        }
+    )[CEM_BROWSER_REGISTRATION_MARKER];
     if (
-        marker?.contract === 'cem-browser-registration-v1'
-        && typeof marker.registrationIdentity === 'string'
-        && marker.registrationIdentity.length > 0
-        && marker.declaration
+        marker?.contract === 'cem-browser-registration-v1' &&
+        typeof marker.registrationIdentity === 'string' &&
+        marker.registrationIdentity.length > 0 &&
+        marker.declaration
     ) {
         return {
             registration: {
@@ -1108,11 +1135,7 @@ function inspectBrowserTagRegistration(
     };
 }
 
-function registrationRejection(
-    code: string,
-    message: string,
-    tag: string
-): DeclarationRegistrationContractResult {
+function registrationRejection(code: string, message: string, tag: string): DeclarationRegistrationContractResult {
     return {
         action: 'reject',
         diagnostics: [declarationDiagnostic(code, message, tag)],
@@ -1121,7 +1144,7 @@ function registrationRejection(
 
 export function installCemElementRuntime(
     host: CemElementWindow = globalThis as CemElementWindow,
-    options: CemElementRuntimeOptions = {}
+    options: CemElementRuntimeOptions = {},
 ): CemElementRuntime {
     const runtime = new CemElementRuntime(options);
     runtime.install(host);
@@ -1130,7 +1153,7 @@ export function installCemElementRuntime(
 
 export function exportDataIslandSnapshotForEdge(
     snapshot: DataIslandSnapshot,
-    policy: DataIslandSnapshotExportPolicy = {}
+    policy: DataIslandSnapshotExportPolicy = {},
 ): ExportedDataIslandSnapshot {
     const exported: ExportedDataIslandSnapshot = {
         instanceId: snapshot.instanceId,
@@ -1173,17 +1196,17 @@ export type CemEdgeSsrBrowserRenderUpdateInput = Omit<CemEdgeSsrRenderUpdateInpu
 export function createCemEdgeSsrBrowserRequestEnvelope(
     sequence: CemEdgeSsrJobSequence,
     operation: 'render-initial',
-    input: CemEdgeSsrBrowserInitialRenderInput
+    input: CemEdgeSsrBrowserInitialRenderInput,
 ): CemEdgeSsrHostRequestEnvelope<'render-initial'>;
 export function createCemEdgeSsrBrowserRequestEnvelope(
     sequence: CemEdgeSsrJobSequence,
     operation: 'render-update',
-    input: CemEdgeSsrBrowserRenderUpdateInput
+    input: CemEdgeSsrBrowserRenderUpdateInput,
 ): CemEdgeSsrHostRequestEnvelope<'render-update'>;
 export function createCemEdgeSsrBrowserRequestEnvelope(
     sequence: CemEdgeSsrJobSequence,
     operation: CemEdgeSsrHostOperation,
-    input: CemEdgeSsrBrowserInitialRenderInput | CemEdgeSsrBrowserRenderUpdateInput
+    input: CemEdgeSsrBrowserInitialRenderInput | CemEdgeSsrBrowserRenderUpdateInput,
 ): CemEdgeSsrHostRequestEnvelope {
     const { snapshot, exportPolicy, ...hostInput } = input;
     const exportedSnapshot = exportDataIslandSnapshotForEdge(snapshot, exportPolicy);
@@ -1210,6 +1233,8 @@ export class CemElementRuntime {
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
     private readonly registeredDeclarationElements = new WeakSet<object>();
+    private readonly anonymousDeclarationElements = new WeakSet<HTMLElement>();
+    private readonly anonymousInstances = new WeakMap<HTMLElement, HTMLElement>();
     private readonly registrationOptions = new WeakMap<object, CemDeclarationRegistrationOptions>();
     private readonly hydratedServerRenders = new WeakSet<HTMLElement>();
     private readonly hydrationSnapshots = new WeakMap<HTMLElement, DataIslandSnapshot>();
@@ -1308,7 +1333,7 @@ export class CemElementRuntime {
                     declarationDiagnostic(
                         'cem-element.scope_document_mismatch',
                         `declaration tag \`${declarationElement.getAttribute('tag') ?? ''}\` cannot use a logical scope owned by another Document`,
-                        declarationElement.getAttribute('tag') ?? undefined
+                        declarationElement.getAttribute('tag') ?? undefined,
                     ),
                 ]);
                 return undefined;
@@ -1322,12 +1347,15 @@ export class CemElementRuntime {
         }
     }
 
-    registerDeclaration(
-        declarationElement: HTMLElement,
-        options: CemDeclarationRegistrationOptions = {}
-    ): boolean {
+    registerDeclaration(declarationElement: HTMLElement, options: CemDeclarationRegistrationOptions = {}): boolean {
         if (this.registeredDeclarationElements.has(declarationElement)) {
             return true;
+        }
+
+        if (!declarationElement.getAttribute('tag')?.trim()) {
+            declarationElement.setAttribute('tag', deterministicAnonymousTag(declarationElement));
+            declarationElement.setAttribute('data-cem-anonymous-declaration', '');
+            this.anonymousDeclarationElements.add(declarationElement);
         }
 
         this.registrationOptions.set(declarationElement, options);
@@ -1347,15 +1375,16 @@ export class CemElementRuntime {
             if (!reference.local) {
                 // External `src="./file#tag"`: fetch, parse, and register asynchronously.
                 this.registeredDeclarationElements.add(declarationElement);
-                this.declarationSettled.set(
+                this.trackDeclarationSettlement(
                     declarationElement,
+                    shape.tag,
                     this.registerExternalDeclaration(
                         declarationElement,
                         shape.tag,
                         shape.src,
                         reference,
-                        declarationScope
-                    )
+                        declarationScope,
+                    ),
                 );
                 return true;
             }
@@ -1364,8 +1393,9 @@ export class CemElementRuntime {
                 return false;
             }
             this.registeredDeclarationElements.add(declarationElement);
-            this.declarationSettled.set(
+            this.trackDeclarationSettlement(
                 declarationElement,
+                shape.tag,
                 this.registerResolvedDeclaration(
                     declarationElement,
                     shape.tag,
@@ -1376,8 +1406,8 @@ export class CemElementRuntime {
                         sourceRef: { kind: 'fragment', value: shape.src },
                         resolverIdentity: `document:${declarationElement.ownerDocument.baseURI}`,
                         resourceBaseUrl: declarationElement.ownerDocument.baseURI,
-                    }
-                )
+                    },
+                ),
             );
             return true;
         }
@@ -1388,14 +1418,15 @@ export class CemElementRuntime {
                 declarationDiagnostic(
                     'cem-element.inline_template_missing',
                     'inline declarations must contain exactly one direct-child `<template>`',
-                    shape.tag
+                    shape.tag,
                 ),
             ]);
             return false;
         }
         this.registeredDeclarationElements.add(declarationElement);
-        this.declarationSettled.set(
+        this.trackDeclarationSettlement(
             declarationElement,
+            shape.tag,
             this.registerResolvedDeclaration(
                 declarationElement,
                 shape.tag,
@@ -1406,10 +1437,38 @@ export class CemElementRuntime {
                     sourceRef: { kind: 'inline', value: shape.tag },
                     resolverIdentity: `document:${declarationElement.ownerDocument.baseURI}`,
                     resourceBaseUrl: declarationElement.ownerDocument.baseURI,
-                }
-            )
+                },
+            ),
         );
         return true;
+    }
+
+    private trackDeclarationSettlement(declarationElement: HTMLElement, tag: string, settled: Promise<void>): void {
+        this.declarationSettled.set(
+            declarationElement,
+            settled.then(() => {
+                if (this.anonymousDeclarationElements.has(declarationElement)) {
+                    this.ensureAnonymousInstance(declarationElement, tag);
+                }
+            }),
+        );
+    }
+
+    private ensureAnonymousInstance(declarationElement: HTMLElement, tag: string): void {
+        const existing = this.anonymousInstances.get(declarationElement);
+        if (existing) {
+            if (declarationElement.parentNode && existing.parentNode !== declarationElement.parentNode) {
+                declarationElement.after(existing);
+            }
+            return;
+        }
+        if (!declarationElement.parentNode || !declarationElement.ownerDocument.defaultView?.customElements.get(tag)) {
+            return;
+        }
+        const instance = declarationElement.ownerDocument.createElement(tag);
+        instance.setAttribute('data-cem-anonymous-instance', '');
+        this.anonymousInstances.set(declarationElement, instance);
+        declarationElement.after(instance);
     }
 
     /** Compile a resolved template, register the produced tag, and surface declaration diagnostics. */
@@ -1419,17 +1478,41 @@ export class CemElementRuntime {
         template: HTMLTemplateElement,
         shapeDiagnostics: CemElementDiagnostic[],
         declarationScope: CemDeclarationScope,
-        source: ResolvedDeclarationSource
+        source: ResolvedDeclarationSource,
     ): Promise<void> {
         const registrationOptions = this.registrationOptions.get(declarationElement);
+        const capabilityName = declarationElement.getAttribute('capability')?.trim() ?? '';
+        if (capabilityName && registrationOptions?.behavior) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.capability_behavior_conflict',
+                    `declaration tag \`${tag}\` cannot combine declarative capability \`${capabilityName}\` with host-supplied behavior`,
+                    tag,
+                ),
+            ]);
+            return Promise.resolve();
+        }
+        const capability = capabilityName
+            ? CEM_DECLARATIVE_CAPABILITIES[capabilityName as CemDeclarativeCapabilityName]
+            : undefined;
+        if (capabilityName && !capability) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.capability_unknown',
+                    `declaration tag \`${tag}\` requests unknown declarative capability \`${capabilityName}\``,
+                    tag,
+                ),
+            ]);
+            return Promise.resolve();
+        }
         const compiled = compileInlineDeclaration(declarationElement, tag, template, {
             declarationTag: this.declarationTag,
             declarationScope,
             source,
             uidSeed: this.uidSeedOption,
             uidSeedFallback: this.uidSeedFallback,
-            behavior: registrationOptions?.behavior,
-            behaviorIdentity: registrationOptions?.behaviorIdentity,
+            behavior: capability?.behavior ?? registrationOptions?.behavior,
+            behaviorIdentity: capability?.behaviorIdentity ?? registrationOptions?.behaviorIdentity,
         });
         this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
         if (!compiled.registrationIdentity) {
@@ -1494,6 +1577,7 @@ export class CemElementRuntime {
             this.releaseGeneratedDeclarationIds(compiled);
             return Promise.resolve();
         }
+        this.installDeclarationStylesheets(effectiveDeclaration);
 
         // CEM-ML declaration parse diagnostics (structural well-formedness) come from the async
         // cem_ql WASM compile; cem-ql expression errors surface at render instead. Legacy-XSLT
@@ -1516,7 +1600,7 @@ export class CemElementRuntime {
         tag: string,
         src: string,
         reference: SrcReference,
-        declarationScope: CemDeclarationScope
+        declarationScope: CemDeclarationScope,
     ): Promise<void> {
         let loaded: LoadedSrcDocument;
         try {
@@ -1526,7 +1610,7 @@ export class CemElementRuntime {
                 declarationDiagnostic(
                     'cem-element.src_load_failed',
                     `loading \`${src}\` failed: ${error instanceof Error ? error.message : String(error)}`,
-                    tag
+                    tag,
                 ),
             ]);
             return;
@@ -1543,27 +1627,21 @@ export class CemElementRuntime {
                     reference.id.length > 0
                         ? `external \`src\` reference \`${src}\` did not resolve to a template or subtree for \`#${reference.id}\``
                         : `external \`src\` reference \`${src}\` did not resolve to a usable document template`,
-                    tag
+                    tag,
                 ),
             ]);
             return;
         }
-        await this.registerResolvedDeclaration(
-            declarationElement,
-            tag,
-            sourceTemplate,
-            [],
-            declarationScope,
-            {
-                ...loaded.source,
-                sourceRef: {
-                    kind: loaded.source.sourceRef.kind,
-                    value: reference.id.length > 0
+        await this.registerResolvedDeclaration(declarationElement, tag, sourceTemplate, [], declarationScope, {
+            ...loaded.source,
+            sourceRef: {
+                kind: loaded.source.sourceRef.kind,
+                value:
+                    reference.id.length > 0
                         ? `${loaded.source.sourceRef.value}#${reference.id}`
                         : loaded.source.sourceRef.value,
-                },
-            }
-        );
+            },
+        });
     }
 
     /** Resolve a same-document `src="#id"` reference to its `<template>`, or diagnose a miss. */
@@ -1571,18 +1649,18 @@ export class CemElementRuntime {
         declarationElement: HTMLElement,
         src: string,
         reference: SrcReference,
-        tag: string
+        tag: string,
     ): HTMLTemplateElement | undefined {
         const template = templateFromTarget(
             declarationElement.ownerDocument.getElementById(reference.id),
-            declarationElement.ownerDocument
+            declarationElement.ownerDocument,
         );
         if (!template) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
                     'cem-element.src_local_target_missing',
                     `local \`src\` reference \`${src}\` did not resolve to a same-document template or subtree`,
-                    tag
+                    tag,
                 ),
             ]);
         }
@@ -1598,12 +1676,9 @@ export class CemElementRuntime {
             return cached;
         }
         const parsed = this.loadSrcDocument(path, baseDocument).then(async (loaded) => {
-            const result = typeof loaded === 'string'
-                ? fallbackSrcDocumentLoadResult(path, baseDocument, loaded)
-                : loaded;
-            const html = typeof loaded === 'string'
-                ? loaded
-                : await readTextStream(loaded.body);
+            const result =
+                typeof loaded === 'string' ? fallbackSrcDocumentLoadResult(path, baseDocument, loaded) : loaded;
+            const html = typeof loaded === 'string' ? loaded : await readTextStream(loaded.body);
             return {
                 document: new DOMParser().parseFromString(html, 'text/html'),
                 source: srcDocumentSource(path, baseDocument, result),
@@ -1613,10 +1688,7 @@ export class CemElementRuntime {
         return parsed;
     }
 
-    private loadSrcDocument(
-        path: string,
-        baseDocument: Document
-    ): Promise<string | CemSrcDocumentLoadResult> {
+    private loadSrcDocument(path: string, baseDocument: Document): Promise<string | CemSrcDocumentLoadResult> {
         return this.loadSrcDocumentOption
             ? this.loadSrcDocumentOption(path, baseDocument)
             : defaultLoadSrcDocument(path, baseDocument);
@@ -1637,14 +1709,19 @@ export class CemElementRuntime {
 
     private async surfaceDeclarationDiagnostics(
         declarationElement: HTMLElement,
-        compiled: CompiledDeclaration
+        compiled: CompiledDeclaration,
     ): Promise<void> {
         try {
-            const diagnostics = await compileCemMlTemplate(compiled.cemMlSource ?? '');
-            if (diagnostics.length > 0) {
+            const result = await compileCemMlTemplate(compiled.cemMlSource ?? '');
+            compiled.stylesheets = result.stylesheets;
+            compiled.stylesheetsReady = true;
+            this.installDeclarationStylesheets(compiled);
+            if (result.diagnostics.length > 0) {
                 this.recordDiagnostics(
                     declarationElement,
-                    diagnostics.map((diagnostic) => declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag))
+                    result.diagnostics.map((diagnostic) =>
+                        declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag),
+                    ),
                 );
             }
         } catch {
@@ -1665,7 +1742,7 @@ export class CemElementRuntime {
     setInstanceSlices(
         instance: HTMLElement,
         values: Readonly<Record<string, unknown>>,
-        options: { render?: boolean } = {}
+        options: { render?: boolean } = {},
     ): boolean {
         const compiled = this.declarationForInstance(instance);
         if (!compiled) {
@@ -1709,7 +1786,7 @@ export class CemElementRuntime {
                 declarationDiagnostic(
                     'cem-element.registry_unavailable',
                     'customElements registry is unavailable for this declaration document',
-                    compiled.producedTag
+                    compiled.producedTag,
                 ),
             ]);
             return false;
@@ -1720,7 +1797,7 @@ export class CemElementRuntime {
                 declarationDiagnostic(
                     'cem-element.browser_tag_collision',
                     `custom element \`${compiled.producedTag}\` acquired an incompatible document-global definition before registration committed`,
-                    compiled.producedTag
+                    compiled.producedTag,
                 ),
             ]);
             return false;
@@ -1730,7 +1807,7 @@ export class CemElementRuntime {
                 declarationDiagnostic(
                     'cem-element.registration_identity_missing',
                     `custom element \`${compiled.producedTag}\` has no stable registration identity`,
-                    compiled.producedTag
+                    compiled.producedTag,
                 ),
             ]);
             return false;
@@ -1751,13 +1828,11 @@ export class CemElementRuntime {
 
             constructor() {
                 super();
-                const registeredConstructor = this.ownerDocument.defaultView?.customElements.get(
-                    compiled.producedTag
-                );
+                const registeredConstructor = this.ownerDocument.defaultView?.customElements.get(compiled.producedTag);
                 if (
-                    ProducedCemElement.formAssociated
-                    && registeredConstructor === ProducedCemElement
-                    && typeof this.attachInternals === 'function'
+                    ProducedCemElement.formAssociated &&
+                    registeredConstructor === ProducedCemElement &&
+                    typeof this.attachInternals === 'function'
                 ) {
                     internals.set(this, this.attachInternals());
                 }
@@ -1780,10 +1855,7 @@ export class CemElementRuntime {
                 compiled.behavior?.formReset?.(this, behaviorContext(this));
             }
 
-            formStateRestoreCallback(
-                state: File | FormData | string | null,
-                mode: 'restore' | 'autocomplete'
-            ): void {
+            formStateRestoreCallback(state: File | FormData | string | null, mode: 'restore' | 'autocomplete'): void {
                 compiled.behavior?.formStateRestore?.(this, state, mode, behaviorContext(this));
             }
         }
@@ -1803,7 +1875,7 @@ export class CemElementRuntime {
                 declarationDiagnostic(
                     'cem-element.browser_define_failed',
                     `defining custom element \`${compiled.producedTag}\` failed: ${error instanceof Error ? error.message : String(error)}`,
-                    compiled.producedTag
+                    compiled.producedTag,
                 ),
             ]);
             return false;
@@ -1811,6 +1883,7 @@ export class CemElementRuntime {
     }
 
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
+        this.installDeclarationStylesheets(compiled);
         const island = this.ensureDataIsland(instance);
         this.ensureInstanceScope(instance, compiled);
         const state = this.ensureInstanceState(instance, compiled, island);
@@ -1825,10 +1898,7 @@ export class CemElementRuntime {
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
-        this.declarationForInstance(instance)?.behavior?.disconnected?.(
-            instance,
-            this.behaviorContext(instance)
-        );
+        this.declarationForInstance(instance)?.behavior?.disconnected?.(instance, this.behaviorContext(instance));
         const state = this.instanceStates.get(instance);
         state?.observer?.disconnect();
         if (state) {
@@ -1907,7 +1977,7 @@ export class CemElementRuntime {
                     if (this.renderTokens.get(instance) === token) {
                         compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
                     }
-                })
+                }),
             );
             return;
         }
@@ -1922,7 +1992,7 @@ export class CemElementRuntime {
                     if (this.renderTokens.get(instance) === token) {
                         compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
                     }
-                })
+                }),
             );
             return;
         }
@@ -1932,13 +2002,14 @@ export class CemElementRuntime {
         const renderPlan = this.renderFromDeclaration(instance, compiled, snapshot);
         this.renderSettled.set(
             instance,
-            (renderPlan ? this.commitRenderPlan(instance, compiled, island, renderPlan, token) : Promise.resolve()).then(
-                () => {
-                    if (this.renderTokens.get(instance) === token) {
-                        compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
-                    }
+            (renderPlan
+                ? this.commitRenderPlan(instance, compiled, island, renderPlan, token)
+                : Promise.resolve()
+            ).then(() => {
+                if (this.renderTokens.get(instance) === token) {
+                    compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
                 }
-            )
+            }),
         );
     }
 
@@ -1959,10 +2030,23 @@ export class CemElementRuntime {
                     this.recordDiagnostics(
                         compiled.declarationElement,
                         converted.diagnostics.map((diagnostic) =>
-                            runtimeSupportDiagnostic(diagnostic, compiled.producedTag)
-                        )
+                            runtimeSupportDiagnostic(diagnostic, compiled.producedTag),
+                        ),
                     );
                 }
+                return compileCemMlTemplate(converted.source).then((result) => {
+                    compiled.stylesheets = result.stylesheets;
+                    compiled.stylesheetsReady = true;
+                    this.installDeclarationStylesheets(compiled);
+                    if (result.diagnostics.length > 0) {
+                        this.recordDiagnostics(
+                            compiled.declarationElement,
+                            result.diagnostics.map((diagnostic) =>
+                                declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag),
+                            ),
+                        );
+                    }
+                });
             });
             this.legacyConversions.set(compiled, conversion);
         }
@@ -1973,7 +2057,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         snapshot: DataIslandSnapshot,
-        token: number
+        token: number,
     ): Promise<void> {
         try {
             // Legacy HTML+XSLT is lowered to CEM-ML by the engine on first render (cached).
@@ -2003,9 +2087,7 @@ export class CemElementRuntime {
             if (result.diagnostics.length > 0) {
                 this.recordDiagnostics(
                     instance,
-                    result.diagnostics.map((diagnostic) =>
-                        runtimeSupportDiagnostic(diagnostic, compiled.producedTag)
-                    )
+                    result.diagnostics.map((diagnostic) => runtimeSupportDiagnostic(diagnostic, compiled.producedTag)),
                 );
             }
             const scoped = scopeRenderPlan(result.renderPlan, this.currentScopeUid(instance, compiled), {
@@ -2013,7 +2095,7 @@ export class CemElementRuntime {
             });
             this.recordDiagnostics(
                 instance,
-                scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
+                scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag)),
             );
             this.recordGeneratedRenderPlanDiagnostics(instance, scoped.renderPlan, compiled.producedTag);
             const island = this.ensureDataIsland(instance);
@@ -2026,16 +2108,18 @@ export class CemElementRuntime {
                 renderDiagnostic(
                     'cem-element.wasm_render_failed',
                     error instanceof Error ? error.message : 'cem_ql WASM render failed',
-                    compiled.producedTag
+                    compiled.producedTag,
                 ),
             ]);
         }
     }
 
     private usesProcessingHost(compiled: CompiledDeclaration): boolean {
-        return compiled.mode === 'cem-ml'
-            && compiled.cemMlSource !== null
-            && !containsNonHttpRuntimeResourceDirective(compiled.cemMlSource);
+        return (
+            compiled.mode === 'cem-ml' &&
+            compiled.cemMlSource !== null &&
+            !containsNonHttpRuntimeResourceDirective(compiled.cemMlSource)
+        );
     }
 
     private processingHost(compiled: CompiledDeclaration): CemProcessingHost {
@@ -2049,7 +2133,7 @@ export class CemElementRuntime {
 
     private ensureProcessingArtifact(
         compiled: CompiledDeclaration,
-        renderBindings: readonly string[]
+        renderBindings: readonly string[],
     ): Promise<CemProcessingCompileResult> {
         let pending = this.processingArtifacts.get(compiled);
         if (!pending) {
@@ -2066,7 +2150,7 @@ export class CemElementRuntime {
     private async compileProcessingArtifact(
         compiled: CompiledDeclaration,
         registrationIdentity: string,
-        renderBindings: readonly string[]
+        renderBindings: readonly string[],
     ): Promise<CemProcessingCompileResult> {
         const source = compiled.cemMlSource ?? '';
         const sourceMapMode = 'dev' as const;
@@ -2079,20 +2163,18 @@ export class CemElementRuntime {
         let precompiledArtifact: CemProcessingArtifactBinaryTransfer | undefined;
         if (this.artifactRegistry?.getArtifact) {
             try {
-                const loaded = await this.artifactRegistry.getArtifact(
-                    CEM_TEMPLATE_ARTIFACT_NAMESPACE,
-                    payloadKey
-                );
-                precompiledArtifact = loaded === undefined
-                    ? undefined
-                    : { ...loaded, bytes: loaded.bytes.slice(0) };
+                const loaded = await this.artifactRegistry.getArtifact(CEM_TEMPLATE_ARTIFACT_NAMESPACE, payloadKey);
+                precompiledArtifact = loaded === undefined ? undefined : { ...loaded, bytes: loaded.bytes.slice(0) };
             } catch (error) {
                 this.recordDiagnostics(compiled.declarationElement, [
-                    declarationRuntimeSupportDiagnostic({
-                        code: 'cem.processing_host.artifact_registry_read_failed',
-                        severity: 'warning',
-                        message: `${error instanceof Error ? error.message : 'template artifact registry read failed'}; source compilation was used`,
-                    }, compiled.producedTag),
+                    declarationRuntimeSupportDiagnostic(
+                        {
+                            code: 'cem.processing_host.artifact_registry_read_failed',
+                            severity: 'warning',
+                            message: `${error instanceof Error ? error.message : 'template artifact registry read failed'}; source compilation was used`,
+                        },
+                        compiled.producedTag,
+                    ),
                 ]);
             }
         }
@@ -2108,33 +2190,32 @@ export class CemElementRuntime {
             sourceMapMode,
             hostBindings,
             ...(precompiledArtifact === undefined ? {} : { precompiledArtifact }),
-            ...(this.artifactRegistry?.putArtifact === undefined
-                ? {}
-                : { exportCompiledArtifact: true as const }),
+            ...(this.artifactRegistry?.putArtifact === undefined ? {} : { exportCompiledArtifact: true as const }),
         }).result;
         if (result.diagnostics.length > 0) {
             this.recordDiagnostics(
                 compiled.declarationElement,
                 result.diagnostics.map((diagnostic) =>
-                    declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag)
-                )
+                    declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag),
+                ),
             );
         }
         if (result.compiledArtifact && this.artifactRegistry?.putArtifact) {
             try {
-                await this.artifactRegistry.putArtifact(
-                    CEM_TEMPLATE_ARTIFACT_NAMESPACE,
-                    { ...result.compiledArtifact, bytes: result.compiledArtifact.bytes.slice(0) }
-                );
+                await this.artifactRegistry.putArtifact(CEM_TEMPLATE_ARTIFACT_NAMESPACE, {
+                    ...result.compiledArtifact,
+                    bytes: result.compiledArtifact.bytes.slice(0),
+                });
             } catch (error) {
                 this.recordDiagnostics(compiled.declarationElement, [
-                    declarationRuntimeSupportDiagnostic({
-                        code: 'cem.processing_host.artifact_registry_write_failed',
-                        severity: 'warning',
-                        message: error instanceof Error
-                            ? error.message
-                            : 'template artifact registry write failed',
-                    }, compiled.producedTag),
+                    declarationRuntimeSupportDiagnostic(
+                        {
+                            code: 'cem.processing_host.artifact_registry_write_failed',
+                            severity: 'warning',
+                            message: error instanceof Error ? error.message : 'template artifact registry write failed',
+                        },
+                        compiled.producedTag,
+                    ),
                 ]);
             }
         }
@@ -2145,7 +2226,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         snapshot: DataIslandSnapshot,
-        token: number
+        token: number,
     ): Promise<void> {
         try {
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
@@ -2176,13 +2257,11 @@ export class CemElementRuntime {
             }
             const resultDiagnostics = this.validateGeneratedIds
                 ? result.diagnostics
-                : result.diagnostics.filter(
-                    (diagnostic) => !diagnostic.code.startsWith('cem.render_plan.generated_')
-                );
+                : result.diagnostics.filter((diagnostic) => !diagnostic.code.startsWith('cem.render_plan.generated_'));
             if (resultDiagnostics.length > 0) {
                 this.recordDiagnostics(
                     instance,
-                    resultDiagnostics.map((diagnostic) => runtimeSupportDiagnostic(diagnostic, compiled.producedTag))
+                    resultDiagnostics.map((diagnostic) => runtimeSupportDiagnostic(diagnostic, compiled.producedTag)),
                 );
             }
             const island = this.ensureDataIsland(instance);
@@ -2196,7 +2275,7 @@ export class CemElementRuntime {
                     result.frames,
                     result.resourceControls,
                     committedRevision,
-                    token
+                    token,
                 );
             } catch (error) {
                 if (!(error instanceof CemPatchCommitError) || error.status !== 'aborted') {
@@ -2220,14 +2299,14 @@ export class CemElementRuntime {
                 const recoveryDiagnostics = this.validateGeneratedIds
                     ? result.diagnostics
                     : result.diagnostics.filter(
-                        (diagnostic) => !diagnostic.code.startsWith('cem.render_plan.generated_')
-                    );
+                          (diagnostic) => !diagnostic.code.startsWith('cem.render_plan.generated_'),
+                      );
                 if (recoveryDiagnostics.length > 0) {
                     this.recordDiagnostics(
                         instance,
                         recoveryDiagnostics.map((diagnostic) =>
-                            runtimeSupportDiagnostic(diagnostic, compiled.producedTag)
-                        )
+                            runtimeSupportDiagnostic(diagnostic, compiled.producedTag),
+                        ),
                     );
                 }
                 resourcesSettled = this.commitProcessingFrames(
@@ -2237,7 +2316,7 @@ export class CemElementRuntime {
                     result.frames,
                     result.resourceControls,
                     committedRevision,
-                    token
+                    token,
                 );
             }
             this.processingRenderPlans.set(instance, result.nextRenderPlan);
@@ -2250,7 +2329,7 @@ export class CemElementRuntime {
                 renderDiagnostic(
                     'cem-element.processing_host_render_failed',
                     error instanceof Error ? error.message : 'the CEM processing host render failed',
-                    compiled.producedTag
+                    compiled.producedTag,
                 ),
             ]);
         }
@@ -2262,17 +2341,19 @@ export class CemElementRuntime {
             return;
         }
         this.processingRenderJobs.delete(instance);
-        void active.host.cancel({
-            targetJobId: active.jobId,
-            reason: 'superseded',
-        }).result.catch(() => undefined);
+        void active.host
+            .cancel({
+                targetJobId: active.jobId,
+                reason: 'superseded',
+            })
+            .result.catch(() => undefined);
     }
 
     private async submitProcessingRender(
         instance: HTMLElement,
         host: CemProcessingHost,
         token: number,
-        input: CemProcessingRenderDiffInput
+        input: CemProcessingRenderDiffInput,
     ): Promise<CemProcessingRenderDiffResult> {
         const job = host.renderDiff(input);
         const active = { host, jobId: job.jobId, token };
@@ -2293,7 +2374,7 @@ export class CemElementRuntime {
         frames: Parameters<typeof applyPatchFramesToRange>[1],
         resourceControls: readonly CemProcessingResourceControl[],
         revision: Parameters<typeof applyPatchFramesToRange>[2],
-        token: number
+        token: number,
     ): Promise<void> {
         const behavior = compiled.behavior;
         const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
@@ -2303,8 +2384,8 @@ export class CemElementRuntime {
                 ? (current, desired, attribute) => preserveRenderedAttribute(instance, current, desired, attribute)
                 : undefined,
             preserveElementChildren: (current) =>
-                (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false)
-                && directDataIsland(current) !== undefined,
+                (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
+                directDataIsland(current) !== undefined,
             transientElementTags: [
                 'module-url',
                 'http-request',
@@ -2317,11 +2398,9 @@ export class CemElementRuntime {
         if (result.status !== 'applied') {
             this.recordDiagnostics(
                 instance,
-                result.diagnostics.map((diagnostic) => renderDiagnostic(
-                    diagnostic.code,
-                    diagnostic.message,
-                    compiled.producedTag
-                ))
+                result.diagnostics.map((diagnostic) =>
+                    renderDiagnostic(diagnostic.code, diagnostic.message, compiled.producedTag),
+                ),
             );
             throw new CemPatchCommitError(result.status);
         }
@@ -2335,23 +2414,25 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         controls: readonly CemProcessingResourceControl[],
-        _token: number
+        _token: number,
     ): Promise<void> {
         const settled: Promise<void>[] = [];
         const repositoryQueries = new Set<string>();
         const storageStatuses = new Set<string>();
         for (const control of controls) {
             if (control.kind === 'http-request') {
-                settled.push(this.startHttpRequestResource(instance, compiled, {
-                    sliceName: control.sliceName,
-                    authoredUrl: control.authoredUrl,
-                    method: control.method,
-                    headers: { ...control.headers },
-                    expectedContentType: control.expectedContentType,
-                    credentials: control.credentials,
-                    cache: control.cache,
-                    sourceMapRef: control.sourceMapRef,
-                }));
+                settled.push(
+                    this.startHttpRequestResource(instance, compiled, {
+                        sliceName: control.sliceName,
+                        authoredUrl: control.authoredUrl,
+                        method: control.method,
+                        headers: { ...control.headers },
+                        expectedContentType: control.expectedContentType,
+                        credentials: control.credentials,
+                        cache: control.cache,
+                        sourceMapRef: control.sourceMapRef,
+                    }),
+                );
             }
             if (control.kind === 'repository-query') {
                 repositoryQueries.add(control.sliceName);
@@ -2363,8 +2444,8 @@ export class CemElementRuntime {
                         parameters: control.parameters,
                         live: control.live,
                         cursor: control.cursor,
-                        sourceMapRef: control.sourceMapRef
-                    })
+                        sourceMapRef: control.sourceMapRef,
+                    }),
                 );
             }
             if (control.kind === 'storage-status') {
@@ -2375,8 +2456,8 @@ export class CemElementRuntime {
                         repository: control.repository,
                         live: control.live,
                         cursor: control.cursor,
-                        sourceMapRef: control.sourceMapRef
-                    })
+                        sourceMapRef: control.sourceMapRef,
+                    }),
                 );
             }
         }
@@ -2393,7 +2474,7 @@ export class CemElementRuntime {
     private renderFromDeclaration(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        snapshot: DataIslandSnapshot
+        snapshot: DataIslandSnapshot,
     ): RenderPlan | null {
         // UI adapter → processing layer → UI adapter: project the serializable template
         // source against a serializable data-island snapshot, then hand the scoped plan
@@ -2407,7 +2488,7 @@ export class CemElementRuntime {
             });
             this.recordDiagnostics(
                 instance,
-                scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
+                scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag)),
             );
             this.recordGeneratedRenderPlanDiagnostics(instance, scoped.renderPlan, compiled.producedTag);
             return scoped.renderPlan;
@@ -2416,7 +2497,7 @@ export class CemElementRuntime {
                 renderDiagnostic(
                     'cem-element.render_failed',
                     error instanceof Error ? error.message : 'render failed',
-                    compiled.producedTag
+                    compiled.producedTag,
                 ),
             ]);
             return null;
@@ -2429,9 +2510,7 @@ export class CemElementRuntime {
         }
         this.recordDiagnostics(
             instance,
-            validateRenderPlanGeneratedIds(plan).map((diagnostic) =>
-                generatedRenderPlanIdDiagnostic(diagnostic, tag)
-            )
+            validateRenderPlanGeneratedIds(plan).map((diagnostic) => generatedRenderPlanIdDiagnostic(diagnostic, tag)),
         );
     }
 
@@ -2475,7 +2554,7 @@ export class CemElementRuntime {
                 renderDiagnostic(
                     'cem-element.hydration_metadata_missing',
                     'SSR hydration render boundaries were present but hydration metadata was missing',
-                    instance.localName
+                    instance.localName,
                 ),
             ]);
             return false;
@@ -2485,7 +2564,7 @@ export class CemElementRuntime {
                 renderDiagnostic(
                     'cem-element.hydration_boundaries_missing',
                     'SSR hydration metadata was present but render boundaries were missing',
-                    instance.localName
+                    instance.localName,
                 ),
             ]);
             return false;
@@ -2493,13 +2572,7 @@ export class CemElementRuntime {
 
         const parsed = parseHydrationSnapshot(metadata);
         if (!parsed.ok) {
-            this.recordDiagnostics(instance, [
-                renderDiagnostic(
-                    parsed.code,
-                    parsed.message,
-                    instance.localName
-                ),
-            ]);
+            this.recordDiagnostics(instance, [renderDiagnostic(parsed.code, parsed.message, instance.localName)]);
             return false;
         }
         const snapshot = parsed.snapshot;
@@ -2508,12 +2581,17 @@ export class CemElementRuntime {
                 renderDiagnostic(
                     'cem-element.hydration_metadata_invalid',
                     'SSR hydration metadata did not match the produced element',
-                    instance.localName
+                    instance.localName,
                 ),
             ]);
             return false;
         }
-        const identityDiagnostics = hydrationRenderIdentityDiagnostics(instance, bounds, snapshot, this.validateGeneratedIds);
+        const identityDiagnostics = hydrationRenderIdentityDiagnostics(
+            instance,
+            bounds,
+            snapshot,
+            this.validateGeneratedIds,
+        );
         if (identityDiagnostics.length > 0) {
             this.recordDiagnostics(instance, identityDiagnostics);
             return false;
@@ -2526,19 +2604,14 @@ export class CemElementRuntime {
         // application run the data/security disposition is reject — refuse to
         // trust the un-understood snapshot and fall back to a fresh render rather
         // than silently honoring or dropping unknown fields.
-        const ingest = ingestContractVersion(
-            snapshot.version,
-            SNAPSHOT_SCHEMA_VERSION,
-            this.runMode,
-            'data-snapshot'
-        );
+        const ingest = ingestContractVersion(snapshot.version, SNAPSHOT_SCHEMA_VERSION, this.runMode, 'data-snapshot');
         if (!ingest.accept) {
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
                     'cem-element.snapshot_version_rejected',
                     ingest.decision?.rationale ??
                         `SSR hydration snapshot version ${String(snapshot.version)} is not understood by build ${SNAPSHOT_SCHEMA_VERSION} (${ingest.reason})`,
-                    instance.localName
+                    instance.localName,
                 ),
             ]);
             return false;
@@ -2557,7 +2630,7 @@ export class CemElementRuntime {
     private ensureInstanceState(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        island: HTMLTemplateElement
+        island: HTMLTemplateElement,
     ): InstanceState {
         const existing = this.instanceStates.get(instance);
         if (existing) {
@@ -2591,11 +2664,7 @@ export class CemElementRuntime {
         return state;
     }
 
-    private bindRenderedSliceEvents(
-        instance: HTMLElement,
-        compiled: CompiledDeclaration,
-        rendered: ParentNode
-    ): void {
+    private bindRenderedSliceEvents(instance: HTMLElement, compiled: CompiledDeclaration, rendered: ParentNode): void {
         for (const element of Array.from(rendered.querySelectorAll('*'))) {
             this.bindRenderedSliceEventElement(instance, compiled, element);
         }
@@ -2604,7 +2673,7 @@ export class CemElementRuntime {
     private bindRenderedSliceEventsInRange(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        bounds: RenderBounds
+        bounds: RenderBounds,
     ): void {
         for (const element of renderedElementsBetween(bounds, '*')) {
             this.bindRenderedSliceEventElement(instance, compiled, element);
@@ -2614,7 +2683,7 @@ export class CemElementRuntime {
     private bindRenderedSliceEventElement(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        element: Element
+        element: Element,
     ): void {
         const sliceNames = parseSliceTargets(renderedBindingAttribute(element, 'slice') ?? '');
         const eventNames = parseSliceEventNames(renderedBindingAttribute(element, 'slice-event') ?? '');
@@ -2684,11 +2753,7 @@ export class CemElementRuntime {
         element.removeAttribute('custom-validity');
     }
 
-    private bindRenderedFormEvents(
-        instance: HTMLElement,
-        compiled: CompiledDeclaration,
-        rendered: ParentNode
-    ): void {
+    private bindRenderedFormEvents(instance: HTMLElement, compiled: CompiledDeclaration, rendered: ParentNode): void {
         for (const element of Array.from(rendered.querySelectorAll('form'))) {
             this.bindRenderedFormEventElement(instance, compiled, element as HTMLFormElement);
         }
@@ -2697,7 +2762,7 @@ export class CemElementRuntime {
     private bindRenderedFormEventsInRange(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        bounds: RenderBounds
+        bounds: RenderBounds,
     ): void {
         for (const element of renderedElementsBetween(bounds, 'form')) {
             this.bindRenderedFormEventElement(instance, compiled, element as HTMLFormElement);
@@ -2707,7 +2772,7 @@ export class CemElementRuntime {
     private bindRenderedFormEventElement(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        form: HTMLFormElement
+        form: HTMLFormElement,
     ): void {
         const sliceNames = parseSliceTargets(form.getAttribute('slice') ?? '');
         if (sliceNames.length > 0) {
@@ -2746,7 +2811,7 @@ export class CemElementRuntime {
             this.formSliceNames.has(form) ||
             this.customValidityExpressions.has(form) ||
             Array.from(form.querySelectorAll('input,select,textarea,button,fieldset')).some((element) =>
-                this.customValidityExpressions.has(element)
+                this.customValidityExpressions.has(element),
             )
         );
     }
@@ -2763,17 +2828,17 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         rendered: ParentNode,
-        token: number
+        token: number,
     ): Promise<void> {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
             Array.from(
                 rendered.querySelectorAll(
-                    'module-url,http-request,repository-query,storage-status,local-storage,location-element'
-                )
+                    'module-url,http-request,repository-query,storage-status,local-storage,location-element',
+                ),
             ),
-            token
+            token,
         );
     }
 
@@ -2781,16 +2846,16 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         bounds: RenderBounds,
-        token: number
+        token: number,
     ): Promise<void> {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
             renderedElementsBetween(
                 bounds,
-                'module-url,http-request,repository-query,storage-status,local-storage,location-element'
+                'module-url,http-request,repository-query,storage-status,local-storage,location-element',
             ),
-            token
+            token,
         );
     }
 
@@ -2798,7 +2863,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         resourceElements: Element[],
-        token: number
+        token: number,
     ): Promise<void> {
         const moduleTasks: Promise<RenderedResourceResult>[] = [];
         const resourcesSettled: Promise<void>[] = [];
@@ -2809,10 +2874,8 @@ export class CemElementRuntime {
             const sliceName = element.getAttribute('slice')?.trim() ?? '';
             const specifier = element.getAttribute('src')?.trim() ?? '';
             const httpRequest = localName === 'http-request' ? readHttpRequestDeclaration(element) : null;
-            const repositoryQuery =
-                localName === 'repository-query' ? readRepositoryQueryDeclaration(element) : null;
-            const storageStatus =
-                localName === 'storage-status' ? readStorageStatusDeclaration(element) : null;
+            const repositoryQuery = localName === 'repository-query' ? readRepositoryQueryDeclaration(element) : null;
+            const storageStatus = localName === 'storage-status' ? readStorageStatusDeclaration(element) : null;
             const localStorage = localName === 'local-storage' ? readLocalStorageDeclaration(element) : null;
             const locationElement = localName === 'location-element' ? readLocationElementDeclaration(element) : null;
             element.remove();
@@ -2829,28 +2892,22 @@ export class CemElementRuntime {
                             specifier,
                             value: specifier,
                             error,
-                        }))
+                        })),
                 );
                 continue;
             }
             if (httpRequest) {
-                resourcesSettled.push(
-                    this.startHttpRequestResource(instance, compiled, httpRequest)
-                );
+                resourcesSettled.push(this.startHttpRequestResource(instance, compiled, httpRequest));
                 continue;
             }
             if (repositoryQuery) {
                 repositoryQueries.add(repositoryQuery.sliceName);
-                resourcesSettled.push(
-                    this.startRepositoryQueryResource(instance, compiled, repositoryQuery)
-                );
+                resourcesSettled.push(this.startRepositoryQueryResource(instance, compiled, repositoryQuery));
                 continue;
             }
             if (storageStatus) {
                 storageStatuses.add(storageStatus.sliceName);
-                resourcesSettled.push(
-                    this.startStorageStatusResource(instance, compiled, storageStatus)
-                );
+                resourcesSettled.push(this.startStorageStatusResource(instance, compiled, storageStatus));
                 continue;
             }
             if (localStorage) {
@@ -2892,8 +2949,8 @@ export class CemElementRuntime {
                                 `module-url \`${result.specifier}\` could not be resolved: ${
                                     result.error instanceof Error ? result.error.message : String(result.error)
                                 }`,
-                                compiled.producedTag
-                            )
+                                compiled.producedTag,
+                            ),
                         );
                     }
                     continue;
@@ -2917,7 +2974,7 @@ export class CemElementRuntime {
         const resolved = Promise.resolve(
             this.resolveModuleUrlOption
                 ? this.resolveModuleUrlOption(specifier, baseDocument)
-                : defaultResolveModuleUrl(specifier, baseDocument)
+                : defaultResolveModuleUrl(specifier, baseDocument),
         ).then((value) => String(value));
         this.moduleUrls.set(key, resolved);
         return resolved;
@@ -2926,7 +2983,7 @@ export class CemElementRuntime {
     private startRepositoryQueryResource(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        declaration: RepositoryQueryDeclaration
+        declaration: RepositoryQueryDeclaration,
     ): Promise<void> {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
@@ -2946,7 +3003,7 @@ export class CemElementRuntime {
             cursor: 0,
             controller: new AbortController(),
             settled: Promise.resolve(),
-            refreshQueued: false
+            refreshQueued: false,
         };
         state.repositoryQueryResources[declaration.sliceName] = active;
         try {
@@ -2955,14 +3012,7 @@ export class CemElementRuntime {
                 active.unsubscribe = this.requireRepositoryRegistry().subscribe(
                     declaration.repository,
                     active.cursor,
-                    (change) =>
-                        this.queueRepositoryQueryRefresh(
-                            instance,
-                            compiled,
-                            declaration,
-                            active,
-                            change
-                        )
+                    (change) => this.queueRepositoryQueryRefresh(instance, compiled, declaration, active, change),
                 );
             }
             active.settled = this.refreshRepositoryQuery(instance, compiled, declaration, active);
@@ -2973,7 +3023,7 @@ export class CemElementRuntime {
                 state,
                 declaration,
                 active,
-                error
+                error,
             );
         }
         return active.settled;
@@ -2983,7 +3033,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         declaration: RepositoryQueryDeclaration,
-        active: ActiveRepositoryQueryResource
+        active: ActiveRepositoryQueryResource,
     ): Promise<void> {
         const state = this.instanceStates.get(instance);
         if (!state || state.repositoryQueryResources[declaration.sliceName] !== active) {
@@ -3006,7 +3056,7 @@ export class CemElementRuntime {
                 declaration,
                 active,
                 error,
-                revision
+                revision,
             );
         }
         this.writeRepositoryQueryEnvelope(instance, compiled, state, declaration.sliceName, {
@@ -3017,7 +3067,7 @@ export class CemElementRuntime {
             request,
             repositoryRevision: null,
             data: null,
-            diagnostics: []
+            diagnostics: [],
         });
         this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
 
@@ -3030,38 +3080,28 @@ export class CemElementRuntime {
         declaration: RepositoryQueryDeclaration,
         active: ActiveRepositoryQueryResource,
         request: CemRepositoryRequest,
-        revision: number
+        revision: number,
     ): Promise<void> {
         try {
-            const result = await this.requireRepositoryRegistry().query(
-                request,
-                active.controller.signal
-            );
+            const result = await this.requireRepositoryRegistry().query(request, active.controller.signal);
             if (!this.isActiveRepositoryQuery(instance, declaration.sliceName, active, revision)) {
                 return;
             }
             const diagnostics = repositoryDiagnostics(
                 result.diagnostics,
                 compiled.producedTag,
-                declaration.sourceMapRef
+                declaration.sourceMapRef,
             );
-            this.updateRepositoryQueryAndRerender(
-                instance,
-                compiled,
-                declaration.sliceName,
-                active,
-                revision,
-                {
-                    kind: 'repository-query',
-                    state: 'loaded',
-                    resourceRevision: revision,
-                    changeCursor: active.cursor,
-                    request,
-                    repositoryRevision: result.repositoryRevision,
-                    data: result.value,
-                    diagnostics
-                }
-            );
+            this.updateRepositoryQueryAndRerender(instance, compiled, declaration.sliceName, active, revision, {
+                kind: 'repository-query',
+                state: 'loaded',
+                resourceRevision: revision,
+                changeCursor: active.cursor,
+                request,
+                repositoryRevision: result.repositoryRevision,
+                data: result.value,
+                diagnostics,
+            });
         } catch (error) {
             if (!this.isActiveRepositoryQuery(instance, declaration.sliceName, active, revision)) {
                 return;
@@ -3071,25 +3111,18 @@ export class CemElementRuntime {
                 'query_failed',
                 `repository-query ${declaration.repository}/${declaration.operation} failed`,
                 compiled.producedTag,
-                declaration.sourceMapRef
+                declaration.sourceMapRef,
             );
-            this.updateRepositoryQueryAndRerender(
-                instance,
-                compiled,
-                declaration.sliceName,
-                active,
-                revision,
-                {
-                    kind: 'repository-query',
-                    state: 'failed',
-                    resourceRevision: revision,
-                    changeCursor: active.cursor,
-                    request,
-                    repositoryRevision: null,
-                    data: null,
-                    diagnostics: [diagnostic]
-                }
-            );
+            this.updateRepositoryQueryAndRerender(instance, compiled, declaration.sliceName, active, revision, {
+                kind: 'repository-query',
+                state: 'failed',
+                resourceRevision: revision,
+                changeCursor: active.cursor,
+                request,
+                repositoryRevision: null,
+                data: null,
+                diagnostics: [diagnostic],
+            });
         }
     }
 
@@ -3100,12 +3133,11 @@ export class CemElementRuntime {
         declaration: RepositoryQueryDeclaration,
         active: ActiveRepositoryQueryResource,
         error: unknown,
-        suppliedRevision?: number
+        suppliedRevision?: number,
     ): Promise<void> {
         active.unsubscribe?.();
         active.unsubscribe = undefined;
-        const revision =
-            suppliedRevision ?? (state.resourceRevisions[declaration.sliceName] ?? 0) + 1;
+        const revision = suppliedRevision ?? (state.resourceRevisions[declaration.sliceName] ?? 0) + 1;
         active.revision = revision;
         state.resourceRevisions[declaration.sliceName] = revision;
         const request = repositoryRequestWithoutParameters(declaration, revision);
@@ -3114,7 +3146,7 @@ export class CemElementRuntime {
             'declaration_invalid',
             `repository-query ${declaration.repository}/${declaration.operation} is invalid`,
             compiled.producedTag,
-            declaration.sourceMapRef
+            declaration.sourceMapRef,
         );
         this.writeRepositoryQueryEnvelope(instance, compiled, state, declaration.sliceName, {
             kind: 'repository-query',
@@ -3124,7 +3156,7 @@ export class CemElementRuntime {
             request,
             repositoryRevision: null,
             data: null,
-            diagnostics: [diagnostic]
+            diagnostics: [diagnostic],
         });
         this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
         return Promise.resolve();
@@ -3135,7 +3167,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         declaration: RepositoryQueryDeclaration,
         active: ActiveRepositoryQueryResource,
-        change: CemRepositoryChange
+        change: CemRepositoryChange,
     ): void {
         if (change.cursor <= active.cursor) {
             return;
@@ -3157,11 +3189,10 @@ export class CemElementRuntime {
     private isCurrentRepositoryQuery(
         instance: HTMLElement,
         sliceName: string,
-        active: ActiveRepositoryQueryResource
+        active: ActiveRepositoryQueryResource,
     ): boolean {
         return (
-            instance.isConnected &&
-            this.instanceStates.get(instance)?.repositoryQueryResources[sliceName] === active
+            instance.isConnected && this.instanceStates.get(instance)?.repositoryQueryResources[sliceName] === active
         );
     }
 
@@ -3169,7 +3200,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         sliceName: string,
         active: ActiveRepositoryQueryResource,
-        revision: number
+        revision: number,
     ): boolean {
         return (
             this.isCurrentRepositoryQuery(instance, sliceName, active) &&
@@ -3184,7 +3215,7 @@ export class CemElementRuntime {
         sliceName: string,
         active: ActiveRepositoryQueryResource,
         revision: number,
-        envelope: CemRepositoryQueryEnvelope
+        envelope: CemRepositoryQueryEnvelope,
     ): void {
         if (!this.isActiveRepositoryQuery(instance, sliceName, active, revision)) {
             return;
@@ -3202,7 +3233,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         state: InstanceState,
         sliceName: string,
-        envelope: CemRepositoryQueryEnvelope
+        envelope: CemRepositoryQueryEnvelope,
     ): void {
         state.slices[sliceName] = envelope;
         state.eventPayloads[sliceName] = {
@@ -3212,7 +3243,7 @@ export class CemElementRuntime {
             changeCursor: envelope.changeCursor,
             request: envelope.request,
             repositoryRevision: envelope.repositoryRevision,
-            diagnostics: envelope.diagnostics
+            diagnostics: envelope.diagnostics,
         };
         this.recordDiagnostics(instance, envelope.diagnostics);
     }
@@ -3220,7 +3251,7 @@ export class CemElementRuntime {
     private startStorageStatusResource(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        declaration: StorageStatusDeclaration
+        declaration: StorageStatusDeclaration,
     ): Promise<void> {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
@@ -3236,7 +3267,7 @@ export class CemElementRuntime {
             revision: 0,
             cursor: 0,
             settled: Promise.resolve(),
-            refreshQueued: false
+            refreshQueued: false,
         };
         state.storageStatusResources[declaration.sliceName] = active;
         try {
@@ -3245,14 +3276,7 @@ export class CemElementRuntime {
                 active.unsubscribe = this.requireRepositoryRegistry().subscribe(
                     declaration.repository,
                     active.cursor,
-                    (change) =>
-                        this.queueStorageStatusRefresh(
-                            instance,
-                            compiled,
-                            declaration,
-                            active,
-                            change
-                        )
+                    (change) => this.queueStorageStatusRefresh(instance, compiled, declaration, active, change),
                 );
             }
             active.settled = this.refreshStorageStatus(instance, compiled, declaration, active);
@@ -3263,7 +3287,7 @@ export class CemElementRuntime {
                 state,
                 declaration,
                 active,
-                error
+                error,
             );
         }
         return active.settled;
@@ -3273,7 +3297,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         declaration: StorageStatusDeclaration,
-        active: ActiveStorageStatusResource
+        active: ActiveStorageStatusResource,
     ): Promise<void> {
         const state = this.instanceStates.get(instance);
         if (!state || state.storageStatusResources[declaration.sliceName] !== active) {
@@ -3289,7 +3313,7 @@ export class CemElementRuntime {
             changeCursor: active.cursor,
             repository: declaration.repository,
             data: null,
-            diagnostics: []
+            diagnostics: [],
         });
         this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
         return this.runStorageStatus(instance, compiled, declaration, active, revision);
@@ -3300,7 +3324,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         declaration: StorageStatusDeclaration,
         active: ActiveStorageStatusResource,
-        revision: number
+        revision: number,
     ): Promise<void> {
         try {
             const result = await this.requireRepositoryRegistry().status(declaration.repository);
@@ -3310,24 +3334,17 @@ export class CemElementRuntime {
             const diagnostics = repositoryDiagnostics(
                 result.diagnostics,
                 compiled.producedTag,
-                declaration.sourceMapRef
+                declaration.sourceMapRef,
             );
-            this.updateStorageStatusAndRerender(
-                instance,
-                compiled,
-                declaration.sliceName,
-                active,
-                revision,
-                {
-                    kind: 'storage-status',
-                    state: 'loaded',
-                    resourceRevision: revision,
-                    changeCursor: active.cursor,
-                    repository: declaration.repository,
-                    data: result,
-                    diagnostics
-                }
-            );
+            this.updateStorageStatusAndRerender(instance, compiled, declaration.sliceName, active, revision, {
+                kind: 'storage-status',
+                state: 'loaded',
+                resourceRevision: revision,
+                changeCursor: active.cursor,
+                repository: declaration.repository,
+                data: result,
+                diagnostics,
+            });
         } catch (error) {
             if (!this.isActiveStorageStatus(instance, declaration.sliceName, active, revision)) {
                 return;
@@ -3337,24 +3354,17 @@ export class CemElementRuntime {
                 'status_failed',
                 `storage-status ${declaration.repository} failed`,
                 compiled.producedTag,
-                declaration.sourceMapRef
+                declaration.sourceMapRef,
             );
-            this.updateStorageStatusAndRerender(
-                instance,
-                compiled,
-                declaration.sliceName,
-                active,
-                revision,
-                {
-                    kind: 'storage-status',
-                    state: 'failed',
-                    resourceRevision: revision,
-                    changeCursor: active.cursor,
-                    repository: declaration.repository,
-                    data: null,
-                    diagnostics: [diagnostic]
-                }
-            );
+            this.updateStorageStatusAndRerender(instance, compiled, declaration.sliceName, active, revision, {
+                kind: 'storage-status',
+                state: 'failed',
+                resourceRevision: revision,
+                changeCursor: active.cursor,
+                repository: declaration.repository,
+                data: null,
+                diagnostics: [diagnostic],
+            });
         }
     }
 
@@ -3364,7 +3374,7 @@ export class CemElementRuntime {
         state: InstanceState,
         declaration: StorageStatusDeclaration,
         active: ActiveStorageStatusResource,
-        error: unknown
+        error: unknown,
     ): Promise<void> {
         const revision = (state.resourceRevisions[declaration.sliceName] ?? 0) + 1;
         active.revision = revision;
@@ -3374,7 +3384,7 @@ export class CemElementRuntime {
             'declaration_invalid',
             `storage-status ${declaration.repository} is invalid`,
             compiled.producedTag,
-            declaration.sourceMapRef
+            declaration.sourceMapRef,
         );
         this.writeStorageStatusEnvelope(instance, compiled, state, declaration.sliceName, {
             kind: 'storage-status',
@@ -3383,7 +3393,7 @@ export class CemElementRuntime {
             changeCursor: active.cursor,
             repository: declaration.repository,
             data: null,
-            diagnostics: [diagnostic]
+            diagnostics: [diagnostic],
         });
         this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
         return Promise.resolve();
@@ -3394,7 +3404,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         declaration: StorageStatusDeclaration,
         active: ActiveStorageStatusResource,
-        change: CemRepositoryChange
+        change: CemRepositoryChange,
     ): void {
         if (change.cursor <= active.cursor) {
             return;
@@ -3416,23 +3426,18 @@ export class CemElementRuntime {
     private isCurrentStorageStatus(
         instance: HTMLElement,
         sliceName: string,
-        active: ActiveStorageStatusResource
+        active: ActiveStorageStatusResource,
     ): boolean {
-        return (
-            instance.isConnected &&
-            this.instanceStates.get(instance)?.storageStatusResources[sliceName] === active
-        );
+        return instance.isConnected && this.instanceStates.get(instance)?.storageStatusResources[sliceName] === active;
     }
 
     private isActiveStorageStatus(
         instance: HTMLElement,
         sliceName: string,
         active: ActiveStorageStatusResource,
-        revision: number
+        revision: number,
     ): boolean {
-        return (
-            this.isCurrentStorageStatus(instance, sliceName, active) && active.revision === revision
-        );
+        return this.isCurrentStorageStatus(instance, sliceName, active) && active.revision === revision;
     }
 
     private updateStorageStatusAndRerender(
@@ -3441,7 +3446,7 @@ export class CemElementRuntime {
         sliceName: string,
         active: ActiveStorageStatusResource,
         revision: number,
-        envelope: CemStorageStatusEnvelope
+        envelope: CemStorageStatusEnvelope,
     ): void {
         if (!this.isActiveStorageStatus(instance, sliceName, active, revision)) {
             return;
@@ -3459,7 +3464,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         state: InstanceState,
         sliceName: string,
-        envelope: CemStorageStatusEnvelope
+        envelope: CemStorageStatusEnvelope,
     ): void {
         state.slices[sliceName] = envelope;
         state.eventPayloads[sliceName] = {
@@ -3468,7 +3473,7 @@ export class CemElementRuntime {
             resourceRevision: envelope.resourceRevision,
             changeCursor: envelope.changeCursor,
             repository: envelope.repository,
-            diagnostics: envelope.diagnostics
+            diagnostics: envelope.diagnostics,
         };
         this.recordDiagnostics(instance, envelope.diagnostics);
     }
@@ -3476,7 +3481,7 @@ export class CemElementRuntime {
     private disposeMissingRepositoryResources(
         instance: HTMLElement,
         repositoryQueries: ReadonlySet<string>,
-        storageStatuses: ReadonlySet<string>
+        storageStatuses: ReadonlySet<string>,
     ): void {
         const state = this.instanceStates.get(instance);
         if (!state) {
@@ -3503,7 +3508,7 @@ export class CemElementRuntime {
         if (!this.repositoryRegistry) {
             throw new RepositoryResourceError(
                 'cem-element.repository_registry_unavailable',
-                'no read-only repository registry was provided to the CEM runtime'
+                'no read-only repository registry was provided to the CEM runtime',
             );
         }
         return this.repositoryRegistry;
@@ -3512,7 +3517,7 @@ export class CemElementRuntime {
     private bindLocalStorageResource(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        declaration: LocalStorageDeclaration
+        declaration: LocalStorageDeclaration,
     ): void {
         const window = instance.ownerDocument.defaultView;
         const storage = localStorageForWindow(window);
@@ -3522,7 +3527,7 @@ export class CemElementRuntime {
                     'cem-element.local_storage_unavailable',
                     `local-storage key \`${declaration.key}\` cannot be read in this browser context`,
                     compiled.producedTag,
-                    'warning'
+                    'warning',
                 ),
             ]);
             return;
@@ -3543,30 +3548,20 @@ export class CemElementRuntime {
         let needsRerender = false;
 
         if (declaration.initialValue !== undefined) {
-            nextValue = localStorageStringToValue(declaration.storageType, declaration.initialValue, instance.ownerDocument);
+            nextValue = localStorageStringToValue(
+                declaration.storageType,
+                declaration.initialValue,
+                instance.ownerDocument,
+            );
             nextRawValue = localStorageValueToString(declaration.storageType, nextValue);
             writeLocalStorageRaw(storage, declaration.key, nextRawValue);
             source = 'value-attribute';
-            needsRerender = this.writeLocalStorageSlice(
-                state,
-                declaration,
-                nextValue,
-                nextRawValue,
-                source,
-                active
-            );
+            needsRerender = this.writeLocalStorageSlice(state, declaration, nextValue, nextRawValue, source, active);
         } else if (!active) {
             nextRawValue = storage.getItem(declaration.key);
             nextValue = localStorageStringToValue(declaration.storageType, nextRawValue, instance.ownerDocument);
             source = 'initial-read';
-            needsRerender = this.writeLocalStorageSlice(
-                state,
-                declaration,
-                nextValue,
-                nextRawValue,
-                source,
-                active
-            );
+            needsRerender = this.writeLocalStorageSlice(state, declaration, nextValue, nextRawValue, source, active);
         } else {
             const sliceValue = state.slices[declaration.sliceName];
             if (!resourceValuesEqual(sliceValue, active.lastValue)) {
@@ -3602,7 +3597,7 @@ export class CemElementRuntime {
         value: unknown,
         rawValue: string | null,
         source: LocalStorageSliceSource,
-        active: ActiveLocalStorageResource | undefined
+        active: ActiveLocalStorageResource | undefined,
     ): boolean {
         const changed = !resourceValuesEqual(state.slices[declaration.sliceName], value);
         if (changed) {
@@ -3621,7 +3616,7 @@ export class CemElementRuntime {
         declaration: LocalStorageDeclaration,
         value: unknown,
         rawValue: string | null,
-        source: LocalStorageSliceSource
+        source: LocalStorageSliceSource,
     ): void {
         state.eventPayloads[declaration.sliceName] = {
             type: 'local-storage',
@@ -3640,7 +3635,7 @@ export class CemElementRuntime {
         state: InstanceState,
         declaration: LocalStorageDeclaration,
         value: unknown,
-        rawValue: string | null
+        rawValue: string | null,
     ): ActiveLocalStorageResource {
         const existing = state.localStorageResources[declaration.sliceName];
         if (existing) {
@@ -3665,7 +3660,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         state: InstanceState,
         declaration: LocalStorageDeclaration,
-        active: ActiveLocalStorageResource
+        active: ActiveLocalStorageResource,
     ): () => void {
         const window = instance.ownerDocument.defaultView;
         const storage = localStorageForWindow(window);
@@ -3697,7 +3692,7 @@ export class CemElementRuntime {
     private bindLocationResource(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        declaration: LocationElementDeclaration
+        declaration: LocationElementDeclaration,
     ): void {
         const window = instance.ownerDocument.defaultView;
         if (!window) {
@@ -3706,7 +3701,7 @@ export class CemElementRuntime {
                     'cem-element.location_unavailable',
                     'location-element cannot read a URL in this browser context',
                     compiled.producedTag,
-                    'warning'
+                    'warning',
                 ),
             ]);
             return;
@@ -3751,7 +3746,7 @@ export class CemElementRuntime {
         declaration: LocationElementDeclaration,
         value: unknown,
         source: LocationSliceSource,
-        active: ActiveLocationResource | undefined
+        active: ActiveLocationResource | undefined,
     ): boolean {
         if (!declaration.sliceName) {
             return false;
@@ -3779,7 +3774,7 @@ export class CemElementRuntime {
         state: InstanceState,
         declaration: LocationReadDeclaration,
         key: string,
-        value: unknown
+        value: unknown,
     ): ActiveLocationResource {
         const existing = state.locationResources[declaration.sliceName];
         if (existing) {
@@ -3802,7 +3797,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         state: InstanceState,
         declaration: LocationReadDeclaration,
-        active: ActiveLocationResource
+        active: ActiveLocationResource,
     ): () => void {
         const window = instance.ownerDocument.defaultView;
         if (!window) {
@@ -3831,7 +3826,7 @@ export class CemElementRuntime {
     private startHttpRequestResource(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        declaration: HttpRequestDeclaration
+        declaration: HttpRequestDeclaration,
     ): Promise<void> {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
@@ -3859,7 +3854,7 @@ export class CemElementRuntime {
             request: unresolvedHttpRequestMetadata(
                 declaration,
                 this.scopePolicyStamp,
-                this.currentScopeUid(instance, compiled)
+                this.currentScopeUid(instance, compiled),
             ),
             data: null,
             diagnostics: [],
@@ -3874,12 +3869,12 @@ export class CemElementRuntime {
 
     private async resolveHttpResourceUrl(
         request: CemResourceResolutionRequest,
-        baseDocument: Document
+        baseDocument: Document,
     ): Promise<CemResourceResolution> {
         const result = await Promise.resolve(
             this.resolveResourceUrlOption
                 ? this.resolveResourceUrlOption(request, baseDocument)
-                : defaultResolveResourceUrl(request, baseDocument, this.scopePolicyStamp, this.httpResourcePolicy)
+                : defaultResolveResourceUrl(request, baseDocument, this.scopePolicyStamp, this.httpResourcePolicy),
         );
         if (typeof result === 'string') {
             return {
@@ -3899,14 +3894,14 @@ export class CemElementRuntime {
         declaration: HttpRequestDeclaration,
         key: string,
         revision: number,
-        controller: AbortController
+        controller: AbortController,
     ): Promise<void> {
         let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
             if (declaration.method !== 'GET' && declaration.method !== 'HEAD') {
                 throw new HttpResourceError(
                     'cem-element.http_request_method_unsupported',
-                    `method ${declaration.method} is not supported; use GET or HEAD`
+                    `method ${declaration.method} is not supported; use GET or HEAD`,
                 );
             }
             const method = declaration.method;
@@ -3918,9 +3913,7 @@ export class CemElementRuntime {
                 contextIdentity: this.currentScopeUid(instance, compiled),
                 method,
                 headers: declaration.headers,
-                ...(declaration.expectedContentType
-                    ? { expectedContentTypes: [declaration.expectedContentType] }
-                    : {}),
+                ...(declaration.expectedContentType ? { expectedContentTypes: [declaration.expectedContentType] } : {}),
                 expectedContentType: declaration.expectedContentType,
             };
             const resolution = await this.resolveHttpResourceUrl(resolutionRequest, instance.ownerDocument);
@@ -3969,7 +3962,7 @@ export class CemElementRuntime {
                 request.expectedContentType,
                 request.policy.maxResponseBytes,
                 request.signal,
-                compiled.producedTag
+                compiled.producedTag,
             );
             if (!this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) {
                 return;
@@ -4002,7 +3995,7 @@ export class CemElementRuntime {
                 request: unresolvedHttpRequestMetadata(
                     declaration,
                     this.scopePolicyStamp,
-                    this.currentScopeUid(instance, compiled)
+                    this.currentScopeUid(instance, compiled),
                 ),
                 data: null,
                 diagnostics: [
@@ -4013,7 +4006,7 @@ export class CemElementRuntime {
                         }`,
                         compiled.producedTag,
                         aborted ? 'warning' : 'error',
-                        declaration.sourceMapRef
+                        declaration.sourceMapRef,
                     ),
                 ],
             });
@@ -4054,7 +4047,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         state: InstanceState,
         sliceName: string,
-        envelope: CemHttpResourceEnvelope
+        envelope: CemHttpResourceEnvelope,
     ): void {
         state.slices[sliceName] = envelope;
         state.eventPayloads[sliceName] = {
@@ -4074,7 +4067,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         sliceName: string,
         revision: number,
-        input: Parameters<CemElementRuntime['httpRequestEnvelope']>[0]
+        input: Parameters<CemElementRuntime['httpRequestEnvelope']>[0],
     ): void {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
@@ -4089,24 +4082,16 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         sliceName: string,
-        revision: number
+        revision: number,
     ): void {
         queueMicrotask(() => {
-            if (
-                instance.isConnected &&
-                this.instanceStates.get(instance)?.resourceRevisions[sliceName] === revision
-            ) {
+            if (instance.isConnected && this.instanceStates.get(instance)?.resourceRevisions[sliceName] === revision) {
                 this.renderInstance(instance, compiled);
             }
         });
     }
 
-    private isActiveHttpResource(
-        instance: HTMLElement,
-        sliceName: string,
-        key: string,
-        revision: number
-    ): boolean {
+    private isActiveHttpResource(instance: HTMLElement, sliceName: string, key: string, revision: number): boolean {
         const active = this.instanceStates.get(instance)?.httpResources[sliceName];
         return Boolean(active && active.key === key && active.revision === revision && instance.isConnected);
     }
@@ -4116,7 +4101,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         sliceNames: string[],
         expression: string,
-        event: Event
+        event: Event,
     ): void {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
@@ -4135,25 +4120,94 @@ export class CemElementRuntime {
     }
 
     private ensureInstanceScope(instance: HTMLElement, compiled: CompiledDeclaration): string {
-        const existing = instance.getAttribute(DATA_CEM_SCOPE_ATTR) ?? this.retainedRenderedScope(instance);
+        const existing = instance.getAttribute(DATA_CEM_RENDER_SCOPE_ATTR) ?? this.retainedRenderedScope(instance);
         const scopeUid = existing && existing.length > 0 ? existing : compiled.scopeUid;
-        if (instance.getAttribute(DATA_CEM_SCOPE_ATTR) !== scopeUid) {
-            instance.setAttribute(DATA_CEM_SCOPE_ATTR, scopeUid);
+        if (instance.getAttribute(DATA_CEM_RENDER_SCOPE_ATTR) !== scopeUid) {
+            instance.setAttribute(DATA_CEM_RENDER_SCOPE_ATTR, scopeUid);
+        }
+        if (compiled.sharedStyleScope && instance.getAttribute(DATA_CEM_SCOPE_ATTR) !== compiled.sharedStyleScope) {
+            instance.setAttribute(DATA_CEM_SCOPE_ATTR, compiled.sharedStyleScope);
         }
         const existingInstanceScope = instance.getAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR);
         if (!existingInstanceScope || existingInstanceScope.length === 0) {
-            instance.setAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR, renderInstanceScopeUid(scopeUid, this.instanceId(instance)));
+            instance.setAttribute(
+                DATA_CEM_INSTANCE_SCOPE_ATTR,
+                renderInstanceScopeUid(scopeUid, this.instanceId(instance)),
+            );
         }
         return scopeUid;
     }
 
+    private installDeclarationStylesheets(compiled: CompiledDeclaration): void {
+        if (!compiled.stylesheetsReady) {
+            return;
+        }
+        const installed = installedDeclarationStyles.get(compiled);
+        if (installed) {
+            for (const style of installed) {
+                if (style.parentElement !== compiled.declarationElement) {
+                    compiled.declarationElement.append(style);
+                }
+            }
+            return;
+        }
+
+        const managed: HTMLStyleElement[] = [];
+        const diagnostics: CemElementDiagnostic[] = [];
+        const resolutions = resolveDeclarationStylesheetScopes(
+            compiled.sharedStyleScope,
+            compiled.stylesheets.map((stylesheet) => stylesheet.scope),
+        );
+        compiled.stylesheets.forEach((stylesheet, index) => {
+            const resolution = resolutions[index];
+            if (!resolution || resolution.kind === 'invalid') {
+                diagnostics.push(
+                    declarationDiagnostic(
+                        'cem-element.stylesheet_scope_mismatch',
+                        `stylesheet scope \`${resolution?.scope ?? ''}\` must exactly match declaration scope \`${compiled.sharedStyleScope ?? ''}\``,
+                        compiled.producedTag,
+                    ),
+                );
+                return;
+            }
+
+            const shared = resolution.kind === 'shared';
+            const boundarySelector = shared
+                ? `:where([${DATA_CEM_SCOPE_ATTR}="${cssAttributeString(resolution.scope)}"])`
+                : `:where(${compiled.producedTag})`;
+            const rewritten = scopeCssText(stylesheet.css, `${compiled.scopeUid}-s${index + 1}`, {
+                boundarySelector,
+            });
+            diagnostics.push(
+                ...rewritten.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag)),
+            );
+            if (rewritten.css.length === 0) {
+                return;
+            }
+            const style = compiled.declarationElement.ownerDocument.createElement('style');
+            style.setAttribute('data-cem-declaration-style', shared ? 'shared' : 'private');
+            if (shared) {
+                style.setAttribute('data-cem-style-scope', resolution.scope);
+            }
+            style.textContent = rewritten.css;
+            managed.push(style);
+        });
+        installedDeclarationStyles.set(compiled, managed);
+        compiled.declarationElement.append(...managed);
+        if (diagnostics.length > 0) {
+            this.recordDiagnostics(compiled.declarationElement, diagnostics);
+        }
+    }
+
     private currentScopeUid(instance: HTMLElement, compiled: CompiledDeclaration): string {
-        return instance.getAttribute(DATA_CEM_SCOPE_ATTR) || compiled.scopeUid;
+        return instance.getAttribute(DATA_CEM_RENDER_SCOPE_ATTR) || compiled.scopeUid;
     }
 
     private currentInstanceScopeUid(instance: HTMLElement, compiled: CompiledDeclaration): string {
-        return instance.getAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR)
-            || renderInstanceScopeUid(this.currentScopeUid(instance, compiled), this.instanceId(instance));
+        return (
+            instance.getAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR) ||
+            renderInstanceScopeUid(this.currentScopeUid(instance, compiled), this.instanceId(instance))
+        );
     }
 
     private retainedRenderedScope(instance: HTMLElement): string | null {
@@ -4161,7 +4215,7 @@ export class CemElementRuntime {
         if (!bounds) {
             return null;
         }
-        return firstRenderedElementBetween(bounds)?.getAttribute(DATA_CEM_SCOPE_ATTR) ?? null;
+        return firstRenderedElementBetween(bounds)?.getAttribute(DATA_CEM_RENDER_SCOPE_ATTR) ?? null;
     }
 
     private commitRenderPlan(
@@ -4169,7 +4223,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         island: HTMLTemplateElement,
         renderPlan: RenderPlan,
-        token: number
+        token: number,
     ): Promise<void> {
         const previous = this.committedRenderPlans.get(instance) ?? null;
         if (
@@ -4184,18 +4238,14 @@ export class CemElementRuntime {
         const behavior = compiled.behavior;
         const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
         const preserveElementAttribute = preserveRenderedAttribute
-            ? (current: Element, desired: Element, attribute: Attr) => preserveRenderedAttribute(
-                instance,
-                current,
-                desired,
-                attribute
-            )
+            ? (current: Element, desired: Element, attribute: Attr) =>
+                  preserveRenderedAttribute(instance, current, desired, attribute)
             : undefined;
         const mergeOptions = {
             preserveElementAttribute,
             preserveElementChildren: (current: Element) =>
-                (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false)
-                && directDataIsland(current) !== undefined,
+                (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
+                directDataIsland(current) !== undefined,
             transientElementTags: [
                 'module-url',
                 'http-request',
@@ -4210,7 +4260,7 @@ export class CemElementRuntime {
             const result = applyRenderPlanToRange(bounds, renderPlan, instance.ownerDocument, mergeOptions);
             this.recordDiagnostics(
                 instance,
-                result.diagnostics.map((diagnostic) => renderPlanApplyDiagnostic(diagnostic, compiled.producedTag))
+                result.diagnostics.map((diagnostic) => renderPlanApplyDiagnostic(diagnostic, compiled.producedTag)),
             );
             this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
             this.bindRenderedCustomValidityInRange(bounds);
@@ -4230,7 +4280,11 @@ export class CemElementRuntime {
         return resourcesSettled;
     }
 
-    private replaceRenderedContent(instance: HTMLElement, island: HTMLTemplateElement, rendered: DocumentFragment): void {
+    private replaceRenderedContent(
+        instance: HTMLElement,
+        island: HTMLTemplateElement,
+        rendered: DocumentFragment,
+    ): void {
         const bounds = this.ensureRenderBounds(instance, island);
         let current = bounds.start.nextSibling;
         while (current && current !== bounds.end) {
@@ -4260,19 +4314,12 @@ export class CemElementRuntime {
     private createSnapshot(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        island: HTMLTemplateElement
+        island: HTMLTemplateElement,
     ): DataIslandSnapshot {
         const dataRevision = this.nextDataRevision(instance);
         const state = this.instanceStates.get(instance);
         const baseForms = this.captureRenderedForms(instance);
-        const baseSnapshot = this.snapshotFromCapturedForms(
-            instance,
-            compiled,
-            island,
-            dataRevision,
-            state,
-            baseForms
-        );
+        const baseSnapshot = this.snapshotFromCapturedForms(instance, compiled, island, dataRevision, state, baseForms);
         if (!this.applyRenderedCustomValidity(instance, baseSnapshot)) {
             return baseSnapshot;
         }
@@ -4282,7 +4329,7 @@ export class CemElementRuntime {
             island,
             dataRevision,
             state,
-            this.captureRenderedForms(instance)
+            this.captureRenderedForms(instance),
         );
     }
 
@@ -4292,7 +4339,7 @@ export class CemElementRuntime {
         island: HTMLTemplateElement,
         dataRevision: string,
         state: InstanceState | undefined,
-        forms: CapturedRenderedForms
+        forms: CapturedRenderedForms,
     ): DataIslandSnapshot {
         const slices = { ...(state?.slices ?? {}) };
         for (const [name, mirror] of Object.entries(forms.sliceMirrors)) {
@@ -4336,7 +4383,7 @@ export class CemElementRuntime {
                 expression,
                 snapshot,
                 element,
-                this.formKeyForElement(instance, element)
+                this.formKeyForElement(instance, element),
             );
             const message = customValidityMessage(result);
             this.customValidationMessages.set(element, message);
@@ -4347,9 +4394,11 @@ export class CemElementRuntime {
     }
 
     private formKeyForElement(instance: HTMLElement, element: Element): string | null {
-        const form = element.localName === 'form'
-            ? (element as HTMLFormElement)
-            : ((element as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement).form ?? null);
+        const form =
+            element.localName === 'form'
+                ? (element as HTMLFormElement)
+                : ((element as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement).form ??
+                  null);
         if (!form) {
             return null;
         }
@@ -4427,7 +4476,7 @@ export class CemElementRuntime {
                     declarationDiagnostic(
                         generated.code,
                         `generated ${generated.label} \`${generated.id}\` is already used in this runtime output scope`,
-                        compiled.producedTag
+                        compiled.producedTag,
                     ),
                 ]);
                 valid = false;
@@ -4475,7 +4524,7 @@ interface GeneratedDeclarationId {
 }
 
 function generatedDeclarationIds(compiled: CompiledDeclaration): GeneratedDeclarationId[] {
-    return [
+    const ids: GeneratedDeclarationId[] = [
         {
             kind: 'scope',
             id: compiled.scopeUid,
@@ -4489,6 +4538,15 @@ function generatedDeclarationIds(compiled: CompiledDeclaration): GeneratedDeclar
             label: 'template artifact ID',
         },
     ];
+    if (compiled.anonymousTag) {
+        ids.push({
+            kind: 'anonymous-custom-element-name',
+            id: compiled.producedTag,
+            code: 'cem-element.anonymous_tag_duplicate',
+            label: 'anonymous custom-element name',
+        });
+    }
+    return ids;
 }
 
 function analyzeDeclarationElement(element: HTMLElement): DeclarationShapeResult {
@@ -4504,12 +4562,20 @@ function compileInlineDeclaration(
     declarationElement: HTMLElement,
     producedTag: string,
     template: HTMLTemplateElement,
-    options: InlineDeclarationCompileOptions
+    options: InlineDeclarationCompileOptions,
 ): CompiledDeclaration {
     const mode = templateMode(template);
     const diagnostics: CemElementDiagnostic[] = [];
 
-    const templateSource = readInlineTemplateSource(template, mode);
+    const rawTemplateSource = readInlineTemplateSource(template, mode);
+    const domStyles =
+        mode === 'dom'
+            ? extractDomDeclarationStylesheets(rawTemplateSource, producedTag)
+            : { nodes: rawTemplateSource, stylesheets: [], diagnostics: [] };
+    const templateSource = domStyles.nodes;
+    diagnostics.push(...domStyles.diagnostics);
+    const sharedStyleScope = declarationSharedStyleScope(declarationElement, producedTag);
+    diagnostics.push(...sharedStyleScope.diagnostics);
     // DOM-parity templates extract their declarations here for the synchronous projection path.
     // CEM-ML and legacy-XSLT templates render through the cem_ql WASM boundary,
     // which owns declared attributes/defaults (seed_declaration_defaults binds even unset ones).
@@ -4523,7 +4589,11 @@ function compileInlineDeclaration(
     // and lowered lazily on first render (see {@link renderViaWasm}) — `cemMlSource` starts null.
     const cemMlSource = mode === 'cem-ml' ? templateSourceText(template) : null;
     const legacySource =
-        mode === 'legacy-xslt' ? (template.innerHTML.trim().length > 0 ? template.innerHTML : templateSourceText(template)) : null;
+        mode === 'legacy-xslt'
+            ? template.innerHTML.trim().length > 0
+                ? template.innerHTML
+                : templateSourceText(template)
+            : null;
     const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt';
     const occurrencePath = declarationOccurrencePath(declarationElement);
     const sourceText = sourceTextForUidSeed(template, mode, cemMlSource, legacySource);
@@ -4541,26 +4611,31 @@ function compileInlineDeclaration(
         behaviorIdentity: options.behaviorIdentity,
     });
     diagnostics.push(...registration.diagnostics);
-    const uidSeedResolution = resolveDeclarationUidSeed({
-        declarationElement,
-        declarationTag: options.declarationTag,
-        producedTag,
-        template,
-        mode,
-        occurrencePath,
-        sourceText,
-        sourceHash,
-    }, options);
+    const uidSeedResolution = resolveDeclarationUidSeed(
+        {
+            declarationElement,
+            declarationTag: options.declarationTag,
+            producedTag,
+            template,
+            mode,
+            occurrencePath,
+            sourceText,
+            sourceHash,
+        },
+        options,
+    );
     return {
         declarationElement,
         declarationTag: options.declarationTag,
         producedTag,
+        anonymousTag: declarationElement.hasAttribute('data-cem-anonymous-declaration'),
         uidSeed: uidSeedResolution.seed,
         uidSeedSource: uidSeedResolution.source,
         occurrencePath,
         sourceHash,
         registrationIdentity: registration.registrationIdentity,
         declarationScope: options.declarationScope,
+        sharedStyleScope: sharedStyleScope.value,
         scopeUid: generateScopeUid({ producedTag, uidSeed: uidSeedResolution.seed, occurrencePath }),
         artifactId: `template-artifact-${++artifactSequence}`,
         sourceRef: options.source.sourceRef,
@@ -4574,9 +4649,85 @@ function compileInlineDeclaration(
         wasmEligible,
         declaredAttributes,
         declaredSlices,
+        stylesheets: domStyles.stylesheets,
+        stylesheetsReady: mode === 'dom',
         diagnostics,
         behavior: options.behavior,
     };
+}
+
+function declarationSharedStyleScope(
+    declarationElement: HTMLElement,
+    producedTag: string,
+): { value: string | null; diagnostics: CemElementDiagnostic[] } {
+    const result = resolveDeclarationStyleScope(
+        declarationElement.hasAttribute('scope'),
+        declarationElement.getAttribute('scope'),
+    );
+    if (!result.valid) {
+        return {
+            value: null,
+            diagnostics: [
+                declarationDiagnostic(
+                    'cem-element.stylesheet_scope_invalid',
+                    'declaration `scope` must be one non-empty CSS identifier',
+                    producedTag,
+                ),
+            ],
+        };
+    }
+    return { value: result.scope, diagnostics: [] };
+}
+
+function extractDomDeclarationStylesheets(
+    nodes: readonly TemplateSourceNode[],
+    producedTag: string,
+): {
+    nodes: TemplateSourceNode[];
+    stylesheets: CemQlStylesheetArtifact[];
+    diagnostics: CemElementDiagnostic[];
+} {
+    const stylesheets: CemQlStylesheetArtifact[] = [];
+    const diagnostics: CemElementDiagnostic[] = [];
+    const visit = (sourceNodes: readonly TemplateSourceNode[]): TemplateSourceNode[] => {
+        const retained: TemplateSourceNode[] = [];
+        for (const node of sourceNodes) {
+            if (node.kind !== 'element') {
+                retained.push(node);
+                continue;
+            }
+            if (node.tag === 'style' && node.namespace === null) {
+                const scope = node.attributes.find((attribute) => attribute.name === 'scope')?.value ?? null;
+                const dynamic =
+                    scope?.includes('{$') ||
+                    node.children.some(
+                        (child) => child.kind === 'element' || (child.kind === 'text' && child.text.includes('{$')),
+                    );
+                if (dynamic) {
+                    diagnostics.push(
+                        declarationDiagnostic(
+                            'cem-element.stylesheet_dynamic_unsupported',
+                            'declaration stylesheet content and its `scope` attribute must be static',
+                            producedTag,
+                        ),
+                    );
+                    continue;
+                }
+                stylesheets.push({
+                    scope,
+                    css: node.children
+                        .map((child) =>
+                            child.kind === 'text' ? child.text : child.kind === 'comment' ? `/*${child.text}*/` : '',
+                        )
+                        .join(''),
+                });
+                continue;
+            }
+            retained.push({ ...node, children: visit(node.children) });
+        }
+        return retained;
+    };
+    return { nodes: visit(nodes), stylesheets, diagnostics };
 }
 
 interface InlineDeclarationCompileOptions {
@@ -4596,7 +4747,7 @@ interface ResolvedUidSeed {
 
 function resolveDeclarationUidSeed(
     input: CemElementUidSeedInput,
-    options: InlineDeclarationCompileOptions
+    options: InlineDeclarationCompileOptions,
 ): ResolvedUidSeed {
     if (input.declarationElement.hasAttribute(UID_SEED_ATTR)) {
         return {
@@ -4626,10 +4777,7 @@ function resolveDeclarationUidSeed(
     };
 }
 
-function resolveHostUidSeed(
-    input: CemElementUidSeedInput,
-    option: CemElementRuntimeOptions['uidSeed']
-): string | null {
+function resolveHostUidSeed(input: CemElementUidSeedInput, option: CemElementRuntimeOptions['uidSeed']): string | null {
     if (option === undefined) {
         return null;
     }
@@ -4641,7 +4789,7 @@ function sourceTextForUidSeed(
     template: HTMLTemplateElement,
     mode: CompiledDeclaration['mode'],
     cemMlSource: string | null,
-    legacySource: string | null
+    legacySource: string | null,
 ): string {
     if (mode === 'cem-ml') {
         return cemMlSource ?? '';
@@ -4669,7 +4817,7 @@ function sourceHashSeedDigest(input: {
  */
 function readInlineTemplateSource(
     template: HTMLTemplateElement,
-    mode: CompiledDeclaration['mode']
+    mode: CompiledDeclaration['mode'],
 ): TemplateSourceNode[] {
     // Legacy-XSLT templates are parsed + lowered by the engine from raw markup (see
     // compileInlineDeclaration), so no synchronous source tree is read for them here.
@@ -4691,7 +4839,7 @@ function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'
  */
 function templateSourceText(template: HTMLTemplateElement): string {
     const content = template.content.textContent ?? '';
-    return content.length > 0 ? content : template.textContent ?? '';
+    return content.length > 0 ? content : (template.textContent ?? '');
 }
 
 function extractAttributeDeclarationsFromSource(source: readonly TemplateSourceNode[]): AttributeDeclaration[] {
@@ -4739,9 +4887,7 @@ function extractSliceDeclarationsFromSource(source: readonly TemplateSourceNode[
 }
 
 function directTemplateChildren(element: Element): HTMLTemplateElement[] {
-    return Array.from(element.children).filter(
-        (child): child is HTMLTemplateElement => child.localName === 'template'
-    );
+    return Array.from(element.children).filter((child): child is HTMLTemplateElement => child.localName === 'template');
 }
 
 function declarationOccurrencePath(element: Element): string {
@@ -4757,6 +4903,32 @@ function declarationOccurrencePath(element: Element): string {
         current = parent;
     }
     return indexes.join('.');
+}
+
+export function deterministicAnonymousTag(element: HTMLElement): string {
+    const template = directTemplateChildren(element)[0];
+    const identity = {
+        uidSeed: element.getAttribute(UID_SEED_ATTR) ?? '',
+        occurrencePath: declarationOccurrencePath(element),
+        src: element.getAttribute('src') ?? '',
+        source: template ? template.innerHTML || templateSourceText(template) : '',
+    };
+    const hex = [0, 1]
+        .map((salt) => edgeContentAddress('template-artifact', { ...identity, salt }).digest)
+        .join('')
+        .padEnd(32, '0')
+        .slice(0, 32)
+        .split('');
+    hex[12] = '8';
+    hex[16] = '8';
+    const uuid = [
+        hex.slice(0, 8).join(''),
+        hex.slice(8, 12).join(''),
+        hex.slice(12, 16).join(''),
+        hex.slice(16, 20).join(''),
+        hex.slice(20, 32).join(''),
+    ].join('-');
+    return `cem-${uuid}`;
 }
 
 interface SrcReference {
@@ -4784,10 +4956,7 @@ function parseSrcReference(src: string): SrcReference {
  * and `fetch` it. Bare module specifiers (`@scope/pkg`) require a host `loadSrcDocument`
  * (the shared module-map resolver).
  */
-async function defaultLoadSrcDocument(
-    path: string,
-    baseDocument: Document
-): Promise<CemSrcDocumentLoadResult> {
+async function defaultLoadSrcDocument(path: string, baseDocument: Document): Promise<CemSrcDocumentLoadResult> {
     let url: string;
     try {
         url = new URL(path, baseDocument.baseURI).href;
@@ -4806,25 +4975,19 @@ async function defaultLoadSrcDocument(
     };
 }
 
-function fallbackSrcDocumentLoadResult(
-    path: string,
-    baseDocument: Document,
-    html: string
-): CemSrcDocumentLoadResult {
+function fallbackSrcDocumentLoadResult(path: string, baseDocument: Document, html: string): CemSrcDocumentLoadResult {
     const urlLike = isUrlLikeSpecifier(path);
     return {
         body: textByteStream(html),
         resolvedUrl: urlLike ? new URL(path, baseDocument.baseURI).href : path,
-        resolverIdentity: urlLike
-            ? `document-base:${baseDocument.baseURI}`
-            : `host-loader:${baseDocument.baseURI}`,
+        resolverIdentity: urlLike ? `document-base:${baseDocument.baseURI}` : `host-loader:${baseDocument.baseURI}`,
     };
 }
 
 function srcDocumentSource(
     path: string,
     baseDocument: Document,
-    loaded: CemSrcDocumentLoadResult
+    loaded: CemSrcDocumentLoadResult,
 ): ResolvedDeclarationSource {
     const urlLike = isUrlLikeSpecifier(path);
     let resourceBaseUrl = baseDocument.baseURI;
@@ -4903,7 +5066,7 @@ function readRepositoryQueryDeclaration(element: Element): RepositoryQueryDeclar
         operation,
         parameters: optionalAttribute(element, 'parameters'),
         live: booleanAttribute(element, 'live'),
-        cursor: optionalAttribute(element, 'cursor')
+        cursor: optionalAttribute(element, 'cursor'),
     };
 }
 
@@ -4917,7 +5080,7 @@ function readStorageStatusDeclaration(element: Element): StorageStatusDeclaratio
         sliceName,
         repository,
         live: booleanAttribute(element, 'live'),
-        cursor: optionalAttribute(element, 'cursor')
+        cursor: optionalAttribute(element, 'cursor'),
     };
 }
 
@@ -4927,7 +5090,7 @@ function repositoryQueryResourceKey(declaration: RepositoryQueryDeclaration): st
         declaration.operation,
         declaration.parameters ?? null,
         declaration.live,
-        declaration.cursor ?? null
+        declaration.cursor ?? null,
     ]);
 }
 
@@ -4935,10 +5098,7 @@ function storageStatusResourceKey(declaration: StorageStatusDeclaration): string
     return JSON.stringify([declaration.repository, declaration.live, declaration.cursor ?? null]);
 }
 
-function repositoryRequest(
-    declaration: RepositoryQueryDeclaration,
-    revision: number
-): CemRepositoryRequest {
+function repositoryRequest(declaration: RepositoryQueryDeclaration, revision: number): CemRepositoryRequest {
     let parameters: unknown;
     if (declaration.parameters !== undefined) {
         try {
@@ -4946,7 +5106,7 @@ function repositoryRequest(
         } catch (error) {
             throw new RepositoryResourceError(
                 'cem-element.repository_parameters_invalid',
-                `repository-query parameters must be valid JSON: ${error instanceof Error ? error.message : String(error)}`
+                `repository-query parameters must be valid JSON: ${error instanceof Error ? error.message : String(error)}`,
             );
         }
     }
@@ -4955,19 +5115,19 @@ function repositoryRequest(
         repository: declaration.repository,
         operation: declaration.operation,
         requestRevision: revision,
-        ...(declaration.parameters === undefined ? {} : { parameters })
+        ...(declaration.parameters === undefined ? {} : { parameters }),
     };
 }
 
 function repositoryRequestWithoutParameters(
     declaration: RepositoryQueryDeclaration,
-    revision: number
+    revision: number,
 ): CemRepositoryRequest {
     return {
         protocolVersion: CEM_REPOSITORY_PROTOCOL_VERSION,
         repository: declaration.repository,
         operation: declaration.operation,
-        requestRevision: revision
+        requestRevision: revision,
     };
 }
 
@@ -4978,14 +5138,14 @@ function repositoryCursor(value: string | undefined): number {
     if (!/^\d+$/.test(value)) {
         throw new RepositoryResourceError(
             'cem-element.repository_cursor_invalid',
-            'repository cursor must be a non-negative safe integer'
+            'repository cursor must be a non-negative safe integer',
         );
     }
     const cursor = Number(value);
     if (!Number.isSafeInteger(cursor)) {
         throw new RepositoryResourceError(
             'cem-element.repository_cursor_invalid',
-            'repository cursor must be a non-negative safe integer'
+            'repository cursor must be a non-negative safe integer',
         );
     }
     return cursor;
@@ -4994,16 +5154,10 @@ function repositoryCursor(value: string | undefined): number {
 function repositoryDiagnostics(
     diagnostics: readonly CemRepositoryDiagnostic[],
     tag: string,
-    sourceMapRef?: SourceMapRef
+    sourceMapRef?: SourceMapRef,
 ): CemElementDiagnostic[] {
     return diagnostics.map((diagnostic) =>
-        resourceDiagnostic(
-            diagnostic.code,
-            diagnostic.message,
-            tag,
-            diagnostic.severity,
-            sourceMapRef
-        )
+        resourceDiagnostic(diagnostic.code, diagnostic.message, tag, diagnostic.severity, sourceMapRef),
     );
 }
 
@@ -5012,32 +5166,23 @@ function repositoryResourceErrorDiagnostic(
     fallback: 'query_failed' | 'status_failed' | 'declaration_invalid',
     prefix: string,
     tag: string,
-    sourceMapRef?: SourceMapRef
+    sourceMapRef?: SourceMapRef,
 ): CemElementDiagnostic {
     const aborted = error instanceof DOMException && error.name === 'AbortError';
     const code =
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        typeof error.code === 'string'
+        typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
             ? error.code
             : aborted
               ? 'cem-element.repository_query_aborted'
               : `cem-element.repository_${fallback}`;
     const message = error instanceof Error ? error.message : String(error);
-    return resourceDiagnostic(
-        code,
-        `${prefix}: ${message}`,
-        tag,
-        aborted ? 'warning' : 'error',
-        sourceMapRef
-    );
+    return resourceDiagnostic(code, `${prefix}: ${message}`, tag, aborted ? 'warning' : 'error', sourceMapRef);
 }
 
 class RepositoryResourceError extends Error {
     constructor(
         readonly code: string,
-        message: string
+        message: string,
     ) {
         super(message);
         this.name = 'RepositoryResourceError';
@@ -5055,7 +5200,7 @@ function readLocalStorageDeclaration(element: Element): LocalStorageDeclaration 
         key,
         storageType: element.getAttribute('type')?.trim() || 'text',
         live: booleanAttribute(element, 'live'),
-        initialValue: element.hasAttribute('value') ? element.getAttribute('value') ?? '' : undefined,
+        initialValue: element.hasAttribute('value') ? (element.getAttribute('value') ?? '') : undefined,
     };
 }
 
@@ -5105,8 +5250,15 @@ function optionalAttribute(element: Element, name: string): string | undefined {
 type LocalStorageSliceSource = 'initial-read' | 'value-attribute' | 'slice-write' | 'storage-event' | 'retained';
 type LocationSliceSource = 'initial-read' | 'location-event';
 
-function sameLocalStorageDeclaration(active: ActiveLocalStorageResource, declaration: LocalStorageDeclaration): boolean {
-    return active.key === declaration.key && active.storageType === declaration.storageType && active.live === declaration.live;
+function sameLocalStorageDeclaration(
+    active: ActiveLocalStorageResource,
+    declaration: LocalStorageDeclaration,
+): boolean {
+    return (
+        active.key === declaration.key &&
+        active.storageType === declaration.storageType &&
+        active.live === declaration.live
+    );
 }
 
 function localStorageForWindow(window: Window | null | undefined): Storage | null {
@@ -5162,11 +5314,7 @@ function localStorageChangedKey(event: Event): string | null {
     return detail?.key ?? null;
 }
 
-function locationResourceKey(
-    window: Window,
-    document: Document,
-    declaration: LocationElementDeclaration
-): string {
+function locationResourceKey(window: Window, document: Document, declaration: LocationElementDeclaration): string {
     return stableJson({
         scope: declaration.href === undefined ? 'window.location' : 'href',
         href: declaration.href ?? null,
@@ -5179,12 +5327,13 @@ function locationResourceKey(
 function readLocationValue(
     window: Window,
     document: Document,
-    declaration: LocationElementDeclaration
+    declaration: LocationElementDeclaration,
 ): Record<string, unknown> {
     try {
-        const url = declaration.href === undefined
-            ? new URL(window.location.href)
-            : new URL(declaration.href, document.baseURI);
+        const url =
+            declaration.href === undefined
+                ? new URL(window.location.href)
+                : new URL(declaration.href, document.baseURI);
         return locationUrlToRecord(url, declaration.href === undefined ? 'window' : 'href');
     } catch (error) {
         return {
@@ -5239,7 +5388,7 @@ function writeLocationTarget(
     window: Window,
     document: Document,
     declaration: LocationElementDeclaration,
-    tag: string
+    tag: string,
 ): CemElementDiagnostic[] {
     const method = declaration.method?.trim();
     const src = declaration.src?.trim();
@@ -5252,7 +5401,7 @@ function writeLocationTarget(
                 'cem-element.location_method_unsupported',
                 `location-element method \`${method}\` is not supported`,
                 tag,
-                'error'
+                'error',
             ),
         ];
     }
@@ -5300,7 +5449,7 @@ function writeLocationTarget(
                     error instanceof Error ? error.message : String(error)
                 }`,
                 tag,
-                'error'
+                'error',
             ),
         ];
     }
@@ -5423,7 +5572,7 @@ function defaultResolveResourceUrl(
     request: CemResourceResolutionRequest,
     _baseDocument: Document,
     resourcePolicyStamp: string,
-    policy: CemHttpResourcePolicy
+    policy: CemHttpResourcePolicy,
 ): CemResourceResolution {
     const trimmed = request.authoredUrl.trim();
     if (!isUrlLikeSpecifier(trimmed)) {
@@ -5449,7 +5598,7 @@ function defaultResolveResourceUrl(
 function unresolvedHttpRequestMetadata(
     declaration: HttpRequestDeclaration,
     resourcePolicyStamp: string,
-    contextIdentity: string
+    contextIdentity: string,
 ): CemHttpResourceEnvelope['request'] {
     return {
         authoredUrl: declaration.authoredUrl,
@@ -5460,9 +5609,7 @@ function unresolvedHttpRequestMetadata(
         contextIdentity,
         method: declaration.method,
         headers: declaration.headers,
-        ...(declaration.expectedContentType
-            ? { expectedContentTypes: [declaration.expectedContentType] }
-            : {}),
+        ...(declaration.expectedContentType ? { expectedContentTypes: [declaration.expectedContentType] } : {}),
     };
 }
 
@@ -5547,7 +5694,7 @@ async function parseHttpResourceData(
     expectedContentType: string | undefined,
     maxResponseBytes: number,
     signal: AbortSignal,
-    tag: string
+    tag: string,
 ): Promise<{ ok: boolean; data: unknown; diagnostics: CemElementDiagnostic[]; sourceId: CemHttpResourceSourceId }> {
     const contentType = recognizedContentType(response.contentType, expectedContentType);
     const fallbackSourceId = httpResourceSourceId(request, response, contentType.ok ? contentType.contentType : null);
@@ -5562,7 +5709,7 @@ async function parseHttpResourceData(
                     contentType.message,
                     tag,
                     'error',
-                    httpSourceMapRef(fallbackSourceId)
+                    httpSourceMapRef(fallbackSourceId),
                 ),
             ],
         };
@@ -5581,12 +5728,10 @@ async function parseHttpResourceData(
                 diagnostics: [
                     resourceDiagnostic(
                         'cem-element.http_request_parse_failed',
-                        `JSON response could not be parsed: ${
-                            error instanceof Error ? error.message : String(error)
-                        }`,
+                        `JSON response could not be parsed: ${error instanceof Error ? error.message : String(error)}`,
                         tag,
                         'error',
-                        httpSourceMapRef(sourceId)
+                        httpSourceMapRef(sourceId),
                     ),
                 ],
             };
@@ -5600,10 +5745,8 @@ async function parseHttpResourceData(
 
 function recognizedContentType(
     responseContentType: string | null,
-    expectedContentType: string | undefined
-):
-    | { ok: true; kind: 'json' | 'xml' | 'text'; contentType: string }
-    | { ok: false; message: string } {
+    expectedContentType: string | undefined,
+): { ok: true; kind: 'json' | 'xml' | 'text'; contentType: string } | { ok: false; message: string } {
     const contentType = mediaType(responseContentType) ?? mediaType(expectedContentType);
     if (!contentType) {
         return { ok: false, message: 'http-request response did not provide a Content-Type' };
@@ -5634,7 +5777,7 @@ function parseXmlHttpResourceData(
     text: string,
     contentType: string,
     sourceId: CemHttpResourceSourceId,
-    tag: string
+    tag: string,
 ): { ok: boolean; data: unknown; diagnostics: CemElementDiagnostic[]; sourceId: CemHttpResourceSourceId } {
     const parser = new DOMParser();
     const parsed = parser.parseFromString(text, xmlDomParserContentType(contentType));
@@ -5650,7 +5793,7 @@ function parseXmlHttpResourceData(
                     normalizeTextContent(parserError.textContent ?? 'XML response could not be parsed'),
                     tag,
                     'error',
-                    httpSourceMapRef(sourceId)
+                    httpSourceMapRef(sourceId),
                 ),
             ],
         };
@@ -5666,7 +5809,7 @@ function parseXmlHttpResourceData(
                     'XML response did not contain a document element',
                     tag,
                     'error',
-                    httpSourceMapRef(sourceId)
+                    httpSourceMapRef(sourceId),
                 ),
             ],
         };
@@ -5709,7 +5852,7 @@ function httpResourceSourceId(
     request: CemHttpRequest,
     response: CemHttpResponseHead,
     contentType: string | null,
-    bodyText?: string
+    bodyText?: string,
 ): CemHttpResourceSourceId {
     const responseIdentityHash =
         bodyText === undefined
@@ -5754,7 +5897,7 @@ function httpSourceMapRef(sourceId: CemHttpResourceSourceId): SourceMapRef {
 async function readByteStream(
     body: AsyncIterable<Uint8Array>,
     maxResponseBytes: number,
-    signal: AbortSignal
+    signal: AbortSignal,
 ): Promise<Uint8Array> {
     const chunks: Uint8Array[] = [];
     let size = 0;
@@ -5767,7 +5910,7 @@ async function readByteStream(
         if (size > maxResponseBytes) {
             throw new HttpResourceError(
                 'cem-element.http_request_response_too_large',
-                `http-request response exceeded ${maxResponseBytes} bytes`
+                `http-request response exceeded ${maxResponseBytes} bytes`,
             );
         }
     }
@@ -5849,11 +5992,14 @@ function templateFromTarget(target: Element | null, document: Document): HTMLTem
 
 function templateFromDocument(sourceDocument: Document, document: Document): HTMLTemplateElement | undefined {
     const bodyNodes = sourceDocument.body ? Array.from(sourceDocument.body.childNodes) : [];
-    const sourceNodes = bodyNodes.length > 0 ? bodyNodes : sourceDocument.documentElement ? [sourceDocument.documentElement] : [];
+    const sourceNodes =
+        bodyNodes.length > 0 ? bodyNodes : sourceDocument.documentElement ? [sourceDocument.documentElement] : [];
     if (sourceNodes.length === 0) {
         return undefined;
     }
-    const meaningfulNodes = sourceNodes.filter((node) => node.nodeType !== 3 || (node.textContent?.trim() ?? '').length > 0);
+    const meaningfulNodes = sourceNodes.filter(
+        (node) => node.nodeType !== 3 || (node.textContent?.trim() ?? '').length > 0,
+    );
     if (meaningfulNodes.length === 1) {
         const only = meaningfulNodes[0];
         if (only.nodeType === 1 && (only as Element).localName === 'template') {
@@ -5874,14 +6020,14 @@ function templateFromNodes(nodes: readonly Node[], document: Document): HTMLTemp
 function directDataIsland(element: Element): HTMLTemplateElement | undefined {
     return Array.from(element.children).find(
         (child): child is HTMLTemplateElement =>
-            child.localName === 'template' && child.getAttribute(DATA_ISLAND_ATTR) === DATA_ISLAND_VALUE
+            child.localName === 'template' && child.getAttribute(DATA_ISLAND_ATTR) === DATA_ISLAND_VALUE,
     );
 }
 
 function mutationInvalidatesInstance(
     record: MutationRecord,
     instance: HTMLElement,
-    island: HTMLTemplateElement
+    island: HTMLTemplateElement,
 ): boolean {
     if (record.target === instance) {
         return true;
@@ -5908,7 +6054,7 @@ function directHydrationMetadata(element: Element): HTMLScriptElement | undefine
         (child): child is HTMLScriptElement =>
             child.localName === 'script' &&
             child.getAttribute('type') === 'application/json' &&
-            child.getAttribute(HYDRATION_METADATA_ATTR) === HYDRATION_METADATA_VALUE
+            child.getAttribute(HYDRATION_METADATA_ATTR) === HYDRATION_METADATA_VALUE,
     );
 }
 
@@ -5964,7 +6110,7 @@ function hydrationRenderIdentityDiagnostics(
     instance: HTMLElement,
     bounds: RenderBounds,
     snapshot: DataIslandSnapshot,
-    validateGeneratedIds = false
+    validateGeneratedIds = false,
 ): CemElementDiagnostic[] {
     const firstRenderedElement = firstRenderedElementBetween(bounds);
     if (!firstRenderedElement) {
@@ -5972,7 +6118,7 @@ function hydrationRenderIdentityDiagnostics(
             renderDiagnostic(
                 'cem-element.hydration_render_plan_missing',
                 'SSR hydration render boundaries did not contain a retained render-plan root element',
-                instance.localName
+                instance.localName,
             ),
         ];
     }
@@ -5983,16 +6129,16 @@ function hydrationRenderIdentityDiagnostics(
             renderDiagnostic(
                 'cem-element.hydration_render_plan_identity_missing',
                 'SSR hydration retained render root was missing template artifact identity',
-                instance.localName
-            )
+                instance.localName,
+            ),
         );
     } else if (artifactId !== snapshot.templateArtifactId) {
         diagnostics.push(
             renderDiagnostic(
                 'cem-element.hydration_template_artifact_mismatch',
                 `SSR hydration retained template artifact \`${artifactId}\` did not match snapshot artifact \`${snapshot.templateArtifactId}\``,
-                instance.localName
-            )
+                instance.localName,
+            ),
         );
     }
     const dataRevision = firstRenderedElement.getAttribute(RENDER_DATA_REVISION_ATTR);
@@ -6001,16 +6147,16 @@ function hydrationRenderIdentityDiagnostics(
             renderDiagnostic(
                 'cem-element.hydration_render_revision_missing',
                 'SSR hydration retained render root was missing data revision identity',
-                instance.localName
-            )
+                instance.localName,
+            ),
         );
     } else if (dataRevision !== snapshot.dataRevision) {
         diagnostics.push(
             renderDiagnostic(
                 'cem-element.hydration_render_revision_mismatch',
                 `SSR hydration retained data revision \`${dataRevision}\` did not match snapshot revision \`${snapshot.dataRevision}\``,
-                instance.localName
-            )
+                instance.localName,
+            ),
         );
     }
     const sourceMapModeDiagnostic = hydrationSourceMapModeDiagnostic(instance, firstRenderedElement, snapshot);
@@ -6038,8 +6184,8 @@ function hydrationGeneratedIdDiagnostics(instance: HTMLElement, bounds: RenderBo
                 renderDiagnostic(
                     'cem-element.hydration_render_node_id_duplicate',
                     `SSR hydration retained duplicate render-node ID \`${renderNodeId}\``,
-                    instance.localName
-                )
+                    instance.localName,
+                ),
             );
         } else {
             renderNodeIds.set(renderNodeId, element);
@@ -6053,8 +6199,8 @@ function hydrationGeneratedIdDiagnostics(instance: HTMLElement, bounds: RenderBo
                 renderDiagnostic(
                     'cem-element.hydration_stylesheet_id_duplicate',
                     `SSR hydration retained duplicate stylesheet ID \`${renderNodeId}\``,
-                    instance.localName
-                )
+                    instance.localName,
+                ),
             );
         } else {
             stylesheetIds.set(renderNodeId, element);
@@ -6066,7 +6212,7 @@ function hydrationGeneratedIdDiagnostics(instance: HTMLElement, bounds: RenderBo
 function hydrationSourceMapModeDiagnostic(
     instance: HTMLElement,
     firstRenderedElement: Element,
-    snapshot: DataIslandSnapshot
+    snapshot: DataIslandSnapshot,
 ): CemElementDiagnostic | undefined {
     if (!snapshot.sourceMapMode) {
         return undefined;
@@ -6077,7 +6223,7 @@ function hydrationSourceMapModeDiagnostic(
             return renderDiagnostic(
                 'cem-element.hydration_source_map_mode_mismatch',
                 'SSR hydration snapshot expected dev source metadata but the retained render root did not carry source fidelity',
-                instance.localName
+                instance.localName,
             );
         }
         return undefined;
@@ -6086,7 +6232,7 @@ function hydrationSourceMapModeDiagnostic(
         return renderDiagnostic(
             'cem-element.hydration_source_map_mode_mismatch',
             'SSR hydration snapshot expected prod source metadata policy but the retained render root carried source fidelity',
-            instance.localName
+            instance.localName,
         );
     }
     return undefined;
@@ -6164,7 +6310,7 @@ function serializeFormDataValue(value: FormDataEntryValue): string {
 
 function serializeRenderedFormValidation(
     form: HTMLFormElement,
-    customMessages: WeakMap<Element, string>
+    customMessages: WeakMap<Element, string>,
 ): SerializedFormValidation {
     const controls: Record<string, SerializedControlValidation> = {};
     const formMessage = customMessages.get(form) ?? '';
@@ -6183,14 +6329,14 @@ function serializeRenderedFormValidation(
 
 function renderedFormControls(form: HTMLFormElement): Element[] {
     return Array.from(form.elements).filter(
-        (control): control is Element => (control as Element | undefined)?.nodeType === 1
+        (control): control is Element => (control as Element | undefined)?.nodeType === 1,
     );
 }
 
 function uniqueFormControlKey(
     controls: Record<string, SerializedControlValidation>,
     control: Element,
-    index: number
+    index: number,
 ): string {
     const base =
         control.getAttribute('name')?.trim() ||
@@ -6209,7 +6355,7 @@ function uniqueFormControlKey(
 
 function serializeRenderedControlValidation(
     control: Element,
-    customMessages: WeakMap<Element, string>
+    customMessages: WeakMap<Element, string>,
 ): SerializedControlValidation {
     const controlRecord = control as Element & {
         checked?: boolean;
@@ -6232,7 +6378,7 @@ function serializeRenderedControlValidation(
         disabled: controlRecord.disabled === true,
         required: controlRecord.required === true || control.hasAttribute('required'),
         willValidate: controlRecord.willValidate === true,
-        valid: customMessage.length > 0 ? false : validity.valid ?? true,
+        valid: customMessage.length > 0 ? false : (validity.valid ?? true),
         validationMessage: customMessage || controlRecord.validationMessage || '',
         validity,
     };
@@ -6310,6 +6456,10 @@ function directLiveNodeCount(element: Element): number {
     }).length;
 }
 
+function cssAttributeString(value: string): string {
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 function declarationScopeDiagnostic(error: unknown, tag?: string): CemElementDiagnostic {
     if (error instanceof CemDeclarationScopeError) {
         return declarationDiagnostic(error.code, error.message, tag);
@@ -6317,7 +6467,7 @@ function declarationScopeDiagnostic(error: unknown, tag?: string): CemElementDia
     return declarationDiagnostic(
         'cem-element.scope_invalid',
         `logical CEM declaration scope validation failed: ${error instanceof Error ? error.message : String(error)}`,
-        tag
+        tag,
     );
 }
 
@@ -6347,7 +6497,7 @@ function resourceDiagnostic(
     message: string,
     tag?: string,
     severity: CemElementDiagnosticSeverity = 'warning',
-    sourceMapRef?: SourceMapRef
+    sourceMapRef?: SourceMapRef,
 ): CemElementDiagnostic {
     return {
         code,
@@ -6371,7 +6521,7 @@ function scopedCssDiagnostic(diagnostic: ScopedCssRewriteDiagnostic, tag: string
 
 function generatedRenderPlanIdDiagnostic(
     diagnostic: GeneratedRenderPlanIdDiagnostic,
-    tag: string
+    tag: string,
 ): CemElementDiagnostic {
     return {
         code: diagnostic.code,
@@ -6416,7 +6566,7 @@ function containsNonHttpRuntimeResourceDirective(source: string): boolean {
 
 function templateValues(
     snapshot: DataIslandSnapshot,
-    declarations: AttributeDeclaration[]
+    declarations: AttributeDeclaration[],
 ): Record<string, TemplateValue> {
     const values: Record<string, TemplateValue> = {};
     for (const declaration of declarations) {
@@ -6458,9 +6608,7 @@ function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, 
     };
 }
 
-function dataDocumentElementsByAttribute(
-    snapshot: DataIslandSnapshot
-): Record<string, SerializedPayloadElement[]> {
+function dataDocumentElementsByAttribute(snapshot: DataIslandSnapshot): Record<string, SerializedPayloadElement[]> {
     const byAttribute: Record<string, SerializedPayloadElement[]> = {};
     for (const [name, elements] of Object.entries(snapshot.payload.elementsByAttribute)) {
         byAttribute[name] = [...elements];
@@ -6473,7 +6621,7 @@ function dataDocumentElementsByAttribute(
         attributes: Object.fromEntries(
             Object.entries(snapshot.hostAttributes)
                 .filter((entry): entry is [string, string | boolean] => entry[1] !== null)
-                .map(([name, value]) => [name, value === true ? '' : value === false ? 'false' : value])
+                .map(([name, value]) => [name, value === true ? '' : value === false ? 'false' : value]),
         ),
         slot: '',
     };
@@ -6542,10 +6690,7 @@ function runtimeSupportDiagnostic(diagnostic: RuntimeSupportDiagnostic, tag: str
     };
 }
 
-function declarationRuntimeSupportDiagnostic(
-    diagnostic: RuntimeSupportDiagnostic,
-    tag: string
-): CemElementDiagnostic {
+function declarationRuntimeSupportDiagnostic(diagnostic: RuntimeSupportDiagnostic, tag: string): CemElementDiagnostic {
     return {
         code: diagnostic.code,
         severity: diagnostic.severity,
@@ -6570,7 +6715,7 @@ function evaluateCustomValidityExpression(
     expression: string,
     snapshot: DataIslandSnapshot,
     element: Element,
-    formKey: string | null
+    formKey: string | null,
 ): unknown {
     void element;
     return evaluateCustomValidityValue(unwrapExpression(expression), {
@@ -6909,11 +7054,7 @@ function isWordBoundary(value: string | undefined): boolean {
     return value === undefined || !/[A-Za-z0-9_-]/.test(value);
 }
 
-function evaluateSliceValue(
-    expression: string,
-    event: Event,
-    slices: Record<string, unknown>
-): TemplateValue {
+function evaluateSliceValue(expression: string, event: Event, slices: Record<string, unknown>): TemplateValue {
     const body = unwrapExpression(expression);
     const concatArgs = parseConcatArguments(body);
     if (concatArgs) {
@@ -6976,8 +7117,8 @@ function parseSliceEventNames(value: string): string[] {
             value
                 .split(/\s+/)
                 .map((part) => part.trim())
-                .filter((part) => part.length > 0)
-        )
+                .filter((part) => part.length > 0),
+        ),
     );
 }
 
@@ -7241,12 +7382,15 @@ function payloadChildNodes(element: Element): Node[] {
             return true;
         }
         const childElement = child as Element;
-        return !(
-            childElement.localName === 'template'
-            && childElement.getAttribute(DATA_ISLAND_ATTR) === DATA_ISLAND_VALUE
-        ) && !(
-            childElement.localName === 'script'
-            && childElement.getAttribute(HYDRATION_METADATA_ATTR) === HYDRATION_METADATA_VALUE
+        return (
+            !(
+                childElement.localName === 'template' &&
+                childElement.getAttribute(DATA_ISLAND_ATTR) === DATA_ISLAND_VALUE
+            ) &&
+            !(
+                childElement.localName === 'script' &&
+                childElement.getAttribute(HYDRATION_METADATA_ATTR) === HYDRATION_METADATA_VALUE
+            )
         );
     });
 }
@@ -7255,7 +7399,7 @@ function payloadAttributes(element: Element): Record<string, string> {
     return Object.fromEntries(
         Array.from(element.attributes)
             .filter((attribute) => !RUNTIME_PAYLOAD_ATTRIBUTE_NAMES.has(attribute.name))
-            .map((attribute) => [attribute.name, attribute.value])
+            .map((attribute) => [attribute.name, attribute.value]),
     );
 }
 
@@ -7272,14 +7416,14 @@ function payloadSlotName(node: SerializedPayloadNode): string | null {
 function collectPayloadChoices(
     nodes: readonly SerializedPayloadNode[],
     kind: SerializedPayloadChoice['kind'],
-    group: string | null = null
+    group: string | null = null,
 ): SerializedPayloadChoice[] {
     const choices: SerializedPayloadChoice[] = [];
     for (const node of nodes) {
         if (node.kind !== 'element') {
             continue;
         }
-        const nextGroup = node.tag === 'optgroup' ? node.attributes.label ?? null : group;
+        const nextGroup = node.tag === 'optgroup' ? (node.attributes.label ?? null) : group;
         if (node.tag === kind) {
             const text = nodeText(node).trim();
             choices.push({
@@ -7308,7 +7452,7 @@ function choicesByValue(choices: readonly SerializedPayloadChoice[]): Record<str
 }
 
 function payloadElementsByAttribute(
-    nodes: readonly SerializedPayloadNode[]
+    nodes: readonly SerializedPayloadNode[],
 ): Record<string, SerializedPayloadElement[]> {
     const byAttribute: Record<string, SerializedPayloadElement[]> = {};
     for (const element of collectPayloadElements(nodes)) {

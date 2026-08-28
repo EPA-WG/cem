@@ -57,7 +57,6 @@ const PAGINATOR_TAGS = new Set(['cem-paginator']);
 const TOOLTIP_TAGS = new Set(['cem-tooltip']);
 const CHOICE_POPUP_STACKING_SELECTORS = new Set([
     'cem-autocomplete .cem-autocomplete__popup',
-    'cem-select .cem-select__popup',
 ]);
 const CHOICE_POPUP_Z_INDEX_PROPERTY = '--_cem-choice-popup-z-index';
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);

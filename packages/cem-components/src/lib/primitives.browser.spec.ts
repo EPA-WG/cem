@@ -184,11 +184,6 @@ describe('CEM component primitives', () => {
                 <cem-textarea name="bio" value="Short bio">
                     <span slot="label">Bio</span>
                 </cem-textarea>
-                <cem-select name="role">
-                    <span slot="label">Role</span>
-                    <option value="admin">Admin</option>
-                    <option value="viewer">Viewer</option>
-                </cem-select>
                 <cem-checkbox name="terms" value="accepted">Accept terms</cem-checkbox>
                 <cem-radio name="plan" value="pro">Pro plan</cem-radio>
                 <cem-switch name="notifications">Notifications</cem-switch>
@@ -198,15 +193,13 @@ describe('CEM component primitives', () => {
 
         const textField = harness.query<HTMLInputElement>('cem-text-field input');
         const textarea = harness.query<HTMLTextAreaElement>('cem-textarea textarea');
-        const selectHost = harness.query<HTMLElement & { value: string; selectedValues: string[] }>('cem-select');
-        const select = harness.query<HTMLButtonElement>('cem-select .cem-select__control');
         const checkbox = harness.query<HTMLInputElement>('cem-checkbox input');
         const radio = harness.query<HTMLInputElement>('cem-radio input');
         const switchInput = harness.query<HTMLInputElement>('cem-switch input');
 
         for (const host of Array.from(
             harness.root.querySelectorAll<HTMLElement>(
-                'cem-text-field, cem-textarea, cem-select, cem-checkbox, cem-radio, cem-switch',
+                'cem-text-field, cem-textarea, cem-checkbox, cem-radio, cem-switch',
             ),
         )) {
             assertLightDomRendered(host);
@@ -221,12 +214,6 @@ describe('CEM component primitives', () => {
         expect(textarea.getAttribute('name')).toBe('bio');
         expect(textarea.value).toBe('Short bio');
         expect(assertAccessibleName(textarea, 'Bio')).toBe('Bio');
-        expect(selectHost.getAttribute('name')).toBe('role');
-        expect(select.getAttribute('role')).toBe('combobox');
-        expect(selectHost.value).toBe('admin');
-        expect(selectHost.selectedValues).toEqual(['admin']);
-        expect(harness.root.querySelectorAll('cem-select [role="option"]')).toHaveLength(0);
-        expect(assertAccessibleName(select, 'Role')).toBe('Role');
         expect(checkbox.type).toBe('checkbox');
         expect(checkbox.getAttribute('name')).toBe('terms');
         expect(checkbox.getAttribute('value')).toBe('accepted');

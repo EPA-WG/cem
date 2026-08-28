@@ -1,729 +1,441 @@
-# CEM-ML UID and Scoped CSS Design
+# CEM Light-DOM CSS Scope Contract
 
-**Status:** Accepted design requirements.
-**Primary use case:** generated style-scope IDs for light-DOM custom elements.
-**Related docs:** [`cem-element` design](./cem-element-design.md),
-[`cem-element` WASM proposal](./cem-element-wasm-proposal.md), and
-[`cem-element` scoped CSS demo](../packages/cem-elements/demo/scoped-css.html).
+**Status:** Normative accepted target; implementation pending.
+**Primary use case:** declaration-owned CSS for no-shadow-DOM CEM components.
+**Migration authority:** [`docs/todo.md`](./todo.md), under **Native CSS `@scope` migration**.
 
-## 1. Problem
+This document defines the CSS ownership, scope, projection, specificity, and
+diagnostic contract for `cem-elements`, `cem-components`, CEM Studio, and CEM
+Site. The words **MUST**, **MUST NOT**, **SHOULD**, and **SHOULD NOT** are
+normative. The [declarative UI principle](./declarative-ui-principle.md) defines
+where UI is authored; this document defines how that UI enters the light-DOM
+cascade.
 
-The legacy `<custom-element>` scoped CSS behavior uses two different scoping
-strategies:
+The target requires native CSS `@scope`, which is a
+[Baseline 2026 feature](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@scope).
+There is no compatibility rewrite for browsers without `@scope`.
 
-- when a declaration has a custom-element tag, CSS is prefixed by that tag name;
-- when no tag is available, a generated anonymous tag/ID is used.
+> **Migration status:** the current runtime implements the completed legacy
+> `:where(...)`, `data-cem-scope`, and `data-cem-instance-scope` baseline. Those
+> selectors are migration evidence, not the target authoring API. Components
+> MUST NOT depend on this target until the migration checklist and its runtime
+> gates pass. Only then may this status change to “accepted and implemented.”
 
-That makes authored tags double as scope identities. For example:
+## 1. Principles
 
-```html
-<custom-element tag="dce-1">
-  <style>
-    dce-1 {
-      button { border: 0.2rem dotted blue; }
-    }
-  </style>
-</custom-element>
-```
+CEM components render into the light DOM. Their rules therefore participate in
+the ordinary document cascade: CEM does not emulate a shadow root and does not
+promise impenetrable CSS.
 
-This is convenient for debugging but weak as an isolation model. The same produced
-tag can appear in different documents, nested scopes, imported modules, tests, SSR
-fragments, or independently loaded bundles. If style containment is keyed only by
-`dce-1`, unrelated declarations with the same tag can collide.
+The contract provides three levels of ownership:
 
-The anonymous case is safer because it uses a generated identity, but generating it
-with a browser UUID API is unnecessarily expensive for this purpose. A CSS scope ID
-is not a security token; it only needs to be unique inside the relevant rendering
-domain.
+| CSS kind | Authored source | Public root | Lifetime |
+| --- | --- | --- | --- |
+| private declaration CSS | static bare `<style>` in a component declaration | produced custom-element tag | one managed artifact per effective declaration |
+| named shared CSS | declaration/style pair with one matching `scope` name | `scope="<name>"` on produced DCE hosts | one managed artifact per effective declaration |
+| instance CSS | `<style>` inside an explicit inert instance payload template | the style element's parent DCE | one managed artifact per instance |
 
-There is also a reproducibility concern. If generated IDs are based only on runtime
-thread IDs plus counters, saved transform output can churn in version control when
-scheduling or load order changes. If generated IDs are based only on a source hash,
-the engine may need the complete template and all imports before it can allocate
-IDs. That delays early streaming work and couples ID allocation to content-cache
-identity.
+The generated render identity `data-cem-render-scope` remains internal to
+rendering, hydration, resources, and diagnostics. It is never a CSS hook.
+`template[data-cem-island="instance"]` remains the internal inert-data boundary
+and nested-host marker. Neither marker is a public styling interface.
 
-## 2. Principle
+UUIDs provide stable identity and collision resistance. They do not provide CSS
+encapsulation or a security boundary.
 
-Do not use the public tag name as the style-scope boundary.
+## 2. Declaration-Owned CSS
 
-Every declaration that needs generated identities SHOULD receive a generated
-`scopeUid`, whether or not it also has a public `tag`.
+Component CSS MUST be a static CEM-ML style in the component's XHTML
+declaration:
 
-The public tag remains useful for:
+    <cem-element tag="cem-select">
+      <template id="cem-select" type="text/cem-ml">
+        {module |
+          {body |
+            {style @type="text/css" | ```
+              :host {
+                display: inline-block;
+              }
 
-- `customElements.define(tag, ...)`;
-- author-facing markup;
-- readable diagnostics;
-- devtools search and troubleshooting.
+              [part~="control"] {
+                inline-size: 100%;
+              }
+            ```}
+            ...
+          }
+        }
+      </template>
+    </cem-element>
 
-The generated UID owns:
+`cem-elements` statically extracts each declaration style, removes it from the
+instance render plan, and installs it once beside the effective declaration.
+Removing the declaration removes its managed styles. A component MUST NOT clone
+static CSS into instances, inject CSS from component JavaScript, add selectors
+to package-global CSS, or own a standalone `<cem-tag>.css` file.
 
-- CSS selector containment;
-- render-node namespaces when needed;
-- generated anonymous tag names;
-- source-map/debug correlation that must not collide across imported scopes.
+### 2.1 Private compilation
 
-When a public tag exists, it MAY be used as a readable prefix:
-
-```text
-cem-scope-dce-1-u4k9f2-p0
-```
-
-The suffix remains the identity. The prefix is only a label.
-
-For stable generated output, identity allocation SHOULD be seeded. The seed is a
-namespace supplied explicitly by the author/host or derived by the host before full
-template transformation is complete. The seed is not a proof that the transformed
-source is identical; it is only the stable namespace for generated IDs.
-
-## 3. UID Seeds
-
-`uidSeed` is the primary deterministic input for generated IDs.
-
-Source surfaces:
-
-- `<cem-element uid-seed="...">` for author-controlled declaration IDs;
-- `<cem-element uid-seed="">` for an explicit blank seed;
-- transform request metadata for CLI, SSR, tests, and build pipelines;
-- host/module context defaults, such as normalized source URI plus declaration
-  fragment or declaration occurrence path;
-- runtime fallback when no stable seed is available.
-
-Security/privacy advisory: seed data resides on the consumer side. Consumers and
-hosts should provide `uid-seed` values that are already safe to expose in generated
-markup, logs, snapshots, and diagnostics. Do not put sensitive source paths,
-customer names, private route names, or other confidential material in `uid-seed`.
-If privacy matters, the consumer/host should pass an opaque encoded seed such as a
-bounded hash. `cem-element` and the CEM-ML engine should not be responsible for
-handling, redacting, or hashing sensitive seed data.
-
-Example:
-
-```html
-<cem-element tag="dce-1" uid-seed="demo/scoped-css/dce-1">
-  <template type="text/cem-ml">
-    ...
-  </template>
-</cem-element>
-```
-
-Seed resolution order:
-
-1. Explicit declaration seed, for example `@uid-seed`.
-2. Host-provided transform seed, for example source URI plus fragment.
-3. Source hash, when the complete source is already available and no earlier seed
-   exists.
-4. Ephemeral runtime seed from run ID plus local occurrence counter.
-
-Presence of `uid-seed` is significant. `uid-seed=""` is valid and is treated as an
-explicit blank-string seed. It does not fall through to host-provided seeds, source
-hashes, or runtime fallback seeds. Generated IDs for a blank seed omit the seed token
-and rely on the deterministic occurrence path for uniqueness inside the owning
-scope.
-
-The explicit seed solves the common saved-output case: generated markup can be
-stable in version control without requiring the engine to hash the full
-transformation source before allocating IDs.
-
-Important separation:
-
-- `uidSeed` controls generated ID stability and namespace separation.
-- `artifactHash` or `artifactUid` MAY still be computed from complete source,
-  imports, transform version, target mode, and policy stamp for cache correctness
-  and provenance.
-
-Do not use `uidSeed` as the only cache key for compiled artifacts. If the source
-changes but `uid-seed` stays the same, the generated IDs should remain stable, but
-the compiled artifact cache must still invalidate by content or dependency identity.
-
-### 3.1 Collision Behavior
-
-`uid-seed` uniqueness is a provider contract.
-
-Consumers and hosts that provide `uid-seed` MUST make it unique enough for the
-output scope where generated IDs will coexist. The engine derives IDs
-deterministically from the seed and occurrence path; it does not globally prove that
-the seed is unique.
-
-Normal ephemeral browser runtime MAY skip duplicate-ID detection. In that mode,
-seed uniqueness resides entirely with the host/provider.
-
-Validation/debug mode MUST diagnose duplicate externally visible generated IDs
-within the same output scope. Build, CLI, SSR, and persisted-output modes SHOULD run
-that validation by default. Externally visible generated IDs include at least:
-
-- `scopeUid` / `data-cem-scope`;
-- generated anonymous custom-element names;
-- stylesheet IDs;
-- hydration/render-root IDs;
-- artifact IDs that are emitted into generated output.
-
-Repeatable output MUST NOT repair duplicate seeds by appending runtime randomness,
-worker indexes, or execution-order counters. If duplicates are detected in
-validation/debug mode, the correct outcome is a diagnostic, not automatic
-disambiguation that changes saved output.
-
-## 4. Scoped CSS Model
-
-Prefer attribute or class scoping over tag-name scoping.
-
-Given a declaration for `dce-1`, the runtime should generate a scope UID and stamp it
-onto the rendered host/root:
-
-```html
-<dce-1 data-cem-scope="cem-scope-dce-1-u4k9f2-p0">
-  <dce-root>
-    <button>Blue borders</button>
-  </dce-root>
-</dce-1>
-```
-
-Template-local style rules should be rewritten against the generated scope:
+For a declaration producing `cem-select`, private CSS compiles to:
 
 ```css
-[data-cem-scope="cem-scope-dce-1-u4k9f2-p0"] button {
-  border: 0.2rem dotted blue;
-}
-```
+@scope (cem-select) to (
+  :scope :has(> template[data-cem-island="instance"]) > *,
+  [slot] > *
+) {
+  :where(:scope) {
+    /* authored :host */
+  }
 
-Projected payload style rules are narrower than template-local rules. A payload
-`<style>` belongs to the specific rendered instance that supplied the payload, not
-to every instance of the same declaration tag. The runtime therefore stamps a
-per-instance scope on the produced host and rewrites payload-authored styles
-against that instance scope:
+  [part~="control"] {
+    /* component-owned internals */
+  }
 
-```html
-<dce-1
-  data-cem-scope="cem-scope-dce-1-u4k9f2-p0"
-  data-cem-instance-scope="cem-scope-dce-1-u4k9f2-p0-icem-instance-7">
-  <button>Red border only here</button>
-</dce-1>
-```
-
-```css
-[data-cem-instance-scope="cem-scope-dce-1-u4k9f2-p0-icem-instance-7"] button {
-  border-color: red;
-}
-```
-
-This preserves declaration-level sharing for component template CSS while preventing
-slotted or payload-provided CSS from leaking across sibling same-tag instances.
-
-For an anonymous declaration, the same rule applies:
-
-```html
-<dce-anon-1 data-cem-scope="cem-scope-u4k9f2-p0">
-  <dce-root>
-    <button>Green dashed border</button>
-  </dce-root>
-</dce-anon-1>
-```
-
-The anonymous tag may still be generated when a browser custom element name is
-required, but CSS containment should use `data-cem-scope`, not the generated tag.
-
-### 4.1 Why Attribute Scope
-
-Attribute scoping avoids the false assumption that a tag is globally unique in all
-authoring scopes. It also avoids generating invalid or awkward CSS identifiers. The
-scope ID can contain a readable tag prefix and occurrence-path information while
-the selector remains a straightforward attribute selector.
-
-Class scoping is also viable:
-
-```css
-.cem-scope-dce-1-u4k9f2-p0 button { ... }
-```
-
-`data-cem-scope` is the preferred default because it is semantically explicit and
-less likely to collide with author classes.
-
-### 4.2 Scoped CSS Rewrite Contract
-
-The default scoped CSS strategy is native nesting where it is valid:
-
-```css
-[data-cem-scope="cem-scope-dce-1-u4k9f2-p0"] {
-  button {
-    border: 0.2rem dotted blue;
+  [slot="label"] {
+    /* documented projected root */
   }
 }
 ```
 
-This avoids a full selector rewrite for ordinary local rules. The engine still must
-scan/parse enough CSS to handle constructs that nesting does not isolate.
+Compilation MUST apply these rules:
 
-Before wrapping, the engine rewrites host-oriented selectors:
+- `:host` becomes `:where(:scope)`.
+- `:host(...)` becomes `:where(:scope)...`.
+- The compiler MUST NOT translate `:host` to `&`; nesting and scoped selectors
+  have different specificity behavior.
+- The generated scope root contributes no selector specificity to contained
+  rules. Authored selectors keep their ordinary specificity.
+- The first lower limit excludes the children and internals of descendant DCE
+  hosts identified by their direct instance data island. The nested host itself
+  remains styleable by its parent component.
+- The second lower limit leaves a projected root styleable but excludes its
+  consumer-owned descendants.
+- Scope limits do not block inherited properties or custom properties.
 
-- `:host` becomes `&`;
-- `:host(...)` becomes `&...`, for example `:host(.active)` becomes `&.active`;
-- `:global` and `:global(...)` are treated like `:host` in `cem-element` scoped CSS
-  and SHOULD emit a warning in debug/validation mode. This means `:global(.active)`
-  becomes `&.active`, not a global escape.
-- `:root` is treated like `:global` and `:host` in `cem-element` scoped CSS. It
-  becomes `&` and SHOULD emit a warning in debug/validation mode.
+The limits intentionally start with a descendant combinator. The current scope
+root is therefore not mistaken for a nested DCE merely because it owns its own
+instance data island.
 
-Template-local keyframes are renamed because keyframe names are global within a
-stylesheet cascade:
+### 2.2 Static artifacts and contained at-rules
+
+Declaration stylesheet content and its `scope` attribute MUST be statically
+extractable. Runtime expressions, conditionals, or loops that generate
+declaration styles diagnose as
+`cem.ql.template.stylesheet_dynamic_unsupported` and produce no fallback style.
+
+Declaration-local keyframes receive a deterministic stylesheet suffix and all
+local animation references are rewritten. `@import` and document-global
+constructs such as `@font-face`, `@property`, `@counter-style`,
+`@font-palette-values`, `@page`, and `@namespace` are suppressed with the
+diagnostics in section 8. Authored outer `@scope` is also unsupported because
+the runtime owns the component boundary.
+
+Dynamic visual state MUST use static selectors over host, state, and ARIA
+attributes plus CEM custom properties.
+
+## 3. Named Shared Scope
+
+A declaration may opt into one public shared scope:
+
+```html
+<cem-element tag="cem-select" scope="form-controls">
+  <template id="cem-select" type="text/cem-ml">...</template>
+</cem-element>
+```
+
+Produced hosts reflect the declaration-owned name:
+
+```html
+<cem-select scope="form-controls">...</cem-select>
+```
+
+An explicit shared style uses the same static name:
+
+    {style @scope="form-controls" @type="text/css" | ```
+      :host {
+        font-family: var(--cem-typography-ui-font-family);
+      }
+    ```}
+
+Shared rules compile with a CEM-instance-qualified root and the same lower
+limits as private rules:
 
 ```css
-@keyframes pulse { ... }
-button { animation: pulse 1s; }
+@scope (
+  [scope="form-controls"]:has(> template[data-cem-island="instance"])
+) to (
+  :scope :has(> template[data-cem-island="instance"]) > *,
+  [slot] > *
+) {
+  :where(:scope) {
+    font-family: var(--cem-typography-ui-font-family);
+  }
+}
 ```
 
-becomes:
+The `:has(...)` qualification prevents the public name from capturing unrelated
+HTML such as `<th scope="row">`. It does not make the name private.
+
+### 3.1 Resolution matrix
+
+The declaration/style resolution matrix remains:
+
+| Declaration | Styles present | Bare `<style>` | `<style scope="form-controls">` |
+| --- | --- | --- | --- |
+| no `scope` | bare only | private tag scope | invalid |
+| `scope="form-controls"` | bare only | shared named scope | — |
+| `scope="form-controls"` | scoped only | — | shared named scope |
+| `scope="form-controls"` | both kinds | private tag scope | shared named scope |
+
+The bare-only row is a shorthand. Once a valid matching explicit scoped style
+exists, bare styles remain private and matching explicit styles are shared. An
+invalid or mismatched scoped style is rejected and does not alter valid bare
+style resolution.
+
+### 3.2 Name and ownership rules
+
+- A declaration accepts exactly one non-empty static CSS identifier as `scope`.
+  Whitespace-separated, dynamic, or invalid values fail closed.
+- An explicit style scope MUST exactly match the declaration scope.
+- The declaration owns the value reflected to each produced host. Adding a value
+  to an unscoped instance, or changing/removing a declared value, diagnoses and
+  restores the declaration state.
+- Multiple declarations MAY deliberately contribute to the same public name;
+  ordinary cascade order applies between their contributions.
+- Consumers MAY deliberately select `[scope="form-controls"]`. A scope name is
+  a documented public styling surface, not insulation from a determined author.
+- Libraries SHOULD use package-qualified names when a generic name could collide.
+
+Using `scope` keeps the API short and makes shared membership visible in markup.
+Its costs are equally deliberate: the name is public, inheritance crosses the
+boundary, independent libraries can choose the same name, and HTML already uses
+`scope` semantically on `th`. The DCE qualification also relies on `:has()`, so
+it shares the modern-browser requirement and selector-matching cost of that
+pseudo-class. CEM mitigates those costs with declaration ownership, identifier
+validation, package naming guidance, direct-child `:has()` tests, and
+DCE-qualified generated roots—not with obscurity.
+
+## 4. Projection and Stable Styling Hooks
+
+### 4.1 Projected roots
+
+`slot="name"` is the public projected-root marker. A named projection preserves
+or stamps its documented name on each projected element root:
+
+```html
+<span slot="label">Account</span>
+```
+
+Default projected element roots use `slot=""`. The marker remains on the
+projected root after CEM projection; no literal `<slot>` wrapper survives.
+
+- `[slot="label"]` may style the documented projected root.
+- `[slot] > *` is a scope lower limit, so the component does not style deeper
+  consumer-owned structure.
+- Text roots cannot carry attributes and inherit from the component-owned
+  insertion container.
+- Component fallback content is component-owned and MUST NOT receive a
+  projection marker.
+- A projection site that must expose a styleable public root MUST have a stable
+  CEM-ML slot name.
+
+### 4.2 Component-owned internals
+
+`part="name"` is the stable hook for component-generated internals:
+
+```html
+<button part="control">...</button>
+```
+
+Component and consumer CSS select it with ordinary light-DOM selectors such as
+`[part~="control"]` or `cem-select [part~="control"]`. CEM MUST NOT describe
+this as native `::part()`, whose semantics belong to shadow trees.
+
+Projection MUST NOT stamp `part` onto consumer-owned payload. A component MAY
+place a documented part on its own insertion container.
+
+## 5. Instance CSS
+
+Per-instance CSS requires an explicit inert payload envelope:
+
+```html
+<cem-select>
+  <template>
+    <style>
+      :host {
+        inline-size: 20rem;
+      }
+
+      [part~="control"] {
+        min-block-size: 3rem;
+      }
+    </style>
+
+    <span slot="label">Account</span>
+  </template>
+</cem-select>
+```
+
+A bare `<style>` directly inside an uninitialized DCE is forbidden because the
+browser applies it globally before CEM can establish a boundary. The direct
+`template` is reserved as the explicit instance payload envelope, so its source
+is inert before upgrade. The runtime adopts it as the instance data island
+instead of creating another wrapper.
+
+- Mixing the direct payload template with non-whitespace siblings diagnoses and
+  fails closed.
+- A literal template intended as projected content MUST be nested inside the
+  outer payload template.
+- Instance source styles remain inert in the data island.
+- The runtime creates one active managed style per source style directly under
+  the produced host. No `data-cem-instance-style` marker is required.
+
+An inline stylesheet with an omitted `@scope` prelude uses its parent element as
+the scope root. The managed instance style therefore compiles to:
 
 ```css
-@keyframes pulse-cem-scope-dce-1-u4k9f2-p0 { ... }
-[data-cem-scope="cem-scope-dce-1-u4k9f2-p0"] {
-  button { animation: pulse-cem-scope-dce-1-u4k9f2-p0 1s; }
+@scope to (
+  :scope :has(> template[data-cem-island="instance"]) > *,
+  [slot] > *
+) {
+  :scope {
+    /* authored :host */
+  }
+
+  :scope [part~="control"] {
+    /* authored instance rule */
+  }
 }
 ```
 
-The engine must rewrite both `animation-name` and shorthand `animation` references
-that name rewritten keyframes.
+For instance CSS, `:host` becomes `:scope`, `:host(...)` becomes `:scope...`,
+and every other authored selector receives a `:scope` descendant prefix. That
+prefix adds one class-level specificity component, so an otherwise equivalent
+instance rule overrides a declaration rule without a generated UUID selector.
 
-`@import` support is phased out for scoped CSS. A browser `@import` cannot be
-insulated by a nesting wrapper because it loads rules into the stylesheet cascade.
-For now, scoped CSS MUST suppress `@import` and emit a warning. It MUST NOT leave a
-native global `@import` in scoped output unless the author opted into an explicit
-global style mode outside this scoped-CSS contract.
+`data-cem-instance-scope` is removed and has no replacement. Instance isolation
+comes from the native implicit scope root and the existing data-island lower
+limit.
 
-Other constructs that nesting does not fully isolate:
+## 6. Specificity and Cascade
 
-- `@font-face` defines global font-family names. Support requires renaming the
-  family and rewriting `font-family` references inside the scoped CSS. Otherwise
-  diagnose.
-- `@property` registers custom properties globally. Diagnose unless a future scoped
-  property strategy is defined.
-- `@counter-style`, `@font-palette-values`, and other named global registries require
-  name rewriting plus reference rewriting, or diagnostics.
-- `@page` and other page/document-level rules cannot be scoped to a component and
-  should be rejected in scoped CSS.
-- `@namespace` must be handled before selector parsing and cannot simply be nested.
-  The engine may support it as parser metadata; otherwise diagnose.
-- `html` and `body` selectors are not checked specially by this scoped-CSS contract.
-- Grouping at-rules that contain style rules, such as `@media`, `@supports`,
-  `@container`, `@layer`, and `@starting-style`, may remain inside the nesting
-  wrapper only when the target CSS engine supports nested grouping rules. For
-  persisted output targeting broad compatibility, the transform SHOULD lower them
-  to equivalent prefixed selectors or emit a diagnostic.
+CEM follows the native cascade, including
+[scoping proximity](https://www.w3.org/TR/css-cascade-6/#scope-atrule), after
+origin, importance, encapsulation context, style attributes, cascade layers, and
+specificity are considered.
 
-Unsupported selectors or at-rules MUST NOT silently leak global CSS in
-debug/validation or persisted-output mode. The engine should emit diagnostics rather
-than partially scope a rule whose behavior it cannot preserve.
+- A generic page rule and an equally specific component rule are resolved by
+  scope proximity inside the component. For example, a declaration-owned
+  `button` rule beats an otherwise equal page-level `button` rule.
+- A consumer can intentionally override a component with a more specific public
+  selector such as `cem-select [part~="control"]`.
+- Declaration and shared-scope root selectors contribute no specificity.
+- The generated instance `:scope` prefix intentionally contributes `0-1-0`.
+- Authored declaration and shared selectors MUST NOT exceed `0-2-1` before any
+  generated instance prefix.
+- IDs, selector duplication used to manufacture specificity, inline
+  presentation styles, and `!important` in library rules are forbidden.
+- CEM generates no cascade layer. Applications remain free to organize their
+  own non-CEM styles into layers.
+- Custom properties and inherited properties are the intended cross-boundary
+  theming mechanism.
 
-## 5. UID Format
+Scope proximity does not override a selector with greater specificity and does
+not create complete insulation. Consumers who know a public tag, `scope`,
+`slot`, or `part` hook can style it declaratively.
 
-Recommended shape:
+## 7. Render Identity, Hydration, and Anonymous Declarations
 
-```text
-cem-{kind}-{debug-prefix?}-u{seed}-p{occurrence-path}
-```
+`uid-seed` continues to control stable internal identities. Resolution order is:
 
-Examples:
+1. explicit declaration `uid-seed`, including an explicit blank value;
+2. a host-provided seed;
+3. a source hash in deterministic build or SSR mode;
+4. an ephemeral runtime fallback.
 
-```text
-cem-scope-dce-1-u4k9f2-p0
-cem-node-cem-button-u4k9f2-p0-2
-cem-anon-u4k9f2-p7
-```
+The generated value appears as `data-cem-render-scope` on the host and relevant
+render roots. It namespaces render resources, instance IDs, hydration, patching,
+diagnostics, and keyframe suffixes. It MUST NOT appear in generated CSS selectors
+or authored application/component CSS.
 
-Fields:
+SSR serializes render identity and the public declaration-owned `scope` value.
+Hydration reuses them, restores an altered public scope, and MUST NOT reinterpret
+render identity as CSS identity.
 
-| Field | Purpose |
-| --- | --- |
-| `cem` | Reserved CEM-generated namespace. |
-| `kind` | `scope`, `node`, `anon`, `artifact`, or another bounded identity kind. |
-| `debug-prefix` | Optional sanitized public tag or declaration name. Not part of the uniqueness guarantee. |
-| `seed` | Stable encoded `uidSeed` namespace. Explicit/host seeds are preferred; source hash or runtime seed is a fallback. |
-| `occurrence-path` | Deterministic source/AST occurrence path, with path segments encoded in base 36. |
+An anonymous `<cem-element>` still derives and registers a deterministic
+UUID-shaped custom-element tag, writes it to the declaration, and creates one
+adjacent instance. That generated tag is its private `@scope` root. Anonymous
+declarations otherwise follow the same shared, projection, instance, and render
+identity rules.
 
-Sanitization rules:
+## 8. Diagnostics and Fail-Closed Rules
 
-- lowercase ASCII;
-- replace characters outside `[a-z0-9_-]` with `-`;
-- collapse repeated `-`;
-- truncate debug prefixes to a bounded length, for example 48 bytes;
-- if a CSS class is emitted instead of an attribute value, ensure the final class
-  token starts with a letter.
-
-Seed values supplied to the engine SHOULD already be bounded and public-safe. The
-engine may normalize seed text for CSS identifier syntax, but privacy-preserving
-encoding or hashing is the consumer/host responsibility, not a CEM-ML engine
-requirement.
-
-## 6. JS Host Algorithm
-
-Browser JS hosts should not call `crypto.randomUUID()` for routine style scopes.
-Use a seed plus runtime-local occurrence counters for ephemeral browser-only output.
-
-```ts
-interface CemUidAllocator {
-  seed: string;
-  next(kind: string, debugPrefix?: string): string;
-}
-```
-
-Single-threaded browser runtime:
-
-```ts
-let runCounter = 0;
-
-function createUidAllocator(uidSeed?: string): CemUidAllocator {
-  const seed = encodeSeed(uidSeed ?? `runtime-${runCounter++}`);
-  let occurrenceCounter = 0;
-  return {
-    seed,
-    next(kind, debugPrefix) {
-      occurrenceCounter += 1;
-      const prefix = debugPrefix ? `-${sanitize(debugPrefix)}` : '';
-      return `cem-${kind}${prefix}-u${seed}-p${occurrenceCounter.toString(36)}`;
-    },
-  };
-}
-```
-
-This is enough for the ordinary DOM runtime because JavaScript execution in one
-agent is single-threaded. With an explicit or host-provided seed, this allocator is
-stable only when allocation order is stable. Saved generated output and SSR output
-MUST use the occurrence-path planner in §7, not runtime execution order. Without a
-stable seed, this allocator is still unique enough for ephemeral browser-only
-rendering.
-
-## 7. WASM And Worker-Pool Algorithm
-
-The CEM-ML engine and `cem-element` WASM path must account for worker-pool execution.
-UID generation should avoid cross-thread synchronization, but repeatable output takes
-priority over using dynamic worker IDs.
-
-Recommended model:
-
-1. The host supplies or derives a `uid_seed` before work starts.
-2. The transform planner assigns each deterministic output scope an occurrence path
-   before parallel work emits public IDs.
-3. Each worker receives the stable seed plus its assigned occurrence path.
-4. A public UID is `(uid_seed, deterministic_occurrence, kind, debug_prefix)`.
-
-Rust sketch:
-
-```rust
-pub struct UidPlanner {
-    seed: String,
-}
-
-impl UidPlanner {
-    pub fn uid_for(
-        &self,
-        kind: &str,
-        debug_prefix: Option<&str>,
-        occurrence_path: &OccurrencePath,
-    ) -> String {
-        format_uid(kind, debug_prefix, &self.seed, occurrence_path)
-    }
-}
-```
-
-No atomic increment is required on the hot path when the planner assigns each task a
-stable occurrence path. The generated ID does not include
-`worker_index`, because worker scheduling is dynamic and would make saved transform
-output non-repeatable.
-
-Normative public-ID algorithm:
-
-- occurrence paths are assigned by source/AST pre-order before parallel render work
-  starts;
-- sibling indexes are counted among generated UID-producing nodes of the same stable
-  parent scope;
-- declaration-level seeds are combined with stable child occurrence paths, for
-  example `uidSeed + declarationPath + occurrencePath`.
-
-Counter ranges MAY be used internally as an optimization only when the public IDs
-are equivalent to the occurrence-path algorithm. Counter range reservation must not
-change saved generated output, SSR output, or hydration identities.
-
-`worker_index` MAY be used only for ephemeral fallback identities when no stable seed
-or deterministic occurrence plan exists and dynamic output is acceptable. Such IDs
-MUST NOT be used for saved generated markup, SSR hydration contracts, or versioned
-artifacts that need repeatable output.
-
-If the engine executes work outside a fixed worker pool, use one of these fallbacks:
-
-- allocate deterministic occurrence paths before parallel execution;
-- allocate a temporary worker/shard index only for ephemeral runtime IDs;
-- run a single-threaded allocator for deterministic CLI modes.
-
-### 7.1 Early Allocation Before Source Load
-
-`uidSeed` allows ID allocation before the transformation source is fully loaded. This
-matters for streaming template acquisition and import graphs:
-
-- CSS scope IDs can be allocated when the declaration is discovered.
-- Placeholder render roots can carry stable IDs before remote template fetch
-  completes.
-- Worker tasks can allocate render-node IDs from stable ranges without waiting for a
-  whole-template content hash.
-
-When no explicit or host seed exists, the engine may fall back to a source hash once
-the source is complete. That is deterministic but not early.
-
-## 8. Runtime Vs Persisted Output
-
-The UID and scoped-CSS contract distinguishes ephemeral browser rendering from
-persisted transform output.
-
-**Ephemeral browser rendering** is live runtime output that is not saved as an
-artifact. Examples include local demos, client-side component upgrade, app runtime
-rendering, and development previews.
-
-**Persisted transform output** is output that becomes an artifact or hydration
-contract. Examples include generated HTML committed to version control, static-site
-build output, SSR HTML, fixture snapshots, compiled CSS, and CDN-published generated
-pages.
-
-| Concern | Ephemeral browser rendering | Persisted/build/SSR output |
+| Condition | Required result | Diagnostic |
 | --- | --- | --- |
-| ID stability | Best effort unless `uid-seed` or a host seed is available. | Required. |
-| Public UID algorithm | MAY use runtime allocation for fallback dynamic IDs. | MUST use occurrence path. |
-| Worker/thread indexes in public IDs | MAY appear only in fallback dynamic IDs. | MUST NOT appear. |
-| Runtime randomness in public IDs | MAY appear only in fallback dynamic IDs. | MUST NOT appear. |
-| Duplicate generated-ID detection | MAY be skipped by default. | SHOULD run by default in validation/debug. |
-| `uid-seed` uniqueness | Host/provider responsibility. | Host/provider responsibility, validated when checks run. |
-| Unsupported scoped CSS | MAY warn and suppress/drop unsafe rules. | MUST diagnose; SHOULD reject or fail validation when output would leak global CSS. |
-| `@import` in scoped CSS | MUST suppress with warning. | MUST suppress with warning; SHOULD fail validation if persisted output requires strict CSS completeness. |
-| Output diff stability | Not required. | Required. |
-| Hydration identity | Only relevant when hydrating retained DOM. | Required for SSR/hydration output. |
-| Artifact cache identity | Optional. | SHOULD include content/dependency identity, not only `uid-seed`. |
+| declaration style content or `scope` is dynamic | omit the style artifact | `cem.ql.template.stylesheet_dynamic_unsupported` |
+| declaration `scope` is empty, multiple, or not one CSS identifier | expose no named shared surface | `cem-element.stylesheet_scope_invalid` |
+| explicit style scope does not match the declaration | do not install that style | `cem-element.stylesheet_scope_mismatch` |
+| produced-host `scope` is added, changed, or removed contrary to its declaration | diagnose and restore declaration state | `cem-element.scope_mutation_restored` |
+| direct payload template is mixed with non-whitespace siblings | leave payload inert and render no mixed payload | `cem-element.instance_payload_mixed` |
+| bare instance `<style>` is found outside the payload envelope | do not adopt it as instance CSS | `cem-element.instance_style_unenveloped` |
+| authored outer `@scope` appears in managed CSS | suppress the authored scope | `cem.scoped_css.authored_scope_unsupported` |
+| `@import` appears in managed CSS | suppress the import | `cem.scoped_css.import_unsupported` |
+| a document-global at-rule appears | suppress the construct | `cem.scoped_css.global_construct_unsupported` |
+| `:global`, `:global(...)`, or `:root` appears | contain it as a host alias | `cem.scoped_css.global_alias` |
 
-Rules:
+A missing concise declarative capability is a hard stop. Add the reusable
+capability to `cem-elements` rather than bypassing the CSS contract with
+component or application JavaScript.
 
-- Normal ephemeral browser runtime MAY use dynamic fallback seeds when no explicit
-  `uid-seed`, host seed, or source hash is available.
-- Normal ephemeral browser runtime MAY skip duplicate generated-ID detection.
-- Normal ephemeral browser runtime MAY suppress unsupported scoped CSS with warnings.
-- Persisted transform output and SSR output MUST use stable `uid-seed`,
-  host-provided seeds, or source hashes.
-- Persisted transform output and SSR output MUST use occurrence-path public IDs, not
-  runtime execution order.
-- Persisted transform output and SSR output MUST NOT include worker indexes, runtime
-  randomness, or execution-order counters in public IDs.
-- Persisted transform output and SSR output SHOULD run validation/debug checks by
-  default.
+## 9. Author Checklist
 
-## 9. SSR And Hydration
+Before accepting component CSS:
 
-SSR output and browser live-render output are expected to be identical for the same
-template, engine version, scoped-CSS mode, UID seed, occurrence path algorithm, and
-input data.
+- keep component-owned rules in static embedded CEM-ML styles;
+- use `:host`, documented `part` values, slot-root markers, host/state/ARIA
+  attributes, and CEM custom properties;
+- use `scope` only for an intentionally public cross-component rule set;
+- keep private and shared artifacts distinct when both are needed;
+- use the inert payload envelope for any instance stylesheet;
+- never select data-island or render-identity markers;
+- stay within the specificity ceiling and avoid `!important`;
+- verify that multiple instances share declaration styles; and
+- keep component CSS out of standalone and package-global stylesheets.
 
-The only expected differences are values intentionally supplied as dynamic input
-data. For example, if a timer value is bound into the data island, the rendered
-timer text is moment-specific. Without such dynamic input differences, server and
-browser output should match.
+## 10. Migration Verification
 
-This is a trust and integrity contract between delivery and rendering tiers. The
-project should validate it with SSR unit tests and in-browser tests that compare the
-same fixtures across server render and client render. Once those tests pass for a
-given engine/version/configuration, normal hydration can rely on SSR output without
-per-instance generated UUID revalidation.
+The migration MUST add executable evidence for:
 
-Rules:
+- private, named-shared, and instance compilation output;
+- generic page CSS versus equal-specificity component CSS;
+- intentional public overrides and instance specificity;
+- nested same-tag and different-tag DCE containment;
+- named/default projected roots, text payload, and fallback content;
+- inheritance and custom properties crossing scope limits;
+- `<th scope="row">` collision resistance;
+- invalid, dynamic, multiple, mismatched, and mutated scope values;
+- inert payload safety, mixed-sibling rejection, and literal nested templates;
+- complete removal of `data-cem-scope` and `data-cem-instance-scope` from the
+  target styling path;
+- SSR/hydration reuse without CSS use of render identity;
+- once-per-declaration ownership and declaration removal;
+- anonymous declaration scope roots;
+- no generated layers or library `!important`; and
+- computed specificity, scoping proximity, and source-order behavior.
 
-- Server-rendered output MUST include the generated `data-cem-scope` values and
-  template artifact identity.
-- The client hydration path MUST reuse existing scope IDs from retained SSR DOM.
-- The client MUST NOT regenerate CSS scope IDs or other generated UUIDs for retained
-  SSR DOM.
-- The client MAY verify hydration metadata in debug/validation mode, but normal
-  hydration should not require per-instance UUID revalidation after SSR/browser
-  parity is established by tests.
-- The client MAY generate new IDs only when there is no retained SSR DOM, when it is
-  rendering client-only content, or when it intentionally discards the server DOM and
-  performs a full client render.
-- For deterministic tests and fixtures, the host SHOULD provide an explicit
-  `uidSeed`.
-- A produced element's `connectedCallback` MUST NOT trigger a DOM update when the
-  element body is already produced by hydration.
-- Hydration detection should be based on runtime-owned evidence such as the retained
-  render root plus an instance data island (`template[data-cem-island="instance"]`)
-  produced by SSR or an earlier render.
-- The runtime MUST NOT trust author-supplied data-island markup as authoritative
-  hydration evidence. If an author-authored data island is possible at parse time,
-  the runtime should validate ownership metadata or recreate the island before
-  treating it as hydrated output.
-- Data-island and template state may be retriggered by events. If an event does not
-  change the data-island state, the browser DOM MUST remain unchanged.
-- Even when the WASM virtual render tree is recomputed, the DOM sync routine should
-  leave the browser DOM untouched when it finds no rendered-tree difference.
+The primary implementation gates remain:
 
-## 10. Diagnostics
-
-Diagnostics should distinguish public names from generated identities:
-
-```json
-{
-  "tag": "dce-1",
-  "uidSeed": "demo/scoped-css/dce-1",
-  "scopeUid": "cem-scope-dce-1-u4k9f2-p0",
-  "message": "scoped CSS rewritten against generated scope UID"
-}
+```bash
+yarn nx run cem_ql:test
+yarn nx run cem-elements:test:unit
+yarn nx run cem-elements:test
+yarn nx run cem-elements:verify-demo-fixtures
+yarn nx run @epa-wg/cem-components:verify
 ```
 
-This keeps troubleshooting readable without making the tag the collision boundary.
+## 11. Standards Basis
 
-## 11. Acceptance Criteria
-
-1. Two declarations with the same public `tag` in separate CEM scopes do not share a
-   CSS scope UID.
-2. Two anonymous declarations receive unique CSS scope UIDs without calling a browser
-   UUID API.
-3. A declaration with `tag="dce-1"` may produce a readable UID containing `dce-1`,
-   but style containment uses the generated UID.
-4. WASM worker-pool rendering can allocate UIDs without per-ID synchronization by
-   using stable seeds plus deterministic occurrence paths.
-5. SSR output and client hydration preserve server-generated scope UIDs.
-6. Scoped CSS uses a `[data-cem-scope="..."] { ... }` nesting wrapper where native
-   nesting safely scopes the authored CSS.
-7. An explicit `uid-seed` produces stable generated IDs without requiring the full
-   transformation source to be loaded or hashed.
-8. `uid-seed` is not used as the only compiled-artifact cache key when source,
-   imports, transform version, target mode, or policy stamp can change.
-9. Worker/thread indexes are used only for ephemeral fallback IDs where dynamic
-   output is acceptable.
-10. `uid-seed=""` is a valid explicit blank seed and does not fall through to any
-    derived seed source.
-11. Saved generated output and SSR output use occurrence path as the normative public
-    UID occurrence algorithm.
-12. Normal ephemeral runtime may skip duplicate generated-ID detection, leaving
-    `uid-seed` uniqueness to the host/provider.
-13. Validation/debug mode diagnoses duplicate externally visible generated IDs within
-    the same output scope.
-14. Repeatable output does not repair duplicate seeds with runtime randomness,
-    worker indexes, or execution-order counters.
-15. Scoped CSS rewrites `:host` to `&`; treats `:global` and `:root` as `:host`
-    with a debug/validation warning; and renames scoped `@keyframes` plus animation
-    references.
-16. Scoped CSS suppresses `@import` with a warning for now.
-17. Unsupported scoped CSS constructs diagnose rather than silently leaking global
-    CSS in debug/validation or persisted-output mode.
-18. Ephemeral browser rendering may use dynamic fallback seeds and skip duplicate-ID
-    validation when output is not persisted.
-19. Persisted transform output and SSR output use stable seeds or source hashes,
-    occurrence-path public IDs, and validation/debug checks by default.
-20. Persisted transform output and SSR output do not include worker indexes, runtime
-    randomness, or execution-order counters in public IDs.
-21. SSR output and browser live-render output are identical for the same static
-    inputs, except for explicitly dynamic input data.
-22. SSR-vs-browser parity is validated by SSR unit tests and in-browser tests before
-    normal hydration relies on retained SSR DOM.
-23. Hydration reuses existing `data-cem-scope` and generated IDs from retained SSR
-    DOM and does not regenerate them during `connectedCallback`.
-24. `connectedCallback` does not update the DOM for produced elements whose body is
-    already produced by hydration.
-25. Runtime-owned data islands may signal hydrated output, but author-supplied data
-    islands are not trusted as authoritative hydration evidence.
-26. Event-triggered rerendering leaves the browser DOM unchanged when the data island
-    and rendered output do not change.
-27. The project includes unit, validation, browser, and SSR tests covering repeatable
-    UID generation, parallel scheduling stability, scoped CSS isolation,
-    duplicate-ID diagnostics, SSR/browser parity, hydration no-op behavior, and
-    unsupported scoped-CSS diagnostics.
-
-## 12. Test Matrix
-
-The requirements should be protected by executable gates. The test matrix is part of
-the acceptance contract, not only implementation guidance.
-
-| Area | Test Type | What To Prove |
-| --- | --- | --- |
-| Repeated builds | Unit/fixture snapshot | Same input produces byte-identical public IDs and generated output across runs. |
-| Occurrence path | Unit | Public IDs derive from source/AST occurrence path, not execution order. |
-| Parallel scheduling | WASM/worker integration | Worker scheduling order does not change public IDs. |
-| Same tag in separate scopes | Unit/integration | Public tag is not the CSS scope identity; generated `scopeUid` differs. |
-| Same `uid-seed` collision | Validation/debug | Duplicate externally visible generated IDs are diagnosed in the same output scope. |
-| Blank seed | Unit | `uid-seed=""` is valid, does not fall through, and uses occurrence path. |
-| Runtime fallback | Browser/runtime | Ephemeral runtime can use dynamic fallback seeds without persisted-output guarantees. |
-| SSR/browser parity | SSR unit + browser | Same static inputs produce identical server-rendered and browser-rendered DOM. |
-| Dynamic data exception | SSR unit + browser | Known dynamic binding may differ only in that bound value. |
-| Hydration no-op | Browser | Client reuses server `data-cem-scope`; `connectedCallback` does not rewrite hydrated DOM. |
-| Event no-op rerender | Browser | Event retrigger that does not change data leaves browser DOM unchanged. |
-| Scoped CSS nesting | Unit/browser | Local rules are wrapped with `[data-cem-scope] { ... }` and do not style outside nodes. |
-| Payload style containment | Unit/browser | Projected payload styles are wrapped with `[data-cem-instance-scope] { ... }` and do not affect sibling same-tag instances. |
-| `:host`, `:global`, `:root` | Validation/unit | `:host` rewrites to `&`; `:global` and `:root` rewrite to `&` and warn. |
-| Keyframes | Unit/browser | `@keyframes` names and `animation` references are renamed consistently. |
-| `@import` | Validation/unit | Scoped CSS suppresses `@import` with warning. |
-| Unsupported CSS | Validation/unit | Unsupported scoped-CSS constructs diagnose rather than leaking global CSS. |
-| Security advisory examples | Docs/lint fixture | Public docs/examples do not encourage raw private paths in `uid-seed`; engine does not own hashing. |
-
-Test layering:
-
-- Unit tests cover seed precedence, blank seed behavior, occurrence paths, UID
-  formatting, and CSS rewrite decisions.
-- Validation tests cover duplicate IDs, `@import`, unsupported CSS, `:global`, and
-  `:root` diagnostics.
-- Browser tests cover scoped CSS isolation, hydration no-op behavior, and event
-  rerender no-op behavior.
-- SSR tests compare server output and browser output for shared fixtures.
-
-## 13. Adopted Design
-
-Adopt generated UID scope identity for all declarations. Use the public tag only as
-an optional debug prefix. Add `uid-seed` as the explicit stable namespace override
-for generated IDs. For scoped CSS, stamp `data-cem-scope` on the produced render
-host/root and rewrite local style rules to target that generated scope.
-
-This gives `cem-element` and the CEM-ML engine one identity model for anonymous
-declarations, public custom-element tags, browser runtime output, SSR output, and
-parallel WASM processing, while preserving stable saved transform output when hosts
-provide deterministic seeds.
-
-## 14. Resolved Design Questions
-
-1. [x] Normative seed rules — resolved
-   Seed precedence is defined in §3. `uid-seed=""` is valid and treated as an
-   explicit blank-string seed.
-
-2. [x] Deterministic occurrence algorithm — resolved
-   Occurrence path is the normative public UID algorithm for saved generated output
-   and SSR output. Counter ranges are allowed only as an internal optimization when
-   public IDs remain equivalent to occurrence-path output.
-
-3. [x] Collision behavior — resolved
-   `uid-seed` uniqueness is a host/provider contract in normal ephemeral runtime.
-   Validation/debug mode diagnoses duplicate externally visible generated IDs in the
-   same output scope. Repeatable output does not auto-repair duplicates with dynamic
-   disambiguators.
-
-4. [x] CSS rewrite contract — resolved
-   Native nesting is the default scoping strategy where it works. `:host` rewrites
-   to `&`; `:global` and `:root` are treated as `:host` with debug/validation
-   warning; keyframes and animation references are renamed; `@import` is suppressed
-   with warning for now; `html` and `body` are not checked specially; unsupported
-   constructs diagnose rather than leak global CSS in debug/validation or persisted
-   output.
-
-5. [x] Runtime vs build output — resolved
-   Ephemeral browser rendering may use dynamic fallback seeds, skip duplicate-ID
-   validation, and warn/drop unsupported scoped CSS. Persisted build/SSR output uses
-   stable seeds or source hashes, occurrence-path public IDs, and validation/debug
-   checks by default.
-
-6. [x] Hydration contract — resolved
-   SSR and browser live render are expected to produce identical output for the same
-   static inputs. That parity is validated by SSR unit and in-browser tests. Normal
-   hydration reuses retained SSR `data-cem-scope` and generated IDs without
-   per-instance UUID revalidation; `connectedCallback` does not update DOM that is
-   already produced by hydration.
-
-7. [x] Security/privacy — resolved as consumer advisory
-   Seed data resides on the consumer side. Consumers/hosts should provide bounded,
-   public-safe, optionally encoded `uid-seed` values. `cem-element` and the CEM-ML
-   engine do not handle, redact, or hash sensitive seed data as part of this design.
-
-8. [x] Test matrix — resolved
-   Unit, validation, browser, and SSR tests cover repeatable UID generation,
-   occurrence-path stability, parallel scheduling, same-tag separate scopes,
-   same-seed collision diagnostics, blank seed behavior, scoped CSS isolation,
-   SSR/browser parity, hydration no-op, event no-op rerendering, and unsupported CSS
-   diagnostics.
+- [CSS Cascading and Inheritance Level 6 — scoped styles](https://www.w3.org/TR/css-cascade-6/#scope-atrule)
+- [MDN: `@scope`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@scope)
+- [WHATWG HTML: custom elements](https://html.spec.whatwg.org/dev/custom-elements.html)
+- [WHATWG HTML attribute index: `scope`](https://html.spec.whatwg.org/multipage/indices.html#attributes-3)
+- [CSS Shadow Parts](https://www.w3.org/TR/css-shadow-parts-1/)

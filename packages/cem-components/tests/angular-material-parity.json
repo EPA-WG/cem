@@ -211,7 +211,7 @@
                 "states": ["default", "hover", "focus-visible", "disabled", "loading", "expanded", "invalid", "required", "readonly"],
                 "keyboard": ["Delegate editing, selection, focus, and disclosure keys to the owned native or ARIA control."],
                 "accessibility": ["Provide programmatic labels and retain help, description, validation, and error relationships."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders field, text, and icon primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::composes tokenized input indicators across appearance, hover, focus, validation, and selection states", "packages/cem-components/src/lib/states.browser.spec.ts::reflects form disabled, invalid, required, readonly, checked, and indeterminate states"],
+                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders field, text, and icon primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::composes tokenized input indicators across appearance, hover, focus, validation, and selection states", "packages/cem-components/src/lib/states.browser.spec.ts::reflects form disabled, invalid, required, readonly, checked, and indeterminate states", "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const FormAndKeyboard"],
                 "notes": "CEM field owners cover labeled controls, help, error references, validation, and semantic indicators. Prefix/suffix ownership, projected hint/error regions, floating-label policy, and subscript sizing are not defined as a general form-field composition contract."
             }
         },
@@ -365,7 +365,7 @@
                 "states": ["default", "hover", "focus-visible", "disabled", "loading", "expanded", "invalid", "required", "selected", "multiple"],
                 "keyboard": ["Support ArrowUp/ArrowDown, Home/End, Enter, Space, Escape, and Tab commit behavior across dropdown, listbox, and multiple-listbox modes."],
                 "accessibility": ["Expose labeled combobox/listbox, option and group semantics, aria-expanded, aria-controls, aria-activedescendant, disabled/selected options, and form-associated values."],
-                "evidence": ["packages/cem-components/src/lib/states.browser.spec.ts::renders rich cem-option content with native-like dropdown, listbox, and form behavior", "packages/cem-components/docs/select-contract.md"],
+                "evidence": ["packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const Default", "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const FormAndKeyboard", "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const MultipleListbox", "packages/cem-components/docs/select-contract.md"],
                 "notes": "CEM owns rich single and multiple selection, option grouping, disabled options, keyboard behavior, validation, form submission/reset, and legacy native-option migration. The declarative CEM API intentionally differs from Angular Material."
             }
         },

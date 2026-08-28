@@ -7,14 +7,19 @@ light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elem
 `@epa-wg/custom-element`; design home: [`docs/cem-element-design.md`](../../docs/cem-element-design.md)).
 
 > **Primary architecture:** every component is a CEM-ML `<cem-element>`
-> declaration at `src/components/<cem-tag>/<cem-tag>.xhtml`, with CEM-token CSS
-> embedded as an automatically scoped `<style>` node and Storybook cases/unit
-> assertions in the colocated `<cem-tag>.stories.xhtml` file. Do not add a
-> standalone component CSS file. Storybook owns the production-CEM theme
-> switcher and applies all five canonical modes to the same story.
-> This package must reach zero authored JavaScript/TypeScript. If CEM-ML cannot
-> express a requirement concisely, component work hard-stops until the reusable
-> capability is implemented in `cem-elements`. See the normative
+> declaration at `src/components/<cem-tag>/<cem-tag>.xhtml`, whose
+> `<template id="<cem-tag>" type="text/cem-ml">` remains addressable as
+> `<declaration-url>#<cem-tag>`, with CEM-token CSS
+> embedded as a static `<style>` node that `cem-elements` installs once per
+> declaration, and Storybook cases/unit
+> assertions in the colocated CSF Next `<cem-tag>.stories.ts` file's async
+> `play` functions using `storybook/test`. Story `render` functions return HTML
+> strings. The story is development-only and must not implement component
+> behavior. Do not add standalone component CSS or migrated component selectors
+> to global CSS. This package must reach zero authored JavaScript/TypeScript
+> except the required colocated `.stories.ts` modules. If CEM-ML cannot express a requirement concisely,
+> component work hard-stops until the reusable capability is implemented in
+> `cem-elements`. See the normative
 > [declarative UI principle](../../docs/declarative-ui-principle.md).
 
 > **Migration status:** the installable TypeScript primitive registry, behavior
@@ -22,6 +27,21 @@ light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elem
 > They are frozen compatibility debt, not examples for new work. The baseline is
 > recorded in [`declarative-migration.json`](./declarative-migration.json) and
 > may only shrink toward zero.
+
+The first proven implementation of this contract is
+[`cem-select.xhtml`](./src/components/cem-select/cem-select.xhtml) with
+[`cem-select.stories.ts`](./src/components/cem-select/cem-select.stories.ts).
+Its choice/form/keyboard behavior is a reusable `cem-elements` capability; the
+component owns no JavaScript and its CSS is embedded in the XHTML declaration.
+That CSS is absent from instance DOM. The accepted native `@scope` target uses
+the tag as its private root, declaration-owned `scope="name"` for public shared
+membership, `slot="name"` for projected roots, and `part="name"` for stable
+component internals. Data-island and render identity are not styling APIs. See
+the normative
+[CEM light-DOM CSS scoping rules](../../docs/cem-ml-uid-and-scoped-css-design.md)
+for ownership, scope resolution, specificity, lifecycle, and diagnostics.
+That target is not current runtime behavior until its active migration gate is
+complete.
 
 ## Install
 
@@ -66,7 +86,12 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 `cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-tab`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
-## Stylesheet install
+## Legacy stylesheet install
+
+The shared component stylesheet remains the compatibility surface for components
+not yet migrated to declaration-owned CSS. New and migrated components MUST keep
+their CSS in the XHTML declaration; this export shrinks with the frozen legacy
+inventory and is not an authoring pattern for new work.
 
 Load generated theme CSS first, then explicitly load the component bindings:
 
@@ -239,12 +264,14 @@ yarn nx run @epa-wg/cem-components:lint
 `yarn build` at the repo root builds every package, including this one.
 
 `verify-declarative` runs first and enforces the primary architecture: new
-authored JavaScript/TypeScript is rejected, the legacy implementation cannot
-drift or grow, and every migrated/new component must use its own XHTML folder
-with embedded, automatically scoped CEM-token styles and colocated XHTML
-Storybook tests. It hard-stops component migration until the required
-`cem-elements` declarative Storybook adapter and Storybook-owned five-mode theme
-controller exist.
+JavaScript/TypeScript outside the required story contract or legacy registry growth is rejected, and
+every migrated/new component must use its own XHTML folder with embedded,
+once-per-declaration low-specificity CEM-token styles and colocated CSF Next Storybook `play`
+tests. Remaining legacy behavior files are content-frozen: change requires
+migration to XHTML/CEM-ML plus a reusable `cem-elements` capability. The gate
+also rejects a story that does not import its own raw declaration,
+use the shared lazy `cem-elements` loader, return HTML from `render`, or import
+test helpers from `storybook/test`.
 
 The remaining gates below preserve migration-era release behavior while that
 debt is removed. `yarn nx run @epa-wg/cem-components:verify` runs the primitive manifest,
@@ -328,13 +355,11 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 
 ## Handoff Condition
 
-Component expansion is currently hard-stopped until `cem-elements` provides the
-declarative XHTML Storybook indexer/loader required by the
-[primary principle](../../docs/declarative-ui-principle.md). Once it exists,
-`yarn nx run @epa-wg/cem-components:verify` must pass with every new or migrated
-component in its own XHTML folder and with its unit tests in the colocated
-Storybook document, its embedded `<style>` consuming CEM UI tokens, and the same
-story verified under every Storybook-owned theme mode.
+The XHTML declaration loader and CSF Next test pattern are proven by
+`cem-select`. Every next component must follow that same folder, embedded-style,
+raw-declaration loader, HTML-string `render`, and async `play` contract. If its
+behavior cannot be expressed concisely, migration is hard-stopped until the
+missing reusable capability exists in `cem-elements` and its tests pass.
 
 Known deferrals stay outside this trigger:
 
@@ -350,7 +375,8 @@ Known deferrals stay outside this trigger:
 | ------- | ---- |
 | Normative architecture | `../../docs/declarative-ui-principle.md` |
 | Declarative component source | `src/components/<cem-tag>/<cem-tag>.xhtml` |
-| Colocated Storybook/unit source | `src/components/<cem-tag>/<cem-tag>.stories.xhtml` |
+| Colocated Storybook/unit source | `src/components/<cem-tag>/<cem-tag>.stories.ts` |
+| Proven declarative example | `src/components/cem-select/` |
 | Migration baseline | `declarative-migration.json` |
 | Declarative architecture gate | `../../tools/scripts/verify-cem-components-declarative.mjs` |
 | Public stylesheet source | `src/styles.css` |

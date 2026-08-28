@@ -1,7 +1,7 @@
 import type {
     CemProducedElementBehavior,
     CemProducedElementBehaviorContext,
-} from '@epa-wg/cem-elements';
+} from './cem-elements.js';
 import {
     normalizeChoiceOptions,
     type NormalizedChoiceGroup as NormalizedGroup,
@@ -56,7 +56,7 @@ interface SelectState {
 const SELECT_STATES = new WeakMap<HTMLElement, SelectState>();
 let selectSequence = 0;
 
-export const CEM_SELECT_BEHAVIOR: CemProducedElementBehavior = {
+export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
     formAssociated: true,
     constructed(instance, context) {
         const state = stateFor(instance);

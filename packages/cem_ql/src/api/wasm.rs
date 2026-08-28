@@ -52,9 +52,11 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
         },
     );
     let diagnostics = diagnostics_json(&artifact.diagnostics);
+    let stylesheets = stylesheets_json(&artifact);
     let artifact_id = retain_artifact(artifact);
     json!({
         "artifactId": artifact_id,
+        "stylesheets": stylesheets,
         "diagnostics": diagnostics
     })
     .to_string()
@@ -141,11 +143,13 @@ pub fn wasm_import_template_artifact(
         Err(error) => return artifact_error_json(error.code, error.message),
     };
     let diagnostics = diagnostics_json(&template.diagnostics);
+    let stylesheets = stylesheets_json(&template);
     let artifact_id = retain_artifact(template);
     json!({
         "artifactId": artifact_id,
         "contentHash": artifact.content_hash.header_value(),
         "formatVersion": CEM_TEMPLATE_ARTIFACT_VERSION,
+        "stylesheets": stylesheets,
         "diagnostics": diagnostics,
     })
     .to_string()
@@ -265,6 +269,21 @@ fn plan_json(plan: &RenderPlan) -> Value {
         "nodes": plan.nodes.iter().map(node_json).collect::<Vec<_>>(),
         "diagnostics": diagnostics_json(&plan.diagnostics)
     })
+}
+
+fn stylesheets_json(artifact: &TemplateArtifact) -> Value {
+    Value::Array(
+        artifact
+            .stylesheets
+            .iter()
+            .map(|stylesheet| {
+                json!({
+                    "css": stylesheet.css,
+                    "scope": stylesheet.scope,
+                })
+            })
+            .collect(),
+    )
 }
 
 fn node_json(node: &RenderPlanNode) -> Value {

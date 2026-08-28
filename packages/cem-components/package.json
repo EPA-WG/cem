@@ -23,11 +23,13 @@
             "import": "./dist/index.js",
             "default": "./dist/index.js"
         },
+        "./components/*": "./src/components/*/*.xhtml",
         "./styles.css": "./dist/styles.css",
         "./catalog/cem.components.catalog.json": "./dist/catalog/cem.components.catalog.json"
     },
     "files": [
         "dist",
+        "src/components/**/*.xhtml",
         "!**/*.tsbuildinfo"
     ],
     "dependencies": {

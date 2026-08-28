@@ -21,16 +21,37 @@ all content renders in the light DOM.
 The normative primary UI rule is
 [`docs/declarative-ui-principle.md`](docs/declarative-ui-principle.md). Every
 `cem-components` member is a per-component XHTML `<cem-element>` declaration
-authored in CEM-ML with a colocated XHTML Storybook file containing its unit
-tests. Component CSS is an embedded CEM-ML `<style>` node, automatically scoped
-by `cem-elements`, and consumes CEM UI `--cem-*` tokens; a standalone component
-CSS file is forbidden. Storybook owns an accessible production-`cem-select`
-theme switcher and applies each of the five canonical modes to the preview;
-stories never own theme state.
-`cem-components` must reach zero authored JavaScript/TypeScript. When CEM-ML
-lacks a concise required capability, hard-stop component/app UI work and add
-the reusable declarative capability to `cem-elements`; never add a component-
-or app-local JavaScript behavior workaround.
+authored in CEM-ML. Its template is
+`<template id="<cem-tag>" type="text/cem-ml">`, keeping it reusable through
+`<declaration-url>#<cem-tag>` while remaining inside the component declaration.
+Each component has a colocated CSF Next `<cem-tag>.stories.ts` file
+containing all component unit tests in asynchronous `play` functions imported
+from `storybook/test`. Story `render` functions return HTML strings and load
+their own raw XHTML declaration through the shared `cem-elements` Storybook
+loader. This development-only story is the sole per-component TypeScript
+exception; it must not implement component behavior. Component CSS is an
+embedded static CEM-ML `<style>` node, installed once by `cem-elements`, and
+consumes CEM UI `--cem-*` tokens. The accepted target compiles private and named
+shared rules with native `@scope`; public shared membership is the
+declaration-owned `scope="name"` reflected to produced DCE hosts. Stable
+light-DOM hooks are `slot="name"` on projected roots and `part="name"` on
+component-owned internals. Per-instance styles require an explicit inert direct
+`<template>` payload. `data-cem-render-scope` and the instance data-island marker
+remain internal and are not CSS selectors. A
+standalone `<cem-tag>.css` file or migrated
+component selector in global CSS is forbidden. `cem-components` must reach zero
+authored JavaScript/TypeScript except the required colocated `.stories.ts`
+modules. When CEM-ML lacks a concise required capability, hard-stop
+component/app UI work and add the reusable declarative
+capability to `cem-elements`; never add a component-, story-, or app-local
+JavaScript behavior workaround. The proven reference is
+`packages/cem-components/src/components/cem-select/`.
+The complete normative scoping matrix, specificity, ownership, lifecycle, and
+diagnostic rules are in
+[`docs/cem-ml-uid-and-scoped-css-design.md`](docs/cem-ml-uid-and-scoped-css-design.md).
+That contract is an accepted migration target, not current runtime behavior;
+do not depend on it until the **Native CSS `@scope` migration** item in
+[`docs/todo.md`](docs/todo.md) is complete.
 
 ### Key paths
 
@@ -111,7 +132,7 @@ Build relationships:
 ## Component catalog contract
 
 Component semantics remain owned by `docs/component-mvp.md`, the per-component
-XHTML declarations and colocated XHTML Storybook tests under
+XHTML declarations and colocated CSF Next `.stories.ts` `play` tests under
 `packages/cem-components/src/components/`, and the package component reference,
 conventions, and accessibility documents. The cached
 `@epa-wg/cem-components:build:catalog` target validates those sources and the

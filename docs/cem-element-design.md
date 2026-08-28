@@ -162,6 +162,17 @@ Before upgrade, a produced custom element instance may contain author fallback
 payload. On upgrade, that payload is captured into the instance's inert data-island
 `<template>`, and only the rendered projection remains visible.
 
+The accepted CSS target reserves one direct instance `<template>` as an explicit
+inert payload envelope when payload-owned CSS is required. In that form the runtime
+adopts the template as the instance data island; it does not wrap it again. Mixing
+the envelope with non-whitespace siblings is invalid, and a literal projected
+template must be nested inside the envelope. Ordinary payload without instance CSS
+may continue to use pre-upgrade fallback children. This target, including public
+`scope="name"`, projected-root `slot="name"`, component-owned `part="name"`, and
+native `@scope` compilation, is normative in the
+[CEM light-DOM CSS scope contract](./cem-ml-uid-and-scoped-css-design.md) and remains
+pending until its `docs/todo.md` migration gate passes.
+
 ```html
 <cem-element tag="cem-button">
   <template>
@@ -1164,7 +1175,9 @@ inert. Together they make the following true without author effort:
   failed, lazy load pending), declaration template source remains inert. Produced
   custom element instances may show author fallback payload until upgrade; after
   upgrade that payload is captured into the instance data-island template and stops
-  affecting the UI directly.
+  affecting the UI directly. An explicit instance payload template is inert from
+  first parse and therefore does not provide visible no-upgrade fallback; authors
+  choose that tradeoff when instance-owned CSS is required.
 
 Executable browser evidence lives in `DeclarationAndDataIslandIsolationMatrix`.
 It places declaration source and captured payload inside a live form, then verifies

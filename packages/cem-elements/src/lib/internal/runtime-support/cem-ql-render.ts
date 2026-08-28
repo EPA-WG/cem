@@ -52,6 +52,16 @@ export interface CemQlRenderResult {
     diagnostics: RuntimeSupportDiagnostic[];
 }
 
+export interface CemQlStylesheetArtifact {
+    css: string;
+    scope: string | null;
+}
+
+export interface CemMlTemplateCompileResult {
+    stylesheets: CemQlStylesheetArtifact[];
+    diagnostics: RuntimeSupportDiagnostic[];
+}
+
 export interface CemQlRenderOptions {
     /** Prefix for deterministic, pre-order render-node ids (typically the produced tag). */
     renderNodeIdPrefix?: string;
@@ -87,6 +97,7 @@ export interface CemMlTemplateArtifactPayloadKey {
 
 export interface RetainedCemMlTemplate {
     artifactId: number;
+    stylesheets: CemQlStylesheetArtifact[];
     diagnostics: RuntimeSupportDiagnostic[];
     contentHash?: string;
     formatVersion?: string;
@@ -133,12 +144,26 @@ export function runtimeVersion(): string {
  * dropped here: host bindings are unknown at declaration time, so every `{$x}` would
  * otherwise report `unknown_variable`. Those surface at render instead. Awaits WASM init.
  */
-export async function compileCemMlTemplate(source: string): Promise<RuntimeSupportDiagnostic[]> {
+export async function compileCemMlTemplate(source: string): Promise<CemMlTemplateCompileResult> {
     await ensureRuntimeReady();
-    const result = JSON.parse(compileTemplate(source, '[]')) as { diagnostics?: WasmDiagnostic[] };
-    return (result.diagnostics ?? [])
-        .filter((diagnostic) => (diagnostic.code ?? '').startsWith('cem.tokenizer.'))
-        .map(mapDiagnostic);
+    const result = JSON.parse(compileTemplate(source, '[]')) as {
+        artifactId?: number;
+        stylesheets?: WasmStylesheetArtifact[];
+        diagnostics?: WasmDiagnostic[];
+    };
+    if (Number.isSafeInteger(result.artifactId) && (result.artifactId ?? 0) > 0) {
+        disposeTemplate(result.artifactId as number);
+    }
+    return {
+        stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
+        diagnostics: (result.diagnostics ?? [])
+            .filter((diagnostic) => {
+                const code = diagnostic.code ?? '';
+                return code.startsWith('cem.tokenizer.')
+                    || code === 'cem.ql.template.stylesheet_dynamic_unsupported';
+            })
+            .map(mapDiagnostic),
+    };
 }
 
 /** Compute the portable registry key without compiling the template. */
@@ -179,6 +204,7 @@ export async function retainCemMlTemplateSource(
     await ensureRuntimeReady();
     const result = JSON.parse(compileTemplate(source, JSON.stringify([...hostBindings]))) as {
         artifactId?: number;
+        stylesheets?: WasmStylesheetArtifact[];
         diagnostics?: WasmDiagnostic[];
     };
     if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
@@ -186,6 +212,7 @@ export async function retainCemMlTemplateSource(
     }
     return {
         artifactId: result.artifactId as number,
+        stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
         diagnostics: (result.diagnostics ?? []).map(mapDiagnostic),
     };
 }
@@ -209,6 +236,7 @@ export async function retainCemMlTemplateArtifact(
         artifactId?: number | null;
         contentHash?: string;
         formatVersion?: string;
+        stylesheets?: WasmStylesheetArtifact[];
         diagnostics?: WasmDiagnostic[];
     };
     if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
@@ -219,6 +247,7 @@ export async function retainCemMlTemplateArtifact(
     }
     return {
         artifactId: result.artifactId as number,
+        stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
         contentHash: result.contentHash,
         formatVersion: result.formatVersion,
         diagnostics: (result.diagnostics ?? []).map(mapDiagnostic),
@@ -318,7 +347,7 @@ export async function processCemMlTemplate(
         assertProcessingBoundaryValue(input.previousRenderPlan, 'previous render plan');
     }
 
-    const declarationDiagnostics = await compileCemMlTemplate(input.source);
+    const declaration = await compileCemMlTemplate(input.source);
     const rendered = await renderCemMlTemplate(input.source, input.data, {
         renderNodeIdPrefix: input.renderNodeIdPrefix ?? input.identity.producedTag,
     });
@@ -333,7 +362,7 @@ export async function processCemMlTemplate(
 
     return {
         renderPlan,
-        diagnostics: [...declarationDiagnostics, ...rendered.diagnostics],
+        diagnostics: [...declaration.diagnostics, ...rendered.diagnostics],
         patchFrames:
             input.previousRenderPlan === undefined
                 ? undefined
@@ -381,6 +410,11 @@ interface WasmRenderPlan {
     diagnostics?: WasmDiagnostic[];
 }
 
+interface WasmStylesheetArtifact {
+    css?: string;
+    scope?: string | null;
+}
+
 type WasmRenderNode =
     | { kind: 'text'; text: string; byteOffset?: number | null }
     | { kind: 'comment'; text: string; byteOffset?: number | null }
@@ -403,6 +437,13 @@ interface WasmDiagnostic {
     severity?: string;
     message?: string;
     byteOffset?: number | null;
+}
+
+function mapStylesheet(stylesheet: WasmStylesheetArtifact): CemQlStylesheetArtifact {
+    return {
+        css: stylesheet.css ?? '',
+        scope: typeof stylesheet.scope === 'string' ? stylesheet.scope : null,
+    };
 }
 
 function mapNode(node: WasmRenderNode, nextRenderNodeId: () => string): RenderPlanNode {

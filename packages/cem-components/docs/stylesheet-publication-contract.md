@@ -6,6 +6,15 @@ in the accepted [`action:hover` contract](./action-hover-contract.md), and is
 enforced by `@epa-wg/cem-components:verify-package` plus the aggregate package
 gate.
 
+> **Migration relationship:** this is the implemented publication contract for
+> the frozen legacy component stylesheet. It preserves current behavioral and
+> release evidence while the inventory migrates, but it is not the CSS source
+> model for a new or migrated component. The accepted replacement is embedded
+> declaration CSS under the
+> [CEM light-DOM CSS scope contract](../../../docs/cem-ml-uid-and-scoped-css-design.md).
+> `src/styles.css` and its export shrink with legacy debt; the native `@scope`
+> target does not move migrated selectors back into this file.
+
 ## Decision
 
 `packages/cem-components/src/styles.css` is the single tracked source for the

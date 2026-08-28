@@ -11,7 +11,17 @@ must be authored in XHTML/CEM-ML from production `cem-components`. Studio
 JavaScript is limited to non-UI services and host adapters; it must not render
 or mutate visible UI or attach app-local UI behavior. If CEM-ML lacks a concise
 capability, Studio UI work hard-stops until that reusable capability is added to
-`cem-elements`.
+`cem-elements`. The `cem-elements` runtime and its JavaScript are the sufficient
+imperative substrate; Studio must not duplicate that machinery. Components
+needed by Studio follow the proven `cem-components/src/components/cem-select/`
+XHTML plus CSF Next `play`-test pattern before Studio consumes them.
+The accepted CSS target installs declaration CSS once through native `@scope`.
+Studio may style components only through documented tags, public `scope="name"`
+groups, projected `slot="name"` roots, component-owned `part="name"` hooks, and
+custom properties. It must not select data-island or render-identity markers.
+Studio follows the normative
+[CEM light-DOM CSS scoping rules](../../docs/cem-ml-uid-and-scoped-css-design.md).
+That behavior remains a migration target until its active todo gate passes.
 
 The package currently includes a migration-era typed bootstrap/deployment
 boundary and installable component shell, plus the versioned local project

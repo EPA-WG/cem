@@ -28,7 +28,7 @@ describe('non-browser SSR initial-render host fixture', () => {
         snapshot.hostAttributes = {
             ...snapshot.hostAttributes,
             label: 'Server <Card> & "safe"',
-            'data-cem-scope': 'boundary-server-scope',
+            'data-cem-render-scope': 'boundary-server-scope',
         };
         const exported = exportCompleteSnapshot(snapshot);
         const request = initialRequest(exported);
@@ -43,7 +43,7 @@ describe('non-browser SSR initial-render host fixture', () => {
         expect(response.result.renderedHtml).toContain(
             'data-label="Server &lt;Card&gt; &amp; &quot;safe&quot;"'
         );
-        expect(response.result.renderedHtml).toContain('data-cem-scope="boundary-server-scope"');
+        expect(response.result.renderedHtml).toContain('data-cem-render-scope="boundary-server-scope"');
         expect(response.result.renderedHtml).toContain('data-cem-render-node-id="boundary-card-1"');
         expect(response.result.renderedHtml).toContain('data-cem-template-artifact-id="boundary-template-1"');
         expect(response.result.renderedHtml).toContain('data-cem-data-revision="1"');
@@ -105,7 +105,7 @@ describe('non-browser SSR initial-render host fixture', () => {
                         ...input.snapshot,
                         hostAttributes: {
                             ...input.snapshot.hostAttributes,
-                            'data-cem-scope': 'mismatched-scope',
+                            'data-cem-render-scope': 'mismatched-scope',
                         },
                     },
                 }),
@@ -114,7 +114,7 @@ describe('non-browser SSR initial-render host fixture', () => {
 
         for (const [label, transform] of cases) {
             const snapshot = processingBoundarySnapshotFixture();
-            snapshot.hostAttributes['data-cem-scope'] = 'boundary-server-scope';
+            snapshot.hostAttributes['data-cem-render-scope'] = 'boundary-server-scope';
             const exported = exportCompleteSnapshot(snapshot);
             const request = initialRequest(exported, undefined, transform);
             const store = new InMemoryEdgeRenderStateStore();

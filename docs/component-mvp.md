@@ -14,14 +14,28 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 - The primary authoring contract is
   [`declarative-ui-principle.md`](./declarative-ui-principle.md). Every component
   owns `packages/cem-components/src/components/<cem-tag>/<cem-tag>.xhtml` with
-  an embedded CEM-ML `<style>` node consuming CEM UI `--cem-*` tokens, plus a
-  colocated `<cem-tag>.stories.xhtml` containing its Storybook unit cases.
-  `cem-elements` scopes the embedded style automatically; a standalone
-  `<cem-tag>.css` file is forbidden. Storybook owns the production-CEM theme
-  switcher and runs the same story under all five canonical theme modes. New
-  JavaScript/TypeScript component declarations, behaviors, installers, stories,
-  and tests are forbidden. If CEM-ML lacks a concise capability, component work
-  hard-stops until that reusable capability is implemented in `cem-elements`.
+  a matching `<template id="<cem-tag>" type="text/cem-ml">` for stable
+  `<declaration-url>#<cem-tag>` reuse, an embedded CEM-ML `<style>` node
+  consuming CEM UI `--cem-*` tokens, plus a
+  colocated CSF Next `<cem-tag>.stories.ts`. The story returns example HTML
+  strings from `render` and contains all unit assertions in async `play`
+  functions using `storybook/test`; it must not implement component behavior.
+  `cem-elements` extracts the embedded static style once. The accepted native
+  `@scope` target uses the produced tag for private CSS, declaration-owned
+  `scope="name"` for named shared CSS, `slot="name"` for projected roots, and
+  `part="name"` for component-owned internals. Per-instance CSS requires an
+  explicit inert payload template. Internal data-island and render-identity
+  markers are not CSS hooks.
+  The complete ownership, resolution, specificity, and diagnostic contract is
+  [CEM light-DOM CSS scoping rules](./cem-ml-uid-and-scoped-css-design.md).
+  It remains a migration target until its `docs/todo.md` gate passes.
+  A standalone
+  `<cem-tag>.css` file and migrated global selectors are forbidden. New
+  JavaScript/TypeScript outside the required Storybook modules, including
+  component declarations, behaviors, installers, and package-local tooling, is
+  forbidden. If CEM-ML lacks a concise capability, component
+  work hard-stops until that reusable capability is implemented in
+  `cem-elements`. `cem-select` is the proven reference implementation.
 
 ## Component List
 

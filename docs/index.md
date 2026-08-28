@@ -4,6 +4,8 @@ This index links the active project, release, and token workflow documents.
 
 ## Project Planning
 
+- [Declarative Amsterdam 2026 introduction](./declarative.amsterdam.2026.md) — platform-first session introduction
+  and 60-minute newcomer mini-tutorial journey for CEM-ML.
 - [Roadmap](../roadmap.md) — product/module sequencing and major delivery phases.
 - [Todo](./todo.md) — remaining execution tasks only.
 - [Completed todo history](./archive/todo-completed.md) — searchable execution
@@ -55,8 +57,9 @@ This index links the active project, release, and token workflow documents.
 - [`cem-element` external resource loading contract](./cem-element-src-loading-contract.md) — `src="#id"`,
   `src="url"`, `src="url#id"`, and `http-request url` loading, module-map treatment, content-type handling, CEM-ML
   lifecycle binding, artifact/AST stream handling, and security context.
-- [CEM-ML UID and scoped CSS design](./cem-ml-uid-and-scoped-css-design.md) — generated identity requirements for
-  scoped CSS, anonymous declarations, public-tag debug prefixes, deterministic UIDs, hydration, and validation gates.
+- [CEM light-DOM CSS scope contract](./cem-ml-uid-and-scoped-css-design.md) — accepted native-`@scope` migration target
+  for private, named-shared, and instance ownership; public `scope`/`slot`/`part` hooks; specificity; identity;
+  diagnostics; and validation gates. The document explicitly separates the target from the current legacy runtime.
 - [CEM Elements HTTP request resource design](./cem-elements-http-request-design.md) — substrate-backed
   `<http-request>` resource slices, CEM-ML lifecycle binding, streaming content-type parsing, AST resource streams, and
   data source maps.

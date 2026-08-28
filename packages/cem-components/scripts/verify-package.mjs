@@ -10,6 +10,8 @@ const sourceStylesPath = join(packageRoot, 'src', 'styles.css');
 const builtStylesPath = join(packageRoot, 'dist', 'styles.css');
 const builtCatalogPath = join(packageRoot, 'dist', 'catalog', 'cem.components.catalog.json');
 const publicCatalogPath = './dist/catalog/cem.components.catalog.json';
+const publicComponentExport = './src/components/*/*.xhtml';
+const packedSelectDeclaration = 'src/components/cem-select/cem-select.xhtml';
 const packageJsonPath = join(packageRoot, 'package.json');
 const sourcePrimitivesPath = join(packageRoot, 'src', 'lib', 'primitives.ts');
 const builtPrimitivesPath = join(packageRoot, 'dist', 'lib', 'primitives.js');
@@ -221,6 +223,10 @@ if (packageJson.exports?.['./catalog/cem.components.catalog.json'] !== publicCat
     );
 }
 
+if (packageJson.exports?.['./components/*'] !== publicComponentExport) {
+    throw new Error(`package.json must export declarative component XHTML from ${publicComponentExport}`);
+}
+
 const cssExports = Object.entries(packageJson.exports ?? {}).filter(
     ([key, value]) => key.endsWith('.css') || (typeof value === 'string' && value.endsWith('.css')),
 );
@@ -233,8 +239,12 @@ if (!packageJson.files?.includes('dist')) {
     throw new Error('package.json files must include dist');
 }
 
-if (packageJson.files.some((entry) => entry === 'src' || entry === 'styles.css' || entry.startsWith('src/'))) {
-    throw new Error('package.json files must not publish source or a package-root stylesheet');
+if (!packageJson.files?.includes('src/components/**/*.xhtml')) {
+    throw new Error('package.json files must publish declarative component XHTML');
+}
+
+if (packageJson.files.some((entry) => entry === 'src' || entry === 'styles.css' || (entry.startsWith('src/') && entry !== 'src/components/**/*.xhtml'))) {
+    throw new Error('package.json files may publish only declarative XHTML beneath src');
 }
 
 for (const entryPath of [...sourceEntries, ...builtEntries]) {
@@ -270,6 +280,14 @@ try {
 
     if (!packedFiles.includes(packedCatalogPath)) {
         throw new Error(`npm pack must contain the public component catalog ${packedCatalogPath}`);
+    }
+
+    if (!packedFiles.includes(packedSelectDeclaration)) {
+        throw new Error(`npm pack must contain the public declarative component ${packedSelectDeclaration}`);
+    }
+
+    if (packedFiles.some((path) => path.startsWith('src/') && !path.endsWith('.xhtml'))) {
+        throw new Error('npm pack must not contain component-owned JavaScript, TypeScript, or CSS beneath src');
     }
 
     for (const artifact of [

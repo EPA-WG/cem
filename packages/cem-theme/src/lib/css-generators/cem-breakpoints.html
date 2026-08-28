@@ -64,10 +64,10 @@
 }
 
 /* ── Block B — @media active-width helpers ───────────────────────────────── */
-/* Sets --cem-bp-active-width; read via JS: getComputedStyle(root).getPropertyValue('--cem-bp-active-width').trim() */```{cem:for-each @select="$datadom.slices.mediaRanges" @as="row" |{cem:choose |{cem:when @test='row.td2 = "0px"' |```
+/* Sets --cem-bp-active-width; read via JS: getComputedStyle(root).getPropertyValue('--cem-bp-active-width').trim() */```{cem:for-each @select="$datadom.slices.mediaRanges" @as="row" |{cem:choose |{cem:when @test='row.td2 == "0px"' |```
 @media (max-width: ```{$row.td3}```) {
   :root { --cem-bp-active-width: ```{$row.td1}```; }
-}```}{cem:when @test='row.td3 = "—"' |```
+}```}{cem:when @test='row.td3 == "—"' |```
 @media (min-width: ```{$row.td2}```) {
   :root { --cem-bp-active-width: ```{$row.td1}```; }
 }```}{cem:otherwise |```
@@ -75,10 +75,10 @@
   :root { --cem-bp-active-width: ```{$row.td1}```; }
 }```}}}```
 
-/* Height helpers (informative — most apps adapt on width only) */```{cem:for-each @select="$datadom.slices.heightRanges" @as="row" |{cem:choose |{cem:when @test='row.td2 = "0px"' |```
+/* Height helpers (informative — most apps adapt on width only) */```{cem:for-each @select="$datadom.slices.heightRanges" @as="row" |{cem:choose |{cem:when @test='row.td2 == "0px"' |```
 @media (max-height: ```{$row.td3}```) {
   :root { --cem-bp-active-height: ```{$row.td1}```; }
-}```}{cem:when @test='row.td3 = "—"' |```
+}```}{cem:when @test='row.td3 == "—"' |```
 @media (min-height: ```{$row.td2}```) {
   :root { --cem-bp-active-height: ```{$row.td1}```; }
 }```}{cem:otherwise |```

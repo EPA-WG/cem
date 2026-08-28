@@ -1,9 +1,12 @@
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import type { StorybookConfig } from '@storybook/web-components-vite';
+import { defineMain } from '@storybook/web-components-vite/node';
 
-const config: StorybookConfig = {
-    stories: ['../src/**/!(*.edge-ssr).stories.@(js|jsx|mjs|ts|tsx)'],
+const config = defineMain({
+    stories: [
+        '../src/**/!(*.edge-ssr).stories.@(js|jsx|mjs|ts|tsx)',
+        '../../cem-components/src/components/**/*.stories.ts',
+    ],
     addons: [getAbsolutePath("@storybook/addon-vitest")],
     framework: {
         name: getAbsolutePath("@storybook/web-components-vite"),
@@ -12,7 +15,7 @@ const config: StorybookConfig = {
     core: {
         disableTelemetry: true,
     },
-};
+});
 
 export default config;
 

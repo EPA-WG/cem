@@ -12,13 +12,14 @@ const fixturePath = join(repoRoot, 'examples/figma/component-library-fixture.md'
 const mvpPath = join(repoRoot, 'docs/component-mvp.md');
 const referencePath = join(repoRoot, 'packages/cem-components/docs/component-reference.md');
 const primitivesPath = join(repoRoot, 'packages/cem-components/src/lib/primitives.ts');
+const declarativeComponentsPath = join(repoRoot, 'packages/cem-components/src/components');
 const stateMatrixPath = join(repoRoot, 'packages/cem-components/tests/state-matrix-coverage.json');
 const reportDirectory = join(repoRoot, 'packages/cem-components/dist/reports');
 const reportJsonPath = join(reportDirectory, 'figma-component-library.json');
 const reportMarkdownPath = join(reportDirectory, 'figma-component-library.md');
 
 const expectedSources = {
-    primitives: 'packages/cem-components/src/lib/primitives.ts#CEM_COMPONENT_PRIMITIVES',
+    implementations: 'packages/cem-components/declarative-migration.json',
     components: 'docs/component-mvp.md#component-list',
     states: 'packages/cem-components/tests/state-matrix-coverage.json',
     documentation: 'packages/cem-components/docs/component-reference.md',
@@ -41,6 +42,13 @@ const failures = [];
 
 const mvp = parseMvpComponents(readText(mvpPath));
 const primitives = parsePrimitiveDeclarations(readText(primitivesPath));
+const primitiveByTag = new Map(primitives.map((primitive) => [primitive.tag, primitive]));
+const declarations = mvp.map((component) => {
+    const legacy = primitiveByTag.get(component.tag);
+    if (legacy) return legacy;
+    const path = join(declarativeComponentsPath, component.tag, `${component.tag}.xhtml`);
+    return existsSync(path) ? { tag: component.tag, cemMl: readText(path) } : undefined;
+});
 const referenceRows = parseReferenceRows(readText(referencePath));
 const stateMatrix = readJson(stateMatrixPath);
 const inventory = readJson(inventoryPath);
@@ -114,7 +122,7 @@ function validateEntries() {
     if (!Array.isArray(inventory.components)) return;
 
     const expectedTags = mvp.map((component) => component.tag);
-    const primitiveTags = primitives.map((primitive) => primitive.tag);
+    const primitiveTags = declarations.map((declaration) => declaration?.tag);
     const actualTags = inventory.components.map((entry) => entry?.tag);
     validateExactList('public primitive declarations', primitiveTags, expectedTags);
     validateExactList('Figma component inventory order', actualTags, expectedTags);
@@ -123,7 +131,7 @@ function validateEntries() {
     for (const duplicate of duplicates) fail(`duplicate Figma component inventory entry ${duplicate}`);
 
     for (const [index, component] of mvp.entries()) {
-        validateEntry(inventory.components[index], component, primitives[index]);
+        validateEntry(inventory.components[index], component, declarations[index]);
     }
 }
 

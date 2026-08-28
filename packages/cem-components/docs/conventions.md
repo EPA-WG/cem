@@ -15,13 +15,24 @@ set (item 5) MUST satisfy.
 - The primary source/layout/testing rule is
   [`declarative-ui-principle.md`](../../../docs/declarative-ui-principle.md).
   Every component is an XHTML CEM-ML declaration in its own `src/components/<cem-tag>/`
-  folder with an embedded CEM-ML `<style>` node using CEM UI `--cem-*` tokens
-  and a colocated `.stories.xhtml` unit-test document. `cem-elements` scopes the
-  embedded style; standalone component CSS is forbidden. Storybook owns theme
-  selection and executes the story in all five canonical theme modes. Authored
-  JavaScript/TypeScript is forbidden. If the required expression is missing or
-  unreasonably verbose in CEM-ML, stop and implement a reusable declarative
-  capability in `cem-elements` before continuing the component.
+  folder. Its `<template id="<cem-tag>" type="text/cem-ml">` keeps the template
+  reusable through `<declaration-url>#<cem-tag>` as part of the component
+  structure. It contains an embedded CEM-ML `<style>` node using CEM UI `--cem-*` tokens
+  and a colocated CSF Next `.stories.ts` test module. The story imports its own
+  XHTML as raw source, uses the shared `cem-elements` loader, returns example
+  HTML from `render`, and keeps unit assertions in async `play` functions using
+  `storybook/test`. It is the only per-component TypeScript exception and must
+  not contain production behavior. `cem-elements` installs each static embedded
+  style once per declaration. The accepted CSS target uses native `@scope`, the
+  produced tag for private rules, declaration-owned `scope="name"` for named
+  shared rules, `slot="name"` for projected roots, and `part="name"` for
+  component-owned internals. Per-instance CSS requires an explicit inert direct
+  payload template. Generated render and data-island identity are never public
+  CSS hooks. Therefore
+  standalone component CSS and migrated selectors in global CSS are forbidden.
+  If the required expression is missing or unreasonably verbose in CEM-ML, stop
+  and implement a reusable declarative capability in `cem-elements` before
+  continuing the component. The proven pattern is `src/components/cem-select/`.
 - Components are declarative custom elements rendered into the **light DOM**. No shadow
   DOM. Templates are authored against the `<cem-element>` substrate from
   `@epa-wg/cem-elements` (design home:
@@ -58,9 +69,14 @@ set (item 5) MUST satisfy.
 - Enum attributes use a single hyphenated token: `variant="primary"`,
   `intent="destructive"`, `tone="quiet"`. The accepted token set per component is
   enumerated in that component's docs.
-- A component MUST NOT introduce a new attribute name that already exists in WHATWG
-  HTML with different semantics. Reuse the existing attribute (`name`, `value`,
-  `disabled`, `for`, `placeholder`, `autocomplete`) and inherit its semantics.
+- A component MUST NOT repurpose a WHATWG global attribute. It SHOULD reuse the
+  semantics of applicable standard attributes (`name`, `value`, `disabled`,
+  `for`, `placeholder`, `autocomplete`). An attribute that WHATWG limits to a
+  different element MAY be used as a documented autonomous-custom-element API
+  only when the contract prevents that element from matching generated behavior.
+  The CSS scope contract's declaration-owned `scope` is the sole current case:
+  generated roots also require the direct CEM instance data island, so native
+  `<th scope>` semantics remain untouched.
 
 ### 1.3 CSS hooks
 
@@ -68,9 +84,18 @@ set (item 5) MUST satisfy.
   `aria-busy`, `aria-invalid`, etc.) and via CEM token CSS custom properties from
   `@epa-wg/cem-theme`. They MUST NOT expose state via private class names like
   `.cem-button-is-hover`.
-- Component-internal CSS lives in the same light-DOM stylesheet as the page, so all
-  rules MUST be scoped via the element selector (`cem-button`, `cem-button[disabled]`)
-  rather than a global class.
+- Component-internal CSS lives in the declaration's embedded static `<style>`.
+  The accepted compiler target rewrites `:host` to `:where(:scope)` inside a
+  native tag-rooted `@scope`; it MUST NOT translate `:host` to `&`. Named group
+  rules require one matching declaration/style `scope`. Component-generated
+  internals expose stable `part` tokens, and projected element roots retain
+  their `slot` name. Library selectors stay at or below `0-2-1`, without IDs,
+  manufactured specificity, generated layers, or `!important`. Do not target
+  internal data-island/render identity or put component rules in the
+  package-global stylesheet. The complete ownership, resolution matrix,
+  instance payload, specificity, and fail-closed rules are normative in
+  [CEM light-DOM CSS scoping rules](../../../docs/cem-ml-uid-and-scoped-css-design.md).
+  Treat it as a migration target until its active todo gate passes.
 - Existing semantic CEM tokens have priority over raw or component-local values.
   If no token can express a requirement, stop and warn, then record the proposed
   exception in [`components-css-exceptions.md`](./components-css-exceptions.md)
@@ -100,6 +125,9 @@ mirrors the contract `@epa-wg/custom-element` already provides for
   [`light-dom-rendering.md §3`](./light-dom-rendering.md).
 - A component MUST NOT silently swallow `data-*` attributes. They reach the host
   element and remain queryable by the parent application.
+- Declaration-owned `scope` is a public host styling-membership attribute, not a
+  forwarded content attribute. It remains on the produced DCE host, and the
+  runtime restores declaration state if an instance adds, mutates, or removes it.
 
 ### 2.3 Default values
 

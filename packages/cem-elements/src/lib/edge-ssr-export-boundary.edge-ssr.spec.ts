@@ -254,7 +254,7 @@ function renderSnapshot(label: string, dataRevision: string): DataIslandSnapshot
     snapshot.hostAttributes = {
         ...snapshot.hostAttributes,
         label,
-        'data-cem-scope': 'boundary-server-scope',
+        'data-cem-render-scope': 'boundary-server-scope',
     };
     return snapshot;
 }

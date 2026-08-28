@@ -286,12 +286,21 @@ remain in the Studio subpath.
 
 Every general or Studio-specific component still follows the same physical and
 testing contract: its own `src/components/<cem-tag>/<cem-tag>.xhtml` CEM-ML
-declaration with an embedded, automatically scoped `<style>` node consuming CEM
-UI theme tokens, plus colocated `<cem-tag>.stories.xhtml` unit cases. A
-standalone component CSS file is forbidden. Storybook owns the theme switcher
-and verifies the same component under all five modes. The `/studio` subpath is
-not permission to add TypeScript components, behavior callbacks, or separate
-unit specs.
+declaration with an embedded static `<style>` node installed once by
+`cem-elements`, consuming CEM UI theme tokens, plus a colocated CSF Next
+`<cem-tag>.stories.ts` file whose HTML
+string `render` cases and async `play` functions own all unit assertions through
+`storybook/test`. A standalone component CSS file is forbidden. The story is
+development-only and cannot implement behavior. The `/studio` subpath is not
+permission to add TypeScript components, behavior callbacks, or separate unit
+specs. `cem-select` is the proven physical/testing pattern.
+The accepted native `@scope` target exposes only documented tags, public
+`scope="name"` groups, projected `slot="name"` roots, component-owned
+`part="name"` hooks, and custom properties to Studio CSS. Data-island and render
+identity remain internal.
+The normative ownership, specificity, and fail-closed behavior is defined by
+[CEM light-DOM CSS scoping rules](./cem-ml-uid-and-scoped-css-design.md).
+Studio MUST NOT assume that target behavior until its active todo gate passes.
 
 Angular Material parity is a prerequisite gate, not merely inspiration. Before
 implementing any Studio control or interaction, classify it against the pinned

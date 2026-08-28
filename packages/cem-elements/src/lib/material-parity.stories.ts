@@ -394,18 +394,20 @@ export const MaterialScopedStylePolicy: Story = {
         sentinel.textContent = 'outside component';
 
         const runtime = makeRuntime('mat-style-policy');
-        defineDom(
+        const declaration = defineDom(
             runtime,
             'mat-style-policy',
             '<style>.mat-style-policy-target { --mat-style-policy-leak: global; }</style>' +
                 '<article class="mat-style-policy-card">styled</article>'
         );
-        root.append(document.createElement('mat-style-policy'), sentinel);
+        declaration.hidden = true;
+        root.append(declaration, document.createElement('mat-style-policy'), sentinel);
         return root;
     },
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, 'mat-style-policy') as HTMLElement;
-        const style = await waitForElement(host, 'style');
+        const declaration = requiredElement(canvasElement, '[tag="mat-style-policy"]');
+        const style = await waitForElement(declaration, ':scope > style[data-cem-declaration-style="private"]');
         assertEqual(style.getRootNode(), host.ownerDocument, 'template style is materialized in the light DOM');
         assertEqual(host.shadowRoot, null, 'cem-elements does not create a shadow-root containment boundary');
         const stylesheet = (style as HTMLStyleElement).sheet;
@@ -414,7 +416,7 @@ export const MaterialScopedStylePolicy: Story = {
             Array.from(stylesheet.cssRules).some((rule) =>
                 rule.cssText.includes('.mat-style-policy-target')
             ),
-            'template styles are intentionally page-global for the material production gate'
+            'template styles are declaration-owned and bounded by the produced tag'
         );
     },
 };
@@ -526,13 +528,14 @@ function define(runtime: CemElementRuntime, tag: string, cemMl: string): void {
 }
 
 /** Register a DOM-template declaration for legacy material authoring shapes that are intentionally not CEM-ML. */
-function defineDom(runtime: CemElementRuntime, tag: string, html: string): void {
+function defineDom(runtime: CemElementRuntime, tag: string, html: string): HTMLElement {
     const declaration = document.createElement('div');
     declaration.setAttribute('tag', tag);
     const template = document.createElement('template');
     template.innerHTML = html;
     declaration.appendChild(template);
     assert(runtime.registerDeclaration(declaration), `registered <${tag}>`);
+    return declaration;
 }
 
 function instance(tag: string, attributes: Record<string, string>, payload: string): HTMLElement {

@@ -98,7 +98,7 @@ const VOLATILE_RUNTIME_ATTRIBUTES = [
     'data-cem-hydration',
     'data-cem-instance-scope',
     'data-cem-render-node-id',
-    'data-cem-scope',
+    'data-cem-render-scope',
     'data-cem-source-fidelity',
     'data-cem-source-frame',
     'data-cem-template-artifact-id',

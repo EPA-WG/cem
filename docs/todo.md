@@ -26,22 +26,101 @@ registration identities may reuse an inherited or existing definition.
 
 ## Declarative UI Architecture Correction
 
+- [x] Prove the corrected component authoring contract with `cem-select` before
+      changing the normative documentation: add any reusable select capability
+      to `cem-elements`, move `cem-select` to its own CEM-ML XHTML declaration
+      with embedded CSS, colocate its CSF Next TypeScript story and `play`
+      tests, remove its component-owned JavaScript and global CSS, and make the
+      Nx architecture gate enforce that shape.
+    - Completed 2026-08-23: `cem-select` now lives only in
+      `src/components/cem-select/cem-select.xhtml`, uses the reusable
+      `cem-elements` `choice-select` capability, embeds its own token CSS, and
+      exposes its structural `<template id="cem-select">` for fragment reuse,
+      and owns six colocated CSF Next interaction/unit stories. All 121 Storybook
+      Chromium tests, the production Storybook build, component typecheck,
+      declarative/state/style/forced-colors gates, and package publication
+      checks pass.
 - [x] Promote the no-JS declarative authoring rule to the primary repository,
       component, Studio, and Site contract.
 - [x] Add the `cem-components:verify-declarative` hard gate with an explicit
-      frozen inventory of the 49 legacy registry members and 62 authored
-      JavaScript/TypeScript files. New component code cannot extend that debt.
-- [ ] Implement the `cem-elements` XHTML Storybook indexer/loader and
-      declarative `<cem-story>` / `<cem-test>` execution contract, including a
-      Storybook-owned accessible theme switcher composed from production
-      `cem-select`, exact five-mode global switching on the preview root, public
-      CEM theme CSS loading, embedded component-style rendering, and per-mode
-      test execution/token resolution. This is a hard stop before adding or migrating any
-      `cem-components` member; a CSF JavaScript/TypeScript fallback is forbidden.
+      frozen inventory of the remaining 48 legacy registry members and 61
+      authored JavaScript/TypeScript files. New component code cannot
+      extend that debt; colocated `.stories.ts` test/tooling files are excluded
+      from the legacy-code inventory and structurally validated instead. The
+      remaining behavior implementations have per-file SHA-256 freezes, so they
+      can be removed during migration but cannot be extended in place.
+- [x] Implement the `cem-elements` Storybook discovery and lazy XHTML declaration
+      loader for colocated CSF Next `.stories.ts` modules, including public CEM
+      theme CSS loading, HTML-string `render` cases, and `storybook/test` unit
+      assertions in async `play` functions.
+    - Completed 2026-08-23: the preview loads each story's raw XHTML declaration
+      only when needed, keeping unrelated runtime stories fast; all 121
+      Storybook Chromium tests and the production build pass.
+- [x] Add executable stylesheet-ownership and anonymous-declaration fixtures for
+      the legacy low-specificity CSS baseline: declaration styles install once under
+      `:where(<cem-tag>)`, matching named scopes contribute separately through
+      `:where([data-cem-scope])`, payload styles retain the stronger instance
+      boundary, render identity moves to `data-cem-render-scope`, and anonymous
+      declarations create a deterministic UUID-shaped tag plus adjacent instance.
+- [x] Expand the CSS-scoping fixtures into a complete executable contract matrix:
+      make the scoped-CSS samples page, a dedicated Storybook surface, and pure
+      unit tests cover private, shared shorthand, explicit shared, mixed,
+      invalid/mismatched, instance-owned, specificity, static-only, identity,
+      fragment-reuse, and once-per-declaration cases.
+    - Completed 2026-08-24: the pure scope resolver and selector-rewrite units,
+      four dedicated CSF Next browser stories, and nine-section executable
+      samples page cover the full matrix. The 148 unit tests, 128 Storybook
+      tests, production Storybook build, and 15-page demo-fixture gate pass.
+    - Refined 2026-08-24: the first sample now compares classless buttons inside
+      and outside two DCE instances, with browser verification that the dashed
+      green component border does not escape its private tag boundary.
+
+### Native CSS `@scope` migration
+
+- [ ] Implement the accepted
+      [CEM light-DOM CSS scope contract](./cem-ml-uid-and-scoped-css-design.md).
+    - [ ] Compile private declaration styles under a produced-tag `@scope` with
+          nested-DCE and projected-descendant lower limits; translate `:host` to
+          `:where(:scope)` and reject authored outer `@scope`.
+    - [ ] Replace public `data-cem-scope` styling with one declaration-owned
+          `scope="name"` reflected to produced hosts, qualified by the direct
+          instance data island; validate one static CSS identifier and restore
+          declaration state after instance additions, changes, or removals.
+    - [ ] Preserve or stamp `slot="name"` on projected element roots, including
+          `slot=""` for default roots, and expose stable `part="name"` only on
+          component-owned internals.
+    - [ ] Require a direct inert `<template>` envelope for instance payload CSS,
+          adopt it as the instance data island, install managed styles under an
+          implicit parent-rooted `@scope`, and reject bare or mixed payload
+          styles fail-closed.
+    - [ ] Remove `data-cem-instance-scope` without adding another instance-style
+          marker; keep `data-cem-render-scope` and data-island identity internal.
+    - [ ] Enforce the `0-2-1` authored library-specificity ceiling and reject
+          IDs, manufactured specificity, generated layers, and library
+          `!important`.
+    - [ ] Update native artifacts, WASM/browser transport, SSR, and hydration so
+          declaration, shared, instance, anonymous, and restored-scope behavior
+          remains deterministic.
+    - [ ] Replace the legacy scoped-CSS unit, Storybook, and demo matrix with
+          executable cases for scope proximity, explicit public overrides,
+          nested DCEs, projection limits, inheritance, `<th scope>` collision,
+          invalid/mutated scopes, inert payloads, marker removal, lifecycle,
+          anonymous tags, specificity, source order, SSR, and hydration.
+    - [ ] Pass `cem_ql:test`, `cem-elements:test:unit`, `cem-elements:test`,
+          `cem-elements:verify-demo-fixtures`, and
+          `@epa-wg/cem-components:verify`; then remove migration warnings and
+          change the normative contract status to accepted and implemented.
+
+### Remaining declarative UI migration
+
+- [ ] Add a Storybook-owned accessible theme switcher composed from production
+      `cem-select`, with exact five-mode global switching on the preview root and
+      per-mode interaction/token-resolution evidence. Stories must not own or
+      persist global theme state.
 - [ ] Migrate every legacy `cem-components` member into its own
       `src/components/<cem-tag>/<cem-tag>.xhtml` folder with embedded,
-      automatically scoped CEM-token `<style>` and colocated
-      `<cem-tag>.stories.xhtml` tests, moving missing reusable behavior into
+      once-per-declaration scope-contract CEM-token `<style>` and colocated
+      CSF Next `<cem-tag>.stories.ts` `play` tests, moving missing reusable behavior into
       `cem-elements`, until both migration targets are zero.
 - [ ] Migrate remaining Studio and Site visible DOM construction, UI listeners,
       and state projection to XHTML/CEM-ML, retaining JavaScript only for non-UI

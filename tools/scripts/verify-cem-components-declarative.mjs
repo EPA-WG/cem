@@ -15,6 +15,8 @@ const packageRoot = join(repoRoot, 'packages/cem-components');
 const migrationPath = join(packageRoot, 'declarative-migration.json');
 const mvpPath = join(repoRoot, 'docs/component-mvp.md');
 const primitivesPath = join(packageRoot, 'src/lib/primitives.ts');
+const legacySourceRoot = join(packageRoot, 'src/lib');
+const globalStylesPath = join(packageRoot, 'src/styles.css');
 const ignoredDirectories = new Set([
     '.vitest-attachments',
     'dist',
@@ -85,17 +87,6 @@ function slash(path) {
     return path.split(sep).join('/');
 }
 
-function authoredCodeDigest(relativePaths) {
-    const aggregate = createHash('sha256');
-    for (const relativePath of [...relativePaths].sort()) {
-        const contentDigest = createHash('sha256')
-            .update(readFileSync(join(packageRoot, relativePath)))
-            .digest('hex');
-        aggregate.update(`${contentDigest}  packages/cem-components/${relativePath}\n`);
-    }
-    return aggregate.digest('hex');
-}
-
 function parseMvpTags(markdown) {
     const tags = [];
     let inTable = false;
@@ -152,6 +143,7 @@ const legacyCodeFiles = sortedUnique(
     migration.legacyAuthoredCodeFiles,
     'legacyAuthoredCodeFiles',
 );
+const frozenLegacyImplementationDigests = migration.frozenLegacyImplementationDigests ?? {};
 const themeContract = migration.storybookThemeContract ?? {};
 
 if (themeContract.switcherComponent !== 'cem-select') {
@@ -174,15 +166,33 @@ if (migration.targetLegacyComponentCount !== 0 || migration.targetAuthoredCodeFi
 
 const authoredCodeFiles = walkFiles(packageRoot)
     .filter((path) => codeExtension.test(path))
+    .filter((path) => !/\/src\/components\/[^/]+\/[^/]+\.stories\.ts$/.test(slash(path)))
     .map((path) => slash(relative(packageRoot, path)))
     .sort();
 compareExact(authoredCodeFiles, legacyCodeFiles, 'authored JavaScript/TypeScript inventory');
 
-if (authoredCodeFiles.length > 0) {
-    const digest = authoredCodeDigest(authoredCodeFiles);
-    if (digest !== migration.legacyAuthoredCodeDigest) {
+const legacyImplementationFiles = legacyCodeFiles.filter(
+    (path) => path.endsWith('-behavior.ts') || path === 'src/lib/choice-options.ts',
+);
+compareExact(
+    Object.keys(frozenLegacyImplementationDigests),
+    legacyImplementationFiles,
+    'frozen legacy implementation digest inventory',
+);
+for (const [path, expectedDigest] of Object.entries(frozenLegacyImplementationDigests)) {
+    const absolutePath = join(packageRoot, path);
+    if (!existsSync(absolutePath)) {
+        fail(`frozen legacy implementation is missing at ${path}`);
+        continue;
+    }
+    if (!/^[a-f0-9]{64}$/.test(expectedDigest)) {
+        fail(`frozen legacy implementation digest for ${path} must be lowercase SHA-256`);
+        continue;
+    }
+    const actualDigest = createHash('sha256').update(readText(absolutePath)).digest('hex');
+    if (actualDigest !== expectedDigest) {
         fail(
-            'legacy JavaScript/TypeScript changed. Hard stop: migrate the affected UI to XHTML/CEM-ML or add the missing reusable capability to cem-elements; do not refresh the debt digest for an imperative component change',
+            `${path} is frozen migration debt and cannot be modified; migrate it to XHTML/CEM-ML and cem-elements instead`,
         );
     }
 }
@@ -209,7 +219,7 @@ if (!existsSync(componentRoot)) {
 
         const folder = join(componentRoot, tag);
         const declarationPath = join(folder, `${tag}.xhtml`);
-        const storyPath = join(folder, `${tag}.stories.xhtml`);
+        const storyPath = join(folder, `${tag}.stories.ts`);
         for (const requiredPath of [declarationPath, storyPath]) {
             if (!existsSync(requiredPath) || !statSync(requiredPath).isFile()) {
                 fail(`${slash(relative(repoRoot, requiredPath))} is required`);
@@ -223,6 +233,15 @@ if (!existsSync(componentRoot)) {
                 `${slash(relative(repoRoot, folder))} has forbidden standalone CSS: ${standaloneStyles.join(', ')}; embed component styles in the CEM-ML declaration`,
             );
         }
+        const unexpectedFiles = readdirSync(folder, { withFileTypes: true })
+            .filter((child) => child.isFile())
+            .map((child) => child.name)
+            .filter((name) => name !== `${tag}.xhtml` && name !== `${tag}.stories.ts`);
+        if (unexpectedFiles.length > 0) {
+            fail(
+                `${slash(relative(repoRoot, folder))} contains files outside the XHTML + CSF Next component contract: ${unexpectedFiles.join(', ')}`,
+            );
+        }
         if (!existsSync(declarationPath) || !existsSync(storyPath)) {
             continue;
         }
@@ -231,7 +250,6 @@ if (!existsSync(componentRoot)) {
         const style = embeddedStyleText(declaration);
         const story = readText(storyPath);
         rejectImperativeMarkup(slash(relative(repoRoot, declarationPath)), declaration);
-        rejectImperativeMarkup(slash(relative(repoRoot, storyPath)), story);
 
         const escapedTag = tag.replaceAll('-', '\\-');
         if (!new RegExp(`<cem-element\\b[^>]*\\btag=["']${escapedTag}["']`, 'i').test(declaration)) {
@@ -239,6 +257,11 @@ if (!existsSync(componentRoot)) {
         }
         if (!/<template\b[^>]*\btype=["']text\/cem-ml["']/i.test(declaration)) {
             fail(`${slash(relative(repoRoot, declarationPath))} must contain <template type="text/cem-ml">`);
+        }
+        if (!new RegExp(`<template\\b(?=[^>]*\\bid=["']${escapedTag}["'])(?=[^>]*\\btype=["']text/cem-ml["'])`, 'i').test(declaration)) {
+            fail(
+                `${slash(relative(repoRoot, declarationPath))} must expose <template id="${tag}" type="text/cem-ml"> for URL-fragment reuse`,
+            );
         }
         if (!style.trim()) {
             fail(
@@ -262,24 +285,95 @@ if (!existsSync(componentRoot)) {
         if (/\@import\b/i.test(style)) {
             fail(`${slash(relative(repoRoot, declarationPath))} embedded CSS must not import theme CSS; Storybook loads it once`);
         }
-        if (!/<cem-story\b/i.test(story) || !/<cem-test\b/i.test(story)) {
-            fail(`${slash(relative(repoRoot, storyPath))} must colocate <cem-story> cases and <cem-test> unit assertions`);
+        if (!/from\s+['"]storybook\/test['"]/.test(story)) {
+            fail(`${slash(relative(repoRoot, storyPath))} must import its test utilities from storybook/test`);
+        }
+        const allowedStoryImports = new Set([
+            'storybook/test',
+            '../../../../cem-elements/.storybook/preview.js',
+            `./${tag}.xhtml?raw`,
+        ]);
+        const storyImports = [...story.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((match) => match[1]);
+        const forbiddenStoryImports = storyImports.filter((specifier) => !allowedStoryImports.has(specifier));
+        if (forbiddenStoryImports.length > 0) {
+            fail(
+                `${slash(relative(repoRoot, storyPath))} imports outside the Storybook test/setup contract: ${[...new Set(forbiddenStoryImports)].sort().join(', ')}`,
+            );
+        }
+        if (!/\bpreview\.meta\s*\(/.test(story) || !/\bmeta\.story\s*\(/.test(story)) {
+            fail(`${slash(relative(repoRoot, storyPath))} must use the CSF Next preview.meta/meta.story API`);
+        }
+        if (!new RegExp(`from\\s+['"]\\./${escapedTag}\\.xhtml\\?raw['"]`).test(story)) {
+            fail(`${slash(relative(repoRoot, storyPath))} must import its own XHTML declaration as raw Storybook source`);
+        }
+        if (!/\bloadCemDeclaration\s*\(/.test(story) || !/\bloaders\s*:/.test(story)) {
+            fail(`${slash(relative(repoRoot, storyPath))} must load its XHTML declaration through a component-level Storybook loader`);
+        }
+        if (!/\brender\s*:\s*\(\)\s*=>[\s\S]*<cem-[a-z0-9-]+\b/.test(story)) {
+            fail(`${slash(relative(repoRoot, storyPath))} must return the story HTML body from render()`);
+        }
+        if (!new RegExp(`<${escapedTag}\\b`, 'i').test(story)) {
+            fail(`${slash(relative(repoRoot, storyPath))} must render <${tag}>`);
+        }
+        if (!/\bplay\s*:\s*async\s*\(/.test(story)) {
+            fail(`${slash(relative(repoRoot, storyPath))} must colocate unit assertions in an async play function`);
         }
     }
 }
 
-const adapterEvidencePath = join(repoRoot, migration.cemElementsStorybookAdapterEvidence);
-const themeEvidencePath = join(repoRoot, migration.cemElementsStorybookThemeEvidence);
+const storybookMainPath = join(repoRoot, migration.cemElementsStorybookMain);
+const storybookPreviewPath = join(repoRoot, migration.cemElementsStorybookPreview);
 if (declarativeTags.length > 0) {
-    if (!existsSync(adapterEvidencePath)) {
+    if (!existsSync(storybookMainPath)) {
         fail(
-            `declarative Storybook support is missing at ${migration.cemElementsStorybookAdapterEvidence}. Hard stop: implement the XHTML story indexer/loader in cem-elements before adding or migrating a component`,
+            `declarative Storybook support is missing at ${migration.cemElementsStorybookMain}`,
         );
+    } else {
+        const main = readText(storybookMainPath);
+        if (!/defineMain\s*\(/.test(main) || !/cem-components\/src\/components\/\*\*\/\*\.stories\.ts/.test(main)) {
+            fail(`${migration.cemElementsStorybookMain} must index colocated cem-components CSF Next stories`);
+        }
     }
-    if (!existsSync(themeEvidencePath)) {
+    if (!existsSync(storybookPreviewPath)) {
         fail(
-            `Storybook-owned theme switching is missing at ${migration.cemElementsStorybookThemeEvidence}. Hard stop: implement the production-cem-select five-mode controller, theme CSS loading, and embedded-style rendering in cem-elements before adding or migrating a component`,
+            `declarative Storybook preview support is missing at ${migration.cemElementsStorybookPreview}`,
         );
+    } else {
+        const preview = readText(storybookPreviewPath);
+        if (!/definePreview\s*\(/.test(preview)) {
+            fail(`${migration.cemElementsStorybookPreview} must use the CSF Next definePreview API`);
+        }
+        if (!/export\s+function\s+loadCemDeclaration\s*\(/.test(preview)) {
+            fail(`${migration.cemElementsStorybookPreview} must expose lazy component XHTML declaration loading`);
+        }
+        if (!/['"]@epa-wg\/cem-theme\/styles\.css['"]/.test(preview)) {
+            fail(`${migration.cemElementsStorybookPreview} must load the public CEM theme stylesheet once`);
+        }
+    }
+}
+
+const legacyTestFiles = existsSync(legacySourceRoot)
+    ? walkFiles(legacySourceRoot).filter((path) => /\.(?:browser\.)?(?:spec|test)\.ts$/.test(path))
+    : [];
+const legacyProductionFiles = existsSync(legacySourceRoot)
+    ? walkFiles(legacySourceRoot).filter((path) => path.endsWith('.ts') && !/\.(?:browser\.)?(?:spec|test)\.ts$/.test(path))
+    : [];
+const globalStyles = existsSync(globalStylesPath) ? readText(globalStylesPath) : '';
+for (const tag of declarativeTags) {
+    const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    for (const path of legacyTestFiles) {
+        if (new RegExp(`<${escaped}\\b`, 'i').test(readText(path))) {
+            fail(`${slash(relative(repoRoot, path))} contains unit coverage for migrated ${tag}; keep component tests in ${tag}.stories.ts`);
+        }
+    }
+    for (const path of legacyProductionFiles) {
+        const source = readText(path);
+        if (new RegExp(`\\btag\\s*:\\s*['"]${escaped}['"]|\\.${escaped}__`, 'i').test(source)) {
+            fail(`${slash(relative(repoRoot, path))} still implements migrated ${tag} in JavaScript/TypeScript`);
+        }
+    }
+    if (new RegExp(`\\b${escaped}(?=[\\s.#:[>+~,{])`, 'im').test(globalStyles)) {
+        fail(`packages/cem-components/src/styles.css still owns selectors for migrated ${tag}; embed them in ${tag}.xhtml`);
     }
 }
 
@@ -300,5 +394,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-    `cem-components declarative architecture verified: ${declarativeTags.length} declarative component(s), ${legacyTags.length} frozen legacy component(s), ${authoredCodeFiles.length} frozen authored JavaScript/TypeScript file(s); targets are zero legacy components and zero authored code files.`,
+    `cem-components declarative architecture verified: ${declarativeTags.length} declarative component(s), ${legacyTags.length} legacy component(s), ${authoredCodeFiles.length} legacy authored JavaScript/TypeScript file(s); declarative component implementation is XHTML/CEM-ML with colocated CSF Next play tests.`,
 );

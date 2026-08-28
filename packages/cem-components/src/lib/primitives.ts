@@ -10,7 +10,6 @@ import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
 import { CEM_PAGINATOR_BEHAVIOR } from './paginator-behavior.js';
 import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
-import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 import { CEM_SLIDER_BEHAVIOR } from './slider-behavior.js';
 import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
 import { CEM_STEPPER_BEHAVIOR } from './stepper-behavior.js';
@@ -189,57 +188,6 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '    {div @class=cem-datepicker__actions |' +
             '     {button @type=button @class=cem-datepicker__action @data-datepicker-action=cancel | Cancel}' +
             '     {button @type=button @class=cem-datepicker__action @data-datepicker-action=apply @disabled={if datadom.slices.applyDisabled { true } else { null }} | Apply}}}}}}',
-    },
-    {
-        tag: 'cem-select',
-        description: 'Form-associated custom select with rich cem-option content.',
-        behavior: CEM_SELECT_BEHAVIOR,
-        behaviorIdentity: 'cem-components-select-behavior-v1',
-        cemMl:
-            '{module |' +
-            ' {attribute @name=label | Select}' +
-            ' {attribute @name=indicator | underline}' +
-            ' {slice @name=groups}' +
-            ' {slice @name=value | }' +
-            ' {slice @name=selectedValues}' +
-            ' {slice @name=expanded | false}' +
-            ' {slice @name=mode | dropdown}' +
-            ' {template @name=select-option |' +
-            '  {param @name=option}' +
-            '  {body |' +
-            '   {div @id="{$option.id}" @class=cem-select__option @role=option @data-option-index="{$option.index}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" |' +
-            '    {cem:choose |' +
-            '     {cem:when @test="option.rich" | {cem:project-payload @select="option.children" | }}' +
-            '     {cem:otherwise | {$option.label}}}}}}}' +
-            ' {template @name=select-options |' +
-            '  {param @name=groups}' +
-            '  {body |' +
-            '   {cem:for-each @select="groups" @as=group |' +
-            '    {cem:choose |' +
-            '     {cem:when @test="group.label" |' +
-            '      {div @class=cem-select__group @role=group @aria-label="{$group.label}" @aria-disabled="{$group.disabled}" |' +
-            '       {div @class=cem-select__group-label @aria-hidden=true | {$group.label}}' +
-            '       {cem:for-each @select="group.options" @as=option | {call @template=select-option @with:option="{$option}"}}}}' +
-            '     {cem:otherwise |' +
-            '      {cem:for-each @select="group.options" @as=option | {call @template=select-option @with:option="{$option}"}}}}}}}' +
-            ' {body |' +
-            '  {div @class=cem-select |' +
-            '   {span @id="{$datadom.slices.labelId}" @class=cem-select__label | {slot @name=label | {$label}}}' +
-            '   {cem:choose |' +
-            '    {cem:when @test=\'datadom.slices.mode == "dropdown"\' |' +
-            '     {button @type=button @class=cem-select__control @role=combobox @value="{$datadom.slices.value}" @aria-labelledby="{$datadom.slices.labelId}" @aria-haspopup=listbox @aria-expanded="{$datadom.slices.expanded}" @aria-controls={if datadom.slices.expanded { datadom.slices.popupId } else { null }} @aria-activedescendant={if datadom.slices.expanded { datadom.slices.activeOptionId } else { null }} @disabled={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { true } else { null }} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |' +
-            '      {span @class=cem-select__value |' +
-            '       {cem:choose |' +
-            '        {cem:when @test="datadom.slices.selectedRich" | {cem:project-payload @select="datadom.slices.selectedChildren" | }}' +
-            '        {cem:otherwise | {$datadom.slices.displayLabel}}}}' +
-            '      {span @class=cem-select__marker @aria-hidden=true | ▾}}' +
-            '     {cem:if @test="datadom.slices.expanded" |' +
-            '      {div @id="{$datadom.slices.popupId}" @class=cem-select__popup @role=listbox @aria-labelledby="{$datadom.slices.labelId}" |' +
-            '       {call @template=select-options @with:groups="{$datadom.slices.groups}"}}}}' +
-            '    {cem:otherwise |' +
-            '     {div @id="{$datadom.slices.listboxId}" @class="cem-select__control cem-select__listbox" @role=listbox @tabindex={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { -1 } else { 0 }} @aria-labelledby="{$datadom.slices.labelId}" @aria-multiselectable={if datadom.slices.mode == "multiple-listbox" { true } else { null }} @aria-activedescendant="{$datadom.slices.activeOptionId}" @aria-disabled="{$datadom.attributes.disabled || datadom.slices.behaviorDisabled}" @data-visible-rows="{$datadom.slices.visibleRows}" @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |' +
-            '      {call @template=select-options @with:groups="{$datadom.slices.groups}"}}}}' +
-            '   {span @class=cem-select__help | {slot @name=help}}}}}',
     },
     {
         tag: 'cem-option',

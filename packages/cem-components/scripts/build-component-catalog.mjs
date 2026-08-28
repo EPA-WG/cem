@@ -7,6 +7,7 @@ const workspaceRoot = resolve(packageRoot, '../..');
 const outputPath = join(packageRoot, 'dist/catalog/cem.components.catalog.json');
 const canonicalSources = [
     'docs/component-mvp.md',
+    'packages/cem-components/declarative-migration.json',
     'packages/cem-components/src/lib/primitives.ts',
     'packages/cem-components/docs/component-reference.md',
     'packages/cem-components/docs/conventions.md',
@@ -27,7 +28,8 @@ const referenceAnchors = {
 
 const packageJson = JSON.parse(await readWorkspaceFile('packages/cem-components/package.json'));
 const componentMvp = await readWorkspaceFile(canonicalSources[0]);
-const primitiveSource = await readWorkspaceFile(canonicalSources[1]);
+const migration = JSON.parse(await readWorkspaceFile(canonicalSources[1]));
+const primitiveSource = await readWorkspaceFile(canonicalSources[2]);
 const stateReport = JSON.parse(await readWorkspaceFile(evidenceSources[0]));
 const examplesReadme = await readWorkspaceFile('packages/cem-components/examples/README.md');
 const cemElementsProject = JSON.parse(
@@ -35,9 +37,14 @@ const cemElementsProject = JSON.parse(
 );
 const repositoryBase = normalizeRepositoryUrl(packageJson.repository?.url);
 const components = parseMvpComponents(componentMvp);
+const declarativeTags = new Set(
+    (await readdir(join(packageRoot, migration.componentRoot), { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name),
+);
 const examples = await parseExamples(examplesReadme);
 
-validateComponentSources(components, primitiveSource, stateReport);
+validateComponentSources(components, primitiveSource, declarativeTags, stateReport);
 validateRelatedSurfaceTargets(cemElementsProject);
 
 const stateCategories = [...new Set(components.map(({ category }) => category))].map(
@@ -63,6 +70,15 @@ const catalog = {
     },
     components: components.map((component) => ({
         ...component,
+        implementation: declarativeTags.has(component.tag)
+            ? {
+                  kind: 'cem-element-xhtml',
+                  source: `packages/cem-components/src/components/${component.tag}/${component.tag}.xhtml`,
+              }
+            : {
+                  kind: 'legacy-registry',
+                  source: 'packages/cem-components/src/lib/primitives.ts',
+              },
         categoryStates: stateCategoriesByName.get(component.category).states,
         documentation: {
             referenceHref: sourceHref(
@@ -78,7 +94,7 @@ const catalog = {
         recommendedNext: stateReport.recommendedNext,
         categories: stateCategories,
     },
-    guidance: canonicalSources.slice(2).map((source) => ({
+    guidance: canonicalSources.slice(3).map((source) => ({
         source,
         href: sourceHref(source),
     })),
@@ -210,7 +226,7 @@ function stripCode(value) {
     return value.replace(/^`|`$/g, '');
 }
 
-function validateComponentSources(componentRows, source, report) {
+function validateComponentSources(componentRows, source, declarativeTags, report) {
     const tags = componentRows.map(({ tag }) => tag);
     if (new Set(tags).size !== tags.length) {
         throw new Error('component catalog contains duplicate tags');
@@ -222,8 +238,8 @@ function validateComponentSources(componentRows, source, report) {
         if (!component.tag.startsWith('cem-') || component.tokenFamilies.length === 0) {
             throw new Error(`${component.tag} must have a CEM tag and token families`);
         }
-        if (!source.includes(`tag: '${component.tag}'`)) {
-            throw new Error(`${component.tag} is absent from CEM_COMPONENT_PRIMITIVES`);
+        if (!source.includes(`tag: '${component.tag}'`) && !declarativeTags.has(component.tag)) {
+            throw new Error(`${component.tag} has neither a legacy registry entry nor a declarative XHTML folder`);
         }
         if (!referenceAnchors[component.category]) {
             throw new Error(`${component.tag} has unsupported category ${component.category}`);

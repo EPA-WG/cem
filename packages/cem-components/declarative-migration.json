@@ -1,11 +1,11 @@
 {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "principle": "../../docs/declarative-ui-principle.md",
     "componentRoot": "src/components",
     "targetLegacyComponentCount": 0,
     "targetAuthoredCodeFileCount": 0,
-    "cemElementsStorybookAdapterEvidence": "packages/cem-elements/src/lib/storybook/xhtml-stories.ts",
-    "cemElementsStorybookThemeEvidence": "packages/cem-elements/src/lib/storybook/xhtml-story-themes.ts",
+    "cemElementsStorybookMain": "packages/cem-elements/.storybook/main.ts",
+    "cemElementsStorybookPreview": "packages/cem-elements/.storybook/preview.ts",
     "storybookThemeContract": {
         "switcherComponent": "cem-select",
         "themeStylesheetExport": "@epa-wg/cem-theme/styles.css",
@@ -18,6 +18,23 @@
             "cem-theme-native"
         ]
     },
+    "frozenLegacyImplementationDigests": {
+        "src/lib/autocomplete-behavior.ts": "e853b7bf6932e24339f2af98eb5abffb620ccbfc4e912a3cf9c953ff9f6998b2",
+        "src/lib/choice-options.ts": "1d2f11a222c9704b4cf2a769165d18e31ce4383294e8a81f49d7984d3cf4ad32",
+        "src/lib/datepicker-behavior.ts": "db2a820ce5b1da66c8126b16b8689ffd1c572243827350374bcec6901007ff97",
+        "src/lib/expansion-behavior.ts": "72fdf04c3af2b11f61425e0bb1d62d3757856ed64047ec8b8c09fb917583d665",
+        "src/lib/feedback-behavior.ts": "136974ac4fe5743ae35d2fbd44e8568dcbc6c2aee9048311c3f464b6f4f3c14e",
+        "src/lib/navigation-behavior.ts": "f7467bcfea18d1567f951d7327b7118994c54c1372cf42936ec678644245292c",
+        "src/lib/paginator-behavior.ts": "cb1f160867749f639db44014e87739b1911916b1b2b08238237ba4dc78dc30a9",
+        "src/lib/progress-spinner-behavior.ts": "ce4198b6a78852ca05873479be5d6daf719a7fac51ad42a4679d55752da9f280",
+        "src/lib/slider-behavior.ts": "f69ba540a14f2fdca7bafd6d21bd5de802dc1c13e0fbef5ec71fa5cf8c8475d0",
+        "src/lib/sort-header-behavior.ts": "53aac07493bad6e0bfbd304d42749508971ff5e99e07d487b9d96d4f270e7174",
+        "src/lib/stepper-behavior.ts": "e29c4d7cdd275e85bc10b53155813dc94f4d0786bb0d623f75c2ae77b1207b5b",
+        "src/lib/tabs-behavior.ts": "6504b3eab5706e322dfa5b71b91e182aa0ddf82f1c24da71d2d392a3a0cfe23d",
+        "src/lib/timepicker-behavior.ts": "34971831ad9370bdf6ecaf991c46704d82a05f70efabb6ddc955c8d319035741",
+        "src/lib/tooltip-behavior.ts": "90f628200bf0090f5cdbdfcf090f43cb68d81dd22790f945be2b92b46a343836",
+        "src/lib/tree-behavior.ts": "e1b9c442d60521106920b92c14d80d6bc8f2e091f6af5d796ec705ece5b8dc8c"
+    },
     "legacyComponentTags": [
         "cem-action",
         "cem-icon-button",
@@ -28,7 +45,6 @@
         "cem-autocomplete",
         "cem-timepicker",
         "cem-datepicker",
-        "cem-select",
         "cem-option",
         "cem-option-group",
         "cem-checkbox",
@@ -69,7 +85,6 @@
         "cem-skeleton",
         "cem-alert"
     ],
-    "legacyAuthoredCodeDigest": "cdbce59079c2796b514d09955b4d1d9d4c4ce47553edd244d3789d3550c52918",
     "legacyAuthoredCodeFiles": [
         "eslint.config.mjs",
         "scripts/build-component-catalog.mjs",
@@ -112,7 +127,6 @@
         "src/lib/primitives.ts",
         "src/lib/progress-spinner-behavior.ts",
         "src/lib/progress-spinner.browser.spec.ts",
-        "src/lib/select-behavior.ts",
         "src/lib/slider-behavior.ts",
         "src/lib/slider.browser.spec.ts",
         "src/lib/sort-header-behavior.ts",

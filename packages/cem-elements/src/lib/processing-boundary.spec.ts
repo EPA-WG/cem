@@ -4,6 +4,8 @@ import { generateScopeUid } from './cem-elements.js';
 import {
     diffRenderPlansToPatchFrames,
     projectTemplate,
+    resolveDeclarationStyleScope,
+    resolveDeclarationStylesheetScopes,
     renderPlansHaveDomChanges,
     renderInstanceScopeUid,
     scopeCssText,
@@ -17,26 +19,106 @@ import {
 } from './processing-boundary.fixtures.js';
 
 describe('host processing boundary contracts', () => {
+    it('resolves valid, absent, and invalid declaration style scope names', () => {
+        expect(resolveDeclarationStyleScope(false, null)).toEqual({
+            scope: null,
+            valid: true,
+        });
+        expect(resolveDeclarationStyleScope(true, '  abc-lib  ')).toEqual({
+            scope: 'abc-lib',
+            valid: true,
+        });
+        for (const invalid of ['', '   ', 'abc lib', '1abc', 'abc.lib', '{$scope}']) {
+            expect(resolveDeclarationStyleScope(true, invalid)).toEqual({
+                scope: null,
+                valid: false,
+            });
+        }
+    });
+
+    it.each([
+        {
+            name: 'unscoped bare style is private',
+            declarationScope: null,
+            stylesheetScopes: [null],
+            expected: [{ kind: 'private', scope: null }],
+        },
+        {
+            name: 'unscoped explicit style is invalid',
+            declarationScope: null,
+            stylesheetScopes: ['abc-lib'],
+            expected: [{ kind: 'invalid', scope: 'abc-lib' }],
+        },
+        {
+            name: 'scoped bare-only styles use the shared shorthand',
+            declarationScope: 'abc-lib',
+            stylesheetScopes: [null, null],
+            expected: [
+                { kind: 'shared', scope: 'abc-lib' },
+                { kind: 'shared', scope: 'abc-lib' },
+            ],
+        },
+        {
+            name: 'scoped explicit-only style is shared',
+            declarationScope: 'abc-lib',
+            stylesheetScopes: ['abc-lib'],
+            expected: [{ kind: 'shared', scope: 'abc-lib' }],
+        },
+        {
+            name: 'matching explicit style makes coexisting bare styles private',
+            declarationScope: 'abc-lib',
+            stylesheetScopes: [null, 'abc-lib', null],
+            expected: [
+                { kind: 'private', scope: null },
+                { kind: 'shared', scope: 'abc-lib' },
+                { kind: 'private', scope: null },
+            ],
+        },
+        {
+            name: 'mismatched explicit style is invalid without changing bare shorthand',
+            declarationScope: 'abc-lib',
+            stylesheetScopes: [null, 'other-lib'],
+            expected: [
+                { kind: 'shared', scope: 'abc-lib' },
+                { kind: 'invalid', scope: 'other-lib' },
+            ],
+        },
+        {
+            name: 'blank explicit style is invalid',
+            declarationScope: 'abc-lib',
+            stylesheetScopes: ['   '],
+            expected: [{ kind: 'invalid', scope: '' }],
+        },
+    ])('$name', ({ declarationScope, stylesheetScopes, expected }) => {
+        expect(resolveDeclarationStylesheetScopes(declarationScope, stylesheetScopes)).toEqual(expected);
+    });
+
     it('generates scope UIDs from explicit seeds, blank seeds, and dynamic fallback seeds', () => {
-        expect(generateScopeUid({
-            producedTag: 'story-card',
-            uidSeed: 'demo/scoped-css/card',
-            occurrencePath: '0.2',
-        })).toBe('cem-scope-story-card-udemoz2fscoped-cssz2fcard-p0-2');
+        expect(
+            generateScopeUid({
+                producedTag: 'story-card',
+                uidSeed: 'demo/scoped-css/card',
+                occurrencePath: '0.2',
+            }),
+        ).toBe('cem-scope-story-card-udemoz2fscoped-cssz2fcard-p0-2');
 
-        expect(generateScopeUid({
-            producedTag: 'story-card',
-            uidSeed: '',
-            occurrencePath: '0.2',
-            runtimeSeed: 'ignored',
-        })).toBe('cem-scope-story-card-p0-2');
+        expect(
+            generateScopeUid({
+                producedTag: 'story-card',
+                uidSeed: '',
+                occurrencePath: '0.2',
+                runtimeSeed: 'ignored',
+            }),
+        ).toBe('cem-scope-story-card-p0-2');
 
-        expect(generateScopeUid({
-            producedTag: 'story-card',
-            uidSeed: null,
-            occurrencePath: '0.2',
-            runtimeSeed: 'worker-0-counter-7',
-        })).toBe('cem-scope-story-card-uworker-0-counter-7-p0-2');
+        expect(
+            generateScopeUid({
+                producedTag: 'story-card',
+                uidSeed: null,
+                occurrencePath: '0.2',
+                runtimeSeed: 'worker-0-counter-7',
+            }),
+        ).toBe('cem-scope-story-card-uworker-0-counter-7-p0-2');
     });
 
     it('covers the accepted UID matrix for stable persisted output', () => {
@@ -51,15 +133,19 @@ describe('host processing boundary contracts', () => {
         expect(first).toBe('cem-scope-story-card-udocsz2fpublicz20seedz3az20card-p0-2-1');
         expect(first).not.toMatch(/[ /:@]/);
 
-        expect(generateScopeUid({
-            ...stableInput,
-            occurrencePath: '0.2.2',
-        })).not.toBe(first);
+        expect(
+            generateScopeUid({
+                ...stableInput,
+                occurrencePath: '0.2.2',
+            }),
+        ).not.toBe(first);
 
-        expect(generateScopeUid({
-            ...stableInput,
-            runtimeSeed: 'worker-17-counter-99',
-        })).toBe(first);
+        expect(
+            generateScopeUid({
+                ...stableInput,
+                runtimeSeed: 'worker-17-counter-99',
+            }),
+        ).toBe(first);
 
         const scheduledOutOfOrder = [
             generateScopeUid({ ...stableInput, occurrencePath: '0.3' }),
@@ -82,10 +168,10 @@ describe('host processing boundary contracts', () => {
                 '@keyframes pulse { from { opacity: 0; } to { opacity: 1; } }',
                 'button { animation: pulse 1s ease; animation-name: pulse; }',
             ].join('\n'),
-            'cem-scope-story-card-useed-p0'
+            'cem-scope-story-card-useed-p0',
         );
 
-        expect(result.css).toContain('[data-cem-scope="cem-scope-story-card-useed-p0"] {');
+        expect(result.css).toContain(':where([data-cem-scope="cem-scope-story-card-useed-p0"]) {');
         expect(result.css).toContain('& { display: block; }');
         expect(result.css).toContain('&.legacy button, & { color: red; }');
         expect(result.css).toContain('@keyframes pulse-cem-scope-story-card-useed-p0');
@@ -100,31 +186,60 @@ describe('host processing boundary contracts', () => {
         ]);
     });
 
-    it('stamps scoped render roots and rewrites style nodes in render plans', () => {
+    it('uses an explicit zero-specificity private boundary and suppresses every global at-rule', () => {
+        const result = scopeCssText(
+            [
+                ':host([invalid]) { color: red; }',
+                '@font-face { font-family: Demo; src: url(demo.woff2); }',
+                '@property --demo { syntax: "<color>"; inherits: true; initial-value: red; }',
+                '@counter-style demo { system: cyclic; symbols: x; }',
+                '@font-palette-values --demo { font-family: Demo; }',
+                '@page { margin: 1cm; }',
+                '@namespace svg url(http://www.w3.org/2000/svg);',
+            ].join('\n'),
+            'private-style-id',
+            { boundarySelector: ':where(cem-select)' },
+        );
+
+        expect(result.css).toContain(':where(cem-select) {');
+        expect(result.css).toContain('&[invalid] { color: red; }');
+        for (const atRule of ['font-face', 'property', 'counter-style', 'font-palette-values', 'page', 'namespace']) {
+            expect(result.css).not.toContain(`@${atRule}`);
+        }
+        expect(
+            result.diagnostics.filter(
+                (diagnostic) => diagnostic.code === 'cem.scoped_css.global_construct_unsupported',
+            ),
+        ).toHaveLength(6);
+    });
+
+    it('stamps render identity separately and uses a zero-specificity tag boundary', () => {
         const plan = projectTemplate(
-            [{
-                kind: 'element',
-                namespace: null,
-                tag: 'section',
-                attributes: [],
-                children: [
-                    {
-                        kind: 'element',
-                        namespace: null,
-                        tag: 'style',
-                        attributes: [],
-                        children: [{ kind: 'text', text: 'button { color: green; }' }],
-                    },
-                    {
-                        kind: 'element',
-                        namespace: null,
-                        tag: 'button',
-                        attributes: [],
-                        children: [{ kind: 'text', text: 'Save' }],
-                    },
-                ],
-            }],
-            { snapshot: snapshotFixture(), values: {} }
+            [
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'section',
+                    attributes: [],
+                    children: [
+                        {
+                            kind: 'element',
+                            namespace: null,
+                            tag: 'style',
+                            attributes: [],
+                            children: [{ kind: 'text', text: 'button { color: green; }' }],
+                        },
+                        {
+                            kind: 'element',
+                            namespace: null,
+                            tag: 'button',
+                            attributes: [],
+                            children: [{ kind: 'text', text: 'Save' }],
+                        },
+                    ],
+                },
+            ],
+            { snapshot: snapshotFixture(), values: {} },
         );
         const scoped = scopeRenderPlan(plan, 'cem-scope-story-card-useed-p0');
         const root = scoped.renderPlan.nodes[0];
@@ -132,7 +247,7 @@ describe('host processing boundary contracts', () => {
         if (root.kind !== 'element') return;
 
         expect(root.attributes).toContainEqual({
-            name: 'data-cem-scope',
+            name: 'data-cem-render-scope',
             value: 'cem-scope-story-card-useed-p0',
         });
         const style = root.children[0];
@@ -140,7 +255,7 @@ describe('host processing boundary contracts', () => {
         if (style.kind !== 'element') return;
         expect(style.children[0]).toEqual({
             kind: 'text',
-            text: '[data-cem-scope="cem-scope-story-card-useed-p0"] {\n    button { color: green; }\n}',
+            text: ':where(boundary-card) {\n    button { color: green; }\n}',
             sourceMapRef: undefined,
         });
     });
@@ -153,21 +268,25 @@ describe('host processing boundary contracts', () => {
             dataRevision: '1',
             outputTarget: 'light-dom',
             scopePolicyStamp: 'boundary-scope',
-            nodes: [{
-                kind: 'element',
-                namespace: null,
-                tag: 'button',
-                renderNodeId: 'story-card-1',
-                attributes: [],
-                children: [{
+            nodes: [
+                {
                     kind: 'element',
                     namespace: null,
-                    tag: 'style',
-                    renderNodeId: 'payload-0',
+                    tag: 'button',
+                    renderNodeId: 'story-card-1',
                     attributes: [],
-                    children: [{ kind: 'text', text: 'button { border-color: red; }' }],
-                }],
-            }],
+                    children: [
+                        {
+                            kind: 'element',
+                            namespace: null,
+                            tag: 'style',
+                            renderNodeId: 'payload-0',
+                            attributes: [],
+                            children: [{ kind: 'text', text: 'button { border-color: red; }' }],
+                        },
+                    ],
+                },
+            ],
         };
         const scopeUid = 'cem-scope-story-card-useed-p0';
         const instanceScopeUid = renderInstanceScopeUid(scopeUid, plan.instanceId);
@@ -180,7 +299,7 @@ describe('host processing boundary contracts', () => {
         if (style.kind !== 'element') return;
         expect(style.children[0]).toEqual({
             kind: 'text',
-            text: `[data-cem-instance-scope="${instanceScopeUid}"] {\n    button { border-color: red; }\n}`,
+            text: `story-card[data-cem-instance-scope="${instanceScopeUid}"] {\n    button { border-color: red; }\n}`,
             sourceMapRef: undefined,
         });
     });
@@ -208,14 +327,16 @@ describe('host processing boundary contracts', () => {
                     tag: 'section',
                     renderNodeId: 'story-card-section',
                     attributes: [],
-                    children: [{
-                        kind: 'element',
-                        namespace: null,
-                        tag: 'style',
-                        renderNodeId: 'story-card-style',
-                        attributes: [],
-                        children: [{ kind: 'text', text: 'button { color: blue; }' }],
-                    }],
+                    children: [
+                        {
+                            kind: 'element',
+                            namespace: null,
+                            tag: 'style',
+                            renderNodeId: 'story-card-style',
+                            attributes: [],
+                            children: [{ kind: 'text', text: 'button { color: blue; }' }],
+                        },
+                    ],
                 },
             ],
         };
@@ -245,10 +366,12 @@ describe('host processing boundary contracts', () => {
 
         const changedText: RenderPlan = {
             ...first,
-            nodes: [{
-                ...(first.nodes[0] as Extract<RenderPlan['nodes'][number], { kind: 'element' }>),
-                children: [{ kind: 'text', text: 'Updated' }],
-            }],
+            nodes: [
+                {
+                    ...(first.nodes[0] as Extract<RenderPlan['nodes'][number], { kind: 'element' }>),
+                    children: [{ kind: 'text', text: 'Updated' }],
+                },
+            ],
         };
         expect(renderPlansHaveDomChanges(first, changedText)).toBe(true);
     });
@@ -277,43 +400,49 @@ describe('host processing boundary contracts', () => {
             dataRevision: '1',
             outputTarget: 'light-dom',
             scopePolicyStamp: 'boundary-scope',
-            nodes: [{
-                kind: 'element',
-                namespace: null,
-                tag: 'div',
-                renderNodeId: 'behavior-field-root',
-                attributes: [],
-                children: [input, help],
-            }],
+            nodes: [
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'div',
+                    renderNodeId: 'behavior-field-root',
+                    attributes: [],
+                    children: [input, help],
+                },
+            ],
         };
         const next: RenderPlan = {
             ...previous,
             dataRevision: '2',
-            nodes: [{
-                ...previous.nodes[0] as Extract<RenderPlan['nodes'][number], { kind: 'element' }>,
-                children: [
-                    { ...input, attributes: [{ name: 'aria-expanded', value: 'true' }] },
-                    {
-                        kind: 'element',
-                        namespace: 'http://www.w3.org/2000/svg',
-                        tag: 'svg',
-                        renderNodeId: 'behavior-field-popup',
-                        attributes: [{ name: 'role', value: 'listbox' }],
-                        children: [],
-                    },
-                    help,
-                ],
-            }],
+            nodes: [
+                {
+                    ...(previous.nodes[0] as Extract<RenderPlan['nodes'][number], { kind: 'element' }>),
+                    children: [
+                        { ...input, attributes: [{ name: 'aria-expanded', value: 'true' }] },
+                        {
+                            kind: 'element',
+                            namespace: 'http://www.w3.org/2000/svg',
+                            tag: 'svg',
+                            renderNodeId: 'behavior-field-popup',
+                            attributes: [{ name: 'role', value: 'listbox' }],
+                            children: [],
+                        },
+                        help,
+                    ],
+                },
+            ],
         };
 
         const frames = diffRenderPlansToPatchFrames(previous, next, { transactionId: 'conditional-child' });
-        const ops = frames.flatMap((frame) => frame.type === 'ops' ? frame.ops : []);
+        const ops = frames.flatMap((frame) => (frame.type === 'ops' ? frame.ops : []));
 
         expect(ops.map((operation) => operation.op)).toContain('reconcileChildren');
         expect(JSON.stringify(ops)).toContain('"namespace":"http://www.w3.org/2000/svg"');
-        expect(ops).not.toContainEqual(expect.objectContaining({
-            op: 'replace',
-            target: { kind: 'render-node', id: 'behavior-field-root' },
-        }));
+        expect(ops).not.toContainEqual(
+            expect.objectContaining({
+                op: 'replace',
+                target: { kind: 'render-node', id: 'behavior-field-root' },
+            }),
+        );
     });
 });

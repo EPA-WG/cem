@@ -494,7 +494,7 @@ function renderInputIdentityFailure(input: CemEdgeSsrRenderInput): string | unde
     ) {
         return 'produced-tag, privacy-policy, and scope identities must be non-empty';
     }
-    const snapshotScopeUid = snapshot.hostAttributes?.['data-cem-scope'];
+    const snapshotScopeUid = snapshot.hostAttributes?.['data-cem-render-scope'];
     if (typeof snapshotScopeUid === 'string' && snapshotScopeUid !== scopeUid) {
         return 'snapshot and request scope identities differ';
     }

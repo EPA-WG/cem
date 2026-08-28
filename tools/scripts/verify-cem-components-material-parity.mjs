@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const inventoryPath = resolve(repoRoot, 'packages/cem-components/tests/angular-material-parity.json');
 const primitivesPath = resolve(repoRoot, 'packages/cem-components/src/lib/primitives.ts');
+const declarativeComponentsPath = resolve(repoRoot, 'packages/cem-components/src/components');
 const failures = [];
 
 const EXPECTED_BENCHMARK = {
@@ -72,6 +73,9 @@ const EXPECTED_IMPLEMENTATION_PRIORITY = {
 const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
 const primitiveSource = readFileSync(primitivesPath, 'utf8');
 const primitiveTags = new Set([...primitiveSource.matchAll(/\btag:\s*'([^']+)'/g)].map((match) => match[1]));
+for (const entry of readdirSync(declarativeComponentsPath, { withFileTypes: true })) {
+    if (entry.isDirectory()) primitiveTags.add(entry.name);
+}
 const records = Array.isArray(inventory.components) ? inventory.components : [];
 
 if (inventory.version !== 1) {

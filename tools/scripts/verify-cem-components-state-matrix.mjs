@@ -94,7 +94,7 @@ for (const record of records.filter((entry) => entry.status !== 'covered')) {
     console.log(`${record.status}: ${record.id} - ${record.reason}`);
 }
 console.log(
-    `cem-components state matrix verified (${summary.total} requirements: ${summary.covered} browser-covered, ` +
+    `cem-components state matrix verified (${summary.total} requirements: ${summary.covered} executable-covered, ` +
         `${summary.staticOnly} static-only, ${summary.gaps} gaps; ` +
         `next: ${inventory.recommendedNext ?? 'none (matrix complete)'}).`,
 );
@@ -162,7 +162,7 @@ function validateRecord(record, index) {
 
 function validateCoveredRecord(record) {
     const label = record.id;
-    validateBrowserEvidence(record, label);
+    validateExecutableEvidence(record, label);
 
     const componentEvidence = record.componentEvidence ?? [];
     if (!Array.isArray(componentEvidence)) {
@@ -185,7 +185,7 @@ function validateCoveredRecord(record) {
             continue;
         }
         evidencedComponents.add(component);
-        validateBrowserEvidence(evidence, `${label} componentEvidence for ${component}`);
+        validateExecutableEvidence(evidence, `${label} componentEvidence for ${component}`);
     }
 
     if ('reason' in record) {
@@ -193,13 +193,15 @@ function validateCoveredRecord(record) {
     }
 }
 
-function validateBrowserEvidence(evidence, label) {
-    if (typeof evidence.owner !== 'string' || !evidence.owner.endsWith('.browser.spec.ts')) {
-        fail(`${label}: covered owner must be an exact .browser.spec.ts path`);
+function validateExecutableEvidence(evidence, label) {
+    const isBrowserSpec = typeof evidence.owner === 'string' && evidence.owner.endsWith('.browser.spec.ts');
+    const isStory = typeof evidence.owner === 'string' && evidence.owner.endsWith('.stories.ts');
+    if (!isBrowserSpec && !isStory) {
+        fail(`${label}: covered owner must be an exact .browser.spec.ts or .stories.ts path`);
         return;
     }
     if (typeof evidence.test !== 'string' || !evidence.test) {
-        fail(`${label}: covered row must name an exact browser test`);
+        fail(`${label}: covered row must name an exact browser test or CSF Next story export`);
         return;
     }
     if (!Array.isArray(evidence.assertions) || evidence.assertions.length === 0) {
@@ -209,12 +211,12 @@ function validateBrowserEvidence(evidence, label) {
 
     const ownerPath = resolveRepoPath(evidence.owner, label);
     if (!ownerPath || !existsSync(ownerPath)) {
-        fail(`${label}: browser owner does not exist at ${evidence.owner}`);
+        fail(`${label}: executable owner does not exist at ${evidence.owner}`);
         return;
     }
-    const testBody = findBrowserTestBody(ownerPath, evidence.test);
+    const testBody = findExecutableEvidenceBody(ownerPath, evidence.test, isStory);
     if (!testBody) {
-        fail(`${label}: browser test not found in ${evidence.owner}: ${evidence.test}`);
+        fail(`${label}: browser test or CSF Next story export not found in ${evidence.owner}: ${evidence.test}`);
         return;
     }
     for (const assertion of evidence.assertions) {
@@ -336,7 +338,7 @@ function parseCategoryStates(source) {
     return result;
 }
 
-function findBrowserTestBody(path, title) {
+function findExecutableEvidenceBody(path, title, isStory) {
     const sourceText = readText(path);
     const source = ts.createSourceFile(path, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
     let body;
@@ -346,6 +348,22 @@ function findBrowserTestBody(path, title) {
             return;
         }
         if (
+            isStory &&
+            ts.isVariableDeclaration(node) &&
+            ts.isIdentifier(node.name) &&
+            node.name.text === title &&
+            node.initializer &&
+            ts.isCallExpression(node.initializer) &&
+            ts.isPropertyAccessExpression(node.initializer.expression) &&
+            ts.isIdentifier(node.initializer.expression.expression) &&
+            node.initializer.expression.expression.text === 'meta' &&
+            node.initializer.expression.name.text === 'story'
+        ) {
+            body = node.initializer.getText(source);
+            return;
+        }
+        if (
+            !isStory &&
             ts.isCallExpression(node) &&
             ts.isIdentifier(node.expression) &&
             node.expression.text === 'it' &&
@@ -371,12 +389,12 @@ function renderMarkdownReport(report) {
         '',
         `Source: \`${report.source}\``,
         '',
-        `Summary: ${report.summary.covered} browser-covered, ${report.summary.staticOnly} static-only, ` +
+        `Summary: ${report.summary.covered} executable-covered, ${report.summary.staticOnly} static-only, ` +
             `${report.summary.gaps} gaps across ${report.summary.total} requirements.`,
         '',
         report.recommendedNext
             ? `Recommended next requirement: \`${report.recommendedNext}\`.`
-            : 'Recommended next requirement: none; every required state is browser-covered.',
+            : 'Recommended next requirement: none; every required state is executable-covered.',
         '',
         '| Requirement | Components | Interaction / transition | Status | Executable owner |',
         '| --- | --- | --- | --- | --- |',

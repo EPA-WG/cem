@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    CEM_DECLARATIVE_CAPABILITIES,
     CEM_DECLARATION_REGISTRATION_CONTRACT,
     analyzeDeclarationRegistration,
     analyzeDeclarationRegistrationIdentity,
     analyzeDeclarationShape,
 } from './cem-elements.js';
+
+describe('cem-element declarative capability contract', () => {
+    it('owns reusable select behavior in cem-elements under a stable declaration identity', () => {
+        expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['choice-select']);
+        expect(CEM_DECLARATIVE_CAPABILITIES['choice-select'].behaviorIdentity).toBe(
+            'cem-elements-choice-select-v1',
+        );
+        expect(CEM_DECLARATIVE_CAPABILITIES['choice-select'].behavior.formAssociated).toBe(true);
+    });
+});
 
 describe('cem-element declaration shape contract', () => {
     it('accepts exactly one inline template with no live declaration content', () => {

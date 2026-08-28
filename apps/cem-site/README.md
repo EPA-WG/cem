@@ -10,7 +10,18 @@ markup, component composition, interaction bindings, and UI state projection
 must be XHTML/CEM-ML. Site JavaScript may provide non-UI host services only; it
 must not render/mutate visible UI or attach app-local UI behavior. A missing or
 overly verbose CEM-ML capability hard-stops route UI work until a reusable
-declarative capability is implemented in `cem-elements`.
+declarative capability is implemented in `cem-elements`. The `cem-elements`
+runtime and its JavaScript are the sufficient imperative substrate; Site must
+not duplicate that machinery. A component needed by Site must first follow the
+proven `cem-components/src/components/cem-select/` XHTML plus CSF Next
+`play`-test pattern.
+The accepted CSS target installs declaration CSS once through native `@scope`.
+Site may style components only through documented tags, public `scope="name"`
+groups, projected `slot="name"` roots, component-owned `part="name"` hooks, and
+custom properties. It must not select data-island or render-identity markers.
+Site follows the normative
+[CEM light-DOM CSS scoping rules](../../docs/cem-ml-uid-and-scoped-css-design.md).
+That behavior remains a migration target until its active todo gate passes.
 
 The checked-in `site.routes.json` is the audited publication and search
 allowlist. It

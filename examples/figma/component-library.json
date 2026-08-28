@@ -1,7 +1,7 @@
 {
     "version": 1,
     "sources": {
-        "primitives": "packages/cem-components/src/lib/primitives.ts#CEM_COMPONENT_PRIMITIVES",
+        "implementations": "packages/cem-components/declarative-migration.json",
         "components": "docs/component-mvp.md#component-list",
         "states": "packages/cem-components/tests/state-matrix-coverage.json",
         "documentation": "packages/cem-components/docs/component-reference.md"
@@ -107,7 +107,7 @@
             "category": "Input",
             "representation": "component-set",
             "properties": { "multiple": "boolean", "size": "text", "indicator": "variant", "busy": "boolean", "slot:label": "slot", "slot:help": "slot", "slot:default": "slot" },
-            "states": ["default", "hover", "focus-visible", "loading", "expanded", "invalid", "required"],
+            "states": ["default", "hover", "focus-visible", "disabled", "loading", "expanded", "invalid", "required"],
             "tokenFamilies": ["palette", "select", "stroke", "bend", "layering", "control", "typography"],
             "documentation": ["packages/cem-components/docs/component-reference.md#inputs", "packages/cem-components/docs/select-contract.md"],
             "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-select", "revision": null }

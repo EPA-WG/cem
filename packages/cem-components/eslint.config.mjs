@@ -23,4 +23,12 @@ export default [
   {
     ignores: ['**/out-tsc'],
   },
+  {
+    files: ['src/components/**/*.stories.ts'],
+    rules: {
+      // The architecture verifier limits these development-only modules to the
+      // shared cem-elements preview, storybook/test, and their own raw XHTML.
+      '@nx/enforce-module-boundaries': 'off',
+    },
+  },
 ];
