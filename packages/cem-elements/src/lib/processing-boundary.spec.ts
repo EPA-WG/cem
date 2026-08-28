@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { generateScopeUid } from './cem-elements.js';
 import {
     diffRenderPlansToPatchFrames,
+    projectSlotsInRenderPlan,
     projectTemplate,
     resolveDeclarationStyleScope,
     resolveDeclarationStylesheetScopes,
     renderPlansHaveDomChanges,
-    renderInstanceScopeUid,
     scopeCssText,
     scopeRenderPlan,
     validateRenderPlanGeneratedIds,
@@ -19,6 +19,101 @@ import {
 } from './processing-boundary.fixtures.js';
 
 describe('host processing boundary contracts', () => {
+    it('stamps named and default projected element roots without marking descendants or fallback', () => {
+        const plan: RenderPlan = {
+            producedTag: 'story-card',
+            instanceId: 'cem-instance-projection',
+            templateArtifactId: 'template-artifact-projection',
+            dataRevision: '1',
+            outputTarget: 'light-dom',
+            scopePolicyStamp: 'boundary-scope',
+            nodes: [
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'slot',
+                    renderNodeId: 'story-card-slot-label',
+                    attributes: [{ name: 'name', value: 'label' }],
+                    children: [{ kind: 'text', text: 'Fallback label' }],
+                },
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'slot',
+                    renderNodeId: 'story-card-slot-default',
+                    attributes: [],
+                    children: [
+                        {
+                            kind: 'element',
+                            namespace: null,
+                            tag: 'em',
+                            renderNodeId: 'story-card-fallback',
+                            attributes: [],
+                            children: [{ kind: 'text', text: 'Fallback content' }],
+                        },
+                    ],
+                },
+            ],
+        };
+        const projected = projectSlotsInRenderPlan(plan, {
+            slots: {
+                label: [
+                    {
+                        kind: 'element',
+                        key: '0',
+                        tag: 'span',
+                        namespace: null,
+                        attributes: {},
+                        children: [
+                            {
+                                kind: 'element',
+                                key: '0/0',
+                                tag: 'strong',
+                                namespace: null,
+                                attributes: {},
+                                children: [],
+                            },
+                        ],
+                    },
+                ],
+            },
+        });
+        const named = projected.nodes[0];
+        expect(named.kind).toBe('element');
+        if (named.kind !== 'element') return;
+        expect(named.attributes).toContainEqual({ name: 'slot', value: 'label' });
+        const descendant = named.children[0];
+        expect(descendant.kind).toBe('element');
+        if (descendant.kind !== 'element') return;
+        expect(descendant.attributes).not.toContainEqual({ name: 'slot', value: 'label' });
+
+        const fallback = projected.nodes[1];
+        expect(fallback.kind).toBe('element');
+        if (fallback.kind !== 'element') return;
+        expect(fallback.attributes).not.toContainEqual({ name: 'slot', value: '' });
+
+        const defaultProjected = projectSlotsInRenderPlan(
+            { ...plan, nodes: [plan.nodes[1]] },
+            {
+                slots: {
+                    '': [
+                        {
+                            kind: 'element',
+                            key: '1',
+                            tag: 'p',
+                            namespace: null,
+                            attributes: {},
+                            children: [],
+                        },
+                    ],
+                },
+            },
+        ).nodes[0];
+        expect(defaultProjected.kind).toBe('element');
+        if (defaultProjected.kind !== 'element') return;
+        expect(defaultProjected.attributes).toContainEqual({ name: 'slot', value: '' });
+    });
+
     it('resolves valid, absent, and invalid declaration style scope names', () => {
         expect(resolveDeclarationStyleScope(false, null)).toEqual({
             scope: null,
@@ -169,11 +264,14 @@ describe('host processing boundary contracts', () => {
                 'button { animation: pulse 1s ease; animation-name: pulse; }',
             ].join('\n'),
             'cem-scope-story-card-useed-p0',
+            { scopeRootSelector: 'story-card' },
         );
 
-        expect(result.css).toContain(':where([data-cem-scope="cem-scope-story-card-useed-p0"]) {');
-        expect(result.css).toContain('& { display: block; }');
-        expect(result.css).toContain('&.legacy button, & { color: red; }');
+        expect(result.css).toContain('@scope (\n    story-card\n) to (');
+        expect(result.css).toContain(':where(:scope) { display: block; }');
+        expect(result.css).toContain(':where(:scope).legacy button, :where(:scope) { color: red; }');
+        expect(result.css).toContain(':scope :has(> template[data-cem-island="instance"]) > *');
+        expect(result.css).toContain('[slot] > *');
         expect(result.css).toContain('@keyframes pulse-cem-scope-story-card-useed-p0');
         expect(result.css).toContain('animation: pulse-cem-scope-story-card-useed-p0 1s ease');
         expect(result.css).toContain('animation-name: pulse-cem-scope-story-card-useed-p0');
@@ -198,11 +296,11 @@ describe('host processing boundary contracts', () => {
                 '@namespace svg url(http://www.w3.org/2000/svg);',
             ].join('\n'),
             'private-style-id',
-            { boundarySelector: ':where(cem-select)' },
+            { scopeRootSelector: 'cem-select' },
         );
 
-        expect(result.css).toContain(':where(cem-select) {');
-        expect(result.css).toContain('&[invalid] { color: red; }');
+        expect(result.css).toContain('@scope (\n    cem-select\n) to (');
+        expect(result.css).toContain(':where(:scope)[invalid] { color: red; }');
         for (const atRule of ['font-face', 'property', 'counter-style', 'font-palette-values', 'page', 'namespace']) {
             expect(result.css).not.toContain(`@${atRule}`);
         }
@@ -213,7 +311,40 @@ describe('host processing boundary contracts', () => {
         ).toHaveLength(6);
     });
 
-    it('stamps render identity separately and uses a zero-specificity tag boundary', () => {
+    it('rejects authored scope, IDs, manufactured or excessive specificity, layers, and important rules', () => {
+        const result = scopeCssText(
+            [
+                '@scope (.authored) { button { color: red; } }',
+                '@layer components { button { color: red; } }',
+                '#private { color: red; }',
+                '.forced.forced { color: red; }',
+                '.one.two.three { color: red; }',
+                '[part~="control"].active button { color: green; }',
+                'button { color: red !important; background: green; }',
+            ].join('\n'),
+            'specificity-style-id',
+            { scopeRootSelector: 'cem-select' },
+        );
+
+        expect(result.css).not.toContain('@scope (.authored)');
+        expect(result.css).not.toContain('@layer');
+        expect(result.css).not.toContain('#private');
+        expect(result.css).not.toContain('.forced.forced');
+        expect(result.css).not.toContain('.one.two.three');
+        expect(result.css).toContain('[part~="control"].active button { color: green; }');
+        expect(result.css).not.toContain('color: red !important');
+        expect(result.css).toContain('background: green');
+        expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+            'cem.scoped_css.authored_scope_unsupported',
+            'cem.scoped_css.layer_unsupported',
+            'cem.scoped_css.id_selector_unsupported',
+            'cem.scoped_css.manufactured_specificity_unsupported',
+            'cem.scoped_css.specificity_unsupported',
+            'cem.scoped_css.important_unsupported',
+        ]);
+    });
+
+    it('stamps render identity separately and uses a native tag scope', () => {
         const plan = projectTemplate(
             [
                 {
@@ -255,12 +386,21 @@ describe('host processing boundary contracts', () => {
         if (style.kind !== 'element') return;
         expect(style.children[0]).toEqual({
             kind: 'text',
-            text: ':where(boundary-card) {\n    button { color: green; }\n}',
+            text: [
+                '@scope (',
+                '    boundary-card',
+                ') to (',
+                '    :scope :has(> template[data-cem-island="instance"]) > *,',
+                '    [slot] > *',
+                ') {',
+                '    button { color: green; }',
+                '}',
+            ].join('\n'),
             sourceMapRef: undefined,
         });
     });
 
-    it('rewrites payload style nodes against an instance scope', () => {
+    it('hoists inert payload styles into an implicit parent-rooted instance scope', () => {
         const plan: RenderPlan = {
             producedTag: 'story-card',
             instanceId: 'cem-instance-7',
@@ -289,19 +429,42 @@ describe('host processing boundary contracts', () => {
             ],
         };
         const scopeUid = 'cem-scope-story-card-useed-p0';
-        const instanceScopeUid = renderInstanceScopeUid(scopeUid, plan.instanceId);
-        const scoped = scopeRenderPlan(plan, scopeUid, { instanceScopeUid });
-        const root = scoped.renderPlan.nodes[0];
-        expect(root.kind).toBe('element');
-        if (root.kind !== 'element') return;
-        const style = root.children[0];
+        const scoped = scopeRenderPlan(plan, scopeUid, {
+            payload: {
+                nodes: [
+                    {
+                        kind: 'element',
+                        key: '0',
+                        namespace: null,
+                        tag: 'style',
+                        attributes: {},
+                        children: [{ kind: 'text', key: '0/0', text: 'button, :host([open]) { border-color: red; }' }],
+                    },
+                ],
+                slots: {},
+            },
+        });
+        const style = scoped.renderPlan.nodes[0];
         expect(style.kind).toBe('element');
         if (style.kind !== 'element') return;
+        expect(style.tag).toBe('style');
+        expect(style.attributes).toEqual([]);
         expect(style.children[0]).toEqual({
             kind: 'text',
-            text: `story-card[data-cem-instance-scope="${instanceScopeUid}"] {\n    button { border-color: red; }\n}`,
+            text: [
+                '@scope to (',
+                '    :scope :has(> template[data-cem-island="instance"]) > *,',
+                '    [slot] > *',
+                ') {',
+                '    :scope button, :scope[open] { border-color: red; }',
+                '}',
+            ].join('\n'),
             sourceMapRef: undefined,
         });
+        const root = scoped.renderPlan.nodes[1];
+        expect(root.kind).toBe('element');
+        if (root.kind !== 'element') return;
+        expect(root.children).toEqual([]);
     });
 
     it('diagnoses duplicate generated render-plan and stylesheet IDs', () => {

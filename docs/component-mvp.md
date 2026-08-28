@@ -20,15 +20,14 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
   colocated CSF Next `<cem-tag>.stories.ts`. The story returns example HTML
   strings from `render` and contains all unit assertions in async `play`
   functions using `storybook/test`; it must not implement component behavior.
-  `cem-elements` extracts the embedded static style once. The accepted native
-  `@scope` target uses the produced tag for private CSS, declaration-owned
+  `cem-elements` extracts the embedded static style once. The implemented native
+  `@scope` contract uses the produced tag for private CSS, declaration-owned
   `scope="name"` for named shared CSS, `slot="name"` for projected roots, and
   `part="name"` for component-owned internals. Per-instance CSS requires an
   explicit inert payload template. Internal data-island and render-identity
   markers are not CSS hooks.
   The complete ownership, resolution, specificity, and diagnostic contract is
   [CEM light-DOM CSS scoping rules](./cem-ml-uid-and-scoped-css-design.md).
-  It remains a migration target until its `docs/todo.md` gate passes.
   A standalone
   `<cem-tag>.css` file and migrated global selectors are forbidden. New
   JavaScript/TypeScript outside the required Storybook modules, including

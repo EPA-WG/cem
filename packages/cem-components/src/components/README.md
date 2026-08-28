@@ -39,4 +39,5 @@ Use [`cem-select.xhtml`](./cem-select/cem-select.xhtml) and
 pattern. Read the normative
 [`declarative-ui-principle.md`](../../../../docs/declarative-ui-principle.md)
 and the linked CSS scope contract before adding another component. The native
-`@scope` behavior remains pending until its active migration gate passes.
+`@scope` behavior is implemented across browser, worker, Edge/SSR, and hydration
+paths.

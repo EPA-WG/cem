@@ -40,8 +40,7 @@ for no-JavaScript component and application UI authoring.
   selectors for a migrated component. The normative ownership, scope-resolution,
   specificity, lifecycle, and diagnostics rules are in the
   [CEM light-DOM CSS scoping contract](./cem-ml-uid-and-scoped-css-design.md).
-  That contract is an accepted migration target; component work MUST NOT assume
-  its runtime behavior until the corresponding `docs/todo.md` gate is complete.
+  That contract is the implemented runtime and authoring baseline.
 - `@epa-wg/cem-components` MUST contain no authored JavaScript or TypeScript
   except the required colocated `.stories.ts` files: no component classes,
   behavior callbacks, DOM listeners, registration entries, installers, or

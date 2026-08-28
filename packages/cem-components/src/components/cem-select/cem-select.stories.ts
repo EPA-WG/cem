@@ -54,6 +54,9 @@ export const Default = meta.story({
         select?.addEventListener('change', () => events.push('change'));
 
         const control = canvas.getByRole('combobox', { name: 'Role' });
+        await expect(control).toHaveAttribute('part', 'control');
+        await expect(select?.querySelector('[part~="root"]')).not.toBeNull();
+        await expect(select?.querySelector('[part~="label"]')).not.toBeNull();
         await expect(control).toHaveTextContent('Author');
         await expect(select?.value).toBe('author');
         await expect(select?.type).toBe('select-one');
@@ -65,8 +68,9 @@ export const Default = meta.story({
         );
         await expect(select?.querySelector('style')).toBeNull();
         await expect(declarationStyles?.length).toBe(1);
-        await expect(declarationStyles?.[0]?.textContent).toContain(':where(cem-select)');
+        await expect(declarationStyles?.[0]?.textContent).toContain('@scope (\n    cem-select');
         await expect(select).toHaveAttribute('data-cem-render-scope');
+        await expect(select).not.toHaveAttribute('data-cem-instance-scope');
         await expect(select).not.toHaveAttribute('data-cem-scope');
 
         await userEvent.tab();
@@ -78,7 +82,9 @@ export const Default = meta.story({
         await expect(control).toHaveAttribute('aria-expanded', 'true');
         await expect(control).toHaveAttribute('aria-controls');
         await expect(canvas.getByRole('group', { name: 'Publishing' })).toBeVisible();
+        await expect(canvas.getByRole('group', { name: 'Publishing' })).toHaveAttribute('part', 'group');
         await expect(canvas.getByRole('option', { name: /Author/ }).querySelector('strong')).toHaveTextContent('Author');
+        await expect(canvas.getByRole('option', { name: /Author/ })).toHaveAttribute('part', 'option');
         await expect(canvas.getByRole('option', { name: 'Retired' })).toHaveAttribute('aria-disabled', 'true');
 
         await userEvent.click(canvas.getByRole('option', { name: 'Editor' }));

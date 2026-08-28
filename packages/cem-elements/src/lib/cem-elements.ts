@@ -1,14 +1,11 @@
 import {
-    DATA_CEM_INSTANCE_SCOPE_ATTR,
     DATA_CEM_RENDER_SCOPE_ATTR,
-    DATA_CEM_SCOPE_ATTR,
     applyPatchFramesToRange,
     applyRenderPlanToRange,
     edgeContentAddress,
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
-    renderInstanceScopeUid,
     renderedPlanAttributeValue,
     resolveDeclarationStyleScope,
     resolveDeclarationStylesheetScopes,
@@ -858,6 +855,8 @@ const DATA_ISLAND_VALUE = 'instance';
 const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
 const UID_SEED_ATTR = 'uid-seed';
+const PUBLIC_STYLE_SCOPE_ATTR = 'scope';
+const STYLE_TAG = 'style';
 const LOCAL_STORAGE_EVENT = 'cem-local-storage';
 const LOCATION_EVENT = 'cem-location';
 const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
@@ -868,9 +867,7 @@ const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
 const RUNTIME_PAYLOAD_ATTRIBUTE_NAMES = new Set([
     DATA_ISLAND_ATTR,
     HYDRATION_METADATA_ATTR,
-    DATA_CEM_SCOPE_ATTR,
     DATA_CEM_RENDER_SCOPE_ATTR,
-    DATA_CEM_INSTANCE_SCOPE_ATTR,
     RENDER_NODE_ID_ATTR,
     RENDER_TEMPLATE_ARTIFACT_ID_ATTR,
     RENDER_DATA_REVISION_ATTR,
@@ -1232,6 +1229,8 @@ export class CemElementRuntime {
     private readonly declarationScopeOption?: CemDeclarationScope;
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
+    private readonly explicitInstancePayloads = new WeakSet<HTMLElement>();
+    private readonly invalidInstancePayloads = new WeakSet<HTMLElement>();
     private readonly registeredDeclarationElements = new WeakSet<object>();
     private readonly anonymousDeclarationElements = new WeakSet<HTMLElement>();
     private readonly anonymousInstances = new WeakMap<HTMLElement, HTMLElement>();
@@ -2091,7 +2090,7 @@ export class CemElementRuntime {
                 );
             }
             const scoped = scopeRenderPlan(result.renderPlan, this.currentScopeUid(instance, compiled), {
-                instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
+                payload: snapshot.payload,
             });
             this.recordDiagnostics(
                 instance,
@@ -2249,7 +2248,6 @@ export class CemElementRuntime {
                 snapshot,
                 data,
                 scopeUid: this.currentScopeUid(instance, compiled),
-                instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
                 previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,
             });
             if (this.renderTokens.get(instance) !== token) {
@@ -2290,7 +2288,6 @@ export class CemElementRuntime {
                     snapshot: recoverySnapshot,
                     data: wasmTemplateData(recoverySnapshot, compiled.declaredAttributes),
                     scopeUid: this.currentScopeUid(instance, compiled),
-                    instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
                     previousRenderPlan: null,
                 });
                 if (this.renderTokens.get(instance) !== token) {
@@ -2484,7 +2481,7 @@ export class CemElementRuntime {
             const input = { snapshot, values };
             const plan = projectTemplate(compiled.templateSource, input);
             const scoped = scopeRenderPlan(plan, this.currentScopeUid(instance, compiled), {
-                instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
+                payload: snapshot.payload,
             });
             this.recordDiagnostics(
                 instance,
@@ -2518,6 +2515,9 @@ export class CemElementRuntime {
         const existing = directDataIsland(instance);
         if (existing) {
             if (!this.initializedInstances.has(instance)) {
+                if (existing.content.querySelector(STYLE_TAG)) {
+                    this.explicitInstancePayloads.add(instance);
+                }
                 if (this.adoptServerRenderedInstance(instance, existing)) {
                     return existing;
                 }
@@ -2529,6 +2529,52 @@ export class CemElementRuntime {
                 this.initializedInstances.add(instance);
             }
             return existing;
+        }
+
+        const directPayloadTemplates = Array.from(instance.children).filter(
+            (child): child is HTMLTemplateElement => child.localName === 'template',
+        );
+        const meaningfulChildren = Array.from(instance.childNodes).filter(
+            (child) => !isWhitespaceTextNode(child) && !isRenderBoundary(child),
+        );
+        if (directPayloadTemplates.length > 0) {
+            const island = directPayloadTemplates[0];
+            island.setAttribute(DATA_ISLAND_ATTR, DATA_ISLAND_VALUE);
+            this.explicitInstancePayloads.add(instance);
+            const mixed = directPayloadTemplates.length !== 1
+                || meaningfulChildren.some((child) => child !== island);
+            if (mixed) {
+                this.invalidInstancePayloads.add(instance);
+                this.recordDiagnostics(instance, [
+                    instanceDiagnostic(
+                        'cem-element.instance_payload_mixed',
+                        `instance payload for \`${instance.localName}\` mixes its direct inert template with live siblings; no mixed payload was rendered`,
+                        instance.localName,
+                        'error',
+                    ),
+                ]);
+                for (const child of Array.from(instance.childNodes)) {
+                    if (child !== island && !isRenderBoundary(child)) {
+                        island.content.appendChild(child);
+                    }
+                }
+            }
+            this.initializedInstances.add(instance);
+            return island;
+        }
+
+        const hasUnenvelopedStyle = meaningfulChildren.some(
+            (child) => child.nodeType === 1 && (child as Element).localName === STYLE_TAG,
+        );
+        if (hasUnenvelopedStyle) {
+            this.recordDiagnostics(instance, [
+                instanceDiagnostic(
+                    'cem-element.instance_style_unenveloped',
+                    `instance CSS for \`${instance.localName}\` must be inside its direct inert payload template`,
+                    instance.localName,
+                    'error',
+                ),
+            ]);
         }
 
         const island = instance.ownerDocument.createElement('template') as HTMLTemplateElement;
@@ -2655,7 +2701,23 @@ export class CemElementRuntime {
             // Observation targets are attached in `observeInstance` (on connect), so the
             // observer can be torn down on disconnect and re-attached on reconnect.
             state.observer = new observer((records) => {
-                if (records.some((record) => mutationInvalidatesInstance(record, instance, island))) {
+                const scopeMutated = records.some(
+                    (record) =>
+                        record.type === 'attributes'
+                        && record.target === instance
+                        && record.attributeName === PUBLIC_STYLE_SCOPE_ATTR,
+                );
+                if (scopeMutated) {
+                    this.restoreDeclarationScope(instance, compiled, true);
+                    state.observer?.takeRecords();
+                }
+                if (
+                    records.some(
+                        (record) =>
+                            !(scopeMutated && record.target === instance && record.attributeName === PUBLIC_STYLE_SCOPE_ATTR)
+                            && mutationInvalidatesInstance(record, instance, island),
+                    )
+                ) {
                     this.invalidateProducedInstance(instance, compiled);
                 }
             });
@@ -4125,17 +4187,36 @@ export class CemElementRuntime {
         if (instance.getAttribute(DATA_CEM_RENDER_SCOPE_ATTR) !== scopeUid) {
             instance.setAttribute(DATA_CEM_RENDER_SCOPE_ATTR, scopeUid);
         }
-        if (compiled.sharedStyleScope && instance.getAttribute(DATA_CEM_SCOPE_ATTR) !== compiled.sharedStyleScope) {
-            instance.setAttribute(DATA_CEM_SCOPE_ATTR, compiled.sharedStyleScope);
-        }
-        const existingInstanceScope = instance.getAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR);
-        if (!existingInstanceScope || existingInstanceScope.length === 0) {
-            instance.setAttribute(
-                DATA_CEM_INSTANCE_SCOPE_ATTR,
-                renderInstanceScopeUid(scopeUid, this.instanceId(instance)),
-            );
-        }
+        this.restoreDeclarationScope(instance, compiled, false);
         return scopeUid;
+    }
+
+    private restoreDeclarationScope(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        mutation: boolean,
+    ): void {
+        const expected = compiled.sharedStyleScope;
+        const current = instance.getAttribute(PUBLIC_STYLE_SCOPE_ATTR);
+        if (current === expected) {
+            return;
+        }
+        if (mutation || current !== null || this.hydratedServerRenders.has(instance)) {
+            this.recordDiagnostics(instance, [
+                instanceDiagnostic(
+                    'cem-element.scope_mutation_restored',
+                    expected === null
+                        ? `removed instance-owned \`scope="${current ?? ''}"\`; declaration \`${compiled.producedTag}\` has no shared CSS scope`
+                        : `restored declaration-owned \`scope="${expected}"\` on \`${compiled.producedTag}\``,
+                    compiled.producedTag,
+                ),
+            ]);
+        }
+        if (expected === null) {
+            instance.removeAttribute(PUBLIC_STYLE_SCOPE_ATTR);
+        } else {
+            instance.setAttribute(PUBLIC_STYLE_SCOPE_ATTR, expected);
+        }
     }
 
     private installDeclarationStylesheets(compiled: CompiledDeclaration): void {
@@ -4172,11 +4253,10 @@ export class CemElementRuntime {
             }
 
             const shared = resolution.kind === 'shared';
-            const boundarySelector = shared
-                ? `:where([${DATA_CEM_SCOPE_ATTR}="${cssAttributeString(resolution.scope)}"])`
-                : `:where(${compiled.producedTag})`;
             const rewritten = scopeCssText(stylesheet.css, `${compiled.scopeUid}-s${index + 1}`, {
-                boundarySelector,
+                scopeRootSelector: shared
+                    ? `[scope="${cssAttributeString(resolution.scope)}"]:has(> template[data-cem-island="instance"])`
+                    : compiled.producedTag,
             });
             diagnostics.push(
                 ...rewritten.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag)),
@@ -4201,13 +4281,6 @@ export class CemElementRuntime {
 
     private currentScopeUid(instance: HTMLElement, compiled: CompiledDeclaration): string {
         return instance.getAttribute(DATA_CEM_RENDER_SCOPE_ATTR) || compiled.scopeUid;
-    }
-
-    private currentInstanceScopeUid(instance: HTMLElement, compiled: CompiledDeclaration): string {
-        return (
-            instance.getAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR) ||
-            renderInstanceScopeUid(this.currentScopeUid(instance, compiled), this.instanceId(instance))
-        );
     }
 
     private retainedRenderedScope(instance: HTMLElement): string | null {
@@ -4360,7 +4433,9 @@ export class CemElementRuntime {
             privacyPolicyStamp: this.privacyPolicyStamp,
             hostAttributes: hostAttributes(instance),
             dataset: datasetEntries(instance),
-            payload: serializePayload(island),
+            payload: this.invalidInstancePayloads.has(instance)
+                ? emptySerializedPayload()
+                : serializePayload(island, this.explicitInstancePayloads.has(instance)),
             slices,
             formData: forms.formData,
             validationState: forms.validationState,
@@ -6024,6 +6099,10 @@ function directDataIsland(element: Element): HTMLTemplateElement | undefined {
     );
 }
 
+function isWhitespaceTextNode(node: Node): boolean {
+    return node.nodeType === 3 && (node.textContent?.trim() ?? '').length === 0;
+}
+
 function mutationInvalidatesInstance(
     record: MutationRecord,
     instance: HTMLElement,
@@ -6487,6 +6566,21 @@ function renderDiagnostic(code: string, message: string, tag?: string): CemEleme
         code,
         severity: 'error',
         source: 'render',
+        message,
+        tag,
+    };
+}
+
+function instanceDiagnostic(
+    code: string,
+    message: string,
+    tag?: string,
+    severity: CemElementDiagnosticSeverity = 'warning',
+): CemElementDiagnostic {
+    return {
+        code,
+        severity,
+        source: 'instance',
         message,
         tag,
     };
@@ -7315,9 +7409,9 @@ function datasetEntries(instance: HTMLElement): Record<string, string> {
     return dataset;
 }
 
-function serializePayload(island: HTMLTemplateElement): SerializedPayload {
+function serializePayload(island: HTMLTemplateElement, includeStyles = false): SerializedPayload {
     const nodes = Array.from(island.content.childNodes)
-        .map((node, index) => serializePayloadNode(node, String(index)))
+        .map((node, index) => serializePayloadNode(node, String(index), includeStyles))
         .filter((node): node is SerializedPayloadNode => node !== undefined);
     const slots: Record<string, SerializedPayloadNode[]> = {};
     for (const node of nodes) {
@@ -7342,7 +7436,7 @@ function serializePayload(island: HTMLTemplateElement): SerializedPayload {
     };
 }
 
-function serializePayloadNode(node: Node, key: string): SerializedPayloadNode | undefined {
+function serializePayloadNode(node: Node, key: string, includeStyles: boolean): SerializedPayloadNode | undefined {
     if (node.nodeType === 3) {
         const text = node.textContent ?? '';
         return text.trim().length > 0 ? { kind: 'text', key, text } : undefined;
@@ -7355,6 +7449,9 @@ function serializePayloadNode(node: Node, key: string): SerializedPayloadNode | 
     }
 
     const element = node as Element;
+    if (!includeStyles && element.localName === STYLE_TAG) {
+        return undefined;
+    }
     const childNodes = payloadChildNodes(element);
     return {
         kind: 'element',
@@ -7364,12 +7461,15 @@ function serializePayloadNode(node: Node, key: string): SerializedPayloadNode | 
         attributes: payloadAttributes(element),
         slot: element.getAttribute('slot') ?? '',
         children: childNodes
-            .map((child, index) => serializePayloadNode(child, `${key}/${index}`))
+            .map((child, index) => serializePayloadNode(child, `${key}/${index}`, includeStyles))
             .filter((child): child is SerializedPayloadNode => child !== undefined),
     };
 }
 
 function payloadChildNodes(element: Element): Node[] {
+    if (element.localName === 'template' && 'content' in element) {
+        return Array.from((element as HTMLTemplateElement).content.childNodes);
+    }
     const island = directDataIsland(element);
     if (island) {
         return Array.from(island.content.childNodes);

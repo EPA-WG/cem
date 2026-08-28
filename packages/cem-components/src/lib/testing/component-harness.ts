@@ -96,7 +96,6 @@ const DEFAULT_VISUAL_STYLE_PROPERTIES = [
 const VOLATILE_RUNTIME_ATTRIBUTES = [
     'data-cem-data-revision',
     'data-cem-hydration',
-    'data-cem-instance-scope',
     'data-cem-render-node-id',
     'data-cem-render-scope',
     'data-cem-source-fidelity',
@@ -260,12 +259,14 @@ async function nextAnimationFrame(): Promise<void> {
 }
 
 async function settleRuntimeHarnessScopes(): Promise<number> {
-    const instances = Array.from(runtimeHarnessScopes).flatMap(({ root, runtime }) =>
-        Array.from(root.querySelectorAll<HTMLElement>('[data-cem-instance-scope]')).map((instance) => ({
-            instance,
-            runtime,
-        }))
-    );
+    const instances = Array.from(runtimeHarnessScopes).flatMap(({ root, runtime }) => {
+        const hosts = new Set(
+            Array.from(root.querySelectorAll<HTMLTemplateElement>('template[data-cem-island="instance"]'))
+                .map((island) => island.parentElement)
+                .filter((instance): instance is HTMLElement => instance instanceof HTMLElement),
+        );
+        return Array.from(hosts).map((instance) => ({ instance, runtime }));
+    });
     const settlements = instances.map(({ instance, runtime }) => runtime.whenRenderSettled(instance));
     await Promise.all(settlements);
     return instances.length;

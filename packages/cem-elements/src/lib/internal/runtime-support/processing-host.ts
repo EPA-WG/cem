@@ -153,9 +153,8 @@ export interface CemProcessingRenderDiffInput {
     snapshot: DataIslandSnapshot;
     /** Host-neutral bindings derived from the complete data-island snapshot. */
     data: Record<string, unknown>;
-    /** Deterministic CSS scope identities applied before the retained-plan diff. */
+    /** Deterministic render/keyframe identity applied before the retained-plan diff. */
     scopeUid: string;
-    instanceScopeUid: string;
     previousRenderPlan?: CemProcessingRenderPlanHandle | null;
     patchBatchSize?: number;
 }

@@ -291,8 +291,8 @@ export const DeclarationAndDataIslandIsolationMatrix: Story = {
             'the declaration-owned stylesheet is installed once beside the declaration template'
         );
         assert(
-            managedSourceStyle.textContent?.includes(':where(iso-matrix-el)') ?? false,
-            'private declaration CSS uses the zero-specificity produced-tag boundary'
+            managedSourceStyle.textContent?.includes('@scope (\n    iso-matrix-el') ?? false,
+            'private declaration CSS uses the native produced-tag scope'
         );
         assertEqual(
             instance.querySelector('style[data-iso="source-style"]'),
@@ -417,7 +417,7 @@ export const DeclarationAndInstanceStylesHaveSeparateOwnership: Story = {
         first.dataset.testInstance = 'shared-only';
         const second = document.createElement('style-mixed');
         second.dataset.testInstance = 'mixed';
-        second.innerHTML = '<style>:host { --instance-only: yes; }</style><span>payload</span>';
+        second.innerHTML = '<template><style>:host { --instance-only: yes; }</style><span>payload</span></template>';
         const third = document.createElement('style-mismatch');
         third.dataset.testInstance = 'mismatch';
         root.append(sharedOnly, mixed, mismatch, first, second, third);
@@ -432,8 +432,8 @@ export const DeclarationAndInstanceStylesHaveSeparateOwnership: Story = {
         const mixedDeclaration = requiredElement(canvasElement, 'cem-element-style-contract[tag="style-mixed"]');
         const mismatchDeclaration = requiredElement(canvasElement, 'cem-element-style-contract[tag="style-mismatch"]');
 
-        assertEqual(sharedOnly.getAttribute('data-cem-scope'), 'abc-lib', 'a declaration scope marks group membership');
-        assertEqual(mixed.getAttribute('data-cem-scope'), 'abc-lib', 'the same group may span component tags');
+        assertEqual(sharedOnly.getAttribute('scope'), 'abc-lib', 'a declaration scope marks group membership');
+        assertEqual(mixed.getAttribute('scope'), 'abc-lib', 'the same group may span component tags');
         assert(sharedOnly.hasAttribute('data-cem-render-scope'), 'render identity is stored separately');
 
         const sharedStyle = requiredElement(
@@ -441,8 +441,8 @@ export const DeclarationAndInstanceStylesHaveSeparateOwnership: Story = {
             ':scope > style[data-cem-declaration-style="shared"]'
         );
         assert(
-            sharedStyle.textContent?.startsWith(':where([data-cem-scope="abc-lib"])') ?? false,
-            'a lone bare style on a scoped declaration uses the shared zero-specificity boundary'
+            sharedStyle.textContent?.includes('[scope="abc-lib"]:has(> template[data-cem-island="instance"])') ?? false,
+            'a lone bare style on a scoped declaration uses the shared native scope boundary'
         );
 
         const privateStyle = requiredElement(
@@ -454,21 +454,20 @@ export const DeclarationAndInstanceStylesHaveSeparateOwnership: Story = {
             ':scope > style[data-cem-declaration-style="shared"]'
         );
         assert(
-            privateStyle.textContent?.startsWith(':where(style-mixed)') ?? false,
+            privateStyle.textContent?.startsWith('@scope (\n    style-mixed') ?? false,
             'a bare style becomes private when an explicit scoped style coexists'
         );
         assert(
-            explicitSharedStyle.textContent?.startsWith(':where([data-cem-scope="abc-lib"])') ?? false,
+            explicitSharedStyle.textContent?.includes('[scope="abc-lib"]:has(> template[data-cem-island="instance"])') ?? false,
             'the explicit matching style remains shared'
         );
 
         const instanceStyle = requiredElement(mixed, 'style') as HTMLStyleElement;
-        const instanceScope = mixed.getAttribute('data-cem-instance-scope');
-        assert(instanceScope !== null, 'payload CSS receives a deterministic instance boundary');
         assert(
-            instanceStyle.textContent?.startsWith(`style-mixed[data-cem-instance-scope="${instanceScope}"]`) ?? false,
-            'payload CSS uses the stronger tag-plus-instance selector'
+            instanceStyle.textContent?.startsWith('@scope to (') ?? false,
+            'payload CSS uses the implicit parent-rooted native scope'
         );
+        assert(!mixed.hasAttribute('data-cem-instance-scope'), 'instance CSS needs no generated marker');
         assert(!instanceStyle.hasAttribute('data-cem-render-scope'), 'style nodes are never stamped as render roots');
 
         assertEqual(

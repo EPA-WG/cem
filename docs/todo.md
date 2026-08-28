@@ -57,7 +57,8 @@ registration identities may reuse an inherited or existing definition.
       only when needed, keeping unrelated runtime stories fast; all 121
       Storybook Chromium tests and the production build pass.
 - [x] Add executable stylesheet-ownership and anonymous-declaration fixtures for
-      the legacy low-specificity CSS baseline: declaration styles install once under
+      the historical low-specificity CSS baseline, since superseded by native
+      `@scope`: declaration styles installed once under
       `:where(<cem-tag>)`, matching named scopes contribute separately through
       `:where([data-cem-scope])`, payload styles retain the stronger instance
       boundary, render identity moves to `data-cem-render-scope`, and anonymous
@@ -77,39 +78,45 @@ registration identities may reuse an inherited or existing definition.
 
 ### Native CSS `@scope` migration
 
-- [ ] Implement the accepted
+- [x] Implement the accepted
       [CEM light-DOM CSS scope contract](./cem-ml-uid-and-scoped-css-design.md).
-    - [ ] Compile private declaration styles under a produced-tag `@scope` with
+    - [x] Compile private declaration styles under a produced-tag `@scope` with
           nested-DCE and projected-descendant lower limits; translate `:host` to
           `:where(:scope)` and reject authored outer `@scope`.
-    - [ ] Replace public `data-cem-scope` styling with one declaration-owned
+    - [x] Replace public `data-cem-scope` styling with one declaration-owned
           `scope="name"` reflected to produced hosts, qualified by the direct
           instance data island; validate one static CSS identifier and restore
           declaration state after instance additions, changes, or removals.
-    - [ ] Preserve or stamp `slot="name"` on projected element roots, including
+    - [x] Preserve or stamp `slot="name"` on projected element roots, including
           `slot=""` for default roots, and expose stable `part="name"` only on
           component-owned internals.
-    - [ ] Require a direct inert `<template>` envelope for instance payload CSS,
+    - [x] Require a direct inert `<template>` envelope for instance payload CSS,
           adopt it as the instance data island, install managed styles under an
           implicit parent-rooted `@scope`, and reject bare or mixed payload
           styles fail-closed.
-    - [ ] Remove `data-cem-instance-scope` without adding another instance-style
+    - [x] Remove `data-cem-instance-scope` without adding another instance-style
           marker; keep `data-cem-render-scope` and data-island identity internal.
-    - [ ] Enforce the `0-2-1` authored library-specificity ceiling and reject
+    - [x] Enforce the `0-2-1` authored library-specificity ceiling and reject
           IDs, manufactured specificity, generated layers, and library
           `!important`.
-    - [ ] Update native artifacts, WASM/browser transport, SSR, and hydration so
+    - [x] Update native artifacts, WASM/browser transport, SSR, and hydration so
           declaration, shared, instance, anonymous, and restored-scope behavior
           remains deterministic.
-    - [ ] Replace the legacy scoped-CSS unit, Storybook, and demo matrix with
+    - [x] Replace the legacy scoped-CSS unit, Storybook, and demo matrix with
           executable cases for scope proximity, explicit public overrides,
           nested DCEs, projection limits, inheritance, `<th scope>` collision,
           invalid/mutated scopes, inert payloads, marker removal, lifecycle,
           anonymous tags, specificity, source order, SSR, and hydration.
-    - [ ] Pass `cem_ql:test`, `cem-elements:test:unit`, `cem-elements:test`,
+    - [x] Pass `cem_ql:test`, `cem-elements:test:unit`, `cem-elements:test`,
           `cem-elements:verify-demo-fixtures`, and
           `@epa-wg/cem-components:verify`; then remove migration warnings and
           change the normative contract status to accepted and implemented.
+    - Completed 2026-08-27: native declaration/shared/instance scopes, public
+      `scope`/`slot`/`part` hooks, specificity enforcement, inert payload
+      adoption, marker removal, worker/Edge/SSR/hydration transport, and the
+      expanded cascade/containment evidence are implemented. The required
+      `cem_ql`, 150-unit-test, 129-Storybook-test, 15-page demo, and full
+      58-dependency cem-components gates pass.
 
 ### Remaining declarative UI migration
 

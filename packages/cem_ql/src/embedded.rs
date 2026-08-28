@@ -1433,7 +1433,16 @@ pub fn classify_artifact_role(path: impl AsRef<Path>) -> EmbeddedArtifactRole {
     {
         return EmbeddedArtifactRole::DocumentationFixture;
     }
-    if components.iter().any(|component| component == "demo") {
+    if components
+        .iter()
+        .any(|component| matches!(component.as_str(), "fixtures" | "tests"))
+    {
+        return EmbeddedArtifactRole::DocumentationFixture;
+    }
+    if components
+        .iter()
+        .any(|component| matches!(component.as_str(), "demo" | "layouts" | "generated"))
+    {
         return EmbeddedArtifactRole::Demo;
     }
     if components.iter().any(|component| component == "examples") {
@@ -1634,6 +1643,22 @@ mod tests {
         assert_eq!(
             expressions[0].provenance.artifact_role,
             EmbeddedArtifactRole::Demo
+        );
+    }
+
+    #[test]
+    fn classifies_application_layout_templates_as_render_artifacts() {
+        assert_eq!(
+            classify_artifact_role("apps/cem-site/layouts/component-gallery.cemt"),
+            EmbeddedArtifactRole::Demo,
+        );
+        assert_eq!(
+            classify_artifact_role("packages/cem-studio/generated/feature-tour/feature-tour.cem"),
+            EmbeddedArtifactRole::Demo,
+        );
+        assert_eq!(
+            classify_artifact_role("packages/cem_ql/fixtures/component-template-artifact.cem"),
+            EmbeddedArtifactRole::DocumentationFixture,
         );
     }
 

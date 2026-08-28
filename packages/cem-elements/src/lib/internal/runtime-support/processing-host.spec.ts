@@ -140,7 +140,6 @@ describe('Phase 3A processing-host contract', () => {
             snapshot: snapshotFixture(),
             data: { title: 'Card' },
             scopeUid: 'card-scope',
-            instanceScopeUid: 'card-instance-scope',
             previousRenderPlan,
             patchBatchSize: 16,
         });

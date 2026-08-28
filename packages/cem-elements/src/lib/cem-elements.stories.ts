@@ -4330,9 +4330,12 @@ export const ScopedCssUidSeedRuntime: Story = {
         const declaration = requiredElement(root, 'cem-element-story-scoped-css');
         const style = requiredElement(declaration, ':scope > style[data-cem-declaration-style="private"]');
         const css = style.textContent ?? '';
-        assert(css.includes(':where(story-scoped-css-card) {'), 'style rules use the low-specificity produced-tag boundary');
-        assert(css.includes('& { --scoped-border: rgb(0, 128, 0); }'), ':host rewrites to the nesting parent');
-        assert(css.includes('&.legacy, & { color: red; }'), ':global and :root rewrite to scoped aliases');
+        assert(css.includes('@scope (\n    story-scoped-css-card'), 'style rules use the native produced-tag scope');
+        assert(css.includes(':where(:scope) { --scoped-border: rgb(0, 128, 0); }'), ':host rewrites to a zero-specificity scope root');
+        assert(
+            css.includes(':where(:scope).legacy, :where(:scope) { color: red; }'),
+            ':global and :root rewrite to contained host aliases'
+        );
         assert(css.includes(`@keyframes pulse-${scopeUid}-s1`), 'keyframes are renamed with the declaration stylesheet identity');
         assert(css.includes(`animation: pulse-${scopeUid}-s1 1s`), 'animation shorthand references renamed keyframes');
         assert(!css.includes('@import'), '@import is suppressed from scoped CSS output');
@@ -4513,6 +4516,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         snapshot.dataRevision = '7';
         const serverScopeUid = 'cem-scope-story-ssr-card-userver-p0';
         snapshot.hostAttributes['data-cem-render-scope'] = serverScopeUid;
+        snapshot.hostAttributes.scope = 'hydration-group';
         snapshot.payload = {
             ...emptySerializedPayload(),
             text: 'Server detail',
@@ -4548,15 +4552,17 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         const serverFragment = materializeRenderPlan(plan, document);
         const serverNodes = Array.from(serverFragment.childNodes);
 
-        registerInlineDeclaration({
+        const runtime = registerInlineDeclaration({
             declarationTag: 'cem-element-story-ssr',
             producedTag: 'story-ssr-card',
             innerHTML: templateHtml,
+            declarationAttributes: { scope: 'hydration-group' },
         });
 
         const instance = document.createElement('story-ssr-card');
         instance.setAttribute('label', 'Server Card');
         instance.setAttribute('data-cem-render-scope', serverScopeUid);
+        instance.setAttribute('scope', 'tampered-before-hydration');
         const island = document.createElement('template');
         island.setAttribute('data-cem-island', 'instance');
         island.innerHTML = '<span slot="detail">Server detail</span>';
@@ -4572,6 +4578,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             metadata
         );
         root.append(instance);
+        (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
         return root;
     },
     play: async ({ canvasElement }) => {
@@ -4592,6 +4599,15 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             instance.getAttribute('data-cem-render-scope'),
             'cem-scope-story-ssr-card-userver-p0',
             'client hydration preserves the server host scope UID'
+        );
+        assertEqual(
+            instance.getAttribute('scope'),
+            'hydration-group',
+            'client hydration restores the serialized declaration-owned public scope'
+        );
+        assertDiagnostic(
+            (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime?.diagnosticsFor(instance) ?? [],
+            'cem-element.scope_mutation_restored'
         );
         assertEqual(
             article.getAttribute('data-cem-render-scope'),
@@ -6114,6 +6130,7 @@ interface InlineDeclarationOptions {
     text?: string;
     type?: string;
     attributes?: Record<string, string>;
+    declarationAttributes?: Record<string, string>;
 }
 
 /**
@@ -6125,6 +6142,9 @@ function registerInlineDeclaration(options: InlineDeclarationOptions): CemElemen
     const runtime = new CemElementRuntime({ declarationTag: options.declarationTag });
     const declaration = document.createElement('div');
     declaration.setAttribute('tag', options.producedTag);
+    for (const [name, value] of Object.entries(options.declarationAttributes ?? {})) {
+        declaration.setAttribute(name, value);
+    }
     const template = document.createElement('template');
     if (options.type) {
         template.setAttribute('type', options.type);

@@ -254,7 +254,7 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/scoped-css.html',
         checks: [
-            // Private declaration CSS: one managed style, zero-specificity tag boundary,
+            // Private declaration CSS: one managed style, native tag scope,
             // no style cloned into either instance, the classless outside button
             // keeps browser/global styling, and ordinary outer cascade remains open.
             countExactly('cem-css-private button[data-css-sample="private"]', 2),
@@ -269,21 +269,23 @@ const fixtureSpecs = [
             countExactly('cem-css-private style', 0),
             styleTextContains(
                 'cem-element[tag="cem-css-private"] > style[data-cem-declaration-style="private"]',
-                ':where(cem-css-private)',
+                '@scope (\n    cem-css-private',
             ),
             attributeContains('cem-css-private[data-case="private-1"]', 'data-cem-render-scope', 'cem-scope-'),
             attributeAbsent('cem-css-private[data-case="private-1"]', 'data-cem-scope'),
+            attributeAbsent('cem-css-private[data-case="private-1"]', 'data-cem-instance-scope'),
+            attributeAbsent('cem-css-private[data-case="private-1"]', 'scope'),
 
             // Bare-only and explicit-only shared declarations both target the public
             // group boundary and apply to separately declared group peers.
             computedStyle('[data-css-sample="shared-bare"]', 'color', 'rgb(0, 128, 0)'),
             computedStyle('[data-css-sample="shared-peer"]', 'color', 'rgb(0, 128, 0)'),
-            attributeEquals('cem-css-shared-bare', 'data-cem-scope', 'css-samples'),
-            attributeEquals('cem-css-shared-peer', 'data-cem-scope', 'css-samples'),
+            attributeEquals('cem-css-shared-bare', 'scope', 'css-samples'),
+            attributeEquals('cem-css-shared-peer', 'scope', 'css-samples'),
             countExactly('cem-element[tag="cem-css-shared-bare"] > style[data-cem-declaration-style="shared"]', 1),
             styleTextContains(
                 'cem-element[tag="cem-css-shared-bare"] > style[data-cem-declaration-style="shared"]',
-                ':where([data-cem-scope="css-samples"])',
+                '[scope="css-samples"]:has(> template[data-cem-island="instance"])',
             ),
             computedStyle('[data-css-sample="shared-explicit"]', 'backgroundColor', 'rgb(219, 234, 254)'),
             computedStyle('[data-css-sample="explicit-peer"]', 'backgroundColor', 'rgb(219, 234, 254)'),
@@ -300,15 +302,15 @@ const fixtureSpecs = [
             countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]', 1),
             styleTextContains(
                 'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="private"]',
-                ':where(cem-css-mixed)',
+                '@scope (\n    cem-css-mixed',
             ),
             styleTextContains(
                 'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]',
-                ':where([data-cem-scope="css-samples"])',
+                '[scope="css-samples"]:has(> template[data-cem-island="instance"])',
             ),
             styleTextNotContains(
                 'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style]',
-                ':where(cem-css-mixed, [data-cem-scope=',
+                'cem-css-mixed, [scope=',
             ),
 
             // Invalid explicit scopes fail closed. A mismatch does not suppress a valid
@@ -323,11 +325,11 @@ const fixtureSpecs = [
                 'cem-element[tag="cem-css-invalid-declaration"] > style[data-cem-declaration-style="private"]',
                 1,
             ),
-            attributeAbsent('cem-css-invalid-declaration', 'data-cem-scope'),
+            attributeAbsent('cem-css-invalid-declaration', 'scope'),
             computedStyle('[data-css-sample="invalid-declaration"]', 'color', 'rgb(0, 0, 255)'),
 
-            // An instance payload style remains in that instance and gets the stronger
-            // tag-plus-instance boundary; it overrides only that instance.
+            // An inert instance payload style becomes a managed direct child under an
+            // implicit parent-rooted scope; it overrides only that instance.
             computedStyle('cem-css-instance[data-case="instance-blue"] button', 'borderTopColor', 'rgb(0, 0, 255)'),
             computedStyle('cem-css-instance[data-case="instance-red"] button', 'borderTopColor', 'rgb(255, 0, 0)'),
             countExactly('cem-element[tag="cem-css-instance"] > style[data-cem-declaration-style="private"]', 1),
@@ -335,12 +337,13 @@ const fixtureSpecs = [
             countExactly('cem-css-instance[data-case="instance-blue"] style[data-cem-render-node-id^="payload-"]', 0),
             styleTextContains(
                 'cem-css-instance[data-case="instance-red"] style[data-cem-render-node-id^="payload-"]',
-                'cem-css-instance[data-cem-instance-scope=',
+                '@scope to (',
             ),
             styleTextNotContains(
                 'cem-css-instance[data-case="instance-red"] style[data-cem-render-node-id^="payload-"]',
                 'data-cem-render-scope',
             ),
+            attributeAbsent('cem-css-instance[data-case="instance-red"]', 'data-cem-instance-scope'),
 
             // Dynamic declaration styles are rejected, while fragment and anonymous
             // declarations scope static CSS to their effective produced tags.
@@ -351,7 +354,7 @@ const fixtureSpecs = [
             countExactly('cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]', 1),
             styleTextContains(
                 'cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]',
-                ':where(cem-css-fragment)',
+                '@scope (\n    cem-css-fragment',
             ),
             text('[data-cem-anonymous-instance] [data-css-sample="anonymous"]', 'anonymous'),
             computedStyle('[data-cem-anonymous-instance] [data-css-sample="anonymous"]', 'color', 'rgb(128, 0, 128)'),

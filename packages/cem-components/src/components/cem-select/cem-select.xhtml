@@ -15,7 +15,7 @@
       {template @name=select-option |
         {param @name=option}
         {body |
-          {div @id="{$option.id}" @class=cem-select__option @role=option @data-option-index="{$option.index}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" |
+          {div @id="{$option.id}" @class=cem-select__option @part=option @role=option @data-option-index="{$option.index}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" |
             {cem:choose |
               {cem:when @test="option.rich" | {cem:project-payload @select="option.children" | }}
               {cem:otherwise | {$option.label}}
@@ -30,8 +30,8 @@
           {cem:for-each @select="groups" @as=group |
             {cem:choose |
               {cem:when @test="group.label" |
-                {div @class=cem-select__group @role=group @aria-label="{$group.label}" @aria-disabled="{$group.disabled}" |
-                  {div @class=cem-select__group-label @aria-hidden=true | {$group.label}}
+                {div @class=cem-select__group @part=group @role=group @aria-label="{$group.label}" @aria-disabled="{$group.disabled}" |
+                  {div @class=cem-select__group-label @part=group-label @aria-hidden=true | {$group.label}}
                   {cem:for-each @select="group.options" @as=option |
                     {call @template=select-option @with:option="{$option}"}
                   }
@@ -54,21 +54,21 @@
             inline-size: 100%;
           }
 
-          .cem-select {
+          [part~='root'] {
             display: grid;
             gap: var(--cem-gap-related);
             position: relative;
           }
 
-          .cem-select__label,
-          .cem-select__help,
-          .cem-select__group-label {
+          [part~='label'],
+          [part~='help'],
+          [part~='group-label'] {
             font-family: var(--cem-typography-ui-font-family);
             font-size: var(--cem-typography-ui-font-size);
             line-height: var(--cem-typography-ui-line-height);
           }
 
-          .cem-select__control {
+          [part~='control'] {
             --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
             --_cem-input-indicator-focus-width: var(--cem-stroke-none);
             --_cem-input-indicator-selection-width: var(--cem-stroke-none);
@@ -104,47 +104,46 @@
             text-align: start;
           }
 
-          :host([indicator='outline']) .cem-select__control {
+          :host([indicator='outline']) [part~='control'] {
             --_cem-input-indicator-appearance: var(
               --cem-input-indicator-appearance,
               var(--cem-indicator-appearance-outline)
             );
           }
 
-          .cem-select__control:not(:disabled):not([aria-disabled='true']):hover {
+          [part~='control']:where(:not(:disabled):not([aria-disabled='true']):hover) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
           }
 
-          .cem-select__control[data-state='loading']:not(:disabled):not([aria-disabled='true']) {
+          [part~='control']:where([data-state='loading']:not(:disabled):not([aria-disabled='true'])) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
             --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
           }
 
-          .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']) {
+          [part~='control']:where([aria-invalid='true']:not(:disabled):not([aria-disabled='true'])) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
             --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
           }
 
-          .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']):hover {
+          [part~='control']:where([aria-invalid='true']:not(:disabled):not([aria-disabled='true']):hover) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
           }
 
-          .cem-select__control:disabled,
-          .cem-select__control[aria-disabled='true'] {
+          [part~='control']:where(:disabled, [aria-disabled='true']) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
             --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
             cursor: default;
           }
 
-          .cem-select__control:focus-visible {
+          [part~='control']:focus-visible {
             --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
           }
 
-          .cem-select__control[aria-expanded='true'] {
+          [part~='control'][aria-expanded='true'] {
             --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
           }
 
-          button.cem-select__control {
+          button[part~='control'] {
             align-items: center;
             cursor: pointer;
             display: flex;
@@ -152,21 +151,21 @@
             justify-content: space-between;
           }
 
-          .cem-select__value {
+          [part~='value'] {
             min-inline-size: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
           }
 
-          .cem-select__popup,
-          .cem-select__listbox {
+          [part~='popup'],
+          [part~='listbox'] {
             background-color: var(--cem-select-popup-background);
             color: var(--cem-select-popup-text);
             overflow: auto;
           }
 
-          .cem-select__popup {
+          [part~='popup'] {
             --_cem-choice-popup-z-index: 1;
             border: var(--cem-stroke-standard) solid var(--cem-select-popup-border-color);
             border-radius: var(--cem-bend-overlay);
@@ -178,12 +177,12 @@
             z-index: var(--_cem-choice-popup-z-index);
           }
 
-          .cem-select__listbox {
+          [part~='listbox'] {
             padding-block: var(--cem-stroke-standard);
           }
 
-          .cem-select__option,
-          .cem-select__group-label {
+          [part~='option'],
+          [part~='group-label'] {
             align-items: center;
             box-sizing: border-box;
             display: flex;
@@ -192,87 +191,87 @@
             padding-inline: var(--cem-control-padding-x);
           }
 
-          .cem-select__option:not([aria-disabled='true']) {
+          [part~='option']:where(:not([aria-disabled='true'])) {
             cursor: pointer;
           }
 
-          .cem-select__group-label {
+          [part~='group-label'] {
             color: var(--cem-select-group-text);
           }
 
-          .cem-select__option:not([aria-disabled='true']):hover {
+          [part~='option']:where(:not([aria-disabled='true']):hover) {
             background-color: var(--cem-select-option-hover-background);
             color: var(--cem-select-option-hover-text);
           }
 
-          .cem-select__option[aria-selected='true'] {
+          [part~='option'][aria-selected='true'] {
             background-color: var(--cem-select-option-selected-background);
             color: var(--cem-select-option-selected-text);
             outline: var(--cem-stroke-selected) solid var(--cem-select-option-selected-background);
             outline-offset: calc(var(--cem-stroke-selected) * -1);
           }
 
-          .cem-select__option[data-active='true'] {
+          [part~='option'][data-active='true'] {
             background-color: var(--cem-select-option-active-background);
             color: var(--cem-select-option-active-text);
           }
 
-          .cem-select__option[aria-disabled='true'] {
+          [part~='option'][aria-disabled='true'] {
             background-color: var(--cem-select-option-disabled-background);
             color: var(--cem-select-option-disabled-text);
             cursor: default;
           }
 
           @media (forced-colors: active) {
-            .cem-select__control {
+            [part~='control'] {
               box-shadow: none;
             }
 
-            .cem-select__control:not(:disabled):not([aria-disabled='true']):hover {
+            [part~='control']:where(:not(:disabled):not([aria-disabled='true']):hover) {
               border-color: Highlight;
             }
 
-            .cem-select__control[data-state='loading']:not(:disabled):not([aria-disabled='true']):not([aria-invalid='true']) {
+            [part~='control']:where([data-state='loading']:not(:disabled):not([aria-disabled='true']):not([aria-invalid='true'])) {
               outline: var(--cem-stroke-pending) solid CanvasText;
               outline-offset: var(--cem-stroke-indicator-offset);
             }
 
-            .cem-select__control:focus-visible {
+            [part~='control']:focus-visible {
               outline: var(--cem-stroke-focus) solid CanvasText;
               outline-offset: var(--cem-stroke-indicator-offset);
             }
 
-            .cem-select__popup,
-            .cem-select__listbox {
+            [part~='popup'],
+            [part~='listbox'] {
               background-color: Canvas;
               border-color: CanvasText;
               color: CanvasText;
             }
 
-            .cem-select__option[data-active='true'] {
+            [part~='option'][data-active='true'] {
               background-color: Highlight;
               color: HighlightText;
             }
 
-            .cem-select__option[aria-selected='true'] {
+            [part~='option'][aria-selected='true'] {
               outline: var(--cem-stroke-selected) solid SelectedItem;
               outline-offset: calc(var(--cem-stroke-selected) * -1);
             }
 
-            .cem-select__option[aria-disabled='true'] {
+            [part~='option'][aria-disabled='true'] {
               color: GrayText;
             }
           }
         ```}
 
-        {div @class=cem-select |
-          {span @id="{$datadom.slices.labelId}" @class=cem-select__label |
+        {div @class=cem-select @part=root |
+          {span @id="{$datadom.slices.labelId}" @class=cem-select__label @part=label |
             {slot @name=label | {$label}}
           }
           {cem:choose |
             {cem:when @test='datadom.slices.mode == "dropdown"' |
-              {button @type=button @class=cem-select__control @role=combobox @value="{$datadom.slices.value}" @aria-labelledby="{$datadom.slices.labelId}" @aria-haspopup=listbox @aria-expanded="{$datadom.slices.expanded}" @aria-controls={if datadom.slices.expanded { datadom.slices.popupId } else { null }} @aria-activedescendant={if datadom.slices.expanded { datadom.slices.activeOptionId } else { null }} @disabled={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { true } else { null }} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |
-                {span @class=cem-select__value |
+              {button @type=button @class=cem-select__control @part=control @role=combobox @value="{$datadom.slices.value}" @aria-labelledby="{$datadom.slices.labelId}" @aria-haspopup=listbox @aria-expanded="{$datadom.slices.expanded}" @aria-controls={if datadom.slices.expanded { datadom.slices.popupId } else { null }} @aria-activedescendant={if datadom.slices.expanded { datadom.slices.activeOptionId } else { null }} @disabled={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { true } else { null }} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |
+                {span @class=cem-select__value @part=value |
                   {cem:choose |
                     {cem:when @test="datadom.slices.selectedRich" |
                       {cem:project-payload @select="datadom.slices.selectedChildren" | }
@@ -280,21 +279,21 @@
                     {cem:otherwise | {$datadom.slices.displayLabel}}
                   }
                 }
-                {span @class=cem-select__marker @aria-hidden=true | ▾}
+                {span @class=cem-select__marker @part=marker @aria-hidden=true | ▾}
               }
               {cem:if @test="datadom.slices.expanded" |
-                {div @id="{$datadom.slices.popupId}" @class=cem-select__popup @role=listbox @aria-labelledby="{$datadom.slices.labelId}" |
+                {div @id="{$datadom.slices.popupId}" @class=cem-select__popup @part="popup listbox" @role=listbox @aria-labelledby="{$datadom.slices.labelId}" |
                   {call @template=select-options @with:groups="{$datadom.slices.groups}"}
                 }
               }
             }
             {cem:otherwise |
-              {div @id="{$datadom.slices.listboxId}" @class="cem-select__control cem-select__listbox" @role=listbox @tabindex={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { -1 } else { 0 }} @aria-labelledby="{$datadom.slices.labelId}" @aria-multiselectable={if datadom.slices.mode == "multiple-listbox" { true } else { null }} @aria-activedescendant="{$datadom.slices.activeOptionId}" @aria-disabled="{$datadom.attributes.disabled || datadom.slices.behaviorDisabled}" @data-visible-rows="{$datadom.slices.visibleRows}" @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |
+              {div @id="{$datadom.slices.listboxId}" @class="cem-select__control cem-select__listbox" @part="control listbox" @role=listbox @tabindex={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { -1 } else { 0 }} @aria-labelledby="{$datadom.slices.labelId}" @aria-multiselectable={if datadom.slices.mode == "multiple-listbox" { true } else { null }} @aria-activedescendant="{$datadom.slices.activeOptionId}" @aria-disabled="{$datadom.attributes.disabled || datadom.slices.behaviorDisabled}" @data-visible-rows="{$datadom.slices.visibleRows}" @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |
                 {call @template=select-options @with:groups="{$datadom.slices.groups}"}
               }
             }
           }
-          {span @class=cem-select__help | {slot @name=help}}
+          {span @class=cem-select__help @part=help | {slot @name=help}}
         }
       }
     }

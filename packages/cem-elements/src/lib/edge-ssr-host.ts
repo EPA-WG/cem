@@ -64,7 +64,6 @@ export interface CemEdgeSsrRenderInput {
     revision: RenderRevision;
     sourceMapMode: SourceMapMode;
     scopeUid: string;
-    instanceScopeUid: string;
 }
 
 export type CemEdgeSsrInitialRenderInput = CemEdgeSsrRenderInput;

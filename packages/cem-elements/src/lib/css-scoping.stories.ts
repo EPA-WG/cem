@@ -9,6 +9,8 @@ const EXPECTED_RESULTS = {
         'Expected result: private styles install once under the component tag, shared styles install separately under the named scope, invalid combinations fail closed, and an outer selector overrides the zero-specificity boundary.',
     instanceStylesStayWithOneInstance:
         'Expected result: declaration CSS is shared by both instances, while payload CSS stays inside and overrides only the instance that supplied it.',
+    scopeLimitsAndCascade:
+        'Expected result: native scope proximity beats an equal page rule, public specificity can override intentionally, projected and nested roots remain styleable while their owned descendants are limited, and inheritance still crosses the limits.',
     staticOnlyStylesFailClosed:
         'Expected result: static styles are extracted and safely rewritten, unsupported global CSS is suppressed, and dynamic style generation produces diagnostics without rendered styles.',
     fragmentAndAnonymousDeclarationsUseEffectiveTags:
@@ -47,6 +49,9 @@ export const DeclarationScopeResolutionMatrix: Story = {
             '}',
         ].join('\n');
         root.append(outerStyle);
+        const table = createElement('table');
+        table.innerHTML = '<tbody><tr><th scope="row" data-native-th>Native row header</th></tr></tbody>';
+        root.append(table);
 
         const runtime = new CemElementRuntime({
             declarationTag: 'cem-element-css-scope-matrix',
@@ -145,22 +150,28 @@ export const DeclarationScopeResolutionMatrix: Story = {
         await settle(state);
 
         const privateInstances = elements(root, '[data-css-case="private"]');
-        const groupInstances = elements(root, `[data-cem-scope="${GROUP_SCOPE}"]`);
+        const groupInstances = elements(root, `[scope="${GROUP_SCOPE}"]`).filter(
+            (element) => element.querySelector(':scope > template[data-cem-island="instance"]') !== null,
+        );
         const privateStyles = managedStyles(state.declarations.private);
         await expect(privateInstances).toHaveLength(2);
         await expect(privateStyles).toHaveLength(1);
         await expect(privateStyles[0]?.dataset.cemDeclarationStyle).toBe('private');
-        await expect(privateStyles[0]?.textContent).toContain(':where(css-scope-private)');
+        await expect(privateStyles[0]?.textContent).toContain('@scope (\n    css-scope-private');
         await expect(privateInstances.every((instance) => instance.querySelector('style') === null)).toBe(true);
         await expect(cssValue(privateInstances[0], '--private-only')).toBe('yes');
         await expect(cssValue(privateInstances[0], '--cascade-winner')).toBe('outer');
         await expect(privateInstances[0]?.hasAttribute('data-cem-render-scope')).toBe(true);
+        await expect(privateInstances[0]?.hasAttribute('scope')).toBe(false);
         await expect(privateInstances[0]?.hasAttribute('data-cem-scope')).toBe(false);
+        await expect(privateInstances[0]?.hasAttribute('data-cem-instance-scope')).toBe(false);
 
         const sharedBareStyles = managedStyles(state.declarations.sharedBare);
         await expect(sharedBareStyles).toHaveLength(1);
         await expect(sharedBareStyles[0]?.dataset.cemDeclarationStyle).toBe('shared');
-        await expect(sharedBareStyles[0]?.textContent).toContain(`:where([data-cem-scope="${GROUP_SCOPE}"])`);
+        await expect(sharedBareStyles[0]?.textContent).toContain(
+            `[scope="${GROUP_SCOPE}"]:has(> template[data-cem-island="instance"])`,
+        );
 
         const sharedExplicitStyles = managedStyles(state.declarations.sharedExplicit);
         await expect(sharedExplicitStyles).toHaveLength(1);
@@ -169,11 +180,13 @@ export const DeclarationScopeResolutionMatrix: Story = {
         const mixedStyles = managedStyles(state.declarations.mixed);
         await expect(mixedStyles).toHaveLength(2);
         await expect(mixedStyles.map((style) => style.dataset.cemDeclarationStyle)).toEqual(['private', 'shared']);
-        await expect(mixedStyles[0]?.textContent).toContain(':where(css-scope-mixed)');
-        await expect(mixedStyles[1]?.textContent).toContain(`:where([data-cem-scope="${GROUP_SCOPE}"])`);
+        await expect(mixedStyles[0]?.textContent).toContain('@scope (\n    css-scope-mixed');
+        await expect(mixedStyles[1]?.textContent).toContain(
+            `[scope="${GROUP_SCOPE}"]:has(> template[data-cem-island="instance"])`,
+        );
         await expect(
             mixedStyles.some((style) =>
-                style.textContent?.includes(`:where(css-scope-mixed, [data-cem-scope="${GROUP_SCOPE}"])`),
+                style.textContent?.includes(`css-scope-mixed, [scope="${GROUP_SCOPE}"]`),
             ),
         ).toBe(false);
 
@@ -184,6 +197,7 @@ export const DeclarationScopeResolutionMatrix: Story = {
             await expect(cssValue(instance, '--mixed-shared')).toBe('yes');
             await expect(cssValue(instance, '--mismatch-bare-shared')).toBe('yes');
         }
+        await expect(cssValue(requiredElement(root, '[data-native-th]'), '--shared-bare')).toBe('');
         const mixed = requiredElement(root, '[data-css-case="mixed"]');
         await expect(cssValue(mixed, '--mixed-private')).toBe('yes');
 
@@ -197,7 +211,7 @@ export const DeclarationScopeResolutionMatrix: Story = {
         );
 
         const invalidDeclaration = requiredElement(root, '[data-css-case="invalidDeclaration"]');
-        await expect(invalidDeclaration.hasAttribute('data-cem-scope')).toBe(false);
+        await expect(invalidDeclaration.hasAttribute('scope')).toBe(false);
         await expect(managedStyles(state.declarations.invalidDeclaration)).toHaveLength(1);
         await expect(managedStyles(state.declarations.invalidDeclaration)[0]?.dataset.cemDeclarationStyle).toBe(
             'private',
@@ -208,6 +222,20 @@ export const DeclarationScopeResolutionMatrix: Story = {
         await expect(diagnosticCodes(state, 'mismatch')).toContain('cem-element.stylesheet_scope_mismatch');
         await expect(diagnosticCodes(state, 'mismatchWithBare')).toContain('cem-element.stylesheet_scope_mismatch');
         await expect(diagnosticCodes(state, 'invalidDeclaration')).toContain('cem-element.stylesheet_scope_invalid');
+
+        const shared = requiredElement(root, '[data-css-case="sharedBare"]');
+        shared.setAttribute('scope', 'page-owned');
+        await nextFrame();
+        await expect(shared.getAttribute('scope')).toBe(GROUP_SCOPE);
+        await expect(state.runtime.diagnosticsFor(shared).map((diagnostic) => diagnostic.code)).toContain(
+            'cem-element.scope_mutation_restored',
+        );
+        shared.removeAttribute('scope');
+        await nextFrame();
+        await expect(shared.getAttribute('scope')).toBe(GROUP_SCOPE);
+        privateInstances[0]?.setAttribute('scope', GROUP_SCOPE);
+        await nextFrame();
+        await expect(privateInstances[0]?.hasAttribute('scope')).toBe(false);
     },
 };
 
@@ -241,12 +269,27 @@ export const InstanceStylesStayWithOneInstance: Story = {
         base.textContent = 'blue';
         const overridden = createElement('css-scope-instance');
         overridden.setAttribute('data-css-case', 'overridden-instance');
-        overridden.innerHTML = '<style>:host { --instance-color: rgb(255, 0, 0); }</style>red';
-        root.append(base, overridden);
+        overridden.innerHTML = [
+            '<template>',
+            '<style>:host { --instance-color: rgb(255, 0, 0); }</style>',
+            '<span><strong>red</strong></span>',
+            '<template data-literal><b>kept inert</b></template>',
+            '</template>',
+        ].join('');
+        const bare = createElement('css-scope-instance');
+        bare.setAttribute('data-css-case', 'bare-style-instance');
+        bare.innerHTML = '<style>:host { --instance-color: rgb(255, 0, 0); }</style>bare';
+        const mixed = createElement('css-scope-instance');
+        mixed.setAttribute('data-css-case', 'mixed-payload-instance');
+        mixed.innerHTML = [
+            '<template><style>:host { --instance-color: rgb(255, 0, 0); }</style><span>inert</span></template>',
+            '<span>live sibling</span>',
+        ].join('');
+        root.append(base, overridden, bare, mixed);
         root.__cssScoping = {
             runtime,
             declarations: { instance: declaration },
-            instances: [base, overridden],
+            instances: [base, overridden, bare, mixed],
         };
         return root;
     },
@@ -264,18 +307,130 @@ export const InstanceStylesStayWithOneInstance: Story = {
 
         const base = requiredElement(root, '[data-css-case="base-instance"]');
         const overridden = requiredElement(root, '[data-css-case="overridden-instance"]');
+        const bare = requiredElement(root, '[data-css-case="bare-style-instance"]');
+        const mixed = requiredElement(root, '[data-css-case="mixed-payload-instance"]');
         await expect(managedStyles(state.declarations.instance)).toHaveLength(1);
         await expect(base.querySelector('style')).toBeNull();
-        const payloadStyle = overridden.querySelector('style');
+        const payloadStyle = Array.from(overridden.children).find((child) => child.localName === 'style') ?? null;
         await expect(payloadStyle).not.toBeNull();
-        const instanceScope = overridden.getAttribute('data-cem-instance-scope');
-        await expect(instanceScope).toBeTruthy();
-        await expect(payloadStyle?.textContent).toContain(
-            `css-scope-instance[data-cem-instance-scope="${instanceScope}"]`,
-        );
+        await expect(payloadStyle?.textContent).toContain('@scope to (');
+        await expect(payloadStyle?.textContent).toContain(':scope { --instance-color: rgb(255, 0, 0); }');
         await expect(payloadStyle?.hasAttribute('data-cem-render-scope')).toBe(false);
+        await expect(overridden.hasAttribute('data-cem-instance-scope')).toBe(false);
+        const island = requiredElement(overridden, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        await expect(island.content.querySelector('style')?.textContent).toContain(':host');
+        const projected = requiredElement(overridden, 'button > span');
+        await expect(projected).toHaveAttribute('slot', '');
+        await expect(requiredElement(projected, 'strong')).not.toHaveAttribute('slot');
+        const literal = requiredElement(overridden, 'button > template[data-literal]') as HTMLTemplateElement;
+        await expect(literal).toHaveAttribute('slot', '');
+        await expect(literal.content.querySelector('b')?.textContent).toBe('kept inert');
         await expect(getComputedStyle(requiredElement(base, 'button')).color).toBe('rgb(0, 0, 255)');
         await expect(getComputedStyle(requiredElement(overridden, 'button')).color).toBe('rgb(255, 0, 0)');
+        await expect(bare.querySelector(':scope > style')).toBeNull();
+        await expect(getComputedStyle(requiredElement(bare, 'button')).color).toBe('rgb(0, 0, 255)');
+        await expect(state.runtime.diagnosticsFor(bare).map((diagnostic) => diagnostic.code)).toContain(
+            'cem-element.instance_style_unenveloped',
+        );
+        await expect(mixed.querySelector(':scope > style')).toBeNull();
+        await expect(requiredElement(mixed, 'button').textContent).toBe('');
+        await expect(state.runtime.diagnosticsFor(mixed).map((diagnostic) => diagnostic.code)).toContain(
+            'cem-element.instance_payload_mixed',
+        );
+    },
+};
+
+export const ScopeLimitsAndCascade: Story = {
+    render: () => {
+        const root = createElement('section') as HTMLElement & {
+            __cssScoping?: ScopingStoryState;
+        };
+        root.setAttribute('data-scope-limits-story', '');
+        root.setAttribute('aria-label', 'native scope limits and cascade');
+        appendExpectedResult(root, EXPECTED_RESULTS.scopeLimitsAndCascade);
+
+        const pageStyle = createElement('style');
+        pageStyle.textContent = [
+            'button { color: rgb(255, 0, 0); }',
+            'css-scope-boundary [part~="control"] { color: rgb(128, 0, 128); }',
+        ].join('\n');
+        root.append(pageStyle);
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-css-limits' });
+        const boundary = domDeclaration(
+            'cem-element-css-limits',
+            'css-scope-boundary',
+            [
+                '<style>',
+                'button { color: rgb(0, 128, 0); }',
+                '[slot="content"] { color: rgb(0, 0, 255); --scope-inherited: yes; }',
+                '[slot="content"] em { background-color: rgb(255, 0, 0); }',
+                ':host([data-outer]) .nested-leak { background-color: rgb(255, 0, 0); }',
+                '.fallback-owned { border: 0.2rem solid rgb(0, 128, 0); }',
+                '</style>',
+                '<button type="button" data-proximity>proximity</button>',
+                '<button type="button" part="control">public override</button>',
+                '<div><slot name="content"></slot></div>',
+                '<div><slot name="nested"></slot></div>',
+                '<slot name="missing"><span class="fallback-owned" data-fallback>fallback</span></slot>',
+            ].join(''),
+        );
+        const inner = domDeclaration(
+            'cem-element-css-limits',
+            'css-scope-inner',
+            '<style>.nested-leak { background-color: rgb(0, 128, 0); }</style><span class="nested-leak" data-inner-content>inner</span>',
+        );
+        root.append(boundary, inner);
+        runtime.registerDeclaration(boundary);
+        runtime.registerDeclaration(inner);
+
+        const instance = createElement('css-scope-boundary');
+        instance.setAttribute('data-outer', '');
+        instance.innerHTML = [
+            '<section slot="content"><em data-projected-descendant>projected descendant</em></section>',
+            '<css-scope-boundary slot="nested"><span slot="content" class="nested-leak" data-same-nested>same nested</span></css-scope-boundary>',
+            '<css-scope-inner slot="nested"></css-scope-inner>',
+        ].join('');
+        root.append(instance);
+        root.__cssScoping = {
+            runtime,
+            declarations: { boundary, inner },
+            instances: [instance],
+        };
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[data-scope-limits-story]') as HTMLElement & {
+            __cssScoping?: ScopingStoryState;
+        };
+        await expect(requiredElement(root, '[data-expected-result]').textContent).toBe(
+            EXPECTED_RESULTS.scopeLimitsAndCascade,
+        );
+        const state = root.__cssScoping;
+        await expect(state).toBeDefined();
+        if (!state) return;
+        await settle(state);
+        await nextFrame();
+
+        await expect(getComputedStyle(requiredElement(root, '[data-proximity]')).color).toBe('rgb(0, 128, 0)');
+        await expect(getComputedStyle(requiredElement(root, '[part~="control"]')).color).toBe('rgb(128, 0, 128)');
+
+        const projectedRoot = requiredElement(root, 'section[slot="content"]');
+        const projectedDescendant = requiredElement(projectedRoot, '[data-projected-descendant]');
+        await expect(getComputedStyle(projectedRoot).color).toBe('rgb(0, 0, 255)');
+        await expect(getComputedStyle(projectedDescendant).color).toBe('rgb(0, 0, 255)');
+        await expect(getComputedStyle(projectedDescendant).getPropertyValue('--scope-inherited').trim()).toBe('yes');
+        await expect(getComputedStyle(projectedDescendant).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+
+        await expect(getComputedStyle(requiredElement(root, '[data-same-nested]')).backgroundColor).toBe(
+            'rgba(0, 0, 0, 0)',
+        );
+        await expect(getComputedStyle(requiredElement(root, '[data-inner-content]')).backgroundColor).toBe(
+            'rgb(0, 128, 0)',
+        );
+        const fallback = requiredElement(root, '[data-fallback]');
+        await expect(fallback).not.toHaveAttribute('slot');
+        await expect(getComputedStyle(fallback).borderTopColor).toBe('rgb(0, 128, 0)');
     },
 };
 
@@ -364,8 +519,8 @@ export const StaticOnlyStylesFailClosed: Story = {
         await expect(cssValue(staticInstance, '--static-style')).toBe('yes');
         await expect(staticStyles[0]?.textContent).not.toContain('@import');
         await expect(staticStyles[0]?.textContent).not.toContain('@font-face');
-        await expect(staticStyles[0]?.textContent).toContain('&[data-ready]');
-        await expect(staticStyles[0]?.textContent).toContain('&.legacy, &');
+        await expect(staticStyles[0]?.textContent).toContain(':where(:scope)[data-ready]');
+        await expect(staticStyles[0]?.textContent).toContain(':where(:scope).legacy, :where(:scope)');
         await expect(staticStyles[0]?.textContent).toMatch(/@keyframes pulse-.+-s1/);
         await expect(diagnosticCodes(state, 'static')).toEqual(
             expect.arrayContaining([
@@ -453,7 +608,7 @@ export const FragmentAndAnonymousDeclarationsUseEffectiveTags: Story = {
         await state.runtime.whenRenderSettled(fragmentInstance);
         const fragmentStyles = managedStyles(state.declarations.fragment);
         await expect(fragmentStyles).toHaveLength(1);
-        await expect(fragmentStyles[0]?.textContent).toContain(':where(css-scope-fragment)');
+        await expect(fragmentStyles[0]?.textContent).toContain('@scope (\n    css-scope-fragment');
         await expect(cssValue(fragmentInstance, '--fragment-style')).toBe('yes');
 
         const anonymousTag = state.declarations.anonymous.getAttribute('tag') ?? '';
@@ -462,7 +617,7 @@ export const FragmentAndAnonymousDeclarationsUseEffectiveTags: Story = {
         await state.runtime.whenRenderSettled(anonymousInstance);
         const anonymousStyles = managedStyles(state.declarations.anonymous);
         await expect(anonymousStyles).toHaveLength(1);
-        await expect(anonymousStyles[0]?.textContent).toContain(`:where(${anonymousTag})`);
+        await expect(anonymousStyles[0]?.textContent).toContain(`@scope (\n    ${anonymousTag}`);
         await expect(cssValue(anonymousInstance, '--anonymous-style')).toBe('yes');
     },
 };

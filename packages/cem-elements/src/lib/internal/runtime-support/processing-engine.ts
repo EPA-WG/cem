@@ -141,7 +141,7 @@ export class CemProcessingEngine {
         });
         this.assertActive();
         const scoped = scopeRenderPlan(processed.renderPlan, input.scopeUid, {
-            instanceScopeUid: input.instanceScopeUid,
+            payload: input.snapshot.payload,
         });
         const lowered = lowerResourceControls(scoped.renderPlan);
         const frames = diffRenderPlansToPatchFrames(previous, lowered.renderPlan, {

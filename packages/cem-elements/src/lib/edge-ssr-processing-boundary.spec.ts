@@ -81,7 +81,6 @@ describe('Edge/SSR processing boundary contracts', () => {
             revision,
             sourceMapMode: 'dev',
             scopeUid: 'boundary-scope-uid',
-            instanceScopeUid: 'boundary-instance-scope-uid',
         });
         const initialResponse = createCemEdgeSsrHostSuccessEnvelope(initialRequest, {
             kind: 'initial-render',
@@ -113,7 +112,6 @@ describe('Edge/SSR processing boundary contracts', () => {
             revision: { ...revision, dataRevision: '2' },
             sourceMapMode: 'dev',
             scopeUid: 'boundary-scope-uid',
-            instanceScopeUid: 'boundary-instance-scope-uid',
             previousRenderPlan: {
                 stateKey: seeded.record.stateKey,
                 expectedEtag: seeded.record.etag,

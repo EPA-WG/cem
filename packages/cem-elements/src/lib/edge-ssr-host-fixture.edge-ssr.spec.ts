@@ -224,7 +224,6 @@ function initialRequest(
         },
         sourceMapMode: snapshot.sourceMapMode ?? 'dev',
         scopeUid: 'boundary-server-scope',
-        instanceScopeUid: 'boundary-server-instance-scope',
     });
     return createCemEdgeSsrHostRequestEnvelope(
         new CemEdgeSsrJobSequence(),

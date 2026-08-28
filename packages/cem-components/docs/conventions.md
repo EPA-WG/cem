@@ -95,7 +95,7 @@ set (item 5) MUST satisfy.
   package-global stylesheet. The complete ownership, resolution matrix,
   instance payload, specificity, and fail-closed rules are normative in
   [CEM light-DOM CSS scoping rules](../../../docs/cem-ml-uid-and-scoped-css-design.md).
-  Treat it as a migration target until its active todo gate passes.
+  Treat that contract as the implemented authoring and runtime baseline.
 - Existing semantic CEM tokens have priority over raw or component-local values.
   If no token can express a requirement, stop and warn, then record the proposed
   exception in [`components-css-exceptions.md`](./components-css-exceptions.md)

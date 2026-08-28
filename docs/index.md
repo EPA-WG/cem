@@ -57,9 +57,9 @@ This index links the active project, release, and token workflow documents.
 - [`cem-element` external resource loading contract](./cem-element-src-loading-contract.md) — `src="#id"`,
   `src="url"`, `src="url#id"`, and `http-request url` loading, module-map treatment, content-type handling, CEM-ML
   lifecycle binding, artifact/AST stream handling, and security context.
-- [CEM light-DOM CSS scope contract](./cem-ml-uid-and-scoped-css-design.md) — accepted native-`@scope` migration target
+- [CEM light-DOM CSS scope contract](./cem-ml-uid-and-scoped-css-design.md) — implemented native-`@scope` contract
   for private, named-shared, and instance ownership; public `scope`/`slot`/`part` hooks; specificity; identity;
-  diagnostics; and validation gates. The document explicitly separates the target from the current legacy runtime.
+  diagnostics; and validation gates.
 - [CEM Elements HTTP request resource design](./cem-elements-http-request-design.md) — substrate-backed
   `<http-request>` resource slices, CEM-ML lifecycle binding, streaming content-type parsing, AST resource streams, and
   data source maps.

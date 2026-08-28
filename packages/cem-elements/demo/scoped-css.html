@@ -31,7 +31,7 @@
         <main>
             <html-demo-element
                 legend="1. Private declaration CSS and ordinary outer cascade"
-                description="The dashed green border stays inside the two DCE instances while the classless outside button keeps its browser-default border. The purple button text demonstrates ordinary outer cascade customization: a page rule on cem-css-private overrides the declaration's green --sample-cascade-color because the generated private boundary uses zero-specificity :where(cem-css-private)."
+                description="The dashed green border stays inside the two DCE instances while the classless outside button keeps its browser-default border. The purple button text demonstrates an intentional higher-specificity page override of declaration CSS inside the native component scope."
             >
                 <template>
                     <cem-element tag="cem-css-private" uid-seed="demo/css/private">
@@ -158,7 +158,7 @@
 
             <html-demo-element
                 legend="6. Payload style belongs to one instance"
-                description="The payload style stays in its instance and receives the stronger tag-plus-instance boundary."
+                description="The source style begins inert in an explicit payload template, then becomes a managed direct child under an implicit parent-rooted native scope."
             >
                 <template>
                     <cem-element tag="cem-css-instance" uid-seed="demo/css/instance">
@@ -170,12 +170,14 @@
                     </cem-element>
                     <cem-css-instance data-case="instance-blue">blue</cem-css-instance>
                     <cem-css-instance data-case="instance-red">
-                        <style>
-                            :host {
-                                --instance-border: rgb(255, 0, 0);
-                            }
-                        </style>
-                        red
+                        <template>
+                            <style>
+                                :host {
+                                    --instance-border: rgb(255, 0, 0);
+                                }
+                            </style>
+                            red
+                        </template>
                     </cem-css-instance>
                 </template>
             </html-demo-element>
@@ -230,11 +232,10 @@
             </html-demo-element>
 
             <p class="status-note">
-                Private CSS uses <code>:where(&lt;cem-tag&gt;)</code>; named shared CSS uses a separate
-                <code>:where([data-cem-scope="..."])</code>; payload CSS uses the stronger tag-plus-<code
-                    >data-cem-instance-scope</code
-                >
-                boundary. Internal <code>data-cem-render-scope</code> is not a CSS hook.
+                Private CSS uses native <code>@scope (&lt;cem-tag&gt;)</code>; named shared CSS uses the public
+                declaration-owned <code>scope="name"</code>; payload CSS uses an implicit parent-rooted
+                <code>@scope</code>. Internal <code>data-cem-render-scope</code> is not a CSS hook, and no
+                per-instance CSS marker is generated.
             </p>
         </main>
         <script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>

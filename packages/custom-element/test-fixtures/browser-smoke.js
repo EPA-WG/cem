@@ -514,7 +514,7 @@ export async function runCustomElementSmoke(importBase) {
         formMatrix.querySelector('[data-role="password-valid"]')?.textContent === 'true',
     );
 
-    await declareAdapterFixture(
+    const styleDeclaration = await declareAdapterFixture(
         'adapter-style-matrix',
         [
             '<style>:host { --adapter-color: rgb(0, 128, 0); } .adapter-style-target { color: var(--adapter-color); }</style>',
@@ -523,7 +523,7 @@ export async function runCustomElementSmoke(importBase) {
     );
     const styledFirst = await appendAdapterInstance('adapter-style-matrix', (element) => {
         element.innerHTML =
-            '<style>.adapter-style-target { color: rgb(255, 0, 0) !important; }</style><span class="adapter-style-target">first</span>';
+            '<template><style>.adapter-style-target { color: rgb(255, 0, 0); }</style><span class="adapter-style-target">first</span></template>';
     });
     const styledSecond = await appendAdapterInstance('adapter-style-matrix', (element) => {
         element.innerHTML = '<span class="adapter-style-target">second</span>';
@@ -534,18 +534,9 @@ export async function runCustomElementSmoke(importBase) {
     document.body.append(outsideStyled);
     const firstStyleTarget = styledFirst.querySelector('.adapter-style-target');
     const secondStyleTarget = styledSecond.querySelector('.adapter-style-target');
-    const declarationScope = styledFirst.getAttribute('data-cem-scope');
-    const firstInstanceScope = styledFirst.getAttribute('data-cem-instance-scope');
-    const secondInstanceScope = styledSecond.getAttribute('data-cem-instance-scope');
-    check('public adapter stamps a declaration style scope', Boolean(declarationScope));
-    check(
-        'public adapter shares one declaration style scope across instances',
-        styledSecond.getAttribute('data-cem-scope') === declarationScope,
-    );
-    check(
-        'public adapter stamps distinct payload scopes per instance',
-        Boolean(firstInstanceScope && secondInstanceScope && firstInstanceScope !== secondInstanceScope),
-    );
+    check('public adapter keeps render identity separate from CSS identity', styledFirst.hasAttribute('data-cem-render-scope'));
+    check('public adapter emits no private declaration marker', !styledFirst.hasAttribute('scope'));
+    check('public adapter emits no instance CSS marker', !styledFirst.hasAttribute('data-cem-instance-scope'));
     const firstStyleColor = getComputedStyle(firstStyleTarget).color;
     const secondStyleColor = getComputedStyle(secondStyleTarget).color;
     check('public adapter applies declaration CSS inside each instance', secondStyleColor === 'rgb(0, 128, 0)');
@@ -555,11 +546,11 @@ export async function runCustomElementSmoke(importBase) {
         !['rgb(0, 128, 0)', 'rgb(255, 0, 0)'].includes(getComputedStyle(outsideStyled).color),
     );
     check(
-        'public adapter emits declaration and instance scope selectors',
-        styledFirst.querySelector('style')?.textContent?.includes(`data-cem-scope="${declarationScope}"`) &&
-            styledFirst
-                .querySelectorAll('style')[1]
-                ?.textContent?.includes(`data-cem-instance-scope="${firstInstanceScope}"`),
+        'public adapter emits native declaration and implicit instance scopes',
+        styleDeclaration
+            .querySelector(':scope > style[data-cem-declaration-style="private"]')
+            ?.textContent?.includes('@scope (\n    adapter-style-matrix') &&
+            styledFirst.querySelector(':scope > style')?.textContent?.includes('@scope to ('),
     );
 
     await declareAdapterFixture(

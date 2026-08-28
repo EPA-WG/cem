@@ -28,11 +28,11 @@ try {
         <cem-text-field><input id="text-field" value="bravo"></cem-text-field>
         <cem-textarea><textarea id="textarea">charlie</textarea></cem-textarea>
         <cem-select>
-            <button id="select" class="cem-select__control" type="button" aria-expanded="true">Delta</button>
-            <div id="select-popup" class="cem-select__popup">
-                <div id="select-active" class="cem-select__option" data-active="true" aria-selected="false">Alpha</div>
-                <div id="select-selected" class="cem-select__option" aria-selected="true">Delta</div>
-                <div id="select-disabled" class="cem-select__option" aria-disabled="true">Unavailable</div>
+            <button id="select" class="cem-select__control" part="control" type="button" aria-expanded="true">Delta</button>
+            <div id="select-popup" class="cem-select__popup" part="popup listbox">
+                <div id="select-active" class="cem-select__option" part="option" data-active="true" aria-selected="false">Alpha</div>
+                <div id="select-selected" class="cem-select__option" part="option" aria-selected="true">Delta</div>
+                <div id="select-disabled" class="cem-select__option" part="option" aria-disabled="true">Unavailable</div>
             </div>
         </cem-select>
         <cem-checkbox>

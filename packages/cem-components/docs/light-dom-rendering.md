@@ -53,12 +53,11 @@ are the ones the cem-components package commits to.
   (`<template data-cem-island="instance">`) containing captured payload, attributes,
   dataset, slice state, validation state, and event payloads. Component rendering
   MUST treat this template as data only and exclude it from visible-output diffs.
-- Under the accepted CSS migration target, one direct instance `<template>` is a
+- Under the implemented CSS contract, one direct instance `<template>` is a
   reserved explicit payload envelope. It is mandatory when payload contains
   `<style>`, is adopted rather than nested in another island, and cannot be mixed
   with non-whitespace siblings. A literal projected template must be nested inside
-  that outer envelope. This remains pending until the native `@scope` todo gate
-  passes.
+  that outer envelope.
 - For the bridge-window only, a legacy POC body may be opted into via
   `<template lang="custom-element-v0">`; the substrate then accepts the
   XSLT/XPath surface as a compatibility path. New primitives MUST NOT use this
@@ -141,12 +140,12 @@ component output MUST be valid WHATWG HTML:
 ## 5. Style scoping
 
 Because there is no shadow DOM, styles affect—and are affected by—the page. The
-complete accepted target is the
+complete implemented contract is the
 [CEM light-DOM CSS scope contract](../../../docs/cem-ml-uid-and-scoped-css-design.md).
-It requires native `@scope` and remains a migration target until its todo gate
-passes. Component authors still write ordinary CSS inside the declaration:
+It requires native `@scope`. Component authors still write ordinary CSS inside
+the declaration:
 
-- Use `:host` for the produced host. The target compiler emits
+- Use `:host` for the produced host. The compiler emits
   `:where(:scope)` beneath the produced-tag scope root; authors do not write the
   generated outer `@scope`.
 - Use `part="name"` only for stable component-owned internals and `slot="name"`
@@ -222,8 +221,8 @@ The components in this package commit to the following substrate behaviors:
 | Bridge-window legacy authoring via `<template lang="custom-element-v0">` | NOT used by cem-components; new primitives go straight to cem-ql.                                |
 | Light-DOM rendering from captured author payload                         | Yes; no `attachShadow`, no raw payload left visible after upgrade.                               |
 | Declarative slot projection from captured payload                        | Yes; compatible with legacy material samples.                                                    |
-| Projected `slot` root and component-owned `part` CSS hooks                | Accepted target; pending the native `@scope` migration gate.                                      |
-| Explicit inert payload template for instance CSS                         | Accepted target; pending the native `@scope` migration gate.                                      |
+| Projected `slot` root and component-owned `part` CSS hooks                | Yes; implemented with native `@scope` lower limits.                                               |
+| Explicit inert payload template for instance CSS                         | Yes; adopted as the data island and compiled to a parent-rooted native scope.                     |
 | `<text>` wrapper to escape `{}` inside CSS blocks                        | Yes; CSS in templates follows this rule.                                                         |
 | Shadow / closed / named-root rendering surfaces                          | NOT used by cem-components.                                                                      |
 | `customElements` registry interaction                                    | Handled by `<cem-element>` runtime; components MUST NOT call `customElements.define` themselves. |

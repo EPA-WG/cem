@@ -5,12 +5,11 @@ Scoping inventory for the Phase 3.1 legacy parity-story work in
 `@epa-wg/custom-element` docs and demos to explicit `<cem-element>` Storybook coverage or to a tracked migration
 decision.
 
-> **Historical implementation snapshot:** this inventory records executable
-> legacy parity, including the currently generated `data-cem-scope` and
-> `data-cem-instance-scope` selectors. It is not an active CSS authoring
-> contract. The accepted replacement is the
-> [CEM light-DOM CSS scope contract](../../../docs/cem-ml-uid-and-scoped-css-design.md),
-> whose native `@scope` migration remains tracked in `docs/todo.md`.
+> **Historical implementation inventory:** this document still maps legacy
+> behaviors, but its executable CSS evidence now uses the implemented
+> [CEM light-DOM CSS scope contract](../../../docs/cem-ml-uid-and-scoped-css-design.md):
+> native `@scope`, public declaration-owned `scope="name"`, projected-root
+> `slot`, component-owned `part`, and implicit parent-rooted instance scopes.
 
 Sources reviewed:
 
@@ -44,7 +43,7 @@ the behavioral reference.
 | Conditional rendering with `if` / `choose` / `when` / `otherwise` | README Pokemon example; material demos | Supported in canonical CEM-ML/cem-ql | `CemQlConditionalRenderLoop`; legacy XPath spellings migrate to `datadom.*` cem-ql |
 | Loops and variables (`for-each`, `variable`, XSLT 1.0) | README loops/variables; `demo/for-each.html` | Supported for the fixture-derived subset | Legacy inline variables and `for-each` lower through the shared engine; canonical `cem:for-each` demo fixtures cover inline sequences, payload records, location query entries, and JSON/XML resource records |
 | Namespaced `xhtml:*` parser workaround | README troubleshooting; material input demos | Partial | Current DOM read flattens `xhtml:*` to HTML local names; material inventory tracks this as coincidental parity |
-| Scoped styles in templates | README styles section; `demo/scoped-css.html` | Supported for focused light-DOM containment | Generated `data-cem-scope` and payload-specific `data-cem-instance-scope` containment are covered by the scoped CSS demo fixture and processing-boundary tests |
+| Scoped styles in templates | README styles section; `demo/scoped-css.html` | Supported with native light-DOM scopes | Private tag roots, public named scopes, implicit instance scopes, projection limits, fail-closed payloads, and marker removal are covered by the scoped-CSS demo, Storybook, processing-boundary, and Edge/SSR tests |
 | Nested produced custom elements | README embedded CE rendering | Supported | Works when nested declarations are registered, including through local/external `src`; covered by material parity stories |
 | Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Supported for focused primitives | `module-url`, `http-request`, `local-storage`, and `location-element` resource slices are covered by executable demo fixtures; broad legacy XPath rewrites and progressive streaming remain deferred |
 | Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported through shared engine | `LegacyBridgeTemplateParity`; the exact annotation is the sole browser selector for the `legacy-xslt` engine path, with markup sniffing and the browser-only projection branch retired |
@@ -62,11 +61,11 @@ the behavioral reference.
 - The supported XSLT subset is pull-style and fixture-derived: `if`, `choose`, `when`, `otherwise`, `value-of`,
   inline `variable`, and `for-each` over an inline node-set variable lower to CEM-ML. Push-style XSLT and standalone
   stylesheet constructs remain Tier 3 handoff/deferred work.
-- The legacy scoped-CSS fixture uses generated light-DOM containment
-  attributes. Template CSS uses `data-cem-scope`, while projected payload CSS
-  uses `data-cem-instance-scope` so sibling same-tag instances do not share
-  payload styles. This row describes current parity evidence, not the accepted
-  native `@scope` target.
+- Legacy scoped-CSS behavior is now evidenced through native `@scope`.
+  Declaration CSS uses a private tag root or public declaration-owned
+  `scope="name"`; explicit inert payload CSS uses its managed style's parent as
+  the implicit instance root. `data-cem-render-scope` remains internal render
+  identity and no generated CSS marker participates in selectors.
 
 ## Production Gate Status
 

@@ -1,6 +1,6 @@
 # CEM Light-DOM CSS Scope Contract
 
-**Status:** Normative accepted target; implementation pending.
+**Status:** Normative, accepted, and implemented.
 **Primary use case:** declaration-owned CSS for no-shadow-DOM CEM components.
 **Migration authority:** [`docs/todo.md`](./todo.md), under **Native CSS `@scope` migration**.
 
@@ -15,11 +15,10 @@ The target requires native CSS `@scope`, which is a
 [Baseline 2026 feature](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@scope).
 There is no compatibility rewrite for browsers without `@scope`.
 
-> **Migration status:** the current runtime implements the completed legacy
-> `:where(...)`, `data-cem-scope`, and `data-cem-instance-scope` baseline. Those
-> selectors are migration evidence, not the target authoring API. Components
-> MUST NOT depend on this target until the migration checklist and its runtime
-> gates pass. Only then may this status change to “accepted and implemented.”
+The browser, worker, Edge/SSR, hydration, demo, and component verification paths
+implement this contract. The removed `data-cem-scope` and
+`data-cem-instance-scope` attributes are retained only in negative assertions
+that prove they are not generated.
 
 ## 1. Principles
 
@@ -380,6 +379,11 @@ identity rules.
 | authored outer `@scope` appears in managed CSS | suppress the authored scope | `cem.scoped_css.authored_scope_unsupported` |
 | `@import` appears in managed CSS | suppress the import | `cem.scoped_css.import_unsupported` |
 | a document-global at-rule appears | suppress the construct | `cem.scoped_css.global_construct_unsupported` |
+| an authored cascade layer appears in library CSS | suppress the layer | `cem.scoped_css.layer_unsupported` |
+| a selector contains an ID | suppress the selector | `cem.scoped_css.id_selector_unsupported` |
+| a compound repeats a specificity-bearing class or attribute token | suppress the selector | `cem.scoped_css.manufactured_specificity_unsupported` |
+| a declaration/shared selector exceeds `0-2-1` | suppress the selector | `cem.scoped_css.specificity_unsupported` |
+| a library declaration uses `!important` | suppress the declaration | `cem.scoped_css.important_unsupported` |
 | `:global`, `:global(...)`, or `:root` appears | contain it as a host alias | `cem.scoped_css.global_alias` |
 
 A missing concise declarative capability is a hard stop. Add the reusable
@@ -401,9 +405,9 @@ Before accepting component CSS:
 - verify that multiple instances share declaration styles; and
 - keep component CSS out of standalone and package-global stylesheets.
 
-## 10. Migration Verification
+## 10. Implementation Verification
 
-The migration MUST add executable evidence for:
+The implementation includes executable evidence for:
 
 - private, named-shared, and instance compilation output;
 - generic page CSS versus equal-specificity component CSS;

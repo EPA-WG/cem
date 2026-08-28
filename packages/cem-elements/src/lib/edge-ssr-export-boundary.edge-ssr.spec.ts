@@ -205,7 +205,6 @@ function initialBrowserRequest(
             revision: revisionFromSnapshot(snapshot),
             sourceMapMode: snapshot.sourceMapMode ?? 'dev',
             scopeUid: 'boundary-server-scope',
-            instanceScopeUid: 'boundary-server-instance-scope',
         }
     );
 }
@@ -237,7 +236,6 @@ function updateBrowserRequest(
             revision: revisionFromSnapshot(snapshot),
             sourceMapMode: snapshot.sourceMapMode ?? 'dev',
             scopeUid: 'boundary-server-scope',
-            instanceScopeUid: 'boundary-server-instance-scope',
             previousRenderPlan: {
                 stateKey: seeded.result.renderState.stateKey,
                 expectedEtag: seeded.result.renderState.etag,

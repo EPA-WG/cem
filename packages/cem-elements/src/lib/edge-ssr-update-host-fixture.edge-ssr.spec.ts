@@ -64,7 +64,7 @@ describe('non-browser edge render-update host fixture', () => {
                 values: { label: 'After' },
             }),
             'boundary-server-scope',
-            { instanceScopeUid: 'boundary-server-instance-scope' }
+            { payload: nextSnapshot.payload }
         ).renderPlan;
         const referenceFrames = diffRenderPlansToPatchFrames(previousPlan, referenceNext);
         const referenceCommit = referenceFrames.at(-1);
@@ -221,7 +221,6 @@ function seedInitialRender(store: InMemoryEdgeRenderStateStore): SeededInitialRe
             revision: revisionFromSnapshot(exported),
             sourceMapMode: 'dev',
             scopeUid: 'boundary-server-scope',
-            instanceScopeUid: 'boundary-server-instance-scope',
         }
     );
     const response = executeNonBrowserSsrInitialRenderFixture(request, store);
@@ -254,7 +253,6 @@ function updateRequest(
         revision: revisionFromSnapshot(snapshot),
         sourceMapMode: 'dev',
         scopeUid: 'boundary-server-scope',
-        instanceScopeUid: 'boundary-server-instance-scope',
         previousRenderPlan: {
             stateKey: seeded.result.renderState.stateKey,
             expectedEtag: seeded.result.renderState.etag,

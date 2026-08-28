@@ -170,8 +170,8 @@ template must be nested inside the envelope. Ordinary payload without instance C
 may continue to use pre-upgrade fallback children. This target, including public
 `scope="name"`, projected-root `slot="name"`, component-owned `part="name"`, and
 native `@scope` compilation, is normative in the
-[CEM light-DOM CSS scope contract](./cem-ml-uid-and-scoped-css-design.md) and remains
-pending until its `docs/todo.md` migration gate passes.
+[CEM light-DOM CSS scope contract](./cem-ml-uid-and-scoped-css-design.md) and is
+implemented by the browser, worker, Edge/SSR, and hydration render paths.
 
 ```html
 <cem-element tag="cem-button">

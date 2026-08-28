@@ -154,7 +154,6 @@ describe('Phase 3A retained processing engine', () => {
             snapshot,
             data: { label: 'Worker output' },
             scopeUid: 'worker-card-scope',
-            instanceScopeUid: 'worker-card-instance-scope',
             previousRenderPlan: null,
         };
         const [workerRender, fallbackRender] = await Promise.all([
@@ -191,7 +190,6 @@ describe('Phase 3A retained processing engine', () => {
             snapshot: firstSnapshot,
             data: { label: 'Before' },
             scopeUid: 'worker-label-scope',
-            instanceScopeUid: 'worker-label-instance-scope',
             previousRenderPlan: null,
         });
         const secondSnapshot = snapshotFixture('2', 'template-worker-label-1', 'cem-worker-label');
@@ -201,7 +199,6 @@ describe('Phase 3A retained processing engine', () => {
             snapshot: secondSnapshot,
             data: { label: 'After' },
             scopeUid: 'worker-label-scope',
-            instanceScopeUid: 'worker-label-instance-scope',
             previousRenderPlan: first.nextRenderPlan,
         });
 
@@ -371,7 +368,6 @@ describe('Phase 3A retained processing engine', () => {
                 snapshot,
                 data: { label: dataRevision },
                 scopeUid: 'plan-cache-scope',
-                instanceScopeUid: 'plan-cache-instance-scope',
                 previousRenderPlan,
             });
         };
@@ -410,7 +406,6 @@ describe('Phase 3A retained processing engine', () => {
             snapshot,
             data: { label: 'Loaded' },
             scopeUid: 'worker-http-scope',
-            instanceScopeUid: 'worker-http-instance-scope',
             previousRenderPlan: null,
         });
 
@@ -458,7 +453,6 @@ describe('Phase 3A retained processing engine', () => {
             snapshot,
             data: { label: 'Loaded' },
             scopeUid: 'worker-repository-scope',
-            instanceScopeUid: 'worker-repository-instance-scope',
             previousRenderPlan: null
         });
 

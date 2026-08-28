@@ -113,7 +113,7 @@ export function executeNonBrowserSsrInitialRenderFixture(
             ? projected
             : stripRenderPlanSourceMaps(projected);
         const scoped = scopeRenderPlan(sourceMapped, request.payload.scopeUid, {
-            instanceScopeUid: request.payload.instanceScopeUid,
+            payload: snapshot.payload,
         });
         const plan = scoped.renderPlan;
         const identity = renderPlanIdentity(plan);
@@ -347,7 +347,7 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
             ? projected
             : stripRenderPlanSourceMaps(projected);
         const scoped = scopeRenderPlan(sourceMapped, request.payload.scopeUid, {
-            instanceScopeUid: request.payload.instanceScopeUid,
+            payload: snapshot.payload,
         });
         const plan = scoped.renderPlan;
         const identity = renderPlanIdentity(plan);
@@ -431,7 +431,7 @@ export function serializeRenderPlanToHtmlFixture(plan: RenderPlan): string {
 }
 
 function renderInputIdentityFailure(input: CemEdgeSsrRenderInput): string | undefined {
-    const { revision, snapshot, sourceMapMode, template, scopeUid, instanceScopeUid } = input;
+    const { revision, snapshot, sourceMapMode, template, scopeUid } = input;
     if (
         !isPlainRecord(revision)
         || !isPlainRecord(snapshot)
@@ -451,7 +451,6 @@ function renderInputIdentityFailure(input: CemEdgeSsrRenderInput): string | unde
         || snapshot.outputTarget !== 'light-dom'
         || (sourceMapMode !== 'dev' && sourceMapMode !== 'prod')
         || typeof scopeUid !== 'string'
-        || typeof instanceScopeUid !== 'string'
     ) {
         return 'the render request is missing required identity fields';
     }
@@ -490,7 +489,6 @@ function renderInputIdentityFailure(input: CemEdgeSsrRenderInput): string | unde
         snapshot.producedTag.length === 0
         || snapshot.privacyPolicyStamp.length === 0
         || scopeUid.length === 0
-        || instanceScopeUid.length === 0
     ) {
         return 'produced-tag, privacy-policy, and scope identities must be non-empty';
     }

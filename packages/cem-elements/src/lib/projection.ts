@@ -29,14 +29,18 @@ const TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
 const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
-export const DATA_CEM_SCOPE_ATTR = 'data-cem-scope';
-export const DATA_CEM_INSTANCE_SCOPE_ATTR = 'data-cem-instance-scope';
 export const DATA_CEM_RENDER_SCOPE_ATTR = 'data-cem-render-scope';
 const STYLE_TAG = 'style';
 const SCRIPT_TAG = 'script';
 const PAYLOAD_RENDER_NODE_ID_PREFIX = 'payload-';
+const PAYLOAD_STYLESHEET_RENDER_NODE_ID_PREFIX = 'payload-style-';
+const CEM_SCOPE_LOWER_LIMIT = [
+    ':scope :has(> template[data-cem-island="instance"]) > *',
+    '[slot] > *',
+].join(',\n');
 const KEYFRAMES_AT_RULE = /@(-webkit-)?keyframes\s+([A-Za-z_][\w-]*)/g;
 const UNSUPPORTED_SCOPED_CSS_AT_RULES = [
+    'scope',
     'font-face',
     'property',
     'counter-style',
@@ -180,12 +184,15 @@ export interface ScopedRenderPlanResult {
 }
 
 export interface ScopeRenderPlanOptions {
-    instanceScopeUid?: string;
+    /** Serialized inert instance payload. Its styles become managed host children. */
+    payload?: unknown;
 }
 
 export interface ScopeCssTextOptions {
-    scopeAttribute?: string;
-    boundarySelector?: string;
+    /** Omit for an inline style whose parent is the native scope root. */
+    scopeRootSelector?: string;
+    /** Instance rules receive the intentional generated `:scope` prefix. */
+    instance?: boolean;
 }
 
 export interface DeclarationStyleScopeResult {
@@ -408,6 +415,7 @@ export type EdgeRenderStateAdvanceResult =
       };
 
 export interface ProjectionPayload {
+    nodes?: ProjectionPayloadNode[];
     slots?: Record<string, ProjectionPayloadNode[]>;
 }
 
@@ -958,11 +966,18 @@ export function scopeRenderPlan(
     options: ScopeRenderPlanOptions = {},
 ): ScopedRenderPlanResult {
     const diagnostics: ScopedCssRewriteDiagnostic[] = [];
-    const instanceScopeUid = options.instanceScopeUid ?? renderInstanceScopeUid(scopeUid, plan.instanceId);
+    const payloadStyles = collectPayloadStyles(options.payload);
+    const planNodes = stripPayloadStyleNodes(plan.nodes);
     return {
         renderPlan: {
             ...plan,
-            nodes: scopeRenderNodes(plan.nodes, plan.producedTag, scopeUid, instanceScopeUid, diagnostics, true),
+            nodes: scopeRenderNodes(
+                [...payloadStyles, ...planNodes],
+                plan.producedTag,
+                scopeUid,
+                diagnostics,
+                true,
+            ),
         },
         diagnostics,
     };
@@ -986,11 +1001,27 @@ export function scopeCssText(css: string, scopeUid: string, options: ScopeCssTex
         scoped = stripUnsupportedAtRule(scoped, atRule);
         if (scoped !== before) {
             diagnostics.push({
-                code: 'cem.scoped_css.global_construct_unsupported',
+                code:
+                    atRule === 'scope'
+                        ? 'cem.scoped_css.authored_scope_unsupported'
+                        : 'cem.scoped_css.global_construct_unsupported',
                 severity: 'warning',
-                message: `scoped CSS suppresses unsupported global @${atRule} construct`,
+                message:
+                    atRule === 'scope'
+                        ? 'scoped CSS suppresses authored outer @scope because CEM owns the component boundary'
+                        : `scoped CSS suppresses unsupported global @${atRule} construct`,
             });
         }
+    }
+
+    const beforeLayers = scoped;
+    scoped = stripUnsupportedAtRule(scoped, 'layer');
+    if (scoped !== beforeLayers) {
+        diagnostics.push({
+            code: 'cem.scoped_css.layer_unsupported',
+            severity: 'warning',
+            message: 'scoped library CSS suppresses authored cascade layers',
+        });
     }
 
     const keyframeRenames = new Map<string, string>();
@@ -1003,19 +1034,19 @@ export function scopeCssText(css: string, scopeUid: string, options: ScopeCssTex
 
     let globalAliasDiagnostic = false;
     scoped = scoped
-        .replace(/:host\(([^)]*)\)/g, '&$1')
-        .replace(/:host(?![-_A-Za-z0-9])/g, '&')
+        .replace(/:host\(([^)]*)\)/g, options.instance ? ':scope$1' : ':where(:scope)$1')
+        .replace(/:host(?![-_A-Za-z0-9])/g, options.instance ? ':scope' : ':where(:scope)')
         .replace(/:global\(([^)]*)\)/g, (_match, selector: string) => {
             globalAliasDiagnostic = true;
-            return `&${selector}`;
+            return `${options.instance ? ':scope' : ':where(:scope)'}${selector}`;
         })
         .replace(/:global(?![-_A-Za-z0-9])/g, () => {
             globalAliasDiagnostic = true;
-            return '&';
+            return options.instance ? ':scope' : ':where(:scope)';
         })
         .replace(/:root(?![-_A-Za-z0-9])/g, () => {
             globalAliasDiagnostic = true;
-            return '&';
+            return options.instance ? ':scope' : ':where(:scope)';
         });
 
     if (globalAliasDiagnostic) {
@@ -1026,11 +1057,12 @@ export function scopeCssText(css: string, scopeUid: string, options: ScopeCssTex
         });
     }
 
-    const body = scoped.trim();
-    const scopeAttribute = options.scopeAttribute ?? DATA_CEM_SCOPE_ATTR;
-    const boundarySelector = options.boundarySelector ?? `:where([${scopeAttribute}="${cssString(scopeUid)}"])`;
+    const validated = rewriteManagedRuleList(scoped, options.instance === true, diagnostics).trim();
+    const prelude = options.scopeRootSelector === undefined
+        ? `@scope to (\n${indentCss(CEM_SCOPE_LOWER_LIMIT)}\n)`
+        : `@scope (\n    ${options.scopeRootSelector}\n) to (\n${indentCss(CEM_SCOPE_LOWER_LIMIT)}\n)`;
     return {
-        css: body.length > 0 ? `${boundarySelector} {\n${indentCss(body)}\n}` : '',
+        css: validated.length > 0 ? `${prelude} {\n${indentCss(validated)}\n}` : '',
         diagnostics,
     };
 }
@@ -1072,10 +1104,6 @@ export function resolveDeclarationStylesheetScopes(
             ? { kind: 'shared', scope: declarationScope }
             : { kind: 'private', scope: null };
     });
-}
-
-export function renderInstanceScopeUid(scopeUid: string, instanceId: string): string {
-    return `${scopeUid}-i${cssIdentifier(instanceId)}`;
 }
 
 export function validateRenderPlanGeneratedIds(plan: RenderPlan): GeneratedRenderPlanIdDiagnostic[] {
@@ -1161,12 +1189,15 @@ function projectSlotNodes(nodes: readonly RenderPlanNode[], payload: ProjectionP
 function collectProjectedSlotPayload(payload: ProjectionPayload, name: string): RenderPlanNode[] {
     const projected: RenderPlanNode[] = [];
     for (const node of payload.slots?.[name] ?? []) {
-        projected.push(payloadNodeToRenderNode(node));
+        if (node.kind === 'element' && node.tag === STYLE_TAG && node.namespace === null) {
+            continue;
+        }
+        projected.push(payloadNodeToRenderNode(node, name, true));
     }
     return projected;
 }
 
-function payloadNodeToRenderNode(node: ProjectionPayloadNode): RenderPlanNode {
+function payloadNodeToRenderNode(node: ProjectionPayloadNode, slotName?: string, projectedRoot = false): RenderPlanNode {
     if (node.kind === 'text') {
         return { kind: 'text', text: node.text };
     }
@@ -1177,9 +1208,12 @@ function payloadNodeToRenderNode(node: ProjectionPayloadNode): RenderPlanNode {
         kind: 'element',
         namespace: node.namespace,
         tag: node.tag,
-        attributes: Object.entries(node.attributes).map(([name, value]) => ({ name, value })),
+        attributes: Object.entries({
+            ...node.attributes,
+            ...(projectedRoot ? { slot: slotName ?? '' } : {}),
+        }).map(([name, value]) => ({ name, value })),
         renderNodeId: `payload-${node.key}`,
-        children: node.children.map(payloadNodeToRenderNode),
+        children: node.children.map((child) => payloadNodeToRenderNode(child)),
     };
 }
 
@@ -1187,15 +1221,75 @@ function coerceProjectionPayload(payload: unknown): ProjectionPayload | null {
     if (!payload || typeof payload !== 'object') {
         return null;
     }
-    const slots = (payload as ProjectionPayload).slots;
-    return slots && typeof slots === 'object' ? { slots } : null;
+    const { nodes, slots } = payload as ProjectionPayload;
+    if ((!nodes || !Array.isArray(nodes)) && (!slots || typeof slots !== 'object')) {
+        return null;
+    }
+    return {
+        ...(Array.isArray(nodes) ? { nodes } : {}),
+        ...(slots && typeof slots === 'object' ? { slots } : {}),
+    };
+}
+
+function collectPayloadStyles(payload: unknown): RenderPlanNode[] {
+    const projection = coerceProjectionPayload(payload);
+    if (!projection?.nodes) {
+        return [];
+    }
+    const styles: RenderPlanNode[] = [];
+    const visit = (nodes: readonly ProjectionPayloadNode[]): void => {
+        for (const node of nodes) {
+            if (node.kind !== 'element') {
+                continue;
+            }
+            if (node.tag === STYLE_TAG && node.namespace === null) {
+                styles.push({
+                    kind: 'element',
+                    namespace: null,
+                    tag: STYLE_TAG,
+                    attributes: [],
+                    renderNodeId: `${PAYLOAD_STYLESHEET_RENDER_NODE_ID_PREFIX}${node.key}`,
+                    children: node.children.flatMap((child): RenderPlanNode[] => {
+                        if (child.kind === 'text') {
+                            return [{ kind: 'text', text: child.text }];
+                        }
+                        if (child.kind === 'comment') {
+                            return [{ kind: 'comment', text: child.text }];
+                        }
+                        return [];
+                    }),
+                });
+                continue;
+            }
+            visit(node.children);
+        }
+    };
+    visit(projection.nodes);
+    return styles;
+}
+
+function stripPayloadStyleNodes(nodes: readonly RenderPlanNode[]): RenderPlanNode[] {
+    const stripped: RenderPlanNode[] = [];
+    for (const node of nodes) {
+        if (node.kind !== 'element') {
+            stripped.push(node);
+            continue;
+        }
+        if (node.tag === STYLE_TAG && node.namespace === null && isPayloadRenderNode(node)) {
+            continue;
+        }
+        stripped.push({
+            ...node,
+            children: stripPayloadStyleNodes(node.children),
+        });
+    }
+    return stripped;
 }
 
 function scopeRenderNodes(
     nodes: readonly RenderPlanNode[],
     producedTag: string,
     scopeUid: string,
-    instanceScopeUid: string,
     diagnostics: ScopedCssRewriteDiagnostic[],
     stampScope: boolean,
 ): RenderPlanNode[] {
@@ -1208,11 +1302,8 @@ function scopeRenderNodes(
             const payload = isPayloadRenderNode(node);
             const rewritten = scopeStyleNode(
                 node,
-                payload ? instanceScopeUid : scopeUid,
-                payload ? DATA_CEM_INSTANCE_SCOPE_ATTR : DATA_CEM_RENDER_SCOPE_ATTR,
-                payload
-                    ? `${producedTag}[${DATA_CEM_INSTANCE_SCOPE_ATTR}="${cssString(instanceScopeUid)}"]`
-                    : `:where(${producedTag})`,
+                payload ? `${scopeUid}-${node.renderNodeId}` : scopeUid,
+                payload ? { instance: true } : { scopeRootSelector: producedTag },
             );
             diagnostics.push(...rewritten.diagnostics);
             return {
@@ -1233,7 +1324,7 @@ function scopeRenderNodes(
             attributes: stampScope
                 ? withRenderPlanAttribute(node.attributes, DATA_CEM_RENDER_SCOPE_ATTR, scopeUid)
                 : node.attributes,
-            children: scopeRenderNodes(node.children, producedTag, scopeUid, instanceScopeUid, diagnostics, false),
+            children: scopeRenderNodes(node.children, producedTag, scopeUid, diagnostics, false),
         };
     });
 }
@@ -1241,8 +1332,7 @@ function scopeRenderNodes(
 function scopeStyleNode(
     node: Extract<RenderPlanNode, { kind: 'element' }>,
     scopeUid: string,
-    scopeAttribute: string,
-    boundarySelector: string,
+    options: ScopeCssTextOptions,
 ): ScopedCssRewriteResult {
     const css = node.children
         .map((child) => {
@@ -1252,11 +1342,14 @@ function scopeStyleNode(
             return child.kind === 'comment' ? `/*${child.text}*/` : '';
         })
         .join('');
-    return scopeCssText(css, scopeUid, { scopeAttribute, boundarySelector });
+    return scopeCssText(css, scopeUid, options);
 }
 
 function isPayloadRenderNode(node: RenderPlanNode): boolean {
-    return node.kind === 'element' && node.renderNodeId.startsWith(PAYLOAD_RENDER_NODE_ID_PREFIX);
+    return node.kind === 'element' && (
+        node.renderNodeId.startsWith(PAYLOAD_RENDER_NODE_ID_PREFIX)
+        || node.renderNodeId.startsWith(PAYLOAD_STYLESHEET_RENDER_NODE_ID_PREFIX)
+    );
 }
 
 function firstTextSourceMapRef(nodes: readonly RenderPlanNode[]): SourceMapRef | undefined {
@@ -1282,6 +1375,334 @@ function withRenderPlanAttribute(
         return { name, value };
     });
     return replaced ? next : [...next, { name, value }];
+}
+
+type CssSpecificity = readonly [ids: number, classes: number, types: number];
+
+function rewriteManagedRuleList(
+    css: string,
+    instance: boolean,
+    diagnostics: ScopedCssRewriteDiagnostic[],
+): string {
+    let output = '';
+    let cursor = 0;
+    while (cursor < css.length) {
+        const delimiter = nextCssRuleDelimiter(css, cursor);
+        if (!delimiter) {
+            output += css.slice(cursor);
+            break;
+        }
+        if (delimiter.char === ';') {
+            output += css.slice(cursor, delimiter.index + 1);
+            cursor = delimiter.index + 1;
+            continue;
+        }
+
+        const blockEnd = matchingBraceIndex(css, delimiter.index);
+        if (blockEnd < 0) {
+            output += css.slice(cursor);
+            break;
+        }
+        const rawPrelude = css.slice(cursor, delimiter.index);
+        const leading = rawPrelude.match(/^(?:(?:\s+)|(?:\/\*[\s\S]*?\*\/))*/)?.[0] ?? '';
+        const prelude = rawPrelude.slice(leading.length).trim();
+        const body = css.slice(delimiter.index + 1, blockEnd);
+        if (prelude.startsWith('@')) {
+            const atRule = /^@(-webkit-)?([\w-]+)/i.exec(prelude)?.[2]?.toLowerCase() ?? '';
+            const grouping = new Set(['media', 'supports', 'container', 'document', 'starting-style']);
+            const rewrittenBody = grouping.has(atRule)
+                ? rewriteManagedRuleList(body, instance, diagnostics)
+                : body;
+            output += `${leading}${prelude} {${rewrittenBody}}`;
+            cursor = blockEnd + 1;
+            continue;
+        }
+
+        const selectors = splitCssSelectorList(prelude)
+            .map((selector) => selector.trim())
+            .filter((selector) => selector.length > 0)
+            .filter((selector) => managedSelectorAllowed(selector, instance, diagnostics))
+            .map((selector) => prefixInstanceSelector(selector, instance));
+        if (selectors.length > 0) {
+            output += `${leading}${selectors.join(', ')} {${stripImportantDeclarations(body, diagnostics)}}`;
+        } else {
+            output += leading;
+        }
+        cursor = blockEnd + 1;
+    }
+    return output;
+}
+
+function nextCssRuleDelimiter(css: string, start: number): { index: number; char: '{' | ';' } | null {
+    let quote: string | null = null;
+    let comment = false;
+    let parentheses = 0;
+    let brackets = 0;
+    for (let index = start; index < css.length; index += 1) {
+        const char = css[index];
+        const next = css[index + 1];
+        if (comment) {
+            if (char === '*' && next === '/') {
+                comment = false;
+                index += 1;
+            }
+            continue;
+        }
+        if (quote) {
+            if (char === '\\') {
+                index += 1;
+            } else if (char === quote) {
+                quote = null;
+            }
+            continue;
+        }
+        if (char === '/' && next === '*') {
+            comment = true;
+            index += 1;
+            continue;
+        }
+        if (char === '"' || char === "'") {
+            quote = char;
+            continue;
+        }
+        if (char === '(') parentheses += 1;
+        else if (char === ')') parentheses = Math.max(0, parentheses - 1);
+        else if (char === '[') brackets += 1;
+        else if (char === ']') brackets = Math.max(0, brackets - 1);
+        else if (parentheses === 0 && brackets === 0 && (char === '{' || char === ';')) {
+            return { index, char };
+        }
+    }
+    return null;
+}
+
+function splitCssSelectorList(selectorList: string): string[] {
+    const selectors: string[] = [];
+    let start = 0;
+    let quote: string | null = null;
+    let parentheses = 0;
+    let brackets = 0;
+    for (let index = 0; index < selectorList.length; index += 1) {
+        const char = selectorList[index];
+        if (quote) {
+            if (char === '\\') index += 1;
+            else if (char === quote) quote = null;
+            continue;
+        }
+        if (char === '"' || char === "'") {
+            quote = char;
+        } else if (char === '(') {
+            parentheses += 1;
+        } else if (char === ')') {
+            parentheses = Math.max(0, parentheses - 1);
+        } else if (char === '[') {
+            brackets += 1;
+        } else if (char === ']') {
+            brackets = Math.max(0, brackets - 1);
+        } else if (char === ',' && parentheses === 0 && brackets === 0) {
+            selectors.push(selectorList.slice(start, index));
+            start = index + 1;
+        }
+    }
+    selectors.push(selectorList.slice(start));
+    return selectors;
+}
+
+function managedSelectorAllowed(
+    selector: string,
+    instance: boolean,
+    diagnostics: ScopedCssRewriteDiagnostic[],
+): boolean {
+    if (selectorContainsId(selector)) {
+        diagnostics.push({
+            code: 'cem.scoped_css.id_selector_unsupported',
+            severity: 'warning',
+            message: `scoped library CSS suppresses ID selector \`${selector}\``,
+        });
+        return false;
+    }
+    if (selectorManufacturesSpecificity(selector)) {
+        diagnostics.push({
+            code: 'cem.scoped_css.manufactured_specificity_unsupported',
+            severity: 'warning',
+            message: `scoped library CSS suppresses repeated specificity token in \`${selector}\``,
+        });
+        return false;
+    }
+    const specificity = selectorSpecificity(selector);
+    if (!instance && compareSpecificity(specificity, [0, 2, 1]) > 0) {
+        diagnostics.push({
+            code: 'cem.scoped_css.specificity_unsupported',
+            severity: 'warning',
+            message: `scoped library selector \`${selector}\` exceeds the 0-2-1 specificity ceiling`,
+        });
+        return false;
+    }
+    return true;
+}
+
+function prefixInstanceSelector(selector: string, instance: boolean): string {
+    if (!instance || /^:scope(?![-_A-Za-z0-9])/.test(selector)) {
+        return selector;
+    }
+    return `:scope ${selector}`;
+}
+
+function stripImportantDeclarations(
+    body: string,
+    diagnostics: ScopedCssRewriteDiagnostic[],
+): string {
+    let found = false;
+    const rewritten = body.replace(
+        /(^|;)\s*[-_A-Za-z][-_A-Za-z0-9]*\s*:[^;{}]*!\s*important\s*;?/gi,
+        (_declaration, separator: string) => {
+            found = true;
+            return separator;
+        },
+    );
+    if (found) {
+        diagnostics.push({
+            code: 'cem.scoped_css.important_unsupported',
+            severity: 'warning',
+            message: 'scoped library CSS suppresses declarations that use !important',
+        });
+    }
+    return rewritten;
+}
+
+function selectorContainsId(selector: string): boolean {
+    let quote: string | null = null;
+    let bracketDepth = 0;
+    for (let index = 0; index < selector.length; index += 1) {
+        const char = selector[index];
+        if (quote) {
+            if (char === '\\') index += 1;
+            else if (char === quote) quote = null;
+            continue;
+        }
+        if (char === '"' || char === "'") quote = char;
+        else if (char === '[') bracketDepth += 1;
+        else if (char === ']') bracketDepth = Math.max(0, bracketDepth - 1);
+        else if (char === '#' && bracketDepth === 0 && /[-_A-Za-z]/.test(selector[index + 1] ?? '')) return true;
+    }
+    return false;
+}
+
+function selectorManufacturesSpecificity(selector: string): boolean {
+    const compounds = selector.split(/\s+|[>+~]/);
+    for (const compound of compounds) {
+        const tokens = compound.match(/\.[-_A-Za-z][-_A-Za-z0-9]*|\[[^\]]+\]/g) ?? [];
+        if (new Set(tokens).size !== tokens.length) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function selectorSpecificity(selector: string): CssSpecificity {
+    let ids = 0;
+    let classes = 0;
+    let types = 0;
+    let expectsType = true;
+    for (let index = 0; index < selector.length; index += 1) {
+        const char = selector[index];
+        if (/\s|[>+~]/.test(char)) {
+            expectsType = true;
+            continue;
+        }
+        if (char === '*') {
+            expectsType = false;
+            continue;
+        }
+        if (char === '#') {
+            ids += 1;
+            index = consumeCssIdentifier(selector, index + 1) - 1;
+            expectsType = false;
+            continue;
+        }
+        if (char === '.') {
+            classes += 1;
+            index = consumeCssIdentifier(selector, index + 1) - 1;
+            expectsType = false;
+            continue;
+        }
+        if (char === '[') {
+            classes += 1;
+            index = matchingDelimiterIndex(selector, index, '[', ']');
+            expectsType = false;
+            continue;
+        }
+        if (char === ':') {
+            const pseudoElement = selector[index + 1] === ':';
+            const nameStart = index + (pseudoElement ? 2 : 1);
+            const nameEnd = consumeCssIdentifier(selector, nameStart);
+            const name = selector.slice(nameStart, nameEnd).toLowerCase();
+            const functionStart = selector[nameEnd] === '(' ? nameEnd : -1;
+            if (pseudoElement) {
+                types += 1;
+            } else if (name !== 'where' && !['is', 'not', 'has'].includes(name)) {
+                classes += 1;
+            }
+            if (functionStart >= 0) {
+                const functionEnd = matchingDelimiterIndex(selector, functionStart, '(', ')');
+                if (name !== 'where' && ['is', 'not', 'has'].includes(name)) {
+                    const nested = maxSelectorListSpecificity(selector.slice(functionStart + 1, functionEnd));
+                    ids += nested[0];
+                    classes += nested[1];
+                    types += nested[2];
+                }
+                index = functionEnd;
+            } else {
+                index = nameEnd - 1;
+            }
+            expectsType = false;
+            continue;
+        }
+        if (expectsType && /[-_A-Za-z]/.test(char)) {
+            types += 1;
+            index = consumeCssIdentifier(selector, index) - 1;
+            expectsType = false;
+            continue;
+        }
+        expectsType = false;
+    }
+    return [ids, classes, types];
+}
+
+function maxSelectorListSpecificity(selectorList: string): CssSpecificity {
+    return splitCssSelectorList(selectorList)
+        .map(selectorSpecificity)
+        .reduce<CssSpecificity>((maximum, current) => compareSpecificity(current, maximum) > 0 ? current : maximum, [0, 0, 0]);
+}
+
+function compareSpecificity(left: CssSpecificity, right: CssSpecificity): number {
+    return left[0] - right[0] || left[1] - right[1] || left[2] - right[2];
+}
+
+function consumeCssIdentifier(value: string, start: number): number {
+    let index = start;
+    while (index < value.length && /[-_A-Za-z0-9]/.test(value[index])) index += 1;
+    return index;
+}
+
+function matchingDelimiterIndex(value: string, openIndex: number, open: string, close: string): number {
+    let depth = 0;
+    let quote: string | null = null;
+    for (let index = openIndex; index < value.length; index += 1) {
+        const char = value[index];
+        if (quote) {
+            if (char === '\\') index += 1;
+            else if (char === quote) quote = null;
+            continue;
+        }
+        if (char === '"' || char === "'") quote = char;
+        else if (char === open) depth += 1;
+        else if (char === close) {
+            depth -= 1;
+            if (depth === 0) return index;
+        }
+    }
+    return value.length - 1;
 }
 
 function rewriteAnimationReferences(css: string, renames: ReadonlyMap<string, string>): string {
@@ -1337,8 +1758,32 @@ function stripUnsupportedAtRule(css: string, atRule: string): string {
 
 function matchingBraceIndex(css: string, openIndex: number): number {
     let depth = 0;
+    let quote: string | null = null;
+    let comment = false;
     for (let index = openIndex; index < css.length; index += 1) {
         const char = css[index];
+        const next = css[index + 1];
+        if (comment) {
+            if (char === '*' && next === '/') {
+                comment = false;
+                index += 1;
+            }
+            continue;
+        }
+        if (quote) {
+            if (char === '\\') index += 1;
+            else if (char === quote) quote = null;
+            continue;
+        }
+        if (char === '/' && next === '*') {
+            comment = true;
+            index += 1;
+            continue;
+        }
+        if (char === '"' || char === "'") {
+            quote = char;
+            continue;
+        }
         if (char === '{') {
             depth += 1;
         } else if (char === '}') {
@@ -1364,10 +1809,6 @@ function cssIdentifier(value: string): string {
         .replace(/[^-_a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
     return sanitized.length > 0 ? sanitized : 'scope';
-}
-
-function cssString(value: string): string {
-    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 function escapeRegExp(value: string): string {
@@ -1533,9 +1974,10 @@ export function applyPatchFramesToRange(
                 renderedAttributeValues.set(element, attributes);
             } else if (operation.op === 'reconcileChildren') {
                 const element = target as Element;
+                const childContainer = renderPlanElementChildContainer(element);
                 const children = operation.children.map(({ node }) => deserializePatchNode(node));
                 const plan: RenderPlan = { ...parsed.commit.nextRenderPlan, nodes: children };
-                mergeRenderPlanChildNodes(element, element.firstChild as ChildNode | null, null, children, {
+                mergeRenderPlanChildNodes(childContainer, childContainer.firstChild as ChildNode | null, null, children, {
                     plan,
                     document,
                     options,
@@ -1707,7 +2149,8 @@ function updateNodeRenderMetadata(node: Node, identity: RenderPlanIdentity, opti
     if (preserveChildren) {
         return;
     }
-    for (let child = node.firstChild; child; child = child.nextSibling) {
+    const childContainer = node.nodeType === 1 ? renderPlanElementChildContainer(node as Element) : node;
+    for (let child = childContainer.firstChild; child; child = child.nextSibling) {
         updateNodeRenderMetadata(child, identity, options);
     }
 }
@@ -1742,8 +2185,9 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         element.setAttribute(SOURCE_FIDELITY_ATTR, node.sourceMapRef.fidelity);
         element.setAttribute(SOURCE_FRAME_ATTR, node.sourceMapRef.frame);
     }
+    const childContainer = renderPlanElementChildContainer(element);
     for (const child of node.children) {
-        element.appendChild(materializeNode(child, plan, document));
+        childContainer.appendChild(materializeNode(child, plan, document));
     }
     return element;
 }
@@ -1981,7 +2425,14 @@ function mergeRenderPlanNode(
     if (desiredElement && preserveElementChildren?.(element, desiredElement)) {
         return;
     }
-    mergeRenderPlanChildNodes(element, element.firstChild as ChildNode | null, null, desired.children, context);
+    const childContainer = renderPlanElementChildContainer(element);
+    mergeRenderPlanChildNodes(
+        childContainer,
+        childContainer.firstChild as ChildNode | null,
+        null,
+        desired.children,
+        context,
+    );
 }
 
 function mergeDynamicRange(
@@ -2021,9 +2472,10 @@ function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApply
     }
 
     const element = createRenderPlanElement(node, context.plan, context.document);
+    const childContainer = renderPlanElementChildContainer(element);
     for (const child of node.children) {
         for (const childNode of createRenderPlanDomNodes(child, context)) {
-            element.appendChild(childNode);
+            childContainer.appendChild(childNode);
         }
     }
     return [element];
@@ -2050,6 +2502,12 @@ function createRenderPlanElement(
     );
     mirrorRenderIdentity(element, node.renderNodeId);
     return element;
+}
+
+function renderPlanElementChildContainer(element: Element): Node {
+    return element.localName === 'template' && 'content' in element
+        ? (element as HTMLTemplateElement).content
+        : element;
 }
 
 function renderPlanElementAttributes(
