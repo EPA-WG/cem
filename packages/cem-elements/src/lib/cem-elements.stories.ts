@@ -556,6 +556,75 @@ export const FormattedDomTemplateProjection: Story = {
     },
 };
 
+export const NestedDomTemplateContentProjection: Story = {
+    render: () => storyPanel('Nested DOM template content', 'inert nested template content survives source projection'),
+    play: () => {
+        const declaration = document.createElement('template');
+        declaration.innerHTML = `
+            <html-demo-element legend="projection fixture">
+                <template><strong class="nested-content">Nested demo content</strong></template>
+            </html-demo-element>
+        `;
+
+        const source = readTemplateSource(declaration.content);
+        const demo = source.find((node) => node.kind === 'element' && node.tag === 'html-demo-element');
+        assert(demo?.kind === 'element', 'the outer demo element survives DOM source projection');
+        const nestedTemplate = demo.children.find((node) => node.kind === 'element' && node.tag === 'template');
+        assert(nestedTemplate?.kind === 'element', 'the nested template survives DOM source projection');
+        const nestedContent = nestedTemplate.children.find(
+            (node) => node.kind === 'element' && node.tag === 'strong'
+        );
+        assert(nestedContent?.kind === 'element', 'nested template content is serialized from template.content');
+        assertEqual(
+            nestedContent.children[0]?.kind === 'text' ? nestedContent.children[0].text : '',
+            'Nested demo content',
+            'nested template text remains available to a source-loaded demo expander'
+        );
+    },
+};
+
+export const NestedTemplateStyleRemainsInert: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'nested template style ownership story');
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-nested-style' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-nested-style');
+        declaration.setAttribute('tag', 'story-nested-style-owner');
+        const template = document.createElement('template');
+        template.innerHTML = `
+            <section>
+                <template data-literal>
+                    <style>.literal-style { color: green; }</style>
+                    <strong class="literal-style">Literal content</strong>
+                </template>
+            </section>
+        `;
+        declaration.appendChild(template);
+        root.append(declaration, document.createElement('story-nested-style-owner'));
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[aria-label="nested template style ownership story"]');
+        const instance = requiredElement(root, 'story-nested-style-owner');
+        const nested = (await waitForElement(instance, 'template[data-literal]')) as HTMLTemplateElement;
+        const nestedStyle = nested.content.querySelector('style');
+        assert(nestedStyle, 'a style inside a nested template remains inert template content');
+        assertEqual(
+            nestedStyle.textContent?.trim(),
+            '.literal-style { color: green; }',
+            'an inert nested style is not rewritten as component-owned CSS'
+        );
+        const declaration = requiredElement(root, 'cem-element-story-nested-style');
+        assertEqual(
+            declaration.querySelectorAll(':scope > style[data-cem-declaration-style]').length,
+            0,
+            'nested template styles are not extracted as declaration-owned styles'
+        );
+    },
+};
+
 export const RenderLoopNestedAndDynamic: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -2014,6 +2083,99 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
             subtree.textContent?.trim(),
             'Subtree fragment',
             'an external src fragment can render a non-template subtree'
+        );
+    },
+};
+
+export const NestedExternalSrcUsesLoadedDocumentBase: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            sourceLoads?: string[];
+            sourceRuntime?: CemElementRuntime;
+        };
+        root.setAttribute('aria-label', 'nested external src resource base story');
+        const sourceLoads: string[] = [];
+        root.sourceLoads = sourceLoads;
+
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-nested-source',
+            loadSrcDocument: async (path) => {
+                sourceLoads.push(path);
+                if (path === './source-page.html') {
+                    return {
+                        resolvedUrl: 'https://fixtures.example.test/demo/source-page.html',
+                        resolverIdentity: 'nested-source-story-v1',
+                        body: utf8Body(`
+                            <!doctype html><html><body>
+                                <cem-element-story-nested-source
+                                    tag="story-nested-source-child"
+                                    src="./child.html#child-template">
+                                </cem-element-story-nested-source>
+                                <story-nested-source-child></story-nested-source-child>
+                                <cem-element-story-nested-source tag="story-nested-inline-resource">
+                                    <template type="text/cem-ml">
+                                        {module-url @slice=asset @src="./asset.svg"}
+                                        {a @class=nested-inline-resource @href="{$asset}" | Inline resource}
+                                    </template>
+                                </cem-element-story-nested-source>
+                                <story-nested-inline-resource></story-nested-inline-resource>
+                            </body></html>
+                        `),
+                    };
+                }
+                if (path === 'https://fixtures.example.test/demo/child.html') {
+                    return '<template id="child-template" type="text/cem-ml">{strong @class=nested-source-result | Nested source}</template>';
+                }
+                throw new Error(`unexpected nested source path ${path}`);
+            },
+        });
+        root.sourceRuntime = runtime;
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-nested-source');
+        declaration.setAttribute('tag', 'story-nested-source-page');
+        declaration.setAttribute('src', './source-page.html');
+        root.appendChild(declaration);
+        root.appendChild(document.createElement('story-nested-source-page'));
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const root = requiredElement(
+            canvasElement,
+            '[aria-label="nested external src resource base story"]'
+        ) as HTMLElement & { sourceLoads?: string[]; sourceRuntime?: CemElementRuntime };
+        const nestedDeclaration = (await waitForElement(
+            root,
+            'cem-element-story-nested-source[tag="story-nested-source-child"]'
+        )) as HTMLElement;
+        await nextFrame();
+        await root.sourceRuntime?.whenDeclarationSettled(nestedDeclaration);
+        assert(
+            window.customElements.get('story-nested-source-child'),
+            `nested declaration registers after loading ${root.sourceLoads?.join(', ') ?? 'no source paths'}`
+        );
+        const nestedInstance = requiredElement(root, 'story-nested-source-child') as HTMLElement;
+        await root.sourceRuntime?.whenRenderSettled(nestedInstance);
+        const result = nestedInstance.querySelector('.nested-source-result');
+        assert(
+            result,
+            [
+                `nested source output is missing after loading ${root.sourceLoads?.join(', ') ?? 'no source paths'}`,
+                `declaration diagnostics: ${JSON.stringify(root.sourceRuntime?.diagnosticsFor(nestedDeclaration) ?? [])}`,
+                `instance diagnostics: ${JSON.stringify(root.sourceRuntime?.diagnosticsFor(nestedInstance) ?? [])}`,
+                `instance HTML: ${nestedInstance.innerHTML}`,
+            ].join('\n')
+        );
+        assertEqual(result.textContent, 'Nested source', 'the nested relative declaration renders');
+        const inlineResource = await waitForElement(root, 'story-nested-inline-resource .nested-inline-resource');
+        assertEqual(
+            inlineResource.getAttribute('href'),
+            'https://fixtures.example.test/demo/asset.svg',
+            'an inline declaration nested in the loaded document inherits its resource base'
+        );
+        assert(
+            root.sourceLoads?.includes('https://fixtures.example.test/demo/child.html') ?? false,
+            'nested declaration src resolves against the loaded parent document URL'
         );
     },
 };

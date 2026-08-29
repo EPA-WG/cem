@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,11 +32,30 @@ const fixtureSpecs = [
         checks: [
             text('dce-link a', 'link'),
             text('dce-1-slot', '\u{1f955}'),
-            normalizedText('dce-3-slot', '#1 \u{1f955} and \u{1f955}'),
-            normalizedText('dce-4-slot', '#2 \u{1f955} and \u{1f955}'),
+            attributeEquals(
+                'html-demo-element[legend^="2a."] dce-2-slots:first-of-type input',
+                'placeholder',
+                '\u{1f407}\u{2764}\u{fe0f}\u{1f955}',
+            ),
+            attributeEquals(
+                'html-demo-element[legend^="2a."] dce-2-slots:last-of-type input',
+                'placeholder',
+                '\u{1f407}\u{2764}\u{fe0f}\u{1f407}',
+            ),
+            normalizedText('html-demo-element[legend^="2b."] dce-3-slot:first-of-type', '1 \u{1f603} 2 \u{1f603}'),
+            normalizedText('html-demo-element[legend^="2c."] dce-4-slot', '1 \u{1f955} 2 \u{1f955}'),
             text('pokemon-tile h3', 'bulbasaur'),
             text('pokemon-tile', 'Smile as:'),
-            attributeContains('pokemon-tile img[alt="bulbasaur image"]', 'src', '/1.svg'),
+            attributeEquals(
+                'pokemon-tile img[alt="bulbasaur image"]',
+                'src',
+                'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg',
+            ),
+            attributeEquals(
+                'pokemon-tile button img[alt="ivysaur"]',
+                'src',
+                'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/2.svg',
+            ),
             countAtLeast('pokemon-tile button', 3),
             text('pokemon-tile button', 'ivysaur'),
             text('pokemon-tile button', 'venusaur'),
@@ -257,29 +276,34 @@ const fixtureSpecs = [
             // Private declaration CSS: one managed style, native tag scope,
             // no style cloned into either instance, the classless outside button
             // keeps browser/global styling, and ordinary outer cascade remains open.
-            countExactly('cem-css-private button[data-css-sample="private"]', 2),
-            text('cem-css-private button', 'DCE dashed border'),
-            text('button[data-case="private-outside"]', 'Browser default border'),
-            computedStyle('cem-css-private button', 'borderTopStyle', 'dashed'),
-            computedStyle('cem-css-private button', 'borderTopColor', 'rgb(0, 128, 0)'),
-            computedStyle('cem-css-private button', 'color', 'rgb(128, 0, 128)'),
-            computedStyleNot('button[data-case="private-outside"]', 'borderTopStyle', 'dashed'),
-            computedStyleNot('button[data-case="private-outside"]', 'borderTopColor', 'rgb(0, 128, 0)'),
+            countExactly('cem-css-private button', 2),
+            text('cem-css-private button', 'First DCE dashed border'),
+            text('cem-css-private button', 'Second DCE dashed border'),
+            text('button', 'Browser default border'),
+            computedStyleByText('button', 'First DCE dashed border', 'borderTopStyle', 'dashed'),
+            computedStyleByText('button', 'First DCE dashed border', 'borderTopColor', 'rgb(0, 128, 0)'),
+            computedStyleByText('button', 'First DCE dashed border', 'color', 'rgb(148, 0, 211)'),
+            computedStyleByText('button', 'Second DCE dashed border', 'borderTopStyle', 'dashed'),
+            computedStyleByText('button', 'Second DCE dashed border', 'borderTopColor', 'rgb(0, 128, 0)'),
+            computedStyleByText('button', 'Second DCE dashed border', 'color', 'rgb(148, 0, 211)'),
+            computedStyleNotByText('button', 'Browser default border', 'borderTopStyle', 'dashed'),
+            computedStyleNotByText('button', 'Browser default border', 'borderTopColor', 'rgb(0, 128, 0)'),
             countExactly('cem-element[tag="cem-css-private"] > style[data-cem-declaration-style="private"]', 1),
             countExactly('cem-css-private style', 0),
             styleTextContains(
                 'cem-element[tag="cem-css-private"] > style[data-cem-declaration-style="private"]',
                 '@scope (\n    cem-css-private',
             ),
-            attributeContains('cem-css-private[data-case="private-1"]', 'data-cem-render-scope', 'cem-scope-'),
-            attributeAbsent('cem-css-private[data-case="private-1"]', 'data-cem-scope'),
-            attributeAbsent('cem-css-private[data-case="private-1"]', 'data-cem-instance-scope'),
-            attributeAbsent('cem-css-private[data-case="private-1"]', 'scope'),
+            countExactly('cem-css-private[data-cem-render-scope*="cem-scope-"]', 2),
+            countExactly(
+                'cem-css-private[data-cem-scope], cem-css-private[data-cem-instance-scope], cem-css-private[scope]',
+                0,
+            ),
 
             // Bare-only and explicit-only shared declarations both target the public
             // group boundary and apply to separately declared group peers.
-            computedStyle('[data-css-sample="shared-bare"]', 'color', 'rgb(0, 128, 0)'),
-            computedStyle('[data-css-sample="shared-peer"]', 'color', 'rgb(0, 128, 0)'),
+            computedStyle('cem-css-shared-bare .sample-shared-bare', 'color', 'rgb(0, 128, 0)'),
+            computedStyle('cem-css-shared-peer .sample-shared-bare', 'color', 'rgb(0, 128, 0)'),
             attributeEquals('cem-css-shared-bare', 'scope', 'css-samples'),
             attributeEquals('cem-css-shared-peer', 'scope', 'css-samples'),
             countExactly('cem-element[tag="cem-css-shared-bare"] > style[data-cem-declaration-style="shared"]', 1),
@@ -287,16 +311,16 @@ const fixtureSpecs = [
                 'cem-element[tag="cem-css-shared-bare"] > style[data-cem-declaration-style="shared"]',
                 '[scope="css-samples"]:has(> template[data-cem-island="instance"])',
             ),
-            computedStyle('[data-css-sample="shared-explicit"]', 'backgroundColor', 'rgb(219, 234, 254)'),
-            computedStyle('[data-css-sample="explicit-peer"]', 'backgroundColor', 'rgb(219, 234, 254)'),
+            computedStyle('cem-css-shared-explicit .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)'),
+            computedStyle('cem-css-explicit-peer .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)'),
             countExactly('cem-element[tag="cem-css-shared-explicit"] > style[data-cem-declaration-style="shared"]', 1),
 
             // Matching explicit scope separates the mixed declaration into independent
             // private and shared styles; no combined tag-or-group selector is emitted.
-            computedStyle('[data-css-sample="mixed"]', 'borderTopColor', 'rgb(37, 99, 235)'),
-            computedStyleNot('[data-css-sample="mixed-peer"]', 'borderTopColor', 'rgb(37, 99, 235)'),
-            computedStyle('[data-css-sample="mixed"]', 'color', 'rgb(124, 45, 18)'),
-            computedStyle('[data-css-sample="mixed-peer"]', 'color', 'rgb(124, 45, 18)'),
+            computedStyle('cem-css-mixed .sample-mixed', 'borderTopColor', 'rgb(0, 0, 255)'),
+            computedStyleNot('cem-css-mixed-peer .sample-mixed-shared', 'borderTopColor', 'rgb(0, 0, 255)'),
+            computedStyle('cem-css-mixed .sample-mixed-shared', 'color', 'rgb(255, 0, 0)'),
+            computedStyle('cem-css-mixed-peer .sample-mixed-shared', 'color', 'rgb(255, 0, 0)'),
             countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style]', 2),
             countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="private"]', 1),
             countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]', 1),
@@ -317,52 +341,65 @@ const fixtureSpecs = [
             // bare shared shorthand; an invalid declaration scope falls back to private.
             countExactly('cem-element[tag="cem-css-unscoped-explicit"] > style[data-cem-declaration-style]', 0),
             countExactly('cem-element[tag="cem-css-mismatch"] > style[data-cem-declaration-style]', 0),
-            computedStyleNot('[data-css-sample="unscoped-explicit"]', 'color', 'rgb(255, 0, 0)'),
-            computedStyleNot('[data-css-sample="mismatch"]', 'color', 'rgb(255, 0, 0)'),
+            computedStyleNot('cem-css-unscoped-explicit .must-not-apply', 'color', 'rgb(255, 0, 0)'),
+            computedStyleNot('cem-css-mismatch .must-not-apply', 'color', 'rgb(255, 0, 0)'),
             countExactly('cem-element[tag="cem-css-mismatch-bare"] > style[data-cem-declaration-style="shared"]', 1),
-            computedStyle('[data-css-sample="mismatch-bare"]', 'color', 'rgb(0, 128, 0)'),
+            computedStyle('cem-css-mismatch-bare .sample-valid-bare', 'color', 'rgb(0, 128, 0)'),
             countExactly(
                 'cem-element[tag="cem-css-invalid-declaration"] > style[data-cem-declaration-style="private"]',
                 1,
             ),
             attributeAbsent('cem-css-invalid-declaration', 'scope'),
-            computedStyle('[data-css-sample="invalid-declaration"]', 'color', 'rgb(0, 0, 255)'),
+            computedStyle('cem-css-invalid-declaration .sample-invalid-declaration', 'color', 'rgb(0, 0, 255)'),
 
             // An inert instance payload style becomes a managed direct child under an
             // implicit parent-rooted scope; it overrides only that instance.
-            computedStyle('cem-css-instance[data-case="instance-blue"] button', 'borderTopColor', 'rgb(0, 0, 255)'),
-            computedStyle('cem-css-instance[data-case="instance-red"] button', 'borderTopColor', 'rgb(255, 0, 0)'),
+            computedStyle('cem-css-instance[data-testid="instance-blue"] button', 'borderTopColor', 'rgb(0, 0, 255)'),
+            computedStyle('cem-css-instance[data-testid="instance-red"] button', 'borderTopColor', 'rgb(255, 0, 0)'),
             countExactly('cem-element[tag="cem-css-instance"] > style[data-cem-declaration-style="private"]', 1),
-            countExactly('cem-css-instance[data-case="instance-red"] style[data-cem-render-node-id^="payload-"]', 1),
-            countExactly('cem-css-instance[data-case="instance-blue"] style[data-cem-render-node-id^="payload-"]', 0),
+            countExactly('cem-css-instance[data-testid="instance-red"] style[data-cem-render-node-id^="payload-"]', 1),
+            countExactly('cem-css-instance[data-testid="instance-blue"] style[data-cem-render-node-id^="payload-"]', 0),
             styleTextContains(
-                'cem-css-instance[data-case="instance-red"] style[data-cem-render-node-id^="payload-"]',
+                'cem-css-instance[data-testid="instance-red"] style[data-cem-render-node-id^="payload-"]',
                 '@scope to (',
             ),
             styleTextNotContains(
-                'cem-css-instance[data-case="instance-red"] style[data-cem-render-node-id^="payload-"]',
+                'cem-css-instance[data-testid="instance-red"] style[data-cem-render-node-id^="payload-"]',
                 'data-cem-render-scope',
             ),
-            attributeAbsent('cem-css-instance[data-case="instance-red"]', 'data-cem-instance-scope'),
+            attributeAbsent('cem-css-instance[data-testid="instance-red"]', 'data-cem-instance-scope'),
 
             // Dynamic declaration styles are rejected, while fragment and anonymous
             // declarations scope static CSS to their effective produced tags.
             countExactly('cem-element[tag="cem-css-dynamic"] > style[data-cem-declaration-style]', 0),
             countExactly('cem-css-dynamic style', 0),
-            computedStyleNot('[data-css-sample="dynamic"]', 'color', 'rgb(255, 0, 0)'),
-            computedStyle('[data-css-sample="fragment"]', 'backgroundColor', 'rgb(254, 243, 199)'),
+            computedStyleNot('cem-css-dynamic .must-not-apply', 'color', 'rgb(255, 0, 0)'),
+            computedStyle('cem-css-fragment .sample-fragment', 'backgroundColor', 'rgb(254, 243, 199)'),
             countExactly('cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]', 1),
             styleTextContains(
                 'cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]',
                 '@scope (\n    cem-css-fragment',
             ),
-            text('[data-cem-anonymous-instance] [data-css-sample="anonymous"]', 'anonymous'),
-            computedStyle('[data-cem-anonymous-instance] [data-css-sample="anonymous"]', 'color', 'rgb(128, 0, 128)'),
+            text('.sample-anonymous', 'anonymous'),
+            computedStyle('.sample-anonymous', 'color', 'rgb(238, 130, 238)'),
             countExactly(
-                'cem-element[data-case="anonymous-declaration"] > style[data-cem-declaration-style="private"]',
+                'cem-element[data-testid="anonymous-declaration"] > style[data-cem-declaration-style="private"]',
                 1,
             ),
-            attributeContains('cem-element[data-case="anonymous-declaration"]', 'tag', 'cem-'),
+            attributeContains('cem-element[data-testid="anonymous-declaration"]', 'tag', 'cem-'),
+
+            // uid-seed is absent from ordinary scope samples. The focused keyframe
+            // sample proves its internal identity purpose by matching the host render
+            // identity to both the rewritten declaration and computed animation name.
+            countExactly('cem-element[uid-seed]', 2),
+            attributeEquals('cem-element[tag="cem-css-keyframes"]', 'uid-seed', 'demo/css/keyframes'),
+            keyframeIdentity(
+                'cem-element[tag="cem-css-keyframes"] > style[data-cem-declaration-style="private"]',
+                'cem-css-keyframes[data-testid="keyframes"]',
+                '[part~="indicator"]',
+                'seeded-pulse',
+                'udemoz2fcssz2fkeyframes',
+            ),
         ],
     },
     {
@@ -384,12 +421,248 @@ const fixtureSpecs = [
     },
 ];
 
+const sourceDocumentSpecs = [
+    {
+        path: '/packages/cem-elements/index.html',
+        samples: [
+            sampleContract('1. simple payload', [text('dce-link a', 'link')]),
+            sampleContract('2. payload with slot definition and slot value', [text('dce-1-slot', '🐇❤️'), text('dce-1-slot', '🥕')]),
+            sampleContract('2a. payload with slot definition and slot value', [
+                countExactly('dce-2-slots', 2),
+                attributeEquals('dce-2-slots:first-of-type input', 'placeholder', '🐇❤️🥕'),
+                attributeEquals('dce-2-slots:last-of-type input', 'placeholder', '🐇❤️🐇'),
+            ]),
+            sampleContract('2b. named default slot', [
+                normalizedText('dce-3-slot:nth-of-type(1)', '1 😃 2 😃'),
+                normalizedText('dce-3-slot:nth-of-type(2)', '1 🥕 2 🥕'),
+                normalizedText('dce-3-slot:nth-of-type(3)', '1 ✌️ 2 ✌️'),
+            ]),
+            sampleContract('2c. named default slot', [normalizedText('dce-4-slot', '1 🥕 2 🥕')]),
+            sampleContract('2d. default slot', [
+                normalizedText('greet-element:first-of-type', 'Hello World!'),
+                normalizedText('greet-element:last-of-type', '👋 World!'),
+            ]),
+            sampleContract('3. 💪 DCE template', [
+                text('pokemon-tile[title="bulbasaur"] h3', 'bulbasaur'),
+                text('pokemon-tile[title="bulbasaur"]', 'Smile as: 👼'),
+                attributeEquals(
+                    'pokemon-tile img[alt="bulbasaur image"]',
+                    'src',
+                    'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg',
+                ),
+                attributeEquals(
+                    'pokemon-tile button img[alt="ivysaur"]',
+                    'src',
+                    'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/2.svg',
+                ),
+                text('pokemon-tile button', 'venusaur'),
+                text('pokemon-tile button', 'vulpix'),
+            ]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/attributes.html',
+        samples: [
+            sampleContract('attributes definition', [
+                text('#defaults-1 article.demo-card', 'p1: default_P1'),
+                text('#defaults-2 article.demo-card', 'p1: 123'),
+                text('#defaults-2 article.demo-card', 'p3: qwe'),
+            ]),
+            sampleContract('V attribute matches input value', [
+                text('#live-attr h2', 'Before'),
+                clickThenText('button[data-attr="label"]', '#live-attr h2', 'After'),
+                clickThenText('button[data-attr="tone"]', '#live-attr article.demo-card', 'tone: alert'),
+            ]),
+            sampleContract('attribute defaults, from container, and from slice', [
+                text('cem-attr-slice:first-of-type article.demo-card', 'effective value: def'),
+                text('cem-attr-slice:last-of-type article.demo-card', 'effective value: From Container'),
+                fillThenText('cem-attr-slice:first-of-type input', 'From Slice', 'cem-attr-slice:first-of-type article.demo-card', 'effective value: From Slice'),
+            ]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/data-slices.html',
+        samples: [
+            sampleContract('A. slice initialization, change on event', [
+                text('cem-slice-field section.demo-card', 'query:'),
+                fillThenText('cem-slice-field input[type="text"]', 'demo query', 'cem-slice-field output', 'demo query'),
+                clickThenText('cem-slice-field button[data-dispatch-select]', 'cem-slice-field output', 'cem-select'),
+                clickThenText('cem-slice-field button[data-role="increment"]', 'cem-slice-field output[data-role="count"]', '1'),
+            ]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/dom-merge.html',
+        samples: [
+            sampleContract('1. Word count in textarea', [
+                text('cem-dom-merge-field article.demo-card h2', 'Word count in textarea'),
+                fillThenText('cem-dom-merge-field input[type="text"]', 'two words', 'cem-dom-merge-field blockquote', 'two words'),
+            ]),
+        ],
+    },
+    { path: '/packages/cem-elements/demo/embed-1.html', checks: [text('h4', 'embed-1.html'), text(':scope', '🖖')] },
+    {
+        path: '/packages/cem-elements/demo/embed-lib.html#embed-lib-component',
+        checks: [text(':scope', '👋 from embed-lib-component')],
+    },
+    {
+        path: '/packages/cem-elements/demo/external-template-document.html',
+        checks: [text('h2', 'External document'), text('p', 'External document fallback')],
+    },
+    {
+        path: '/packages/cem-elements/demo/external-template-templates.html#external-card-template',
+        attributes: { title: 'Source-loaded card' },
+        content: 'Projected source content',
+        checks: [text('h2', 'Source-loaded card'), text('p', 'Projected source content')],
+    },
+    {
+        path: '/packages/cem-elements/demo/external-template.html',
+        allowedPageErrors: ['Failed to load resource: the server responded with a status of 404 (Not Found)'],
+        samples: [
+            sampleContract('1. reference the template in page DOM', [text('dce-internal:first-of-type', '👋 World!'), text('dce-internal:last-of-type', 'Hello World!')]),
+            sampleContract('2. without TAG, inline instantiation', [countExactly('dce-construction', 2), text('dce-construction', 'construction')]),
+            sampleContract('3. external SVG file', [countAtLeast('dce-external svg', 1), countAtLeast('dce-external-inline svg', 1), text('dce-external-missing', 'fallback for missing image')]),
+            sampleContract('4. external CEM-ML template file', [text('dce-external-4', 'DCE with external CEM-ML template'), text('dce-external-4-inline', 'inline DCE loading from CEM-ML template')]),
+            sampleContract('5. external HTML template', [text('dce-external-5', '👋'), text('dce-external-5', '👌'), countAtLeast('dce-external-5 svg', 1), countAtLeast('dce-external-5 math', 1)]),
+            sampleContract('6. HTML, SVG by ID within external file', [text('dce-html-wave', '👋'), countAtLeast('dce-html-logo svg', 1), countAtLeast('dce-html-formula math', 1)]),
+            sampleContract('7a. external CEM-ML data-island tree template', [text('dce-cemt-tree', 'CEM-ML data island tree'), text('dce-cemt-tree', 'Leaf text from cem-elements data island'), countAtLeast('dce-cemt-tree details', 5)]),
+            sampleContract('7b. external XSLT data-island tree template', [text('dce-xslt-tree', 'XSLT data island tree'), text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'), text('dce-missing-none', 'element with id=none is missing in template')]),
+            sampleContract('8. external file with embedding of another external DCE', [text('dce-embed-1', '🖖')]),
+            sampleContract('9. external file with invoking of relative template as hash by enclosed custom-element', [text('dce-embed-relative-hash', 'from embed-lib-component')]),
+            sampleContract('10. external file with invoking of template in another relative path file by enclosed custom-element', [text('dce-embed-relative-file', '🖖')]),
+            sampleContract('embed-1.html external file', [attributeEquals(':scope', 'src', 'embed-1.html')]),
+            sampleContract('embed-lib.html with multiple templates', [attributeEquals(':scope', 'src', 'embed-lib.html')]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/for-each.html',
+        samples: [
+            sampleContract('1. Simple for-each', [
+                countAtLeast('cem-loop-list article.demo-card', 6),
+                text('cem-loop-list li', 'Apple'),
+                countAtLeast('cem-loop-list tbody tr', 3),
+                text('cem-loop-list .payload-feed', 'payload-beta : Payload Beta'),
+                text('cem-loop-list .http-json-feed', 'beta : loaded'),
+                text('cem-loop-list .http-xml-feed', 'delta : xml-loaded'),
+            ]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/form.html',
+        samples: [
+            sampleContract('1. Simple validation', [
+                text('cem-form-preview article.demo-card', 'password slice set:'),
+                fillThenText('cem-form-preview input[name="username"]', 'ada', 'cem-form-preview output[data-role="form-username"]', 'ada'),
+                fillThenText('cem-form-preview input[name="password"]', 'secret', 'cem-form-preview output[data-role="password-valid"]', 'true'),
+                text('cem-form-preview output[data-role="form-valid"]', 'true'),
+            ]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/hex-grid.html',
+        samples: [sampleContract('1. external file with invoking of relative template as hash by enclosed custom-element', [countExactly('cem-grid-tile .swatch', 6), text('cem-grid-tile .swatch', 'B3')])],
+    },
+    { path: '/packages/cem-elements/demo/html-template.html', checks: [text('#wave', '👋'), text('#ok', '👌'), countExactly('#dwc-logo', 1), countExactly('#sophomores-dream', 1)] },
+    {
+        path: '/packages/cem-elements/demo/http-request.html',
+        samples: [sampleContract('0. url from text to http-request', [text('cem-resource-panel article.demo-card', 'state: loaded'), text('cem-resource-panel li', 'beta : loaded'), text('cem-resource-panel article.demo-card', 'xml state: loaded'), text('cem-resource-panel .xml-results', 'delta : xml-loaded')])],
+    },
+    {
+        path: '/packages/cem-elements/demo/lib-dir/embed-lib.html#embed-lib-component',
+        checks: [text(':scope', '👋 from embed-lib-component')],
+    },
+    {
+        path: '/packages/cem-elements/demo/local-storage.html',
+        samples: [sampleContract('3. localStorage type', [text('cem-local-storage-panel article.demo-card', 'draft: stored initial'), text('cem-local-storage-panel article.demo-card', 'number: 3'), fillThenText('cem-local-storage-panel input', 'stored draft', 'cem-local-storage-panel output[data-role="draft"]', 'stored draft'), clickThenText('cem-local-storage-panel button', 'cem-local-storage-panel output[data-role="draft"]', 'external update')])],
+    },
+    {
+        path: '/packages/cem-elements/demo/location-element.html',
+        samples: [sampleContract('1. window.location live update', [text('cem-location-panel article.demo-card', 'sample host: example.test'), text('cem-location-panel .sample-params', 'tag = one,two'), clickThenText('cem-location-panel button', 'cem-location-panel output[data-role="current-hash"]', '#checked')])],
+    },
+    {
+        path: '/packages/cem-elements/demo/module-url.html',
+        samples: [
+            sampleContract('this page import maps', [text(':scope', '"lib-root"'), text(':scope', '"embed-lib"')]),
+            sampleContract('4. module path by symbolic name', [attributeContains('cem-module-link a', 'href', '/packages/custom-element/material/'), attributeContains('cem-module-link img', 'src', '/packages/custom-element/demo/wc-square.svg')]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/npm-versions-demo.html',
+        samples: [sampleContract('1. NPM package version picker', [text('cem-version-row h2', '@epa-wg/cem-elements'), text('cem-version-row', 'selected version: workspace')])],
+    },
+    {
+        path: '/packages/cem-elements/demo/scoped-css.html',
+        samples: [
+            sampleContract('1. Private declaration CSS and ordinary outer cascade', [countExactly('cem-css-private button', 2), computedStyleByText('cem-css-private button', 'First DCE dashed border', 'borderTopStyle', 'dashed'), computedStyleByText('cem-css-private button', 'First DCE dashed border', 'color', 'rgb(148, 0, 211)'), computedStyleNotByText('button', 'Browser default border', 'borderTopStyle', 'dashed')]),
+            sampleContract('2. Component in a named scope shares default declaration styles with peers in the same scope', [computedStyle('cem-css-shared-bare .sample-shared-bare', 'color', 'rgb(0, 128, 0)'), computedStyle('cem-css-shared-peer .sample-shared-bare', 'color', 'rgb(0, 128, 0)')]),
+            sampleContract('3. Style can be scoped explicitly', [computedStyle('cem-css-shared-explicit .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)'), computedStyle('cem-css-explicit-peer .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)')]),
+            sampleContract('4. Mixed private and shared styles', [computedStyle('cem-css-mixed .sample-mixed', 'borderTopColor', 'rgb(0, 0, 255)'), computedStyle('cem-css-mixed-peer .sample-mixed-shared', 'color', 'rgb(255, 0, 0)')]),
+            sampleContract('5. Invalid and mismatched scopes fail closed', [computedStyleNot('cem-css-unscoped-explicit .must-not-apply', 'color', 'rgb(255, 0, 0)'), computedStyle('cem-css-mismatch-bare .sample-valid-bare', 'color', 'rgb(0, 128, 0)'), computedStyle('cem-css-invalid-declaration .sample-invalid-declaration', 'color', 'rgb(0, 0, 255)')]),
+            sampleContract('6. Payload style belongs to one instance', [computedStyle('cem-css-instance:first-of-type button', 'borderTopColor', 'rgb(0, 0, 255)'), computedStyle('cem-css-instance:last-of-type button', 'borderTopColor', 'rgb(255, 0, 0)')]),
+            sampleContract('7. Declaration styles must be static', [countExactly('cem-css-dynamic style', 0), computedStyleNot('cem-css-dynamic .must-not-apply', 'color', 'rgb(255, 0, 0)')]),
+            sampleContract('8. Fragment template CSS uses the effective produced tag', [computedStyle('cem-css-fragment .sample-fragment', 'backgroundColor', 'rgb(254, 243, 199)')]),
+            sampleContract('9. Anonymous declaration CSS uses its generated tag', [text('.sample-anonymous', 'anonymous violet'), computedStyle('.sample-anonymous', 'color', 'rgb(238, 130, 238)')]),
+            sampleContract('10. uid-seed stabilizes keyframe names', [keyframeIdentity('cem-element[tag="cem-css-keyframes"] > style[data-cem-declaration-style="private"]', 'cem-css-keyframes', '[part~="indicator"]', 'seeded-pulse', 'udemoz2fcssz2fkeyframes')]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/set-url.html',
+        samples: [sampleContract('4. Set page URL methods', [text('cem-set-url-panel article.demo-card', 'pending set:'), fillThenText('cem-set-url-panel label:nth-of-type(2) input', '#verified', 'cem-set-url-panel p', '#verified'), clickThenText('cem-set-url-panel button', 'cem-set-url-panel output[data-role="current-hash"]', '#verified')])],
+    },
+];
+
+const sourceHarnessHtml = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <script>${htmlDemoElementModule}</script>
+    <script>
+        localStorage.setItem('cemDemoDraft', 'stored initial');
+        localStorage.setItem('cemDemoCount', '3');
+        localStorage.setItem('cemDemoBasket', JSON.stringify({ fruit: 'apple' }));
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            const attributeButton = target?.closest('[data-set-attr]');
+            if (attributeButton) {
+                const instance = document.querySelector(attributeButton.dataset.target ?? '');
+                const valueSource = document.querySelector(attributeButton.dataset.valueFrom ?? '');
+                instance?.setAttribute(attributeButton.dataset.attr ?? '', valueSource?.value ?? attributeButton.dataset.value ?? '');
+            }
+            const selectButton = target?.closest('[data-dispatch-select]');
+            selectButton?.dispatchEvent(new CustomEvent('cem-select', { bubbles: true, detail: { id: 'demo' } }));
+            if (target?.matches('[data-storage-write="draft"]')) localStorage.setItem('cemDemoDraft', 'external update');
+            if (target?.matches('[data-location-push="true"]')) history.pushState({}, '', './location-element.html?mode=live#checked');
+        });
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';
+        installCemElementRuntime(window, {
+            resolveModuleUrl(specifier, document) {
+                if (specifier === '@epa-wg/custom-element/demo/wc-square.svg') {
+                    return new URL('/packages/custom-element/demo/wc-square.svg', document.baseURI).href;
+                }
+                if (specifier === '@epa-wg/material') {
+                    return new URL('/packages/custom-element/material/', document.baseURI).href;
+                }
+                return new URL(specifier, document.baseURI).href;
+            },
+        });
+    </script>
+</head>
+<body></body>
+</html>`;
+
 const server = createServer(async (request, response) => {
     try {
         const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
         const pathname = decodeURIComponent(
             requestUrl.pathname === '/' ? '/packages/cem-elements/index.html' : requestUrl.pathname,
         );
+        if (pathname === '/__cem-source-harness.html') {
+            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+            response.end(sourceHarnessHtml);
+            return;
+        }
         const filePath = normalize(join(repoRoot, pathname));
         if (filePath !== repoRoot && !filePath.startsWith(repoRoot + sep)) {
             response.writeHead(403);
@@ -417,6 +690,7 @@ const port = typeof address === 'object' && address ? address.port : 0;
 const browser = await chromium.launch({ headless: true });
 
 try {
+    await verifySourceDocumentInventory();
     for (const fixture of fixtureSpecs) {
         const pageErrors = [];
         const page = await browser.newPage();
@@ -444,6 +718,7 @@ try {
             const snapshot = await collectDebugSnapshot(page, error?.check);
             throw new Error(
                 `${fixture.path} failed while running ${describeCheck(error?.check)}:\n${error.message}${diagnostics}${snapshot}`,
+                { cause: error },
             );
         } finally {
             await page.close();
@@ -456,12 +731,175 @@ try {
             );
         }
     }
+    for (const [index, fixture] of sourceDocumentSpecs.entries()) {
+        const pageErrors = [];
+        const page = await browser.newPage();
+        page.on('pageerror', (error) => pageErrors.push(error.message));
+        page.on('console', (message) => {
+            if (message.type() === 'error') {
+                pageErrors.push(message.text());
+            }
+        });
+        await installOfflineRoutes(page);
+        await installTextHelpers(page);
+
+        const tag = `cem-demo-source-${index + 1}`;
+        try {
+            await page.goto(`http://127.0.0.1:${port}/__cem-source-harness.html`, { waitUntil: 'networkidle' });
+            await mountSourceDocument(page, fixture, tag);
+            await verifySampleContractInventory(page, tag, fixture);
+            if (fixture.samples) {
+                for (const [sampleIndex, sample] of fixture.samples.entries()) {
+                    const rootSelector = await markSampleRoot(page, tag, sample.legend, sampleIndex);
+                    for (const check of sample.checks) {
+                        await runCheck(page, scopeCheck(check, rootSelector));
+                    }
+                }
+            }
+            for (const check of fixture.checks ?? []) {
+                await runCheck(page, scopeCheck(check, tag));
+            }
+        } catch (error) {
+            const unexpectedErrors = unexpectedPageErrors(fixture, pageErrors);
+            const diagnostics =
+                unexpectedErrors.length > 0
+                    ? `\nBrowser errors:\n${unexpectedErrors.map((item) => `- ${item}`).join('\n')}`
+                    : '';
+            const snapshot = await collectDebugSnapshot(page, error?.check);
+            throw new Error(
+                `${fixture.path} source contract failed while running ${describeCheck(error?.check)}:\n${error.message}${diagnostics}${snapshot}`,
+                { cause: error },
+            );
+        } finally {
+            await page.close();
+        }
+
+        const unexpectedErrors = unexpectedPageErrors(fixture, pageErrors);
+        if (unexpectedErrors.length > 0) {
+            throw new Error(
+                `${fixture.path} source contract emitted browser errors:\n${unexpectedErrors.map((error) => `- ${error}`).join('\n')}`,
+            );
+        }
+    }
 } finally {
     await browser.close();
     await new Promise((resolveClose) => server.close(resolveClose));
 }
 
-console.log(`cem-elements demo fixtures verified (${fixtureSpecs.length} pages).`);
+console.log(
+    `cem-elements demo fixtures verified (${fixtureSpecs.length} standalone pages, ${sourceDocumentSpecs.length} source-loaded documents).`,
+);
+
+async function verifySourceDocumentInventory() {
+    const discovered = await demoHtmlPaths(resolve(repoRoot, 'packages/cem-elements/demo'));
+    const declared = Array.from(
+        new Set(
+            sourceDocumentSpecs
+                .map(({ path }) => path.split('#', 1)[0])
+                .filter((path) => path.startsWith('/packages/cem-elements/demo/')),
+        ),
+    ).sort();
+    if (JSON.stringify(discovered) !== JSON.stringify(declared)) {
+        const missing = discovered.filter((path) => !declared.includes(path));
+        const stale = declared.filter((path) => !discovered.includes(path));
+        throw new Error(
+            `source-loaded demo HTML inventory mismatch; missing contracts: ${missing.join(', ') || 'none'}; stale contracts: ${stale.join(', ') || 'none'}`,
+        );
+    }
+}
+
+async function demoHtmlPaths(directory, relativeDirectory = '') {
+    const paths = [];
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+            paths.push(...(await demoHtmlPaths(join(directory, entry.name), relativePath)));
+        } else if (entry.isFile() && entry.name.endsWith('.html')) {
+            paths.push(`/packages/cem-elements/demo/${relativePath}`);
+        }
+    }
+    return paths.sort();
+}
+
+async function mountSourceDocument(page, fixture, tag) {
+    await page.evaluate(
+        async ({ path, producedTag, attributes, content }) => {
+            await customElements.whenDefined('cem-element');
+            const declaration = document.createElement('cem-element');
+            declaration.hidden = true;
+            declaration.setAttribute('tag', producedTag);
+            declaration.setAttribute('src', path);
+            const instance = document.createElement(producedTag);
+            for (const [name, value] of Object.entries(attributes ?? {})) {
+                instance.setAttribute(name, value);
+            }
+            if (content) instance.textContent = content;
+            document.body.append(declaration, instance);
+        },
+        { path: fixture.path, producedTag: tag, attributes: fixture.attributes, content: fixture.content },
+    );
+}
+
+async function verifySampleContractInventory(page, tag, fixture) {
+    const expected = (fixture.samples ?? []).map((sample) => sample.legend.replace(/\s+/gu, ' ').trim());
+    await poll(
+        page,
+        ({ hostSelector, expectedCount }) => {
+            const host = document.querySelector(hostSelector);
+            if (!host) return false;
+            const renderComplete = Array.from(host.childNodes).some(
+                (node) => node.nodeType === Node.COMMENT_NODE && node.nodeValue === 'cem-render-end',
+            );
+            return renderComplete && host.querySelectorAll('html-demo-element[legend]').length >= expectedCount;
+        },
+        { hostSelector: tag, expectedCount: expected.length },
+    );
+    const actual = await page.evaluate(
+        (hostSelector) =>
+            Array.from(document.querySelectorAll(`${hostSelector} html-demo-element[legend]`)).map((element) =>
+                (element.getAttribute('legend') ?? '').replace(/\s+/gu, ' ').trim(),
+            ),
+        tag,
+    );
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        const missing = actual.filter((legend) => !expected.includes(legend));
+        const stale = expected.filter((legend) => !actual.includes(legend));
+        throw new Error(
+            `${fixture.path} sample inventory mismatch; missing legend contracts: ${missing.join(', ') || 'none'}; stale legend contracts: ${stale.join(', ') || 'none'}`,
+        );
+    }
+}
+
+async function markSampleRoot(page, tag, legend, index) {
+    const marker = String(index + 1);
+    await poll(
+        page,
+        ({ hostSelector, expectedLegend, markerValue }) => {
+            const host = document.querySelector(hostSelector);
+            const normalizeText = (value) => value.replace(/\s+/gu, ' ').trim();
+            const sample = host
+                ? Array.from(host.querySelectorAll('html-demo-element')).find(
+                      (element) => normalizeText(element.getAttribute('legend') ?? '') === normalizeText(expectedLegend),
+                  )
+                : null;
+            if (!sample) return false;
+            sample.setAttribute('data-cem-fixture-sample', markerValue);
+            return true;
+        },
+        { hostSelector: tag, expectedLegend: legend, markerValue: marker },
+    );
+    return `${tag} html-demo-element[data-cem-fixture-sample="${marker}"]`;
+}
+
+function scopeCheck(check, rootSelector) {
+    const scoped = { ...check };
+    for (const key of ['selector', 'actionSelector', 'resultSelector', 'styleSelector', 'hostSelector']) {
+        if (typeof scoped[key] === 'string') {
+            scoped[key] = scoped[key] === ':scope' ? rootSelector : `${rootSelector} ${scoped[key]}`;
+        }
+    }
+    return scoped;
+}
 
 function unexpectedPageErrors(fixture, pageErrors) {
     const allowed = fixture.allowedPageErrors ?? [];
@@ -538,6 +976,15 @@ async function runCheck(page, check) {
             case 'computedStyleNot':
                 await waitForComputedStyleNot(page, check.selector, check.property, check.unexpected);
                 return;
+            case 'computedStyleByText':
+                await waitForComputedStyleByText(page, check.selector, check.text, check.property, check.expected, true);
+                return;
+            case 'computedStyleNotByText':
+                await waitForComputedStyleByText(page, check.selector, check.text, check.property, check.unexpected, false);
+                return;
+            case 'keyframeIdentity':
+                await waitForKeyframeIdentity(page, check);
+                return;
             case 'clickThenText':
                 await page.waitForSelector(check.actionSelector, { timeout });
                 await page.click(check.actionSelector);
@@ -586,15 +1033,22 @@ async function collectDebugSnapshot(page, check) {
                 'cem-css-instance',
                 'cem-css-dynamic',
                 'cem-css-fragment',
+                'cem-css-keyframes',
                 'cem-form-preview',
             ];
             const failedSelector =
-                failedCheck?.selector ?? failedCheck?.resultSelector ?? failedCheck?.actionSelector ?? undefined;
+                failedCheck?.selector ??
+                failedCheck?.targetSelector ??
+                failedCheck?.hostSelector ??
+                failedCheck?.resultSelector ??
+                failedCheck?.actionSelector ??
+                undefined;
             const failedTexts = failedSelector
                 ? Array.from(document.querySelectorAll(failedSelector)).map((element) =>
                       globalThis.__cemFixtureNormalizeText(globalThis.__cemFixtureVisibleText(element)),
                   )
                 : [];
+            const failedElement = failedSelector ? document.querySelector(failedSelector) : null;
             return {
                 bodyText: globalThis
                     .__cemFixtureNormalizeText(globalThis.__cemFixtureVisibleText(document.body))
@@ -602,8 +1056,8 @@ async function collectDebugSnapshot(page, check) {
                 failedSelector,
                 failedExpected: failedCheck?.expected,
                 failedComputedValue:
-                    failedCheck?.kind === 'computedStyle' && failedSelector
-                        ? getComputedStyle(document.querySelector(failedSelector))?.[failedCheck.property]
+                    failedCheck?.kind === 'computedStyle' && failedElement
+                        ? getComputedStyle(failedElement)[failedCheck.property]
                         : null,
                 styles: Array.from(document.querySelectorAll('style')).map(
                     (style) => style.textContent?.trim().slice(0, 1000) ?? '',
@@ -640,6 +1094,10 @@ async function collectDebugSnapshot(page, check) {
 
 function text(selector, expected) {
     return { kind: 'text', selector, expected };
+}
+
+function sampleContract(legend, checks) {
+    return { legend, checks };
 }
 
 function normalizedText(selector, expected) {
@@ -680,6 +1138,18 @@ function computedStyle(selector, property, expected) {
 
 function computedStyleNot(selector, property, unexpected) {
     return { kind: 'computedStyleNot', selector, property, unexpected };
+}
+
+function computedStyleByText(selector, text, property, expected) {
+    return { kind: 'computedStyleByText', selector, text, property, expected };
+}
+
+function computedStyleNotByText(selector, text, property, unexpected) {
+    return { kind: 'computedStyleNotByText', selector, text, property, unexpected };
+}
+
+function keyframeIdentity(styleSelector, hostSelector, targetSelector, authoredName, encodedSeed) {
+    return { kind: 'keyframeIdentity', styleSelector, hostSelector, targetSelector, authoredName, encodedSeed };
 }
 
 function clickThenText(actionSelector, resultSelector, expected) {
@@ -802,6 +1272,41 @@ async function waitForComputedStyleNot(page, selector, property, unexpected) {
     );
 }
 
+async function waitForComputedStyleByText(page, selector, text, property, value, equals) {
+    await poll(
+        page,
+        ({ selector: checkSelector, text: checkText, property: styleProperty, value: checkValue, equals: shouldEqual }) => {
+            const element = Array.from(document.querySelectorAll(checkSelector)).find(
+                (candidate) =>
+                    globalThis.__cemFixtureNormalizeText(globalThis.__cemFixtureVisibleText(candidate)) === checkText,
+            );
+            return element ? (getComputedStyle(element)[styleProperty] === checkValue) === shouldEqual : false;
+        },
+        { selector, text, property, value, equals },
+    );
+}
+
+async function waitForKeyframeIdentity(page, check) {
+    await poll(
+        page,
+        ({ styleSelector, hostSelector, targetSelector, authoredName, encodedSeed }) => {
+            const style = document.querySelector(styleSelector);
+            const host = document.querySelector(hostSelector);
+            const target = document.querySelector(`${hostSelector} ${targetSelector}`);
+            const renderScope = host?.getAttribute('data-cem-render-scope') ?? '';
+            if (!style || !target || !renderScope.includes(encodedSeed)) return false;
+            const rewrittenName = `${authoredName}-${renderScope}-s1`;
+            const css = style.textContent ?? '';
+            return (
+                css.includes(`@keyframes ${rewrittenName}`) &&
+                css.includes(`animation: ${rewrittenName} `) &&
+                getComputedStyle(target).animationName === rewrittenName
+            );
+        },
+        check,
+    );
+}
+
 async function poll(page, predicate, arg) {
     const startedAt = Date.now();
     let lastError;
@@ -860,6 +1365,12 @@ function describeCheck(check) {
             return `computedStyle(${check.selector}, ${check.property}, ${JSON.stringify(check.expected)})`;
         case 'computedStyleNot':
             return `computedStyleNot(${check.selector}, ${check.property}, ${JSON.stringify(check.unexpected)})`;
+        case 'computedStyleByText':
+            return `computedStyleByText(${check.selector}, ${JSON.stringify(check.text)}, ${check.property}, ${JSON.stringify(check.expected)})`;
+        case 'computedStyleNotByText':
+            return `computedStyleNotByText(${check.selector}, ${JSON.stringify(check.text)}, ${check.property}, ${JSON.stringify(check.unexpected)})`;
+        case 'keyframeIdentity':
+            return `keyframeIdentity(${check.hostSelector}, ${check.authoredName}, ${check.encodedSeed})`;
         case 'clickThenText':
             return `clickThenText(${check.actionSelector}, ${check.resultSelector}, ${JSON.stringify(check.expected)})`;
         case 'fillThenText':

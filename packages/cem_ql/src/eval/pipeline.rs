@@ -373,6 +373,12 @@ fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
         .iter()
         .flat_map(|item| item.members().unwrap_or_else(|| vec![item.clone()]))
         .collect();
+    if items.is_empty() {
+        let mut out = ItemStream::empty();
+        out.diagnostics.extend(input.diagnostics);
+        out.error = input.error;
+        return Some(out);
+    }
     if !items.iter().any(|item| {
         matches!(item, Item::Record(_))
             || item

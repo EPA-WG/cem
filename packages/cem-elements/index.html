@@ -47,69 +47,67 @@
 <html-demo-element legend="1. simple payload"
                    description="payload is ignored as in DCE definition there is no default slot">
     <template>
-        <cem-element tag="dce-link" hidden>
-            <template type="text/cem-ml">
-                {a @href="#" | link 😃}
-            </template>
-        </cem-element>
-        <dce-link><i>🍋</i></dce-link>
+<cem-element tag="dce-link" hidden>
+    <template type="text/cem-ml">
+        {a @href="#" | link 😃}
+    </template>
+</cem-element>
+<dce-link><i>🍋</i></dce-link>
     </template>
 </html-demo-element>
 
 <html-demo-element legend="2. payload with slot definition and slot value"
                    description="slots are filled as in template+shadow root">
     <template>
-        <cem-element tag="dce-1-slot" hidden>
-            <template type="text/cem-ml">
-                🐇❤️{slot @name=slot1 | 🥦}
-            </template>
-        </cem-element>
-        <dce-1-slot><i slot="slot1">🥕</i></dce-1-slot>
+<cem-element tag="dce-1-slot" hidden>
+    <template type="text/cem-ml">
+        🐇❤️{slot @name=slot1 | 🥦}
+    </template>
+</cem-element>
+<dce-1-slot><i slot="slot1">🥕</i></dce-1-slot>
     </template>
 </html-demo-element>
 
 <html-demo-element legend="2a. payload with slot definition and slot value"
                    description="unlike in TEMPLATE, same slot can be used multiple times and within attribute ">
     <template>
-        <cem-element tag="dce-2-slots" hidden>
-            <template type="text/cem-ml">
-            {slot @name=slot2 | 😃} and again:
-            {slot @name=slot2 | 😃}
-            {input @placeholder="🐇❤️{$datadom.slots.slot2.children.text}"}
-            </template>
-        </cem-element>
-        <dce-2-slots><i slot="slot2">🥕</i></dce-2-slots>
-        <dce-2-slots></dce-2-slots>
+<cem-element tag="dce-2-slots" hidden>
+    <template type="text/cem-ml">
+        {slot @name=slot2 | ✌️} same slot2 again:
+        {slot @name=slot2 | ✌️}
+        {input @placeholder='🐇❤️{datadom.slots.slot2.children.text ?? "🐇"}'}
+    </template>
+</cem-element>
+<dce-2-slots><i slot="slot2">🥕</i></dce-2-slots>
+<dce-2-slots></dce-2-slots>
     </template>
 </html-demo-element>
 
 <html-demo-element legend="2b. named default slot"
                    description="slot without `name` attribute or with blank value `name=''` use whole payload">
     <template>
-        <cem-element tag="dce-3-slot" hidden>
-            <template type="text/cem-ml">
-            #1
-            {slot @name="" | 😃}
-            and
-            {slot | 😃}
-            </template>
-        </cem-element>
-        <dce-3-slot><i slot="">🥕</i></dce-3-slot>
+<cem-element tag="dce-3-slot" hidden>
+    <template type="text/cem-ml">
+        1 {slot @name="" | 😃} {br}
+        2 {slot | 😃}
+    </template>
+</cem-element>
+<dce-3-slot></dce-3-slot>
+<dce-3-slot><i slot="">🥕</i></dce-3-slot>
+<dce-3-slot>✌️</dce-3-slot>
     </template>
 </html-demo-element>
 
 <html-demo-element legend="2c. named default slot"
                    description="slot without `name` attribute or with blank value `name=''` use whole payload">
     <template>
-        <cem-element tag="dce-4-slot" hidden>
-            <template type="text/cem-ml">
-                #2
-                {slot @name="" | 😃}
-                and
-                {slot | 😃}
-            </template>
-        </cem-element>
-        <dce-4-slot>🥕</dce-4-slot>
+<cem-element tag="dce-4-slot" hidden>
+    <template type="text/cem-ml">
+        1 {slot @name="" | 😃} {br}
+        2 {slot | 😃}
+    </template>
+</cem-element>
+<dce-4-slot>🥕</dce-4-slot>
     </template>
 </html-demo-element>
 
@@ -129,51 +127,67 @@
 <html-demo-element legend="3. 💪 DCE template "
                    description="Complex case with slots, attributes, dataset, conditional render">
     <template>
-        <cem-element tag="pokemon-tile" hidden id="shared-template">
-            <template type="text/cem-ml">
-                /* title is an attribute in instance, mapped into datadom.attributes.title */
-                {h3 | {$datadom.attributes.title}}
+<cem-element tag="pokemon-tile" hidden id="shared-template">
+    <template type="text/cem-ml">
+    {cem:variable
+        @name=image-base-url
+        @select='
+"https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world"'}
 
-                /* data-smile DCE instance attribute, mapped into datadom.dataset.smile and used in condition */
-                {cem:if @test="(datadom.slices.smile ?? datadom.dataset.smile ?? datadom.attributes.smile)" |
-                    /* data-smile DCE instance attribute, used as HTML */
-                    {div | Smile as: {$(datadom.slices.smile ?? datadom.dataset.smile ?? datadom.attributes.smile)}}
-                }
-                /* image would not be visible in sandbox, see live demo */
-                {img
-                    @src="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/{$datadom.attributes.pokemon-id}.svg"
-                    @alt="{$datadom.attributes.title} image"}
+    /* title is an attribute in instance,
+        mapped into datadom.attributes.title */
+    {h3 | {$datadom.attributes.title}}
 
-                /* image-src and title are DCE instance attributes, mapped into datadom.attributes,
-                   used within output attribute via curly brackets */
-                /* `slot name=xxx` replaced with elements with `slot=xxx` attribute */
-                {p | {slot @name=description | {i | description is not available}}}
+    /* data-smile DCE instance attribute,
+        mapped into datadom.dataset.smile and used in condition */
+    {cem:if @test="(datadom.slices.smile
+                    ?? datadom.dataset.smile
+                    ?? datadom.attributes.smile)" |
+        /* data-smile DCE instance attribute, used as HTML */
+        {div | Smile as: {$(datadom.slices.smile
+                            ?? datadom.dataset.smile
+                            ?? datadom.attributes.smile)}}
+    }
+    /* image would not be visible in sandbox, see live demo */
+    {img
+        @src="{$image-base-url}/{$datadom.attributes.pokemon-id}.svg"
+        @alt="{$datadom.attributes.title} image"}
 
-                /* loop over payload elements with `pokemon-id` attribute, i.e LI elements */
-                {cem:for-each @select="datadom.elementsByAttribute.pokemon-id" @as=item |
-                    {button |
-                        {img
-                            @height=32 @src="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/{$item.attributes.pokemon-id}.svg"
-                            @alt="{$item.text}"}
-                        {br}
-                        {$item.text}
-                    }
-                }
-            </template>
-        </cem-element>
+    /*  image-src and title are DCE instance attributes,
+        mapped into datadom.attributes,
+        used within output attribute via curly brackets */
+    /* `slot name=xxx` replaced by elements with `slot=xxx` attribute */
+    {p | {slot @name=description | {i | description is not available}}}
 
-        <pokemon-tile title="bulbasaur" data-smile="👼" pokemon-id="1">
-            <p slot="description">Bulbasaur is a cute Pokémon born with a large seed firmly affixed to its back;
-                the seed grows in size as the Pokémon  does.</p>
-            <ul>
-                <li pokemon-id="2">ivysaur</li>
-                <li pokemon-id="3">venusaur</li>
-            </ul>
-        </pokemon-tile>
+    /* loop over payload elements with `pokemon-id` attribute */
+    {cem:for-each
+        @select="datadom.elementsByAttribute.pokemon-id"
+        @as=item |
+        {button |
+            {img
+                @height=32
+                @src="{$image-base-url}/{$item.attributes.pokemon-id}.svg"
+                @alt="{$item.text}"}
+            {br}
+            {$item.text}
+    }   }
+    </template>
+</cem-element>
 
-        <pokemon-tile title="ninetales" pokemon-id="38">
-            <li pokemon-id="37">vulpix</li>
-        </pokemon-tile>
+<pokemon-tile title="bulbasaur" data-smile="👼" pokemon-id="1">
+    <p slot="description">
+        Bulbasaur is a cute Pokémon born with a large
+        seed firmly affixed to its back;
+        the seed grows in size as the Pokémon  does.</p>
+    <ul>
+        <li pokemon-id="2">ivysaur</li>
+        <li pokemon-id="3">venusaur</li>
+    </ul>
+</pokemon-tile>
+
+<pokemon-tile title="ninetales" pokemon-id="38">
+    <li pokemon-id="37">vulpix</li>
+</pokemon-tile>
     </template>
 </html-demo-element>
 

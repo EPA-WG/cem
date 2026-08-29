@@ -453,6 +453,14 @@ fn strip_nodes(nodes: &mut [TemplateNode]) {
                     strip_expression(expression);
                 }
             }
+            TemplateNode::Variable {
+                select, source_map, ..
+            } => {
+                source_map.frames.clear();
+                if let Some(expression) = select {
+                    strip_expression(expression);
+                }
+            }
             TemplateNode::Expression(expression) => strip_expression(expression),
             TemplateNode::If {
                 test,

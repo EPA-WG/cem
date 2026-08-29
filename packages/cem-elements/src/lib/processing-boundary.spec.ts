@@ -400,6 +400,39 @@ describe('host processing boundary contracts', () => {
         });
     });
 
+    it('leaves styles inside nested inert templates authored exactly as-is', () => {
+        const plan = projectTemplate(
+            [
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'template',
+                    attributes: [],
+                    children: [
+                        {
+                            kind: 'element',
+                            namespace: null,
+                            tag: 'style',
+                            attributes: [],
+                            children: [{ kind: 'text', text: '.demo { color: darkviolet; }' }],
+                        },
+                    ],
+                },
+            ],
+            { snapshot: snapshotFixture(), values: {} },
+        );
+        const scoped = scopeRenderPlan(plan, 'cem-scope-story-card-useed-p0');
+        const template = scoped.renderPlan.nodes[0];
+        expect(template.kind).toBe('element');
+        if (template.kind !== 'element') return;
+        const style = template.children[0];
+        expect(style.kind).toBe('element');
+        if (style.kind !== 'element') return;
+
+        expect(style.children).toEqual([{ kind: 'text', text: '.demo { color: darkviolet; }' }]);
+        expect(scoped.diagnostics).toEqual([]);
+    });
+
     it('hoists inert payload styles into an implicit parent-rooted instance scope', () => {
         const plan: RenderPlan = {
             producedTag: 'story-card',

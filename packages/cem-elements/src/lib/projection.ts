@@ -484,6 +484,10 @@ function readSourceNode(source: Node, frame: string): TemplateSourceNode | undef
     if (element.localName === SCRIPT_TAG) {
         return undefined;
     }
+    const childContainer =
+        element.localName === 'template' && 'content' in element
+            ? (element as HTMLTemplateElement).content
+            : element;
     return {
         kind: 'element',
         namespace: element.namespaceURI && element.namespaceURI !== XHTML_NAMESPACE ? element.namespaceURI : null,
@@ -492,7 +496,7 @@ function readSourceNode(source: Node, frame: string): TemplateSourceNode | undef
             name: attribute.name,
             value: attribute.value,
         })),
-        children: Array.from(element.childNodes)
+        children: Array.from(childContainer.childNodes)
             .map((child, index) => readSourceNode(child, `${frame}/${index}`))
             .filter((node): node is TemplateSourceNode => node !== undefined),
         sourceMapRef,
@@ -977,6 +981,7 @@ export function scopeRenderPlan(
                 scopeUid,
                 diagnostics,
                 true,
+                false,
             ),
         },
         diagnostics,
@@ -1292,13 +1297,14 @@ function scopeRenderNodes(
     scopeUid: string,
     diagnostics: ScopedCssRewriteDiagnostic[],
     stampScope: boolean,
+    inertTemplateContent: boolean,
 ): RenderPlanNode[] {
     return nodes.map((node) => {
         if (node.kind !== 'element') {
             return node;
         }
 
-        if (node.tag === STYLE_TAG && node.namespace === null) {
+        if (node.tag === STYLE_TAG && node.namespace === null && !inertTemplateContent) {
             const payload = isPayloadRenderNode(node);
             const rewritten = scopeStyleNode(
                 node,
@@ -1324,7 +1330,14 @@ function scopeRenderNodes(
             attributes: stampScope
                 ? withRenderPlanAttribute(node.attributes, DATA_CEM_RENDER_SCOPE_ATTR, scopeUid)
                 : node.attributes,
-            children: scopeRenderNodes(node.children, producedTag, scopeUid, diagnostics, false),
+            children: scopeRenderNodes(
+                node.children,
+                producedTag,
+                scopeUid,
+                diagnostics,
+                false,
+                inertTemplateContent || (node.tag === 'template' && node.namespace === null),
+            ),
         };
     });
 }

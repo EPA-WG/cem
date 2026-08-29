@@ -319,6 +319,100 @@ fn render_template_coalesces_absent_selection_to_default() {
 }
 
 #[test]
+fn render_template_coalesces_slot_text_inside_attribute_value_template() {
+    let text = record([
+        (
+            "kind",
+            vec![Item::Atomic(AtomValue::String("text".to_owned()))],
+        ),
+        (
+            "text",
+            vec![Item::Atomic(AtomValue::String("🥕".to_owned()))],
+        ),
+    ]);
+    let slotted = record([("children", vec![Item::Array(vec![text])])]);
+    let supplied_datadom = record([(
+        "slots",
+        vec![record([("slot2", vec![Item::Array(vec![slotted])])])],
+    )]);
+    let missing_datadom = record([("slots", vec![record([])])]);
+    let source = r#"{input @placeholder='🐇❤️{datadom.slots.slot2.children.text ?? "🐇"}'}"#;
+
+    let supplied = render_template(
+        source,
+        &TemplateData::default().with_binding("datadom", ItemStream::once(supplied_datadom)),
+    );
+    assert!(
+        supplied.diagnostics.is_empty(),
+        "{:?}",
+        supplied.diagnostics
+    );
+    assert_eq!(supplied.rendered, r#"<input placeholder="🐇❤️🥕">"#);
+
+    let missing = render_template(
+        source,
+        &TemplateData::default().with_binding("datadom", ItemStream::once(missing_datadom)),
+    );
+    assert!(missing.diagnostics.is_empty(), "{:?}", missing.diagnostics);
+    assert_eq!(missing.rendered, r#"<input placeholder="🐇❤️🐇">"#);
+}
+
+#[test]
+fn render_template_variable_binds_reusable_expression_for_following_content() {
+    let row = record([("id", vec![Item::Atomic(AtomValue::String("2".to_owned()))])]);
+    let datadom = record([
+        (
+            "attributes",
+            vec![record([(
+                "id",
+                vec![Item::Atomic(AtomValue::String("1".to_owned()))],
+            )])],
+        ),
+        ("rows", vec![Item::Array(vec![row])]),
+    ]);
+    let source = r#"
+        {cem:variable @name=sprite-base @select='"https://sprites.example.test"'}
+        {img @src="{$sprite-base}/{$datadom.attributes.id}.svg"}
+        {cem:for-each @select="datadom.rows" @as=item |
+            {img @src="{$sprite-base}/{$item.id}.svg"}
+        }
+    "#;
+
+    let rendered = render_template(
+        source,
+        &TemplateData::default().with_binding("datadom", ItemStream::once(datadom)),
+    );
+
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+    assert_eq!(
+        rendered.rendered.split_whitespace().collect::<String>(),
+        r#"<imgsrc="https://sprites.example.test/1.svg"><imgsrc="https://sprites.example.test/2.svg">"#,
+    );
+}
+
+#[test]
+fn render_template_variable_shadows_only_inside_its_surrounding_scope() {
+    let rendered = render_template(
+        r#"{cem:variable @name=value @select='"outer"'}{div |{cem:variable @name=value @select='"inner"'}{span |{$value}}}{span |{$value}}"#,
+        &TemplateData::default(),
+    );
+
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+    assert_eq!(
+        rendered.rendered,
+        "<div><span>inner</span></div><span>outer</span>"
+    );
+}
+
+#[test]
 fn render_template_coalesce_prefers_present_selection() {
     let data = TemplateData::default().with_binding("label", string_value("Email"));
 

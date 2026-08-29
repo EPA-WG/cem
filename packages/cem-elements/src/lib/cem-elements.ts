@@ -453,8 +453,14 @@ export interface CemElementRuntimeOptions {
      * Resolve a `module-url` resource slice specifier to the URL exposed under
      * `datadom.slices.<slice>`. Relative/absolute URLs resolve by default; bare
      * package/module specifiers should be supplied by the host module-map resolver.
+     * `resourceBaseUrl` is the resolved declaration document URL, which can differ
+     * from the owning browser document for source-loaded declarations.
      */
-    resolveModuleUrl?: (specifier: string, baseDocument: Document) => string | Promise<string>;
+    resolveModuleUrl?: (
+        specifier: string,
+        baseDocument: Document,
+        resourceBaseUrl: string,
+    ) => string | Promise<string>;
     /**
      * Resolve an `http-request @url` resource specifier in the declaration scope before
      * the request loader opens it. Hosts use this for module/import-map aliases, fixture
@@ -1368,6 +1374,8 @@ export class CemElementRuntime {
         if (!declarationScope) {
             return false;
         }
+        const inheritedResourceBaseUrl =
+            this.inheritedDeclarationResourceBaseUrls(declarationElement)[0] ?? declarationElement.ownerDocument.baseURI;
 
         if (shape.src) {
             const reference = parseSrcReference(shape.src);
@@ -1403,8 +1411,8 @@ export class CemElementRuntime {
                     declarationScope,
                     {
                         sourceRef: { kind: 'fragment', value: shape.src },
-                        resolverIdentity: `document:${declarationElement.ownerDocument.baseURI}`,
-                        resourceBaseUrl: declarationElement.ownerDocument.baseURI,
+                        resolverIdentity: `document:${inheritedResourceBaseUrl}`,
+                        resourceBaseUrl: inheritedResourceBaseUrl,
                     },
                 ),
             );
@@ -1434,8 +1442,8 @@ export class CemElementRuntime {
                 declarationScope,
                 {
                     sourceRef: { kind: 'inline', value: shape.tag },
-                    resolverIdentity: `document:${declarationElement.ownerDocument.baseURI}`,
-                    resourceBaseUrl: declarationElement.ownerDocument.baseURI,
+                    resolverIdentity: `document:${inheritedResourceBaseUrl}`,
+                    resourceBaseUrl: inheritedResourceBaseUrl,
                 },
             ),
         );
@@ -1669,22 +1677,52 @@ export class CemElementRuntime {
     /** Fetch + parse the document an external `src` references, cached per declaring document and path. */
     private loadSrcDocumentParsed(declarationElement: HTMLElement, path: string): Promise<LoadedSrcDocument> {
         const baseDocument = declarationElement.ownerDocument;
-        const key = `${baseDocument.baseURI}\n${path}`;
+        const inheritedBaseUrls = this.inheritedDeclarationResourceBaseUrls(declarationElement);
+        const requestPaths = Array.from(
+            new Set([...inheritedBaseUrls.map((baseUrl) => resolveNestedDeclarationSrc(path, baseUrl)), path]),
+        );
+        const key = `${inheritedBaseUrls.join('\n') || baseDocument.baseURI}\n${path}`;
         const cached = this.srcDocuments.get(key);
         if (cached) {
             return cached;
         }
-        const parsed = this.loadSrcDocument(path, baseDocument).then(async (loaded) => {
+        const parsed = (async () => {
+            let loadedPath = path;
+            let loaded: string | CemSrcDocumentLoadResult | undefined;
+            let loadError: unknown;
+            for (const candidate of requestPaths) {
+                try {
+                    loaded = await this.loadSrcDocument(candidate, baseDocument);
+                    loadedPath = candidate;
+                    break;
+                } catch (error) {
+                    loadError = error;
+                }
+            }
+            if (loaded === undefined) {
+                throw loadError;
+            }
             const result =
-                typeof loaded === 'string' ? fallbackSrcDocumentLoadResult(path, baseDocument, loaded) : loaded;
+                typeof loaded === 'string' ? fallbackSrcDocumentLoadResult(loadedPath, baseDocument, loaded) : loaded;
             const html = typeof loaded === 'string' ? loaded : await readTextStream(loaded.body);
             return {
                 document: new DOMParser().parseFromString(html, 'text/html'),
-                source: srcDocumentSource(path, baseDocument, result),
+                source: srcDocumentSource(loadedPath, baseDocument, result),
             };
-        });
+        })();
         this.srcDocuments.set(key, parsed);
         return parsed;
+    }
+
+    private inheritedDeclarationResourceBaseUrls(declarationElement: HTMLElement): string[] {
+        const bases: string[] = [];
+        for (let ancestor = declarationElement.parentElement; ancestor; ancestor = ancestor.parentElement) {
+            const declaration = this.declarationForInstance(ancestor);
+            if (declaration && !bases.includes(declaration.resourceBaseUrl)) {
+                bases.push(declaration.resourceBaseUrl);
+            }
+        }
+        return bases;
     }
 
     private loadSrcDocument(path: string, baseDocument: Document): Promise<string | CemSrcDocumentLoadResult> {
@@ -2946,7 +2984,7 @@ export class CemElementRuntime {
                     continue;
                 }
                 moduleTasks.push(
-                    this.resolveModuleUrl(specifier, instance.ownerDocument)
+                    this.resolveModuleUrl(specifier, instance.ownerDocument, compiled.resourceBaseUrl)
                         .then((value) => ({ kind: 'module-url' as const, sliceName, specifier, value }))
                         .catch((error: unknown) => ({
                             kind: 'module-url' as const,
@@ -3027,16 +3065,16 @@ export class CemElementRuntime {
         return Promise.all([modulesSettled, ...resourcesSettled]).then(() => undefined);
     }
 
-    private resolveModuleUrl(specifier: string, baseDocument: Document): Promise<string> {
-        const key = `${baseDocument.baseURI}\n${specifier}`;
+    private resolveModuleUrl(specifier: string, baseDocument: Document, resourceBaseUrl: string): Promise<string> {
+        const key = `${resourceBaseUrl}\n${specifier}`;
         const cached = this.moduleUrls.get(key);
         if (cached) {
             return cached;
         }
         const resolved = Promise.resolve(
             this.resolveModuleUrlOption
-                ? this.resolveModuleUrlOption(specifier, baseDocument)
-                : defaultResolveModuleUrl(specifier, baseDocument),
+                ? this.resolveModuleUrlOption(specifier, baseDocument, resourceBaseUrl)
+                : defaultResolveModuleUrl(specifier, resourceBaseUrl),
         ).then((value) => String(value));
         this.moduleUrls.set(key, resolved);
         return resolved;
@@ -4771,6 +4809,10 @@ function extractDomDeclarationStylesheets(
                 retained.push(node);
                 continue;
             }
+            if (node.tag === 'template' && node.namespace === null) {
+                retained.push(node);
+                continue;
+            }
             if (node.tag === 'style' && node.namespace === null) {
                 const scope = node.attributes.find((attribute) => attribute.name === 'scope')?.value ?? null;
                 const dynamic =
@@ -5026,6 +5068,17 @@ function parseSrcReference(src: string): SrcReference {
     return { local: path === '', path, id: src.slice(hashIndex + 1) };
 }
 
+function resolveNestedDeclarationSrc(path: string, resourceBaseUrl: string): string {
+    if (path.startsWith('@')) {
+        return path;
+    }
+    try {
+        return new URL(path, resourceBaseUrl).href;
+    } catch {
+        return path;
+    }
+}
+
 /**
  * Default external `src` loader: resolve the path against the declaring document's base URL
  * and `fetch` it. Bare module specifiers (`@scope/pkg`) require a host `loadSrcDocument`
@@ -5096,13 +5149,13 @@ async function* textByteStream(text: string): AsyncIterable<Uint8Array> {
     yield new TextEncoder().encode(text);
 }
 
-function defaultResolveModuleUrl(specifier: string, baseDocument: Document): string {
+function defaultResolveModuleUrl(specifier: string, resourceBaseUrl: string): string {
     const trimmed = specifier.trim();
     if (trimmed === '') {
         return '';
     }
     if (isUrlLikeSpecifier(trimmed)) {
-        return new URL(trimmed, baseDocument.baseURI).href;
+        return new URL(trimmed, resourceBaseUrl).href;
     }
     const importMeta = import.meta as ImportMeta & { resolve?: (specifier: string) => string };
     if (typeof importMeta.resolve === 'function') {

@@ -113,6 +113,13 @@ pub enum TemplateNode {
         select: Option<CompiledTemplateExpression>,
         source_map: SourceMapStack,
     },
+    /// `cem:variable` — evaluates `select`, binds it to `name`, and emits no output.
+    /// The binding is visible to following nodes in the surrounding template scope.
+    Variable {
+        name: String,
+        select: Option<CompiledTemplateExpression>,
+        source_map: SourceMapStack,
+    },
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -1032,6 +1039,9 @@ impl TemplateCompiler<'_> {
             SchemaTokenKind::NodeStart { name } if is_project_payload_name(name) => {
                 Some(self.compile_project_payload())
             }
+            SchemaTokenKind::NodeStart { name } if is_variable_name(name) => {
+                Some(self.compile_variable())
+            }
             SchemaTokenKind::NodeStart { .. } => Some(self.compile_element()),
             SchemaTokenKind::Text(text) | SchemaTokenKind::Trivia(text) => {
                 let text = text.clone();
@@ -1074,6 +1084,7 @@ impl TemplateCompiler<'_> {
 
     /// Parse children until the `NodeEnd` matching `tag` (or an unnamed close `}`).
     fn parse_children(&mut self, tag: &str) -> Vec<TemplateNode> {
+        let outer_bindings = self.compile_context.policy_bindings.clone();
         let mut children = Vec::new();
         while self.index < self.tokens.len() {
             if let SchemaTokenKind::NodeEnd { name: end } = &self.tokens[self.index].kind {
@@ -1088,6 +1099,7 @@ impl TemplateCompiler<'_> {
                 children.push(node);
             }
         }
+        self.compile_context.policy_bindings = outer_bindings;
         children
     }
 
@@ -1334,6 +1346,83 @@ impl TemplateCompiler<'_> {
         }
     }
 
+    fn compile_variable(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        let mut name = None;
+        let mut select = None;
+        while self.index < self.tokens.len() {
+            match &self.tokens[self.index].kind {
+                SchemaTokenKind::Attribute {
+                    name: attribute_name,
+                    value,
+                    ..
+                } => {
+                    let token = self.tokens[self.index].clone();
+                    let raw = value.clone().unwrap_or_default();
+                    self.index += 1;
+                    match attribute_name.as_str() {
+                        "name" => {
+                            let candidate = raw.trim().trim_start_matches('$');
+                            if valid_variable_name(candidate) {
+                                name = Some(candidate.to_owned());
+                            } else {
+                                self.diagnostics.push(render_diagnostic(
+                                    "cem.ql.render.variable_name_invalid",
+                                    "`cem:variable` requires an identifier-valued `@name`"
+                                        .to_owned(),
+                                    token.byte_range.start,
+                                    frame_for(&token),
+                                ));
+                            }
+                        }
+                        "select" => select = Some(self.compile_expression(&raw, &token)),
+                        _ => {}
+                    }
+                }
+                SchemaTokenKind::Trivia(_) => self.index += 1,
+                _ => break,
+            }
+        }
+        let children = self.parse_children(&tag);
+        if !children.is_empty() {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.variable_children_ignored",
+                "`cem:variable` does not accept template children".to_owned(),
+                start.byte_range.start,
+                frame_for(&start),
+            ));
+        }
+        if name.is_none() {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.variable_name_missing",
+                "`cem:variable` requires a valid `@name`".to_owned(),
+                start.byte_range.start,
+                frame_for(&start),
+            ));
+        }
+        if select.is_none() {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.variable_select_missing",
+                "`cem:variable` requires a `@select` expression".to_owned(),
+                start.byte_range.start,
+                frame_for(&start),
+            ));
+        }
+        let name = name.unwrap_or_default();
+        if !name.is_empty() {
+            self.compile_context
+                .policy_bindings
+                .insert(name.clone(), ItemStream::empty());
+        }
+        TemplateNode::Variable {
+            name,
+            select,
+            source_map: frame_for(&start),
+        }
+    }
+
     /// Parse `cem:for-each` attributes: `@select` (the sequence expression, required) and `@as`
     /// (the loop variable name, default `item`; a legacy leading `$` is tolerated). Other
     /// attributes are ignored.
@@ -1532,6 +1621,40 @@ struct PlanRenderer {
 }
 
 impl PlanRenderer {
+    fn render_nodes_scoped(
+        &mut self,
+        nodes: &[TemplateNode],
+        out: &mut Vec<RenderPlanNode>,
+        parent_attributes: &mut Vec<RenderPlanAttribute>,
+    ) {
+        let names = nodes
+            .iter()
+            .filter_map(|node| match node {
+                TemplateNode::Variable { name, .. } if !name.is_empty() => Some(name.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let mut previous = BTreeMap::new();
+        for name in names {
+            previous
+                .entry(name.clone())
+                .or_insert_with(|| self.evaluation_context.policy_bindings.get(&name).cloned());
+        }
+        for node in nodes {
+            self.render_into(node, out, parent_attributes);
+        }
+        for (name, value) in previous {
+            match value {
+                Some(stream) => {
+                    self.evaluation_context.policy_bindings.insert(name, stream);
+                }
+                None => {
+                    self.evaluation_context.policy_bindings.remove(&name);
+                }
+            }
+        }
+    }
+
     fn poll_render(&mut self, source_map: &SourceMapStack) -> bool {
         if self.control_failed {
             return false;
@@ -1601,9 +1724,7 @@ impl PlanRenderer {
                     return;
                 }
                 if local_template_name(tag) == "body" {
-                    for child in children {
-                        self.render_into(child, out, parent_attributes);
-                    }
+                    self.render_nodes_scoped(children, out, parent_attributes);
                     return;
                 }
                 if local_template_name(tag) == "param" || is_named_template_declaration(node) {
@@ -1656,9 +1777,7 @@ impl PlanRenderer {
                     .filter_map(|attribute| self.render_attribute(attribute))
                     .collect::<Vec<_>>();
                 let mut child_nodes = Vec::new();
-                for child in children {
-                    self.render_into(child, &mut child_nodes, &mut attributes);
-                }
+                self.render_nodes_scoped(children, &mut child_nodes, &mut attributes);
                 out.push(RenderPlanNode::Element {
                     tag: tag.clone(),
                     namespace: None,
@@ -1679,11 +1798,20 @@ impl PlanRenderer {
                 text: self.evaluate_to_string(expression),
                 source_map: expression.source_map.clone(),
             }),
+            TemplateNode::Variable { name, select, .. } => {
+                if !name.is_empty() {
+                    let value = select
+                        .as_ref()
+                        .map(|expression| self.evaluate_to_stream(expression))
+                        .unwrap_or_default();
+                    self.evaluation_context
+                        .policy_bindings
+                        .insert(name.clone(), value);
+                }
+            }
             TemplateNode::If { test, children, .. } => {
                 if self.test_is_truthy(test.as_ref()) {
-                    for child in children {
-                        self.render_into(child, out, parent_attributes);
-                    }
+                    self.render_nodes_scoped(children, out, parent_attributes);
                 }
             }
             TemplateNode::Choose { branches, .. } => {
@@ -1693,9 +1821,7 @@ impl PlanRenderer {
                         Some(test) => self.test_is_truthy(Some(test)),
                     };
                     if matched {
-                        for child in &branch.children {
-                            self.render_into(child, out, parent_attributes);
-                        }
+                        self.render_nodes_scoped(&branch.children, out, parent_attributes);
                         break;
                     }
                 }
@@ -1730,9 +1856,7 @@ impl PlanRenderer {
                         POSITION_BINDING.to_owned(),
                         ItemStream::once(Item::Atomic(AtomValue::Integer((offset + 1) as i64))),
                     );
-                    for child in children {
-                        self.render_into(child, out, parent_attributes);
-                    }
+                    self.render_nodes_scoped(children, out, parent_attributes);
                 }
                 // Restore the prior bindings so the loop variables do not leak past the block.
                 match previous {
@@ -1844,9 +1968,7 @@ impl PlanRenderer {
         }
 
         self.call_depth += 1;
-        for node in &template_nodes {
-            self.render_into(node, out, parent_attributes);
-        }
+        self.render_nodes_scoped(&template_nodes, out, parent_attributes);
         self.call_depth -= 1;
 
         for (name, value) in previous {
@@ -2419,7 +2541,8 @@ fn template_node_source_map(node: &TemplateNode) -> &SourceMapStack {
         | TemplateNode::If { source_map, .. }
         | TemplateNode::Choose { source_map, .. }
         | TemplateNode::ForEach { source_map, .. }
-        | TemplateNode::ProjectPayload { source_map, .. } => source_map,
+        | TemplateNode::ProjectPayload { source_map, .. }
+        | TemplateNode::Variable { source_map, .. } => source_map,
         TemplateNode::Expression(expression) => &expression.source_map,
     }
 }
@@ -2552,6 +2675,19 @@ fn is_for_each_name(name: &str) -> bool {
 
 fn is_project_payload_name(name: &str) -> bool {
     conditional_local_name(name) == "project-payload"
+}
+
+fn is_variable_name(name: &str) -> bool {
+    conditional_local_name(name) == "variable"
+}
+
+fn valid_variable_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+        && chars
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
 }
 
 fn payload_item_to_render_node(item: &Item, source_map: &SourceMapStack) -> Option<RenderPlanNode> {

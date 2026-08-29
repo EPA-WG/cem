@@ -6,12 +6,15 @@
         <title>cem-element CSS scoping contract samples</title>
         <link rel="stylesheet" href="./demo.css" />
         <style>
-            :where(html-demo-element) cem-css-private {
-                --sample-cascade-color: rgb(128, 0, 128);
-            }
 
-            [data-css-sample] {
-                padding: 0.4rem;
+            main
+            {   display: flex;
+                gap: 1rem;
+                flex-wrap: wrap;
+                align-content: stretch;
+                justify-content: space-between;
+                align-items: stretch;
+                &>*{flex: 1;}
             }
         </style>
         <script type="module">
@@ -31,86 +34,104 @@
         <main>
             <html-demo-element
                 legend="1. Private declaration CSS and ordinary outer cascade"
-                description="The dashed green border stays inside the two DCE instances while the classless outside button keeps its browser-default border. The purple button text demonstrates an intentional higher-specificity page override of declaration CSS inside the native component scope."
+                description="The dashed green border stays inside the two DCE instances while the classless outside button keeps its browser-default border.<hr/>
+                            The violet button text demonstrates an intentional higher-specificity page override of declaration CSS inside the native component scope."
             >
                 <template>
-                    <cem-element tag="cem-css-private" uid-seed="demo/css/private">
-                        <template type="text/cem-ml">
-                            {style |``` :host { --sample-cascade-color: rgb(0, 128, 0); } button { border: 0.2rem dashed
-                            rgb(0, 128, 0); color: var(--sample-cascade-color); } ```} {button @type=button
-                            @data-css-sample=private | DCE dashed border}
-                        </template>
-                    </cem-element>
-                    <cem-css-private data-case="private-1"></cem-css-private>
-                    <cem-css-private data-case="private-2"></cem-css-private>
-                    <button type="button" data-case="private-outside">Browser default border</button>
+<style> /* page-level override for this sample */
+    cem-css-private { --sample-cascade-color: darkviolet; }
+</style>
+<cem-element tag="cem-css-private">
+    <template type="text/cem-ml">
+        {style |```
+            :host { --sample-cascade-color: green; }
+            button
+            {   border: 0.2rem dashed green;
+                color: var(--sample-cascade-color);
+            } ```
+        }
+        {button @type=button | {slot | DCE dashed border}}
+    </template>
+</cem-element>
+<cem-css-private>First DCE dashed border</cem-css-private>
+<cem-css-private>Second DCE dashed border</cem-css-private>
+<button type="button">
+    Browser default border
+</button>
                 </template>
             </html-demo-element>
 
             <html-demo-element
-                legend="2. Scoped declaration with bare-only shared shorthand"
-                description="A bare style is shared when the declaration has a scope and no matching explicit scoped style."
+                legend="2. Component in a named scope shares default declaration styles with peers in the same scope"
+                description="A <b>sample-shared-bare</b> class is shared when the declaration has a <b>scope=css-samples</b> and no matching explicit scoped style."
             >
                 <template>
-                    <cem-element tag="cem-css-shared-bare" scope="css-samples" uid-seed="demo/css/shared-bare">
-                        <template type="text/cem-ml">
-                            {style |``` :host { --shared-bare-color: rgb(0, 128, 0); } .sample-shared-bare { color:
-                            var(--shared-bare-color); } ```} {span @class=sample-shared-bare
-                            @data-css-sample=shared-bare | shared bare}
-                        </template>
-                    </cem-element>
-                    <cem-element tag="cem-css-shared-peer" scope="css-samples" uid-seed="demo/css/shared-peer">
-                        <template type="text/cem-ml">
-                            {span @class=sample-shared-bare @data-css-sample=shared-peer | shared peer}
-                        </template>
-                    </cem-element>
-                    <cem-css-shared-bare data-case="shared-bare"></cem-css-shared-bare>
-                    <cem-css-shared-peer data-case="shared-peer"></cem-css-shared-peer>
+<cem-element tag="cem-css-shared-bare" scope="css-samples">
+    <template type="text/cem-ml">
+        {style |```
+            :host { --shared-bare-color: green; }
+            .sample-shared-bare { color: var(--shared-bare-color); } ```
+        }
+        {b @class=sample-shared-bare | shared bare}
+    </template>
+</cem-element>
+<cem-element tag="cem-css-shared-peer" scope="css-samples">
+    <template type="text/cem-ml">
+        {b @class=sample-shared-bare | shared peer}
+    </template>
+</cem-element>
+<cem-css-shared-bare></cem-css-shared-bare>
+<cem-css-shared-peer></cem-css-shared-peer>
                 </template>
             </html-demo-element>
 
             <html-demo-element
-                legend="3. Explicit shared-only stylesheet"
+                legend="3. Style can be scoped explicitly"
                 description="A matching style scope contributes only to the named public group boundary."
             >
                 <template>
-                    <cem-element tag="cem-css-shared-explicit" scope="css-samples" uid-seed="demo/css/shared-explicit">
-                        <template type="text/cem-ml">
-                            {style @scope="css-samples" |``` :host { --shared-explicit-bg: rgb(219, 234, 254); }
-                            .sample-shared-explicit { background-color: var(--shared-explicit-bg); } ```} {span
-                            @class=sample-shared-explicit @data-css-sample=shared-explicit | explicit shared}
-                        </template>
-                    </cem-element>
-                    <cem-element tag="cem-css-explicit-peer" scope="css-samples" uid-seed="demo/css/explicit-peer">
-                        <template type="text/cem-ml">
-                            {span @class=sample-shared-explicit @data-css-sample=explicit-peer | explicit peer}
-                        </template>
-                    </cem-element>
-                    <cem-css-shared-explicit data-case="shared-explicit"></cem-css-shared-explicit>
-                    <cem-css-explicit-peer data-case="explicit-peer"></cem-css-explicit-peer>
+<cem-element tag="cem-css-shared-explicit" scope="css-samples">
+    <template type="text/cem-ml">
+        {style @scope="css-samples" |```
+            :host { --shared-explicit-bg: rgb(219, 234, 254); }
+            .shared-bg { background-color: var(--shared-explicit-bg); } ```
+        }
+        {span @class=shared-bg | {b shared-bg} class defined }
+    </template>
+</cem-element>
+<cem-element tag="cem-css-explicit-peer" scope="css-samples">
+    <template type="text/cem-ml">
+        {span @class=shared-bg | Use of {b shared-bg} class }
+    </template>
+</cem-element>
+<cem-css-shared-explicit></cem-css-shared-explicit>
+<cem-css-explicit-peer></cem-css-explicit-peer>
                 </template>
             </html-demo-element>
 
             <html-demo-element
                 legend="4. Mixed private and shared styles"
-                description="A matching explicit scoped style makes coexisting bare styles private; selectors are never combined."
+                description="A style with <b>scope</b> is shared, style without kept private; selectors are never combined."
             >
                 <template>
-                    <cem-element tag="cem-css-mixed" scope="css-samples" uid-seed="demo/css/mixed">
-                        <template type="text/cem-ml">
-                            {style |``` .sample-mixed { border: 0.2rem solid rgb(37, 99, 235); } ```} {style
-                            @scope="css-samples" |``` :host { --mixed-shared-color: rgb(124, 45, 18); }
-                            .sample-mixed-shared { color: var(--mixed-shared-color); } ```} {span @class="sample-mixed
-                            sample-mixed-shared" @data-css-sample=mixed | mixed}
-                        </template>
-                    </cem-element>
-                    <cem-element tag="cem-css-mixed-peer" scope="css-samples" uid-seed="demo/css/mixed-peer">
-                        <template type="text/cem-ml">
-                            {span @class=sample-mixed-shared @data-css-sample=mixed-peer | mixed peer}
-                        </template>
-                    </cem-element>
-                    <cem-css-mixed data-case="mixed"></cem-css-mixed>
-                    <cem-css-mixed-peer data-case="mixed-peer"></cem-css-mixed-peer>
+<cem-element tag="cem-css-mixed" scope="css-samples">
+    <template type="text/cem-ml">
+        {style |```
+            .sample-mixed { border: 0.2rem solid blue; } ```
+        }
+        {style @scope="css-samples" |```
+            .sample-mixed-shared { color: red; } ```
+        }
+        {span @class="sample-mixed sample-mixed-shared" | blue border, red text}
+    </template>
+</cem-element>
+<cem-element tag="cem-css-mixed-peer" scope="css-samples">
+    <template type="text/cem-ml">
+        {span @class=sample-mixed-shared | red text}
+    </template>
+</cem-element>
+<cem-css-mixed></cem-css-mixed>
+<cem-css-mixed-peer></cem-css-mixed-peer>
                 </template>
             </html-demo-element>
 
@@ -119,40 +140,49 @@
                 description="Unscoped explicit and mismatched styles are omitted; an invalid explicit style does not change a valid bare shorthand."
             >
                 <template>
-                    <cem-element tag="cem-css-unscoped-explicit" uid-seed="demo/css/unscoped-explicit">
-                        <template type="text/cem-ml">
-                            {style @scope="css-samples" |``` .must-not-apply { color: rgb(255, 0, 0); } ```} {span
-                            @class=must-not-apply @data-css-sample=unscoped-explicit | unscoped explicit rejected}
-                        </template>
-                    </cem-element>
-                    <cem-element tag="cem-css-mismatch" scope="css-samples" uid-seed="demo/css/mismatch">
-                        <template type="text/cem-ml">
-                            {style @scope="other-lib" |``` .must-not-apply { color: rgb(255, 0, 0); } ```} {span
-                            @class=must-not-apply @data-css-sample=mismatch | mismatch rejected}
-                        </template>
-                    </cem-element>
-                    <cem-element tag="cem-css-mismatch-bare" scope="css-samples" uid-seed="demo/css/mismatch-bare">
-                        <template type="text/cem-ml">
-                            {style |``` .sample-valid-bare { color: rgb(0, 128, 0); } ```} {style @scope="other-lib"
-                            |``` .must-not-apply { color: rgb(255, 0, 0); } ```} {span @class="sample-valid-bare
-                            must-not-apply" @data-css-sample=mismatch-bare | valid bare remains shared}
-                        </template>
-                    </cem-element>
-                    <cem-element
-                        tag="cem-css-invalid-declaration"
-                        scope="css samples"
-                        uid-seed="demo/css/invalid-declaration"
-                    >
-                        <template type="text/cem-ml">
-                            {style |``` .sample-invalid-declaration { color: rgb(0, 0, 255); } ```} {span
-                            @class=sample-invalid-declaration @data-css-sample=invalid-declaration | invalid declaration
-                            falls back private}
-                        </template>
-                    </cem-element>
-                    <cem-css-unscoped-explicit data-case="unscoped-explicit"></cem-css-unscoped-explicit>
-                    <cem-css-mismatch data-case="mismatch"></cem-css-mismatch>
-                    <cem-css-mismatch-bare data-case="mismatch-bare"></cem-css-mismatch-bare>
-                    <cem-css-invalid-declaration data-case="invalid-declaration"></cem-css-invalid-declaration>
+<cem-element tag="cem-css-unscoped-explicit">
+    <template type="text/cem-ml">
+        {style @scope="css-samples" |```
+            .must-not-apply { color: red; } ```
+        }
+        {span @class=must-not-apply |
+            not red as owning {code cem-element} declaration has no matching scope }
+    </template>
+</cem-element>
+<cem-element tag="cem-css-mismatch" scope="css-samples">
+    <template type="text/cem-ml">
+        {style @scope="other-lib" |```
+            .must-not-apply { color: red; } ```
+        }
+        {span @class=must-not-apply | mismatch rejected, DCE and style scope value differ }
+    </template>
+</cem-element>
+<cem-element tag="cem-css-mismatch-bare" scope="css-samples">
+    <template type="text/cem-ml">
+        {style |```
+            .sample-valid-bare { color: green; } ```
+        }
+        {style @scope="other-lib" |```
+            .must-not-apply { color: green; } ```
+        }
+        {span @class="sample-valid-bare must-not-apply" | valid bare remains shared}
+    </template>
+</cem-element>
+<cem-element
+    tag="cem-css-invalid-declaration"
+    scope="css samples"
+>
+    <template type="text/cem-ml">
+        {style |```
+            .sample-invalid-declaration { color: blue; } ```
+        }
+        {span @class=sample-invalid-declaration | invalid declaration falls back private}
+    </template>
+</cem-element>
+<cem-css-unscoped-explicit></cem-css-unscoped-explicit>
+<cem-css-mismatch></cem-css-mismatch>
+<cem-css-mismatch-bare></cem-css-mismatch-bare>
+<cem-css-invalid-declaration></cem-css-invalid-declaration>
                 </template>
             </html-demo-element>
 
@@ -161,24 +191,30 @@
                 description="The source style begins inert in an explicit payload template, then becomes a managed direct child under an implicit parent-rooted native scope."
             >
                 <template>
-                    <cem-element tag="cem-css-instance" uid-seed="demo/css/instance">
-                        <template type="text/cem-ml">
-                            {style |``` :host { --instance-border: rgb(0, 0, 255); } button { border: 0.2rem solid
-                            var(--instance-border); } ```} {button @type=button @data-css-sample=instance-button | {slot
-                            | instance}}
-                        </template>
-                    </cem-element>
-                    <cem-css-instance data-case="instance-blue">blue</cem-css-instance>
-                    <cem-css-instance data-case="instance-red">
-                        <template>
-                            <style>
-                                :host {
-                                    --instance-border: rgb(255, 0, 0);
-                                }
-                            </style>
-                            red
-                        </template>
-                    </cem-css-instance>
+<cem-element tag="cem-css-instance">
+    <template type="text/cem-ml">
+        {style |```
+            :host { --instance-border: blue; }
+            button {
+                border: 0.2rem solid var(--instance-border);
+            } ```
+        }
+        {button @type=button |
+            {slot | instance}
+        }
+    </template>
+</cem-element>
+<cem-css-instance data-testid="instance-blue">blue</cem-css-instance>
+<cem-css-instance data-testid="instance-red">
+    <template>
+        <style>
+            :host {
+                --instance-border: red;
+            }
+        </style>
+        red
+    </template>
+</cem-css-instance>
                 </template>
             </html-demo-element>
 
@@ -187,15 +223,25 @@
                 description="A dynamic style scope and a conditional declaration style diagnose and render no style node."
             >
                 <template>
-                    <cem-element tag="cem-css-dynamic" uid-seed="demo/css/dynamic">
-                        <template type="text/cem-ml">
-                            {module | {slice @name=scope | css-samples} {body | {style @scope="{$scope}" |```
-                            .must-not-apply { color: rgb(255, 0, 0); } ```} {cem:if @test=scope | {style |```
-                            .must-not-apply { background: rgb(255, 0, 0); } ```} } {span @class=must-not-apply
-                            @data-css-sample=dynamic | dynamic styles rejected} } }
-                        </template>
-                    </cem-element>
-                    <cem-css-dynamic data-case="dynamic"></cem-css-dynamic>
+<cem-element tag="cem-css-dynamic">
+    <template type="text/cem-ml">
+        {module |
+            {slice @name=scope | css-samples}
+            {body |
+                {style @scope="{$scope}" |```
+                    .must-not-apply { color: red; } ```
+                }
+                {cem:if @test=scope |
+                    {style |```
+                        .must-not-apply { background: red; } ```
+                    }
+                }
+                {span @class=must-not-apply | dynamic styles rejected}
+            }
+        }
+    </template>
+</cem-element>
+<cem-css-dynamic></cem-css-dynamic>
                 </template>
             </html-demo-element>
 
@@ -204,38 +250,69 @@
                 description="A reusable url#fragment template keeps its CSS artifact but scopes it to the consuming declaration tag."
             >
                 <template>
-                    <template id="css-fragment-template" type="text/cem-ml">
-                        {style |``` .sample-fragment { background-color: rgb(254, 243, 199); border: 0.2rem solid
-                        rgb(180, 83, 9); } ```} {span @class=sample-fragment @data-css-sample=fragment | fragment}
-                    </template>
-                    <cem-element
-                        tag="cem-css-fragment"
-                        src="#css-fragment-template"
-                        uid-seed="demo/css/fragment"
-                    ></cem-element>
-                    <cem-css-fragment data-case="fragment"></cem-css-fragment>
+<template id="css-fragment-template" type="text/cem-ml">
+    {style |```
+        .sample-fragment {
+            background-color: rgb(254, 243, 199);
+            border: 0.2rem solid rgb(180, 83, 9);
+        } ```
+    }
+    {span @class=sample-fragment | fragment}
+</template>
+<cem-element
+    tag="cem-css-fragment"
+    src="#css-fragment-template"
+></cem-element>
+<cem-css-fragment></cem-css-fragment>
                 </template>
             </html-demo-element>
 
             <html-demo-element
                 legend="9. Anonymous declaration CSS uses its generated tag"
-                description="The deterministic anonymous tag is both the browser element name and private CSS boundary."
+                description="The explicit <b>uid-seed</b> participates in the deterministic anonymous tag, which is both the browser element name and private CSS boundary."
             >
                 <template>
-                    <cem-element uid-seed="demo/css/anonymous" data-case="anonymous-declaration">
-                        <template type="text/cem-ml">
-                            {style |``` .sample-anonymous { color: rgb(128, 0, 128); } ```} {span
-                            @class=sample-anonymous @data-css-sample=anonymous | anonymous}
-                        </template>
-                    </cem-element>
+<cem-element uid-seed="demo/css/anonymous" data-testid="anonymous-declaration">
+    <template type="text/cem-ml">
+        {style |```
+            .sample-anonymous { color: violet; } ```
+        }
+        {b @class=sample-anonymous | anonymous violet}
+    </template>
+</cem-element>
+                </template>
+            </html-demo-element>
+
+            <html-demo-element
+                legend="10. uid-seed stabilizes keyframe names"
+                description="The authored <b>seeded-pulse</b> keyframes and animation reference are rewritten with the declaration's deterministic render identity. Here <b>uid-seed=demo/css/keyframes</b> makes that internal suffix stable; it does not define the native CSS scope."
+            >
+                <template>
+<cem-element tag="cem-css-keyframes" uid-seed="demo/css/keyframes">
+    <template type="text/cem-ml">
+        {style |```
+            @keyframes seeded-pulse {
+                from { opacity: 0.35; transform: scale(0.96); }
+                to { opacity: 1; transform: scale(1); }
+            }
+            [part~="indicator"] {
+                display: inline-block;
+                animation: seeded-pulse 800ms ease-in-out infinite alternate;
+            } ```
+        }
+        {span @part=indicator | deterministic keyframes}
+    </template>
+</cem-element>
+<cem-css-keyframes data-testid="keyframes"></cem-css-keyframes>
                 </template>
             </html-demo-element>
 
             <p class="status-note">
                 Private CSS uses native <code>@scope (&lt;cem-tag&gt;)</code>; named shared CSS uses the public
                 declaration-owned <code>scope="name"</code>; payload CSS uses an implicit parent-rooted
-                <code>@scope</code>. Internal <code>data-cem-render-scope</code> is not a CSS hook, and no
-                per-instance CSS marker is generated.
+                <code>@scope</code>. An explicit <code>uid-seed</code> stabilizes internal render identity and
+                rewritten keyframe names; it does not create a CSS boundary. Internal
+                <code>data-cem-render-scope</code> is not a CSS hook, and no per-instance CSS marker is generated.
             </p>
         </main>
         <script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>

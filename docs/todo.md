@@ -56,6 +56,23 @@ registration identities may reuse an inherited or existing definition.
     - Completed 2026-08-23: the preview loads each story's raw XHTML declaration
       only when needed, keeping unrelated runtime stories fast; all 121
       Storybook Chromium tests and the production build pass.
+- [x] Extend the existing `cem-elements` index demo fixture to prove that an
+      attribute interpolation can coalesce missing named-slot text to an
+      authored placeholder default while preserving supplied slot text.
+- [x] Implement native scoped `cem:variable` template bindings and use one in
+      the `cem-elements` Pokémon demo to reuse its sprite base URL across the
+      host image and payload loop, with Rust and browser fixture evidence.
+    - Completed 2026-08-29: `cem:variable` now binds a static or data-driven
+      CEM-QL expression for following content, restores shadowed bindings at
+      lexical scope boundaries, and drives both Pokémon sprite URL sites.
+- [x] Add source-loaded, legend-scoped browser contracts for `cem-elements`
+      `index.html` and every HTML document under `demo/`, including support
+      documents, without requiring test-only hooks in the authored examples.
+    - Completed 2026-08-29: the inventory-gated verifier now exercises 15
+      standalone pages and 21 source-loaded documents, locates samples by legend,
+      and checks each sample through scoped DOM/CSS selectors. Runtime regressions
+      cover nested inert templates and loaded-document-relative declarations and
+      resources; the authored demo HTML needs no test-only hooks.
 - [x] Add executable stylesheet-ownership and anonymous-declaration fixtures for
       the historical low-specificity CSS baseline, since superseded by native
       `@scope`: declaration styles installed once under
@@ -117,6 +134,15 @@ registration identities may reuse an inherited or existing definition.
       expanded cascade/containment evidence are implemented. The required
       `cem_ql`, 150-unit-test, 129-Storybook-test, 15-page demo, and full
       58-dependency cem-components gates pass.
+    - [x] Fixture: remove `uid-seed` from scoped-CSS samples that do not expose
+          deterministic render identity, and add a keyframe sample proving that
+          one explicit seed stabilizes both the internal render identity and the
+          rewritten animation name.
+        - Completed 2026-08-28: ordinary private/shared/instance/fragment samples
+          now use runtime identity, while the new animated sample verifies that
+          `demo/css/keyframes` appears in `data-cem-render-scope`, the rewritten
+          `@keyframes` rule, its animation reference, and the computed animation
+          name. All 15 browser demo fixtures pass.
 
 ### Remaining declarative UI migration
 
