@@ -440,7 +440,7 @@ not a universal replacement for local browser processing:
 The same processing layer can run in a server host to emit:
 
 - rendered HTML for the produced custom element output;
-- hydration metadata that identifies template artifact, data revision, source-map
+- hydration data that identifies template artifact, data revision, source-map
   markers, and retained render-plan identity;
 - optional initial data-island content wrapped in inert `<template>` form for the
   browser UI adapter.

@@ -276,6 +276,9 @@ export const InstanceStylesStayWithOneInstance: Story = {
             '<template data-literal><b>kept inert</b></template>',
             '</template>',
         ].join('');
+        const authoredPayloadEnvelope = overridden.firstElementChild as HTMLTemplateElement;
+        (overridden as HTMLElement & { __authoredPayloadEnvelope?: HTMLTemplateElement }).__authoredPayloadEnvelope =
+            authoredPayloadEnvelope;
         const bare = createElement('css-scope-instance');
         bare.setAttribute('data-css-case', 'bare-style-instance');
         bare.innerHTML = '<style>:host { --instance-color: rgb(255, 0, 0); }</style>bare';
@@ -318,6 +321,13 @@ export const InstanceStylesStayWithOneInstance: Story = {
         await expect(payloadStyle?.hasAttribute('data-cem-render-scope')).toBe(false);
         await expect(overridden.hasAttribute('data-cem-instance-scope')).toBe(false);
         const island = requiredElement(overridden, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        const authoredPayloadEnvelope = (
+            overridden as HTMLElement & { __authoredPayloadEnvelope?: HTMLTemplateElement }
+        ).__authoredPayloadEnvelope;
+        await expect(authoredPayloadEnvelope).toBeDefined();
+        await expect(island).not.toBe(authoredPayloadEnvelope);
+        await expect(authoredPayloadEnvelope?.isConnected).toBe(false);
+        await expect(overridden.querySelectorAll(':scope > template:not([data-cem-island])')).toHaveLength(0);
         await expect(island.content.querySelector('style')?.textContent).toContain(':host');
         const projected = requiredElement(overridden, 'button > span');
         await expect(projected).toHaveAttribute('slot', '');

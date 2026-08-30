@@ -326,6 +326,9 @@ impl IrLowerer {
                 if *op == BinaryOp::Minus {
                     return self.lower_minus(lhs, rhs, *range, transform);
                 }
+                if *op == BinaryOp::Plus {
+                    return self.lower_plus(lhs, rhs, *range, transform);
+                }
                 if numeric_op(*op) {
                     return self.lower_numeric_binary(*op, lhs, rhs, *range, transform);
                 }
@@ -779,6 +782,59 @@ impl IrLowerer {
         )
     }
 
+    fn lower_plus(
+        &mut self,
+        lhs: IrId,
+        rhs: IrId,
+        range: ByteRange,
+        transform: TransformKind,
+    ) -> IrId {
+        let lhs_ty = self.type_of(lhs).cloned().unwrap_or(Type::Any);
+        let rhs_ty = self.type_of(rhs).cloned().unwrap_or(Type::Any);
+        let ty = if lhs_ty.is_any() || rhs_ty.is_any() {
+            Type::Any
+        } else if matches!(lhs_ty, Type::Atom(AtomType::String))
+            && matches!(rhs_ty, Type::Atom(AtomType::String))
+        {
+            Type::atom(AtomType::String)
+        } else if lhs_ty.is_numeric_atom() && rhs_ty.is_numeric_atom() {
+            if lhs_ty == rhs_ty {
+                lhs_ty.clone()
+            } else {
+                self.emit(
+                    TYPE_ERROR,
+                    format!(
+                        "operator `+` requires matching numeric operand types, got `{lhs_ty:?}` and `{rhs_ty:?}`; use an explicit num:* conversion"
+                    ),
+                    range,
+                    Severity::Error,
+                );
+                Type::Any
+            }
+        } else {
+            self.emit(
+                TYPE_ERROR,
+                format!(
+                    "operator `+` requires two strings or matching numeric operands, got `{lhs_ty:?}` and `{rhs_ty:?}`; implicit string conversion is not supported"
+                ),
+                range,
+                Severity::Error,
+            );
+            Type::Any
+        };
+        self.push_node(
+            IrNode::BinaryOp {
+                op: BinaryOp::Plus,
+                lhs,
+                rhs,
+            },
+            ty,
+            range,
+            None,
+            transform,
+        )
+    }
+
     fn lower_minus(
         &mut self,
         lhs: IrId,
@@ -1199,10 +1255,7 @@ fn comparison_op(op: BinaryOp) -> bool {
 }
 
 fn numeric_op(op: BinaryOp) -> bool {
-    matches!(
-        op,
-        BinaryOp::Plus | BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent
-    )
+    matches!(op, BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent)
 }
 
 fn builtin_type(key: &QNameKey) -> Option<Type> {
@@ -1234,6 +1287,8 @@ fn stdlib_aliases() -> HashMap<String, ModuleUri> {
         ("num", "cem:stdlib/numbers"),
         ("dt", "cem:stdlib/datetime"),
         ("dom", "cem:stdlib/dom"),
+        ("item", "cem:stdlib/items"),
+        ("record", "cem:stdlib/records"),
         ("report", "cem:stdlib/report"),
         ("state", "cem:stdlib/state"),
         ("tpl", "cem:stdlib/template"),

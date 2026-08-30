@@ -196,7 +196,7 @@ fn parser_recognises_module_import_and_declarations() {
         r#"module "urn:demo"
            import "cem:stdlib/strings" as str
            declare let answer = 42
-           declare function local:greet(name as string) { str:concat("hi", name) }"#,
+           declare function local:greet(name as string) { "hi" + name }"#,
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(result.module.nodes.len(), 4);
@@ -304,7 +304,7 @@ fn parser_builds_control_flow_record_sequence_and_loop_forms() {
         first_expr("{ name: \"x\", \"external-key\": 1 }"),
         Expression::Record { .. }
     ));
-    let record = first_expr(r#"{ [str:concat(("na", "me"))]: "Ada" }"#);
+    let record = first_expr(r#"{ ["na" + "me"]: "Ada" }"#);
     let Expression::Record { entries, .. } = record else {
         panic!("expected record with computed key");
     };

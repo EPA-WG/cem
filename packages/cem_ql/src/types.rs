@@ -639,7 +639,8 @@ impl TypeChecker {
                 self.expect_subtype(&rhs_ty, &boolean_type(), rhs.range());
                 boolean_type()
             }
-            BinaryOp::Plus | BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent => {
+            BinaryOp::Plus => self.infer_plus(&lhs_ty, &rhs_ty, range),
+            BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent => {
                 self.infer_numeric_binary(op, &lhs_ty, &rhs_ty, range)
             }
             BinaryOp::Minus => self.infer_minus(&lhs_ty, &rhs_ty, range),
@@ -666,6 +667,28 @@ impl TypeChecker {
                 boolean_type()
             }
         }
+    }
+
+    fn infer_plus(&mut self, lhs: &Type, rhs: &Type, range: ByteRange) -> Type {
+        if lhs.is_any() || rhs.is_any() {
+            return Type::Any;
+        }
+        if matches!(lhs, Type::Atom(AtomType::String))
+            && matches!(rhs, Type::Atom(AtomType::String))
+        {
+            return Type::atom(AtomType::String);
+        }
+        if lhs.is_numeric_atom() && rhs.is_numeric_atom() {
+            return self.infer_numeric_binary(BinaryOp::Plus, lhs, rhs, range);
+        }
+        self.emit(
+            TYPE_ERROR,
+            format!(
+                "operator `+` requires two strings or matching numeric operands, got `{lhs:?}` and `{rhs:?}`; implicit string conversion is not supported"
+            ),
+            range,
+        );
+        Type::Any
     }
 
     fn infer_numeric_binary(
@@ -975,6 +998,8 @@ impl TypeChecker {
             ("num", "cem:stdlib/numbers"),
             ("dt", "cem:stdlib/datetime"),
             ("dom", "cem:stdlib/dom"),
+            ("item", "cem:stdlib/items"),
+            ("record", "cem:stdlib/records"),
             ("report", "cem:stdlib/report"),
             ("state", "cem:stdlib/state"),
             ("tpl", "cem:stdlib/template"),

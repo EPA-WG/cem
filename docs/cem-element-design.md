@@ -10,6 +10,12 @@ This document is the source of truth for the `cem-element` substrate that
 `<custom-element>` authoring tag from `@epa-wg/custom-element` while preserving the
 declarative concept that POC introduced.
 
+The normative instance capture, data-island, render, serialization, and hydration
+lifecycle is defined by
+[`cem-element-lifecycle-principle.md`](./cem-element-lifecycle-principle.md). Where
+older text in this design conflates an authored payload envelope with the runtime
+island, that lifecycle principle governs.
+
 ## 1. Goal
 
 `cem-element` keeps the `@epa-wg/custom-element` concept — a declaration registers a
@@ -59,7 +65,9 @@ Terminology used below:
   `<cem-button>` or `<cem-menu>`. This is not the legacy `<custom-element>` tag.
 - **Instance data island** means the produced custom element instance's inert
   `<template data-cem-island="instance">`, which stores mutable attributes, payload,
-  slices, validation state, and event payloads.
+  slices, validation state, event payloads, and DOM-native hydration data in distinct
+  sections. It is created by the runtime and is separate from an authored unmarked
+  payload `<template>` envelope.
 
 ### Declaration registry and name contract
 
@@ -162,10 +170,11 @@ Before upgrade, a produced custom element instance may contain author fallback
 payload. On upgrade, that payload is captured into the instance's inert data-island
 `<template>`, and only the rendered projection remains visible.
 
-The accepted CSS target reserves one direct instance `<template>` as an explicit
-inert payload envelope when payload-owned CSS is required. In that form the runtime
-adopts the template as the instance data island; it does not wrap it again. Mixing
-the envelope with non-whitespace siblings is invalid, and a literal projected
+The accepted CSS target reserves one unmarked direct instance `<template>` as an
+explicit inert payload envelope when payload-owned CSS is required. The runtime
+moves its content into the payload section of a distinct runtime-owned data island
+and consumes the envelope. Mixing the envelope with non-whitespace siblings is
+invalid, and a literal projected
 template must be nested inside the envelope. Ordinary payload without instance CSS
 may continue to use pre-upgrade fallback children. This target, including public
 `scope="name"`, projected-root `slot="name"`, component-owned `part="name"`, and
@@ -225,14 +234,14 @@ Or the XML/HTML parity form (lowered to the same AST):
 - Multiple top-level concerns (attribute declarations, slices, named render templates,
   inline styles, plugin descriptors) coexist inside the single `<template>` — they are
   distinguished by element name, not by sibling position.
-- For each produced custom element instance, the runtime creates or reuses a separate
-  instance data island as `<template data-cem-island="instance">`. Host attributes,
+- For each produced custom element instance, the runtime creates or resumes a
+  distinct instance data island as `<template data-cem-island="instance">`. Host attributes,
   dataset, captured author payload, slice state, validation state, and event payloads
   live there. Its content is the mutable data host for that instance and MUST NOT
   participate in rendering directly.
 - Author payload on the produced custom element instance (`<cem-button>Save</cem-button>`)
   is a progressive-enhancement fallback only until upgrade. During upgrade it is
-  moved or cloned into the instance data-island template before the rendered output
+  moved into the payload section of a new instance data-island template before the rendered output
   is installed, so the page never shows both the raw payload and rendered projection.
 
 ### 3.2 URI declaration syntax
@@ -288,7 +297,7 @@ Rules:
 | Template syntax           | XSLT-shaped HTML with `<for-each>`, `<if>`, `<choose>`  | CEM-ML curly surface or XML/HTML parity; `cem-ql` template embedding (AC-T-7)                                                   |
 | Expression language       | XPath 1.0, `$var` and `//path`                          | CEM-QL (see [`cem-ql-stack-design.md`](./cem-ql-stack-design.md)); `$var` for declared attributes, dotted/path forms for slices |
 | Text interpolation        | `{ … }` in text and attribute values                    | `{ $expr }` in attributes (AVT spans); `${ $expr }` in text. Bare `{ … }` text is rejected per `cem-ml-syntax.md` Tier A.       |
-| Attribute declarations    | `<attribute name="…">default</attribute>`               | Same shape, lowered to the same AST. Default text or `@select="{$expr}"` attribute.                                             |
+| Attribute declarations    | `<attribute name="…">default</attribute>`               | Same shape, lowered to the same AST. Body text is a host-overridable reflected default; `@select="expr"` is authoritative and updates `$name`, the current render's `datadom.attributes.name`, and the reflected host attribute together. |
 | Slices and slice events   | `slice="x"` + `slice-event="…"` + `slice-value="{ … }"` | Same surface, but `slice-value` carries a CEM-QL expression.                                                                    |
 | Validation / open-content | Implicit per the POC engine                             | Schema-governed; the cem-element substrate participates in `cem_ml` scope policy and Tier A semantic-validation catalog.        |
 
@@ -315,9 +324,12 @@ does not evaluate browser state.
    - extracts the render template (a CEM AST projected to WHATWG light DOM via
      `cem_ml`'s `OutputTarget::LightDomCustomElements`, AC-I-6);
    - registers `tag="X"` with `customElements.define` if not already defined.
-2. **Instance initialization.** When an instance of `X` connects, the runtime:
-   - captures host attributes, dataset, and author child payload into
-     `<template data-cem-island="instance">`;
+2. **Instance initialization or resume.** When an instance of `X` connects, the runtime:
+   - checks first for one direct `<template data-cem-island="instance">`; its presence
+     resumes the serialized lifecycle and prevents all sibling output from being
+     recaptured as payload;
+   - otherwise captures ordinary author children, or the content of one unmarked inert
+     payload `<template>`, into a newly created marked island's payload section;
    - records slot names, default payload, slices, validation state, and event payloads
      under that instance data island;
    - removes the captured raw payload from the live render tree before first render.
@@ -375,16 +387,16 @@ This makes these deployment modes valid without changing the declaration model:
   current `RenderRevision`, content addresses, scope/privacy policy stamps, and an
   ETag-like compare value for stale-write rejection. Persistent full snapshot storage
   is opt-in by export policy and browser-only state is never stored at the edge.
-- **Server-side rendering mode.** The processing layer can emit HTML plus hydration
-  metadata and source-map markers. On hydration, the browser UI adapter reconstructs or
-  validates the instance data island and retained render-plan identity before taking
-  over local event-to-data updates. Phase 3.5 fixtures use a direct child
-  `<script type="application/json" data-cem-hydration="snapshot">` containing the
-  serialized `DataIslandSnapshot`, a direct instance data-island `<template>`, and the
-  normal `<!--cem-render-start-->` / `<!--cem-render-end-->` render boundary comments.
-  When those three pieces match the produced element, the browser runtime preserves the
-  server-rendered light DOM on first connect, restores the instance/data revision state,
-  and lets normal client invalidation handle later mutations.
+- **Server-side rendering mode.** The processing layer can emit HTML plus DOM-native
+  hydration data and source-map markers. On hydration, the browser UI adapter validates
+  the direct instance data island and retained render-plan identity before taking over
+  local event-to-data updates. The hydration data is HTML/XML structure inside
+  `<template data-cem-island="instance">`; it is not a sibling JSON script or a second
+  state authority. Normal `<!--cem-render-start-->` / `<!--cem-render-end-->` comments
+  identify output that may be retained. When island and output identity agree, the
+  browser preserves the server-rendered light DOM on first connect. When retained bounds
+  are absent, the same island data participates in the first render and provisional
+  output such as `loading...` is replaced.
 
 ### 4.2 Serializable processing boundary
 
@@ -419,6 +431,7 @@ interface DataIslandSnapshot {
   hostAttributes: Record<string, string | boolean | null>;
   dataset: Record<string, string>;
   payload: SerializedPayload;
+  dataIsland?: SerializedPayload;
   slices: Record<string, unknown>;
   formData?: Record<string, unknown>;
   validationState: Record<string, unknown>;
@@ -427,10 +440,11 @@ interface DataIslandSnapshot {
 ```
 
 The snapshot MUST NOT contain live `Node`, `Event`, `Element`, `DocumentFragment`,
-function, class instance, or browser handle references. Payload content is serialized
-from the inert instance data-island `<template>` and normalized before it crosses the
-processing boundary. The UI adapter owns the conversion between live browser state and
-this snapshot.
+function, class instance, or browser handle references. `payload` is serialized only
+from the island's payload section. `dataIsland`, when present, serializes the complete
+DOM-native island tree so a canonical transform may inspect every layer without a
+synthetic wrapper or layer-specific filter. The UI adapter owns conversion between the
+live browser island and this derived structured-clone snapshot.
 
 The render revision for a snapshot is the tuple `{ instanceId, dataRevision,
 templateArtifactId, scopePolicyStamp, outputTarget, renderAttempt? }`. The UI adapter
@@ -724,11 +738,12 @@ scope-policy stamps, and output target MUST agree. A mismatch is `invalid-reques
 host MUST NOT guess which duplicate identity is authoritative.
 
 - `render-initial` returns the HTML for the owned light-DOM render range separately from
-  `cem-ssr-hydration-v1` metadata. The metadata carries the exact exported snapshot,
-  complete revision, retained `RenderPlanIdentity`, and source-map mode. The result also
-  returns the committed `EdgeRenderStateRecord`. An HTML adapter owns render-boundary,
-  instance-wrapper, and metadata-script serialization and MUST escape each output for
-  its destination context.
+  `cem-ssr-hydration-v1` transport data. That structured-clone result carries the exact
+  exported snapshot, complete revision, retained `RenderPlanIdentity`, and source-map
+  mode. The result also returns the committed `EdgeRenderStateRecord`. An HTML adapter
+  owns render-boundary and instance-wrapper serialization, lowers browser hydration data
+  into the data island's HTML/XML sections, and MUST escape each output for its
+  destination context. The transport record is derived data, not browser-side authority.
 - `render-update` additionally carries the stable state key, expected ETag, previous
   `RenderPlanIdentity`, and content address of that previous plan. The host verifies all
   four against the current pointer and addressed plan before diffing. It emits one
@@ -759,7 +774,7 @@ the render plan with the same render-node, artifact, revision, and source metada
 browser materialization. Its serializer escapes text and attributes and rejects unsafe
 names, null characters, invalid comments, executable/raw-text elements, closing-style
 terminators, and children of HTML void elements. The fixture rereads and verifies the
-stored plan before returning hydration metadata, and atomically creates the initial
+stored plan before returning hydration data, and atomically creates the initial
 pointer with the `ifAbsent` precondition.
 
 The same reference fixture implements `render-update` as an ordered async response
@@ -843,7 +858,7 @@ serializable render-plan/WASM boundary:
 Operational metadata must not defeat no-op rendering. Per-node debug attributes such as
 `data-cem-render-node-id`, source-map markers, and creation-time render metadata may be
 present in the light DOM, but the authoritative latest render revision lives in runtime
-state, hydration metadata, or boundary-level metadata. A data-only rerender that produces
+state, hydration data, or boundary-level metadata. A data-only rerender that produces
 the same virtual tree must not rewrite every element merely to refresh debug attributes.
 
 Dynamic text and structural regions need identities even when there is no owner element

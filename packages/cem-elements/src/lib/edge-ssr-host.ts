@@ -79,7 +79,7 @@ export interface CemEdgeSsrRenderUpdateInput extends CemEdgeSsrRenderInput {
     previousRenderPlan: CemEdgeSsrPreviousRenderPlan;
 }
 
-export interface CemSsrHydrationMetadata {
+export interface CemSsrHydrationData {
     kind: 'cem-ssr-hydration-v1';
     snapshot: ExportedDataIslandSnapshot;
     revision: RenderRevision;
@@ -89,9 +89,9 @@ export interface CemSsrHydrationMetadata {
 
 export interface CemEdgeSsrInitialRenderResult {
     kind: 'initial-render';
-    /** HTML for the owned light-DOM render range; host adapters own wrapper and metadata escaping. */
+    /** HTML for the owned light-DOM render range; host adapters own wrapper and hydration-data escaping. */
     renderedHtml: string;
-    hydrationMetadata: CemSsrHydrationMetadata;
+    hydrationData: CemSsrHydrationData;
     renderState: EdgeRenderStateRecord;
     diagnostics: CemProcessingDiagnostic[];
 }

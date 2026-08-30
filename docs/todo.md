@@ -65,6 +65,20 @@ registration identities may reuse an inherited or existing definition.
     - Completed 2026-08-29: `cem:variable` now binds a static or data-driven
       CEM-QL expression for following content, restores shadowed bindings at
       lexical scope boundaries, and drives both Pokémon sprite URL sites.
+- [x] Restore functional legacy attribute-declaration parity: compile and
+      evaluate top-level `attribute @select` expressions, return and apply
+      loop-safe host-attribute updates, rewrite legacy declaration XPath, and
+      make the four `demo/attributes.html` samples verify default, host, slice,
+      and event-derived values through both rendered bindings and host state.
+    - Completed 2026-08-29: native CEM-QL/CEM-ML targets, 152 unit tests,
+      132 Storybook interactions, 16 edge/SSR unit tests, and the 15-page /
+      21-source-document browser fixture gate pass.
+- [x] Keep declaration-selected attributes synchronized in the current
+      `datadom.attributes` projection, with a three-keystroke example-4 browser
+      regression proving that the final slice event is visible immediately.
+    - Completed 2026-08-29: defaults and successful selects now update the
+      current render projection before body evaluation; native tests, all 132
+      Storybook interactions, and the 15-page / 21-source-document demo gate pass.
 - [x] Add source-loaded, legend-scoped browser contracts for `cem-elements`
       `index.html` and every HTML document under `demo/`, including support
       documents, without requiring test-only hooks in the authored examples.
@@ -73,6 +87,82 @@ registration identities may reuse an inherited or existing definition.
       and checks each sample through scoped DOM/CSS selectors. Runtime regressions
       cover nested inert templates and loaded-document-relative declarations and
       resources; the authored demo HTML needs no test-only hooks.
+- [x] Restore all 15 legacy `demo/data-slices.html` use cases as independent
+      native CEM-ML samples, adding reusable default event/value, attribute-target,
+      multi-directive, checkbox/radio, and event-coordinate behavior with
+      Storybook and source-loaded browser contracts.
+    - Completed 2026-08-29: declared slice defaults now update both named bindings
+      and `datadom.slices`; form controls default to `change` with legacy-aware
+      value coercion; attribute targets, nested synthetic directives, multiple
+      events/targets, synthetic `slice @value` initialization, and serialized
+      mouse coordinates run through the shared runtime. All 15 legacy cases have
+      independent source-loaded contracts. The full 217-test `cem_ql` suite,
+      152 unit tests, 133 Storybook interactions, lint,
+      typecheck, and the 15-page / 21-source-document browser gate pass.
+- [x] Fixture: preserve the split A1/A2 data-slice samples, making A1 prove
+      legacy input-owned `?? 0` initialization without a declared slice while
+      A2 retains declared-slice initialization, with independent legend-scoped
+      browser contracts.
+    - Completed 2026-08-29: A1 now uses the canonical CEM-QL equivalent
+      `datadom.slices.clickcount ?? 0` only in the input value, with no declared
+      slice and click-only increment/decrement bindings; A2 keeps the declared
+      slice. Their produced tags and legend contracts are independent, and the
+      16-sample data-slices inventory passes in the 15-page / 21-document gate.
+- [x] Add package-owned unit coverage for every authored
+      `demo/data-slices.html` sample: an exact source-contract test per legend
+      in `test:unit`, plus one source-loaded Storybook interaction test that
+      exercises every sample through its rendered controls and outcomes.
+    - Completed 2026-08-29: 16 exact legend contracts and a no-test-hooks
+      assertion bring the Node suite to 170 tests; the source-loaded interaction
+      brings Storybook to 134 tests and exercises A1, A2, B, and 1-13. Demo
+      selectors are structural, with no `data-role`, `data-testid`, or test-only
+      `id` attributes; the 15-page / 21-source-document browser gate passes.
+- [x] Fix sample B dynamic inline-style interpolation so mouse-event `offsetX`
+      and `offsetY` values produce valid pixel lengths in `box-shadow`, with a
+      native render regression and a computed-style browser assertion.
+    - Completed 2026-08-30: sample B now uses canonical attribute-value CEM-QL
+      expressions without the text-node `$` prefix, rendering values such as
+      `157px 120px` instead of `px px`. The 218-test native suite, 170 package
+      unit tests, 134 Storybook interactions, and the 15-page / 21-source-demo
+      browser gate pass; both source-loaded and standalone checks require a
+      nonempty computed shadow.
+- [x] Add the strict CEM-QL `string + string -> string` overload without
+      implicit conversion, carry it through type checking, lowering, native and
+      slice-event evaluation, document the contract, and migrate binary string
+      concatenation examples from `concat(...)` while retaining stream-join
+      examples for `str:concat`.
+    - Completed 2026-08-30: `+` now dispatches to exact string concatenation or
+      same-type numeric addition in the checker, typed IR, and runtime, with
+      static and dynamic mixed-type failures. Sample 5 and binary-concatenation
+      fixtures use `+`; separator-based stream joins retain `str:concat`. The
+      generated schema-package README, 220 native tests, 170 package unit tests,
+      134 Storybook interactions, schema-package verification, typecheck, and
+      the 15-page / 21-source-document browser gate pass.
+- [x] Fixture: make external-template example 4 render the complete native
+      inert `<template>` data-island tree through its external
+      CEMT, including arbitrary element attributes, dataset attributes, named
+      and default slots, text, comments, and nested content without a
+      rendered legacy-synthetic `datadom` wrapper or attribute-name whitelist.
+    - Completed 2026-08-30: example 4 covers an explicit inert payload envelope
+      and ordinary live payload capture. `tree.cemt` recursively exposes the
+      resulting stable island's element, text, and comment nodes plus every
+      serialized attribute through the generic Tier A `record:entries` helper.
+- [x] Lifecycle: separate the authored instance payload envelope from the stable
+      runtime-owned data-island tree, store browser hydration data in HTML/XML DOM
+      form inside the island, prevent serialized rendered output from ever being
+      recaptured as payload, support both render-on-load provisional content and
+      identity-matched no-rerender adoption, and update example 4 to expose the
+      complete island tree.
+    - Completed 2026-08-30: the normative lifecycle principle now defines one
+      stable marked island with distinct DOM-native state sections. First load
+      consumes either live payload or one unmarked inert envelope; resume mode is
+      selected by the marker before sibling inspection. DOM hydration data restores
+      render slices, loading output is replaced when bounds are absent, and matching
+      version/declaration/artifact/revision/policy/source identity retains SSR output
+      without a first rerender. `tree.cemt` renders all eight island sections through
+      `$island`. Build, lint, typecheck, 174 unit tests, 134 browser stories, 16
+      Edge/SSR unit tests, 6 Edge/SSR stories, and the 15-page / 21-source-document
+      demo gate pass.
 - [x] Add executable stylesheet-ownership and anonymous-declaration fixtures for
       the historical low-specificity CSS baseline, since superseded by native
       `@scope`: declaration styles installed once under
@@ -108,9 +198,9 @@ registration identities may reuse an inherited or existing definition.
           `slot=""` for default roots, and expose stable `part="name"` only on
           component-owned internals.
     - [x] Require a direct inert `<template>` envelope for instance payload CSS,
-          adopt it as the instance data island, install managed styles under an
-          implicit parent-rooted `@scope`, and reject bare or mixed payload
-          styles fail-closed.
+          move its content into the distinct instance data island, install
+          managed styles under an implicit parent-rooted `@scope`, and reject
+          bare or mixed payload styles fail-closed.
     - [x] Remove `data-cem-instance-scope` without adding another instance-style
           marker; keep `data-cem-render-scope` and data-island identity internal.
     - [x] Enforce the `0-2-1` authored library-specificity ceiling and reject

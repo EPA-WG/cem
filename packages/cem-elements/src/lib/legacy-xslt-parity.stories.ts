@@ -379,7 +379,7 @@ export const FileDatadomAccessParity: Story = fileBackedParityStory(
     'datadom-access-migration',
     datadomAccessLegacyFixture,
     datadomAccessCemFixture,
-    [{ selector: 'p', texts: ['From datadom'] }]
+    [{ selector: 'p', texts: ['From datadom', 'Fallback'] }]
 );
 
 export const FileConditionalsParity: Story = fileBackedParityStory(

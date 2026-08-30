@@ -95,6 +95,8 @@ packages/cem_ql/
       strings.rs         — cem:stdlib/strings
       numbers.rs         — cem:stdlib/numbers
       datetime.rs        — cem:stdlib/datetime
+      records.rs         — cem:stdlib/records
+      items.rs           — cem:stdlib/items
       dom.rs             — cem:stdlib/dom
       report.rs          — cem:stdlib/report
       state.rs           — cem:stdlib/state
@@ -379,11 +381,15 @@ During type checking and lowering, known numeric operands remain
 and unresolved operands may lower to a typed runtime-dispatch node only if it
 preserves the same diagnostics and AC-QO-1 ordering/identity rules.
 
-Numeric operators follow AC-QX-7. Type checking and lowering reject implicit
-promotion across `integer`, `decimal`, and `double`; authors must call
-`num:integer`, `num:decimal`, or `num:double` explicitly before using
-`+`, `-`, `*`, `/`, or `%` on mixed atom types. Runtime arithmetic dispatches
-by concrete atom type: integers use checked Rust `i64` operators (`/`
+The `+` operator has two strict branches under AC-QX-7:
+`string + string -> string` and same-type numeric addition. It never
+stringifies a non-string operand; known mixed operands fail during type
+checking and lowering, while statically unknown operands use the same runtime
+dispatch rule. The numeric operators reject implicit promotion across
+`integer`, `decimal`, and `double`; authors must call `num:integer`,
+`num:decimal`, or `num:double` explicitly before using `+`, `-`, `*`, `/`, or
+`%` on mixed atom types. Runtime arithmetic dispatches by concrete atom type:
+integers use checked Rust `i64` operators (`/`
 truncates toward zero and `%` keeps the dividend sign), doubles use Rust
 `f64` IEEE-754 behavior, and decimals use exact finite base-10 arithmetic with
 no hidden `f64` fallback. Decimal division that is not finite and integer
@@ -540,6 +546,12 @@ operand types triggers AC-QO-8:
   scalar atom → same warning.
 
 The warning is silenced under the dev/debug CLI profile (§7.5).
+
+String concatenation is a typed `Expression::BinaryOp { op: Plus, ... }`
+overload: two exact `Atom(String)` operands infer `Atom(String)`. Same-type
+numeric operands retain numeric addition. Any other known shape emits
+`cem.ql.type_error`; `Any` defers that identical decision to runtime without
+adding implicit string conversion.
 
 ### 7.4 Slash Operand Dispatch
 
@@ -700,6 +712,10 @@ pub enum IrStep {
   parallel `IrTree::resolutions` table not shown above).
 - `Expression::SetOp` lowers to `SetOp { op, lhs, rhs }`. The evaluator
   specializes by `op` so streaming behaviour matches AC-QO-4.
+- `Expression::BinaryOp { op: Plus, ... }` lowers to a typed string or
+  same-type numeric branch. Statically unknown operands retain runtime
+  dispatch; mixed string/non-string and mixed numeric atom types fail with
+  `cem.ql.type_error`.
 - `Expression::BinaryOp { op: Minus, ... }` is resolved after type checking:
   numeric operands remain numeric subtraction, stream or collection operands
   lower to `SetOp { op: Difference, ... }`, and mixed numeric/stream operands
@@ -956,6 +972,18 @@ public-API floor):
 |----------|-----------|------|
 | `cemml:parse`      | `(string) -> stream<node>` | A — parse in-memory CEM-ML canonical source |
 | `cemml:format`     | `(node) -> string` | A |
+
+### 11.9a `cem:stdlib/records`
+
+| Function | Signature | Tier |
+|----------|-----------|------|
+| `record:entries` | `(record) -> stream<record(key, value)>` | A — keys use the record's deterministic field order and values retain their complete item streams |
+
+### 11.9b `cem:stdlib/items`
+
+| Function | Signature | Tier |
+|----------|-----------|------|
+| `item:kind` | `(item*) -> string` | A — distinguishes empty, sequence, record, array, node, atomic kinds, lambda, and resource |
 
 ### 11.10 `cem:stdlib/content-types` (Tier B)
 

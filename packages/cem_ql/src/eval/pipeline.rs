@@ -264,6 +264,12 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/datetime", "format") => {
             ItemStream::once(Item::Atomic(AtomValue::String(first_string(&arg_streams))))
         }
+        ("cem:stdlib/records", "entries") => {
+            record_entries(arg_streams.into_iter().next().unwrap_or_default())
+        }
+        ("cem:stdlib/items", "kind") => {
+            item_kind(arg_streams.into_iter().next().unwrap_or_default())
+        }
         ("cem:stdlib/dom", "tainted") => ItemStream::once(Item::Atomic(AtomValue::Boolean(false))),
         ("cem:stdlib/dom", "children")
         | ("cem:stdlib/dom", "descendants")
@@ -308,6 +314,62 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/user", "has_role") => user_has_role(arg_streams, ctx, source),
         _ => ctx.unknown_function(source, "unknown stdlib call"),
     }
+}
+
+fn record_entries(input: ItemStream) -> ItemStream {
+    let mut out = ItemStream::empty();
+    out.diagnostics = input.diagnostics;
+    out.error = input.error;
+    for item in input.items {
+        let fields = match item {
+            Item::Record(fields) => Some(fields.into_iter().collect::<Vec<_>>()),
+            Item::Native(view) if view.kind() == QueryItemViewKind::Record => view.fields(),
+            _ => None,
+        };
+        let Some(fields) = fields else {
+            continue;
+        };
+        out.items.extend(fields.into_iter().map(|(key, value)| {
+            Item::Record(BTreeMap::from([
+                ("key".to_owned(), vec![Item::Atomic(AtomValue::String(key))]),
+                ("value".to_owned(), value),
+            ]))
+        }));
+    }
+    out
+}
+
+fn item_kind(input: ItemStream) -> ItemStream {
+    let kind = match input.items.as_slice() {
+        [] => "empty",
+        [item] => match item {
+            Item::Node(_) => "node",
+            Item::Atomic(atom) => match atom {
+                AtomValue::String(_) => "string",
+                AtomValue::Integer(_) => "integer",
+                AtomValue::Decimal(_) => "decimal",
+                AtomValue::Double(_) => "double",
+                AtomValue::Boolean(_) => "boolean",
+                AtomValue::AnyUri(_) => "any-uri",
+                AtomValue::Null => "null",
+            },
+            Item::Record(_) => "record",
+            Item::Array(_) => "array",
+            Item::Native(view) => match view.kind() {
+                QueryItemViewKind::Atomic => "atomic",
+                QueryItemViewKind::Record => "record",
+                QueryItemViewKind::Array => "array",
+                QueryItemViewKind::Node => "node",
+            },
+            Item::Lambda(_) => "lambda",
+            Item::Resource(_) => "resource",
+        },
+        _ => "sequence",
+    };
+    let mut out = ItemStream::once(Item::Atomic(AtomValue::String(kind.to_owned())));
+    out.diagnostics = input.diagnostics;
+    out.error = input.error;
+    out
 }
 
 const CONTENT_TYPE_FLOOR: &[&str] = &[

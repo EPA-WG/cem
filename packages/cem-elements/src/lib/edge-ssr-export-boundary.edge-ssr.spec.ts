@@ -102,7 +102,7 @@ describe('browser-to-edge snapshot export boundary', () => {
         const response = executeNonBrowserSsrInitialRenderFixture(request, store);
         expect(response.outcome).toBe('success');
         if (response.outcome !== 'success') return;
-        expect(response.result.hydrationMetadata.snapshot).toEqual(exported);
+        expect(response.result.hydrationData.snapshot).toEqual(exported);
         const retained = readEdgeRenderStateContents(store, response.result.renderState);
         expect(retained.ok).toBe(true);
         if (!retained.ok) return;
@@ -239,7 +239,7 @@ function updateBrowserRequest(
             previousRenderPlan: {
                 stateKey: seeded.result.renderState.stateKey,
                 expectedEtag: seeded.result.renderState.etag,
-                identity: seeded.result.hydrationMetadata.renderPlanIdentity,
+                identity: seeded.result.hydrationData.renderPlanIdentity,
                 address: { ...renderPlanAddress, kind: 'render-plan' },
             },
         }

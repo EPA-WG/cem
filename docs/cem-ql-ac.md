@@ -201,7 +201,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   module urn:ex:my-module
   import "cem:stdlib/strings" as str       // platform stdlib, always available per AC-QI-2
   declare let TITLE = "hi"
-  declare function local:greet(who) { str:concat("hello ", who) }
+  declare function local:greet(who) { "hello " + who }
   ```
 - **AC-QS-6 [A] MUST** define a stable lexical grammar that does not depend
   on host content type, host whitespace policy, or host trivia preservation
@@ -311,10 +311,15 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   `fn:document()`, or `fn:collection()` functions in their host-fetching
   form. The cem-ql analogue is `read(uri, content-type)` per AC-QA-* and is
   off by default.
-- **AC-QX-7 [A] MUST** apply Rust-first numeric operator semantics with no
-  implicit numeric promotion. The binary operators `+`, `-`, `*`, `/`, and
-  `%` require both operands to have the same numeric atom type unless one
-  operand is statically unknown. Mixed `integer` / `decimal` / `double`
+- **AC-QX-7 [A] MUST** apply Rust-first typed operator semantics with no
+  implicit conversion. The binary `+` operator has an exact
+  `string + string -> string` overload in addition to numeric addition;
+  it does not stringify numbers, booleans, URIs, nodes, or collections.
+  A known string/non-string pair emits `cem.ql.type_error`, while a
+  statically unknown pair is checked against the same rule at runtime.
+  For numeric operands, `+`, `-`, `*`, `/`, and `%` require both operands
+  to have the same numeric atom type unless one operand is statically unknown.
+  Mixed `integer` / `decimal` / `double`
   operands emit `cem.ql.type_error`; authors use explicit `num:integer`,
   `num:decimal`, or `num:double` conversion before the operator. Same-type
   `integer` operands use Rust `i64` behavior for result type and signs:
@@ -358,7 +363,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 | Name tests, kind tests                                | A           | `*`, `prefix:*`, `*:local`, `Component`, `text()`, `comment()`         |
 | Predicates                                            | A           | One predicate per step in A; positional `[1]` / `[last()]` in A        |
 | Sequence/set combination                              | A           | Rust-spelled `\|`, `&`, `-`, `^`; XPath `except` is functional parity only |
-| Arithmetic                                            | A           | Rust-spelled `+ - * / %`; explicit conversion only; no implicit numeric promotion per AC-QX-7 / AC-QO-8 |
+| Arithmetic and string concatenation                   | A           | Rust-spelled `+ - * / %`; `+` also accepts exactly `string + string`; explicit conversion only per AC-QX-7 / AC-QO-8 |
 | Comparisons                                           | A           | Rust-spelled `== != < <= > >=`; XPath `eq ne lt gt` are not canonical syntax |
 | Conditional and local binding                         | A           | Rust-style `if { } else { }` and `{ let name = value; expr }` per AC-QS-4 |
 | Iteration / return mapping                            | A           | Rust-style `for name in stream { expr }` or helper form                |
@@ -392,12 +397,18 @@ function inventory that makes those obligations executable.
   `str:upper`, `str:slice`, `str:concat`, `str:contains`,
   `str:starts_with`, `str:ends_with`, `str:normalize_space`,
   `str:replace`, `str:translate`, `str:substring`,
-  `str:substring_before`, and `str:substring_after`.
+  `str:substring_before`, and `str:substring_after`. Binary string
+  concatenation uses `lhs + rhs`; `str:concat(stream, separator?)` remains
+  the stream-joining helper, including joins with a separator.
 - **Tier A number helpers:** `num:double`, `num:decimal`, `num:integer`,
   `num:string`, `num:abs`, `num:floor`, `num:ceil`, `num:round`, and
   `num:format`.
 - **Tier A datetime helpers:** `dt:to_utc`, `dt:components`, and
   `dt:format`.
+- **Tier A data-shape helpers:** `record:entries`, which exposes every
+  record field as an ordered `{ key, value }` stream, and `item:kind`, which
+  identifies empty, sequence, record, array, node, atomic, and host item
+  shapes without host-specific filtering.
 - **Tier A host helpers:** `dom:children`, `dom:descendants`, `dom:parent`,
   `dom:attribute`, `dom:resolve_ref`, `dom:tainted`, `report:emit`,
   `report:severity_floor`, `state:read`, `state:keys`, `tpl:lookup`,
@@ -935,6 +946,8 @@ default preference list as `ct:floor`, so authors can write
     regex (Tier B for regex);
   - `cem:stdlib/numbers` — math, formatting, bigint helpers;
   - `cem:stdlib/datetime` — XPath `xs:date / xs:dateTime` helpers;
+  - `cem:stdlib/records` — ordered record-field traversal;
+  - `cem:stdlib/items` — generic query-item shape introspection;
   - `cem:stdlib/dom` — host AST helpers (axes, attribute access,
     reference resolution) when authors want them as functions instead of
     pipeline steps;

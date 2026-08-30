@@ -208,8 +208,14 @@ export interface CemProcessingRenderDiffResult {
     revision: RenderRevision;
     nextRenderPlan: CemProcessingRenderPlanHandle;
     frames: PatchFrame[];
+    hostAttributeUpdates: CemProcessingHostAttributeUpdate[];
     resourceControls: CemProcessingResourceControl[];
     diagnostics: CemProcessingDiagnostic[];
+}
+
+export interface CemProcessingHostAttributeUpdate {
+    name: string;
+    value: string;
 }
 
 export interface CemProcessingCancelInput {

@@ -1,14 +1,44 @@
-{article @class=demo-card |
-    {h2 | {$datadom.attributes.title ?? "DCE with external CEM-ML template"}}
-    {p | {slot | Hi}}
-    {details @style="padding:0 1rem" @open=open |
-        {summary |
-            {b @style="color:green" | datadom}
-            {code @style="margin-left:1rem;color:brown" | title="{$datadom.attributes.title ?? ""}"}
-            {code @style="margin-left:1rem;color:brown" | data-fruit="{$datadom.attributes.data-fruit ?? ""}"}
-            {code @style="margin-left:1rem;color:brown" | data-smile="{$datadom.attributes.data-smile ?? ""}"}
-            {code @style="margin-left:1rem;color:brown" | data-basket="{$datadom.attributes.data-basket ?? ""}"}
+{module |
+    {template @name=node |
+        {param @name=node}
+        {body |
+            {cem:choose |
+                {cem:when @test='node.kind == "element"' |
+                    {details @style="padding:0 1rem" @open=open |
+                        {summary |
+                            {b @style="color:green" | {$node.tag}}
+                            {cem:for-each @select="record:entries(node.attributes)" @as=attribute |
+                                {code @style="margin-left:1rem;color:brown" | {$ attribute.key + "=\"" + attribute.value + "\""}}
+                            }
+                            {cem:if @test=node.namespace |
+                                {code @style="margin-left:1rem;color:brown" | {$ "namespace=\"" + node.namespace + "\""}}
+                            }
+                        }
+                        {cem:for-each @select="$node.children" @as=child |
+                            {call @template=node @with:node="{$child}"}
+                        }
+                    }
+                }
+                {cem:when @test='node.kind == "text"' |
+                    {p | {$node.text}}
+                }
+                {cem:when @test='node.kind == "comment"' |
+                    {p | {code | comment: {$node.text}}}
+                }
+            }
         }
-        {p | payload: {$datadom.payload.text}}
+    }
+    {body |
+        {article @class=demo-card |
+            {h2 | External CEMT data-island transformation}
+            {details @style="padding:0 1rem" @open=open |
+                {summary |
+                    {b @style="color:green" | template[data-cem-island="instance"]}
+                }
+                {cem:for-each @select="$island.nodes" @as=node |
+                    {call @template=node @with:node="{$node}"}
+                }
+            }
+        }
     }
 }

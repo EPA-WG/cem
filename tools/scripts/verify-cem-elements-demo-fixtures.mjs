@@ -67,33 +67,127 @@ const fixtureSpecs = [
         checks: [
             text('#defaults-1 article.demo-card h2', 'attributes definition'),
             text('#defaults-2 article.demo-card', 'p1: 123'),
-            text('#live-attr h2', 'Before'),
-            clickThenText('button[data-target="#live-attr"][data-attr="label"]', '#live-attr h2', 'After'),
-            clickThenText(
-                'button[data-target="#live-attr"][data-attr="tone"]',
-                '#live-attr article.demo-card',
-                'tone: alert',
+            text('#defaults-2 article.demo-card', 'p2: always_p2'),
+            attributeEquals('#defaults-1', 'p1', 'default_P1'),
+            attributeEquals('#defaults-1', 'p2', 'always_p2'),
+            attributeEquals('#defaults-1', 'p3', 'def_P3'),
+            clickThenText('button[data-target="#defaults-2"][data-attr="p2"]', '#defaults-2', 'p2: always_p2'),
+            attributeEquals('#defaults-2', 'p2', 'always_p2'),
+            attributeEquals('#title-from-slice', 'title', '😃'),
+            fillThenText('#title-from-slice input', 'Typed title', '#title-from-slice', 'title attribute: Typed title'),
+            attributeEquals('#title-from-slice', 'title', 'Typed title'),
+            attributeEquals('#value-default', 'v', 'def'),
+            attributeEquals('#value-default', 'is-changed', 'false'),
+            fillThenText('#value-default input', 'From input', '#value-default', 'v: From input'),
+            attributeEquals('#value-default', 'v', 'From input'),
+            attributeEquals('#value-default', 'is-changed', 'true'),
+            text('#precedence-default article.demo-card', '/datadom/attributes/v: def'),
+            typeThenText(
+                '#precedence-default input',
+                'qqq',
+                '#precedence-default article.demo-card',
+                '/datadom/attributes/v: qqq',
             ),
+            text('#precedence-default article.demo-card', 'effective value: qqq'),
+            text('#precedence-default article.demo-card', 'has-input: true'),
+            attributeEquals('#precedence-default', 'v', 'qqq'),
         ],
     },
     {
         path: '/packages/cem-elements/demo/data-slices.html',
         checks: [
-            text('cem-slice-field section.demo-card', 'query:'),
-            fillThenText('cem-slice-field input[type="text"]', 'demo query', 'cem-slice-field output', 'demo query'),
-            clickThenText('cem-slice-field button[data-dispatch-select]', 'cem-slice-field output', 'cem-select'),
+            attributeEquals('cem-slice-counter-input-default input', 'value', '0'),
+            text('cem-slice-counter-input-default article.demo-card', '0'),
             clickThenText(
-                'cem-slice-field button[data-role="increment"]',
-                'cem-slice-field output[data-role="count"]',
+                'cem-slice-counter-input-default button:first-of-type',
+                'cem-slice-counter-input-default article.demo-card',
                 '1',
             ),
-            fillThenText(
-                'cem-slice-field input[data-role="fanout"]',
-                'mirrored',
-                'cem-slice-field output[data-role="s1"]',
-                'mirrored',
+            text('cem-slice-counter output', '0'),
+            clickThenText(
+                'cem-slice-counter button:first-of-type',
+                'cem-slice-counter output',
+                '1',
             ),
-            text('cem-slice-field output[data-role="s2"]', 'mirrored'),
+            mouseThenText(
+                'cem-slice-event-data textarea',
+                { x: 42, y: 17 },
+                'cem-slice-event-data p:nth-of-type(1) output',
+                'x:',
+            ),
+            computedStyleNot('cem-slice-event-data textarea', 'boxShadow', 'none'),
+            computedStyleNot('cem-slice-event-data textarea', 'boxShadow', ''),
+            text('cem-slice-event-data p:nth-of-type(2) output', 'mousemove'),
+            fillBlurThenText('cem-slice-basic input', 'basic', 'cem-slice-basic output', 'basic'),
+            text('cem-slice-initial-change output', 'B'),
+            fillBlurThenText('cem-slice-initial-change input', 'changed', 'cem-slice-initial-change output', 'changed'),
+            fillThenText(
+                'cem-slice-initial-input input',
+                'input event',
+                'cem-slice-initial-input output',
+                'input event',
+            ),
+            text('cem-slice-attribute-initial:first-of-type p:nth-of-type(1) output', '😁'),
+            text('cem-slice-attribute-initial:last-of-type p:nth-of-type(1) output', '🤗'),
+            fillDispatchThenText(
+                'cem-slice-attribute-initial:first-of-type input',
+                'qqq',
+                'keyup',
+                'cem-slice-attribute-initial:first-of-type p:nth-of-type(2) output',
+                'qqq',
+            ),
+            text('cem-slice-transform output', 'xB'),
+            fillBlurThenText('cem-slice-transform input', 'C', 'cem-slice-transform output', 'xC'),
+            text('cem-slice-broccoli output', 'anonymous'),
+            clickThenText('cem-slice-broccoli button', 'cem-slice-broccoli output', 'broccoli'),
+            clickThenText('cem-slice-declared-counter button', 'cem-slice-declared-counter output', '1'),
+            focusThenText(
+                'cem-slice-multi-directive button',
+                'cem-slice-multi-directive p:nth-of-type(2) output',
+                '1',
+            ),
+            clickThenText(
+                'cem-slice-multi-directive button',
+                'cem-slice-multi-directive p:nth-of-type(1) output',
+                '1',
+            ),
+            blurThenText(
+                'cem-slice-multi-directive button',
+                'cem-slice-multi-directive p:nth-of-type(2) output',
+                '0',
+            ),
+            text('cem-slice-emotion-attribute:first-of-type output', ':)'),
+            text('cem-slice-emotion-attribute:last-of-type output', '😃'),
+            fillBlurThenText('cem-slice-emotion-attribute:last-of-type input', 'joyful', 'cem-slice-emotion-attribute:last-of-type output', 'joyful'),
+            attributeEquals('cem-slice-emotion-attribute:last-of-type', 'emotion', 'joyful'),
+            fillThenText('cem-slice-fanout input', 'mirrored', 'cem-slice-fanout p:nth-of-type(2) output', 'mirrored'),
+            text('cem-slice-fanout p:nth-of-type(3) output', 'mirrored'),
+            fillBlurThenText(
+                'cem-slice-attribute-fanout input',
+                'grinning',
+                'cem-slice-attribute-fanout p:nth-of-type(1) output',
+                'grinning',
+            ),
+            text('cem-slice-attribute-fanout p:nth-of-type(2) output', 'grinning'),
+            attributeEquals('cem-slice-attribute-fanout', 'emotion', 'grinning'),
+            text('cem-slice-checkboxes p:nth-of-type(1) output', 'V0'),
+            uncheckThenNormalizedText(
+                'cem-slice-checkboxes label:nth-of-type(1) input',
+                'cem-slice-checkboxes p:nth-of-type(1) output',
+                '',
+            ),
+            checkThenText(
+                'cem-slice-checkboxes label:nth-of-type(2) input',
+                'cem-slice-checkboxes p:nth-of-type(3) output',
+                'V1',
+            ),
+            checkThenText(
+                'cem-slice-checkboxes label:nth-of-type(3) input',
+                'cem-slice-checkboxes p:nth-of-type(4) output',
+                'V1',
+            ),
+            text('cem-slice-radios output', 'V1'),
+            checkThenText('cem-slice-radios label:first-of-type input', 'cem-slice-radios output', 'V0'),
         ],
     },
     {
@@ -117,10 +211,34 @@ const fixtureSpecs = [
             countAtLeast('dce-construction', 2),
             text('dce-construction', 'construction'),
             countAtLeast('dce-external svg', 1),
+            svgUseReferences('dce-external svg', ['#h', '#j']),
             countAtLeast('dce-external-inline svg', 1),
+            svgUseReferences('dce-external-inline svg', ['#h', '#j']),
             text('dce-external-missing', 'fallback for missing image'),
-            text('dce-external-4', 'DCE with external CEM-ML template'),
-            text('dce-external-4-inline', 'inline DCE loading from CEM-ML template'),
+            text('dce-external-4', 'External CEMT data-island transformation'),
+            text('dce-external-4', 'template[data-cem-island="instance"]'),
+            text('dce-external-4', 'name="hydration"'),
+            text('dce-external-4', 'name="attributes"'),
+            text('dce-external-4', 'name="dataset"'),
+            text('dce-external-4', 'name="payload"'),
+            text('dce-external-4', 'name="slices"'),
+            text('dce-external-4', 'name="form-data"'),
+            text('dce-external-4', 'name="validation-state"'),
+            text('dce-external-4', 'name="event-payloads"'),
+            text('dce-external-4', 'Payload comment: explicit inert envelope follows'),
+            text('dce-external-4', 'DCE with complete external CEMT island'),
+            text('dce-external-4', 'wrapped-payload'),
+            text('dce-external-4', 'slot="heading"'),
+            text('dce-external-4', 'slot=""'),
+            text('dce-external-4', 'data-fruit="🍌"'),
+            text('dce-external-4', 'aria-label="Fruit choice"'),
+            text('dce-external-4', 'Every element, attribute, dataset entry, and text node is data.'),
+            countAtLeast('dce-external-4 details', 20),
+            text('dce-external-4-inline', 'A second external-CEMT data island'),
+            text('dce-external-4-inline', 'DCE with live payload capture'),
+            text('dce-external-4-inline', 'name="data-smile"'),
+            text('dce-external-4-inline', 'name="data-basket"'),
+            text('dce-external-4-inline', 'data-kind="live-payload"'),
             text('dce-external-5', '👋'),
             text('dce-external-5', '👌'),
             countAtLeast('dce-external-5 svg', 1),
@@ -463,31 +581,131 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/attributes.html',
         samples: [
-            sampleContract('attributes definition', [
+            sampleContract('1. attributes definition', [
                 text('#defaults-1 article.demo-card', 'p1: default_P1'),
+                text('#defaults-1 article.demo-card', 'p2: always_p2'),
+                text('#defaults-1 article.demo-card', 'p3: def_P3'),
+                attributeEquals('#defaults-1', 'p1', 'default_P1'),
+                attributeEquals('#defaults-1', 'p2', 'always_p2'),
+                attributeEquals('#defaults-1', 'p3', 'def_P3'),
                 text('#defaults-2 article.demo-card', 'p1: 123'),
-                text('#defaults-2 article.demo-card', 'p3: qwe'),
+                clickThenText('button[data-attr="p2"]', '#defaults-2 article.demo-card', 'p2: always_p2'),
+                attributeEquals('#defaults-2', 'p2', 'always_p2'),
+                text('#defaults-3 article.demo-card', 'p3: qwe'),
             ]),
-            sampleContract('V attribute matches input value', [
-                text('#live-attr h2', 'Before'),
-                clickThenText('button[data-attr="label"]', '#live-attr h2', 'After'),
-                clickThenText('button[data-attr="tone"]', '#live-attr article.demo-card', 'tone: alert'),
+            sampleContract('2. attribute from slice', [
+                text('#title-from-slice article.demo-card', 'title attribute: 😃'),
+                attributeEquals('#title-from-slice', 'title', '😃'),
+                fillThenText('#title-from-slice input', 'Typed title', '#title-from-slice article.demo-card', 'title attribute: Typed title'),
+                attributeEquals('#title-from-slice', 'title', 'Typed title'),
             ]),
-            sampleContract('attribute defaults, from container, and from slice', [
-                text('cem-attr-slice:first-of-type article.demo-card', 'effective value: def'),
-                text('cem-attr-slice:last-of-type article.demo-card', 'effective value: From Container'),
-                fillThenText('cem-attr-slice:first-of-type input', 'From Slice', 'cem-attr-slice:first-of-type article.demo-card', 'effective value: From Slice'),
+            sampleContract('3. V attribute matches input value', [
+                text('#value-default article.demo-card', 'v: def'),
+                text('#value-container article.demo-card', 'v: V1'),
+                attributeEquals('#value-default', 'is-changed', 'false'),
+                fillThenText('#value-default input', 'From input', '#value-default article.demo-card', 'v: From input'),
+                attributeEquals('#value-default', 'v', 'From input'),
+                attributeEquals('#value-default', 'is-changed', 'true'),
+            ]),
+            sampleContract('4. attribute defaults, from container, and from slice', [
+                text('#precedence-default article.demo-card', '/datadom/attributes/v: def'),
+                text('#precedence-default article.demo-card', 'effective value: def'),
+                text('#precedence-container article.demo-card', 'effective value: From Container'),
+                attributeEquals('#precedence-default', 'v', 'def'),
+                typeThenText(
+                    '#precedence-default input',
+                    'qqq',
+                    '#precedence-default article.demo-card',
+                    '/datadom/attributes/v: qqq',
+                ),
+                text('#precedence-default article.demo-card', 'effective value: qqq'),
+                text('#precedence-default article.demo-card', 'has-input: true'),
+                attributeEquals('#precedence-default', 'v', 'qqq'),
             ]),
         ],
     },
     {
         path: '/packages/cem-elements/demo/data-slices.html',
         samples: [
-            sampleContract('A. slice initialization, change on event', [
-                text('cem-slice-field section.demo-card', 'query:'),
-                fillThenText('cem-slice-field input[type="text"]', 'demo query', 'cem-slice-field output', 'demo query'),
-                clickThenText('cem-slice-field button[data-dispatch-select]', 'cem-slice-field output', 'cem-select'),
-                clickThenText('cem-slice-field button[data-role="increment"]', 'cem-slice-field output[data-role="count"]', '1'),
+            sampleContract('A1. inline slice initialization, change on event', [
+                attributeEquals('cem-slice-counter-input-default input', 'value', '0'),
+                text('cem-slice-counter-input-default article.demo-card', '0'),
+                clickThenText('cem-slice-counter-input-default button:first-of-type', 'cem-slice-counter-input-default article.demo-card', '1'),
+                clickThenText('cem-slice-counter-input-default button:nth-of-type(2)', 'cem-slice-counter-input-default article.demo-card', '0'),
+            ]),
+            sampleContract('A2. slice initialization, change on event', [
+                text('cem-slice-counter output', '0'),
+                clickThenText('cem-slice-counter button:first-of-type', 'cem-slice-counter output', '1'),
+                clickThenText('cem-slice-counter button:nth-of-type(2)', 'cem-slice-counter output', '0'),
+            ]),
+            sampleContract('B. slice event data.', [
+                mouseThenText('cem-slice-event-data textarea', { x: 42, y: 17 }, 'cem-slice-event-data p:nth-of-type(1) output', 'x:'),
+                computedStyleNot('cem-slice-event-data textarea', 'boxShadow', 'none'),
+                computedStyleNot('cem-slice-event-data textarea', 'boxShadow', ''),
+                text('cem-slice-event-data p:nth-of-type(3) output', '17'),
+                text('cem-slice-event-data p:nth-of-type(2) output', 'mousemove'),
+            ]),
+            sampleContract('1. slice change on event. 1:1 slice⮂value', [
+                normalizedText('cem-slice-basic output', ''),
+                fillBlurThenText('cem-slice-basic input', 'basic', 'cem-slice-basic output', 'basic'),
+            ]),
+            sampleContract('2. initial slice value, slice change on event. slice⮂value', [
+                text('cem-slice-initial-change output', 'B'),
+                fillBlurThenText('cem-slice-initial-change input', 'changed', 'cem-slice-initial-change output', 'changed'),
+            ]),
+            sampleContract('3. on input event. slice⮂value', [
+                text('cem-slice-initial-input output', 'B'),
+                fillThenText('cem-slice-initial-input input', 'input event', 'cem-slice-initial-input output', 'input event'),
+            ]),
+            sampleContract('4. initial slice value from attribute', [
+                text('cem-slice-attribute-initial:first-of-type p:nth-of-type(1) output', '😁'),
+                text('cem-slice-attribute-initial:last-of-type p:nth-of-type(1) output', '🤗'),
+                fillDispatchThenText('cem-slice-attribute-initial:first-of-type input', 'qqq', 'keyup', 'cem-slice-attribute-initial:first-of-type p:nth-of-type(2) output', 'qqq'),
+            ]),
+            sampleContract('5. slice value computed from event', [
+                text('cem-slice-transform output', 'xB'),
+                attributeEquals('cem-slice-transform input', 'value', 'B'),
+                fillBlurThenText('cem-slice-transform input', 'C', 'cem-slice-transform output', 'xC'),
+            ]),
+            sampleContract('6. button ignored till change on click.', [
+                text('cem-slice-broccoli output', 'anonymous'),
+                clickThenText('cem-slice-broccoli button', 'cem-slice-broccoli output', 'broccoli'),
+            ]),
+            sampleContract('7. initial slice value from SLICE element', [
+                text('cem-slice-declared-counter output', '0'),
+                clickThenText('cem-slice-declared-counter button', 'cem-slice-declared-counter output', '1'),
+            ]),
+            sampleContract('8. multiple slices by SLICE element', [
+                text('cem-slice-multi-directive p:nth-of-type(1) output', '0'),
+                focusThenText('cem-slice-multi-directive button', 'cem-slice-multi-directive p:nth-of-type(2) output', '1'),
+                clickThenText('cem-slice-multi-directive button', 'cem-slice-multi-directive p:nth-of-type(1) output', '1'),
+                blurThenText('cem-slice-multi-directive button', 'cem-slice-multi-directive p:nth-of-type(2) output', '0'),
+            ]),
+            sampleContract('9. slice in attribute', [
+                text('cem-slice-emotion-attribute:first-of-type output', ':)'),
+                text('cem-slice-emotion-attribute:last-of-type output', '😃'),
+                fillBlurThenText('cem-slice-emotion-attribute:last-of-type input', 'joyful', 'cem-slice-emotion-attribute:last-of-type output', 'joyful'),
+                attributeEquals('cem-slice-emotion-attribute:last-of-type', 'emotion', 'joyful'),
+            ]),
+            sampleContract('10. multiple slices by same field', [
+                fillThenText('cem-slice-fanout input', 'mirrored', 'cem-slice-fanout p:nth-of-type(2) output', 'mirrored'),
+                text('cem-slice-fanout p:nth-of-type(3) output', 'mirrored'),
+            ]),
+            sampleContract('11. slices and attribute', [
+                text('cem-slice-attribute-fanout p:nth-of-type(1) output', '😃'),
+                fillBlurThenText('cem-slice-attribute-fanout input', 'grinning', 'cem-slice-attribute-fanout p:nth-of-type(1) output', 'grinning'),
+                text('cem-slice-attribute-fanout p:nth-of-type(2) output', 'grinning'),
+                attributeEquals('cem-slice-attribute-fanout', 'emotion', 'grinning'),
+            ]),
+            sampleContract('12. checkbox use', [
+                text('cem-slice-checkboxes p:nth-of-type(1) output', 'V0'),
+                uncheckThenNormalizedText('cem-slice-checkboxes label:nth-of-type(1) input', 'cem-slice-checkboxes p:nth-of-type(1) output', ''),
+                checkThenText('cem-slice-checkboxes label:nth-of-type(2) input', 'cem-slice-checkboxes p:nth-of-type(3) output', 'V1'),
+                checkThenText('cem-slice-checkboxes label:nth-of-type(3) input', 'cem-slice-checkboxes p:nth-of-type(4) output', 'V1'),
+            ]),
+            sampleContract('13. Radio group', [
+                text('cem-slice-radios output', 'V1'),
+                checkThenText('cem-slice-radios label:first-of-type input', 'cem-slice-radios output', 'V0'),
             ]),
         ],
     },
@@ -521,8 +739,33 @@ const sourceDocumentSpecs = [
         samples: [
             sampleContract('1. reference the template in page DOM', [text('dce-internal:first-of-type', '👋 World!'), text('dce-internal:last-of-type', 'Hello World!')]),
             sampleContract('2. without TAG, inline instantiation', [countExactly('dce-construction', 2), text('dce-construction', 'construction')]),
-            sampleContract('3. external SVG file', [countAtLeast('dce-external svg', 1), countAtLeast('dce-external-inline svg', 1), text('dce-external-missing', 'fallback for missing image')]),
-            sampleContract('4. external CEM-ML template file', [text('dce-external-4', 'DCE with external CEM-ML template'), text('dce-external-4-inline', 'inline DCE loading from CEM-ML template')]),
+            sampleContract('3. external SVG file', [countAtLeast('dce-external svg', 1), svgUseReferences('dce-external svg', ['#h', '#j']), countAtLeast('dce-external-inline svg', 1), svgUseReferences('dce-external-inline svg', ['#h', '#j']), text('dce-external-missing', 'fallback for missing image')]),
+            sampleContract('4. external CEM-ML template file', [
+                text('dce-external-4', 'External CEMT data-island transformation'),
+                text('dce-external-4', 'template[data-cem-island="instance"]'),
+                text('dce-external-4', 'name="hydration"'),
+                text('dce-external-4', 'name="attributes"'),
+                text('dce-external-4', 'name="dataset"'),
+                text('dce-external-4', 'name="payload"'),
+                text('dce-external-4', 'name="slices"'),
+                text('dce-external-4', 'name="form-data"'),
+                text('dce-external-4', 'name="validation-state"'),
+                text('dce-external-4', 'name="event-payloads"'),
+                text('dce-external-4', 'Payload comment: explicit inert envelope follows'),
+                text('dce-external-4', 'DCE with complete external CEMT island'),
+                text('dce-external-4', 'wrapped-payload'),
+                text('dce-external-4', 'slot="heading"'),
+                text('dce-external-4', 'slot=""'),
+                text('dce-external-4', 'data-fruit="🍌"'),
+                text('dce-external-4', 'aria-label="Fruit choice"'),
+                text('dce-external-4', 'Every element, attribute, dataset entry, and text node is data.'),
+                countAtLeast('dce-external-4 details', 20),
+                text('dce-external-4-inline', 'A second external-CEMT data island'),
+                text('dce-external-4-inline', 'DCE with live payload capture'),
+                text('dce-external-4-inline', 'name="data-smile"'),
+                text('dce-external-4-inline', 'name="data-basket"'),
+                text('dce-external-4-inline', 'data-kind="live-payload"'),
+            ]),
             sampleContract('5. external HTML template', [text('dce-external-5', '👋'), text('dce-external-5', '👌'), countAtLeast('dce-external-5 svg', 1), countAtLeast('dce-external-5 math', 1)]),
             sampleContract('6. HTML, SVG by ID within external file', [text('dce-html-wave', '👋'), countAtLeast('dce-html-logo svg', 1), countAtLeast('dce-html-formula math', 1)]),
             sampleContract('7a. external CEM-ML data-island tree template', [text('dce-cemt-tree', 'CEM-ML data island tree'), text('dce-cemt-tree', 'Leaf text from cem-elements data island'), countAtLeast('dce-cemt-tree details', 5)]),
@@ -964,6 +1207,9 @@ async function runCheck(page, check) {
             case 'attributeAbsent':
                 await waitForAbsentAttribute(page, check.selector, check.name);
                 return;
+            case 'svgUseReferences':
+                await verifySvgUseReferences(page, check.selector, check.expected);
+                return;
             case 'styleTextContains':
                 await waitForStyleText(page, check.selector, check.expected, true);
                 return;
@@ -994,6 +1240,48 @@ async function runCheck(page, check) {
                 await page.waitForSelector(check.actionSelector, { timeout });
                 await page.fill(check.actionSelector, check.value);
                 await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'typeThenText':
+                await page.waitForSelector(check.actionSelector, { timeout });
+                await page.locator(check.actionSelector).pressSequentially(check.value);
+                await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'fillBlurThenText':
+                await page.waitForSelector(check.actionSelector, { timeout });
+                await page.fill(check.actionSelector, check.value);
+                await page.locator(check.actionSelector).blur();
+                await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'fillDispatchThenText':
+                await page.waitForSelector(check.actionSelector, { timeout });
+                await page.fill(check.actionSelector, check.value);
+                await page.dispatchEvent(check.actionSelector, check.eventName);
+                await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'mouseThenText':
+                await page.waitForSelector(check.actionSelector, { timeout });
+                await page.locator(check.actionSelector).hover({ position: check.eventInit });
+                await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'focusThenText':
+                await page.waitForSelector(check.actionSelector, { timeout });
+                await page.locator(check.actionSelector).focus();
+                await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'blurThenText':
+                await page.waitForSelector(check.actionSelector, { timeout });
+                await page.locator(check.actionSelector).blur();
+                await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'checkThenText':
+                await page.waitForSelector(check.actionSelector, { timeout });
+                await page.locator(check.actionSelector).check();
+                await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'uncheckThenNormalizedText':
+                await page.waitForSelector(check.actionSelector, { timeout });
+                await page.locator(check.actionSelector).uncheck();
+                await waitForNormalizedText(page, check.resultSelector, check.expected);
                 return;
             default:
                 throw new Error(`unknown check kind ${check.kind}`);
@@ -1124,6 +1412,10 @@ function attributeAbsent(selector, name) {
     return { kind: 'attributeAbsent', selector, name };
 }
 
+function svgUseReferences(selector, expected) {
+    return { kind: 'svgUseReferences', selector, expected };
+}
+
 function styleTextContains(selector, expected) {
     return { kind: 'styleTextContains', selector, expected };
 }
@@ -1158,6 +1450,38 @@ function clickThenText(actionSelector, resultSelector, expected) {
 
 function fillThenText(actionSelector, value, resultSelector, expected) {
     return { kind: 'fillThenText', actionSelector, value, resultSelector, expected };
+}
+
+function typeThenText(actionSelector, value, resultSelector, expected) {
+    return { kind: 'typeThenText', actionSelector, value, resultSelector, expected };
+}
+
+function fillBlurThenText(actionSelector, value, resultSelector, expected) {
+    return { kind: 'fillBlurThenText', actionSelector, value, resultSelector, expected };
+}
+
+function fillDispatchThenText(actionSelector, value, eventName, resultSelector, expected) {
+    return { kind: 'fillDispatchThenText', actionSelector, value, eventName, resultSelector, expected };
+}
+
+function mouseThenText(actionSelector, eventInit, resultSelector, expected) {
+    return { kind: 'mouseThenText', actionSelector, eventInit, resultSelector, expected };
+}
+
+function focusThenText(actionSelector, resultSelector, expected) {
+    return { kind: 'focusThenText', actionSelector, resultSelector, expected };
+}
+
+function blurThenText(actionSelector, resultSelector, expected) {
+    return { kind: 'blurThenText', actionSelector, resultSelector, expected };
+}
+
+function checkThenText(actionSelector, resultSelector, expected) {
+    return { kind: 'checkThenText', actionSelector, resultSelector, expected };
+}
+
+function uncheckThenNormalizedText(actionSelector, resultSelector, expected) {
+    return { kind: 'uncheckThenNormalizedText', actionSelector, resultSelector, expected };
 }
 
 async function waitForText(page, selector, expected) {
@@ -1234,6 +1558,35 @@ async function waitForAbsentAttribute(page, selector, name) {
         },
         { selector, name },
     );
+}
+
+async function verifySvgUseReferences(page, selector, expected) {
+    await page.waitForSelector(selector, { timeout });
+    const actual = await page.evaluate(
+        ({ selector: checkSelector, xlinkNamespace }) => {
+            const svg = document.querySelector(checkSelector);
+            return svg
+                ? Array.from(svg.querySelectorAll('use')).map((element) => {
+                      const bounds = element.getBBox();
+                      return {
+                          href: element.getAttributeNS(xlinkNamespace, 'href'),
+                          width: bounds.width,
+                          height: bounds.height,
+                      };
+                  })
+                : [];
+        },
+        { selector, xlinkNamespace: 'http://www.w3.org/1999/xlink' },
+    );
+    const renderedReferences = actual.map(({ href }) => href);
+    if (
+        JSON.stringify(renderedReferences) !== JSON.stringify(expected) ||
+        actual.some(({ width, height }) => width <= 0 || height <= 0)
+    ) {
+        throw new Error(
+            `expected rendered SVG use references ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`,
+        );
+    }
 }
 
 async function waitForStyleText(page, selector, text, contains) {
@@ -1357,6 +1710,8 @@ function describeCheck(check) {
             return `attributeEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'attributeAbsent':
             return `attributeAbsent(${check.selector}, ${check.name})`;
+        case 'svgUseReferences':
+            return `svgUseReferences(${check.selector}, ${JSON.stringify(check.expected)})`;
         case 'styleTextContains':
             return `styleTextContains(${check.selector}, ${JSON.stringify(check.expected)})`;
         case 'styleTextNotContains':
@@ -1375,6 +1730,8 @@ function describeCheck(check) {
             return `clickThenText(${check.actionSelector}, ${check.resultSelector}, ${JSON.stringify(check.expected)})`;
         case 'fillThenText':
             return `fillThenText(${check.actionSelector}, ${check.resultSelector}, ${JSON.stringify(check.expected)})`;
+        case 'typeThenText':
+            return `typeThenText(${check.actionSelector}, ${check.resultSelector}, ${JSON.stringify(check.expected)})`;
         default:
             return check.kind;
     }

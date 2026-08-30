@@ -179,7 +179,7 @@ export function executeNonBrowserSsrInitialRenderFixture(
         return createCemEdgeSsrHostSuccessEnvelope(request, {
             kind: 'initial-render',
             renderedHtml,
-            hydrationMetadata: {
+            hydrationData: {
                 kind: 'cem-ssr-hydration-v1',
                 snapshot,
                 revision: request.payload.revision,

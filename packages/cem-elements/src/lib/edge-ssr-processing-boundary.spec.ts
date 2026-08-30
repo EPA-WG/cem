@@ -85,7 +85,7 @@ describe('Edge/SSR processing boundary contracts', () => {
         const initialResponse = createCemEdgeSsrHostSuccessEnvelope(initialRequest, {
             kind: 'initial-render',
             renderedHtml: '<article data-label="Before"></article>',
-            hydrationMetadata: {
+            hydrationData: {
                 kind: 'cem-ssr-hydration-v1',
                 snapshot: exported,
                 revision,

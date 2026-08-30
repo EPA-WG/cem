@@ -162,6 +162,7 @@ export class CemProcessingEngine {
             revision: input.revision,
             nextRenderPlan,
             frames,
+            hostAttributeUpdates: processed.hostAttributeUpdates,
             resourceControls: lowered.resourceControls,
             diagnostics: [
                 ...processed.diagnostics,

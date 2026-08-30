@@ -159,7 +159,23 @@ pub struct CompiledTemplateExpression {
 #[derive(Debug, Clone)]
 pub struct RenderPlan {
     pub nodes: Vec<RenderPlanNode>,
+    pub host_attribute_updates: Vec<HostAttributeUpdate>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostAttributeUpdate {
+    pub name: String,
+    pub value: String,
+}
+
+impl HostAttributeUpdate {
+    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,6 +235,7 @@ impl Eq for RenderPlanAttribute {}
 #[derive(Debug, Clone)]
 pub struct RenderedTemplate {
     pub rendered: String,
+    pub host_attribute_updates: Vec<HostAttributeUpdate>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -381,7 +398,8 @@ fn render_compiled_template_internal(
     let mut policy_bindings = data.bindings.clone();
     let datadom = data_document_with_host_bindings(&data.bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
-    seed_declaration_defaults(&artifact.nodes, &mut policy_bindings);
+    let mut host_attribute_updates =
+        seed_declaration_defaults(&artifact.nodes, &mut policy_bindings);
     let templates = collect_named_templates(&artifact.nodes);
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
@@ -400,6 +418,7 @@ fn render_compiled_template_internal(
         control_failed: false,
     };
     let mut nodes = Vec::new();
+    renderer.apply_attribute_declaration_selects(&artifact.nodes, &mut host_attribute_updates);
     let boundary_source = artifact
         .nodes
         .first()
@@ -421,6 +440,7 @@ fn render_compiled_template_internal(
     }
     RenderPlan {
         nodes,
+        host_attribute_updates,
         diagnostics: renderer.diagnostics,
     }
 }
@@ -434,6 +454,7 @@ pub fn render_template(source: &str, data: &TemplateData) -> RenderedTemplate {
     let plan = render_compiled_template(&artifact, data);
     RenderedTemplate {
         rendered: render_plan_to_html(&plan),
+        host_attribute_updates: plan.host_attribute_updates,
         diagnostics: plan.diagnostics,
     }
 }
@@ -483,6 +504,60 @@ fn merge_data_documents(mut explicit: ItemStream, synthesized: ItemStream) -> It
         }
     }
     explicit
+}
+
+fn set_current_data_document_attribute(
+    bindings: &mut BTreeMap<String, ItemStream>,
+    name: &str,
+    value: &str,
+) {
+    let Some(datadom) = bindings.get_mut(DATA_DOCUMENT_BINDING) else {
+        return;
+    };
+    for item in &mut datadom.items {
+        let Item::Record(fields) = item else {
+            continue;
+        };
+        let Some(attributes) = fields.get_mut("attributes") else {
+            continue;
+        };
+        for attribute_item in attributes {
+            let Item::Record(attribute_fields) = attribute_item else {
+                continue;
+            };
+            attribute_fields.insert(
+                name.to_owned(),
+                vec![Item::Atomic(AtomValue::String(value.to_owned()))],
+            );
+        }
+    }
+}
+
+fn set_current_data_document_slice(
+    bindings: &mut BTreeMap<String, ItemStream>,
+    name: &str,
+    value: &Item,
+) {
+    let Some(datadom) = bindings.get_mut(DATA_DOCUMENT_BINDING) else {
+        return;
+    };
+    for item in &mut datadom.items {
+        let Item::Record(fields) = item else {
+            continue;
+        };
+        let slices = fields
+            .entry("slices".to_owned())
+            .or_insert_with(|| vec![Item::Record(BTreeMap::new())]);
+        if !slices.iter().any(|item| matches!(item, Item::Record(_))) {
+            *slices = vec![Item::Record(BTreeMap::new())];
+        }
+        for slice_item in slices {
+            let Item::Record(slice_fields) = slice_item else {
+                continue;
+            };
+            slice_fields.insert(name.to_owned(), vec![value.clone()]);
+        }
+    }
 }
 
 pub fn render_plan_to_html(plan: &RenderPlan) -> String {
@@ -1103,17 +1178,24 @@ impl TemplateCompiler<'_> {
         children
     }
 
-    fn parse_attributes(&mut self) -> Vec<TemplateAttribute> {
+    fn parse_attributes(&mut self, tag: &str) -> Vec<TemplateAttribute> {
         let mut attributes = Vec::new();
         while self.index < self.tokens.len() {
             match &self.tokens[self.index].kind {
                 SchemaTokenKind::Attribute { name, value, .. } => {
                     let token = self.tokens[self.index].clone();
+                    let compiled_value = value.as_ref().map(|value| {
+                        if local_template_name(tag) == "attribute" && name == "select" {
+                            TemplateAttributeValue::Expression(
+                                self.compile_expression(value, &token),
+                            )
+                        } else {
+                            self.compile_attribute_value(value, &token)
+                        }
+                    });
                     attributes.push(TemplateAttribute {
                         name: name.clone(),
-                        value: value
-                            .as_ref()
-                            .map(|value| self.compile_attribute_value(value, &token)),
+                        value: compiled_value,
                         source_map: frame_for(&token),
                     });
                     self.index += 1;
@@ -1132,7 +1214,7 @@ impl TemplateCompiler<'_> {
         };
         let tag = name.clone();
         self.index += 1;
-        let attributes = self.parse_attributes();
+        let attributes = self.parse_attributes(&tag);
         let children = if self.should_skip_cemt_function_body(&tag) {
             self.skip_children(&tag);
             Vec::new()
@@ -1621,6 +1703,57 @@ struct PlanRenderer {
 }
 
 impl PlanRenderer {
+    fn apply_attribute_declaration_selects(
+        &mut self,
+        nodes: &[TemplateNode],
+        host_attribute_updates: &mut Vec<HostAttributeUpdate>,
+    ) {
+        for node in nodes {
+            let TemplateNode::Element {
+                tag, attributes, ..
+            } = node
+            else {
+                continue;
+            };
+            if local_template_name(tag) != "attribute" {
+                continue;
+            }
+            let Some(name) = declaration_name(attributes) else {
+                continue;
+            };
+            let Some(select) = declaration_select(attributes) else {
+                continue;
+            };
+            let Some(query) = &select.query else {
+                continue;
+            };
+            let stream = self.evaluate_query(query);
+            self.diagnostics.extend(stream.diagnostics.clone());
+            if let Some(error) = stream.error {
+                self.diagnostics.push(render_diagnostic(
+                    "cem.ql.render.attribute_select_failed",
+                    format!(
+                        "attribute `{name}` select `{}` failed: {error:?}",
+                        select.source
+                    ),
+                    select.byte_offset,
+                    select.source_map.clone(),
+                ));
+                continue;
+            }
+            let value = stream_to_string(&stream);
+            self.evaluation_context
+                .policy_bindings
+                .insert(name.clone(), stream);
+            set_current_data_document_attribute(
+                &mut self.evaluation_context.policy_bindings,
+                &name,
+                &value,
+            );
+            host_attribute_updates.push(HostAttributeUpdate::new(name, value));
+        }
+    }
+
     fn render_nodes_scoped(
         &mut self,
         nodes: &[TemplateNode],
@@ -2449,7 +2582,11 @@ fn is_named_template_declaration(node: &TemplateNode) -> bool {
 /// declarations: the declaration's text content is the default for `X` when the host data
 /// omits it (host-provided values win). Applying defaults in the render engine means the
 /// browser runtime no longer needs to scan declarations to know them.
-fn seed_declaration_defaults(nodes: &[TemplateNode], bindings: &mut BTreeMap<String, ItemStream>) {
+fn seed_declaration_defaults(
+    nodes: &[TemplateNode],
+    bindings: &mut BTreeMap<String, ItemStream>,
+) -> Vec<HostAttributeUpdate> {
+    let mut host_attribute_updates = Vec::new();
     for node in nodes {
         let TemplateNode::Element {
             tag,
@@ -2460,7 +2597,8 @@ fn seed_declaration_defaults(nodes: &[TemplateNode], bindings: &mut BTreeMap<Str
         else {
             continue;
         };
-        if tag != "attribute" && tag != "slice" {
+        let declaration_kind = local_template_name(tag);
+        if declaration_kind != "attribute" && declaration_kind != "slice" {
             continue;
         }
         let Some(name) = declaration_name(attributes) else {
@@ -2471,15 +2609,35 @@ fn seed_declaration_defaults(nodes: &[TemplateNode], bindings: &mut BTreeMap<Str
         }
         // Always bind a declared attribute/slice so `{$ X}` / `!X` references resolve even when
         // the host left it unset (DCE parity: a declared attribute is always referenceable). An
-        // empty declaration binds Null; a non-empty default binds its text.
+        // empty declaration binds Null; attribute defaults bind text, while slice booleans
+        // retain their type so `datadom.slices.*` conditions do not treat `false` as truthy text.
         let default = declaration_default_text(children);
         let value = if default.is_empty() {
             Item::Atomic(AtomValue::Null)
+        } else if declaration_kind == "slice" && default == "true" {
+            Item::Atomic(AtomValue::Boolean(true))
+        } else if declaration_kind == "slice" && default == "false" {
+            Item::Atomic(AtomValue::Boolean(false))
         } else {
             Item::Atomic(AtomValue::String(default))
         };
-        bindings.insert(name, ItemStream::once(value));
+        let reflected_default = if declaration_kind == "attribute" {
+            match &value {
+                Item::Atomic(AtomValue::String(default)) => Some(default.clone()),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        bindings.insert(name.clone(), ItemStream::once(value.clone()));
+        if let Some(default) = reflected_default {
+            set_current_data_document_attribute(bindings, &name, &default);
+            host_attribute_updates.push(HostAttributeUpdate::new(name, default));
+        } else if declaration_kind == "slice" {
+            set_current_data_document_slice(bindings, &name, &value);
+        }
     }
+    host_attribute_updates
 }
 
 /// Collect the `@name` of every `{attribute …}` / `{slice …}` declaration token, so their
@@ -2615,6 +2773,16 @@ fn declaration_name(attributes: &[TemplateAttribute]) -> Option<String> {
         .find(|attribute| attribute.name == "name")
         .and_then(|attribute| match &attribute.value {
             Some(TemplateAttributeValue::Literal(value)) => Some(value.clone()),
+            _ => None,
+        })
+}
+
+fn declaration_select(attributes: &[TemplateAttribute]) -> Option<&CompiledTemplateExpression> {
+    attributes
+        .iter()
+        .find(|attribute| attribute.name == "select")
+        .and_then(|attribute| match &attribute.value {
+            Some(TemplateAttributeValue::Expression(expression)) => Some(expression),
             _ => None,
         })
 }
@@ -2902,6 +3070,7 @@ mod tests {
                 }],
                 source_map: stack(0, 28),
             }],
+            host_attribute_updates: Vec::new(),
             diagnostics: Vec::new(),
         }
     }
@@ -3060,6 +3229,7 @@ mod tests {
                     source_map: stack(8, 24),
                 },
             ],
+            host_attribute_updates: Vec::new(),
             diagnostics: Vec::new(),
         };
 
@@ -3076,6 +3246,7 @@ mod tests {
                 text: "<hello & goodbye>".repeat(16),
                 source_map: stack(0, 8),
             }],
+            host_attribute_updates: Vec::new(),
             diagnostics: Vec::new(),
         };
         let control = OperationControl::default();
@@ -3093,6 +3264,7 @@ mod tests {
                 text: "x".to_owned(),
                 source_map: stack(0, 1),
             }],
+            host_attribute_updates: Vec::new(),
             diagnostics: Vec::new(),
         };
         assert!(render_plan_to_html_with_control(

@@ -4,7 +4,9 @@ pub mod cemml;
 pub mod content_types;
 pub mod datetime;
 pub mod dom;
+pub mod items;
 pub mod numbers;
+pub mod records;
 pub mod report;
 pub mod sequence;
 pub mod state;
@@ -181,6 +183,8 @@ pub fn tier_a_functions() -> Vec<StdlibFunction> {
         numbers::FUNCTIONS,
         datetime::FUNCTIONS,
         dom::FUNCTIONS,
+        items::FUNCTIONS,
+        records::FUNCTIONS,
         report::FUNCTIONS,
         state::FUNCTIONS,
         template::FUNCTIONS,

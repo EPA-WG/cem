@@ -267,6 +267,10 @@ fn parse_template_data(input: &str) -> Result<TemplateData, String> {
 fn plan_json(plan: &RenderPlan) -> Value {
     json!({
         "nodes": plan.nodes.iter().map(node_json).collect::<Vec<_>>(),
+        "hostAttributeUpdates": plan.host_attribute_updates.iter().map(|update| json!({
+            "name": update.name,
+            "value": update.value,
+        })).collect::<Vec<_>>(),
         "diagnostics": diagnostics_json(&plan.diagnostics)
     })
 }

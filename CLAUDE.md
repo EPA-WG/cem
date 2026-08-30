@@ -52,6 +52,9 @@ diagnostic rules are in
 That contract is an accepted migration target, not current runtime behavior;
 do not depend on it until the **Native CSS `@scope` migration** item in
 [`docs/todo.md`](docs/todo.md) is complete.
+The produced-instance capture, data-island, serialized resume, and hydration
+contract is normative in
+[`docs/cem-element-lifecycle-principle.md`](docs/cem-element-lifecycle-principle.md).
 
 ### Key paths
 

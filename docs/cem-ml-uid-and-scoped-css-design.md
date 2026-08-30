@@ -277,8 +277,9 @@ Per-instance CSS requires an explicit inert payload envelope:
 A bare `<style>` directly inside an uninitialized DCE is forbidden because the
 browser applies it globally before CEM can establish a boundary. The direct
 `template` is reserved as the explicit instance payload envelope, so its source
-is inert before upgrade. The runtime adopts it as the instance data island
-instead of creating another wrapper.
+is inert before upgrade. The runtime creates the distinct, stable instance data
+island, moves the envelope's content into its payload section, and consumes the
+authored envelope. The envelope itself never becomes the lifecycle marker.
 
 - Mixing the direct payload template with non-whitespace siblings diagnoses and
   fails closed.

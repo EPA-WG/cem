@@ -22,7 +22,7 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 57);
+    assert_eq!(registry.functions.len(), 59);
     assert!(registry.resolve("cem:stdlib/sequence", "map", 2).is_some());
     assert!(registry.resolve("cem:stdlib/sequence", "any", 2).is_some());
     assert!(registry.resolve("cem:stdlib/sequence", "all", 2).is_some());
@@ -46,6 +46,10 @@ fn tier_a_registry_lists_every_documented_module_function() {
         .is_some());
     assert!(registry.resolve("cem:stdlib/cemml", "parse", 1).is_some());
     assert!(registry
+        .resolve("cem:stdlib/records", "entries", 1)
+        .is_some());
+    assert!(registry.resolve("cem:stdlib/items", "kind", 1).is_some());
+    assert!(registry
         .functions
         .iter()
         .all(|function| function.tier == Tier::A));
@@ -53,6 +57,43 @@ fn tier_a_registry_lists_every_documented_module_function() {
         function.module == "cem:stdlib/dom"
             && function.implementation == StdlibImplKind::HostContext
     }));
+}
+
+#[test]
+fn record_entries_and_item_kind_expose_complete_dynamic_shapes() {
+    let entries = eval(r#"record:entries({ zeta: "Z", alpha: "A" })"#);
+    assert_eq!(entries.items.len(), 2);
+    let entry = |index: usize, field: &str| {
+        let Some(Item::Record(record)) = entries.items.get(index) else {
+            panic!("expected record entry at {index}, got {:?}", entries.items);
+        };
+        record.get(field).and_then(|items| items.first()).cloned()
+    };
+    assert_eq!(
+        entry(0, "key"),
+        Some(Item::Atomic(AtomValue::String("alpha".to_owned())))
+    );
+    assert_eq!(
+        entry(0, "value"),
+        Some(Item::Atomic(AtomValue::String("A".to_owned())))
+    );
+    assert_eq!(
+        entry(1, "key"),
+        Some(Item::Atomic(AtomValue::String("zeta".to_owned())))
+    );
+
+    for (source, expected) in [
+        (r#"item:kind({ value: 1 })"#, "record"),
+        (r#"item:kind("text")"#, "string"),
+        ("item:kind(())", "empty"),
+        ("item:kind((1, 2))", "sequence"),
+    ] {
+        assert_eq!(
+            eval(source).items,
+            vec![Item::Atomic(AtomValue::String(expected.to_owned()))],
+            "{source}"
+        );
+    }
 }
 
 #[test]

@@ -55,6 +55,7 @@
             "inputs": [
                 "{projectRoot}/.storybook/**/*",
                 "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/demo/data-slices.html",
                 "{workspaceRoot}/packages/cem-components/src/components/**/*",
                 "{projectRoot}/tests/parity/legacy/**/*",
                 "{projectRoot}/tests/parity/material/**/*",
@@ -81,6 +82,7 @@
             "inputs": [
                 "{projectRoot}/.storybook/**/*",
                 "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/demo/data-slices.html",
                 "{workspaceRoot}/packages/cem-components/src/components/**/*",
                 "{projectRoot}/tests/parity/legacy/**/*",
                 "{projectRoot}/tests/parity/material/**/*",
@@ -109,6 +111,7 @@
             },
             "inputs": [
                 "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/demo/data-slices.html",
                 "{projectRoot}/vitest.unit.config.mts",
                 "{projectRoot}/package.json",
                 "{workspaceRoot}/package.json",

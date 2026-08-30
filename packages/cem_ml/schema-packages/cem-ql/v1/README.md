@@ -548,6 +548,7 @@ declare let rhs = 3
 
 {
     let arithmetic = (lhs + rhs, lhs - rhs, lhs * rhs, lhs / rhs, lhs % rhs, -rhs);
+    let strings = ("cem" + "-" + "ql", "hello, " + "world");
     let comparisons = (lhs == rhs, lhs != rhs, lhs > rhs, lhs >= rhs, rhs < lhs, rhs <= lhs);
     let booleans = ((lhs > rhs) && true, false || (rhs == 3), !(lhs == rhs));
     let type_checks = (lhs is integer, num:double(lhs) as double, treat_as("https://example.test" as anyURI, anyURI));
@@ -558,7 +559,7 @@ declare let rhs = 3
         (1, 2, 3) ^ (2, 4)
     );
     if seq:count(sets) > 0 {
-        (arithmetic, comparisons, booleans, type_checks, sets)
+        (arithmetic, strings, comparisons, booleans, type_checks, sets)
     } else {
         ()
     }
@@ -637,6 +638,8 @@ import "cem:stdlib/sequence" as seq
 import "cem:stdlib/strings" as str
 import "cem:stdlib/numbers" as num
 import "cem:stdlib/datetime" as dt
+import "cem:stdlib/records" as record
+import "cem:stdlib/items" as item
 import "cem:stdlib/report" as report
 
 {
@@ -688,7 +691,12 @@ import "cem:stdlib/report" as report
         dt:components("2026-05-23T01:02:03Z"),
         dt:format("2026-05-23T01:02:03Z", "iso")
     );
-    (sequence, strings, numbers, datetime, report:emit("cem.ql.example", "stdlib helpers parsed", "info"))
+    let data_shapes = (
+        seq:count(record:entries({ zeta: "Z", alpha: "A" })),
+        item:kind({ alpha: "A" }),
+        item:kind((1, 2))
+    );
+    (sequence, strings, numbers, datetime, data_shapes, report:emit("cem.ql.example", "stdlib helpers parsed", "info"))
 }
 ```
 

@@ -119,15 +119,31 @@
 </html-demo-element>
 
 <html-demo-element legend="4. external CEM-ML template file"
-                   description="This external template generated the tree for DCE data set"
+                   description="The external CEMT transforms the complete native template data-island content"
 >
     <a href="tree.cemt">tree.cemt</a>
     <template>
         <cem-element tag="dce-external-4" src="tree.cemt"></cem-element>
-        <dce-external-4 title="DCE with external CEM-ML template" data-fruit="🍌">Hi</dce-external-4>
+        <dce-external-4 title="DCE with complete external CEMT island" data-fruit="🍌" data-demo="wrapped-payload">
+            <template>
+                <!-- Payload comment: explicit inert envelope follows -->
+                <strong slot="heading" title="Named slot heading" data-kind="heading">Fruit inventory</strong>
+                <section slot="" title="Default slot payload" data-fruit="🍌" data-status="ripe">
+                    <h3 data-level="1">Produce</h3>
+                    <p data-note="unfiltered text">Every element, attribute, dataset entry, and text node is data.</p>
+                    <data value="banana" data-origin="island">Banana</data>
+                    <select aria-label="Fruit choice" data-control="choice">
+                        <option value="banana" data-color="yellow">Banana</option>
+                        <option value="pear" data-color="green">Pear</option>
+                    </select>
+                </section>
+            </template>
+        </dce-external-4>
         <cem-element tag="dce-external-4-inline" src="tree.cemt"></cem-element>
-        <dce-external-4-inline data-smile="👼" data-basket="🍒">
-            <i>inline DCE loading from CEM-ML template ...</i>
+        <dce-external-4-inline title="DCE with live payload capture" data-smile="👼" data-basket="🍒">
+            <i slot="" title="Secondary island payload" data-kind="live-payload">
+                A second external-CEMT data island
+            </i>
         </dce-external-4-inline>
     </template>
 </html-demo-element>

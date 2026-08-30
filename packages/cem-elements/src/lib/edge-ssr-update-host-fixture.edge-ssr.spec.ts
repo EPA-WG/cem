@@ -256,7 +256,7 @@ function updateRequest(
         previousRenderPlan: {
             stateKey: seeded.result.renderState.stateKey,
             expectedEtag: seeded.result.renderState.etag,
-            identity: seeded.result.hydrationMetadata.renderPlanIdentity,
+            identity: seeded.result.hydrationData.renderPlanIdentity,
             address: { ...renderPlanAddress, kind: 'render-plan' },
         },
     });

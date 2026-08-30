@@ -10,6 +10,7 @@ import {
     renderPlansHaveDomChanges,
     scopeCssText,
     scopeRenderPlan,
+    setRenderPlanAttribute,
     validateRenderPlanGeneratedIds,
     type RenderPlan,
 } from './projection.js';
@@ -19,6 +20,30 @@ import {
 } from './processing-boundary.fixtures.js';
 
 describe('host processing boundary contracts', () => {
+    it('materializes XLink attributes with their namespace', () => {
+        const calls: Array<{ kind: 'plain' | 'namespaced'; namespace?: string; name: string; value: string }> = [];
+        const element = {
+            getAttributeNode: () => null,
+            removeAttribute: () => undefined,
+            setAttribute: (name: string, value: string) => calls.push({ kind: 'plain', name, value }),
+            setAttributeNS: (namespace: string, name: string, value: string) =>
+                calls.push({ kind: 'namespaced', namespace, name, value }),
+        } as unknown as Element;
+
+        setRenderPlanAttribute(element, 'xlink:href', '#mark');
+        setRenderPlanAttribute(element, 'aria-label', 'Mark');
+
+        expect(calls).toEqual([
+            {
+                kind: 'namespaced',
+                namespace: 'http://www.w3.org/1999/xlink',
+                name: 'xlink:href',
+                value: '#mark',
+            },
+            { kind: 'plain', name: 'aria-label', value: 'Mark' },
+        ]);
+    });
+
     it('stamps named and default projected element roots without marking descendants or fallback', () => {
         const plan: RenderPlan = {
             producedTag: 'story-card',

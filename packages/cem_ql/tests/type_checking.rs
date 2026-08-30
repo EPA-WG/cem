@@ -220,6 +220,31 @@ fn numeric_operators_require_matching_numeric_types() {
 }
 
 #[test]
+fn plus_concatenates_only_exact_string_operands() {
+    let mut checker = TypeChecker::new();
+    let strings = check(r#""cem" + "-" + "ql""#, &mut checker);
+
+    assert!(strings.diagnostics.is_empty(), "{:?}", strings.diagnostics);
+    assert_eq!(strings.root_type, Some(Type::atom(AtomType::String)));
+
+    for source in [r#""cem" + 1"#, r#"1 + "cem""#] {
+        let mut checker = TypeChecker::new();
+        let mixed = check(source, &mut checker);
+
+        assert!(
+            mixed.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "cem.ql.type_error"
+                    && diagnostic
+                        .message
+                        .contains("implicit string conversion is not supported")
+            }),
+            "{source}: {:?}",
+            mixed.diagnostics
+        );
+    }
+}
+
+#[test]
 fn same_type_numeric_operators_preserve_operand_type() {
     for (source, expected) in [
         ("5 / 2", Type::atom(AtomType::Integer)),

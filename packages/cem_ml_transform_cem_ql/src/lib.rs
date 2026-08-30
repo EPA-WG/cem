@@ -4236,6 +4236,7 @@ fn protect_transform_call_nodes(nodes: &mut [TemplateNode]) {
             TemplateNode::Text { .. }
             | TemplateNode::Comment { .. }
             | TemplateNode::ProjectPayload { .. }
+            | TemplateNode::Variable { .. }
             | TemplateNode::Expression(_) => {}
         }
     }
@@ -4303,6 +4304,7 @@ fn render_payload_template(
     );
     Ok(RenderPlan {
         nodes,
+        host_attribute_updates: plan.host_attribute_updates,
         diagnostics: plan.diagnostics,
     })
 }
@@ -7103,6 +7105,7 @@ mod tests {
                     source_map: SourceMapStack::default(),
                 })
                 .collect(),
+            host_attribute_updates: Vec::new(),
             diagnostics: Vec::new(),
         };
         let ordinary = render_plan_to_cem_tree_nodes(&plan);

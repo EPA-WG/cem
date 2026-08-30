@@ -47,8 +47,14 @@ export interface RuntimeSupportDiagnostic {
     sourceMapRef?: SourceMapRef;
 }
 
+export interface CemQlHostAttributeUpdate {
+    name: string;
+    value: string;
+}
+
 export interface CemQlRenderResult {
     nodes: RenderPlanNode[];
+    hostAttributeUpdates: CemQlHostAttributeUpdate[];
     diagnostics: RuntimeSupportDiagnostic[];
 }
 
@@ -105,6 +111,7 @@ export interface RetainedCemMlTemplate {
 
 export interface CemMlTemplateProcessingResult {
     renderPlan: RenderPlan;
+    hostAttributeUpdates: CemQlHostAttributeUpdate[];
     diagnostics: RuntimeSupportDiagnostic[];
     patchFrames?: PatchFrame[];
 }
@@ -326,6 +333,10 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
 
     return {
         nodes: (plan.nodes ?? []).map((node) => mapNode(node, nextRenderNodeId)),
+        hostAttributeUpdates: (plan.hostAttributeUpdates ?? []).map((update) => ({
+            name: update.name,
+            value: update.value,
+        })),
         diagnostics: (plan.diagnostics ?? []).map(mapDiagnostic),
     };
 }
@@ -362,6 +373,7 @@ export async function processCemMlTemplate(
 
     return {
         renderPlan,
+        hostAttributeUpdates: rendered.hostAttributeUpdates,
         diagnostics: [...declaration.diagnostics, ...rendered.diagnostics],
         patchFrames:
             input.previousRenderPlan === undefined
@@ -397,6 +409,7 @@ export async function processRetainedCemMlTemplate(
     assertProcessingBoundaryValue(renderPlan, 'CEM-ML render plan');
     return {
         renderPlan,
+        hostAttributeUpdates: rendered.hostAttributeUpdates,
         diagnostics: rendered.diagnostics,
         patchFrames:
             input.previousRenderPlan === undefined
@@ -407,6 +420,7 @@ export async function processRetainedCemMlTemplate(
 
 interface WasmRenderPlan {
     nodes?: WasmRenderNode[];
+    hostAttributeUpdates?: CemQlHostAttributeUpdate[];
     diagnostics?: WasmDiagnostic[];
 }
 

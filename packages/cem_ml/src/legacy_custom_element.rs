@@ -883,7 +883,16 @@ fn emit_generic_element(
     let mut attrs = element
         .attributes
         .iter()
-        .map(|attr| emit_attribute(attr, ctx, diagnostics))
+        .map(|attr| {
+            if local_name(tag) == "attribute" && attr.name == "select" {
+                attr_assign(
+                    &attr.name,
+                    &rewrite_expression(&attr.value, ctx, false, diagnostics),
+                )
+            } else {
+                emit_attribute(attr, ctx, diagnostics)
+            }
+        })
         .collect::<String>();
     attrs.push_str(&emit_xsl_instruction_attributes(
         &element.children,
@@ -3322,6 +3331,9 @@ impl XPathRewriter<'_, '_> {
             }
         }
         if value == "//" {
+            if let Some(path) = self.rewrite_descendant_attribute_path() {
+                return path;
+            }
             if let Some(XToken::Name(next)) = self.peek().cloned() {
                 self.pos += 1;
                 return format!("(datadom.slices.{next} ?? datadom.dataset.{next} ?? datadom.attributes.{next}) ");
@@ -3358,6 +3370,20 @@ impl XPathRewriter<'_, '_> {
             return "== ".to_owned();
         }
         format!("{value} ")
+    }
+
+    fn rewrite_descendant_attribute_path(&mut self) -> Option<String> {
+        let remaining = self.tokens.get(self.pos..)?;
+        let [XToken::Name(collection), XToken::Punct(slash), XToken::Punct(at), XToken::Name(member), ..] =
+            remaining
+        else {
+            return None;
+        };
+        if collection != "attributes" || slash != "/" || at != "@" {
+            return None;
+        }
+        self.pos += 4;
+        Some(format!("datadom.attributes.{member} "))
     }
 
     fn rewrite_absolute_datadom_path(&mut self) -> Option<String> {
@@ -3635,6 +3661,29 @@ mod tests {
         assert_eq!(
             result.source,
             r#"{cem:if @test='datadom.slices.is-checked == "on"' | {span | On}}"#
+        );
+    }
+
+    #[test]
+    fn rewrites_attribute_declaration_select_expressions() {
+        let result = convert(
+            r#"<attribute name="p2" select="'always_p2'"></attribute><attribute name="p3" select="//attributes/@p3 ?? 'def_P3'"></attribute>"#,
+        );
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        assert!(
+            result
+                .source
+                .contains(r#"{attribute @name="p2" @select='"always_p2"'}"#),
+            "{}",
+            result.source
+        );
+        assert!(
+            result
+                .source
+                .contains(r#"{attribute @name="p3" @select='datadom.attributes.p3 ?? "def_P3"'}"#),
+            "{}",
+            result.source
         );
     }
 

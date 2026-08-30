@@ -8,7 +8,9 @@ import {
     cemElements,
     exportDataIslandSnapshotForEdge,
     isValidCustomElementName,
+    writeDataIslandHydrationData,
     type CemElementDiagnostic,
+    type CemElementRuntimeOptions,
     type CemArtifactRegistryHooks,
     type CemProcessingArtifactBinaryTransfer,
     type CemProcessingSchedulingTraceEvent,
@@ -250,7 +252,7 @@ export const InlineBrowserSubstrateContract: Story = {
         assert(window.customElements.get('story-inline-contract'), 'produced custom element is registered');
 
         const instance = requiredElement(canvasElement, 'story-inline-contract') as HTMLElement;
-        const button = await waitForElement(instance, 'button[data-role="action"]') as HTMLButtonElement;
+        const button = await waitForElement(instance, 'button[data-role="action"]', 240) as HTMLButtonElement;
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
         const capturedPayload = island.content.querySelector('[data-contract-payload]') as HTMLElement | null;
 
@@ -457,9 +459,13 @@ export const DataIslandCaptureAndRender: Story = {
 
         const instance = requiredElement(canvasElement, 'story-capture-button');
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        const payload = requiredElement(
+            island.content,
+            'cem-island-section[name="payload"]',
+        );
         const button = requiredElement(instance, 'button');
 
-        assertEqual(island.content.textContent, 'Fallback payload', 'fallback payload should move to data island');
+        assertEqual(payload.textContent, 'Fallback payload', 'fallback payload should move to the island payload section');
         assertEqual(button.textContent, 'Submit', 'rendered button should use host attribute value');
         assertEqual(button.getAttribute('aria-label'), 'Submit', 'attribute interpolation should use host value');
     },
@@ -1404,6 +1410,10 @@ export const Phase2CanonicalLoginRuntimeFixture: Story = {
         const password = requiredElement(instance, 'input#password') as HTMLInputElement;
         const button = requiredElement(instance, 'button[cem\\:action="primary"]') as HTMLButtonElement;
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        const payload = requiredElement(
+            island.content,
+            'cem-island-section[name="payload"]',
+        );
 
         assertEqual(main.getAttribute('aria-labelledby'), 'login-title', 'login landmark preserves label reference');
         assertEqual(requiredElement(instance, '#login-title').textContent, 'Sign in', 'login title renders');
@@ -1414,7 +1424,7 @@ export const Phase2CanonicalLoginRuntimeFixture: Story = {
         assertEqual(password.getAttribute('autocomplete'), 'current-password', 'password autocomplete renders');
         assertEqual(button.getAttribute('type'), 'submit', 'submit button type renders');
         assertEqual(button.textContent?.trim(), 'Sign in', 'submit button label renders');
-        assertEqual(island.content.childNodes.length, 0, 'empty instance payload remains inert');
+        assertEqual(payload.childNodes.length, 0, 'empty instance payload remains inert');
 
         for (const element of [main, form, email, password, button]) {
             assert(
@@ -1694,13 +1704,18 @@ export const DeclaredAttributeWasmRenderLoop: Story = {
         template.setAttribute('type', 'text/cem-ml');
         // Declares an attribute (with a default) and renders it through canonical
         // `{$label}` — previously C1.5-only because of the `<attribute>` declaration.
-        template.textContent = '{attribute @name="label" | Save}{button @type=button | {$label}}';
+        template.textContent = [
+            '{attribute @name="label" | Save}',
+            String.raw`{attribute @name="mode" @select='"selected"'}`,
+            '{button @type=button | {$label}:{$mode}}',
+        ].join('');
         declaration.appendChild(template);
         root.appendChild(declaration);
         runtime.registerDeclaration(declaration);
 
         const named = document.createElement('story-decl-attr-button');
         named.setAttribute('label', 'Submit');
+        named.setAttribute('mode', 'ignored');
         const fallbackDefault = document.createElement('story-decl-attr-button');
         root.append(named, fallbackDefault);
 
@@ -1711,11 +1726,24 @@ export const DeclaredAttributeWasmRenderLoop: Story = {
         const named = await waitForElement(instances[0], 'button');
         const def = await waitForElement(instances[1], 'button');
 
-        assertEqual(named.textContent?.trim(), 'Submit', 'declared attribute resolves the host value through WASM');
+        assertEqual(named.textContent?.trim(), 'Submit:selected', 'declared default and selected values render through WASM');
         assertEqual(
             def.textContent?.trim(),
-            'Save',
+            'Save:selected',
             'declared attribute default renders when the host attribute is absent'
+        );
+        assertEqual(instances[1]?.getAttribute('label'), 'Save', 'a declaration body default is reflected to the host');
+        assertEqual(instances[0]?.getAttribute('mode'), 'selected', 'a selected declaration overrides and reflects host input');
+
+        instances[0]?.setAttribute('mode', 'changed-outside');
+        await waitForCondition(
+            () => instances[0]?.getAttribute('mode') === 'selected',
+            'a selected declaration should restore its authoritative host value'
+        );
+        assertEqual(
+            named.textContent?.trim(),
+            'Submit:selected',
+            'restoring a selected host attribute does not start a render loop'
         );
         assert(instances[0].querySelector('attribute') === null, 'the `<attribute>` declaration is dropped from output');
         assert(
@@ -3601,6 +3629,156 @@ export const SliceEventExpressionParity: Story = {
     },
 };
 
+export const LegacyDataSliceControlParity: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'legacy data slice control parity story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-slice-controls' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-slice-controls');
+        declaration.setAttribute('tag', 'story-slice-controls');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<attribute name="emotion">happy</attribute>',
+            '<slice name="typed"></slice>',
+            '<slice name="checked-value">seed</slice>',
+            '<slice name="checked-boolean">false</slice>',
+            '<slice name="radio-value">V1</slice>',
+            '<slice name="mirror"></slice>',
+            '<slice name="clicked"></slice>',
+            '<slice name="focused"></slice>',
+            '<slice name="pointer"></slice>',
+            '<input data-role="default-text" slice="typed" />',
+            '<output data-role="typed">${$typed}</output>',
+            '<input data-role="checkbox-value" type="checkbox" value="V0" slice="checked-value" />',
+            '<output data-role="checked-value">${$checked-value}</output>',
+            '<input data-role="checkbox-boolean" type="checkbox" slice="checked-boolean" slice-event="change" slice-value="$target.checked" />',
+            '<output data-role="checked-boolean">${$checked-boolean}</output>',
+            '<input data-role="radio-v0" type="radio" name="story-radio" value="V0" slice="radio-value" />',
+            '<input data-role="radio-v1" type="radio" name="story-radio" value="V1" slice="radio-value" checked />',
+            '<output data-role="radio-value">${$radio-value}</output>',
+            '<input data-role="attribute-target" value="{$emotion}" slice="/datadom/attributes/emotion | mirror" />',
+            '<output data-role="attribute-value">${$datadom.attributes.emotion}</output>',
+            '<output data-role="mirror">${$mirror}</output>',
+            '<button data-role="multi" type="button">Multi',
+            '<slice slice="clicked" value="0"></slice>',
+            '<slice slice="focused" value="0"></slice>',
+            '<slice slice="clicked" slice-event="click" slice-value="//clicked + 1"></slice>',
+            '<slice slice="focused" slice-event="focus" slice-value="1"></slice>',
+            '<slice slice="focused" slice-event="blur" slice-value="0"></slice>',
+            '</button>',
+            '<output data-role="clicked">${$clicked}</output>',
+            '<output data-role="focused">${$focused}</output>',
+            '<textarea data-role="pointer" slice="pointer" slice-event="mousemove" slice-value="@offsetY"></textarea>',
+            '<output data-role="pointer-value">${$pointer}</output>',
+            '<output data-role="pointer-offset">${$datadom.eventPayloads.pointer.offsetY}</output>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-slice-controls');
+        root.appendChild(instance);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = await waitForElement(canvasElement, 'story-slice-controls');
+        const textInput = requiredElement(instance, 'input[data-role="default-text"]') as HTMLInputElement;
+        textInput.value = 'changed by default event';
+        textInput.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="typed"]').textContent === 'changed by default event',
+            'text controls default to change and target value'
+        );
+
+        const valueCheckbox = requiredElement(instance, 'input[data-role="checkbox-value"]') as HTMLInputElement;
+        valueCheckbox.checked = true;
+        valueCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="checked-value"]').textContent === 'V0',
+            'checked checkbox writes its value'
+        );
+        const retainedValueCheckbox = requiredElement(
+            instance,
+            'input[data-role="checkbox-value"]'
+        ) as HTMLInputElement;
+        retainedValueCheckbox.checked = false;
+        retainedValueCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="checked-value"]').textContent === '',
+            'unchecked checkbox writes the empty string'
+        );
+
+        const booleanCheckbox = requiredElement(
+            instance,
+            'input[data-role="checkbox-boolean"]'
+        ) as HTMLInputElement;
+        booleanCheckbox.checked = true;
+        booleanCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="checked-boolean"]').textContent === 'true',
+            'an explicit checked expression preserves boolean checkbox behavior'
+        );
+
+        const radio = requiredElement(instance, 'input[data-role="radio-v0"]') as HTMLInputElement;
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="radio-value"]').textContent === 'V0',
+            'radio controls write the selected value'
+        );
+
+        const attributeTarget = requiredElement(
+            instance,
+            'input[data-role="attribute-target"]'
+        ) as HTMLInputElement;
+        attributeTarget.value = 'delighted';
+        attributeTarget.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForCondition(
+            () =>
+                instance.getAttribute('emotion') === 'delighted' &&
+                requiredElement(instance, 'output[data-role="attribute-value"]').textContent === 'delighted' &&
+                requiredElement(instance, 'output[data-role="mirror"]').textContent === 'delighted',
+            'one event writes a host attribute and a slice'
+        );
+
+        const multi = requiredElement(instance, 'button[data-role="multi"]') as HTMLButtonElement;
+        await waitForCondition(
+            () =>
+                requiredElement(instance, 'output[data-role="clicked"]').textContent === '0' &&
+                requiredElement(instance, 'output[data-role="focused"]').textContent === '0',
+            'nested slice value directives initialize their parent control slices'
+        );
+        multi.focus();
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="focused"]').textContent === '1',
+            'a nested slice directive binds focus to its parent control'
+        );
+        multi.click();
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="clicked"]').textContent === '1',
+            'a second nested slice directive binds click to the same parent control'
+        );
+        multi.blur();
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="focused"]').textContent === '0',
+            'a third nested slice directive binds blur to the same parent control'
+        );
+
+        const pointer = requiredElement(instance, 'textarea[data-role="pointer"]') as HTMLTextAreaElement;
+        pointer.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientY: 29 }));
+        await waitForCondition(
+            () =>
+                requiredElement(instance, 'output[data-role="pointer-value"]').textContent ===
+                    requiredElement(instance, 'output[data-role="pointer-offset"]').textContent &&
+                requiredElement(instance, 'output[data-role="pointer-value"]').textContent !== '',
+            'mouse coordinates are available in both slice expressions and serialized event payloads'
+        );
+    },
+};
+
 export const FormDataValidationStateSnapshot: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -4671,10 +4849,22 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         const template = document.createElement('template');
         template.innerHTML = templateHtml;
         const source = readTemplateSource(template.content);
+        const runtime = registerInlineDeclaration({
+            declarationTag: 'cem-element-story-ssr',
+            producedTag: 'story-ssr-card',
+            innerHTML: templateHtml,
+            declarationAttributes: { scope: 'hydration-group' },
+            runtimeOptions: {
+                scopePolicyStamp: 'story-scope',
+                privacyPolicyStamp: 'story-privacy',
+            },
+        });
         const snapshot = projectionSnapshot('story-ssr-card', { label: 'Server Card' });
         snapshot.instanceId = 'ssr-instance-1';
         snapshot.declarationTag = 'cem-element-story-ssr';
-        snapshot.templateArtifactId = 'ssr-template-artifact-1';
+        snapshot.templateArtifactId = runtime.snapshotInstance(
+            document.createElement('story-ssr-card') as HTMLElement
+        ).templateArtifactId;
         snapshot.dataRevision = '7';
         const serverScopeUid = 'cem-scope-story-ssr-card-userver-p0';
         snapshot.hostAttributes['data-cem-render-scope'] = serverScopeUid;
@@ -4713,13 +4903,10 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             .renderPlan;
         const serverFragment = materializeRenderPlan(plan, document);
         const serverNodes = Array.from(serverFragment.childNodes);
-
-        const runtime = registerInlineDeclaration({
-            declarationTag: 'cem-element-story-ssr',
-            producedTag: 'story-ssr-card',
-            innerHTML: templateHtml,
-            declarationAttributes: { scope: 'hydration-group' },
-        });
+        const retainedServerRoot = serverNodes.find((node) => node.nodeType === Node.ELEMENT_NODE) as
+            | Element
+            | undefined;
+        retainedServerRoot?.setAttribute('data-ssr-retained', 'true');
 
         const instance = document.createElement('story-ssr-card');
         instance.setAttribute('label', 'Server Card');
@@ -4728,16 +4915,12 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         const island = document.createElement('template');
         island.setAttribute('data-cem-island', 'instance');
         island.innerHTML = '<span slot="detail">Server detail</span>';
-        const metadata = document.createElement('script');
-        metadata.setAttribute('type', 'application/json');
-        metadata.setAttribute('data-cem-hydration', 'snapshot');
-        metadata.textContent = JSON.stringify(snapshot);
+        writeDataIslandHydrationData(island, snapshot);
         instance.append(
             island,
             document.createComment('cem-render-start'),
             ...serverNodes,
-            document.createComment('cem-render-end'),
-            metadata
+            document.createComment('cem-render-end')
         );
         root.append(instance);
         (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
@@ -4746,10 +4929,13 @@ const SsrHydrationFromSerializedSnapshot: Story = {
     play: async ({ canvasElement }) => {
         const instance = requiredElement(canvasElement, 'story-ssr-card') as HTMLElement;
         const article = await waitForElement(instance, 'article.ssr-card');
+        const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
         assertEqual(article.querySelector('h2')?.textContent, 'Server Card', 'SSR HTML renders from the serialized snapshot');
         assertEqual(
             article.getAttribute('data-cem-template-artifact-id'),
-            'ssr-template-artifact-1',
+            island.content.querySelector(
+                'cem-island-section[name="hydration"] > cem-island-value[name="templateArtifactId"]'
+            )?.textContent,
             'client hydration preserves the server render-plan artifact identity'
         );
         assertEqual(
@@ -4777,11 +4963,17 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             'client hydration preserves the server render-root scope UID'
         );
         assertEqual(
-            requiredElement(instance, 'script[data-cem-hydration="snapshot"]').textContent?.includes('ssr-instance-1'),
-            true,
-            'hydration metadata carries the serialized DataIslandSnapshot'
+            article.getAttribute('data-ssr-retained'),
+            'true',
+            'matching hydration identity retains the original server-rendered DOM without an initial rerender'
         );
-        const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        assertEqual(
+            island.content.querySelector(
+                'cem-island-section[name="hydration"] > cem-island-value[name="instanceId"]'
+            )?.textContent,
+            'ssr-instance-1',
+            'hydration data is serialized as HTML DOM inside the instance data island'
+        );
         assertEqual(
             island.content.querySelector('[slot="detail"]')?.textContent,
             'Server detail',
@@ -4822,7 +5014,11 @@ const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
         // data/security contract, so a snapshot whose schema MINOR is ahead of
         // this build (unknown optional features) must be rejected per BR-VC-9
         // rather than adopted.
-        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-ssr-reject' });
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-ssr-reject',
+            scopePolicyStamp: 'story-scope',
+            privacyPolicyStamp: 'story-privacy',
+        });
         runtime.install(window);
         const declaration = document.createElement('cem-element-story-ssr-reject');
         declaration.setAttribute('tag', 'story-ssr-reject-card');
@@ -4852,16 +5048,12 @@ const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
         instance.setAttribute('label', 'Server Card');
         const island = document.createElement('template');
         island.setAttribute('data-cem-island', 'instance');
-        const metadata = document.createElement('script');
-        metadata.setAttribute('type', 'application/json');
-        metadata.setAttribute('data-cem-hydration', 'snapshot');
-        metadata.textContent = JSON.stringify(snapshot);
+        writeDataIslandHydrationData(island, snapshot);
         instance.append(
             island,
             document.createComment('cem-render-start'),
             ...serverNodes,
-            document.createComment('cem-render-end'),
-            metadata
+            document.createComment('cem-render-end')
         );
         root.appendChild(instance);
 
@@ -4889,10 +5081,13 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
             '<attribute name="label">Fallback</attribute>' +
             '<article class="ssr-incomplete-card">' +
             '<h2>${$label}</h2>' +
+            '<p class="hydration-value">${$hydratedValue}</p>' +
             '</article>';
         const runtime = new CemElementRuntime({
             declarationTag: 'cem-element-story-ssr-incomplete',
             validateGeneratedIds: true,
+            scopePolicyStamp: 'story-scope',
+            privacyPolicyStamp: 'story-privacy',
         });
         runtime.install(window);
         const declaration = document.createElement('cem-element-story-ssr-incomplete');
@@ -4909,31 +5104,32 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
         const snapshot = projectionSnapshot('story-ssr-incomplete-card', { label: 'Server Card' });
         snapshot.instanceId = 'ssr-incomplete-instance-1';
         snapshot.declarationTag = 'cem-element-story-ssr-incomplete';
-        snapshot.templateArtifactId = 'ssr-incomplete-artifact-1';
+        snapshot.templateArtifactId = runtime.snapshotInstance(
+            document.createElement('story-ssr-incomplete-card') as HTMLElement
+        ).templateArtifactId;
         snapshot.dataRevision = '5';
+        snapshot.slices = { hydratedValue: 'Hydrated island value' };
         const serverNodes = () =>
             Array.from(
                 materializeRenderPlan(
-                    projectTemplate(source, { snapshot, values: { label: 'Server Card' } }),
+                    projectTemplate(source, {
+                        snapshot,
+                        values: { label: 'Server Card', hydratedValue: 'Hydrated island value' },
+                    }),
                     document
                 ).childNodes
             );
-        const hydrationMetadata = (textContent: string) => {
-            const metadata = document.createElement('script');
-            metadata.setAttribute('type', 'application/json');
-            metadata.setAttribute('data-cem-hydration', 'snapshot');
-            metadata.textContent = textContent;
-            return metadata;
-        };
         const hydratedCase = (
             label: string,
-            textContent: string,
-            mutateFirstRenderedElement?: (element: Element) => void
+            mutateFirstRenderedElement?: (element: Element) => void,
+            mutateIsland?: (island: HTMLTemplateElement) => void
         ) => {
             const instance = document.createElement('story-ssr-incomplete-card');
             instance.setAttribute('label', label);
             const island = document.createElement('template');
             island.setAttribute('data-cem-island', 'instance');
+            writeDataIslandHydrationData(island, snapshot);
+            mutateIsland?.(island);
             const nodes = serverNodes();
             const firstRenderedElement = nodes.find((node) => node.nodeType === 1);
             if (firstRenderedElement) {
@@ -4943,19 +5139,22 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
                 island,
                 document.createComment('cem-render-start'),
                 ...nodes,
-                document.createComment('cem-render-end'),
-                hydrationMetadata(textContent)
+                document.createComment('cem-render-end')
             );
             root.appendChild(instance);
             return instance;
         };
 
-        const metadataOnly = document.createElement('story-ssr-incomplete-card');
-        metadataOnly.setAttribute('label', 'Metadata only');
-        const metadataOnlyIsland = document.createElement('template');
-        metadataOnlyIsland.setAttribute('data-cem-island', 'instance');
-        metadataOnly.append(metadataOnlyIsland, hydrationMetadata(JSON.stringify(snapshot)));
-        root.appendChild(metadataOnly);
+        const loadingPayload = document.createElement('story-ssr-incomplete-card');
+        loadingPayload.setAttribute('label', 'Loading replacement');
+        const loadingPayloadIsland = document.createElement('template');
+        loadingPayloadIsland.setAttribute('data-cem-island', 'instance');
+        writeDataIslandHydrationData(loadingPayloadIsland, snapshot);
+        const loadingMessage = document.createElement('i');
+        loadingMessage.setAttribute('data-loading', 'true');
+        loadingMessage.textContent = 'loading...';
+        loadingPayload.append(loadingPayloadIsland, loadingMessage);
+        root.appendChild(loadingPayload);
 
         const boundsOnly = document.createElement('story-ssr-incomplete-card');
         boundsOnly.setAttribute('label', 'Bounds only');
@@ -4969,23 +5168,37 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
         );
         root.appendChild(boundsOnly);
 
-        const emptySnapshot = hydratedCase('Empty snapshot', '');
-        const invalidSnapshot = hydratedCase('Invalid snapshot', JSON.stringify({ producedTag: 'story-ssr-incomplete-card' }));
-        const invalidJson = hydratedCase('Invalid JSON', '{not-json');
-        const missingIdentity = hydratedCase('Missing identity', JSON.stringify(snapshot), (element) => {
+        const incompleteHydrationData = hydratedCase('Incomplete hydration data', undefined, (island) => {
+            island.content
+                .querySelector('cem-island-section[name="hydration"] > cem-island-value[name="instanceId"]')
+                ?.remove();
+        });
+        const missingIdentity = hydratedCase('Missing identity', (element) => {
             element.removeAttribute('data-cem-template-artifact-id');
             element.removeAttribute('data-cem-data-revision');
         });
-        const artifactMismatch = hydratedCase('Artifact mismatch', JSON.stringify(snapshot), (element) => {
+        const artifactMismatch = hydratedCase('Artifact mismatch', (element) => {
             element.setAttribute('data-cem-template-artifact-id', 'stale-artifact');
         });
-        const revisionMismatch = hydratedCase('Revision mismatch', JSON.stringify(snapshot), (element) => {
+        const declarationArtifactMismatch = hydratedCase(
+            'Current declaration artifact mismatch',
+            (element) => {
+                element.setAttribute('data-cem-template-artifact-id', 'stale-declaration-artifact');
+            },
+            (island) => {
+                const artifact = island.content.querySelector(
+                    'cem-island-section[name="hydration"] > cem-island-value[name="templateArtifactId"]'
+                );
+                if (artifact) artifact.textContent = 'stale-declaration-artifact';
+            }
+        );
+        const revisionMismatch = hydratedCase('Revision mismatch', (element) => {
             element.setAttribute('data-cem-data-revision', '4');
         });
-        const sourceMapModeMismatch = hydratedCase('Source-map mode mismatch', JSON.stringify(snapshot), (element) => {
+        const sourceMapModeMismatch = hydratedCase('Source-map mode mismatch', (element) => {
             element.removeAttribute('data-cem-source-fidelity');
         });
-        const duplicateRenderNodeId = hydratedCase('Duplicate render-node ID', JSON.stringify(snapshot), (element) => {
+        const duplicateRenderNodeId = hydratedCase('Duplicate render-node ID', (element) => {
             const renderNodeId = element.getAttribute('data-cem-render-node-id');
             const child = element.querySelector('[data-cem-render-node-id]');
             if (renderNodeId && child) {
@@ -4993,34 +5206,57 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
             }
         });
 
-        await runtime.whenRenderSettled(metadataOnly);
+        await runtime.whenRenderSettled(loadingPayload);
         await runtime.whenRenderSettled(boundsOnly);
-        await runtime.whenRenderSettled(emptySnapshot);
-        await runtime.whenRenderSettled(invalidSnapshot);
-        await runtime.whenRenderSettled(invalidJson);
+        await runtime.whenRenderSettled(incompleteHydrationData);
         await runtime.whenRenderSettled(missingIdentity);
         await runtime.whenRenderSettled(artifactMismatch);
+        await runtime.whenRenderSettled(declarationArtifactMismatch);
         await runtime.whenRenderSettled(revisionMismatch);
         await runtime.whenRenderSettled(sourceMapModeMismatch);
         await runtime.whenRenderSettled(duplicateRenderNodeId);
 
-        assertDiagnostic(runtime.diagnosticsFor(metadataOnly), 'cem-element.hydration_boundaries_missing');
-        assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.hydration_metadata_missing');
-        assertDiagnostic(runtime.diagnosticsFor(emptySnapshot), 'cem-element.hydration_snapshot_missing');
-        assertDiagnostic(runtime.diagnosticsFor(invalidSnapshot), 'cem-element.hydration_snapshot_invalid');
-        assertDiagnostic(runtime.diagnosticsFor(invalidJson), 'cem-element.hydration_json_invalid');
+        assertEqual(
+            loadingPayload.querySelector('[data-loading]'),
+            null,
+            'DOM hydration data without retained bounds replaces provisional loading output on first render'
+        );
+        assertEqual(
+            runtime.diagnosticsFor(loadingPayload).some((diagnostic) => diagnostic.code.includes('hydration')),
+            false,
+            'valid DOM hydration data does not require retained output'
+        );
+        assertEqual(
+            requiredElement(loadingPayload, '.hydration-value').textContent,
+            'Hydrated island value',
+            'DOM hydration data participates in the first render through restored island slices'
+        );
+        const resumedPayload = requiredElement(
+            loadingPayloadIsland.content,
+            'cem-island-section[name="payload"]'
+        );
+        assertEqual(
+            resumedPayload.querySelector('[data-loading]'),
+            null,
+            'provisional siblings are never recaptured into payload after the marked island selects resume mode'
+        );
+        assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.hydration_data_missing');
+        assertDiagnostic(runtime.diagnosticsFor(incompleteHydrationData), 'cem-element.hydration_data_invalid');
         assertDiagnostic(runtime.diagnosticsFor(missingIdentity), 'cem-element.hydration_render_plan_identity_missing');
         assertDiagnostic(runtime.diagnosticsFor(artifactMismatch), 'cem-element.hydration_template_artifact_mismatch');
+        assertDiagnostic(
+            runtime.diagnosticsFor(declarationArtifactMismatch),
+            'cem-element.hydration_declaration_artifact_mismatch'
+        );
         assertDiagnostic(runtime.diagnosticsFor(revisionMismatch), 'cem-element.hydration_render_revision_mismatch');
         assertDiagnostic(runtime.diagnosticsFor(sourceMapModeMismatch), 'cem-element.hydration_source_map_mode_mismatch');
         assertDiagnostic(runtime.diagnosticsFor(duplicateRenderNodeId), 'cem-element.hydration_render_node_id_duplicate');
-        await waitForElement(metadataOnly, 'article.ssr-incomplete-card');
+        await waitForElement(loadingPayload, 'article.ssr-incomplete-card');
         await waitForElement(boundsOnly, 'article.ssr-incomplete-card');
-        await waitForElement(emptySnapshot, 'article.ssr-incomplete-card');
-        await waitForElement(invalidSnapshot, 'article.ssr-incomplete-card');
-        await waitForElement(invalidJson, 'article.ssr-incomplete-card');
+        await waitForElement(incompleteHydrationData, 'article.ssr-incomplete-card');
         await waitForElement(missingIdentity, 'article.ssr-incomplete-card');
         await waitForElement(artifactMismatch, 'article.ssr-incomplete-card');
+        await waitForElement(declarationArtifactMismatch, 'article.ssr-incomplete-card');
         await waitForElement(revisionMismatch, 'article.ssr-incomplete-card');
         await waitForElement(sourceMapModeMismatch, 'article.ssr-incomplete-card');
         await waitForElement(duplicateRenderNodeId, 'article.ssr-incomplete-card');
@@ -6293,6 +6529,7 @@ interface InlineDeclarationOptions {
     type?: string;
     attributes?: Record<string, string>;
     declarationAttributes?: Record<string, string>;
+    runtimeOptions?: CemElementRuntimeOptions;
 }
 
 /**
@@ -6301,7 +6538,10 @@ interface InlineDeclarationOptions {
  * plain element, which keeps `registerDeclaration` from running twice on connect.
  */
 function registerInlineDeclaration(options: InlineDeclarationOptions): CemElementRuntime {
-    const runtime = new CemElementRuntime({ declarationTag: options.declarationTag });
+    const runtime = new CemElementRuntime({
+        ...options.runtimeOptions,
+        declarationTag: options.declarationTag,
+    });
     const declaration = document.createElement('div');
     declaration.setAttribute('tag', options.producedTag);
     for (const [name, value] of Object.entries(options.declarationAttributes ?? {})) {

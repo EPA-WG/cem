@@ -22,6 +22,7 @@
 import { ingestContractVersion, type DispositionDecision, type RunMode } from './disposition.js';
 
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
 const ATTRIBUTE_DECLARATION_TAG = 'attribute';
 const SLICE_DECLARATION_TAG = 'slice';
 const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
@@ -1974,15 +1975,15 @@ export function applyPatchFramesToRange(
                 const attributes = renderedAttributeValues.get(element) ?? authoredAttributes(element);
                 if (operation.value === null) {
                     attributes.delete(operation.name);
-                    const currentAttribute = element.getAttributeNode(operation.name);
+                    const currentAttribute = renderPlanAttributeNode(element, operation.name);
                     const desired = element.cloneNode(false) as Element;
-                    desired.removeAttribute(operation.name);
+                    removeRenderPlanAttribute(desired, operation.name);
                     if (!currentAttribute || !options.preserveElementAttribute?.(element, desired, currentAttribute)) {
-                        element.removeAttribute(operation.name);
+                        removeRenderPlanAttribute(element, operation.name);
                     }
                 } else {
                     attributes.set(operation.name, operation.value);
-                    element.setAttribute(operation.name, operation.value);
+                    setRenderPlanAttribute(element, operation.name, operation.value);
                 }
                 renderedAttributeValues.set(element, attributes);
             } else if (operation.op === 'reconcileChildren') {
@@ -2110,7 +2111,7 @@ function reconcileNodeRenderedAttributes(node: Node, options: RenderPlanApplyOpt
             const desired = element.cloneNode(false) as Element;
             for (const attribute of Array.from(desired.attributes)) {
                 if (!names.has(attribute.name) && !isRenderMetadataAttribute(attribute.name)) {
-                    desired.removeAttribute(attribute.name);
+                    removeRenderPlanAttribute(desired, attribute.name);
                 }
             }
             for (const attribute of Array.from(element.attributes)) {
@@ -2119,7 +2120,7 @@ function reconcileNodeRenderedAttributes(node: Node, options: RenderPlanApplyOpt
                     !isRenderMetadataAttribute(attribute.name) &&
                     !options.preserveElementAttribute?.(element, desired, attribute)
                 ) {
-                    element.removeAttribute(attribute.name);
+                    removeRenderPlanAttribute(element, attribute.name);
                 }
             }
         }
@@ -2184,7 +2185,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         ? document.createElementNS(node.namespace, node.tag)
         : document.createElement(node.tag);
     for (const attribute of node.attributes) {
-        element.setAttribute(attribute.name, attribute.value);
+        setRenderPlanAttribute(element, attribute.name, attribute.value);
     }
     renderedAttributeValues.set(
         element,
@@ -2689,14 +2690,53 @@ function syncAttributes(
         : desired;
     for (const attribute of Array.from(current.attributes)) {
         if (!desiredAttributes.has(attribute.name) && !preserveCurrentAttribute?.(attribute)) {
-            current.removeAttribute(attribute.name);
+            removeRenderPlanAttribute(current, attribute.name);
         }
     }
     for (const [name, value] of desiredAttributes) {
-        if (current.getAttribute(name) !== value) {
-            current.setAttribute(name, value);
+        if (renderPlanAttributeValue(current, name) !== value) {
+            setRenderPlanAttribute(current, name, value);
         }
     }
+}
+
+export function setRenderPlanAttribute(element: Element, name: string, value: string): void {
+    const xlinkLocalName = xlinkAttributeLocalName(name);
+    if (xlinkLocalName) {
+        const existing = element.getAttributeNode(name);
+        if (existing && existing.namespaceURI !== XLINK_NAMESPACE) {
+            element.removeAttribute(name);
+        }
+        element.setAttributeNS(XLINK_NAMESPACE, name, value);
+        return;
+    }
+    element.setAttribute(name, value);
+}
+
+function renderPlanAttributeValue(element: Element, name: string): string | null {
+    const xlinkLocalName = xlinkAttributeLocalName(name);
+    return xlinkLocalName
+        ? element.getAttributeNS(XLINK_NAMESPACE, xlinkLocalName)
+        : element.getAttribute(name);
+}
+
+function renderPlanAttributeNode(element: Element, name: string): Attr | null {
+    const xlinkLocalName = xlinkAttributeLocalName(name);
+    return xlinkLocalName
+        ? element.getAttributeNodeNS(XLINK_NAMESPACE, xlinkLocalName)
+        : element.getAttributeNode(name);
+}
+
+function removeRenderPlanAttribute(element: Element, name: string): void {
+    const xlinkLocalName = xlinkAttributeLocalName(name);
+    if (xlinkLocalName) {
+        element.removeAttributeNS(XLINK_NAMESPACE, xlinkLocalName);
+    }
+    element.removeAttribute(name);
+}
+
+function xlinkAttributeLocalName(name: string): string | null {
+    return name.startsWith('xlink:') && name.length > 'xlink:'.length ? name.slice('xlink:'.length) : null;
 }
 
 function isAttributeElement(value: Element | ReadonlyMap<string, string>): value is Element {

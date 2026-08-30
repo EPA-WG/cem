@@ -23,7 +23,7 @@ import {
 } from './processing-boundary.fixtures.js';
 
 describe('non-browser SSR initial-render host fixture', () => {
-    it('emits escaped identity-bearing HTML, hydration metadata, and verified retained state without DOM globals', () => {
+    it('emits escaped identity-bearing HTML, hydration data, and verified retained state without DOM globals', () => {
         const snapshot = processingBoundarySnapshotFixture();
         snapshot.hostAttributes = {
             ...snapshot.hostAttributes,
@@ -48,7 +48,7 @@ describe('non-browser SSR initial-render host fixture', () => {
         expect(response.result.renderedHtml).toContain('data-cem-template-artifact-id="boundary-template-1"');
         expect(response.result.renderedHtml).toContain('data-cem-data-revision="1"');
         expect(response.result.renderedHtml).toContain('data-cem-source-fidelity="dom-canonical"');
-        expect(response.result.hydrationMetadata).toEqual({
+        expect(response.result.hydrationData).toEqual({
             kind: 'cem-ssr-hydration-v1',
             snapshot: exported,
             revision: request.payload.revision,
@@ -62,7 +62,7 @@ describe('non-browser SSR initial-render host fixture', () => {
         expect(retained.contents.renderedHtml).toBe(response.result.renderedHtml);
         expect(retained.contents.sanitizedSnapshot).toEqual(exported);
         expect(renderPlanIdentity(retained.contents.renderPlan)).toEqual(
-            response.result.hydrationMetadata.renderPlanIdentity
+            response.result.hydrationData.renderPlanIdentity
         );
         expect(structuredClone(response)).toEqual(response);
 

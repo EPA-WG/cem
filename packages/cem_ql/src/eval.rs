@@ -856,11 +856,7 @@ impl<'a> EvalCtx<'a> {
         let lhs = lhs_stream.items.first();
         let rhs = rhs_stream.items.first();
         let item = match (op, lhs, rhs) {
-            (
-                op @ (BinaryOp::Plus | BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent),
-                Some(lhs),
-                Some(rhs),
-            ) => match numeric_binary(op, lhs, rhs) {
+            (BinaryOp::Plus, Some(lhs), Some(rhs)) => match plus_binary(lhs, rhs) {
                 Ok(item) => item,
                 Err(message) => {
                     let mut out = self.type_error(source, message);
@@ -869,6 +865,17 @@ impl<'a> EvalCtx<'a> {
                     return out;
                 }
             },
+            (op @ (BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent), Some(lhs), Some(rhs)) => {
+                match numeric_binary(op, lhs, rhs) {
+                    Ok(item) => item,
+                    Err(message) => {
+                        let mut out = self.type_error(source, message);
+                        out.extend_diagnostics(lhs_stream);
+                        out.extend_diagnostics(rhs_stream);
+                        return out;
+                    }
+                }
+            }
             (BinaryOp::EqEq, Some(lhs), Some(rhs)) => Item::Atomic(AtomValue::Boolean(
                 atom_cmp(lhs, rhs) == Some(std::cmp::Ordering::Equal),
             )),
@@ -1218,6 +1225,15 @@ fn numeric_binary(op: BinaryOp, lhs: &Item, rhs: &Item) -> Result<Item, &'static
     }
 }
 
+fn plus_binary(lhs: &Item, rhs: &Item) -> Result<Item, &'static str> {
+    match (lhs.atom(), rhs.atom()) {
+        (Some(AtomValue::String(lhs)), Some(AtomValue::String(rhs))) => {
+            Ok(Item::Atomic(AtomValue::String(lhs + &rhs)))
+        }
+        _ => numeric_binary(BinaryOp::Plus, lhs, rhs),
+    }
+}
+
 fn integer_binary(op: BinaryOp, lhs: i64, rhs: i64) -> Result<i64, &'static str> {
     match op {
         BinaryOp::Plus => lhs
@@ -1326,7 +1342,9 @@ fn runtime_binary_operand_message(op: BinaryOp) -> &'static str {
         BinaryOp::Le => "operator `<=` operands are not supported",
         BinaryOp::Gt => "operator `>` operands are not supported",
         BinaryOp::Ge => "operator `>=` operands are not supported",
-        BinaryOp::Plus => "operator `+` requires numeric operands",
+        BinaryOp::Plus => {
+            "operator `+` requires two strings or matching numeric operands; implicit string conversion is not supported"
+        }
         BinaryOp::Minus => "operator `-` requires numeric or stream operands",
         BinaryOp::Star => "operator `*` requires numeric operands",
         BinaryOp::Slash => "operator `/` requires numeric operands",

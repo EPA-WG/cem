@@ -44,6 +44,9 @@ vi.mock('./cem-ql-render.js', () => {
         };
     }) => ({
         diagnostics: [],
+        hostAttributeUpdates: sources.get(artifactId)?.includes('attribute @select')
+            ? [{ name: 'mode', value: 'selected' }]
+            : [],
         renderPlan: {
             ...input.identity,
             nodes: [
@@ -205,6 +208,37 @@ describe('Phase 3A retained processing engine', () => {
         expect(second.frames.flatMap((frame) => frame.type === 'ops' ? frame.ops : [])).toContainEqual(
             expect.objectContaining({ op: 'setText', value: 'After' })
         );
+    });
+
+    it('returns declaration-derived host attribute updates outside the render plan', async () => {
+        const engine = new CemProcessingEngine();
+        const compiled = await engine.compile({
+            language: 'cem-ml',
+            producedTag: 'cem-selected-attribute',
+            templateArtifactId: 'template-selected-attribute-1',
+            registrationIdentity: 'cem-registration-v1:selected-attribute',
+            source: createCemProcessingTextSource('{attribute @select="mode"}{span | selected}'),
+            sourceRef: { kind: 'inline', value: 'cem-selected-attribute' },
+            resolverIdentity: 'document:https://example.test/',
+            scopePolicyStamp: 'scope-policy-v1',
+            sourceMapMode: 'dev',
+        });
+        const snapshot = snapshotFixture(
+            '1',
+            'template-selected-attribute-1',
+            'cem-selected-attribute'
+        );
+
+        const rendered = await engine.renderDiff({
+            artifact: compiled.artifact,
+            revision: revision(snapshot),
+            snapshot,
+            data: {},
+            scopeUid: 'selected-attribute-scope',
+            previousRenderPlan: null,
+        });
+
+        expect(rendered.hostAttributeUpdates).toEqual([{ name: 'mode', value: 'selected' }]);
     });
 
     it('keys URI artifacts by source and resolver identity, not transport chunk boundaries', async () => {

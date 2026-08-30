@@ -1,7 +1,7 @@
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
-    compile_template, render_compiled_template, CompileTemplateOptions, RenderPlanNode,
-    TemplateData,
+    compile_template, render_compiled_template, CompileTemplateOptions, HostAttributeUpdate,
+    RenderPlanNode, TemplateData,
 };
 use cem_ql::render::{render_plan_to_html, render_template};
 use std::collections::BTreeMap;
@@ -51,6 +51,31 @@ fn render_template_interpolates_attribute_value_templates() {
     assert_eq!(
         rendered.rendered,
         r#"<button class="action danger" disabled="true">Save</button>"#
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn render_template_interpolates_event_coordinates_into_css_lengths() {
+    let event_payload = record([
+        ("offsetX", vec![Item::Atomic(AtomValue::Integer(157))]),
+        ("offsetY", vec![Item::Atomic(AtomValue::Integer(120))]),
+    ]);
+    let datadom = record([("eventPayloads", vec![record([("s", vec![event_payload])])])]);
+    let rendered = render_template(
+        r#"{textarea @style="width:16rem;height:16rem;box-shadow:inset
+            {datadom.eventPayloads.s.offsetX ?? 0
+            }px {datadom.eventPayloads.s.offsetY ?? 0}px gold;"}"#,
+        &TemplateData::default().with_binding("datadom", ItemStream::once(datadom)),
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        "<textarea style=\"width:16rem;height:16rem;box-shadow:inset\n            157px 120px gold;\"></textarea>"
     );
     assert!(
         rendered.diagnostics.is_empty(),
@@ -447,6 +472,153 @@ fn render_template_coalesces_chained_selections() {
     );
 }
 
+#[test]
+fn attribute_declarations_return_default_and_selected_host_updates() {
+    let template = concat!(
+        r#"{attribute @name=p1 | default_P1}"#,
+        r#"{attribute @name=p2 @select='"always_p2"'}"#,
+        r#"{attribute @name=p3 @select='datadom.attributes.p3 ?? "def_P3"'}"#,
+        r#"{p | {$p1}|{$p2}|{$p3}|{$datadom.attributes.p1}|{$datadom.attributes.p2}|{$datadom.attributes.p3}}"#,
+    );
+
+    let defaults = render_template(template, &TemplateData::default());
+    assert_eq!(
+        defaults.rendered,
+        "<p>default_P1|always_p2|def_P3|default_P1|always_p2|def_P3</p>",
+        "{:?}",
+        defaults.diagnostics
+    );
+    assert_eq!(
+        defaults.host_attribute_updates,
+        vec![
+            HostAttributeUpdate::new("p1", "default_P1"),
+            HostAttributeUpdate::new("p2", "always_p2"),
+            HostAttributeUpdate::new("p3", "def_P3"),
+        ]
+    );
+    assert!(
+        defaults.diagnostics.is_empty(),
+        "{:?}",
+        defaults.diagnostics
+    );
+
+    let overridden = render_template(
+        template,
+        &TemplateData::default()
+            .with_binding("p1", string_value("123"))
+            .with_binding("p2", string_value("ignored"))
+            .with_binding("p3", string_value("qwe")),
+    );
+    assert_eq!(
+        overridden.rendered,
+        "<p>123|always_p2|qwe|123|always_p2|qwe</p>"
+    );
+    assert_eq!(
+        overridden.host_attribute_updates,
+        vec![
+            HostAttributeUpdate::new("p2", "always_p2"),
+            HostAttributeUpdate::new("p3", "qwe"),
+        ]
+    );
+    assert!(
+        overridden.diagnostics.is_empty(),
+        "{:?}",
+        overridden.diagnostics
+    );
+}
+
+#[test]
+fn selected_attributes_derive_boolean_and_slice_event_values() {
+    let template = concat!(
+        r#"{attribute @name=is-changed @select='if datadom.eventPayloads.s { true } else { false }'}"#,
+        r#"{attribute @name=v @select='if datadom.eventPayloads.s { datadom.slices.s } else { datadom.attributes.v ?? "def" }'}"#,
+        r#"{p | {$datadom.attributes.v}|{$v}|{$datadom.attributes.is-changed}|{$is-changed}}"#,
+    );
+    let datadom = record([
+        (
+            "attributes",
+            vec![record([(
+                "v",
+                vec![Item::Atomic(AtomValue::String("From Container".to_owned()))],
+            )])],
+        ),
+        (
+            "slices",
+            vec![record([(
+                "s",
+                vec![Item::Atomic(AtomValue::String("From Slice".to_owned()))],
+            )])],
+        ),
+        (
+            "eventPayloads",
+            vec![record([(
+                "s",
+                vec![record([(
+                    "type",
+                    vec![Item::Atomic(AtomValue::String("input".to_owned()))],
+                )])],
+            )])],
+        ),
+    ]);
+
+    let rendered = render_template(
+        template,
+        &TemplateData::default()
+            .with_binding("v", string_value("From Container"))
+            .with_binding("datadom", ItemStream::once(datadom)),
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        "<p>From Slice|From Slice|true|true</p>"
+    );
+    assert_eq!(
+        rendered.host_attribute_updates,
+        vec![
+            HostAttributeUpdate::new("is-changed", "true"),
+            HostAttributeUpdate::new("v", "From Slice"),
+        ]
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn invalid_attribute_select_preserves_host_binding_without_a_host_update() {
+    let rendered = render_template(
+        r#"{attribute @name=label @select="missing +"}{p | {$label}|{$datadom.attributes.label}}"#,
+        &TemplateData::default().with_binding("label", string_value("Authored")),
+    );
+
+    assert_eq!(rendered.rendered, "<p>Authored|Authored</p>");
+    assert!(rendered.host_attribute_updates.is_empty());
+    assert!(rendered
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"));
+}
+
+#[test]
+fn ordinary_select_attributes_remain_literal_attribute_values() {
+    let rendered = render_template(
+        r#"{button @select="raw-value" | Choose}"#,
+        &TemplateData::default(),
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        r#"<button select="raw-value">Choose</button>"#
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
 // --- C2.5: conditional constructs (cem:if / cem:choose / cem:when / cem:otherwise) ---
 
 #[test]
@@ -611,6 +783,39 @@ fn render_template_applies_declaration_defaults() {
         override_render.diagnostics.is_empty(),
         "{:?}",
         override_render.diagnostics
+    );
+}
+
+#[test]
+fn declared_slice_defaults_update_the_current_data_document() {
+    let rendered = render_template(
+        r#"{slice @name="s" | xB}{input @value="{str:substring(datadom.slices.s, 2)}"}{output | {$s}|{$datadom.slices.s}}"#,
+        &TemplateData::default(),
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        r#"<input value="B"><output>xB|xB</output>"#
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn declared_boolean_slice_defaults_keep_their_boolean_type() {
+    let rendered = render_template(
+        r#"{slice @name="open" | false}{output | {$open}|{$datadom.slices.open}}{cem:if @test="datadom.slices.open" | {p | must stay hidden}}"#,
+        &TemplateData::default(),
+    );
+
+    assert_eq!(rendered.rendered, "<output>false|false</output>");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
     );
 }
 
@@ -827,6 +1032,107 @@ fn render_template_for_each_iterates_array_item_members() {
     );
 
     assert_eq!(rendered.rendered, "--cem-gap: 0.5rem;--cem-inset: 1rem;");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn render_template_recursively_exposes_every_payload_attribute_without_a_whitelist() {
+    let text = record([
+        (
+            "kind",
+            vec![Item::Atomic(AtomValue::String("text".to_owned()))],
+        ),
+        (
+            "text",
+            vec![Item::Atomic(AtomValue::String("Hello".to_owned()))],
+        ),
+    ]);
+    let node = record([
+        (
+            "kind",
+            vec![Item::Atomic(AtomValue::String("element".to_owned()))],
+        ),
+        (
+            "tag",
+            vec![Item::Atomic(AtomValue::String("strong".to_owned()))],
+        ),
+        (
+            "attributes",
+            vec![record([
+                (
+                    "data-flavor",
+                    vec![Item::Atomic(AtomValue::String("pear".to_owned()))],
+                ),
+                (
+                    "slot",
+                    vec![Item::Atomic(AtomValue::String("heading".to_owned()))],
+                ),
+                (
+                    "title",
+                    vec![Item::Atomic(AtomValue::String("Complete".to_owned()))],
+                ),
+            ])],
+        ),
+        ("children", vec![Item::Array(vec![text])]),
+    ]);
+    let payload = record([("nodes", vec![Item::Array(vec![node])])]);
+    let datadom = record([("payload", vec![payload])]);
+    let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
+    let template = r#"
+        {module |
+            {template @name=node |
+                {param @name=node}
+                {body |
+                    {cem:choose |
+                        {cem:when @test='node.kind == "element"' |
+                            {details @open=open |
+                                {summary |
+                                    {b | {$node.tag}}
+                                    {cem:for-each @select="record:entries(node.attributes)" @as=attribute |
+                                        {code | {$ attribute.key + "=\"" + attribute.value + "\""}}
+                                    }
+                                }
+                                {cem:for-each @select="$node.children" @as=child |
+                                    {call @template=node @with:node="{$child}"}
+                                }
+                            }
+                        }
+                        {cem:when @test='node.kind == "text"' | {p | {$node.text}}}
+                    }
+                }
+            }
+            {body |
+                {details @open=open |
+                    {summary | {b | template}}
+                    {cem:for-each @select="$datadom.payload.nodes" @as=node |
+                        {call @template=node @with:node="{$node}"}
+                    }
+                }
+            }
+        }
+    "#;
+
+    let rendered = render_template(template, &data);
+
+    for expected in [
+        "<b>template</b>",
+        "<b>strong</b>",
+        "<code>data-flavor=\"pear\"</code>",
+        "<code>slot=\"heading\"</code>",
+        "<code>title=\"Complete\"</code>",
+        "<p>Hello</p>",
+    ] {
+        assert!(
+            rendered.rendered.contains(expected),
+            "missing {expected:?} in {}; diagnostics: {:?}",
+            rendered.rendered,
+            rendered.diagnostics
+        );
+    }
     assert!(
         rendered.diagnostics.is_empty(),
         "{:?}",
@@ -1068,7 +1374,7 @@ fn render_template_cross_table_join_resolves_palette_reference() {
     // cem-colors emotion-shift: choose `--cem-color-<name>` when that token exists in the
     // hue-variant table, else fall back to `--cem-palette-<name>`. The existence check projects a
     // field across an array slice (`datadom.slices.hue.td1`, flattened) and tests existential `==`
-    // against a `str:concat((…))`-built target.
+    // against a string-`+`-built target.
     let hue = Item::Array(vec![
         record([(
             "td1",
@@ -1106,7 +1412,7 @@ fn render_template_cross_table_join_resolves_palette_reference() {
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
     let rendered = render_template(
-        "{cem:for-each @select=\"datadom.slices.shift\" @as=\"emo\" |{$ emo.td1}: light-dark({cem:choose |{cem:when @test='datadom.slices.hue.td1 == str:concat((\"--cem-color-\", emo.td3))' |var(--cem-color-{$ emo.td3})}{cem:otherwise |var(--cem-palette-{$ emo.td3})}}, {cem:choose |{cem:when @test='datadom.slices.hue.td1 == str:concat((\"--cem-color-\", emo.td4))' |var(--cem-color-{$ emo.td4})}{cem:otherwise |var(--cem-palette-{$ emo.td4})}});}",
+        "{cem:for-each @select=\"datadom.slices.shift\" @as=\"emo\" |{$ emo.td1}: light-dark({cem:choose |{cem:when @test='datadom.slices.hue.td1 == \"--cem-color-\" + emo.td3' |var(--cem-color-{$ emo.td3})}{cem:otherwise |var(--cem-palette-{$ emo.td3})}}, {cem:choose |{cem:when @test='datadom.slices.hue.td1 == \"--cem-color-\" + emo.td4' |var(--cem-color-{$ emo.td4})}{cem:otherwise |var(--cem-palette-{$ emo.td4})}});}",
         &data,
     );
 

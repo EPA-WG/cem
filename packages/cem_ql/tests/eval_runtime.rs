@@ -83,6 +83,34 @@ fn evaluator_handles_literals_arithmetic_and_control_flow() {
 }
 
 #[test]
+fn evaluator_concatenates_strings_without_implicit_conversion() {
+    let strings = eval(r#""cem" + "-" + "ql""#, default_policy());
+    assert_eq!(
+        strings.items,
+        vec![Item::Atomic(AtomValue::String("cem-ql".to_owned()))]
+    );
+    assert!(strings.error.is_none(), "{:?}", strings.diagnostics);
+
+    let mut bindings = BTreeMap::new();
+    bindings.insert(
+        "left".to_owned(),
+        cem_ql::eval::ItemStream::once(Item::Atomic(AtomValue::String("x".to_owned()))),
+    );
+    bindings.insert(
+        "right".to_owned(),
+        cem_ql::eval::ItemStream::once(Item::Atomic(AtomValue::Integer(1))),
+    );
+    let mixed = eval_with_bindings("left + right", bindings, default_policy());
+
+    assert_eq!(
+        mixed.error,
+        Some(EvalError::TypeError(
+            "operator `+` requires two strings or matching numeric operands; implicit string conversion is not supported"
+        ))
+    );
+}
+
+#[test]
 fn compiler_rejects_implicit_numeric_promotion() {
     let error = compile("1 + 1.0", &CompileContext::default()).unwrap_err();
 
@@ -346,7 +374,7 @@ fn evaluator_runtime_minus_rejects_numeric_stream_mixes() {
 
 #[test]
 fn evaluator_materializes_computed_record_keys() {
-    let stream = eval(r#"{ [str:concat(("na", "me"))]: "Ada" }"#, default_policy());
+    let stream = eval(r#"{ ["na" + "me"]: "Ada" }"#, default_policy());
 
     let Some(Item::Record(record)) = stream.items.first() else {
         panic!("expected record, got {:?}", stream.items);

@@ -4,6 +4,8 @@ import "cem:stdlib/sequence" as seq
 import "cem:stdlib/strings" as str
 import "cem:stdlib/numbers" as num
 import "cem:stdlib/datetime" as dt
+import "cem:stdlib/records" as record
+import "cem:stdlib/items" as item
 import "cem:stdlib/report" as report
 
 {
@@ -55,5 +57,10 @@ import "cem:stdlib/report" as report
         dt:components("2026-05-23T01:02:03Z"),
         dt:format("2026-05-23T01:02:03Z", "iso")
     );
-    (sequence, strings, numbers, datetime, report:emit("cem.ql.example", "stdlib helpers parsed", "info"))
+    let data_shapes = (
+        seq:count(record:entries({ zeta: "Z", alpha: "A" })),
+        item:kind({ alpha: "A" }),
+        item:kind((1, 2))
+    );
+    (sequence, strings, numbers, datetime, data_shapes, report:emit("cem.ql.example", "stdlib helpers parsed", "info"))
 }
