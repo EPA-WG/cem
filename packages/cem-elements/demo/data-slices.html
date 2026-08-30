@@ -8,48 +8,337 @@
     <script type="module">
         import { installCemElementRuntime } from '../dist/index.js';
         installCemElementRuntime(window);
-        window.addEventListener('click', (event) => {
-            const trigger = event.target.closest('[data-dispatch-select]');
-            if (!trigger) return;
-            trigger.dispatchEvent(new CustomEvent('cem-select', { bubbles: true, detail: { id: 'demo' } }));
-        });
     </script>
 </head>
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Data slices and events</h1></nav>
 
 <main>
-    <html-demo-element legend="A. slice initialization, change on event"
+    <html-demo-element legend="A1. inline slice initialization, change on event"
                        description="initial value should be 0; + and - should change the number in input field">
         <template>
-            <cem-element tag="cem-slice-field">
-                <template type="text/cem-ml">
-                    {attribute @name=label | Query}
-                    {slice @name=query}
-                    {slice @name=checked | false}
-                    {slice @name=selected}
-                    {slice @name=clickcount | 0}
-                    {slice @name=s1}
-                    {slice @name=s2}
-                    {section @class=demo-card |
-                        {label | {$label} {input @type=text @value="{$query}" @slice=query @slice-event=input @slice-value="{$target.value}"}}
-                        {label | {input @type=checkbox @slice=checked @slice-event=change @slice-value="{$target.checked}"} checked}
-                        {button @type=button @data-dispatch-select=true @slice=selected @slice-event=cem-select @slice-value="$event.type" | Custom select}
-                        {button @type=button @data-role=increment @slice=clickcount @slice-event="click tap" @slice-value="//clickcount + 1" | +}
-                        {button @type=button @data-role=decrement @slice=clickcount @slice-event=click @slice-value="//clickcount - 1" | -}
-                        {label | Mirror {input @data-role=fanout @value="{$s1}" @slice="s1|s2" @slice-event=input @slice-value="@value"}}
-                        {p | query: {output | {$datadom.slices.query}}}
-                        {p | checked: {output | {$datadom.slices.checked}}}
-                        {p | custom event: {output | {$datadom.slices.selected}}}
-                        {p | count: {output @data-role=count | {$datadom.slices.clickcount}}}
-                        {p | s1: {output @data-role=s1 | {$datadom.slices.s1}}}
-                        {p | s2: {output @data-role=s2 | {$datadom.slices.s2}}}
-                    }
-                </template>
-            </cem-element>
+<cem-element tag="cem-slice-counter-input-default">
+    <template type="text/cem-ml">
+{article @class=demo-card |
+    {button @slice=clickcount @slice-event=click @slice-value="//clickcount + 1" | +}
+    {button @slice=clickcount @slice-event=click @slice-value="//clickcount - 1" | -}
+    {input @slice=clickcount @type=number @value="{datadom.slices.clickcount ?? 0}"}
+    {$datadom.slices.clickcount ?? 0}
+}
+    </template>
+</cem-element>
+<cem-slice-counter-input-default></cem-slice-counter-input-default>
+        </template>
+    </html-demo-element>
+    <html-demo-element legend="A2. slice initialization, change on event"
+                       description="initial value should be 0; + and - should change the number in input field">
+        <template>
+<cem-element tag="cem-slice-counter">
+    <template type="text/cem-ml">
+        {slice @name=clickcount | 0}
+        {article @class=demo-card |
+            {button @slice=clickcount @slice-event="click tap"
+                    @slice-value="//clickcount + 1" | +}
+            {button @slice=clickcount @slice-event=click
+                    @slice-value="//clickcount - 1" | -}
+            {input @type=number @slice=clickcount @value="{$clickcount}"}
+            {output | {$clickcount}}
+        }
+    </template>
+</cem-element>
+<cem-slice-counter></cem-slice-counter>
+        </template>
+    </html-demo-element>
 
-            <cem-slice-field label="Type and toggle"></cem-slice-field>
-            <p class="status-note">Parity target: checkbox/radio coercion and form-data extraction are queued in <code>docs/todo.md</code>.</p>
+    <html-demo-element legend="B. slice event data."
+                       description="move the mouse over TEXTAREA and click to see slice and slice event changed">
+        <template>
+<cem-element tag="cem-slice-event-data">
+    <template type="text/cem-ml">
+{slice @name=s}
+{article @class=demo-card |
+    {textarea
+        @slice=s
+        @slice-value='concat("x:", //@pageX)'
+        @slice-event="mousemove click"
+        @style="width:16rem;height:16rem;box-shadow:inset
+            {datadom.eventPayloads.s.offsetX ?? 0
+            }px {datadom.eventPayloads.s.offsetY ?? 0}px gold;"
+    }
+    {p | //slice/s: {output | {$datadom.slices.s}}}
+    {p | event type: {output | {$datadom.eventPayloads.s.type}}}
+    {p | //slice/s/event/@offsetY:
+    {output | {$datadom.eventPayloads.s.offsetY}}}
+}
+    </template>
+</cem-element>
+<cem-slice-event-data></cem-slice-event-data>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="1. slice change on event. 1:1 slice⮂value"
+                       description="initial value blank; type and unfocus to see slice changed">
+        <template>
+<cem-element tag="cem-slice-basic">
+    <template type="text/cem-ml">
+        {slice @name=typed}
+        {article @class=demo-card |
+            {input @slice=typed}
+            {p | //slice/typed:
+                {output | {$datadom.slices.typed}}
+        }   }
+    </template>
+</cem-element>
+<cem-slice-basic></cem-slice-basic>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="2. initial slice value, slice change on event. slice⮂value"
+                       description="initial value from input; type and unfocus to see slice changed">
+        <template>
+<cem-element tag="cem-slice-initial-change">
+    <template type="text/cem-ml">
+{slice @name=s | B}
+{article @class=demo-card |
+    {input @slice=s @value="{$s}"}
+    {p | //slice/s: {output | {$datadom.slices.s}}}
+}
+    </template>
+</cem-element>
+<cem-slice-initial-change></cem-slice-initial-change>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="3. on input event. slice⮂value"
+                       description="initial value from input; type to see slice changed">
+        <template>
+<cem-element tag="cem-slice-initial-input">
+    <template type="text/cem-ml">
+{slice @name=s | B}
+{article @class=demo-card |
+    {input @slice=s @slice-event=input @value="{$s}"}
+    {p | //slice/s: {output | {$datadom.slices.s}}}
+}
+    </template>
+</cem-element>
+<cem-slice-initial-input></cem-slice-initial-input>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="4. initial slice value from attribute"
+                       description="initial value from input; type to see slice changed">
+        <template>
+<cem-element tag="cem-slice-attribute-initial">
+    <template type="text/cem-ml">
+        {attribute @name=a | 😁}
+        {slice @name=s}
+        {article @class=demo-card |
+            {input @slice=s @slice-event=keyup @value="{$s ?? $a}"}
+            {p | attribute 'a': {output | {$a}}}
+            {p | //slice/s: {output | {$datadom.slices.s}}}
+        }
+    </template>
+</cem-element>
+<cem-slice-attribute-initial></cem-slice-attribute-initial>
+<cem-slice-attribute-initial a="🤗"></cem-slice-attribute-initial>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="5. slice value computed from event"
+                       description="initial value from input as 'xB'; type and unfocus to see slice changed">
+        <template>
+<cem-element tag="cem-slice-transform">
+    <template type="text/cem-ml">
+        {slice @name=s | xB}
+        {article @class=demo-card |
+            {input @slice=s
+                @value="{str:substring(datadom.slices.s, 2)}"
+                @slice-value='"x" + @value'}
+            {p | //slice/s: {output | {$datadom.slices.s}}}
+        }
+    </template>
+</cem-element>
+<cem-slice-transform></cem-slice-transform>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="6. button ignored till change on click."
+                       description="initial value from input as 'anonymous'; on button click change to 'broccoli'">
+        <template>
+<cem-element tag="cem-slice-broccoli">
+    <template type="text/cem-ml">
+        {slice @name=nickname | anonymous}
+        {article @class=demo-card |
+            {input @slice=nickname @value="{$nickname}"}
+            {button @slice=nickname
+                @slice-value='"broccoli"'
+                @slice-event=click | 🥦}
+            {output | {$nickname}}
+        }
+    </template>
+</cem-element>
+<cem-slice-broccoli></cem-slice-broccoli>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="7. initial slice value from SLICE element"
+                       description="synthetic SLICE element serves as initial value holder, button ignored till change on click.">
+        <template>
+<cem-element tag="cem-slice-declared-counter">
+    <template type="text/cem-ml">
+        {slice @name=clickcount}
+        {article @class=demo-card |
+            {button @slice=clickcount
+                @slice-event="click tap"
+                @slice-value="//clickcount + 1" |
+                {slice @slice=clickcount @value=0}
+                click/tap
+            }
+            {p | //clickcount: {output | {$clickcount}}}
+        }
+    </template>
+</cem-element>
+<cem-slice-declared-counter></cem-slice-declared-counter>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="8. multiple slices by SLICE element"
+                       description="synthetic SLICE elements serve as initial value holder.">
+        <template>
+<cem-element tag="cem-slice-multi-directive">
+    <template type="text/cem-ml">
+{slice @name=clicked}
+{slice @name=focused}
+{article @class=demo-card |
+    {button |
+        {slice @slice=clicked @value=0}
+        {slice @slice=focused @value=0}
+        {slice @slice=clicked @slice-event="click tap"
+            @slice-value="//clicked + 1"}
+        {slice @slice=focused @slice-event=focus @slice-value=1}
+        {slice @slice=focused @slice-event=blur @slice-value=0}
+        click/tap, focus/blur
+    }
+    {p | //clicked: {output | {$clicked}}}
+    {p | //focused: {output | {$focused}}}
+}
+    </template>
+</cem-element>
+<cem-slice-multi-directive></cem-slice-multi-directive>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="9. slice in attribute"
+                       description="initial attribute value should be smile as emoji and :) <br/> on blur from input it should be updated from value">
+        <template>
+<cem-element tag="cem-slice-emotion-attribute">
+    <template type="text/cem-ml">
+{attribute  @name=emotion
+            @select='datadom.attributes.emotion ?? "😃"'}
+{article @class=demo-card |
+    {input @slice="/datadom/attributes/emotion"
+        @value="{$emotion}"}
+    {p | Type and unfocus {br}
+        to update emotion attribute:
+        {output | {$emotion}}}
+}
+    </template>
+</cem-element>
+<cem-slice-emotion-attribute emotion=":)"
+    ></cem-slice-emotion-attribute>
+<cem-slice-emotion-attribute></cem-slice-emotion-attribute>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="10. multiple slices by same field"
+                       description="same element value sets s1 and s2 slice">
+        <template>
+<cem-element tag="cem-slice-fanout">
+    <template type="text/cem-ml">
+        {slice @name=s1}
+        {slice @name=s2}
+        {article @class=demo-card |
+            {input @slice="s1|s2" @slice-event=input}
+            {p | Type to update s1 and s2 slices}
+            {p | slice s1: {output | {$datadom.slices.s1}}}
+            {p | slice s2: {output | {$datadom.slices.s2}}}
+        }
+    </template>
+</cem-element>
+<cem-slice-fanout></cem-slice-fanout>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="11. slices and attribute"
+                       description="initial attribute value should be smile as emoji and :) <br/> on blur from input it should be updated from value">
+        <template>
+<cem-element tag="cem-slice-attribute-fanout">
+    <template type="text/cem-ml">
+        {attribute @name=emotion | 😃}
+        {slice @name=s1}
+        {article @class=demo-card |
+            {input @slice="/datadom/attributes/emotion | s1" @value="{$emotion}"}
+            {p | Type and unfocus {br}
+                to update emotion attribute: {output | {$emotion}}}
+            {p | and slice: {output | {$datadom.slices.s1}}}
+        }
+    </template>
+</cem-element>
+<cem-slice-attribute-fanout></cem-slice-attribute-fanout>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="12. checkbox use"
+                       description="The value is empty when unchecked. <br/>Otherwise taken either from slice-value or value attribute.">
+        <template>
+<cem-element tag="cem-slice-checkboxes">
+    <template type="text/cem-ml">
+        {slice @name=is-checked | V0}
+        {slice @name=s2}
+        {slice @name=s3}
+        {cem:variable @name=v1 @select='"V1"'}
+        {article @class=demo-card |
+            {label |
+                {input @type=checkbox @slice=is-checked @value=V0 @checked}
+                value attribute}
+            {p | slice: {output | {$datadom.slices.is-checked}}}
+            {p | $v1={$v1}}
+            {label |
+                {input @type=checkbox @slice=s2 @slice-value="{$v1}"} slice-value}
+            {p | slice 2: {output | {$datadom.slices.s2}}}
+            {label |
+                {input @type=checkbox @slice=s3 @value="{$v1}"} variable value}
+            {p | slice 3: {output | {$datadom.slices.s3}}}
+        }
+    </template>
+</cem-element>
+<cem-slice-checkboxes></cem-slice-checkboxes>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="13. Radio group"
+                       description="The value propagated into slice from the last checked radiobutton.">
+        <template>
+<cem-element tag="cem-slice-radios">
+    <template type="text/cem-ml">
+        {slice @name=radio-group | V1}
+        {article @class=demo-card |
+            {label | V0:
+                {input  @type=radio
+                        @slice=radio-group
+                        @value=V0
+                        @name=g1}}
+            {label | V1:
+                {input  @type=radio
+                        @slice=radio-group
+                        @value=V1
+                        @name=g1
+                        @checked}}
+            {p | slice: {output | {$datadom.slices.radio-group}}}
+        }
+    </template>
+</cem-element>
+<cem-slice-radios></cem-slice-radios>
         </template>
     </html-demo-element>
 </main>
