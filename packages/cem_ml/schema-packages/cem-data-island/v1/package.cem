@@ -1,0 +1,31 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-data-island" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/runtime/data-island"
+        @source="schema/cem-data-island.cem"
+    }
+
+    {content-type @value="application/vnd.cem.data-island+cem" @primary=true}
+
+    {namespace @prefix="cem-island" @uri="https://cem.dev/ns/runtime/data-island"}
+    {namespace @prefix="cem-hydration" @uri="https://cem.dev/ns/runtime/hydration-data"}
+    {namespace @prefix="cem-attributes" @uri="https://cem.dev/ns/runtime/instance-attributes"}
+    {namespace @prefix="cem-dataset" @uri="https://cem.dev/ns/runtime/instance-dataset"}
+    {namespace @prefix="cem-payload" @uri="https://cem.dev/ns/runtime/instance-payload"}
+    {namespace @prefix="cem-slices" @uri="https://cem.dev/ns/runtime/instance-slices"}
+    {namespace @prefix="cem-resources" @uri="https://cem.dev/ns/runtime/resource-state"}
+    {namespace @prefix="cem-form" @uri="https://cem.dev/ns/runtime/form-state"}
+    {namespace @prefix="cem-validation" @uri="https://cem.dev/ns/runtime/validation-state"}
+    {namespace @prefix="cem-events" @uri="https://cem.dev/ns/runtime/event-state"}
+
+    {example
+        @id="complete-instance"
+        @path="examples/complete-instance.cem"
+        @content-type="application/vnd.cem.data-island+cem"
+        @schema="https://cem.dev/ns/runtime/data-island"
+        @expected-result="pass"
+    }
+}

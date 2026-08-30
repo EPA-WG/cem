@@ -119,7 +119,7 @@
 </html-demo-element>
 
 <html-demo-element legend="4. external CEM-ML template file"
-                   description="The external CEMT transforms the complete native template data-island content"
+                   description="The external CEMT transforms the complete namespace-aware island: attributes, dataset, payload/slots, slices, resources, forms, validation, events, and hydration data"
 >
     <a href="tree.cemt">tree.cemt</a>
     <template>
@@ -145,6 +145,12 @@
                 A second external-CEMT data island
             </i>
         </dce-external-4-inline>
+        <cem-element tag="dce-external-4-cem-ml" src="tree.cemt"></cem-element>
+        <dce-external-4-cem-ml title="DCE with CEM-ML source payload" data-payload-language="cem-ml">
+            <template type="cem-ml" data-cem-schema="https://cem.dev/ns/cem-ml/1">
+                {payload:item @name=fruit @slot=default | Banana from CEM-ML payload source}
+            </template>
+        </dce-external-4-cem-ml>
     </template>
 </html-demo-element>
 

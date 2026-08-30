@@ -1,0 +1,83 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="cem-data-island" @namespace="https://cem.dev/ns/runtime/data-island" @version="1.0.0" |
+    {summary |
+        {text | Namespace-aware CEM custom-element instance data-island context. The context root owns topology and admission while qualified domain nodes retain attributes, dataset, payload, slices, portable resource state, forms, validation, events, and hydration data as CEM AST.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.data-island+cem" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cem-island" @uri="https://cem.dev/ns/runtime/data-island"}
+        {namespace @prefix="cem-hydration" @uri="https://cem.dev/ns/runtime/hydration-data"}
+        {namespace @prefix="cem-attributes" @uri="https://cem.dev/ns/runtime/instance-attributes"}
+        {namespace @prefix="cem-dataset" @uri="https://cem.dev/ns/runtime/instance-dataset"}
+        {namespace @prefix="cem-payload" @uri="https://cem.dev/ns/runtime/instance-payload"}
+        {namespace @prefix="cem-slices" @uri="https://cem.dev/ns/runtime/instance-slices"}
+        {namespace @prefix="cem-resources" @uri="https://cem.dev/ns/runtime/resource-state"}
+        {namespace @prefix="cem-form" @uri="https://cem.dev/ns/runtime/form-state"}
+        {namespace @prefix="cem-validation" @uri="https://cem.dev/ns/runtime/validation-state"}
+        {namespace @prefix="cem-events" @uri="https://cem.dev/ns/runtime/event-state"}
+    }
+
+    {elements |
+        {element @name="context-root" @required-attributes="version" @children="data attributes dataset payload slices resources form-state validation-state event-state"}
+        {element @name="data" @children="field*"}
+        {element @name="field" @required-attributes="name kind" @children="field* text?"}
+        {element @name="attributes" @children="attribute*"}
+        {element @name="attribute" @required-attributes="name value"}
+        {element @name="dataset" @children="entry*"}
+        {element @name="entry" @required-attributes="key value"}
+        {element @name="payload" @required-attributes="content-type schema" @optional-attributes="data-cem-explicit-payload" @children="*"}
+        {element @name="slices" @children="slice*"}
+        {element @name="slice" @required-attributes="name kind" @children="slice* text?"}
+        {element @name="resources" @children="resource*"}
+        {element @name="resource" @required-attributes="name kind" @children="resource* text?"}
+        {element @name="form-state" @children="field*"}
+        {element @name="validation-state" @children="field*"}
+        {element @name="event-state" @children="event*"}
+        {element @name="event" @required-attributes="name kind" @children="event* text?"}
+    }
+
+    {attributes |
+        {attribute @name="version" @type="schema:semver"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="key" @type="schema:string"}
+        {attribute @name="kind" @type="schema:identifier" @values="null boolean number string array record"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="schema" @type="schema:uri"}
+        {attribute @name="data-cem-explicit-payload" @type="schema:boolean"}
+    }
+
+    {constraints |
+        {constraint @kind="single-context-root" @target="context-root" @policy="required"}
+        {constraint @kind="ordered-singleton-parts" @target="context-root" @diagnostic="cem.data_island.parts_invalid" @policy="all nine domain parts are required exactly once in declared order"}
+        {constraint @kind="dataset-attribute-projection" @target="dataset" @diagnostic="cem.data_island.dataset_mismatch" @policy="dataset must equal the DOMStringMap projection of attributes/data-*"}
+        {constraint @kind="explicit-payload-identity" @target="payload" @diagnostic="cem.data_island.payload_identity_invalid" @policy="content type and schema must select the child AST handoff before load"}
+        {constraint @kind="portable-resource-state" @target="resources" @diagnostic="cem.data_island.host_capability_rejected" @policy="semantic resource lifecycle AST is portable; live host capability objects are not data"}
+        {constraint @kind="context-error-boundary" @target="context-root" @policy="schema-declared context root; diagnostics do not escape unless explicitly re-raised"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.data_island.parts_invalid" @severity="error"}
+        {diagnostic @code="cem.data_island.dataset_mismatch" @severity="error"}
+        {diagnostic @code="cem.data_island.payload_identity_invalid" @severity="error"}
+        {diagnostic @code="cem.data_island.host_capability_rejected" @severity="error"}
+    }
+
+    {open-content |
+        {accept @kind="payload-ast" @policy="delegate-to-explicit-payload-content-type-and-schema"}
+        {accept @kind="typed-runtime-result-ast" @policy="preserve-producing-schema-namespace-and-source-map"}
+        {accept @kind="unknown-island-part" @policy="reject"}
+    }
+}

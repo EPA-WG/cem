@@ -218,6 +218,10 @@ Phase 2.6 limits the GitHub Release graph to those three CI-owned units.
 
 Deliverables:
 
+- Prepare the next synchronized pre-1.0 CEM family release as `0.1.2`. The release commit, not feature commits,
+  updates the shared package/version manifests; it includes the namespace-aware data-island schema and runtime
+  contract and must pass the same immutable artifact verification as every other release unit.
+
 - Add a protected CEM-ML release workflow for exact `cem-ml-v{version}` tags, with a manual retry/finalize entry point,
   one concurrency group per tag, and only the GitHub permissions required for release assets and artifact attestations.
   Keep the existing `{version}` `cem` npm-family workflow separate so a CEM-ML tag cannot publish the wrong release
@@ -258,6 +262,37 @@ Exit criteria:
   publication uses the same verified tarballs and exact common version rather than repacking them.
 - One protected release rehearsal records the complete CI-owned path and proves that the generic `cem` npm workflow,
   CEM-ML workflow, and disabled native local-host recipe cannot publish one another's groups or tags.
+
+## Phase 2.7 - IDE, Debugger, And Browser Tooling Projections
+
+Goal: promote the accepted sequencing in [`docs/integrations.md`](docs/integrations.md) into product roadmap work.
+Editors, debuggers, CI, Studio, and Chromium DevTools must project one schema/context-root-aware CEM engine rather than
+shipping separate parsers or policy models.
+
+Deliverables, in dependency order:
+
+- Version a protocol-neutral tooling contract for byte-backed document snapshots, exact ranges, source traces,
+  diagnostics/fixes, generated artifacts, schema identities, and embedded context roots.
+- Generate baseline file associations, syntax metadata, snippets, custom data, and web-types from schema packages,
+  including `template[data-cem-island]` and its qualified domain nodes; then add the shared LSP validation and code
+  insight service plus thin VS Code and IntelliJ clients.
+- Add run/query/transform previews and schema-package tests over the same tooling service. Unsaved bytes and explicit
+  content-type/schema identity remain first-class; language selection is never guessed from record shape.
+- Add a development-only, capability-limited `cem-element` bridge and Chromium Elements sidebar for declaration,
+  data-island context root, portable resource state, diagnostics, render identity, and source trace. Inspection is
+  read-only and redacted by default.
+- Implement pausable Rust execution safe points and immutable frame snapshots before DAP. Then expose DAP to desktop
+  clients and reuse that debug-session controller for Chromium transform/query stepping without treating CDP as the
+  CEM debugger.
+
+Exit criteria:
+
+- CLI, LSP, DAP, Studio, CI, and Chromium surfaces report the same schema diagnostics, expanded names, source ranges,
+  context-root boundaries, and policy decisions from one semantic engine.
+- Live DCE inspection cannot expose credentials or host capability objects and cannot mutate the page/runtime through
+  the read-only inspection channel.
+- Editor completion/linting recognizes the island topology and delegated domain vocabularies; debugger and DevTools
+  views preserve producing-schema AST identity instead of projecting runtime state through JSON by default.
 
 ## Phase 3 - Custom-Element Runtime
 
@@ -718,6 +753,7 @@ Exit criteria:
 | M1        | Root docs spine and token/native validation gates         | Current work is valuable but not yet easy to discover or verify end to end.                                                                                       |
 | M2        | Schema-defined parser runtime and fixture pipeline        | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary.                 |
 | M2.5      | Synchronized CEM-ML CLI deployment foundation             | Studio, IDE, and CI clients need stable command/report contracts plus distinct WASM npm, Node CLI npm, and per-platform native packages before depending on them. |
+| M2.7      | Shared IDE/debugger/browser tooling projections            | Schema/context-root tooling must be shared before editor, DAP, and Chromium clients add independent semantics.                                                      |
 | M3a       | `<cem-element>` browser substrate                         | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md).     |
 | M3b       | Edge/SSR processing follow-up                             | Server/edge processing should prove the serializable boundary after the browser substrate is stable, not during Phase 3.                                          |
 | M3c       | `@epa-wg/custom-element` monorepo adoption                | The published package adopts the substrate only after browser parity and the Edge/SSR follow-up are green.                                                        |

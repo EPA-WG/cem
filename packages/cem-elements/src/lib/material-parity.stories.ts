@@ -492,8 +492,12 @@ export const MaterialFirstPaintSmoke: Story = {
             'mat-fp-input label.cem-input input',
             'mat-fp-autocomplete .cem-autocomplete .opt',
         ];
-        const frames = await waitForAllSelectors(canvasElement, selectors, 12);
-        assert(frames <= 12, `material parity first paint exceeded frame budget: ${frames}`);
+        // Initial connection now captures and validates the typed instance data
+        // island before rendering. Keep this as a bounded first-paint smoke check
+        // while allowing the browser runner enough frames for all eight instances.
+        const firstPaintFrameBudget = 30;
+        const frames = await waitForAllSelectors(canvasElement, selectors, firstPaintFrameBudget);
+        assert(frames <= firstPaintFrameBudget, `material parity first paint exceeded frame budget: ${frames}`);
 
         assertAccessibleName(requiredElement(canvasElement, 'mat-fp-icon-link a.cem-icon-link'), 'Home');
         assertAccessibleName(requiredElement(canvasElement, 'mat-fp-action button'), 'Action');

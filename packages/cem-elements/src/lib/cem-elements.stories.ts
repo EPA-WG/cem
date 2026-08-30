@@ -449,8 +449,30 @@ export const DataIslandCaptureAndRender: Story = {
 
         const instance = document.createElement('story-capture-button');
         instance.setAttribute('label', 'Submit');
-        instance.textContent = 'Fallback payload';
+        instance.innerHTML = [
+            '<fruit:item xmlns:fruit="https://example.test/ns/fruit">Fallback payload</fruit:item>',
+            '<item xmlns="https://example.test/ns/default-fruit">Default namespace payload</item>',
+        ].join('');
         root.appendChild(instance);
+
+        const cemMlPayloadInstance = document.createElement('story-capture-button');
+        cemMlPayloadInstance.setAttribute('label', 'CEM-ML payload');
+        cemMlPayloadInstance.setAttribute('data-cem-ml-payload', 'true');
+        const cemMlPayload = document.createElement('template');
+        cemMlPayload.setAttribute('type', 'cem-ml');
+        cemMlPayload.textContent = '{payload:item @name=example | typed payload source}';
+        cemMlPayloadInstance.appendChild(cemMlPayload);
+        root.appendChild(cemMlPayloadInstance);
+
+        const unsafePayloadInstance = document.createElement('story-capture-button');
+        unsafePayloadInstance.setAttribute('label', 'Unsafe payload');
+        unsafePayloadInstance.setAttribute('data-unsafe-payload', 'true');
+        const unsafeEnvelope = document.createElement('template');
+        unsafeEnvelope.innerHTML = '<template><button type="button" onclick="alert(1)">unsafe</button></template>';
+        unsafePayloadInstance.appendChild(unsafeEnvelope);
+        root.appendChild(unsafePayloadInstance);
+
+        (root as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
 
         return root;
     },
@@ -461,13 +483,86 @@ export const DataIslandCaptureAndRender: Story = {
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
         const payload = requiredElement(
             island.content,
-            'cem-island-section[name="payload"]',
+            'cem-payload\\:payload',
         );
         const button = requiredElement(instance, 'button');
+        const contextRoot = requiredElement(island.content, 'cem-island\\:context-root');
 
-        assertEqual(payload.textContent, 'Fallback payload', 'fallback payload should move to the island payload section');
+        assert(
+            payload.textContent?.includes('Fallback payload'),
+            'fallback payload should move to the island payload section'
+        );
         assertEqual(button.textContent, 'Submit', 'rendered button should use host attribute value');
         assertEqual(button.getAttribute('aria-label'), 'Submit', 'attribute interpolation should use host value');
+        assertEqual(contextRoot.getAttribute('version'), SNAPSHOT_SCHEMA_VERSION, 'island context uses the 0.x contract');
+        assertEqual(
+            contextRoot.getAttribute('xmlns:cem-island'),
+            'https://cem.dev/ns/runtime/data-island',
+            'browser HTML namespace declarations lower the island into its CEM AST context'
+        );
+        assertEqual(
+            Array.from(contextRoot.children).map((child) => child.localName).join(' '),
+            'cem-hydration:data cem-attributes:attributes cem-dataset:dataset cem-payload:payload cem-slices:slices cem-resources:resources cem-form:form-state cem-validation:validation-state cem-events:event-state',
+            'the context root contains every domain part exactly once in canonical order'
+        );
+        assertEqual(
+            contextRoot.querySelector('cem-attributes\\:attribute[name="label"]')?.getAttribute('value'),
+            'Submit',
+            'the attribute domain retains the canonical host value'
+        );
+
+        const cemMlPayloadInstance = requiredElement(
+            canvasElement,
+            'story-capture-button[data-cem-ml-payload="true"]'
+        );
+        await waitForElement(cemMlPayloadInstance, 'button');
+        const cemMlIsland = requiredElement(
+            cemMlPayloadInstance,
+            'template[data-cem-island="instance"]'
+        ) as HTMLTemplateElement;
+        const cemMlPart = requiredElement(cemMlIsland.content, 'cem-payload\\:payload');
+        const canonicalSource = requiredElement(cemMlPart, 'template');
+        assertEqual(cemMlPart.getAttribute('content-type'), 'text/cem-ml', 'payload language is explicit');
+        assertEqual(
+            cemMlPart.getAttribute('schema'),
+            'https://cem.dev/ns/cem-ml/1',
+            'payload schema identity is explicit'
+        );
+        assertEqual(canonicalSource.getAttribute('type'), 'text/cem-ml', 'the cem-ml shorthand canonicalizes on capture');
+        assert(
+            canonicalSource.textContent?.includes('typed payload source'),
+            'CEM-ML source stays in the island while its AST is a derived processing view'
+        );
+
+        const runtime = (
+            requiredElement(canvasElement, '[aria-label="data island capture story"]') as HTMLElement & {
+                __runtime?: CemElementRuntime;
+            }
+        ).__runtime;
+        assert(runtime, 'the capture story exposes its runtime for namespace and admission checks');
+        const serializedIsland = JSON.stringify(runtime.snapshotInstance(instance).dataIsland);
+        assert(
+            serializedIsland.includes('https://example.test/ns/fruit'),
+            'lexical prefixed namespace declarations survive HTML DOM lowering'
+        );
+        assert(
+            serializedIsland.includes('https://example.test/ns/default-fruit'),
+            'lexical default namespace declarations survive HTML DOM lowering'
+        );
+
+        const unsafePayloadInstance = requiredElement(
+            canvasElement,
+            'story-capture-button[data-unsafe-payload="true"]'
+        ) as HTMLElement;
+        assertDiagnostic(
+            runtime.diagnosticsFor(unsafePayloadInstance),
+            'cem-element.data_island_active_content_rejected'
+        );
+        assertEqual(
+            unsafePayloadInstance.querySelector('button'),
+            null,
+            'active HTML payload is retained only inside the inert island and starts no render work'
+        );
     },
 };
 
@@ -1412,7 +1507,7 @@ export const Phase2CanonicalLoginRuntimeFixture: Story = {
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
         const payload = requiredElement(
             island.content,
-            'cem-island-section[name="payload"]',
+            'cem-payload\\:payload',
         );
 
         assertEqual(main.getAttribute('aria-labelledby'), 'login-title', 'login landmark preserves label reference');
@@ -4934,7 +5029,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         assertEqual(
             article.getAttribute('data-cem-template-artifact-id'),
             island.content.querySelector(
-                'cem-island-section[name="hydration"] > cem-island-value[name="templateArtifactId"]'
+                'cem-hydration\\:data > cem-hydration\\:field[name="templateArtifactId"]'
             )?.textContent,
             'client hydration preserves the server render-plan artifact identity'
         );
@@ -4953,9 +5048,12 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             'hydration-group',
             'client hydration restores the serialized declaration-owned public scope'
         );
-        assertDiagnostic(
-            (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime?.diagnosticsFor(instance) ?? [],
-            'cem-element.scope_mutation_restored'
+        assertEqual(
+            (
+                (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime?.diagnosticsFor(instance) ?? []
+            ).some((diagnostic) => diagnostic.code === 'cem-element.scope_mutation_restored'),
+            false,
+            'authoritative island attributes are reconciled before mutation observation begins'
         );
         assertEqual(
             article.getAttribute('data-cem-render-scope'),
@@ -4969,7 +5067,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         );
         assertEqual(
             island.content.querySelector(
-                'cem-island-section[name="hydration"] > cem-island-value[name="instanceId"]'
+                'cem-hydration\\:data > cem-hydration\\:field[name="instanceId"]'
             )?.textContent,
             'ssr-instance-1',
             'hydration data is serialized as HTML DOM inside the instance data island'
@@ -4997,7 +5095,7 @@ const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
     render: () =>
         storyPanel(
             'SSR hydration version gate',
-            'a higher-MINOR snapshot version is rejected (BR-VC-9 data/security), hydration falls back to a fresh render'
+            'a higher-MINOR snapshot version is rejected (BR-VC-9 data/security) and the static SSR output freezes'
         ),
     play: async ({ canvasElement }) => {
         const root = document.createElement('section');
@@ -5043,6 +5141,10 @@ const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
         const plan = projectTemplate(source, { snapshot, values: { label: 'Server Card' } });
         const serverFragment = materializeRenderPlan(plan, document);
         const serverNodes = Array.from(serverFragment.childNodes);
+        const retainedServerRoot = serverNodes.find((node) => node.nodeType === Node.ELEMENT_NODE) as
+            | Element
+            | undefined;
+        retainedServerRoot?.setAttribute('data-ssr-frozen', 'unsupported-version');
 
         const instance = document.createElement('story-ssr-reject-card');
         instance.setAttribute('label', 'Server Card');
@@ -5060,10 +5162,14 @@ const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
         await runtime.whenRenderSettled(instance);
 
         // The un-understood snapshot version is rejected at the hydration ingest
-        // seam; hydration is refused and the instance falls back to a fresh
-        // client render (which still produces the article).
+        // seam. The server output remains visible, but the instance starts no
+        // render work and never recaptures that output as source payload.
         assertDiagnostic(runtime.diagnosticsFor(instance), 'cem-element.snapshot_version_rejected');
-        await waitForElement(instance, 'article.ssr-reject-card');
+        assertEqual(
+            requiredElement(instance, 'article.ssr-reject-card').getAttribute('data-ssr-frozen'),
+            'unsupported-version',
+            'unsupported serialized state freezes and retains the static SSR DOM'
+        );
     },
 };
 
@@ -5071,7 +5177,7 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
     render: () =>
         storyPanel(
             'SSR hydration incomplete markup',
-            'partial hydration markup fails closed with specific diagnostics before client fallback'
+            'partial hydration markup fails closed with specific diagnostics and retains static SSR output'
         ),
     play: async ({ canvasElement }) => {
         const root = document.createElement('section');
@@ -5133,6 +5239,7 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
             const nodes = serverNodes();
             const firstRenderedElement = nodes.find((node) => node.nodeType === 1);
             if (firstRenderedElement) {
+                (firstRenderedElement as Element).setAttribute('data-ssr-frozen', label);
                 mutateFirstRenderedElement?.(firstRenderedElement as Element);
             }
             instance.append(
@@ -5160,17 +5267,19 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
         boundsOnly.setAttribute('label', 'Bounds only');
         const boundsOnlyIsland = document.createElement('template');
         boundsOnlyIsland.setAttribute('data-cem-island', 'instance');
+        const boundsOnlyArticle = document.createElement('article');
+        boundsOnlyArticle.setAttribute('data-ssr-frozen', 'Bounds only');
         boundsOnly.append(
             boundsOnlyIsland,
             document.createComment('cem-render-start'),
-            document.createElement('article'),
+            boundsOnlyArticle,
             document.createComment('cem-render-end')
         );
         root.appendChild(boundsOnly);
 
         const incompleteHydrationData = hydratedCase('Incomplete hydration data', undefined, (island) => {
             island.content
-                .querySelector('cem-island-section[name="hydration"] > cem-island-value[name="instanceId"]')
+                .querySelector('cem-hydration\\:data > cem-hydration\\:field[name="instanceId"]')
                 ?.remove();
         });
         const missingIdentity = hydratedCase('Missing identity', (element) => {
@@ -5187,7 +5296,7 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
             },
             (island) => {
                 const artifact = island.content.querySelector(
-                    'cem-island-section[name="hydration"] > cem-island-value[name="templateArtifactId"]'
+                    'cem-hydration\\:data > cem-hydration\\:field[name="templateArtifactId"]'
                 );
                 if (artifact) artifact.textContent = 'stale-declaration-artifact';
             }
@@ -5233,14 +5342,14 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
         );
         const resumedPayload = requiredElement(
             loadingPayloadIsland.content,
-            'cem-island-section[name="payload"]'
+            'cem-payload\\:payload'
         );
         assertEqual(
             resumedPayload.querySelector('[data-loading]'),
             null,
             'provisional siblings are never recaptured into payload after the marked island selects resume mode'
         );
-        assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.hydration_data_missing');
+        assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.data_island_context_root_invalid');
         assertDiagnostic(runtime.diagnosticsFor(incompleteHydrationData), 'cem-element.hydration_data_invalid');
         assertDiagnostic(runtime.diagnosticsFor(missingIdentity), 'cem-element.hydration_render_plan_identity_missing');
         assertDiagnostic(runtime.diagnosticsFor(artifactMismatch), 'cem-element.hydration_template_artifact_mismatch');
@@ -5252,14 +5361,26 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
         assertDiagnostic(runtime.diagnosticsFor(sourceMapModeMismatch), 'cem-element.hydration_source_map_mode_mismatch');
         assertDiagnostic(runtime.diagnosticsFor(duplicateRenderNodeId), 'cem-element.hydration_render_node_id_duplicate');
         await waitForElement(loadingPayload, 'article.ssr-incomplete-card');
-        await waitForElement(boundsOnly, 'article.ssr-incomplete-card');
-        await waitForElement(incompleteHydrationData, 'article.ssr-incomplete-card');
-        await waitForElement(missingIdentity, 'article.ssr-incomplete-card');
-        await waitForElement(artifactMismatch, 'article.ssr-incomplete-card');
-        await waitForElement(declarationArtifactMismatch, 'article.ssr-incomplete-card');
-        await waitForElement(revisionMismatch, 'article.ssr-incomplete-card');
-        await waitForElement(sourceMapModeMismatch, 'article.ssr-incomplete-card');
-        await waitForElement(duplicateRenderNodeId, 'article.ssr-incomplete-card');
+        assertEqual(
+            requiredElement(boundsOnly, 'article').getAttribute('data-ssr-frozen'),
+            'Bounds only',
+            'a marked island without its context root retains the existing static DOM'
+        );
+        for (const [instance, label] of [
+            [incompleteHydrationData, 'Incomplete hydration data'],
+            [missingIdentity, 'Missing identity'],
+            [artifactMismatch, 'Artifact mismatch'],
+            [declarationArtifactMismatch, 'Current declaration artifact mismatch'],
+            [revisionMismatch, 'Revision mismatch'],
+            [sourceMapModeMismatch, 'Source-map mode mismatch'],
+            [duplicateRenderNodeId, 'Duplicate render-node ID'],
+        ] as const) {
+            assertEqual(
+                requiredElement(instance, 'article.ssr-incomplete-card').getAttribute('data-ssr-frozen'),
+                label,
+                `${label} retains its existing static SSR DOM without a fallback render`
+            );
+        }
     },
 };
 

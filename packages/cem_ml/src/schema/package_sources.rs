@@ -986,6 +986,14 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
             "../../schema-packages/cem-events-projection/v1/schema/cem-events-projection.cem"
         ),
     },
+    BuiltinSchemaPackageSource {
+        package_id: "cem-data-island",
+        schema_path: "schema-packages/cem-data-island/v1/schema/cem-data-island.cem",
+        manifest_source: include_str!("../../schema-packages/cem-data-island/v1/package.cem"),
+        schema_source: include_str!(
+            "../../schema-packages/cem-data-island/v1/schema/cem-data-island.cem"
+        ),
+    },
 ];
 
 #[cfg(test)]
@@ -1018,6 +1026,26 @@ mod tests {
         XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
         YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
+
+    #[test]
+    fn cem_data_island_package_is_registered() {
+        let package = builtin_schema_package_source("cem-data-island")
+            .expect("built-in CEM data-island schema package");
+        assert_eq!(
+            package.schema_path,
+            "schema-packages/cem-data-island/v1/schema/cem-data-island.cem"
+        );
+        assert!(package.manifest_source.contains("https://cem.dev/ns/runtime/data-island"));
+        assert!(package.schema_source.contains("@name=\"context-root\""));
+        let examples = schema_package_examples_from_package_sources(package)
+            .expect("CEM data-island package examples");
+        assert_eq!(examples.len(), 1);
+        assert_eq!(examples[0].id, "complete-instance");
+        assert_eq!(
+            examples[0].expected_result,
+            SchemaPackageExampleExpectedResult::Pass
+        );
+    }
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
     use std::collections::{BTreeMap, BTreeSet};

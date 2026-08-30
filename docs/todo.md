@@ -24,6 +24,13 @@ registration boundary is also locked: logical declaration lookup is scoped and
 inherited, browser registration remains document-global, and only identical CEM
 registration identities may reuse an inherited or existing definition.
 
+## Namespace-Aware Data-Island Contract
+
+- [x] Add the package-owned `complete-instance.cem` fixture and verify that the
+      CEM-ML schema registry, CLI manifest validation, browser runtime, SSR
+      hydration, and External Template Example 4 agree on the `0.1.2`
+      namespace-aware context root and its complete ordered domain parts.
+
 ## Declarative UI Architecture Correction
 
 - [x] Prove the corrected component authoring contract with `cem-select` before

@@ -257,8 +257,8 @@ export interface SerializedEventPayload {
     buttons?: number;
 }
 
-/** Schema version of the DOM-native data-island / processing snapshot contract. */
-export const SNAPSHOT_SCHEMA_VERSION = '2.0.0';
+/** Pre-1.0 version of the namespace-aware data-island / processing snapshot contract. */
+export const SNAPSHOT_SCHEMA_VERSION = '0.1.2';
 
 export type SourceMapMode = 'dev' | 'prod';
 
@@ -285,6 +285,8 @@ export interface DataIslandSnapshot {
     formData?: Record<string, unknown>;
     validationState: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
+    /** Complete portable resource lifecycle state. Live host capability objects are never serialized. */
+    resourceState?: Record<string, unknown>;
 }
 
 export type DataIslandSnapshotExportField =
@@ -294,7 +296,8 @@ export type DataIslandSnapshotExportField =
     | 'slices'
     | 'formData'
     | 'validationState'
-    | 'eventPayloads';
+    | 'eventPayloads'
+    | 'resourceState';
 
 export type DataIslandSnapshotExportDecision = 'allow' | 'omit' | 'redact';
 
@@ -883,10 +886,9 @@ const DEFAULT_HTTP_RESOURCE_POLICY: CemHttpResourcePolicy = {
 };
 const DATA_ISLAND_ATTR = 'data-cem-island';
 const DATA_ISLAND_VALUE = 'instance';
-const DATA_ISLAND_SECTION_TAG = 'cem-island-section';
-const DATA_ISLAND_VALUE_TAG = 'cem-island-value';
-const DATA_ISLAND_SECTION_ATTR = 'name';
-const DATA_ISLAND_VALUE_TYPE_ATTR = 'type';
+const DATA_ISLAND_ROOT_TAG = 'cem-island:context-root';
+const DATA_ISLAND_ROOT_NAMESPACE = 'https://cem.dev/ns/runtime/data-island';
+const DATA_ISLAND_VALUE_TYPE_ATTR = 'kind';
 const DATA_ISLAND_EXPLICIT_PAYLOAD_ATTR = 'data-cem-explicit-payload';
 const DATA_ISLAND_SECTIONS = Object.freeze({
     hydration: 'hydration',
@@ -894,10 +896,72 @@ const DATA_ISLAND_SECTIONS = Object.freeze({
     dataset: 'dataset',
     payload: 'payload',
     slices: 'slices',
+    resources: 'resources',
     formData: 'form-data',
     validationState: 'validation-state',
     eventPayloads: 'event-payloads',
 } as const);
+type DataIslandSectionName = (typeof DATA_ISLAND_SECTIONS)[keyof typeof DATA_ISLAND_SECTIONS];
+const DATA_ISLAND_PARTS = Object.freeze({
+    hydration: {
+        tag: 'cem-hydration:data',
+        namespace: 'https://cem.dev/ns/runtime/hydration-data',
+        valueTag: 'cem-hydration:field',
+    },
+    attributes: {
+        tag: 'cem-attributes:attributes',
+        namespace: 'https://cem.dev/ns/runtime/instance-attributes',
+        valueTag: 'cem-attributes:attribute',
+    },
+    dataset: {
+        tag: 'cem-dataset:dataset',
+        namespace: 'https://cem.dev/ns/runtime/instance-dataset',
+        valueTag: 'cem-dataset:entry',
+    },
+    payload: {
+        tag: 'cem-payload:payload',
+        namespace: 'https://cem.dev/ns/runtime/instance-payload',
+        valueTag: 'cem-payload:node',
+    },
+    slices: {
+        tag: 'cem-slices:slices',
+        namespace: 'https://cem.dev/ns/runtime/instance-slices',
+        valueTag: 'cem-slices:slice',
+    },
+    resources: {
+        tag: 'cem-resources:resources',
+        namespace: 'https://cem.dev/ns/runtime/resource-state',
+        valueTag: 'cem-resources:resource',
+    },
+    'form-data': {
+        tag: 'cem-form:form-state',
+        namespace: 'https://cem.dev/ns/runtime/form-state',
+        valueTag: 'cem-form:field',
+    },
+    'validation-state': {
+        tag: 'cem-validation:validation-state',
+        namespace: 'https://cem.dev/ns/runtime/validation-state',
+        valueTag: 'cem-validation:field',
+    },
+    'event-payloads': {
+        tag: 'cem-events:event-state',
+        namespace: 'https://cem.dev/ns/runtime/event-state',
+        valueTag: 'cem-events:event',
+    },
+} as const satisfies Record<DataIslandSectionName, { tag: string; namespace: string; valueTag: string }>);
+const DATA_ISLAND_NAMESPACE_BINDINGS = Object.freeze(
+    Object.fromEntries(
+        [
+            ['cem-island', DATA_ISLAND_ROOT_NAMESPACE],
+            ...Object.values(DATA_ISLAND_PARTS).map((part) => [part.tag.split(':')[0], part.namespace]),
+        ],
+    ) as Record<string, string>,
+);
+const DATA_ISLAND_SECTION_ORDER = Object.freeze(Object.values(DATA_ISLAND_SECTIONS));
+const DATA_ISLAND_HTML_CONTENT_TYPE = 'text/html';
+const DATA_ISLAND_HTML_SCHEMA = 'https://cem.dev/ns/data/html/1';
+const DATA_ISLAND_CEM_ML_CONTENT_TYPE = 'text/cem-ml';
+const DATA_ISLAND_CEM_ML_SCHEMA = 'https://cem.dev/ns/cem-ml/1';
 const UID_SEED_ATTR = 'uid-seed';
 const PUBLIC_STYLE_SCOPE_ATTR = 'scope';
 const STYLE_TAG = 'style';
@@ -926,6 +990,7 @@ const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
     'formData',
     'validationState',
     'eventPayloads',
+    'resourceState',
 ];
 const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
     'annotation-xml',
@@ -1298,6 +1363,7 @@ export class CemElementRuntime {
     private readonly initializedInstances = new WeakSet<HTMLElement>();
     private readonly explicitInstancePayloads = new WeakSet<HTMLElement>();
     private readonly invalidInstancePayloads = new WeakSet<HTMLElement>();
+    private readonly frozenSerializedInstances = new WeakSet<HTMLElement>();
     private readonly registeredDeclarationElements = new WeakSet<object>();
     private readonly anonymousDeclarationElements = new WeakSet<HTMLElement>();
     private readonly anonymousInstances = new WeakMap<HTMLElement, HTMLElement>();
@@ -1984,6 +2050,10 @@ export class CemElementRuntime {
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         this.installDeclarationStylesheets(compiled);
         const island = this.ensureDataIsland(instance);
+        if (this.frozenSerializedInstances.has(instance)) {
+            this.renderSettled.set(instance, Promise.resolve());
+            return;
+        }
         this.ensureInstanceScope(instance, compiled);
         const state = this.ensureInstanceState(instance, compiled, island);
         this.observeInstance(instance, island, state);
@@ -1999,6 +2069,7 @@ export class CemElementRuntime {
                 return;
             }
             this.hydratedServerRenders.delete(instance);
+            this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
                     'cem-element.hydration_declaration_artifact_mismatch',
@@ -2006,6 +2077,8 @@ export class CemElementRuntime {
                     instance.localName,
                 ),
             ]);
+            this.renderSettled.set(instance, Promise.resolve());
+            return;
         }
         this.renderInstance(instance, compiled);
     }
@@ -2110,6 +2183,10 @@ export class CemElementRuntime {
 
     private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         const island = this.ensureDataIsland(instance);
+        if (this.frozenSerializedInstances.has(instance)) {
+            this.renderSettled.set(instance, Promise.resolve());
+            return;
+        }
         this.ensureInstanceState(instance, compiled, island);
         compiled.behavior?.beforeRender?.(instance, this.behaviorContext(instance));
         const snapshot = this.createSnapshot(instance, compiled, island);
@@ -2678,8 +2755,8 @@ export class CemElementRuntime {
 
         if (markedIslands.length > 1) {
             const island = markedIslands[0];
-            ensureDataIslandStructure(island);
             this.invalidInstancePayloads.add(instance);
+            this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, [
                 instanceDiagnostic(
                     'cem-element.instance_island_count',
@@ -2688,16 +2765,23 @@ export class CemElementRuntime {
                     'error',
                 ),
             ]);
-            this.prepareProvisionalRenderBounds(instance, island);
             this.initializedInstances.add(instance);
             return island;
         }
 
         if (shape.mode === 'resume-island') {
             const island = markedIslands[0];
-            ensureDataIslandStructure(island);
-            const payload = ensureIslandSection(island, DATA_ISLAND_SECTIONS.payload);
-            if (payload.getAttribute(DATA_ISLAND_EXPLICIT_PAYLOAD_ATTR) === 'true') {
+            const structureError = validateDataIslandStructure(island);
+            if (structureError) {
+                this.frozenSerializedInstances.add(instance);
+                this.recordDiagnostics(instance, [
+                    renderDiagnostic(structureError.code, structureError.message, instance.localName),
+                ]);
+                this.initializedInstances.add(instance);
+                return island;
+            }
+            const payload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
+            if (payload?.getAttribute(DATA_ISLAND_EXPLICIT_PAYLOAD_ATTR) === 'true') {
                 this.explicitInstancePayloads.add(instance);
             }
             if (!this.initializedInstances.has(instance)) {
@@ -2710,10 +2794,14 @@ export class CemElementRuntime {
                             'error',
                         ),
                     ]);
-                    instance.insertBefore(island, instance.firstChild);
+                    this.frozenSerializedInstances.add(instance);
+                    this.initializedInstances.add(instance);
+                    return island;
                 }
                 if (!this.adoptServerRenderedInstance(instance, island)) {
-                    this.prepareProvisionalRenderBounds(instance, island);
+                    if (!this.frozenSerializedInstances.has(instance)) {
+                        this.prepareProvisionalRenderBounds(instance, island);
+                    }
                 }
                 this.initializedInstances.add(instance);
             }
@@ -2729,8 +2817,16 @@ export class CemElementRuntime {
             payload.setAttribute(DATA_ISLAND_EXPLICIT_PAYLOAD_ATTR, 'true');
             this.explicitInstancePayloads.add(instance);
             instance.insertBefore(island, envelope);
-            payload.append(...Array.from(envelope.content.childNodes));
-            envelope.remove();
+            if (isCemMlPayloadTemplate(envelope)) {
+                envelope.setAttribute('type', DATA_ISLAND_CEM_ML_CONTENT_TYPE);
+                payload.setAttribute('content-type', DATA_ISLAND_CEM_ML_CONTENT_TYPE);
+                payload.setAttribute('schema', envelope.getAttribute('data-cem-schema') ?? DATA_ISLAND_CEM_ML_SCHEMA);
+                payload.appendChild(envelope);
+            } else {
+                payload.append(...Array.from(envelope.content.childNodes));
+                envelope.remove();
+                this.rejectActiveCapturedPayload(instance, payload);
+            }
             this.initializedInstances.add(instance);
             return island;
         }
@@ -2752,6 +2848,7 @@ export class CemElementRuntime {
         const sourceNodes = Array.from(instance.childNodes);
         instance.insertBefore(island, instance.firstChild);
         payload.append(...sourceNodes);
+        this.rejectActiveCapturedPayload(instance, payload);
         if (shape.mode === 'invalid') {
             this.invalidInstancePayloads.add(instance);
             this.recordDiagnostics(
@@ -2772,6 +2869,21 @@ export class CemElementRuntime {
         return island;
     }
 
+    private rejectActiveCapturedPayload(instance: HTMLElement, payload: HTMLElement): void {
+        if (!containsActiveIslandPayload(payload)) {
+            return;
+        }
+        this.invalidInstancePayloads.add(instance);
+        this.frozenSerializedInstances.add(instance);
+        this.recordDiagnostics(instance, [
+            renderDiagnostic(
+                'cem-element.data_island_active_content_rejected',
+                'the captured HTML payload contained executable script, event-handler, or javascript URL content',
+                instance.localName,
+            ),
+        ]);
+    }
+
     private prepareProvisionalRenderBounds(instance: HTMLElement, island: HTMLTemplateElement): void {
         const existing = directRenderBounds(instance);
         if (existing) {
@@ -2789,6 +2901,7 @@ export class CemElementRuntime {
         const parsed = readDataIslandHydrationData(island);
         const bounds = directRenderBounds(instance);
         if (!parsed.ok) {
+            this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, [
                 renderDiagnostic(parsed.code, parsed.message, instance.localName),
             ]);
@@ -2798,6 +2911,7 @@ export class CemElementRuntime {
 
         const ingest = ingestContractVersion(snapshot.version, SNAPSHOT_SCHEMA_VERSION, this.runMode, 'data-snapshot');
         if (!ingest.accept) {
+            this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
                     'cem-element.snapshot_version_rejected',
@@ -2814,6 +2928,7 @@ export class CemElementRuntime {
             snapshot.declarationTag !== this.declarationTag ||
             snapshot.outputTarget !== 'light-dom'
         ) {
+            this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
                     'cem-element.hydration_data_invalid',
@@ -2824,6 +2939,7 @@ export class CemElementRuntime {
             return false;
         }
         if (snapshot.scopePolicyStamp !== this.scopePolicyStamp) {
+            this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
                     'cem-element.hydration_scope_policy_mismatch',
@@ -2834,6 +2950,7 @@ export class CemElementRuntime {
             return false;
         }
         if (snapshot.privacyPolicyStamp !== this.privacyPolicyStamp) {
+            this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
                     'cem-element.hydration_privacy_policy_mismatch',
@@ -2843,6 +2960,8 @@ export class CemElementRuntime {
             ]);
             return false;
         }
+
+        reconcileHostAttributesFromIsland(instance, snapshot.hostAttributes);
 
         this.hydrationSnapshots.set(instance, snapshot);
         this.instanceIds.set(instance, snapshot.instanceId);
@@ -2858,6 +2977,7 @@ export class CemElementRuntime {
             this.validateGeneratedIds,
         );
         if (identityDiagnostics.length > 0) {
+            this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, identityDiagnostics);
             return false;
         }
@@ -2889,7 +3009,7 @@ export class CemElementRuntime {
             storageStatusResources: {},
             localStorageResources: {},
             locationResources: {},
-            resourceRevisions: {},
+            resourceRevisions: resourceRevisionsFromSnapshot(hydrationSnapshot),
         };
         const observer = island.ownerDocument.defaultView?.MutationObserver;
         if (observer) {
@@ -4713,6 +4833,7 @@ export class CemElementRuntime {
             formData: forms.formData,
             validationState: forms.validationState,
             eventPayloads: { ...(state?.eventPayloads ?? {}) },
+            resourceState: portableResourceState(state),
         };
         writeDataIslandHydrationData(island, snapshot);
         snapshot.dataIsland = serializeDataIsland(island);
@@ -6441,8 +6562,185 @@ function directRenderBounds(element: Element): RenderBounds | undefined {
 type HydrationSnapshotParseResult =
     | { ok: true; snapshot: DataIslandSnapshot }
     | { ok: false; code: string; message: string };
+type DataIslandValidationError = Extract<HydrationSnapshotParseResult, { ok: false }>;
+
+function validateDataIslandStructure(island: HTMLTemplateElement): DataIslandValidationError | undefined {
+    const meaningfulRoots = Array.from(island.content.childNodes).filter(
+        (node) => node.nodeType === 1 || (node.nodeType === 3 && (node.textContent?.trim() ?? '').length > 0),
+    );
+    if (
+        meaningfulRoots.length !== 1
+        || meaningfulRoots[0].nodeType !== 1
+        || (meaningfulRoots[0] as Element).localName !== DATA_ISLAND_ROOT_TAG
+    ) {
+        return {
+            ok: false,
+            code: 'cem-element.data_island_context_root_invalid',
+            message: `the marked data island must contain exactly one ${DATA_ISLAND_ROOT_TAG} context root`,
+        };
+    }
+    const root = meaningfulRoots[0] as Element;
+    if (!root.getAttribute('version')) {
+        return {
+            ok: false,
+            code: 'cem-element.data_island_version_missing',
+            message: 'the data-island context root did not declare its contract version',
+        };
+    }
+    for (const [prefix, namespace] of Object.entries(DATA_ISLAND_NAMESPACE_BINDINGS)) {
+        if (root.getAttribute(`xmlns:${prefix}`) !== namespace) {
+            return {
+                ok: false,
+                code: 'cem-element.data_island_namespace_invalid',
+                message: `the data-island namespace binding ${prefix} did not resolve to ${namespace}`,
+            };
+        }
+    }
+    const children = Array.from(root.children);
+    if (children.length !== DATA_ISLAND_SECTION_ORDER.length) {
+        return {
+            ok: false,
+            code: 'cem-element.data_island_parts_invalid',
+            message: 'the data-island context root did not contain every required singleton part',
+        };
+    }
+    for (const [index, name] of DATA_ISLAND_SECTION_ORDER.entries()) {
+        const expected = DATA_ISLAND_PARTS[name].tag;
+        if (children[index]?.localName !== expected) {
+            return {
+                ok: false,
+                code: 'cem-element.data_island_part_order_invalid',
+                message: `data-island part ${index + 1} must be ${expected}`,
+            };
+        }
+    }
+    const payload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
+    if (!payload) {
+        return {
+            ok: false,
+            code: 'cem-element.data_island_payload_missing',
+            message: 'the data-island payload part was missing',
+        };
+    }
+    const contentType = canonicalDataIslandPayloadType(payload.getAttribute('content-type'));
+    const schema = payload.getAttribute('schema');
+    if (
+        (contentType === DATA_ISLAND_HTML_CONTENT_TYPE && schema !== DATA_ISLAND_HTML_SCHEMA)
+        || (contentType === DATA_ISLAND_CEM_ML_CONTENT_TYPE && !schema)
+        || (contentType !== DATA_ISLAND_HTML_CONTENT_TYPE && contentType !== DATA_ISLAND_CEM_ML_CONTENT_TYPE)
+    ) {
+        return {
+            ok: false,
+            code: 'cem-element.data_island_payload_identity_invalid',
+            message: 'the data-island payload content type and schema did not identify an admitted language boundary',
+        };
+    }
+    if (contentType === DATA_ISLAND_CEM_ML_CONTENT_TYPE) {
+        const templates = Array.from(payload.children).filter(
+            (child) => child.localName === 'template' && isCemMlPayloadTemplate(child),
+        );
+        const meaningful = Array.from(payload.childNodes).filter(
+            (node) => node.nodeType === 1 || (node.nodeType === 3 && (node.textContent?.trim() ?? '').length > 0),
+        );
+        if (templates.length !== 1 || meaningful.length !== 1) {
+            return {
+                ok: false,
+                code: 'cem-element.data_island_cem_ml_payload_invalid',
+                message: 'a CEM-ML payload must contain exactly one template[type="text/cem-ml"] source boundary',
+            };
+        }
+    } else if (containsActiveIslandPayload(payload)) {
+        return {
+            ok: false,
+            code: 'cem-element.data_island_active_content_rejected',
+            message: 'the serialized HTML payload contained executable script, event-handler, or javascript URL content',
+        };
+    }
+    const attributes = readIslandRecordSection(island, DATA_ISLAND_SECTIONS.attributes);
+    const dataset = readIslandRecordSection(island, DATA_ISLAND_SECTIONS.dataset);
+    if (!sameStringRecord(dataset, datasetFromAttributeRecord(attributes, island.ownerDocument))) {
+        return {
+            ok: false,
+            code: 'cem-element.data_island_dataset_mismatch',
+            message: 'the dataset part did not match the canonical data-* attribute projection',
+        };
+    }
+    return undefined;
+}
+
+function canonicalDataIslandPayloadType(value: string | null): string | null {
+    return value === 'cem-ml' ? DATA_ISLAND_CEM_ML_CONTENT_TYPE : value;
+}
+
+function isCemMlPayloadTemplate(element: Element): boolean {
+    const type = element.getAttribute('type');
+    return type === 'cem-ml' || type === DATA_ISLAND_CEM_ML_CONTENT_TYPE;
+}
+
+function containsActiveIslandPayload(payload: Element): boolean {
+    const activeUrlAttributes = new Set(['action', 'data', 'formaction', 'href', 'src', 'xlink:href']);
+    const pending = [payload];
+    while (pending.length > 0) {
+        const element = pending.pop();
+        if (!element) {
+            continue;
+        }
+        if (element !== payload && element.localName === 'script') {
+            return true;
+        }
+        for (const attribute of Array.from(element.attributes)) {
+            const name = attribute.name.toLowerCase();
+            const value = Array.from(attribute.value.toLowerCase())
+                .filter((character) => character.charCodeAt(0) > 0x20)
+                .join('');
+            if (
+                name.startsWith('on')
+                || name === 'srcdoc'
+                || (activeUrlAttributes.has(name) && value.startsWith('javascript:'))
+            ) {
+                return true;
+            }
+        }
+        pending.push(...Array.from(element.children));
+        if (element.localName === 'template' && 'content' in element) {
+            pending.push(...Array.from((element as HTMLTemplateElement).content.children));
+        }
+    }
+    return false;
+}
+
+function datasetFromAttributeRecord(
+    attributes: Record<string, unknown>,
+    document: Document,
+): Record<string, string> {
+    const probe = document.createElement('div');
+    for (const [name, value] of Object.entries(attributes)) {
+        if (!name.toLowerCase().startsWith('data-') || (typeof value !== 'string' && value !== true)) {
+            continue;
+        }
+        try {
+            probe.setAttribute(name, value === true ? '' : value);
+        } catch {
+            return {};
+        }
+    }
+    return datasetEntries(probe);
+}
+
+function sameStringRecord(left: Record<string, unknown>, right: Record<string, string>): boolean {
+    const leftEntries = Object.entries(left).sort(([a], [b]) => a.localeCompare(b));
+    const rightEntries = Object.entries(right).sort(([a], [b]) => a.localeCompare(b));
+    return leftEntries.length === rightEntries.length
+        && leftEntries.every(([key, value], index) =>
+            key === rightEntries[index]?.[0] && value === rightEntries[index]?.[1],
+        );
+}
 
 function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnapshotParseResult {
+    const structureError = validateDataIslandStructure(island);
+    if (structureError) {
+        return structureError;
+    }
     const hydrationSection = directIslandSection(island, DATA_ISLAND_SECTIONS.hydration);
     if (!hydrationSection || hydrationSection.children.length === 0) {
         return {
@@ -6452,6 +6750,15 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
         };
     }
     const hydration = readIslandRecordSection(island, DATA_ISLAND_SECTIONS.hydration);
+    const serializedHostAttributes = readIslandRecordSection(island, DATA_ISLAND_SECTIONS.attributes);
+    const contextVersion = directIslandContextRoot(island)?.getAttribute('version');
+    if (typeof hydration.version !== 'string' || hydration.version !== contextVersion) {
+        return {
+            ok: false,
+            code: 'cem-element.data_island_version_mismatch',
+            message: 'the context-root and hydration-data contract versions did not match',
+        };
+    }
     const sourceMapMode = hydration.sourceMapMode;
     if (hydration.outputTarget !== 'light-dom') {
         return {
@@ -6475,9 +6782,8 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
             typeof hydration.scopePolicyStamp === 'string' ? hydration.scopePolicyStamp : '',
         privacyPolicyStamp:
             typeof hydration.privacyPolicyStamp === 'string' ? hydration.privacyPolicyStamp : '',
-        hostAttributes: readIslandRecordSection(
-            island,
-            DATA_ISLAND_SECTIONS.attributes,
+        hostAttributes: Object.fromEntries(
+            Object.entries(serializedHostAttributes).map(([name, value]) => [name, value === '' ? true : value]),
         ) as Record<string, string | boolean | null>,
         dataset: readIslandRecordSection(island, DATA_ISLAND_SECTIONS.dataset) as Record<string, string>,
         payload: serializePayload(
@@ -6490,6 +6796,7 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
         formData: readIslandRecordSection(island, DATA_ISLAND_SECTIONS.formData),
         validationState: readIslandRecordSection(island, DATA_ISLAND_SECTIONS.validationState),
         eventPayloads: readIslandRecordSection(island, DATA_ISLAND_SECTIONS.eventPayloads),
+        resourceState: readIslandRecordSection(island, DATA_ISLAND_SECTIONS.resources),
         dataIsland: serializeDataIsland(island),
     };
     if (!isDataIslandSnapshot(snapshot)) {
@@ -6826,7 +7133,8 @@ function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
         isPlainRecord(record.slices) &&
         (record.formData === undefined || isPlainRecord(record.formData)) &&
         isPlainRecord(record.validationState) &&
-        isPlainRecord(record.eventPayloads)
+        isPlainRecord(record.eventPayloads) &&
+        (record.resourceState === undefined || isPlainRecord(record.resourceState))
     );
 }
 
@@ -6991,7 +7299,7 @@ function templateValues(
         values[declaration.name] = declaration.defaultValue;
     }
     for (const [name, value] of Object.entries(snapshot.hostAttributes)) {
-        values[name] = value;
+        values[name] = value === '' ? true : value;
     }
     for (const [name, value] of Object.entries(snapshot.slices)) {
         values[name] = toTemplateValue(value);
@@ -7025,6 +7333,7 @@ function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, 
         formData: snapshot.formData ?? {},
         validationState: snapshot.validationState,
         eventPayloads: snapshot.eventPayloads,
+        resourceState: snapshot.resourceState ?? {},
         island: snapshot.dataIsland ?? emptySerializedPayload(),
     };
 }
@@ -7803,12 +8112,99 @@ function templateValueRecord(value: Record<string, unknown>): Record<string, unk
     return cloneJsonSnapshotField(value) as Record<string, unknown>;
 }
 
+function portableResourceState(state: InstanceState | undefined): Record<string, unknown> {
+    if (!state) {
+        return {};
+    }
+    const resources: Record<string, unknown> = {
+        revisions: { ...state.resourceRevisions },
+    };
+    for (const [name, active] of Object.entries(state.httpResources)) {
+        resources[`http:${name}`] = {
+            kind: 'http',
+            key: active.key,
+            revision: active.revision,
+            status: 'waiting',
+        };
+    }
+    for (const [name, active] of Object.entries(state.repositoryQueryResources)) {
+        resources[`repository:${name}`] = {
+            kind: 'repository-query',
+            key: active.key,
+            revision: active.revision,
+            cursor: active.cursor,
+            status: 'waiting',
+            live: active.unsubscribe !== undefined,
+        };
+    }
+    for (const [name, active] of Object.entries(state.storageStatusResources)) {
+        resources[`storage-status:${name}`] = {
+            kind: 'storage-status',
+            key: active.key,
+            revision: active.revision,
+            cursor: active.cursor,
+            status: 'waiting',
+            live: active.unsubscribe !== undefined,
+        };
+    }
+    for (const [name, active] of Object.entries(state.localStorageResources)) {
+        resources[`local-storage:${name}`] = {
+            kind: 'local-storage',
+            key: active.key,
+            storageType: active.storageType,
+            live: active.live,
+            lastValue: cloneJsonSafe(active.lastValue),
+            lastRawValue: active.lastRawValue,
+        };
+    }
+    for (const [name, active] of Object.entries(state.locationResources)) {
+        resources[`location:${name}`] = {
+            kind: 'location',
+            key: active.key,
+            live: active.live,
+            lastValue: cloneJsonSafe(active.lastValue),
+        };
+    }
+    return resources;
+}
+
+function resourceRevisionsFromSnapshot(snapshot: DataIslandSnapshot | undefined): Record<string, number> {
+    const revisions = snapshot?.resourceState?.revisions;
+    if (!isPlainRecord(revisions)) {
+        return {};
+    }
+    return Object.fromEntries(
+        Object.entries(revisions).filter((entry): entry is [string, number] =>
+            typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] >= 0,
+        ),
+    );
+}
+
 function hostAttributes(instance: HTMLElement): Record<string, string | boolean | null> {
     const attributes: Record<string, string | boolean | null> = {};
     for (const attribute of Array.from(instance.attributes)) {
         attributes[attribute.name] = attribute.value === '' ? true : attribute.value;
     }
     return attributes;
+}
+
+function reconcileHostAttributesFromIsland(
+    instance: HTMLElement,
+    attributes: Record<string, string | boolean | null>,
+): void {
+    const canonicalNames = new Set(Object.keys(attributes));
+    for (const attribute of Array.from(instance.attributes)) {
+        if (!canonicalNames.has(attribute.name)) {
+            instance.removeAttribute(attribute.name);
+        }
+    }
+    for (const [name, value] of Object.entries(attributes)) {
+        if (value === null) {
+            instance.removeAttribute(name);
+        } else {
+            instance.setAttribute(name, value === true ? '' : String(value));
+        }
+    }
 }
 
 function datasetEntries(instance: HTMLElement): Record<string, string> {
@@ -7821,36 +8217,71 @@ function datasetEntries(instance: HTMLElement): Record<string, string> {
     return dataset;
 }
 
+function directIslandContextRoot(island: HTMLTemplateElement): HTMLElement | undefined {
+    const children = Array.from(island.content.children);
+    return children.length === 1 && children[0].localName === DATA_ISLAND_ROOT_TAG
+        ? (children[0] as HTMLElement)
+        : undefined;
+}
+
+function ensureIslandContextRoot(island: HTMLTemplateElement): HTMLElement {
+    const existing = directIslandContextRoot(island);
+    if (existing) {
+        return existing;
+    }
+    const root = island.ownerDocument.createElement(DATA_ISLAND_ROOT_TAG);
+    root.setAttribute('version', SNAPSHOT_SCHEMA_VERSION);
+    for (const [prefix, namespace] of Object.entries(DATA_ISLAND_NAMESPACE_BINDINGS)) {
+        root.setAttribute(`xmlns:${prefix}`, namespace);
+    }
+    island.content.appendChild(root);
+    return root;
+}
+
 function directIslandSection(island: HTMLTemplateElement, name: string): HTMLElement | undefined {
-    return Array.from(island.content.children).find(
-        (child): child is HTMLElement =>
-            child.localName === DATA_ISLAND_SECTION_TAG &&
-            child.getAttribute(DATA_ISLAND_SECTION_ATTR) === name,
+    const part = DATA_ISLAND_PARTS[name as DataIslandSectionName];
+    const root = directIslandContextRoot(island);
+    if (!root || !part) {
+        return undefined;
+    }
+    return Array.from(root.children).find(
+        (child): child is HTMLElement => child.localName === part.tag,
     );
 }
 
 function ensureIslandSection(island: HTMLTemplateElement, name: string): HTMLElement {
+    const part = DATA_ISLAND_PARTS[name as DataIslandSectionName];
+    if (!part) {
+        throw new Error(`unknown data-island part ${name}`);
+    }
     const existing = directIslandSection(island, name);
     if (existing) {
         return existing;
     }
-    const section = island.ownerDocument.createElement(DATA_ISLAND_SECTION_TAG);
-    section.setAttribute(DATA_ISLAND_SECTION_ATTR, name);
-    island.content.appendChild(section);
+    const section = island.ownerDocument.createElement(part.tag);
+    if (name === DATA_ISLAND_SECTIONS.payload) {
+        section.setAttribute('content-type', DATA_ISLAND_HTML_CONTENT_TYPE);
+        section.setAttribute('schema', DATA_ISLAND_HTML_SCHEMA);
+    }
+    ensureIslandContextRoot(island).appendChild(section);
     return section;
 }
 
 function ensureDataIslandStructure(island: HTMLTemplateElement): HTMLElement {
     const existingPayload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
     if (existingPayload) {
-        for (const name of Object.values(DATA_ISLAND_SECTIONS)) {
-            ensureIslandSection(island, name);
-        }
+        const root = ensureIslandContextRoot(island);
+        const orderedParts = DATA_ISLAND_SECTION_ORDER.map((name) => ensureIslandSection(island, name));
+        root.replaceChildren(...orderedParts);
         return existingPayload;
     }
 
     const legacyPayload = Array.from(island.content.childNodes);
-    for (const name of Object.values(DATA_ISLAND_SECTIONS)) {
+    for (const node of legacyPayload) {
+        node.parentNode?.removeChild(node);
+    }
+    ensureIslandContextRoot(island);
+    for (const name of DATA_ISLAND_SECTION_ORDER) {
         ensureIslandSection(island, name);
     }
     const payload = ensureIslandSection(island, DATA_ISLAND_SECTIONS.payload);
@@ -7865,26 +8296,51 @@ function replaceIslandRecordSection(
 ): void {
     const section = ensureIslandSection(island, name);
     section.replaceChildren();
+    if (name === DATA_ISLAND_SECTIONS.attributes) {
+        for (const [attributeName, entry] of Object.entries(value)) {
+            if (entry === undefined || entry === null || (typeof entry !== 'string' && typeof entry !== 'boolean')) {
+                continue;
+            }
+            const attribute = section.ownerDocument.createElement(DATA_ISLAND_PARTS.attributes.valueTag);
+            attribute.setAttribute('name', attributeName);
+            attribute.setAttribute('value', entry === true ? '' : String(entry));
+            section.appendChild(attribute);
+        }
+        return;
+    }
+    if (name === DATA_ISLAND_SECTIONS.dataset) {
+        for (const [key, entry] of Object.entries(value)) {
+            if (typeof entry !== 'string') {
+                continue;
+            }
+            const datasetEntry = section.ownerDocument.createElement(DATA_ISLAND_PARTS.dataset.valueTag);
+            datasetEntry.setAttribute('key', key);
+            datasetEntry.setAttribute('value', entry);
+            section.appendChild(datasetEntry);
+        }
+        return;
+    }
+    const valueTag = DATA_ISLAND_PARTS[name as DataIslandSectionName].valueTag;
     for (const [key, entry] of Object.entries(value)) {
-        appendIslandValue(section, key, entry);
+        appendIslandValue(section, key, entry, valueTag);
     }
 }
 
-function appendIslandValue(parent: Element, name: string, value: unknown): void {
+function appendIslandValue(parent: Element, name: string, value: unknown, valueTag: string): void {
     if (value === undefined) {
         return;
     }
-    const element = parent.ownerDocument.createElement(DATA_ISLAND_VALUE_TAG);
+    const element = parent.ownerDocument.createElement(valueTag);
     element.setAttribute('name', name);
     if (value === null) {
         element.setAttribute(DATA_ISLAND_VALUE_TYPE_ATTR, 'null');
     } else if (Array.isArray(value)) {
         element.setAttribute(DATA_ISLAND_VALUE_TYPE_ATTR, 'array');
-        value.forEach((item, index) => appendIslandValue(element, String(index), item));
+        value.forEach((item, index) => appendIslandValue(element, String(index), item, valueTag));
     } else if (typeof value === 'object') {
         element.setAttribute(DATA_ISLAND_VALUE_TYPE_ATTR, 'record');
         for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-            appendIslandValue(element, key, item);
+            appendIslandValue(element, key, item, valueTag);
         }
     } else if (typeof value === 'boolean') {
         element.setAttribute(DATA_ISLAND_VALUE_TYPE_ATTR, 'boolean');
@@ -7904,14 +8360,29 @@ function readIslandRecordSection(island: HTMLTemplateElement, name: string): Rec
     if (!section) {
         return {};
     }
+    if (name === DATA_ISLAND_SECTIONS.attributes) {
+        return Object.fromEntries(
+            Array.from(section.children)
+                .filter((child) => child.localName === DATA_ISLAND_PARTS.attributes.valueTag)
+                .map((child) => [child.getAttribute('name') ?? '', child.getAttribute('value') ?? '']),
+        );
+    }
+    if (name === DATA_ISLAND_SECTIONS.dataset) {
+        return Object.fromEntries(
+            Array.from(section.children)
+                .filter((child) => child.localName === DATA_ISLAND_PARTS.dataset.valueTag)
+                .map((child) => [child.getAttribute('key') ?? '', child.getAttribute('value') ?? '']),
+        );
+    }
+    const valueTag = DATA_ISLAND_PARTS[name as DataIslandSectionName].valueTag;
     return Object.fromEntries(
         Array.from(section.children)
-            .filter((child) => child.localName === DATA_ISLAND_VALUE_TAG)
-            .map((child) => [child.getAttribute('name') ?? '', readIslandValue(child)]),
+            .filter((child) => child.localName === valueTag)
+            .map((child) => [child.getAttribute('name') ?? '', readIslandValue(child, valueTag)]),
     );
 }
 
-function readIslandValue(element: Element): unknown {
+function readIslandValue(element: Element, valueTag: string): unknown {
     switch (element.getAttribute(DATA_ISLAND_VALUE_TYPE_ATTR)) {
         case 'null':
             return null;
@@ -7923,17 +8394,17 @@ function readIslandValue(element: Element): unknown {
         }
         case 'array':
             return Array.from(element.children)
-                .filter((child) => child.localName === DATA_ISLAND_VALUE_TAG)
+                .filter((child) => child.localName === valueTag)
                 .sort(
                     (left, right) =>
                         Number(left.getAttribute('name') ?? 0) - Number(right.getAttribute('name') ?? 0),
                 )
-                .map(readIslandValue);
+                .map((child) => readIslandValue(child, valueTag));
         case 'record':
             return Object.fromEntries(
                 Array.from(element.children)
-                    .filter((child) => child.localName === DATA_ISLAND_VALUE_TAG)
-                    .map((child) => [child.getAttribute('name') ?? '', readIslandValue(child)]),
+                    .filter((child) => child.localName === valueTag)
+                    .map((child) => [child.getAttribute('name') ?? '', readIslandValue(child, valueTag)]),
             );
         default:
             return element.textContent ?? '';
@@ -7945,8 +8416,9 @@ export function writeDataIslandHydrationData(
     snapshot: DataIslandSnapshot,
 ): void {
     ensureDataIslandStructure(island);
+    ensureIslandContextRoot(island).setAttribute('version', snapshot.version ?? SNAPSHOT_SCHEMA_VERSION);
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.hydration, {
-        version: snapshot.version,
+        version: snapshot.version ?? SNAPSHOT_SCHEMA_VERSION,
         instanceId: snapshot.instanceId,
         producedTag: snapshot.producedTag,
         declarationTag: snapshot.declarationTag,
@@ -7959,8 +8431,13 @@ export function writeDataIslandHydrationData(
         privacyPolicyStamp: snapshot.privacyPolicyStamp,
     });
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.attributes, snapshot.hostAttributes);
-    replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.dataset, snapshot.dataset);
+    replaceIslandRecordSection(
+        island,
+        DATA_ISLAND_SECTIONS.dataset,
+        datasetFromAttributeRecord(snapshot.hostAttributes, island.ownerDocument),
+    );
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.slices, snapshot.slices);
+    replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.resources, snapshot.resourceState ?? {});
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.formData, snapshot.formData ?? {});
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.validationState, snapshot.validationState);
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.eventPayloads, snapshot.eventPayloads);
@@ -7978,7 +8455,7 @@ function serializeDataIsland(island: HTMLTemplateElement): SerializedPayload {
 function serializePayloadNodes(source: NodeListOf<ChildNode> | Node[], includeStyles: boolean): SerializedPayload {
     const sourceNodes = Array.from(source);
     const nodes = sourceNodes
-        .map((node, index) => serializePayloadNode(node, String(index), includeStyles))
+        .map((node, index) => serializePayloadNode(node, String(index), includeStyles, new Map()))
         .filter((node): node is SerializedPayloadNode => node !== undefined);
     const slots: Record<string, SerializedPayloadNode[]> = {};
     for (const node of nodes) {
@@ -8003,7 +8480,12 @@ function serializePayloadNodes(source: NodeListOf<ChildNode> | Node[], includeSt
     };
 }
 
-function serializePayloadNode(node: Node, key: string, includeStyles: boolean): SerializedPayloadNode | undefined {
+function serializePayloadNode(
+    node: Node,
+    key: string,
+    includeStyles: boolean,
+    inheritedNamespaces: ReadonlyMap<string, string>,
+): SerializedPayloadNode | undefined {
     if (node.nodeType === 3) {
         const text = node.textContent ?? '';
         return text.trim().length > 0 ? { kind: 'text', key, text } : undefined;
@@ -8020,15 +8502,26 @@ function serializePayloadNode(node: Node, key: string, includeStyles: boolean): 
         return undefined;
     }
     const childNodes = payloadChildNodes(element);
+    const namespaces = new Map(inheritedNamespaces);
+    for (const attribute of Array.from(element.attributes)) {
+        if (attribute.name === 'xmlns') {
+            namespaces.set('', attribute.value);
+        } else if (attribute.name.startsWith('xmlns:')) {
+            namespaces.set(attribute.name.slice('xmlns:'.length), attribute.value);
+        }
+    }
+    const [prefix] = element.localName.includes(':') ? element.localName.split(':', 1) : [''];
+    const semanticNamespace = namespaces.get(prefix);
     return {
         kind: 'element',
         key,
         tag: element.localName,
-        namespace: element.namespaceURI === XHTML_NAMESPACE ? null : element.namespaceURI,
+        namespace:
+            semanticNamespace ?? (element.namespaceURI === XHTML_NAMESPACE ? null : element.namespaceURI),
         attributes: payloadAttributes(element),
         slot: element.getAttribute('slot') ?? '',
         children: childNodes
-            .map((child, index) => serializePayloadNode(child, `${key}/${index}`, includeStyles))
+            .map((child, index) => serializePayloadNode(child, `${key}/${index}`, includeStyles, namespaces))
             .filter((child): child is SerializedPayloadNode => child !== undefined),
     };
 }

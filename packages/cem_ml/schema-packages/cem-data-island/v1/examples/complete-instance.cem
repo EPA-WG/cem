@@ -1,0 +1,50 @@
+@doc cem-ml 1
+@ns cem-island = "https://cem.dev/ns/runtime/data-island"
+@ns cem-hydration = "https://cem.dev/ns/runtime/hydration-data"
+@ns cem-attributes = "https://cem.dev/ns/runtime/instance-attributes"
+@ns cem-dataset = "https://cem.dev/ns/runtime/instance-dataset"
+@ns cem-payload = "https://cem.dev/ns/runtime/instance-payload"
+@ns cem-slices = "https://cem.dev/ns/runtime/instance-slices"
+@ns cem-resources = "https://cem.dev/ns/runtime/resource-state"
+@ns cem-form = "https://cem.dev/ns/runtime/form-state"
+@ns cem-validation = "https://cem.dev/ns/runtime/validation-state"
+@ns cem-events = "https://cem.dev/ns/runtime/event-state"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default cem-island
+
+{context-root @version="0.1.2" |
+    {cem-hydration:data |
+        {cem-hydration:field @name=version @kind=string | 0.1.2}
+        {cem-hydration:field @name=instanceId @kind=string | fruit-card-1}
+        {cem-hydration:field @name=outputTarget @kind=string | light-dom}
+    }
+    {cem-attributes:attributes |
+        {cem-attributes:attribute @name=title @value="Fruit card"}
+        {cem-attributes:attribute @name=data-fruit @value=banana}
+    }
+    {cem-dataset:dataset |
+        {cem-dataset:entry @key=fruit @value=banana}
+    }
+    {cem-payload:payload @content-type=text/html @schema="https://cem.dev/ns/data/html/1" |
+        {html:strong @slot=heading | Fruit inventory}
+    }
+    {cem-slices:slices |
+        {cem-slices:slice @name=selection @kind=string | banana}
+    }
+    {cem-resources:resources |
+        {cem-resources:resource @name=revisions @kind=record |
+            {cem-resources:resource @name="http:fruit" @kind=number | 1}
+        }
+    }
+    {cem-form:form-state |
+        {cem-form:field @name=quantity @kind=string | 2}
+    }
+    {cem-validation:validation-state |
+        {cem-validation:field @name=quantity @kind=string | valid}
+    }
+    {cem-events:event-state |
+        {cem-events:event @name=change @kind=record |
+            {cem-events:event @name=type @kind=string | change}
+        }
+    }
+}
