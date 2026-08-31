@@ -381,9 +381,9 @@ const fixtureSpecs = [
             attributeContains(
                 'cem-module-link img.resolved-logo',
                 'src',
-                '/packages/custom-element/demo/wc-square.svg',
+                '/packages/cem-elements/demo/lib-dir/Smiley.svg',
             ),
-            text('cem-module-link p', 'wc-square.svg'),
+            text('cem-module-link p', 'Smiley.svg'),
         ],
     },
     {
@@ -863,7 +863,7 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/module-url.html',
         samples: [
             sampleContract('this page import maps', [text(':scope', '"lib-root"'), text(':scope', '"embed-lib"')]),
-            sampleContract('4. module path by symbolic name', [attributeContains('cem-module-link a', 'href', '/packages/custom-element/material/'), attributeContains('cem-module-link img', 'src', '/packages/custom-element/demo/wc-square.svg')]),
+            sampleContract('4. module path by symbolic name', [attributeContains('cem-module-link a', 'href', '/packages/custom-element/material/'), attributeContains('cem-module-link img', 'src', '/packages/cem-elements/demo/lib-dir/Smiley.svg')]),
         ],
     },
     {
@@ -918,8 +918,8 @@ const sourceHarnessHtml = `<!doctype html>
         import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';
         installCemElementRuntime(window, {
             resolveModuleUrl(specifier, document, resourceBaseUrl) {
-                if (specifier === '@epa-wg/custom-element/demo/wc-square.svg') {
-                    return new URL('/packages/custom-element/demo/wc-square.svg', document.baseURI).href;
+                if (specifier === '@epa-wg/cem-elements/demo/lib-dir/Smiley.svg') {
+                    return new URL('/packages/cem-elements/demo/lib-dir/Smiley.svg', document.baseURI).href;
                 }
                 if (specifier === '@epa-wg/material') {
                     return new URL('/packages/custom-element/material/', document.baseURI).href;

@@ -63,6 +63,16 @@ registration identities may reuse an inherited or existing definition.
       harness now also honors the runtime's `resourceBaseUrl`; all 15 standalone
       and 21 source-loaded demo fixtures pass.
 
+## Module URL Demo Asset Ownership
+
+- [x] Replace Module URL Example 4's external custom-element logo dependency
+      with the repository-owned `cem-elements/demo/lib-dir/Smiley.svg` asset.
+    - [x] Fixture: verify the standalone and source-loaded demo resolve and
+          display the CEM-owned Smiley URL.
+    - Completion: the symbolic module identity, page resolver, source-document
+      resolver, rendered URL assertions, and filename output now use the
+      CEM-owned Smiley asset; all 15 standalone and 21 source-loaded demos pass.
+
 ## Declarative UI Architecture Correction
 
 - [x] Prove the corrected component authoring contract with `cem-select` before

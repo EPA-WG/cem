@@ -9,8 +9,8 @@
         import { installCemElementRuntime } from '../dist/index.js';
         installCemElementRuntime(window, {
             resolveModuleUrl(specifier, document) {
-                if (specifier === '@epa-wg/custom-element/demo/wc-square.svg') {
-                    return new URL('../../custom-element/demo/wc-square.svg', document.baseURI).href;
+                if (specifier === '@epa-wg/cem-elements/demo/lib-dir/Smiley.svg') {
+                    return new URL('./lib-dir/Smiley.svg', document.baseURI).href;
                 }
                 if (specifier === '@epa-wg/material') {
                     return new URL('../../custom-element/material/', document.baseURI).href;
@@ -84,9 +84,9 @@
             <cem-element tag="cem-module-link">
                 <template type="text/cem-ml">
                     {module-url @slice=packageUrl @src="@epa-wg/material"}
-                    {module-url @slice=logoUrl @src="@epa-wg/custom-element/demo/wc-square.svg"}
+                    {module-url @slice=logoUrl @src="@epa-wg/cem-elements/demo/lib-dir/Smiley.svg"}
                     {article @class=demo-card |
-                        {a @href="{$datadom.slices.packageUrl}" | Resolved package URL}
+                        {a @href="{$datadom.slices.packageUrl}/README.md" | Resolved package URL}
                         {br}
                         {img @class=resolved-logo @src="{$datadom.slices.logoUrl}" @alt=""}
                         {p | {$datadom.slices.logoUrl}}
