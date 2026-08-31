@@ -31,6 +31,38 @@ registration identities may reuse an inherited or existing definition.
       hydration, and External Template Example 4 agree on the `0.1.2`
       namespace-aware context root and its complete ordered domain parts.
 
+## Standalone External XSLT Declaration Source
+
+- [x] Replace External Template Example 7b's HTML compatibility envelope with a
+      genuine namespace-aware XSLT stylesheet and load it through an explicit
+      external transform-template boundary.
+    - [x] Preserve external declaration response media type, parse
+          `application/xslt+xml`/`text/xsl` as XML, and fail closed for malformed
+          or structurally invalid stylesheet documents.
+    - [x] Route a valid standalone stylesheet through the native bounded XSLT
+          lowering path without browser `XSLTProcessor` or an authored
+          `<template lang="custom-element-v0">` wrapper.
+    - [x] Fixture: prove standalone XSLT payload-tree rendering, MIME selection,
+          XML namespace/root validation, and unchanged HTML/CEM-ML external
+          declaration loading in unit, Storybook, and demo gates.
+    - Completion: Example 7b is a standalone XSLT 1.0 XML document that selects
+      the canonical namespace-aware payload section. The native converter keeps
+      XPath `*` and `text()` node-kind semantics; 71 focused native compatibility
+      tests, 184 `cem-elements` unit tests, 134 Storybook tests, and the 15-page /
+      21-source demo sweep pass.
+
+## External Declaration Relative Resource URLs
+
+- [x] Correct External Template Example 9's self-relative module, nested
+      declaration, and Smiley image URLs so the loaded `lib-dir/embed-lib.html`
+      resource does not resolve a duplicated `lib-dir/lib-dir/` path.
+    - [x] Fixture: require Example 9's rendered image to resolve to
+          `/packages/cem-elements/demo/lib-dir/Smiley.svg`.
+    - Completion: the external file resolves `./embed-lib.html` and
+      `./Smiley.svg` directly from its own resource base. The source-document
+      harness now also honors the runtime's `resourceBaseUrl`; all 15 standalone
+      and 21 source-loaded demo fixtures pass.
+
 ## Declarative UI Architecture Correction
 
 - [x] Prove the corrected component authoring contract with `cem-select` before

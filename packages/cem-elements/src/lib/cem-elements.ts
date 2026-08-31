@@ -54,6 +54,7 @@ import {
     decideCemDeclarationTemplateLanguage,
     type CemDeclarationTemplateLanguage,
 } from './legacy-xslt/template-language.js';
+import { analyzeExternalDeclarationSourceFormat } from './external-declaration-source.js';
 import {
     CemDeclarationScopeError,
     assertCemDeclarationScopeActive,
@@ -469,10 +470,11 @@ export interface CemElementRuntimeOptions {
     privacyPolicyStamp?: string;
     logger?: Pick<Console, 'warn' | 'error'>;
     /**
-     * Load the HTML document an external `src` declaration references, given the `src`
-     * path (the part before `#`) and the declaring document. Lets a host control module-map
-     * resolution, fetching, and scope-URL policy (and makes external `src` testable). The
-     * default resolves the path against the declaring document's base URL and `fetch`es it.
+     * Load the document an external `src` declaration references, given the `src` path
+     * (the part before `#`) and the declaring document. Lets a host control module-map
+     * resolution, fetching, media-type metadata, and scope-URL policy (and makes external
+     * `src` testable). The default resolves the path against the declaring document's base
+     * URL and `fetch`es it.
      */
     loadSrcDocument?: (specifier: string, baseDocument: Document) => Promise<string | CemSrcDocumentLoadResult>;
     /**
@@ -794,11 +796,26 @@ interface ResolvedDeclarationSource {
     sourceRef: CemProcessingSourceRef;
     resolverIdentity: string;
     resourceBaseUrl: string;
+    contentType?: string | null;
+    templateLanguage?: CemDeclarationTemplateLanguage;
+    templateSource?: string;
 }
 
 interface LoadedSrcDocument {
     document: Document;
     source: ResolvedDeclarationSource;
+    sourceText: string;
+    kind: 'html' | 'xslt';
+}
+
+class ExternalDeclarationSourceError extends Error {
+    readonly code: 'cem-element.src_content_type_mismatch' | 'cem-element.src_xslt_invalid';
+
+    constructor(code: ExternalDeclarationSourceError['code'], message: string) {
+        super(message);
+        this.name = 'ExternalDeclarationSourceError';
+        this.code = code;
+    }
 }
 
 interface LocalStorageDeclaration {
@@ -962,6 +979,18 @@ const DATA_ISLAND_HTML_CONTENT_TYPE = 'text/html';
 const DATA_ISLAND_HTML_SCHEMA = 'https://cem.dev/ns/data/html/1';
 const DATA_ISLAND_CEM_ML_CONTENT_TYPE = 'text/cem-ml';
 const DATA_ISLAND_CEM_ML_SCHEMA = 'https://cem.dev/ns/cem-ml/1';
+const XSLT_NAMESPACE = 'http://www.w3.org/1999/XSL/Transform';
+const ANONYMOUS_DECLARATION_ONLY_ATTRIBUTES = new Set([
+    'capability',
+    'class',
+    'hidden',
+    'id',
+    'scope',
+    'src',
+    'style',
+    'tag',
+    'uid-seed',
+]);
 const UID_SEED_ATTR = 'uid-seed';
 const PUBLIC_STYLE_SCOPE_ATTR = 'scope';
 const STYLE_TAG = 'style';
@@ -1367,6 +1396,7 @@ export class CemElementRuntime {
     private readonly registeredDeclarationElements = new WeakSet<object>();
     private readonly anonymousDeclarationElements = new WeakSet<HTMLElement>();
     private readonly anonymousInstances = new WeakMap<HTMLElement, HTMLElement>();
+    private readonly anonymousSrcPayloads = new WeakMap<HTMLElement, readonly Node[]>();
     private readonly registrationOptions = new WeakMap<object, CemDeclarationRegistrationOptions>();
     private readonly hydratedServerRenders = new WeakSet<HTMLElement>();
     private readonly hydrationSnapshots = new WeakMap<HTMLElement, DataIslandSnapshot>();
@@ -1489,6 +1519,9 @@ export class CemElementRuntime {
             declarationElement.setAttribute('tag', deterministicAnonymousTag(declarationElement));
             declarationElement.setAttribute('data-cem-anonymous-declaration', '');
             this.anonymousDeclarationElements.add(declarationElement);
+            if (declarationElement.getAttribute('src')?.trim()) {
+                this.anonymousSrcPayloads.set(declarationElement, Array.from(declarationElement.childNodes));
+            }
         }
 
         this.registrationOptions.set(declarationElement, options);
@@ -1592,18 +1625,32 @@ export class CemElementRuntime {
     private ensureAnonymousInstance(declarationElement: HTMLElement, tag: string): void {
         const existing = this.anonymousInstances.get(declarationElement);
         if (existing) {
-            if (declarationElement.parentNode && existing.parentNode !== declarationElement.parentNode) {
-                declarationElement.after(existing);
+            if (declarationElement.isConnected && existing.parentNode !== declarationElement) {
+                declarationElement.append(existing);
             }
             return;
         }
-        if (!declarationElement.parentNode || !declarationElement.ownerDocument.defaultView?.customElements.get(tag)) {
+        if (!declarationElement.isConnected || !declarationElement.ownerDocument.defaultView?.customElements.get(tag)) {
             return;
         }
         const instance = declarationElement.ownerDocument.createElement(tag);
         instance.setAttribute('data-cem-anonymous-instance', '');
+        if (declarationElement.getAttribute('src')?.trim()) {
+            for (const attribute of Array.from(declarationElement.attributes)) {
+                const name = attribute.name.toLowerCase();
+                if (
+                    ANONYMOUS_DECLARATION_ONLY_ATTRIBUTES.has(name)
+                    || name.startsWith('data-cem-')
+                    || name.startsWith('on')
+                ) {
+                    continue;
+                }
+                instance.setAttribute(attribute.name, attribute.value);
+            }
+            instance.append(...(this.anonymousSrcPayloads.get(declarationElement) ?? []));
+        }
         this.anonymousInstances.set(declarationElement, instance);
-        declarationElement.after(instance);
+        declarationElement.append(instance);
     }
 
     /** Compile a resolved template, register the produced tag, and surface declaration diagnostics. */
@@ -1741,10 +1788,24 @@ export class CemElementRuntime {
         try {
             loaded = await this.loadSrcDocumentParsed(declarationElement, reference.path);
         } catch (error) {
+            const code =
+                error instanceof ExternalDeclarationSourceError
+                    ? error.code
+                    : 'cem-element.src_load_failed';
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
-                    'cem-element.src_load_failed',
+                    code,
                     `loading \`${src}\` failed: ${error instanceof Error ? error.message : String(error)}`,
+                    tag,
+                ),
+            ]);
+            return;
+        }
+        if (loaded.kind === 'xslt' && reference.id.length > 0) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.src_xslt_invalid',
+                    `standalone XSLT declaration source \`${src}\` must reference the complete stylesheet document`,
                     tag,
                 ),
             ]);
@@ -1769,6 +1830,12 @@ export class CemElementRuntime {
         }
         await this.registerResolvedDeclaration(declarationElement, tag, sourceTemplate, [], declarationScope, {
             ...loaded.source,
+            ...(loaded.kind === 'xslt'
+                ? {
+                      templateLanguage: 'legacy-xslt' as const,
+                      templateSource: loaded.sourceText,
+                  }
+                : {}),
             sourceRef: {
                 kind: loaded.source.sourceRef.kind,
                 value:
@@ -1832,10 +1899,29 @@ export class CemElementRuntime {
             }
             const result =
                 typeof loaded === 'string' ? fallbackSrcDocumentLoadResult(loadedPath, baseDocument, loaded) : loaded;
-            const html = typeof loaded === 'string' ? loaded : await readTextStream(loaded.body);
+            const sourceText = typeof loaded === 'string' ? loaded : await readTextStream(loaded.body);
+            const format = analyzeExternalDeclarationSourceFormat({
+                specifier: result.resolvedUrl || loadedPath,
+                contentType: result.contentType,
+            });
+            if (format.kind === 'invalid') {
+                throw new ExternalDeclarationSourceError(
+                    format.diagnosticCode ?? 'cem-element.src_content_type_mismatch',
+                    format.message ?? `external declaration source \`${loadedPath}\` has an unsupported content type`,
+                );
+            }
+            const document = new DOMParser().parseFromString(
+                sourceText,
+                format.kind === 'xslt' ? 'application/xml' : 'text/html',
+            );
+            if (format.kind === 'xslt') {
+                validateStandaloneXsltDocument(document, loadedPath);
+            }
             return {
-                document: new DOMParser().parseFromString(html, 'text/html'),
+                document,
                 source: srcDocumentSource(loadedPath, baseDocument, result),
+                sourceText,
+                kind: format.kind,
             };
         })();
         this.srcDocuments.set(key, parsed);
@@ -5023,11 +5109,14 @@ function generatedDeclarationIds(compiled: CompiledDeclaration): GeneratedDeclar
 }
 
 function analyzeDeclarationElement(element: HTMLElement): DeclarationShapeResult {
+    const anonymousSrcPayload =
+        element.hasAttribute('data-cem-anonymous-declaration')
+        && Boolean(element.getAttribute('src')?.trim());
     return analyzeDeclarationShape({
         tag: element.getAttribute('tag'),
         src: element.getAttribute('src'),
-        directTemplateCount: directTemplateChildren(element).length,
-        directLiveNodeCount: directLiveNodeCount(element),
+        directTemplateCount: anonymousSrcPayload ? 0 : directTemplateChildren(element).length,
+        directLiveNodeCount: anonymousSrcPayload ? 0 : directLiveNodeCount(element),
     });
 }
 
@@ -5037,7 +5126,7 @@ function compileInlineDeclaration(
     template: HTMLTemplateElement,
     options: InlineDeclarationCompileOptions,
 ): CompiledDeclaration {
-    const mode = templateMode(template);
+    const mode = options.source.templateLanguage ?? templateMode(template);
     const diagnostics: CemElementDiagnostic[] = [];
 
     const rawTemplateSource = readInlineTemplateSource(template, mode);
@@ -5063,9 +5152,10 @@ function compileInlineDeclaration(
     const cemMlSource = mode === 'cem-ml' ? templateSourceText(template) : null;
     const legacySource =
         mode === 'legacy-xslt'
-            ? template.innerHTML.trim().length > 0
-                ? template.innerHTML
-                : templateSourceText(template)
+            ? options.source.templateSource
+                ?? (template.innerHTML.trim().length > 0
+                    ? template.innerHTML
+                    : templateSourceText(template))
             : null;
     const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt';
     const occurrencePath = declarationOccurrencePath(declarationElement);
@@ -5493,7 +5583,47 @@ function srcDocumentSource(
         },
         resolverIdentity: loaded.resolverIdentity,
         resourceBaseUrl,
+        contentType: mediaType(loaded.contentType),
     };
+}
+
+function validateStandaloneXsltDocument(document: Document, specifier: string): void {
+    const parserError = Array.from(document.getElementsByTagName('*')).find(
+        (element) => element.localName === 'parsererror',
+    );
+    if (parserError) {
+        throw new ExternalDeclarationSourceError(
+            'cem-element.src_xslt_invalid',
+            `XSLT declaration source \`${specifier}\` is not well-formed XML: ${parserError.textContent?.trim() ?? 'parse error'}`,
+        );
+    }
+
+    const root = document.documentElement;
+    if (
+        !root
+        || root.namespaceURI !== XSLT_NAMESPACE
+        || (root.localName !== 'stylesheet' && root.localName !== 'transform')
+    ) {
+        throw new ExternalDeclarationSourceError(
+            'cem-element.src_xslt_invalid',
+            `XSLT declaration source \`${specifier}\` must have an xsl:stylesheet or xsl:transform root in ${XSLT_NAMESPACE}`,
+        );
+    }
+    if (!(root.getAttribute('version')?.trim())) {
+        throw new ExternalDeclarationSourceError(
+            'cem-element.src_xslt_invalid',
+            `XSLT declaration source \`${specifier}\` must declare a stylesheet version`,
+        );
+    }
+    const hasTemplate = Array.from(root.children).some(
+        (element) => element.namespaceURI === XSLT_NAMESPACE && element.localName === 'template',
+    );
+    if (!hasTemplate) {
+        throw new ExternalDeclarationSourceError(
+            'cem-element.src_xslt_invalid',
+            `XSLT declaration source \`${specifier}\` must declare at least one top-level xsl:template`,
+        );
+    }
 }
 
 async function readTextStream(body: AsyncIterable<Uint8Array>): Promise<string> {

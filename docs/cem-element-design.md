@@ -261,6 +261,9 @@ existing POC and with the material parity benchmark (which uses
 
 <!-- Module-map specifier resolved by the cem-element resolver (§3 of the WASM proposal) -->
 <cem-element tag="cem-button" src="@epa-wg/cem-components/button.cem#button"></cem-element>
+
+<!-- Whole-document standalone XSLT declaration source -->
+<cem-element tag="cem-payload-tree" src="./data-island-tree.xsl"></cem-element>
 ```
 
 Rules:
@@ -280,12 +283,37 @@ Rules:
   references (`#name`), and module-map specifiers (`@scope/pkg/path#fragment`).
 - A `src` without a fragment loads the whole resource as the declaration template.
   A `src` with a fragment selects the named template/region inside the resolved
-  resource after parse.
-- `src` MAY appear on both declaration and instance usages, mirroring the legacy
-  POC (`<custom-element src="../index.html#nav-head">`). On a declaration, `src`
-  supplies the template body. On an instance with no matching `tag` registration
-  yet, `src` is treated as an inline declaration of an anonymous tag (legacy
-  behavior); the formal rules for that case land with the migration work in §6.1.
+  HTML/CEM-ML resource after parse. A standalone XSLT resource is always a
+  whole-document declaration and MUST NOT use a fragment identifier.
+- The resolved response media type is part of declaration source identity.
+  `application/xslt+xml`, `text/xsl`, and the registered custom-element XSLT
+  aliases select namespace-aware XML parsing. A `.xsl` or `.xslt` suffix is a
+  fallback only when media metadata is absent or generic XML/octet-stream; a
+  contradictory concrete type such as `text/html` fails closed with
+  `cem-element.src_content_type_mismatch`. Other HTML and CEM-ML resources keep
+  the existing document/fragment path.
+- An external XSLT document MUST be well-formed XML with an
+  `xsl:stylesheet` or `xsl:transform` document element in
+  `http://www.w3.org/1999/XSL/Transform`, a non-empty `version`, and at least
+  one direct `xsl:template`. Structural failures produce
+  `cem-element.src_xslt_invalid` before declaration compilation.
+- `<cem-element src>` is the explicit transform-template invocation boundary
+  for a valid standalone stylesheet. The original XML source is passed to the
+  native, bounded XSLT-to-CEM-ML lowering path; the browser never invokes
+  `XSLTProcessor` and never switches engines by sniffing authored markup. At
+  render time the stylesheet reads the instance's canonical namespace-aware
+  data-island context. For example,
+  `/cem-island:context-root/cem-payload:payload/*` selects captured payload
+  element roots, while child `*` and `text()` node tests retain their XML/XPath
+  element-versus-text semantics in the lowered render plan.
+- `src` MAY appear on both named and anonymous declaration usages, mirroring the
+  legacy POC (`<custom-element src="../index.html#nav-head">`). On a named
+  declaration, `src` supplies the template body. When `tag` is omitted, the
+  declaration receives a deterministic anonymous tag and creates one contained
+  instance. Non-declaration attributes and authored children move to that
+  instance before connection, then follow the normal data-island payload-capture
+  lifecycle. The declaration retains `src`, generated `tag`, `uid-seed`, scope,
+  and its declaration/runtime identity attributes.
 - All other declaration semantics (data-island isolation, scope policy, source
   maps, render pipeline, patch transport) are identical to the inline form. `src`
   is purely a source-acquisition shape.
@@ -1225,11 +1253,14 @@ During the bridge period (between this design landing and the post-Edge/SSR
   state; tag names MUST NOT collide.
 - The `cem-element` runtime understands the legacy XSLT-shaped template body as a
   compat surface only when the body is annotated `lang="custom-element-v0"` on the
-  `<template>` element. New code MUST use the CEM-ML surface.
+  embedded `<template>` element. New embedded code MUST use the CEM-ML surface.
 - Untyped markup is never inspected for XSLT element names. The
   `custom-element-xslt` identity names the native converter/CLI content type and does
-  not select browser compatibility; explicit `text/cem-ml` or
-  `application/cem-ml` retains precedence over the legacy annotation.
+  not make an untyped embedded template enter compatibility mode; explicit
+  `text/cem-ml` or `application/cem-ml` retains precedence over the legacy
+  annotation. A whole external resource is a separate, explicit boundary:
+  XSLT media metadata (or the constrained `.xsl`/`.xslt` fallback in §3.2)
+  selects XML validation and the same bounded native lowering path.
 
 ### 6.3 Cem-components contract
 

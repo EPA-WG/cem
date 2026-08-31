@@ -1223,6 +1223,27 @@ fn emit_for_each(
             .collect();
     }
 
+    if let Some((select_expr, item_kind)) = rewrite_payload_select(select, ctx) {
+        let loop_var = "item".to_owned();
+        let child_ctx = EmitCtx {
+            loop_var: Some(loop_var.clone()),
+            loop_item: LoopItemKind::PayloadElement,
+            item: None,
+            ..ctx.clone()
+        };
+        let mut body = emit_children(&element.children, &child_ctx, diagnostics);
+        if let Some(item_kind) = item_kind {
+            body = format!(
+                "{{cem:if{} | {body}}}",
+                expr_attr("test", &format!(r#"{loop_var}.kind == "{item_kind}""#))
+            );
+        }
+        return format!(
+            "{{cem:for-each{} @as=\"{loop_var}\" | {body}}}",
+            expr_attr("select", &select_expr)
+        );
+    }
+
     if let Some(mut members) = select_apply_members(select, ctx) {
         apply_sort_children(&mut members, element);
         return members
@@ -1247,20 +1268,14 @@ fn emit_for_each(
     }
 
     let loop_var = "item".to_owned();
-    let payload_select = rewrite_payload_attribute_select(select);
     let child_ctx = EmitCtx {
         loop_var: Some(loop_var.clone()),
-        loop_item: if payload_select.is_some() {
-            LoopItemKind::PayloadElement
-        } else {
-            LoopItemKind::Generic
-        },
+        loop_item: LoopItemKind::Generic,
         item: None,
         ..ctx.clone()
     };
     let body = emit_children(&element.children, &child_ctx, diagnostics);
-    let select_expr =
-        payload_select.unwrap_or_else(|| rewrite_expression(select, ctx, false, diagnostics));
+    let select_expr = rewrite_expression(select, ctx, false, diagnostics);
     format!(
         "{{cem:for-each{} @as=\"{loop_var}\" | {body}}}",
         expr_attr("select", &select_expr)
@@ -3190,8 +3205,27 @@ fn rewrite_expression(
     }
 }
 
-fn rewrite_payload_attribute_select(select: &str) -> Option<String> {
+fn rewrite_payload_select(select: &str, ctx: &EmitCtx) -> Option<(String, Option<&'static str>)> {
     let trimmed = select.trim();
+    if matches!(
+        trimmed,
+        "/cem-island:context-root/cem-payload:payload/*"
+            | "cem-island:context-root/cem-payload:payload/*"
+    ) {
+        return Some(("datadom.payload.nodes".to_owned(), Some("element")));
+    }
+    if ctx.loop_item == LoopItemKind::PayloadElement && matches!(trimmed, "*" | "./*") {
+        return ctx
+            .loop_var
+            .as_ref()
+            .map(|loop_var| (format!("{loop_var}.children"), Some("element")));
+    }
+    if ctx.loop_item == LoopItemKind::PayloadElement && matches!(trimmed, "text()" | "./text()") {
+        return ctx
+            .loop_var
+            .as_ref()
+            .map(|loop_var| (format!("{loop_var}.children"), Some("text")));
+    }
     let attr_name = trimmed
         .strip_prefix("//*[@")
         .and_then(|rest| rest.strip_suffix(']'))?
@@ -3199,7 +3233,7 @@ fn rewrite_payload_attribute_select(select: &str) -> Option<String> {
     if !is_name(attr_name) {
         return None;
     }
-    Some(format!("datadom.elementsByAttribute.{attr_name}"))
+    Some((format!("datadom.elementsByAttribute.{attr_name}"), None))
 }
 
 fn tokenize_xpath(input: &str) -> Vec<XToken> {
@@ -3459,6 +3493,17 @@ impl XPathRewriter<'_, '_> {
         match function_disposition(name) {
             LegacyFunctionDisposition::Special if name == "position" => "position ".to_owned(),
             LegacyFunctionDisposition::Special if name == "current" => ". ".to_owned(),
+            LegacyFunctionDisposition::Unsupported
+                if matches!(name, "name" | "local-name")
+                    && args.is_empty()
+                    && self.ctx.loop_item == LoopItemKind::PayloadElement =>
+            {
+                self.ctx
+                    .loop_var
+                    .as_ref()
+                    .map(|loop_var| format!("{loop_var}.tag "))
+                    .unwrap_or_else(|| "name() ".to_owned())
+            }
             LegacyFunctionDisposition::Unsupported
                 if name == "text"
                     && args.is_empty()
@@ -3848,6 +3893,18 @@ mod tests {
         assert_eq!(
             result.source,
             r#"{cem:for-each @select="datadom.elementsByAttribute.pokemon-id" @as="item" | {button | {img @src="/{$item.attributes.pokemon-id}.svg" @alt="{$item.text}"}{$item.text}}}"#
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_standalone_stylesheet_payload_tree_context() {
+        let result = convert(
+            r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:cem-island="https://cem.dev/ns/runtime/data-island" xmlns:cem-payload="https://cem.dev/ns/runtime/instance-payload" version="1.0"><xsl:template match="/"><article><xsl:for-each select="/cem-island:context-root/cem-payload:payload/*"><b><xsl:value-of select="name()"/></b><code><xsl:value-of select="@data-root"/></code><xsl:for-each select="*"><i><xsl:value-of select="local-name()"/></i><code><xsl:value-of select="@data-level"/></code><xsl:for-each select="text()"><p><xsl:value-of select="."/></p></xsl:for-each></xsl:for-each></xsl:for-each></article></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{article | {cem:for-each @select="datadom.payload.nodes" @as="item" | {cem:if @test='item.kind == "element"' | {b | {$item.tag}}{code | {$item.attributes.data-root}}{cem:for-each @select="item.children" @as="item" | {cem:if @test='item.kind == "element"' | {i | {$item.tag}}{code | {$item.attributes.data-level}}{cem:for-each @select="item.children" @as="item" | {cem:if @test='item.kind == "text"' | {p | {$item.text}}}}}}}}}"#,
         );
         assert!(result.diagnostics.is_empty());
     }

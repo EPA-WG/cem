@@ -1,5 +1,17 @@
 use CLAUDE.md for codex session.
 
+## CEM/DCE work boundary
+
+- Do not invoke the `nx-workspace` skill merely because a task concerns DCE,
+  `cem-elements`, CEM-ML, or source files that happen to live in an Nx
+  workspace.
+- Invoke `nx-workspace` only for Nx-specific workspace discovery (projects,
+  targets, dependencies, or configuration), or when an Nx command fails and
+  its task configuration must be diagnosed.
+- Running an already-known Nx target does not require invoking the
+  `nx-workspace` skill. Nx remains the preferred task runner for build, lint,
+  test, and verification commands.
+
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 

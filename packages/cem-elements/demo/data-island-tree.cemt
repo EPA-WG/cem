@@ -26,15 +26,8 @@
     {body |
         {article @class=demo-card |
             {h2 | CEM-ML data island tree}
-            {details @style="padding:0 1rem" @open=open |
-                {summary |
-                    {b @style="color:green" | datadom}
-                    {code @style="margin-left:1rem;color:brown" | title="{$datadom.attributes.title ?? ""}"}
-                    {code @style="margin-left:1rem;color:brown" | data-demo="{$datadom.attributes.data-demo ?? ""}"}
-                }
-                {cem:for-each @select="$datadom.payload.nodes" @as="node" |
-                    {call @template="node" @with:node="{$node}"}
-                }
+            {cem:for-each @select="$datadom.payload.nodes" @as="node" |
+                {call @template="node" @with:node="{$node}"}
             }
         }
     }

@@ -154,14 +154,16 @@
     </template>
 </html-demo-element>
 
-<html-demo-element legend="5. external HTML template" description="Should render 👋👌, svg, formula">
+<html-demo-element legend="5. external HTML template" description="A named instance and an anonymous src declaration should each render 👋👌, svg, and formula">
     <template>
         <cem-element tag="dce-external-5" src="html-template.html"></cem-element>
-        <dce-external-5 title="DCE with external XSLT template" data-fruit="🍌">Hi</dce-external-5>
-        <cem-element tag="dce-external-5-inline" src="html-template.html"></cem-element>
-        <dce-external-5-inline data-smile="👼" data-basket="🍒">
+        <dce-external-5>Hi</dce-external-5>
+        <cem-element
+            id="dce-external-5-inline"
+            src="html-template.html"
+        >
             <i>inline DCE loading from HTML file ...</i>
-        </dce-external-5-inline>
+        </cem-element>
     </template>
 </html-demo-element>
 
@@ -186,7 +188,7 @@
     <a href="data-island-tree.cemt">data-island-tree.cemt</a>
     <template>
         <cem-element tag="dce-cemt-tree" src="data-island-tree.cemt"></cem-element>
-        <dce-cemt-tree title="Anonymous DCE data island" data-demo="cem-elements">
+        <dce-cemt-tree>
             <catalog data-root="cem-elements">
                 <section data-level="1" name="alpha">
                     <item data-level="2" code="a1">
@@ -202,7 +204,7 @@
     <a href="data-island-tree.xsl">data-island-tree.xsl</a>
     <template>
         <cem-element tag="dce-xslt-tree" src="data-island-tree.xsl"></cem-element>
-        <dce-xslt-tree title="Anonymous DCE data island" data-demo="cem-elements-xslt">
+        <dce-xslt-tree>
             <catalog data-root="cem-elements-xslt">
                 <section data-level="1" name="beta">
                     <item data-level="2" code="b1">
@@ -229,7 +231,7 @@
 
 
 <html-demo-element legend="9. external file with invoking of relative template as hash by enclosed custom-element"
-                   description="Should render Vulcan Salute 🖖"
+                   description="Should render 👌, Smiley.svg, 👋"
 >
     <template>
         <cem-element tag="dce-embed-relative-hash" src="./lib-dir/embed-lib.html#embed-relative-hash"></cem-element>
@@ -241,7 +243,7 @@
 
 <html-demo-element
         legend="10. external file with invoking of template in another relative path file by enclosed custom-element"
-        description="Should render Vulcan Salute 🖖"
+        description="Should render 👍, Vulcan Salute 🖖"
 >
     <template>
         <cem-element tag="dce-embed-relative-file" src="./lib-dir/embed-lib.html#embed-relative-file"></cem-element>

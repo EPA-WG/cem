@@ -14,6 +14,7 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | Native platform adapters      | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine.                                                                                                                                                                                                                    | `packages/cem-theme/dist/lib/token-platforms`                            |
 | CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff.                                                                                                                                  | `packages/cem_ml`                                                        |
 | CEM structural lifecycle CLI  | Validation, load into the internal CEM AST/event model, query/transform, and export/convert across schema + content-type identities. Separate synchronized deployments provide the WASM runtime npm package, Node/WASM CLI npm package, and native Linux AMD64 package.                              | `packages/cem_ml`, `packages/cem_ml_cli`, future CLI deployment projects |
+| CEM XSLT standards engine     | Native XSLT 3.x and 4.x parsing, validation, XDM execution, serialization, conformance, and secure resource resolution over the shared CEM AST/event lifecycle. This remains distinct from the bounded custom-element XSLT 1.0 compatibility adapter.                                                       | `packages/cem_ml`, `packages/cem_ml_cli`                                 |
 | CEM Studio                    | Installable local-first PWA and npm package for exercising CEM-ML validation, conversion, query, transformation, source-map, report, and graph workflows through editable projects and a bidirectional CLI Command view.                                                                             | future `packages/cem-studio`, `@epa-wg/cem-components/studio`            |
 | CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element`                |
 | CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                   | `packages/cem-components`, `packages/cem-elements`                       |
@@ -51,6 +52,9 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 13. Treat Hugo support as a downstream framework integration of the CEM-ML, theme, component, and accessibility
     contracts. It must not replace the canonical Markdown token sources or make Hugo the implementation authority for
     the CEM Site.
+14. Keep the bounded custom-element XSLT 1.0 adapter and the standards-track XSLT engine as separate capabilities.
+    XSLT 3.x/4.x documents execute against an explicit XDM, version, resolver, and capability contract; they are never
+    silently approximated by compatibility lowering or delegated to a browser `XSLTProcessor`.
 
 ## Phase 0 - Repo Spine And Docs
 
@@ -293,6 +297,60 @@ Exit criteria:
   the read-only inspection channel.
 - Editor completion/linting recognizes the island topology and delegated domain vocabularies; debugger and DevTools
   views preserve producing-schema AST identity instead of projecting runtime state through JSON by default.
+
+## Phase 2.8 - Native XSLT 3.x And 4.x Standards Engine
+
+Goal: implement standards-track XSLT as a first-class CEM transformation engine. XSLT 3.x establishes the stable
+execution baseline; XSLT 4.x extends it through an explicitly versioned capability profile. Neither path replaces or
+widens the fixture-bounded custom-element XSLT 1.0 adapter, and neither invokes a browser-native XSLT engine.
+
+Deliverables, in dependency order:
+
+- Define versioned schema-package and content-type identities for XSLT 3.x and 4.x, with explicit forwards/backwards
+  compatibility rules. Pin the exact XSLT/XPath/XDM specification edition or snapshot used by each engine release so
+  a moving standards draft cannot silently change accepted syntax or behavior.
+- Implement native XPath and XDM foundations rather than translating standards-track expressions to CEM-QL: atomic
+  values, nodes with expanded names and document order, sequences, maps, arrays, function items, typed static/dynamic
+  contexts, namespaces, collations, calendars/timezones, errors, and deterministic serialization.
+- Parse stylesheet packages and modules into typed, source-mapped CEM AST nodes. Implement imports/includes,
+  `xsl:use-package`, modes, templates, patterns, variables/parameters, functions, keys, grouping, sorting, accumulators,
+  try/catch, assertions, higher-order functions, maps/arrays, JSON/XML/HTML/text output, and multiple result documents
+  in conformance-sized vertical slices rather than as untyped DOM interpretation.
+- Add XSLT 3.x streaming and package/linking semantics with declared streamability posture, bounded memory/resource
+  accounting, deterministic package identities, and reusable compiled stylesheet artifacts across native, Node/WASM,
+  browser/WASM, worker, server, and edge hosts.
+- Implement XSLT 4.x as a separately negotiated language/profile layer over the shared XDM and execution engine. Every
+  4.x-only syntax or semantic feature must have a capability identifier, versioned diagnostic, conformance fixture,
+  and downgrade/rejection rule; unsupported constructs fail explicitly instead of receiving 3.x approximations.
+- Make external access capability-based and host-resolved. Includes, imports, packages, `document()`, collections,
+  unparsed text, schema/type resources, and result-document destinations use the shared resolver policy, URI map,
+  cache identity, integrity metadata, cancellation, recursion/output limits, and source-map stack. Network, filesystem,
+  extension functions, dynamic evaluation, and side effects remain denied unless the host grants the exact capability.
+- Load CEM-ML, XML, HTML, and DCE data-island inputs through their existing typed AST/event lifecycles into XDM views;
+  do not serialize through JSON or construct a parallel browser DOM. Preserve namespace identity and source traces
+  across input nodes, temporary trees, generated nodes, secondary results, and transformation-graph edges.
+- Expose compile, link, execute, inspect, and debug operations through the common Rust API and the synchronized CLI,
+  WASM, Studio, IDE, DAP, and CI capability surfaces. Reports distinguish syntax version, static analysis, optimization,
+  streaming posture, resource-policy decisions, dynamic errors, and output serialization.
+- Build layered conformance evidence: parser/static-context tests, XPath/XDM unit suites, instruction and package tests,
+  streaming/resource-policy tests, native/WASM parity fixtures, and standards conformance suites whose licensing and
+  provenance permit use. Publish a machine-readable feature matrix; never claim full 3.x or 4.x conformance from a
+  demo subset.
+
+Exit criteria:
+
+- A declared XSLT 3.x stylesheet compiles once and produces equivalent typed results, diagnostics, secondary outputs,
+  and source traces through native and WASM hosts, including package linking, higher-order/XDM values, streaming, and
+  security-policy fixtures.
+- A declared XSLT 4.x stylesheet is accepted only by a runtime advertising the required pinned 4.x capability profile;
+  supported features pass their conformance matrix and unsupported/newer features fail with stable diagnostics.
+- All external reads, code/extension hooks, dynamic evaluation, and output destinations are mediated by explicit host
+  capabilities and budgets. Tests prove denial by default, cancellation, recursion/output limits, URI/integrity policy,
+  and absence of browser `XSLTProcessor` execution.
+- CEM data-island and semantic-document transformations consume namespace-aware typed AST/XDM views directly and can
+  emit CEM-ML, XML, HTML, text, or typed transformation artifacts without an implicit JSON/DOM context switch.
+- The XSLT 1.0 custom-element compatibility gate remains independently testable and unchanged; standards-track XSLT
+  never silently falls back to or broadens that adapter.
 
 ## Phase 3 - Custom-Element Runtime
 
@@ -754,6 +812,7 @@ Exit criteria:
 | M2        | Schema-defined parser runtime and fixture pipeline        | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary.                 |
 | M2.5      | Synchronized CEM-ML CLI deployment foundation             | Studio, IDE, and CI clients need stable command/report contracts plus distinct WASM npm, Node CLI npm, and per-platform native packages before depending on them. |
 | M2.7      | Shared IDE/debugger/browser tooling projections            | Schema/context-root tooling must be shared before editor, DAP, and Chromium clients add independent semantics.                                                      |
+| M2.8      | Native XSLT 3.x and 4.x standards engine                   | Build standards conformance on the typed AST/XDM, resolver, source-map, tooling, and synchronized host contracts without widening the XSLT 1.0 compatibility bridge. |
 | M3a       | `<cem-element>` browser substrate                         | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md).     |
 | M3b       | Edge/SSR processing follow-up                             | Server/edge processing should prove the serializable boundary after the browser substrate is stable, not during Phase 3.                                          |
 | M3c       | `@epa-wg/custom-element` monorepo adoption                | The published package adopts the substrate only after browser parity and the Edge/SSR follow-up are green.                                                        |

@@ -28,7 +28,7 @@ the behavioral reference.
 | --- | --- | --- | --- |
 | Declaration registers a produced custom-element tag from `tag` | `README.md` lifecycle / tag sections | Supported | `ProducedTagValidation`, `PackageRuntimeSurface` |
 | Inline declaration shape requires a direct template and rejects live declaration content | `README.md` declaration lifecycle | Supported with stricter shape | `InlineDeclarationShape`, `DeclarationLiveContentRejected`, `MissingInlineTemplateRejected` |
-| `src` may load local `#id`, external documents, and `url#id` templates | `README.md` `src`; `demo/external-template.html` | Supported | `LocalSrcDeclarationLoadingParity`, `ExternalSrcDeclarationLoadingParity`, and `SrcDeclarationLoadingDiagnostics`; bare module specifiers require host `loadSrcDocument` |
+| `src` may load local `#id`, external documents, `url#id` templates, and a standalone XSLT document | `README.md` `src`; `demo/external-template.html` | Supported | `LocalSrcDeclarationLoadingParity`, `ExternalSrcDeclarationLoadingParity`, `SrcDeclarationLoadingDiagnostics`, and External Template Example 7b; standalone XSLT preserves response media metadata, parses as XML, and enters the bounded native lowering path; bare module specifiers require host `loadSrcDocument` |
 | Omitted `tag` renders an inline instance | `README.md` "omitting tag" | Deferred | Not part of the produced-tag substrate MVP; record as bridge/adoption migration behavior |
 | Host payload is captured into a durable data island and removed from live render output | `README.md` instance lifecycle | Supported | `DataIslandCaptureAndRender`, data-island isolation stories |
 | Declared attributes expose defaults and host overrides | `docs/attributes.md`; `demo/attributes.html` | Supported | `LegacyAttributeDefaultsAndHostOverridesParity`, `DeclaredAttributeWasmRenderLoop` |
@@ -46,21 +46,26 @@ the behavioral reference.
 | Scoped styles in templates | README styles section; `demo/scoped-css.html` | Supported with native light-DOM scopes | Private tag roots, public named scopes, implicit instance scopes, projection limits, fail-closed payloads, and marker removal are covered by the scoped-CSS demo, Storybook, processing-boundary, and Edge/SSR tests |
 | Nested produced custom elements | README embedded CE rendering | Supported | Works when nested declarations are registered, including through local/external `src`; covered by material parity stories |
 | Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Supported for focused primitives | `module-url`, `http-request`, `local-storage`, and `location-element` resource slices are covered by executable demo fixtures; broad legacy XPath rewrites and progressive streaming remain deferred |
-| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported through shared engine | `LegacyBridgeTemplateParity`; the exact annotation is the sole browser selector for the `legacy-xslt` engine path, with markup sniffing and the browser-only projection branch retired |
+| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported through shared engine | `LegacyBridgeTemplateParity`; the exact annotation is the sole selector for an embedded browser template to enter the `legacy-xslt` path. An external whole-document stylesheet instead uses explicit `src` plus XSLT media/extension identity; markup sniffing and the browser-only projection branch remain retired |
 
 ## Migration Decisions
 
 - XPath is not reimplemented as a browser host engine. The legacy-XSLT bridge lowers the fixture-bounded XPath subset to
   cem-ql over flat host bindings and the structured `datadom` record.
-- Browser templates enter the bridge only through exact
-  `lang="custom-element-v0"`; untyped legacy markup remains DOM, while
-  `custom-element-xslt` remains the native engine/CLI content-type identity.
+- Embedded browser templates enter the bridge only through exact
+  `lang="custom-element-v0"`; untyped legacy markup remains DOM. A whole-document
+  external source enters the same bounded native lowering path through explicit
+  `<cem-element src>` acquisition plus XSLT media identity, with `.xsl`/`.xslt`
+  fallback limited to absent or generic XML metadata.
 - Legacy DOM text interpolation `${$name}` remains only for DOM-parity templates; canonical CEM-ML uses `{$name}`.
 - `src`, `module-url`, and external dependency resolution are host-policy driven. `src` uses `loadSrcDocument`;
   `module-url` uses `resolveModuleUrl`; bare module specifiers require host-provided resolver hooks.
-- The supported XSLT subset is pull-style and fixture-derived: `if`, `choose`, `when`, `otherwise`, `value-of`,
-  inline `variable`, and `for-each` over an inline node-set variable lower to CEM-ML. Push-style XSLT and standalone
-  stylesheet constructs remain Tier 3 handoff/deferred work.
+- The supported XSLT subset is pull-style and fixture-derived: `if`, `choose`,
+  `when`, `otherwise`, `value-of`, inline `variable`, and `for-each` lower to
+  CEM-ML. A structurally valid standalone stylesheet is now an accepted source
+  envelope, including canonical data-island payload traversal; accepting that
+  envelope does not imply general-purpose XSLT execution. Unsupported push-style
+  or external-resource behavior remains Tier 3 handoff/deferred work.
 - Legacy scoped-CSS behavior is now evidenced through native `@scope`.
   Declaration CSS uses a private tag root or public declaration-owned
   `scope="name"`; explicit inert payload CSS uses its managed style's parent as

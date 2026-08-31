@@ -247,31 +247,32 @@ const fixtureSpecs = [
             text('dce-external-5', '👌'),
             countAtLeast('dce-external-5 svg', 1),
             countAtLeast('dce-external-5 math', 1),
+            attributeEquals('#dce-external-5-inline', 'data-cem-anonymous-declaration', ''),
+            text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👋'),
+            text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👌'),
+            countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] svg', 1),
+            countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] math', 1),
             text('dce-html-wave', '👋'),
             countAtLeast('dce-html-logo svg', 1),
             countAtLeast('dce-html-formula math', 1),
             text('dce-cemt-tree', 'CEM-ML data island tree'),
-            text('dce-cemt-tree', 'title='),
-            text('dce-cemt-tree', 'Anonymous DCE data island'),
-            text('dce-cemt-tree', 'data-demo='),
+            text('dce-cemt-tree article.demo-card > details > summary > b', 'catalog'),
             text('dce-cemt-tree', 'data-root='),
             text('dce-cemt-tree', 'data-level='),
             text('dce-cemt-tree', 'cem-elements'),
             text('dce-cemt-tree', 'code='),
             text('dce-cemt-tree', 'a1'),
             text('dce-cemt-tree', 'Leaf text from cem-elements data island'),
-            countAtLeast('dce-cemt-tree details', 5),
+            countAtLeast('dce-cemt-tree details', 4),
             text('dce-xslt-tree', 'XSLT data island tree'),
-            text('dce-xslt-tree', 'title='),
-            text('dce-xslt-tree', 'Anonymous DCE data island'),
-            text('dce-xslt-tree', 'data-demo='),
+            text('dce-xslt-tree article.demo-card > details > summary > b', 'catalog'),
             text('dce-xslt-tree', 'data-root='),
             text('dce-xslt-tree', 'data-level='),
             text('dce-xslt-tree', 'cem-elements-xslt'),
             text('dce-xslt-tree', 'code='),
             text('dce-xslt-tree', 'b1'),
             text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'),
-            countAtLeast('dce-xslt-tree details', 5),
+            countAtLeast('dce-xslt-tree details', 4),
             text('dce-missing-none', 'element with id=none is missing in template'),
             text('dce-embed-1', '🖖'),
             text('dce-embed-relative-hash', 'from embed-lib-component'),
@@ -774,12 +775,40 @@ const sourceDocumentSpecs = [
                 text('dce-external-4-cem-ml', 'content-type="text/cem-ml"'),
                 text('dce-external-4-cem-ml', 'Banana from CEM-ML payload source'),
             ]),
-            sampleContract('5. external HTML template', [text('dce-external-5', '👋'), text('dce-external-5', '👌'), countAtLeast('dce-external-5 svg', 1), countAtLeast('dce-external-5 math', 1)]),
+            sampleContract('5. external HTML template', [
+                text('dce-external-5', '👋'),
+                text('dce-external-5', '👌'),
+                countAtLeast('dce-external-5 svg', 1),
+                countAtLeast('dce-external-5 math', 1),
+                attributeEquals('#dce-external-5-inline', 'data-cem-anonymous-declaration', ''),
+                text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👋'),
+                text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👌'),
+                countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] svg', 1),
+                countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] math', 1),
+            ]),
             sampleContract('6. HTML, SVG by ID within external file', [text('dce-html-wave', '👋'), countAtLeast('dce-html-logo svg', 1), countAtLeast('dce-html-formula math', 1)]),
-            sampleContract('7a. external CEM-ML data-island tree template', [text('dce-cemt-tree', 'CEM-ML data island tree'), text('dce-cemt-tree', 'Leaf text from cem-elements data island'), countAtLeast('dce-cemt-tree details', 5)]),
-            sampleContract('7b. external XSLT data-island tree template', [text('dce-xslt-tree', 'XSLT data island tree'), text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'), text('dce-missing-none', 'element with id=none is missing in template')]),
+            sampleContract('7a. external CEM-ML data-island tree template', [
+                text('dce-cemt-tree', 'CEM-ML data island tree'),
+                text('dce-cemt-tree article.demo-card > details > summary > b', 'catalog'),
+                text('dce-cemt-tree', 'Leaf text from cem-elements data island'),
+                countAtLeast('dce-cemt-tree details', 4),
+            ]),
+            sampleContract('7b. external XSLT data-island tree template', [
+                text('dce-xslt-tree', 'XSLT data island tree'),
+                text('dce-xslt-tree article.demo-card > details > summary > b', 'catalog'),
+                text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'),
+                countAtLeast('dce-xslt-tree details', 4),
+                text('dce-missing-none', 'element with id=none is missing in template'),
+            ]),
             sampleContract('8. external file with embedding of another external DCE', [text('dce-embed-1', '🖖')]),
-            sampleContract('9. external file with invoking of relative template as hash by enclosed custom-element', [text('dce-embed-relative-hash', 'from embed-lib-component')]),
+            sampleContract('9. external file with invoking of relative template as hash by enclosed custom-element', [
+                text('dce-embed-relative-hash', 'from embed-lib-component'),
+                attributeContains(
+                    'dce-embed-relative-hash img',
+                    'src',
+                    '/packages/cem-elements/demo/lib-dir/Smiley.svg',
+                ),
+            ]),
             sampleContract('10. external file with invoking of template in another relative path file by enclosed custom-element', [text('dce-embed-relative-file', '🖖')]),
             sampleContract('embed-1.html external file', [attributeEquals(':scope', 'src', 'embed-1.html')]),
             sampleContract('embed-lib.html with multiple templates', [attributeEquals(':scope', 'src', 'embed-lib.html')]),
@@ -888,14 +917,14 @@ const sourceHarnessHtml = `<!doctype html>
     <script type="module">
         import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';
         installCemElementRuntime(window, {
-            resolveModuleUrl(specifier, document) {
+            resolveModuleUrl(specifier, document, resourceBaseUrl) {
                 if (specifier === '@epa-wg/custom-element/demo/wc-square.svg') {
                     return new URL('/packages/custom-element/demo/wc-square.svg', document.baseURI).href;
                 }
                 if (specifier === '@epa-wg/material') {
                     return new URL('/packages/custom-element/material/', document.baseURI).href;
                 }
-                return new URL(specifier, document.baseURI).href;
+                return new URL(specifier, resourceBaseUrl).href;
             },
         });
     </script>

@@ -2149,6 +2149,30 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
                 if (path === './remote-fragments.html') {
                     return '<!doctype html><html><body><section id="remote-subtree" class="subtree-fragment"><strong>Subtree fragment</strong></section></body></html>';
                 }
+                if (path === './remote-tree.xsl') {
+                    return {
+                        resolvedUrl: 'https://fixtures.example.test/remote-tree.xsl',
+                        resolverIdentity: 'external-xslt-story-v1',
+                        contentType: 'application/xslt+xml; charset=utf-8',
+                        body: utf8Body(`
+                            <xsl:stylesheet
+                                xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+                                xmlns:cem-island="https://cem.dev/ns/runtime/data-island"
+                                xmlns:cem-payload="https://cem.dev/ns/runtime/instance-payload"
+                                version="1.0"
+                            >
+                                <xsl:template match="/">
+                                    <article class="standalone-xslt">
+                                        <h3>Standalone XSLT</h3>
+                                        <xsl:for-each select="/cem-island:context-root/cem-payload:payload/*">
+                                            <strong><xsl:value-of select="name()"/></strong>
+                                        </xsl:for-each>
+                                    </article>
+                                </xsl:template>
+                            </xsl:stylesheet>
+                        `),
+                    };
+                }
                 throw new Error(`unexpected external src path ${path}`);
             },
         });
@@ -2179,6 +2203,15 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         const subtreeInstance = document.createElement('story-ext-src-subtree');
         root.appendChild(subtreeInstance);
 
+        const xsltDeclaration = document.createElement('cem-element-story-ext-src');
+        xsltDeclaration.setAttribute('tag', 'story-ext-src-xslt');
+        xsltDeclaration.setAttribute('src', './remote-tree.xsl');
+        root.appendChild(xsltDeclaration);
+
+        const xsltInstance = document.createElement('story-ext-src-xslt');
+        xsltInstance.innerHTML = '<catalog><item>Payload</item></catalog>';
+        root.appendChild(xsltInstance);
+
         return root;
     },
     play: async ({ canvasElement }) => {
@@ -2206,6 +2239,14 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
             subtree.textContent?.trim(),
             'Subtree fragment',
             'an external src fragment can render a non-template subtree'
+        );
+
+        const xsltInstance = requiredElement(canvasElement, 'story-ext-src-xslt');
+        const xsltOutput = await waitForElement(xsltInstance, 'article.standalone-xslt');
+        assertEqual(
+            requiredElement(xsltOutput, 'strong').textContent?.trim(),
+            'catalog',
+            'an application/xslt+xml declaration renders through the standalone stylesheet boundary'
         );
     },
 };
@@ -2323,6 +2364,29 @@ export const SrcDeclarationLoadingDiagnostics: Story = {
         failRuntime.registerDeclaration(failing);
         await failRuntime.whenDeclarationSettled(failing);
         assertDiagnostic(failRuntime.diagnosticsFor(failing), 'cem-element.src_load_failed');
+
+        const invalidXsltRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-src-invalid-xslt',
+            loadSrcDocument: async (path) => ({
+                resolvedUrl: `https://fixtures.example.test/${path}`,
+                resolverIdentity: 'invalid-xslt-story-v1',
+                contentType: 'application/xslt+xml',
+                body: utf8Body(
+                    path.includes('malformed')
+                        ? '<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">'
+                        : '<html><body>not a stylesheet</body></html>',
+                ),
+            }),
+        });
+        for (const [tag, src] of [
+            ['story-src-xslt-invalid-root', './invalid-root.xsl'],
+            ['story-src-xslt-malformed', './malformed.xsl'],
+        ] as const) {
+            const invalid = buildDeclaration({ tag, src, templates: [] });
+            invalidXsltRuntime.registerDeclaration(invalid);
+            await invalidXsltRuntime.whenDeclarationSettled(invalid);
+            assertDiagnostic(invalidXsltRuntime.diagnosticsFor(invalid), 'cem-element.src_xslt_invalid');
+        }
     },
 };
 

@@ -497,7 +497,21 @@ export const AnonymousDeclarationGetsDeterministicTagAndInstance: Story = {
         const template = document.createElement('template');
         template.innerHTML = '<strong>anonymous content</strong>';
         declaration.append(template);
-        root.append(declaration);
+
+        const srcTemplate = document.createElement('template');
+        srcTemplate.id = 'anonymous-src-story-template';
+        srcTemplate.innerHTML = '<article><slot></slot></article>';
+        const srcDeclaration = document.createElement('cem-element-anonymous-contract');
+        srcDeclaration.id = 'anonymous-src-story-declaration';
+        srcDeclaration.setAttribute('uid-seed', 'anonymous/src-story');
+        srcDeclaration.setAttribute('src', '#anonymous-src-story-template');
+        srcDeclaration.setAttribute('data-flavor', 'pear');
+        srcDeclaration.setAttribute('title', 'Anonymous src instance');
+        const srcPayload = document.createElement('em');
+        srcPayload.textContent = 'anonymous src payload';
+        srcDeclaration.append(srcPayload);
+
+        root.append(srcTemplate, declaration, srcDeclaration);
         return root;
     },
     play: async ({ canvasElement }) => {
@@ -510,6 +524,7 @@ export const AnonymousDeclarationGetsDeterministicTagAndInstance: Story = {
             'anonymous declarations receive a deterministic UUID-shaped custom-element tag'
         );
         const instance = requiredElement(canvasElement, `${tag}[data-cem-anonymous-instance]`);
+        assertEqual(instance.parentElement, declaration, 'the anonymous instance renders inside its declaration container');
         assertEqual(instance.textContent?.trim(), 'anonymous content', 'anonymous declarations create and render their instance');
 
         const repeat = document.createElement('cem-element-anonymous-contract');
@@ -524,6 +539,30 @@ export const AnonymousDeclarationGetsDeterministicTagAndInstance: Story = {
             deterministicAnonymousTag(firstDetached),
             deterministicAnonymousTag(repeat),
             'the same detached declaration seed and source produce the same anonymous tag'
+        );
+
+        const srcDeclaration = requiredElement(
+            canvasElement,
+            '#anonymous-src-story-declaration'
+        ) as HTMLElement;
+        const srcTag = srcDeclaration.getAttribute('tag') ?? '';
+        const srcInstance = await waitForElement(
+            canvasElement,
+            '#anonymous-src-story-declaration > [data-cem-anonymous-instance]'
+        ) as HTMLElement;
+        assertEqual(srcInstance.localName, srcTag, 'an anonymous src declaration creates its generated contained instance');
+        assertEqual(srcInstance.parentElement, srcDeclaration, 'the anonymous src declaration is the rendered instance owner');
+        assertEqual(srcInstance.getAttribute('data-flavor'), 'pear', 'anonymous instance data attributes move from the declaration');
+        assertEqual(srcInstance.getAttribute('title'), 'Anonymous src instance', 'anonymous instance public attributes move from the declaration');
+        assertEqual(
+            requiredElement(srcInstance, 'article em').textContent,
+            'anonymous src payload',
+            'anonymous src payload enters the generated instance data-island lifecycle'
+        );
+        assertEqual(
+            srcDeclaration.querySelector(':scope > em'),
+            null,
+            'anonymous src payload is no longer a direct declaration child after ownership moves to the generated instance'
         );
     },
 };
@@ -608,6 +647,15 @@ function requiredElement(root: ParentNode, selector: string): Element {
     const element = root.querySelector(selector);
     assert(element, `expected ${selector} to exist`);
     return element;
+}
+
+async function waitForElement(root: ParentNode, selector: string, frames = 120): Promise<Element> {
+    for (let frame = 0; frame < frames; frame += 1) {
+        const element = root.querySelector(selector);
+        if (element) return element;
+        await nextFrame();
+    }
+    throw new Error(`expected ${selector} to exist after ${frames} frames`);
 }
 
 function requiredFragmentElement(root: ParentNode, selector: string): HTMLElement {
