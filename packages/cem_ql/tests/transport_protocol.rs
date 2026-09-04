@@ -29,6 +29,7 @@ fn eval_context() -> EvaluationContext {
         diagnostics: Vec::new(),
         policy_bindings: Default::default(),
         current_item: None,
+        module_resolution: None,
     }
 }
 

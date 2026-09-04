@@ -5,6 +5,9 @@ use std::path::Path;
 
 use cem_ml::diagnostics::Severity;
 use cem_ml::events::cem::CemEventNormalizer;
+use cem_ml::module_resolution::{
+    CemModuleUrlReferrer, CemModuleUrlResolutionErrorReason, CemModuleUrlResolutionPurpose,
+};
 use cem_ml::parser::builder::CemAstBuilder;
 use cem_ml::parser::document::CemDocument;
 use cem_ml::parser::CemAstNode;
@@ -12,6 +15,9 @@ use cem_ml::source::{BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
 
 use crate::diagnostics::{
+    MODULE_URL_BLOCKED, MODULE_URL_INVALID, MODULE_URL_POLICY_DENIED, MODULE_URL_REFERRER_INVALID,
+    MODULE_URL_REFERRER_SCOPE_DENIED, MODULE_URL_REFERRER_UNAVAILABLE,
+    MODULE_URL_REFERRER_UNRESOLVED, MODULE_URL_UNAVAILABLE, MODULE_URL_UNRESOLVED,
     POLICY_ACCESSOR_FAILED, READ_DENIED, READ_UNSATISFIABLE, UNRESOLVED_REFERENCE,
 };
 use crate::eval::{
@@ -154,6 +160,7 @@ pub(crate) fn apply_stdlib_call(
         return ctx.unknown_function(source, "unknown stdlib call");
     }
     match (module.0.as_str(), name.local.as_str()) {
+        ("cem:stdlib/modules", "module_url") => module_url(arg_streams, ctx, source),
         ("cem:stdlib/sequence", "first") => {
             first(arg_streams.into_iter().next().unwrap_or_default())
         }
@@ -227,6 +234,7 @@ pub(crate) fn apply_stdlib_call(
             ItemStream::once(Item::Atomic(AtomValue::String(value.to_uppercase())))
         }
         ("cem:stdlib/strings", "slice") => string_slice(arg_streams),
+        ("cem:stdlib/strings", "shorten") => string_shorten(arg_streams),
         ("cem:stdlib/strings", "concat") => string_concat(arg_streams),
         ("cem:stdlib/strings", "contains") => {
             string_predicate(arg_streams, |left, right| left.contains(right))
@@ -314,6 +322,129 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/user", "has_role") => user_has_role(arg_streams, ctx, source),
         _ => ctx.unknown_function(source, "unknown stdlib call"),
     }
+}
+
+fn module_url(mut arg_streams: Vec<ItemStream>, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {
+    let referrer_input = (arg_streams.len() == 2).then(|| arg_streams.pop().unwrap_or_default());
+    let input = arg_streams.pop().unwrap_or_default();
+    if input.error.is_some() {
+        return input;
+    }
+    if let Some(referrer_input) = referrer_input.as_ref() {
+        if referrer_input.error.is_some() {
+            return referrer_input.clone();
+        }
+    }
+    let specifier = match input.items.as_slice() {
+        [item] => match item.atom() {
+            Some(AtomValue::String(value) | AtomValue::AnyUri(value)) => value,
+            _ => {
+                return ctx.fail_diagnostic(
+                    source,
+                    MODULE_URL_INVALID,
+                    "`module_url()` expects exactly one string or anyURI item",
+                    "module URL argument is invalid",
+                )
+            }
+        },
+        _ => {
+            return ctx.fail_diagnostic(
+                source,
+                MODULE_URL_INVALID,
+                "`module_url()` expects exactly one string or anyURI item",
+                "module URL argument is invalid",
+            )
+        }
+    };
+    let Some(capability) = ctx.module_resolution().cloned() else {
+        return ctx.fail_diagnostic(
+            source,
+            MODULE_URL_UNAVAILABLE,
+            "`module_url()` requires a host module URL resolution capability",
+            "module URL resolution is unavailable",
+        );
+    };
+    let current_context = ctx.current_module_resolution_context(&capability);
+    let referrer = match referrer_input.as_ref() {
+        None => None,
+        Some(input) => match input.items.as_slice() {
+            [item] => match item.atom() {
+                Some(AtomValue::String(value) | AtomValue::AnyUri(value)) => {
+                    Some(CemModuleUrlReferrer::Url(value))
+                }
+                _ => {
+                    let Some(node_identity) = item.module_resolution_node_identity() else {
+                        return ctx.fail_diagnostic(
+                            source,
+                            MODULE_URL_REFERRER_INVALID,
+                            "`module_url()` expects one string, anyURI, or node referrer",
+                            "module URL referrer is invalid",
+                        );
+                    };
+                    let Some(context) = capability.node_context(&node_identity).cloned() else {
+                        return ctx.fail_diagnostic(
+                            source,
+                            MODULE_URL_REFERRER_UNAVAILABLE,
+                            "`module_url()` node referrer has no live resolution context",
+                            "module URL referrer is unavailable",
+                        );
+                    };
+                    Some(CemModuleUrlReferrer::Context(context))
+                }
+            },
+            _ => {
+                return ctx.fail_diagnostic(
+                    source,
+                    MODULE_URL_REFERRER_INVALID,
+                    "`module_url()` expects exactly one string, anyURI, or node referrer",
+                    "module URL referrer is invalid",
+                )
+            }
+        },
+    };
+    if let Err(controlled) = ctx.poll_work(source) {
+        return controlled;
+    }
+    let resolution = capability.resolve_from_context(
+        CemModuleUrlResolutionPurpose::CemQl,
+        specifier,
+        &current_context,
+        referrer,
+        ctx.source_map(source),
+    );
+    if let Err(controlled) = ctx.poll_work(source) {
+        return controlled;
+    }
+    let mut out = match resolution {
+        Ok(resolution) => {
+            ItemStream::once(Item::Atomic(AtomValue::AnyUri(resolution.resolved_url)))
+        }
+        Err(error) => {
+            let code = match error.reason {
+                CemModuleUrlResolutionErrorReason::Invalid => MODULE_URL_INVALID,
+                CemModuleUrlResolutionErrorReason::Unresolved => MODULE_URL_UNRESOLVED,
+                CemModuleUrlResolutionErrorReason::Blocked => MODULE_URL_BLOCKED,
+                CemModuleUrlResolutionErrorReason::PolicyDenied => MODULE_URL_POLICY_DENIED,
+                CemModuleUrlResolutionErrorReason::Unavailable => MODULE_URL_UNAVAILABLE,
+                CemModuleUrlResolutionErrorReason::ReferrerInvalid => MODULE_URL_REFERRER_INVALID,
+                CemModuleUrlResolutionErrorReason::ReferrerUnresolved => {
+                    MODULE_URL_REFERRER_UNRESOLVED
+                }
+                CemModuleUrlResolutionErrorReason::ReferrerUnavailable => {
+                    MODULE_URL_REFERRER_UNAVAILABLE
+                }
+                CemModuleUrlResolutionErrorReason::ReferrerScopeDenied => {
+                    MODULE_URL_REFERRER_SCOPE_DENIED
+                }
+            };
+            ctx.fail_diagnostic(source, code, error.message, "module URL resolution failed")
+        }
+    };
+    out.diagnostics.splice(0..0, input.diagnostics);
+    if let Some(referrer_input) = referrer_input {
+        out.diagnostics.extend(referrer_input.diagnostics);
+    }
+    out
 }
 
 fn record_entries(input: ItemStream) -> ItemStream {
@@ -948,6 +1079,37 @@ fn string_slice(streams: Vec<ItemStream>) -> ItemStream {
         Some(len) => chars.take(len).collect(),
         None => chars.collect(),
     };
+    ItemStream::once(Item::Atomic(AtomValue::String(out)))
+}
+
+/// `str:shorten(value, max_length, ellipsis?)` — replace the middle of an overlong string with
+/// the complete marker (default `…`). Lengths are Unicode codepoint counts, matching
+/// `str:length` and `str:slice`. The effective maximum is clamped to the marker length plus two
+/// so the result always retains at least one codepoint from each end; an odd content budget gives
+/// its extra codepoint to the suffix.
+fn string_shorten(streams: Vec<ItemStream>) -> ItemStream {
+    let value = first_string(&streams);
+    let requested_max = streams.get(1).and_then(first_integer).unwrap_or_default();
+    let ellipsis = streams
+        .get(2)
+        .map(|_| nth_string(&streams, 2))
+        .unwrap_or_else(|| "…".to_owned());
+    let chars: Vec<char> = value.chars().collect();
+    let ellipsis_length = ellipsis.chars().count();
+    let requested_max = usize::try_from(requested_max.max(0)).unwrap_or(usize::MAX);
+    let effective_max = requested_max.max(ellipsis_length.saturating_add(2));
+
+    if chars.len() <= effective_max {
+        return ItemStream::once(Item::Atomic(AtomValue::String(value)));
+    }
+
+    let content_budget = effective_max - ellipsis_length;
+    let prefix_length = content_budget / 2;
+    let suffix_length = content_budget - prefix_length;
+    let mut out = String::new();
+    out.extend(chars[..prefix_length].iter().copied());
+    out.push_str(&ellipsis);
+    out.extend(chars[chars.len() - suffix_length..].iter().copied());
     ItemStream::once(Item::Atomic(AtomValue::String(out)))
 }
 

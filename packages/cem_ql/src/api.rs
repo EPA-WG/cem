@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use cem_ml::content_cache::{CacheMode, ContentHash};
 use cem_ml::diagnostics::Diagnostic;
+use cem_ml::module_resolution::CemModuleUrlResolutionCapability;
 use cem_ml::scheduler::{AbortSignal, ScopePolicy};
 use cem_ml::schema::SchemaFrame;
 use cem_ml::source::ByteRange;
@@ -175,6 +176,7 @@ pub fn evaluate_expression(
             diagnostics: context.diagnostics.clone(),
             policy_bindings: context.policy_bindings(),
             current_item: context.context_item.clone(),
+            module_resolution: context.module_resolution.clone(),
         },
     );
     Ok(ExpressionEvaluation { compiled, result })
@@ -301,6 +303,8 @@ pub struct EvaluationContext {
     pub diagnostics: Vec<Diagnostic>,
     pub policy_bindings: BTreeMap<String, ItemStream>,
     pub current_item: Option<Item>,
+    /// Host-owned, scope-aware URL resolution capability.
+    pub module_resolution: Option<CemModuleUrlResolutionCapability>,
 }
 
 impl Default for EvaluationContext {
@@ -311,6 +315,7 @@ impl Default for EvaluationContext {
             diagnostics: Vec::new(),
             policy_bindings: BTreeMap::new(),
             current_item: None,
+            module_resolution: None,
         }
     }
 }
@@ -347,6 +352,7 @@ pub struct StandaloneExpressionContext {
     pub source_uri: Option<String>,
     pub resolver_policy_stamp: Option<String>,
     pub host_capability_profile: Option<String>,
+    pub module_resolution: Option<CemModuleUrlResolutionCapability>,
 }
 
 impl Default for StandaloneExpressionContext {
@@ -363,6 +369,7 @@ impl Default for StandaloneExpressionContext {
             source_uri: None,
             resolver_policy_stamp: None,
             host_capability_profile: None,
+            module_resolution: None,
         }
     }
 }

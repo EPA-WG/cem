@@ -145,6 +145,7 @@ fn native_item_view_projects_fields_members_atoms_identity_and_source_maps() {
             diagnostics: Vec::new(),
             policy_bindings: BTreeMap::from([("input".to_owned(), ItemStream::once(input))]),
             current_item: None,
+            module_resolution: None,
         },
     );
 
@@ -193,6 +194,7 @@ fn evaluator_polls_host_cancellation_after_native_view_work() {
             diagnostics: Vec::new(),
             policy_bindings: BTreeMap::from([("input".to_owned(), ItemStream::once(input))]),
             current_item: None,
+            module_resolution: None,
         },
         &abort_signal,
     );

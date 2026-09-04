@@ -38,6 +38,23 @@
       ]
     },
     {
+      "id": "validate-cem-data-island",
+      "parentId": "schema-package-examples",
+      "kind": "validation",
+      "name": "Cem Data Island: Complete Instance",
+      "description": "Validate complete-instance from cem-data-island@1.0.0.",
+      "runConfigResourceId": "run-cem-data-island",
+      "resourceIds": [
+        "example-cem-data-island",
+        "run-cem-data-island"
+      ],
+      "tags": [
+        "tour",
+        "validation",
+        "cem-data-island"
+      ]
+    },
+    {
       "id": "validate-cem-dom-projection",
       "parentId": "schema-package-examples",
       "kind": "validation",
@@ -673,6 +690,26 @@
       "schema": "https://cem.dev/ns/cli/run-config/1",
       "revision": 1,
       "sha256": "2d037ee47cdf0682b8c5f64d892aa77140a5365f27e7b1c7d1ad6626a87be2c5"
+    },
+    {
+      "id": "example-cem-data-island",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/cem-data-island/complete-instance.cem",
+      "contentType": "application/vnd.cem.data-island+cem",
+      "schema": "https://cem.dev/ns/runtime/data-island",
+      "revision": 1,
+      "sha256": "789aa4e80235d77bff1d7570d6417b146717832900057de2bce96a5d8955c859"
+    },
+    {
+      "id": "run-cem-data-island",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "config/cem-data-island.validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "a3ea08cda66f92366134f66fc57e8a8e31d50d45daa1eb8d3eeeb680bd6d68af"
     },
     {
       "id": "example-cem-dom-projection",

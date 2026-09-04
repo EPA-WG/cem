@@ -6,6 +6,7 @@ use super::{
     XPathPathExpression, XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression,
     XPathQuantifier, XPathSequenceItemType, XPathSequenceType, XPathSingleType, XPathSourceRange,
     XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst, XPathUnaryOperator,
+    CEM_QL_XPATH_FUNCTION_NAMESPACE,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1188,6 +1189,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
                 "array" => Some("http://www.w3.org/2005/xpath-functions/array"),
                 "err" => Some("http://www.w3.org/2005/xqt-errors"),
                 "output" => Some("http://www.w3.org/2010/xslt-xquery-serialization"),
+                "cem-ql" => Some(CEM_QL_XPATH_FUNCTION_NAMESPACE),
                 _ => None,
             }
             .map(str::to_owned)

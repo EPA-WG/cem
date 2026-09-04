@@ -23,6 +23,7 @@ fn eval(source: &str) -> ItemStream {
             diagnostics: Vec::new(),
             policy_bindings: Default::default(),
             current_item: None,
+            module_resolution: None,
         },
     );
     assert!(

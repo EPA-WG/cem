@@ -3,39 +3,58 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>cem-element module-url demo</title>
+    <title>cem-element cem-module-url demo</title>
     <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "lib-root": "./lib-dir/",
+                "embed-lib": "./lib-dir/embed-lib.html",
+                "@epa-wg/cem-elements/demo/lib-dir/Smiley.svg": "./lib-dir/Smiley.svg",
+                "@epa-wg/material": "../../custom-element/material/",
+                "demo-src-image": "./lib-dir/Smiley.svg?src=module",
+                "demo-referrer-image": "./lib-dir/Smiley.svg?referrer=default",
+                "demo-module-referrer": "./module-referrer/component.js"
+            },
+            "scopes": {
+                "./relative-referrer/": {
+                    "demo-referrer-image": "./lib-dir/Smiley.svg?referrer=relative"
+                },
+                "./module-referrer/": {
+                    "demo-referrer-image": "./confused.svg?referrer=module"
+                },
+                "https://referrer.example.test/absolute/": {
+                    "demo-referrer-image": "./wc-square.svg?referrer=absolute"
+                }
+            }
+        }
+    </script>
     <script type="module">
         import { installCemElementRuntime } from '../dist/index.js';
-        installCemElementRuntime(window, {
-            resolveModuleUrl(specifier, document) {
-                if (specifier === '@epa-wg/cem-elements/demo/lib-dir/Smiley.svg') {
-                    return new URL('./lib-dir/Smiley.svg', document.baseURI).href;
-                }
-                if (specifier === '@epa-wg/material') {
-                    return new URL('../../custom-element/material/', document.baseURI).href;
-                }
-                return new URL(specifier, document.baseURI).href;
-            },
-        });
+        installCemElementRuntime(window);
     </script>
+    <style>html-demo-element img{ width: 2rem;} </style>
 </head>
 <body>
-<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>module-url</h1></nav>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>cem-module-url</h1></nav>
 
 <main>
 
     <section>
         <h3>How to get the module URL for <code>custom-element</code>?</h3>
-        Answer: by defining following attributes in <code>module-url</code>:
+        Answer: by defining the following attributes in <code>cem-module-url</code>:
         <ol>
-            <li><code>src</code> with path to module resource, If omitted, it would match the
-                <code>window.location.href</code></li>
-            <li><code>slice</code> to read the URL</li>
+            <li><code>src</code> with the required URL or mapped module/resource specifier</li>
+            <li><code>slice</code> to read the resolved absolute URL</li>
+            <li>optional <code>referrer</code> to set the URL used for relative resolution and
+                import-map <code>scopes</code> matching</li>
         </ol>
-        URL properties would be a part of slice data, the value would be a full URL.
+        URL properties are part of slice data and the value is a full URL. Use
+        <code>referrer-selector</code> only when resolution must enter one rendered
+        descendant DCE's complete local map context; a URL-valued <code>referrer</code>
+        changes the base and import-map scope matching without changing context.
     </section><section>
-        <h3>Where to use <code>module-url</code>?</h3>
+        <h3>Where to use <code>cem-module-url</code>?</h3>
         Answer: to inject the library resources URL into generated HTML.
         <p><a
                 href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules#importing_modules_using_import_maps"
@@ -43,16 +62,16 @@
             This way dependencies could reside on different CDN path or even domains while in the code would be
             referenced
             by symbolic package name.
-            See the CDN example bellow.</p>
+            See the CDN example below.</p>
         <br/>
-        <p>The resolving of import maps is done by
-            <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta/resolve">import.meta.resolve(path)</a>
-        </p>
+        <p>The CEM runtime captures the page import map and resolves it through the
+            scope-aware CEM resolver. It does not use the JavaScript module containing
+            the runtime as the implicit <code>import.meta.resolve()</code> referrer.</p>
     </section><section>
-        <h3>Where NOT to use <code>module-url</code>?</h3>
+        <h3>Where NOT to use <code>cem-module-url</code>?</h3>
         Answer:
         <ol>
-            <li> in <code>scr</code> attribute of &lt;custom-element &gt;<br/>
+            <li> in the <code>src</code> attribute of &lt;custom-element &gt;<br/>
                 - It uses the same module resolving mechanism
             </li>
             <li> for getting/setting the page URL,<br/>
@@ -68,27 +87,43 @@
         <html-demo-element legend="this page import maps"
         >
             <template>
-                {
-                "imports": {
-                "lib-root": "./lib-dir/",
-                "embed-lib": "./lib-dir/embed-lib.html"
-                }
-                }
+<pre>
+{   "imports": {
+        "lib-root": "./lib-dir/",
+        "embed-lib": "./lib-dir/embed-lib.html",
+        "@epa-wg/cem-elements/demo/lib-dir/Smiley.svg": "./lib-dir/Smiley.svg",
+        "@epa-wg/material": "../../custom-element/material/",
+        "demo-src-image": "./lib-dir/Smiley.svg?src=module",
+        "demo-referrer-image": "./lib-dir/Smiley.svg?referrer=default",
+        "demo-module-referrer": "./module-referrer/component.js"
+    },
+    "scopes": {
+        "./relative-referrer/": {
+            "demo-referrer-image": "./lib-dir/Smiley.svg?referrer=relative"
+        },
+        "./module-referrer/": {
+            "demo-referrer-image": "./confused.svg?referrer=module"
+        },
+        "https://referrer.example.test/absolute/": {
+            "demo-referrer-image": "./wc-square.svg?referrer=absolute"
+}   }   }
+</pre>
             </template>
         </html-demo-element>
     </section>
 
     <html-demo-element legend="4. module path by symbolic name"
-                       description="should render two smiley images and links should open matching page">
+                       description="The resolved image links to the mapped package README">
         <template>
             <cem-element tag="cem-module-link">
                 <template type="text/cem-ml">
-                    {module-url @slice=packageUrl @src="@epa-wg/material"}
-                    {module-url @slice=logoUrl @src="@epa-wg/cem-elements/demo/lib-dir/Smiley.svg"}
+                    {cem-module-url @slice=packageUrl @src="@epa-wg/material"}
+                    {cem-module-url @slice=logoUrl @src="@epa-wg/cem-elements/demo/lib-dir/Smiley.svg"}
                     {article @class=demo-card |
-                        {a @href="{$datadom.slices.packageUrl}/README.md" | Resolved package URL}
-                        {br}
-                        {img @class=resolved-logo @src="{$datadom.slices.logoUrl}" @alt=""}
+                        {image-link @class=resolved-logo
+                            @src="{$datadom.slices.logoUrl}"
+                            @href="{$datadom.slices.packageUrl}README.md"
+                            @alt="Smiley linking to the resolved package URL"}
                         {p | {$datadom.slices.logoUrl}}
                     }
                 </template>
@@ -97,6 +132,249 @@
             <cem-module-link></cem-module-link>
         </template>
     </html-demo-element>
+
+    <html-demo-element
+        legend="5. src forms: relative URL, module path, and absolute URL"
+        description="Relative src uses the declaration source URL, a bare src uses the active map stack, and an absolute src remains absolute">
+        <template>
+<cem-element tag="cem-module-src-forms">
+    <template type="text/cem-ml">
+{cem-module-url
+    @slice=relativeUrl
+    @src="./lib-dir/Smiley.svg?src=relative"}
+{cem-module-url
+    @slice=moduleUrl
+    @src="demo-src-image"}
+{cem-module-url
+    @slice=absoluteUrl
+    @src="data:image/svg+xml,
+        %3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22
+        %20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22
+        %20height%3D%22100%22%20fill%3D%22%23663399%22%2F%3E%3C%2Fsvg%3E"}
+{article @class=demo-card |
+    {h4 | Relative URL src}
+    {image-link @class=resolved-logo
+        @src="{$datadom.slices.relativeUrl}"
+        @href="{$datadom.slices.relativeUrl}"
+        @alt="Smiley from a relative URL"}
+    {h4 | Bare module src}
+    {image-link @class=resolved-logo
+        @src="{$datadom.slices.moduleUrl}"
+        @href="{$datadom.slices.moduleUrl}"
+        @alt="Smiley from a module mapping"}
+    {h4 | Absolute URL src}
+    {image-link @class=resolved-logo
+        @src="{$datadom.slices.absoluteUrl}"
+        @href="{$datadom.slices.absoluteUrl}"
+        @alt="Purple square from an absolute data URL"}
+}
+    </template>
+</cem-element>
+
+<cem-module-src-forms></cem-module-src-forms>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element
+        legend="6. src by scalar referrer matrix"
+        description="Each src form is resolved with a relative-URL, bare-module, and absolute-URL referrer; module-map scopes affect only the mapped src while relative src changes base and absolute src stays fixed">
+        <template>
+            <cem-element tag="cem-module-referrer-matrix">
+                <template type="text/cem-ml">
+                    {cem-module-url @slice=relativeByRelative @src="../lib-dir/Smiley.svg?case=relative-relative" @referrer="./relative-referrer/component.js"}
+                    {cem-module-url @slice=moduleByRelative @src="demo-referrer-image" @referrer="./relative-referrer/component.js"}
+                    {cem-module-url @slice=absoluteByRelative @src="https://assets.example.test/logo.svg" @referrer="./relative-referrer/component.js"}
+
+                    {cem-module-url @slice=relativeByModule @src="../lib-dir/Smiley.svg?case=relative-module" @referrer="demo-module-referrer"}
+                    {cem-module-url @slice=moduleByModule @src="demo-referrer-image" @referrer="demo-module-referrer"}
+                    {cem-module-url @slice=absoluteByModule @src="https://assets.example.test/logo.svg" @referrer="demo-module-referrer"}
+
+                    {cem-module-url @slice=relativeByAbsolute @src="../lib-dir/Smiley.svg?case=relative-absolute" @referrer="https://referrer.example.test/absolute/component.js"}
+                    {cem-module-url @slice=moduleByAbsolute @src="demo-referrer-image" @referrer="https://referrer.example.test/absolute/component.js"}
+                    {cem-module-url @slice=absoluteByAbsolute @src="https://assets.example.test/logo.svg" @referrer="https://referrer.example.test/absolute/component.js"}
+
+                    {table @class=demo-card |
+                        {thead | {tr | {th | referrer / src} {th | relative URL} {th | module path} {th | absolute URL}}}
+                        {tbody |
+                            {tr | {th | relative URL} {td | {$datadom.slices.relativeByRelative}} {td | {$datadom.slices.moduleByRelative}} {td | {$datadom.slices.absoluteByRelative}}}
+                            {tr | {th | module path} {td | {$datadom.slices.relativeByModule}} {td | {$datadom.slices.moduleByModule}} {td | {$datadom.slices.absoluteByModule}}}
+                            {tr | {th | absolute URL} {td | {$datadom.slices.relativeByAbsolute}} {td | {$datadom.slices.moduleByAbsolute}} {td | {$datadom.slices.absoluteByAbsolute}}}
+                        }
+                    }
+                </template>
+            </cem-element>
+
+            <cem-module-referrer-matrix></cem-module-referrer-matrix>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element
+        legend="7. component-local map: naked, wrapper override, and node referrer"
+        description="The naked component uses its own image map; <br/>
+            inside the wrapper the outer map wins for the same key, <br/>
+            while referrer-selector enters the child context to resolve an inner-only key">
+        <template>
+<cem-element tag="cem-local-map-image">
+    <template type="text/cem-ml">
+{module-map |
+    {resource @specifier="demo-component-image"
+        @target="./lib-dir/Smiley.svg?owner=component"
+        @content-type="image/svg+xml"}
+    {resource @specifier="demo-inner-only-image"
+        @target="./wc-square.svg?owner=component"
+        @content-type="image/svg+xml"}
+}
+{cem-module-url @slice=imageUrl @src="demo-component-image"}
+{image-link @class="resolved-logo component-owned-image"
+    @src="{$datadom.slices.imageUrl}"
+    @href="{$datadom.slices.imageUrl}"
+    @alt="Image resolved by the component context"
+}
+    </template>
+</cem-element>
+
+<cem-element tag="cem-local-map-wrapper">
+    <template type="text/cem-ml">
+        {module-map |
+            {resource @specifier="demo-component-image"
+                @target="./confused.svg?owner=wrapper"
+                @content-type="image/svg+xml"
+        }   }
+        {cem-module-url
+            @slice=relativeFromChildUrl
+            @src="./lib-dir/Smiley.svg?referrer=node"
+            @referrer-selector="cem-local-map-image"}
+        {cem-module-url
+            @slice=innerOnlyImageUrl
+            @src="demo-inner-only-image"
+            @referrer-selector="cem-local-map-image"}
+        {cem-module-url
+            @slice=absoluteFromChildUrl
+            @src="https://assets.example.test/logo.svg"
+            @referrer-selector="cem-local-map-image"}
+        {article @class=demo-card |
+            {h4 | Child rendered under the wrapper map}
+            {cem-local-map-image}
+            {h4 | Wrapper lookups using the child node as referrer}
+            {image-link @class="resolved-logo node-referrer-image"
+                @src="{$datadom.slices.innerOnlyImageUrl}"
+                @href="{$datadom.slices.innerOnlyImageUrl}"
+                @alt="Image resolved from the selected child context"
+            }
+            {table @class=node-referrer-matrix |
+                {thead |
+                    {tr |
+                        {th | relative URL src}
+                        {th | module path src}
+                        {th | absolute URL src}
+                }   }
+                {tbody |
+                    {tr |
+                        {td | {expando-link @href="{$datadom.slices.relativeFromChildUrl}"}}
+                        {td | {expando-link @href="{$datadom.slices.innerOnlyImageUrl}"}}
+                        {td | {expando-link @href="{$datadom.slices.absoluteFromChildUrl}"}}
+    }   }   }   }   }
+    </template>
+</cem-element>
+<section>
+    <h4>Naked component: its local map wins</h4>
+    <cem-local-map-image></cem-local-map-image>
+    <h4>Wrapped component: the outer owner overrides the shared key</h4>
+    <cem-local-map-wrapper></cem-local-map-wrapper>
+</section>
+        </template>
+    </html-demo-element>
+    <html-demo-element
+        legend="8. str:shorten query/result matrix"
+        description="Live CEM-QL examples cover unchanged text, <br/>
+            length-budget parity, alternate ellipses, Unicode codepoints, and URL labels">
+        <template>
+<cem-element tag="cem-str-shorten-matrix">
+    <template type="text/cem-ml">
+{table @class="demo-card str-shorten-matrix" |
+    {thead | {tr | {th | Query} {th | Result}}}
+    {tbody |
+        {tr |
+            {td | {code | str:shorten("short", 8)}}
+            {td | {code | {$str:shorten("short", 8)}}}
+        }
+        {tr |
+            {td | {code | str:shorten("abcdefghij", 7)}}
+            {td | {code | {$str:shorten("abcdefghij", 7)}}}
+        }
+        {tr |
+            {td | {code | str:shorten("abcdefghij", 8)}}
+            {td | {code | {$str:shorten("abcdefghij", 8)}}}
+        }
+        {tr |
+            {td | {code | str:shorten("abcdefghij", 8, "...")}}
+            {td | {code | {$str:shorten("abcdefghij", 8, "...")}}}
+        }
+        {tr |
+            {td | {code | str:shorten("abcdefghij", 6, "")}}
+            {td | {code | {$str:shorten("abcdefghij", 6, "")}}}
+        }
+        {tr |
+            {td | {code | str:shorten("αβ😀δεζη", 5, "💠")}}
+            {td | {code | {$str:shorten("αβ😀δεζη", 5, "💠")}}}
+        }
+        {tr |
+            {td | {code |
+                str:shorten( {br}
+                    "https://example.test/lib/semantic-card.cem" {br}
+                    , 32)}}
+            {td | {code |
+                {$str:shorten(
+                    "https://example.test/lib/semantic-card.cem"
+                    , 32)}}}
+}   }   }
+    </template>
+</cem-element>
+
+<cem-str-shorten-matrix></cem-str-shorten-matrix>
+        </template>
+    </html-demo-element>
+    <html-demo-element
+        legend="image-link"
+        description="helper to display image and url as link">
+        <template>
+
+<cem-element tag="expando-link">
+    <template type="text/cem-ml">
+{attribute @name=href}
+{details
+    {summary |
+        {a @href="{$href}"
+            |{$str:shorten(href, 32)} }
+        }
+        {$href}
+}
+
+    </template>
+</cem-element>
+<cem-element tag="image-link">
+    <template type="text/cem-ml">
+{attribute @name=src}
+{attribute @name=href}
+{attribute @name=class}
+{attribute @name=alt}
+{cem-module-url @slice=imageUrl @src="{$src}"}
+{cem-module-url @slice=linkUrl @src="{$href}"}
+{figure @class=demo-card |
+    {img @src="{$datadom.slices.imageUrl}"
+        @alt="{$alt}"
+        @class="{$class}"
+    }
+    {expando-link  @href="{$datadom.slices.linkUrl}"}
+}
+    </template>
+</cem-element>
+<image-link src="./confused.svg"
+            href="./confused.svg"
+    ></image-link>
+        </template>
+    </html-demo-element>
+
 </main>
 <script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>

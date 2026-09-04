@@ -39,6 +39,7 @@ export const LEGACY_XSLT_DECLARATION_ELEMENTS = [
     'slice',
     'data',
     'option',
+    'cem-module-url',
     'module-url',
 ] as const;
 

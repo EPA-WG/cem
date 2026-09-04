@@ -59,7 +59,14 @@ pub const CONTROL_FLOW_ELEMENTS: &[&str] = &[
 
 /// Legacy declaration/resource helper elements preserved as CEM-ML declarations
 /// or inert render helpers.
-pub const DECLARATION_ELEMENTS: &[&str] = &["attribute", "slice", "data", "option", "module-url"];
+pub const DECLARATION_ELEMENTS: &[&str] = &[
+    "attribute",
+    "slice",
+    "data",
+    "option",
+    "cem-module-url",
+    "module-url",
+];
 
 /// XSLT stylesheet adapter constructs implemented by the bounded Phase 4
 /// compatibility profile.
@@ -3365,6 +3372,9 @@ impl XPathRewriter<'_, '_> {
             }
         }
         if value == "//" {
+            if let Some(path) = self.rewrite_event_gated_slice_path() {
+                return path;
+            }
             if let Some(path) = self.rewrite_descendant_attribute_path() {
                 return path;
             }
@@ -3404,6 +3414,28 @@ impl XPathRewriter<'_, '_> {
             return "== ".to_owned();
         }
         format!("{value} ")
+    }
+
+    fn rewrite_event_gated_slice_path(&mut self) -> Option<String> {
+        let remaining = self.tokens.get(self.pos..)?;
+        let [XToken::Name(slice), XToken::Punct(open), XToken::Punct(descendant), XToken::Name(predicate_slice), XToken::Punct(slash), XToken::Name(event), XToken::Punct(close), ..] =
+            remaining
+        else {
+            return None;
+        };
+        if open != "["
+            || descendant != "//"
+            || predicate_slice != slice
+            || slash != "/"
+            || event != "event"
+            || close != "]"
+        {
+            return None;
+        }
+        self.pos += 7;
+        Some(format!(
+            "(if datadom.eventPayloads.{slice} {{ datadom.slices.{slice} }} else {{ () }}) "
+        ))
     }
 
     fn rewrite_descendant_attribute_path(&mut self) -> Option<String> {
@@ -3729,6 +3761,32 @@ mod tests {
                 .contains(r#"{attribute @name="p3" @select='datadom.attributes.p3 ?? "def_P3"'}"#),
             "{}",
             result.source
+        );
+    }
+
+    #[test]
+    fn rewrites_event_gated_slice_attribute_select_expressions() {
+        let result = convert(
+            r#"<attribute name="value" select="//selected[//selected/event] ?? //attributes/@value"></attribute>"#,
+        );
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        assert_eq!(
+            result.source,
+            r#"{attribute @name="value" @select="(if datadom.eventPayloads.selected { datadom.slices.selected } else { () }) ?? datadom.attributes.value"}"#,
+        );
+
+        let without_fallback = convert(
+            r#"<attribute name="value" select="//password[//password/event]"></attribute>"#,
+        );
+        assert!(
+            without_fallback.diagnostics.is_empty(),
+            "{:#?}",
+            without_fallback.diagnostics
+        );
+        assert_eq!(
+            without_fallback.source,
+            r#"{attribute @name="value" @select="(if datadom.eventPayloads.password { datadom.slices.password } else { () })"}"#,
         );
     }
 

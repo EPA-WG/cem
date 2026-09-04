@@ -30,6 +30,19 @@ import {
     type CemQlStylesheetArtifact,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
+import {
+    createBrowserModuleUrlContext,
+    createBrowserModuleUrlRoot,
+    resolveBrowserModuleUrl,
+    type CemBrowserModuleUrlMap,
+    type CemBrowserModuleUrlContext,
+    type CemBrowserModuleUrlRoot,
+    type CemBrowserModuleUrlRootOptions,
+    type CemModuleUrlResolution,
+    type CemModuleUrlResolutionContext,
+    type CemModuleUrlResolutionReferrer,
+    type CemModuleUrlResolutionRequest,
+} from './internal/runtime-support/module-url-resolution.js';
 import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
 import {
     createCemProcessingTextSource,
@@ -97,6 +110,17 @@ export type {
     CemProcessingPoolPolicy,
     CemProcessingSchedulingTraceEvent,
 } from './internal/runtime-support/processing-scheduler.js';
+
+export {
+    CemModuleUrlResolutionError,
+    type CemBrowserImportMap,
+    type CemBrowserModuleUrlRootOptions,
+    type CemModuleUrlResolution,
+    type CemModuleUrlResolutionContext,
+    type CemModuleUrlResolutionFailure,
+    type CemModuleUrlResolutionReferrer,
+    type CemModuleUrlResolutionRequest,
+} from './internal/runtime-support/module-url-resolution.js';
 
 export interface CemElementDiagnostic {
     code: string;
@@ -458,6 +482,8 @@ export interface CemStorageStatusEnvelope {
     diagnostics: CemElementDiagnostic[];
 }
 
+export type CemModuleUrlReferrer = string | Node;
+
 export interface CemElementRuntimeOptions {
     declarationTag?: string;
     /**
@@ -478,7 +504,25 @@ export interface CemElementRuntimeOptions {
      */
     loadSrcDocument?: (specifier: string, baseDocument: Document) => Promise<string | CemSrcDocumentLoadResult>;
     /**
-     * Resolve a `module-url` resource slice specifier to the URL exposed under
+     * Scope-aware resolver for canonical `cem-module-url` controls. The runtime
+     * converts scalar/Node author input to a typed URL/context referrer and
+     * exposes immutable context metadata without leaking its frame registry.
+     * Returning a structured result preserves host match provenance.
+     */
+    resolveScopedModuleUrl?: (
+        request: CemModuleUrlResolutionRequest,
+    ) => string | CemModuleUrlResolution | Promise<string | CemModuleUrlResolution>;
+    /**
+     * Immutable browser-root inputs. An explicit import map replaces automatic
+     * capture of page `<script type="importmap">` elements for that Document.
+     */
+    moduleUrlRoot?:
+        | CemBrowserModuleUrlRootOptions
+        | ((document: Document) => CemBrowserModuleUrlRootOptions);
+    /**
+     * Compatibility resolver for legacy `module-url` controls. New hosts should
+     * use `resolveScopedModuleUrl`, which receives the complete contextual request.
+     * Resolve a module resource slice specifier to the URL exposed under
      * `datadom.slices.<slice>`. Relative/absolute URLs resolve by default; bare
      * package/module specifiers should be supplied by the host module-map resolver.
      * `resourceBaseUrl` is the resolved declaration document URL, which can differ
@@ -488,6 +532,7 @@ export interface CemElementRuntimeOptions {
         specifier: string,
         baseDocument: Document,
         resourceBaseUrl: string,
+        referrer?: CemModuleUrlReferrer,
     ) => string | Promise<string>;
     /**
      * Resolve an `http-request @url` resource specifier in the declaration scope before
@@ -658,6 +703,7 @@ interface CompiledDeclaration {
     sourceRef: CemProcessingSourceRef;
     resolverIdentity: string;
     resourceBaseUrl: string;
+    moduleMap: CemBrowserModuleUrlMap | null;
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
     mode: 'dom' | 'cem-ml' | 'legacy-xslt';
@@ -882,7 +928,8 @@ type RenderedResourceResult = {
     kind: 'module-url';
     sliceName: string;
     specifier: string;
-    value: string;
+    referrer?: CemModuleUrlReferrer;
+    value?: string;
     error?: unknown;
 };
 
@@ -1426,7 +1473,15 @@ export class CemElementRuntime {
     private readonly onProcessingTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
     private readonly srcDocuments = new Map<string, Promise<LoadedSrcDocument>>();
     private readonly moduleUrls = new Map<string, Promise<string>>();
+    private readonly browserModuleRoots = new WeakMap<Document, CemBrowserModuleUrlRoot>();
+    private readonly moduleInstanceContexts = new WeakMap<HTMLElement, CemBrowserModuleUrlContext>();
+    private readonly moduleContextViews = new WeakMap<
+        CemBrowserModuleUrlContext,
+        CemModuleUrlResolutionContext
+    >();
+    private readonly moduleUrlRootOption?: CemElementRuntimeOptions['moduleUrlRoot'];
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
+    private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
     private readonly resolveResourceUrlOption?: CemElementRuntimeOptions['resolveResourceUrl'];
     private readonly loadHttpResourceOption?: CemElementRuntimeOptions['loadHttpResource'];
@@ -1438,6 +1493,7 @@ export class CemElementRuntime {
     private readonly validateGeneratedIds: boolean;
     private readonly generatedIdOwners = new Map<string, HTMLElement>();
     private instanceSequence = 0;
+    private moduleContextSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
         this.declarationTag = options.declarationTag ?? DEFAULT_DECLARATION_TAG;
@@ -1445,7 +1501,9 @@ export class CemElementRuntime {
         this.scopePolicyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
+        this.moduleUrlRootOption = options.moduleUrlRoot;
         this.loadSrcDocumentOption = options.loadSrcDocument;
+        this.resolveScopedModuleUrlOption = options.resolveScopedModuleUrl;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
         this.resolveResourceUrlOption = options.resolveResourceUrl;
         this.loadHttpResourceOption = options.loadHttpResource;
@@ -1654,7 +1712,7 @@ export class CemElementRuntime {
     }
 
     /** Compile a resolved template, register the produced tag, and surface declaration diagnostics. */
-    private registerResolvedDeclaration(
+    private async registerResolvedDeclaration(
         declarationElement: HTMLElement,
         tag: string,
         template: HTMLTemplateElement,
@@ -1699,6 +1757,16 @@ export class CemElementRuntime {
         this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
         if (!compiled.registrationIdentity) {
             return Promise.resolve();
+        }
+
+        // Static module-map metadata must be available before `customElements.define()`
+        // upgrades authored instances. This also guarantees that a wrapper context is
+        // complete before its first render connects nested DCE instances.
+        const requiresStaticModuleMap = compiled.mode === 'cem-ml'
+            && compiled.cemMlSource !== null
+            && containsModuleMapPrelude(compiled.cemMlSource);
+        if (requiresStaticModuleMap) {
+            await this.surfaceDeclarationDiagnostics(declarationElement, compiled);
         }
 
         let logicalLookup;
@@ -1761,11 +1829,14 @@ export class CemElementRuntime {
         }
         this.installDeclarationStylesheets(effectiveDeclaration);
 
-        // CEM-ML declaration parse diagnostics (structural well-formedness) come from the async
-        // cem_ql WASM compile; cem-ql expression errors surface at render instead. Legacy-XSLT
-        // declarations have no cemMlSource until the engine lowers them on first render, where their
-        // conversion diagnostics surface — so they are not compiled here.
-        if (effectiveDeclaration === compiled && compiled.mode === 'cem-ml' && compiled.cemMlSource !== null) {
+        // Preserve established synchronous browser registration for ordinary CEM-ML
+        // declarations; their best-effort diagnostics/stylesheets can settle afterward.
+        if (
+            effectiveDeclaration === compiled
+            && compiled.mode === 'cem-ml'
+            && compiled.cemMlSource !== null
+            && !requiresStaticModuleMap
+        ) {
             return this.surfaceDeclarationDiagnostics(declarationElement, compiled);
         }
         return Promise.resolve();
@@ -1965,6 +2036,7 @@ export class CemElementRuntime {
         try {
             const result = await compileCemMlTemplate(compiled.cemMlSource ?? '');
             compiled.stylesheets = result.stylesheets;
+            compiled.moduleMap = result.moduleMap;
             compiled.stylesheetsReady = true;
             this.installDeclarationStylesheets(compiled);
             if (result.diagnostics.length > 0) {
@@ -2136,6 +2208,7 @@ export class CemElementRuntime {
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         this.installDeclarationStylesheets(compiled);
         const island = this.ensureDataIsland(instance);
+        this.ensureModuleUrlContext(instance, compiled);
         if (this.frozenSerializedInstances.has(instance)) {
             this.renderSettled.set(instance, Promise.resolve());
             return;
@@ -2171,6 +2244,7 @@ export class CemElementRuntime {
 
     private disconnectProducedInstance(instance: HTMLElement): void {
         this.declarationForInstance(instance)?.behavior?.disconnected?.(instance, this.behaviorContext(instance));
+        this.moduleInstanceContexts.delete(instance);
         const state = this.instanceStates.get(instance);
         state?.observer?.disconnect();
         if (state) {
@@ -2345,6 +2419,7 @@ export class CemElementRuntime {
                 }
                 return compileCemMlTemplate(converted.source).then((result) => {
                     compiled.stylesheets = result.stylesheets;
+                    compiled.moduleMap = result.moduleMap;
                     compiled.stylesheetsReady = true;
                     this.installDeclarationStylesheets(compiled);
                     if (result.diagnostics.length > 0) {
@@ -2697,6 +2772,7 @@ export class CemElementRuntime {
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
                 directDataIsland(current) !== undefined,
             transientElementTags: [
+                'cem-module-url',
                 'module-url',
                 'http-request',
                 'repository-query',
@@ -2724,12 +2800,25 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         controls: readonly CemProcessingResourceControl[],
-        _token: number,
+        token: number,
     ): Promise<void> {
         const settled: Promise<void>[] = [];
         const repositoryQueries = new Set<string>();
         const storageStatuses = new Set<string>();
         for (const control of controls) {
+            if (control.kind === 'module-url') {
+                settled.push(
+                    this.startModuleUrlResource(
+                        instance,
+                        compiled,
+                        control.sliceName,
+                        control.authoredSpecifier,
+                        control.referrer,
+                        token,
+                        control.referrerSelector,
+                    ),
+                );
+            }
             if (control.kind === 'http-request') {
                 settled.push(
                     this.startHttpRequestResource(instance, compiled, {
@@ -2773,6 +2862,67 @@ export class CemElementRuntime {
         }
         this.disposeMissingRepositoryResources(instance, repositoryQueries, storageStatuses);
         return settled.length === 0 ? Promise.resolve() : Promise.all(settled).then(() => undefined);
+    }
+
+    private async startModuleUrlResource(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        sliceName: string,
+        specifier: string,
+        referrer: string | undefined,
+        token: number,
+        referrerSelector?: string,
+    ): Promise<void> {
+        let value: string | undefined;
+        let error: unknown;
+        try {
+            const resolvedReferrer = this.moduleUrlControlReferrer(
+                instance,
+                referrer,
+                referrerSelector,
+            );
+            value = await this.resolveModuleUrl(specifier, instance, compiled, resolvedReferrer);
+        } catch (caught) {
+            error = caught;
+        }
+        if (this.renderTokens.get(instance) !== token || !instance.isConnected) {
+            return;
+        }
+        const island = this.ensureDataIsland(instance);
+        const state = this.ensureInstanceState(instance, compiled, island);
+        let changed = false;
+        if (error !== undefined || value === undefined) {
+            if (Object.hasOwn(state.slices, sliceName)) {
+                delete state.slices[sliceName];
+                changed = true;
+            }
+            delete state.eventPayloads[sliceName];
+            this.recordDiagnostics(instance, [
+                resourceDiagnostic(
+                    'cem-element.module_url_resolve_failed',
+                    `cem-module-url \`${specifier}\` could not be resolved: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`,
+                    compiled.producedTag,
+                ),
+            ]);
+        } else {
+            if (state.slices[sliceName] !== value) {
+                state.slices[sliceName] = value;
+                changed = true;
+            }
+            state.eventPayloads[sliceName] = {
+                type: 'module-url',
+                src: specifier,
+                referrer,
+                ...(referrerSelector === undefined ? {} : { referrerSelector }),
+                value,
+            };
+        }
+        if (changed) {
+            this.renderInstance(instance, compiled);
+            await this.whenRenderSettled(instance);
+        }
     }
 
     private nextRenderToken(instance: HTMLElement): number {
@@ -3350,7 +3500,7 @@ export class CemElementRuntime {
             compiled,
             Array.from(
                 rendered.querySelectorAll(
-                    'module-url,http-request,repository-query,storage-status,local-storage,location-element',
+                    'cem-module-url,module-url,http-request,repository-query,storage-status,local-storage,location-element',
                 ),
             ),
             token,
@@ -3368,7 +3518,7 @@ export class CemElementRuntime {
             compiled,
             renderedElementsBetween(
                 bounds,
-                'module-url,http-request,repository-query,storage-status,local-storage,location-element',
+                'cem-module-url,module-url,http-request,repository-query,storage-status,local-storage,location-element',
             ),
             token,
         );
@@ -3388,24 +3538,34 @@ export class CemElementRuntime {
             const localName = element.localName;
             const sliceName = element.getAttribute('slice')?.trim() ?? '';
             const specifier = element.getAttribute('src')?.trim() ?? '';
+            const referrerProperty = (element as Element & { referrer?: unknown }).referrer;
+            const referrer =
+                isDomNode(referrerProperty)
+                    ? referrerProperty
+                    : element.getAttribute('referrer')?.trim() || undefined;
+            const referrerSelector = element.getAttribute('referrer-selector')?.trim() || undefined;
             const httpRequest = localName === 'http-request' ? readHttpRequestDeclaration(element) : null;
             const repositoryQuery = localName === 'repository-query' ? readRepositoryQueryDeclaration(element) : null;
             const storageStatus = localName === 'storage-status' ? readStorageStatusDeclaration(element) : null;
             const localStorage = localName === 'local-storage' ? readLocalStorageDeclaration(element) : null;
             const locationElement = localName === 'location-element' ? readLocationElementDeclaration(element) : null;
             element.remove();
-            if (localName === 'module-url') {
+            if (localName === 'cem-module-url' || localName === 'module-url') {
                 if (!sliceName || !specifier) {
                     continue;
                 }
                 moduleTasks.push(
-                    this.resolveModuleUrl(specifier, instance.ownerDocument, compiled.resourceBaseUrl)
-                        .then((value) => ({ kind: 'module-url' as const, sliceName, specifier, value }))
+                    Promise.resolve()
+                        .then(() => this.moduleUrlControlReferrer(instance, referrer, referrerSelector))
+                        .then((resolvedReferrer) =>
+                            this.resolveModuleUrl(specifier, instance, compiled, resolvedReferrer),
+                        )
+                        .then((value) => ({ kind: 'module-url' as const, sliceName, specifier, referrer, value }))
                         .catch((error: unknown) => ({
                             kind: 'module-url' as const,
                             sliceName,
                             specifier,
-                            value: specifier,
+                            referrer,
                             error,
                         })),
                 );
@@ -3448,6 +3608,23 @@ export class CemElementRuntime {
             const diagnostics: CemElementDiagnostic[] = [];
             for (const result of resolved) {
                 if (result.kind === 'module-url') {
+                    if (result.error) {
+                        if (Object.hasOwn(state.slices, result.sliceName)) {
+                            delete state.slices[result.sliceName];
+                            changed = true;
+                        }
+                        delete state.eventPayloads[result.sliceName];
+                        diagnostics.push(
+                            resourceDiagnostic(
+                                'cem-element.module_url_resolve_failed',
+                                `cem-module-url \`${result.specifier}\` could not be resolved: ${
+                                    result.error instanceof Error ? result.error.message : String(result.error)
+                                }`,
+                                compiled.producedTag,
+                            ),
+                        );
+                        continue;
+                    }
                     if (state.slices[result.sliceName] !== result.value) {
                         state.slices[result.sliceName] = result.value;
                         changed = true;
@@ -3455,19 +3632,10 @@ export class CemElementRuntime {
                     state.eventPayloads[result.sliceName] = {
                         type: 'module-url',
                         src: result.specifier,
+                        referrer:
+                            typeof result.referrer === 'string' ? result.referrer : result.referrer?.baseURI,
                         value: result.value,
                     };
-                    if (result.error) {
-                        diagnostics.push(
-                            resourceDiagnostic(
-                                'cem-element.module_url_resolve_failed',
-                                `module-url \`${result.specifier}\` could not be resolved: ${
-                                    result.error instanceof Error ? result.error.message : String(result.error)
-                                }`,
-                                compiled.producedTag,
-                            ),
-                        );
-                    }
                     continue;
                 }
             }
@@ -3480,19 +3648,223 @@ export class CemElementRuntime {
         return Promise.all([modulesSettled, ...resourcesSettled]).then(() => undefined);
     }
 
-    private resolveModuleUrl(specifier: string, baseDocument: Document, resourceBaseUrl: string): Promise<string> {
-        const key = `${resourceBaseUrl}\n${specifier}`;
+    private moduleUrlControlReferrer(
+        instance: HTMLElement,
+        referrer: CemModuleUrlReferrer | undefined,
+        referrerSelector: string | undefined,
+    ): CemModuleUrlReferrer | undefined {
+        if (referrerSelector === undefined) {
+            return referrer;
+        }
+        if (referrer !== undefined) {
+            throw new Error('cem-module-url cannot combine `referrer` and `referrer-selector`');
+        }
+        let matches: Element[];
+        try {
+            matches = Array.from(instance.querySelectorAll(referrerSelector));
+        } catch (error) {
+            throw new Error(
+                `cem-module-url referrer selector \`${referrerSelector}\` is invalid: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+                { cause: error },
+            );
+        }
+        if (matches.length !== 1) {
+            throw new Error(
+                `cem-module-url referrer selector \`${referrerSelector}\` must match exactly one rendered descendant; matched ${matches.length}`,
+            );
+        }
+        if (!this.moduleUrlContextForNode(matches[0])) {
+            throw new Error(
+                `cem-module-url referrer selector \`${referrerSelector}\` did not select a live CEM resolution context`,
+            );
+        }
+        return matches[0];
+    }
+
+    private moduleUrlRoot(document: Document): CemBrowserModuleUrlRoot {
+        const existing = this.browserModuleRoots.get(document);
+        if (existing) {
+            return existing;
+        }
+        const configured: CemBrowserModuleUrlRootOptions = typeof this.moduleUrlRootOption === 'function'
+            ? this.moduleUrlRootOption(document)
+            : this.moduleUrlRootOption ?? {};
+        const root = createBrowserModuleUrlRoot(document, this.scopePolicyStamp, configured);
+        this.browserModuleRoots.set(document, root);
+        return root;
+    }
+
+    private ensureModuleUrlContext(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+    ): CemBrowserModuleUrlContext {
+        const existing = this.moduleInstanceContexts.get(instance);
+        if (existing) {
+            return existing;
+        }
+        const root = this.moduleUrlRoot(instance.ownerDocument);
+        const parent = this.parentModuleUrlContext(instance) ?? root.context;
+        const context = createBrowserModuleUrlContext(
+            parent,
+            `${compiled.artifactId}:${++this.moduleContextSequence}`,
+            compiled.resourceBaseUrl,
+            compiled.resolverIdentity,
+            this.scopePolicyStamp,
+            compiled.moduleMap,
+        );
+        this.moduleInstanceContexts.set(instance, context);
+        if (root.diagnostics.length > 0) {
+            this.recordDiagnostics(
+                instance,
+                root.diagnostics.map((message) => resourceDiagnostic(
+                    'cem-element.module_url_import_map_invalid',
+                    message,
+                    compiled.producedTag,
+                )),
+            );
+        }
+        return context;
+    }
+
+    private parentModuleUrlContext(instance: HTMLElement): CemBrowserModuleUrlContext | undefined {
+        for (let parent = instance.parentElement; parent; parent = parent.parentElement) {
+            const context = this.moduleInstanceContexts.get(parent as HTMLElement);
+            if (context) {
+                return context;
+            }
+        }
+        return undefined;
+    }
+
+    private moduleUrlContextForNode(node: Node): CemBrowserModuleUrlContext | undefined {
+        for (let current: Node | null = node; current; current = current.parentNode) {
+            if (current.nodeType === 1) {
+                const context = this.moduleInstanceContexts.get(current as HTMLElement);
+                if (context) {
+                    return context;
+                }
+            }
+        }
+        return undefined;
+    }
+
+    private moduleUrlContextView(
+        context: CemBrowserModuleUrlContext,
+    ): CemModuleUrlResolutionContext {
+        const existing = this.moduleContextViews.get(context);
+        if (existing) {
+            return existing;
+        }
+        const view = Object.freeze({
+            identity: context.identity,
+            baseUrl: context.baseUrl,
+            resolverIdentity: context.resolverIdentity,
+            resourcePolicyStamp: context.resourcePolicyStamp,
+        });
+        this.moduleContextViews.set(context, view);
+        return view;
+    }
+
+    private async resolveModuleUrl(
+        specifier: string,
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        referrer?: CemModuleUrlReferrer,
+    ): Promise<string> {
+        const baseDocument = instance.ownerDocument;
+        const currentContext = this.ensureModuleUrlContext(instance, compiled);
+        const contextualReferrer: CemModuleUrlResolutionReferrer | undefined = typeof referrer === 'string'
+            ? { kind: 'url', value: referrer }
+            : referrer
+              ? (() => {
+                    const context = this.moduleUrlContextForNode(referrer);
+                    if (!context) {
+                        throw new Error('the module URL referrer Node has no live CEM resolution context');
+                    }
+                    return { kind: 'context' as const, context };
+                })()
+              : undefined;
+        const referrerKey =
+            contextualReferrer?.kind === 'url'
+                ? `url:${contextualReferrer.value}`
+                : contextualReferrer
+                  ? `context:${contextualReferrer.context.identity}`
+                  : 'contextual';
+        const key = `${currentContext.identity}\n${referrerKey}\n${specifier}`;
         const cached = this.moduleUrls.get(key);
         if (cached) {
             return cached;
         }
-        const resolved = Promise.resolve(
-            this.resolveModuleUrlOption
-                ? this.resolveModuleUrlOption(specifier, baseDocument, resourceBaseUrl)
-                : defaultResolveModuleUrl(specifier, resourceBaseUrl),
-        ).then((value) => String(value));
+        const request: CemModuleUrlResolutionRequest = {
+            purpose: 'template-slice',
+            authoredSpecifier: specifier,
+            currentContext: this.moduleUrlContextView(currentContext),
+            ...(contextualReferrer === undefined
+                ? {}
+                : {
+                      referrer: contextualReferrer.kind === 'url'
+                          ? contextualReferrer
+                          : {
+                                kind: 'context' as const,
+                                context: this.moduleUrlContextView(
+                                    contextualReferrer.context as CemBrowserModuleUrlContext,
+                                ),
+                            },
+                  }),
+        };
+        const resolved = this.resolveScopedModuleUrlOption
+            ? Promise.resolve(this.resolveScopedModuleUrlOption(request)).then((value) =>
+                  resolvedModuleUrlString(typeof value === 'string' ? value : value.resolvedUrl),
+              )
+            : this.resolveModuleUrlOption
+              ? this.resolveCompatibilityModuleUrl(
+                    specifier,
+                    referrer,
+                    baseDocument,
+                    compiled.resourceBaseUrl,
+                ).then(resolvedModuleUrlString)
+              : resolveBrowserModuleUrl(
+                    currentContext,
+                    specifier,
+                    contextualReferrer?.kind === 'context'
+                        ? { kind: 'context', context: contextualReferrer.context as CemBrowserModuleUrlContext }
+                        : contextualReferrer,
+                ).then((resolution) => resolution.resolvedUrl);
         this.moduleUrls.set(key, resolved);
         return resolved;
+    }
+
+    private async resolveCompatibilityModuleUrl(
+        specifier: string,
+        referrer: CemModuleUrlReferrer | undefined,
+        baseDocument: Document,
+        resourceBaseUrl: string,
+    ): Promise<string> {
+        if (isDomNode(referrer)) {
+            throw new Error(
+                'a Node module referrer requires the scope-aware `resolveScopedModuleUrl` host capability',
+            );
+        }
+        let effectiveReferrer = resourceBaseUrl;
+        if (referrer !== undefined) {
+            const absolute = absoluteUrl(referrer);
+            if (absolute) {
+                effectiveReferrer = absolute;
+            } else {
+                effectiveReferrer = String(
+                    this.resolveModuleUrlOption
+                        ? await this.resolveModuleUrlOption(referrer, baseDocument, resourceBaseUrl)
+                        : defaultResolveModuleUrl(referrer, resourceBaseUrl),
+                );
+            }
+        }
+        return String(
+            this.resolveModuleUrlOption
+                ? await this.resolveModuleUrlOption(specifier, baseDocument, effectiveReferrer, referrer)
+                : defaultResolveModuleUrl(specifier, effectiveReferrer),
+        );
     }
 
     private startRepositoryQueryResource(
@@ -4799,6 +5171,7 @@ export class CemElementRuntime {
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
                 directDataIsland(current) !== undefined,
             transientElementTags: [
+                'cem-module-url',
                 'module-url',
                 'http-request',
                 'repository-query',
@@ -5204,6 +5577,7 @@ function compileInlineDeclaration(
         sourceRef: options.source.sourceRef,
         resolverIdentity: options.source.resolverIdentity,
         resourceBaseUrl: options.source.resourceBaseUrl,
+        moduleMap: null,
         template,
         templateSource,
         mode,
@@ -5647,11 +6021,32 @@ function defaultResolveModuleUrl(specifier: string, resourceBaseUrl: string): st
     if (isUrlLikeSpecifier(trimmed)) {
         return new URL(trimmed, resourceBaseUrl).href;
     }
-    const importMeta = import.meta as ImportMeta & { resolve?: (specifier: string) => string };
-    if (typeof importMeta.resolve === 'function') {
-        return importMeta.resolve(trimmed);
+    throw new Error(
+        `cannot resolve \`${specifier}\`; bare module specifiers need a host \`resolveScopedModuleUrl\``,
+    );
+}
+
+function resolvedModuleUrlString(value: string): string {
+    const resolved = absoluteUrl(String(value).trim());
+    if (!resolved) {
+        throw new Error(`module URL resolver returned a non-absolute URL \`${String(value)}\``);
     }
-    throw new Error(`cannot resolve \`${specifier}\`; bare module specifiers need a host \`resolveModuleUrl\``);
+    return resolved;
+}
+
+function absoluteUrl(value: string): string | null {
+    try {
+        return new URL(value).href;
+    } catch {
+        return null;
+    }
+}
+
+function isDomNode(value: unknown): value is Node {
+    return typeof value === 'object'
+        && value !== null
+        && typeof (value as { nodeType?: unknown }).nodeType === 'number'
+        && typeof (value as { nodeName?: unknown }).nodeName === 'string';
 }
 
 function readHttpRequestDeclaration(element: Element): HttpRequestDeclaration | null {
@@ -7404,6 +7799,7 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
             return false;
         }
         return (
+            node.tag === 'cem-module-url' ||
             node.tag === 'module-url' ||
             node.tag === 'http-request' ||
             node.tag === 'repository-query' ||
@@ -7417,7 +7813,11 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
 }
 
 function containsNonHttpRuntimeResourceDirective(source: string): boolean {
-    return /\{\s*(?:module-url|local-storage|location-element)(?=\s|@|\||\})/.test(source);
+    return /\{\s*(?:cem-module-url|module-url|local-storage|location-element)(?=\s|@|\||\})/.test(source);
+}
+
+function containsModuleMapPrelude(source: string): boolean {
+    return /\{\s*module-map(?=\s|@|\||\})/.test(source);
 }
 
 function templateValues(

@@ -26,7 +26,12 @@
     {elements |
         {element @name="attribute" @required-attributes="name" @optional-attributes="select" @children="*"}
         {element @name="slice" @required-attributes="name" @children="*"}
-        {element @name="module-url" @required-attributes="slice src"}
+        {element @name="cem-module-url" @required-attributes="slice src" @optional-attributes="referrer referrer-selector"}
+        {element @name="module-map"}
+        {element @name="import" @required-attributes="specifier target"}
+        {element @name="resource" @required-attributes="specifier target" @optional-attributes="content-type integrity"}
+        {element @name="scope" @required-attributes="prefix"}
+        {element @name="module-url" @required-attributes="slice src" @optional-attributes="referrer"}
         {element @name="data" @optional-attributes="value" @children="*"}
         {element @name="option" @optional-attributes="value" @children="*"}
     }
@@ -36,6 +41,7 @@
         {attribute @name="select" @type="schema:string"}
         {attribute @name="slice" @type="schema:identifier"}
         {attribute @name="src" @type="schema:string"}
+        {attribute @name="referrer" @type="schema:string"}
         {attribute @name="value" @type="schema:string"}
     }
 

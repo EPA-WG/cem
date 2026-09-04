@@ -2,6 +2,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use cem_ml::lifecycle::LoadedInputAstStream;
+use cem_ml::module_resolution::{
+    CemModuleUrlContext, CemModuleUrlFrame, CemModuleUrlMapping, CemModuleUrlResolutionCapability,
+    CemResolutionContextHandle, CemScopedModuleUrlResolver,
+};
 use cem_ml::resolver::{ResolverPolicy, ResolverRegistry};
 use cem_ml::source::ByteRange;
 use cem_ml::source_map::{FrameSpan, SourceMapStack};
@@ -33,6 +37,247 @@ fn integer_binding(value: &str) -> XPathResultSequence {
             source_map: SourceMapStack::default(),
         }],
     }
+}
+
+#[test]
+fn cem_ql_xpath_module_url_uses_the_owning_resolution_context() {
+    let expression_source = r#"cem-ql:module-url("pkg/button.js")"#;
+    let (slot, diagnostics) =
+        cem_ql_xpath_expression_slot_from_source_bytes(CemQlXPathExpressionSlotRequest {
+            bytes: expression_source.as_bytes(),
+            source_uri: "memory://module-url.cem-ql",
+            source_id: 91,
+            slot_path: "module/functions/module-url/xpath",
+            owner_range: XPathSourceRange::new(1, 1, 0, expression_source.len() as u64),
+            expression_range: XPathSourceRange::new(1, 1, 0, expression_source.len() as u64),
+            static_context: XPathStaticContext::default(),
+            expected_result: Some(XPathExpectedResult {
+                sequence_type: "xs:anyURI".to_owned(),
+                min_items: Some(1),
+                max_items: Some(1),
+            }),
+            evaluation_phase: XPathEvaluationPhase::Runtime,
+            resolver_policy_stamp: Some("resolver:cem-ql-runtime"),
+            safety_policy_stamp: Some("xpath-safety/1;cem-ql-expression-slot"),
+        });
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let slot = slot.expect("module URL XPath slot");
+
+    let handle = CemResolutionContextHandle::new("xpath-query-test");
+    let mut frame = CemModuleUrlFrame::new("template", "https://example.test/card/card.cem");
+    frame.specifiers.imports.insert(
+        "pkg/".to_owned(),
+        CemModuleUrlMapping::target("https://cdn.example.test/pkg/"),
+    );
+    let resolver = CemScopedModuleUrlResolver::new().with_context(
+        handle.clone(),
+        CemModuleUrlContext {
+            identity: "xpath-query-context:v1".to_owned(),
+            resolver_identity: "xpath-query-resolver:v1".to_owned(),
+            resource_policy_stamp: "xpath-query-policy:v1".to_owned(),
+            frames: vec![frame],
+        },
+    );
+    let capability = CemModuleUrlResolutionCapability::new(Arc::new(resolver), handle);
+    let resolver_registry = ResolverRegistry::new();
+    let resolver_policy = ResolverPolicy::new();
+    let unavailable = invoke_cem_ql_xpath_expression_slot(
+        &slot,
+        &CemQlXPathHostBindings::default(),
+        XPathEvaluationLimits::default(),
+        CemQlXPathRuntimeContext {
+            resolver_registry: &resolver_registry,
+            resolver_policy: &resolver_policy,
+            module_resolution: None,
+        },
+    )
+    .expect_err("module URL resolution requires its host capability");
+    assert_eq!(unavailable[0].code, "cem.xpath.module_url_unavailable");
+    let result = invoke_cem_ql_xpath_expression_slot(
+        &slot,
+        &CemQlXPathHostBindings::default(),
+        XPathEvaluationLimits::default(),
+        CemQlXPathRuntimeContext {
+            resolver_registry: &resolver_registry,
+            resolver_policy: &resolver_policy,
+            module_resolution: Some(&capability),
+        },
+    )
+    .expect("CEM-QL XPath module URL resolution");
+
+    let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice() else {
+        panic!("expected one xs:anyURI result: {result:?}");
+    };
+    assert_eq!(value.type_name, "xs:anyURI");
+    assert_eq!(
+        value.lexical_value,
+        "https://cdn.example.test/pkg/button.js"
+    );
+    assert_eq!(source_map.frames[0].source_id.0, 91);
+}
+
+#[test]
+fn cem_ql_xpath_module_url_accepts_a_scalar_referrer() {
+    let expression_source =
+        r#"cem-ql:module-url("./asset.css", "https://cdn.example.test/pkg/module.js")"#;
+    let (slot, diagnostics) =
+        cem_ql_xpath_expression_slot_from_source_bytes(CemQlXPathExpressionSlotRequest {
+            bytes: expression_source.as_bytes(),
+            source_uri: "memory://module-url-referrer.cem-ql",
+            source_id: 92,
+            slot_path: "module/functions/module-url-referrer/xpath",
+            owner_range: XPathSourceRange::new(1, 1, 0, expression_source.len() as u64),
+            expression_range: XPathSourceRange::new(1, 1, 0, expression_source.len() as u64),
+            static_context: XPathStaticContext::default(),
+            expected_result: Some(XPathExpectedResult {
+                sequence_type: "xs:anyURI".to_owned(),
+                min_items: Some(1),
+                max_items: Some(1),
+            }),
+            evaluation_phase: XPathEvaluationPhase::Runtime,
+            resolver_policy_stamp: Some("resolver:cem-ql-runtime"),
+            safety_policy_stamp: Some("xpath-safety/1;cem-ql-expression-slot"),
+        });
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let handle = CemResolutionContextHandle::new("xpath-scalar-referrer");
+    let resolver = CemScopedModuleUrlResolver::new().with_context(
+        handle.clone(),
+        CemModuleUrlContext {
+            identity: "xpath-scalar-context:v1".to_owned(),
+            resolver_identity: "xpath-query-resolver:v1".to_owned(),
+            resource_policy_stamp: "xpath-query-policy:v1".to_owned(),
+            frames: vec![CemModuleUrlFrame::new(
+                "page",
+                "https://example.test/index.html",
+            )],
+        },
+    );
+    let capability = CemModuleUrlResolutionCapability::new(Arc::new(resolver), handle);
+    let resolver_registry = ResolverRegistry::new();
+    let resolver_policy = ResolverPolicy::new();
+    let result = invoke_cem_ql_xpath_expression_slot(
+        &slot.expect("module URL XPath slot"),
+        &CemQlXPathHostBindings::default(),
+        XPathEvaluationLimits::default(),
+        CemQlXPathRuntimeContext {
+            resolver_registry: &resolver_registry,
+            resolver_policy: &resolver_policy,
+            module_resolution: Some(&capability),
+        },
+    )
+    .expect("scalar module referrer resolves");
+
+    let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
+        panic!("expected one URI result: {result:?}");
+    };
+    assert_eq!(
+        value.lexical_value,
+        "https://cdn.example.test/pkg/asset.css"
+    );
+}
+
+#[test]
+fn cem_ql_xpath_module_url_accepts_a_descendant_node_referrer() {
+    let expression_source = r#"cem-ql:module-url("asset", $referrer)"#;
+    let static_context = XPathStaticContext {
+        variable_bindings: BTreeMap::from([("referrer".to_owned(), "node()".to_owned())]),
+        ..XPathStaticContext::default()
+    };
+    let (slot, diagnostics) =
+        cem_ql_xpath_expression_slot_from_source_bytes(CemQlXPathExpressionSlotRequest {
+            bytes: expression_source.as_bytes(),
+            source_uri: "memory://module-url-node-referrer.cem-ql",
+            source_id: 93,
+            slot_path: "module/functions/module-url-node-referrer/xpath",
+            owner_range: XPathSourceRange::new(1, 1, 0, expression_source.len() as u64),
+            expression_range: XPathSourceRange::new(1, 1, 0, expression_source.len() as u64),
+            static_context,
+            expected_result: Some(XPathExpectedResult {
+                sequence_type: "xs:anyURI".to_owned(),
+                min_items: Some(1),
+                max_items: Some(1),
+            }),
+            evaluation_phase: XPathEvaluationPhase::Runtime,
+            resolver_policy_stamp: Some("resolver:cem-ql-runtime"),
+            safety_policy_stamp: Some("xpath-safety/1;cem-ql-expression-slot"),
+        });
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+    let root_handle = CemResolutionContextHandle::new("xpath-node-root");
+    let child_handle = CemResolutionContextHandle::new("xpath-node-child");
+    let root_frame = CemModuleUrlFrame::new("page", "https://example.test/index.html");
+    let mut child_frame =
+        CemModuleUrlFrame::new("template", "https://example.test/components/card.cem");
+    child_frame.specifiers.resources.insert(
+        "asset".to_owned(),
+        CemModuleUrlMapping::target("./card.css"),
+    );
+    let resolver = CemScopedModuleUrlResolver::new()
+        .with_context(
+            root_handle.clone(),
+            CemModuleUrlContext {
+                identity: "xpath-node-root:v1".to_owned(),
+                resolver_identity: "xpath-query-resolver:v1".to_owned(),
+                resource_policy_stamp: "xpath-query-policy:v1".to_owned(),
+                frames: vec![root_frame.clone()],
+            },
+        )
+        .with_child_context(
+            child_handle.clone(),
+            root_handle.clone(),
+            CemModuleUrlContext {
+                identity: "xpath-node-child:v1".to_owned(),
+                resolver_identity: "xpath-query-resolver:v1".to_owned(),
+                resource_policy_stamp: "xpath-query-policy:v1".to_owned(),
+                frames: vec![root_frame, child_frame],
+            },
+        );
+    let capability = CemModuleUrlResolutionCapability::new(Arc::new(resolver), root_handle);
+    let (document, diagnostics) = xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+        bytes: br#"<root/>"#,
+        source_uri: "memory://module-url-node.xml",
+        content_type: Some("application/xml"),
+    });
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+        document.expect("typed XML document"),
+    ));
+    let referrer = XPathResultItem::from_native_node(
+        XPathNativeNode::xml_document(owner)
+            .expect("native XML document")
+            .with_resolution_context(child_handle),
+    );
+    let host_bindings = CemQlXPathHostBindings {
+        context_item: None,
+        variable_bindings: BTreeMap::from([(
+            XPathExpandedName::unqualified("referrer"),
+            XPathResultSequence {
+                sequence_type: "node()".to_owned(),
+                items: vec![referrer],
+            },
+        )]),
+    };
+    let resolver_registry = ResolverRegistry::new();
+    let resolver_policy = ResolverPolicy::new();
+    let result = invoke_cem_ql_xpath_expression_slot(
+        &slot.expect("node-referrer XPath slot"),
+        &host_bindings,
+        XPathEvaluationLimits::default(),
+        CemQlXPathRuntimeContext {
+            resolver_registry: &resolver_registry,
+            resolver_policy: &resolver_policy,
+            module_resolution: Some(&capability),
+        },
+    )
+    .expect("descendant node referrer resolves");
+
+    let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
+        panic!("expected one URI result: {result:?}");
+    };
+    assert_eq!(
+        value.lexical_value,
+        "https://example.test/components/card.css"
+    );
 }
 
 #[test]
@@ -129,6 +374,7 @@ fn schema_owned_cem_ql_xpath_slot_compiles_once_and_invokes_native_bindings() {
         CemQlXPathRuntimeContext {
             resolver_registry: &resolver_registry,
             resolver_policy: &resolver_policy,
+            module_resolution: None,
         },
     )
     .expect("CEM-QL invokes the fused XPath AST over native bindings");
@@ -177,6 +423,7 @@ fn cem_ql_xpath_adapter_rejects_non_owned_asts_and_runtime_bridges() {
             resolver_policy: &resolver_policy,
             evaluation_limits: XPathEvaluationLimits::default(),
             safety_policy_stamp: "xpath-safety/1;cem-ql-expression-slot",
+            module_resolution: None,
         })
         .expect_err("CEM-QL adapter rejects a standalone XPath AST");
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");

@@ -521,6 +521,7 @@ fn evaluate_cem_ql_behavior_query(
             diagnostics: Vec::new(),
             policy_bindings: bindings,
             current_item: None,
+            module_resolution: None,
         },
     );
     if let Some(error) = stream.error.as_ref() {
@@ -3734,6 +3735,7 @@ fn render_cem_ql_expression_payload_internal(
             diagnostics: Vec::new(),
             policy_bindings,
             current_item: None,
+            module_resolution: None,
         };
     let result = match runtime {
         Some(runtime) => evaluate_with_control(
@@ -4168,6 +4170,7 @@ fn artifact_from_nodes(source: &TemplateArtifact, nodes: Vec<TemplateNode>) -> T
     TemplateArtifact {
         nodes,
         stylesheets: source.stylesheets.clone(),
+        module_map: source.module_map.clone(),
         diagnostics: source.diagnostics.clone(),
     }
 }
@@ -6437,6 +6440,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 diagnostics: Vec::new(),
                 policy_bindings: BTreeMap::from([("input".to_owned(), input.stream().clone())]),
                 current_item: None,
+                module_resolution: None,
             },
             request.operation_control,
             request.execution_scope,

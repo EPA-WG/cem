@@ -843,6 +843,44 @@ impl TypeChecker {
             );
             return Type::Any;
         };
+        if name.local == "module_url"
+            && signature.ret == Type::atom(AtomType::AnyUri)
+            && matches!(args.len(), 1 | 2)
+        {
+            let actual = &args[0];
+            if !actual.is_any()
+                && !matches!(actual, Type::Atom(AtomType::String | AtomType::AnyUri))
+            {
+                self.emit_type_error(
+                    format!("`module_url()` expects a string or anyURI argument, got `{actual:?}`"),
+                    range,
+                    "module-url-call",
+                    Some(actual),
+                    None,
+                );
+            }
+            if let Some(actual) = args.get(1) {
+                if !actual.is_any()
+                    && !matches!(
+                        actual,
+                        Type::Atom(AtomType::String | AtomType::AnyUri)
+                            | Type::Node(_)
+                            | Type::SchemaElement(_)
+                    )
+                {
+                    self.emit_type_error(
+                        format!(
+                            "`module_url()` expects a string, anyURI, or node referrer, got `{actual:?}`"
+                        ),
+                        range,
+                        "module-url-referrer",
+                        Some(actual),
+                        None,
+                    );
+                }
+            }
+            return signature.ret;
+        }
         self.check_call_args(&signature.params, args, range);
         signature.ret
     }
@@ -999,6 +1037,7 @@ impl TypeChecker {
             ("dt", "cem:stdlib/datetime"),
             ("dom", "cem:stdlib/dom"),
             ("item", "cem:stdlib/items"),
+            ("module", "cem:stdlib/modules"),
             ("record", "cem:stdlib/records"),
             ("report", "cem:stdlib/report"),
             ("state", "cem:stdlib/state"),
@@ -1020,13 +1059,24 @@ impl TypeChecker {
         });
         for function in crate::stdlib::ModuleRegistry::with_all_known().functions {
             let bare = function.module == "cem:stdlib/sequence"
-                || (function.module == "cem:stdlib/content-types" && function.name == "read");
+                || (function.module == "cem:stdlib/content-types" && function.name == "read")
+                || (function.module == "cem:stdlib/modules" && function.name == "module_url");
             if bare {
-                self.register_any_function(
-                    QNameKey::new(None, function.name),
-                    function.min_arity,
-                    function.max_arity,
-                );
+                if function.module == "cem:stdlib/modules" {
+                    for arity in function.min_arity..=function.max_arity {
+                        self.register_function(FunctionSignature {
+                            name: QNameKey::new(None, function.name),
+                            params: vec![Type::Any; arity as usize],
+                            ret: Type::atom(AtomType::AnyUri),
+                        });
+                    }
+                } else {
+                    self.register_any_function(
+                        QNameKey::new(None, function.name),
+                        function.min_arity,
+                        function.max_arity,
+                    );
+                }
             }
         }
     }
@@ -1037,11 +1087,21 @@ impl TypeChecker {
             .into_iter()
             .filter(|function| function.module == module)
         {
-            self.register_any_function(
-                QNameKey::new(Some(alias.to_owned()), function.name),
-                function.min_arity,
-                function.max_arity,
-            );
+            if function.module == "cem:stdlib/modules" {
+                for arity in function.min_arity..=function.max_arity {
+                    self.register_function(FunctionSignature {
+                        name: QNameKey::new(Some(alias.to_owned()), function.name),
+                        params: vec![Type::Any; arity as usize],
+                        ret: Type::atom(AtomType::AnyUri),
+                    });
+                }
+            } else {
+                self.register_any_function(
+                    QNameKey::new(Some(alias.to_owned()), function.name),
+                    function.min_arity,
+                    function.max_arity,
+                );
+            }
         }
     }
 

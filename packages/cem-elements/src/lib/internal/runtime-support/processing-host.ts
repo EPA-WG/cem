@@ -177,6 +177,16 @@ export interface CemProcessingHttpRequestControl {
     sourceMapRef?: SourceMapRef;
 }
 
+export interface CemProcessingModuleUrlControl {
+    kind: 'module-url';
+    renderNodeId: string;
+    sliceName: string;
+    authoredSpecifier: string;
+    referrer?: string;
+    referrerSelector?: string;
+    sourceMapRef?: SourceMapRef;
+}
+
 export interface CemProcessingRepositoryQueryControl {
     kind: 'repository-query';
     renderNodeId: string;
@@ -200,6 +210,7 @@ export interface CemProcessingStorageStatusControl {
 }
 
 export type CemProcessingResourceControl =
+    | CemProcessingModuleUrlControl
     | CemProcessingHttpRequestControl
     | CemProcessingRepositoryQueryControl
     | CemProcessingStorageStatusControl;

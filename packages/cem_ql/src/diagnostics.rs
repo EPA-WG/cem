@@ -61,6 +61,20 @@ pub const ABORTED: DiagnosticCode = DiagnosticCode("cem.ql.aborted");
 pub const BUDGET_EXCEEDED: DiagnosticCode = DiagnosticCode("cem.ql.budget_exceeded");
 pub const CLOSURE_DETACHED: DiagnosticCode = DiagnosticCode("cem.ql.closure_detached");
 pub const POLICY_ACCESSOR_FAILED: DiagnosticCode = DiagnosticCode("cem.ql.policy_accessor_failed");
+pub const MODULE_URL_INVALID: DiagnosticCode = DiagnosticCode("cem.ql.module_url_invalid");
+pub const MODULE_URL_UNRESOLVED: DiagnosticCode = DiagnosticCode("cem.ql.module_url_unresolved");
+pub const MODULE_URL_BLOCKED: DiagnosticCode = DiagnosticCode("cem.ql.module_url_blocked");
+pub const MODULE_URL_POLICY_DENIED: DiagnosticCode =
+    DiagnosticCode("cem.ql.module_url_policy_denied");
+pub const MODULE_URL_UNAVAILABLE: DiagnosticCode = DiagnosticCode("cem.ql.module_url_unavailable");
+pub const MODULE_URL_REFERRER_INVALID: DiagnosticCode =
+    DiagnosticCode("cem.ql.module_url_referrer_invalid");
+pub const MODULE_URL_REFERRER_UNRESOLVED: DiagnosticCode =
+    DiagnosticCode("cem.ql.module_url_referrer_unresolved");
+pub const MODULE_URL_REFERRER_UNAVAILABLE: DiagnosticCode =
+    DiagnosticCode("cem.ql.module_url_referrer_unavailable");
+pub const MODULE_URL_REFERRER_SCOPE_DENIED: DiagnosticCode =
+    DiagnosticCode("cem.ql.module_url_referrer_scope_denied");
 
 pub const TIER_A_DIAGNOSTICS: &[DiagnosticSpec] = &[
     DiagnosticSpec {
@@ -195,6 +209,60 @@ pub const TIER_A_DIAGNOSTICS: &[DiagnosticSpec] = &[
         default_severity: Severity::Error,
         layer: "L6",
         description: "Policy-supplied resource accessor returned an error.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_INVALID,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` received an invalid URL specifier or resolution base.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_UNRESOLVED,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` could not resolve a bare specifier in the active context.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_BLOCKED,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` matched an invalid or explicitly blocked module-map entry.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_POLICY_DENIED,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` resolved a URL denied by the owning resource policy.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_UNAVAILABLE,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` was evaluated without a host resolution capability.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_REFERRER_INVALID,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` received an invalid scalar or typed-node referrer.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_REFERRER_UNRESOLVED,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` could not resolve its scalar module referrer.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_REFERRER_UNAVAILABLE,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` received a node without a live resolution context.",
+    },
+    DiagnosticSpec {
+        code: MODULE_URL_REFERRER_SCOPE_DENIED,
+        default_severity: Severity::Error,
+        layer: "L6",
+        description: "`module_url()` received a node outside the current context subtree.",
     },
 ];
 

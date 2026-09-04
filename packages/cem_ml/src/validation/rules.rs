@@ -3374,7 +3374,7 @@ const KNOWN_CEM_ELEMENTS: &[&str] = &[
 ];
 
 const KNOWN_CEM_ELEMENT_TEMPLATE_ELEMENTS: &[&str] =
-    &["attribute", "slice", "module-url", "data", "option"];
+    &["attribute", "slice", "cem-module-url", "module-url", "data", "option"];
 
 const KNOWN_CEM_ATTRIBUTES: &[&str] = &[
     "screen",

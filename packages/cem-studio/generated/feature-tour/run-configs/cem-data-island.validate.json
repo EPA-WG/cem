@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/cem-data-island/complete-instance.cem",
+      "rootScope": {
+        "defaultContentType": "application/vnd.cem.data-island+cem",
+        "schema": "https://cem.dev/ns/runtime/data-island"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

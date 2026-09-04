@@ -10,6 +10,7 @@ pub const FUNCTIONS: &[StdlibFunction] = &[
     StdlibFunction::native(MODULE_URI, "lower", 1, Tier::A),
     StdlibFunction::native(MODULE_URI, "upper", 1, Tier::A),
     StdlibFunction::native_range(MODULE_URI, "slice", 2, 3, Tier::A),
+    StdlibFunction::native_range(MODULE_URI, "shorten", 2, 3, Tier::A),
     StdlibFunction::native_range(MODULE_URI, "concat", 1, 2, Tier::A),
     StdlibFunction::native(MODULE_URI, "contains", 2, Tier::A),
     StdlibFunction::native(MODULE_URI, "starts_with", 2, Tier::A),

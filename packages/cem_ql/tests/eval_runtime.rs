@@ -30,6 +30,7 @@ fn eval_with_bindings(
             diagnostics: Vec::new(),
             policy_bindings,
             current_item: None,
+            module_resolution: None,
         },
     )
 }
@@ -51,6 +52,7 @@ fn controlled_for_loop_preserves_success_and_discards_cancelled_values() {
         diagnostics: Vec::new(),
         policy_bindings: BTreeMap::new(),
         current_item: None,
+        module_resolution: None,
     };
     let ordinary = evaluate(&query, &context);
     let control = OperationControl::default();

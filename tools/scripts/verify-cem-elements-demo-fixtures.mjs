@@ -384,6 +384,34 @@ const fixtureSpecs = [
                 '/packages/cem-elements/demo/lib-dir/Smiley.svg',
             ),
             text('cem-module-link p', 'Smiley.svg'),
+            shortenedHrefText('cem-module-link image-link a', 32),
+            attributeContains('cem-module-src-forms image-link:first-of-type img', 'src', 'Smiley.svg?src=relative'),
+            attributeContains('cem-module-src-forms image-link:nth-of-type(2) img', 'src', 'Smiley.svg?src=module'),
+            attributeContains('cem-module-src-forms image-link:last-of-type img', 'src', 'data:image/svg+xml,'),
+            shortenedHrefText('cem-module-src-forms image-link:first-of-type a', 32),
+            shortenedHrefText('cem-module-src-forms image-link:nth-of-type(2) a', 32),
+            shortenedHrefText('cem-module-src-forms image-link:last-of-type a', 32),
+            text('cem-module-referrer-matrix tbody tr:first-of-type td:nth-of-type(2)', 'Smiley.svg?referrer=relative'),
+            text('cem-module-referrer-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'confused.svg?referrer=module'),
+            text('cem-module-referrer-matrix tbody tr:last-of-type td:nth-of-type(2)', 'wc-square.svg?referrer=absolute'),
+            attributeContains('cem-local-map-image:first-of-type img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
+            attributeContains('cem-local-map-wrapper cem-local-map-image img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
+            shortenedHrefText('cem-local-map-image:first-of-type image-link a', 32),
+            shortenedHrefText('cem-local-map-wrapper cem-local-map-image image-link a', 32),
+            attributeContains('cem-local-map-wrapper img.node-referrer-image', 'src', 'wc-square.svg?owner=component'),
+            shortenedHrefText('cem-local-map-wrapper image-link.node-referrer-image a', 32),
+            text('cem-local-map-wrapper table.node-referrer-matrix td:first-of-type', 'Smiley.svg?referrer=node'),
+            text('cem-local-map-wrapper table.node-referrer-matrix td:nth-of-type(2)', 'wc-square.svg?owner=component'),
+            text('cem-local-map-wrapper table.node-referrer-matrix td:last-of-type', 'https://assets.example.test/logo.svg'),
+            normalizedText('cem-str-shorten-matrix tbody tr:first-of-type td:nth-of-type(2)', 'short'),
+            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'abc…hij'),
+            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(3) td:nth-of-type(2)', 'abc…ghij'),
+            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(4) td:nth-of-type(2)', 'ab...hij'),
+            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(5) td:nth-of-type(2)', 'abchij'),
+            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(6) td:nth-of-type(2)', 'αβ💠ζη'),
+            normalizedText('cem-str-shorten-matrix tbody tr:last-of-type td:nth-of-type(2)', 'https://example…emantic-card.cem'),
+            shortenedHrefText('html-demo-element[legend="image-link"] image-link a', 32),
+            countExactly('cem-module-url', 0),
         ],
     },
     {
@@ -863,7 +891,44 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/module-url.html',
         samples: [
             sampleContract('this page import maps', [text(':scope', '"lib-root"'), text(':scope', '"embed-lib"')]),
-            sampleContract('4. module path by symbolic name', [attributeContains('cem-module-link a', 'href', '/packages/custom-element/material/'), attributeContains('cem-module-link img', 'src', '/packages/cem-elements/demo/lib-dir/Smiley.svg')]),
+            sampleContract('4. module path by symbolic name', [attributeContains('cem-module-link a', 'href', '/packages/custom-element/material/'), attributeContains('cem-module-link img', 'src', '/packages/cem-elements/demo/lib-dir/Smiley.svg'), shortenedHrefText('cem-module-link image-link a', 32)]),
+            sampleContract('5. src forms: relative URL, module path, and absolute URL', [
+                attributeContains('cem-module-src-forms image-link:first-of-type img', 'src', 'Smiley.svg?src=relative'),
+                attributeContains('cem-module-src-forms image-link:nth-of-type(2) img', 'src', 'Smiley.svg?src=module'),
+                attributeContains('cem-module-src-forms image-link:last-of-type img', 'src', 'data:image/svg+xml,'),
+                shortenedHrefText('cem-module-src-forms image-link:first-of-type a', 32),
+                shortenedHrefText('cem-module-src-forms image-link:nth-of-type(2) a', 32),
+                shortenedHrefText('cem-module-src-forms image-link:last-of-type a', 32),
+            ]),
+            sampleContract('6. src by scalar referrer matrix', [
+                text('cem-module-referrer-matrix tbody tr:first-of-type td:first-of-type', 'Smiley.svg?case=relative-relative'),
+                text('cem-module-referrer-matrix tbody tr:first-of-type td:nth-of-type(2)', 'Smiley.svg?referrer=relative'),
+                text('cem-module-referrer-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'confused.svg?referrer=module'),
+                text('cem-module-referrer-matrix tbody tr:last-of-type td:first-of-type', 'https://referrer.example.test/lib-dir/Smiley.svg?case=relative-absolute'),
+                text('cem-module-referrer-matrix tbody tr:last-of-type td:nth-of-type(2)', 'wc-square.svg?referrer=absolute'),
+            ]),
+            sampleContract('7. component-local map: naked, wrapper override, and node referrer', [
+                attributeContains('cem-local-map-image:first-of-type img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
+                attributeContains('cem-local-map-wrapper cem-local-map-image img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
+                shortenedHrefText('cem-local-map-image:first-of-type image-link a', 32),
+                shortenedHrefText('cem-local-map-wrapper cem-local-map-image image-link a', 32),
+                attributeContains('cem-local-map-wrapper img.node-referrer-image', 'src', 'wc-square.svg?owner=component'),
+                shortenedHrefText('cem-local-map-wrapper image-link.node-referrer-image a', 32),
+                text('cem-local-map-wrapper table.node-referrer-matrix td:first-of-type', 'Smiley.svg?referrer=node'),
+                text('cem-local-map-wrapper table.node-referrer-matrix td:nth-of-type(2)', 'wc-square.svg?owner=component'),
+                text('cem-local-map-wrapper table.node-referrer-matrix td:last-of-type', 'https://assets.example.test/logo.svg'),
+                countExactly('cem-module-url', 0),
+            ]),
+            sampleContract('8. str:shorten query/result matrix', [
+                normalizedText('cem-str-shorten-matrix tbody tr:first-of-type td:nth-of-type(2)', 'short'),
+                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'abc…hij'),
+                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(3) td:nth-of-type(2)', 'abc…ghij'),
+                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(4) td:nth-of-type(2)', 'ab...hij'),
+                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(5) td:nth-of-type(2)', 'abchij'),
+                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(6) td:nth-of-type(2)', 'αβ💠ζη'),
+                normalizedText('cem-str-shorten-matrix tbody tr:last-of-type td:nth-of-type(2)', 'https://example…emantic-card.cem'),
+            ]),
+            sampleContract('image-link', [shortenedHrefText('image-link a', 32)]),
         ],
     },
     {
@@ -895,6 +960,28 @@ const sourceHarnessHtml = `<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-elements/demo/lib-dir/Smiley.svg": "/packages/cem-elements/demo/lib-dir/Smiley.svg",
+                "@epa-wg/material": "/packages/custom-element/material/",
+                "demo-src-image": "/packages/cem-elements/demo/lib-dir/Smiley.svg?src=module",
+                "demo-referrer-image": "/packages/cem-elements/demo/lib-dir/Smiley.svg?referrer=default",
+                "demo-module-referrer": "/packages/cem-elements/demo/module-referrer/component.js"
+            },
+            "scopes": {
+                "/packages/cem-elements/demo/relative-referrer/": {
+                    "demo-referrer-image": "/packages/cem-elements/demo/lib-dir/Smiley.svg?referrer=relative"
+                },
+                "/packages/cem-elements/demo/module-referrer/": {
+                    "demo-referrer-image": "/packages/cem-elements/demo/confused.svg?referrer=module"
+                },
+                "https://referrer.example.test/absolute/": {
+                    "demo-referrer-image": "/packages/cem-elements/demo/wc-square.svg?referrer=absolute"
+                }
+            }
+        }
+    </script>
     <script>${htmlDemoElementModule}</script>
     <script>
         localStorage.setItem('cemDemoDraft', 'stored initial');
@@ -916,17 +1003,7 @@ const sourceHarnessHtml = `<!doctype html>
     </script>
     <script type="module">
         import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';
-        installCemElementRuntime(window, {
-            resolveModuleUrl(specifier, document, resourceBaseUrl) {
-                if (specifier === '@epa-wg/cem-elements/demo/lib-dir/Smiley.svg') {
-                    return new URL('/packages/cem-elements/demo/lib-dir/Smiley.svg', document.baseURI).href;
-                }
-                if (specifier === '@epa-wg/material') {
-                    return new URL('/packages/custom-element/material/', document.baseURI).href;
-                }
-                return new URL(specifier, resourceBaseUrl).href;
-            },
-        });
+        installCemElementRuntime(window);
     </script>
 </head>
 <body></body>
@@ -977,7 +1054,8 @@ try {
         page.on('pageerror', (error) => pageErrors.push(error.message));
         page.on('console', (message) => {
             if (message.type() === 'error') {
-                pageErrors.push(message.text());
+                const location = message.location().url;
+                pageErrors.push(location ? `${message.text()} (${location})` : message.text());
             }
         });
         await installOfflineRoutes(page);
@@ -1017,7 +1095,8 @@ try {
         page.on('pageerror', (error) => pageErrors.push(error.message));
         page.on('console', (message) => {
             if (message.type() === 'error') {
-                pageErrors.push(message.text());
+                const location = message.location().url;
+                pageErrors.push(location ? `${message.text()} (${location})` : message.text());
             }
         });
         await installOfflineRoutes(page);
@@ -1241,6 +1320,9 @@ async function runCheck(page, check) {
             case 'attributeEquals':
                 await waitForExactAttribute(page, check.selector, check.name, check.expected);
                 return;
+            case 'shortenedHrefText':
+                await waitForShortenedHrefText(page, check.selector, check.maxLength, check.ellipsis);
+                return;
             case 'attributeAbsent':
                 await waitForAbsentAttribute(page, check.selector, check.name);
                 return;
@@ -1445,6 +1527,10 @@ function attributeEquals(selector, name, expected) {
     return { kind: 'attributeEquals', selector, name, expected };
 }
 
+function shortenedHrefText(selector, maxLength, ellipsis = '…') {
+    return { kind: 'shortenedHrefText', selector, maxLength, ellipsis };
+}
+
 function attributeAbsent(selector, name) {
     return { kind: 'attributeAbsent', selector, name };
 }
@@ -1583,6 +1669,29 @@ async function waitForExactAttribute(page, selector, name, expected) {
         ({ selector: checkSelector, name: attributeName, expected: checkExpected }) =>
             document.querySelector(checkSelector)?.getAttribute(attributeName) === checkExpected,
         { selector, name, expected },
+    );
+}
+
+async function waitForShortenedHrefText(page, selector, maxLength, ellipsis) {
+    await poll(
+        page,
+        ({ selector: checkSelector, maxLength: checkMaxLength, ellipsis: checkEllipsis }) => {
+            const link = document.querySelector(checkSelector);
+            const href = link?.getAttribute('href') ?? '';
+            const codepoints = Array.from(href);
+            if (!link || codepoints.length <= checkMaxLength) return false;
+            const ellipsisLength = Array.from(checkEllipsis).length;
+            if (ellipsisLength > checkMaxLength) return false;
+            const retainedLength = checkMaxLength - ellipsisLength;
+            const prefixLength = Math.floor(retainedLength / 2);
+            const suffixLength = retainedLength - prefixLength;
+            const expected = `${codepoints.slice(0, prefixLength).join('')}${checkEllipsis}${codepoints.slice(-suffixLength).join('')}`;
+            const visibleText = globalThis.__cemFixtureNormalizeText(
+                globalThis.__cemFixtureVisibleText(link),
+            );
+            return visibleText === expected && Array.from(visibleText).length === checkMaxLength;
+        },
+        { selector, maxLength, ellipsis },
     );
 }
 
@@ -1745,6 +1854,8 @@ function describeCheck(check) {
             return `attributeContains(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'attributeEquals':
             return `attributeEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
+        case 'shortenedHrefText':
+            return `shortenedHrefText(${check.selector}, ${check.maxLength}, ${JSON.stringify(check.ellipsis)})`;
         case 'attributeAbsent':
             return `attributeAbsent(${check.selector}, ${check.name})`;
         case 'svgUseReferences':

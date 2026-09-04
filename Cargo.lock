@@ -291,6 +291,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-cem",
  "ts-rs",
+ "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-time",

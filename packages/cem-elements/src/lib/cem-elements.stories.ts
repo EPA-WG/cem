@@ -2601,7 +2601,44 @@ export const UriAndModuleResolutionPolicy: Story = {
             true,
             'direct module-url setup keeps retained rendered nodes across rerender'
         );
-        assert(moduleA.querySelector('module-url') === null, 'direct module-url setup removes helper nodes after rerender');
+        assert(
+            moduleA.querySelector('cem-module-url') === null,
+            'direct cem-module-url setup removes helper nodes after rerender'
+        );
+
+        const scopedReferrer = '@scope/workers/worker.js';
+        const scopedRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-module-scoped',
+            resolveScopedModuleUrl: async (request) => {
+                assertEqual(request.purpose, 'template-slice', 'scoped resolver receives the operation purpose');
+                assertEqual(
+                    request.currentContext.baseUrl,
+                    document.baseURI,
+                    'inline cem-module-url receives the page base through its context'
+                );
+                assertEqual(request.referrer?.kind, 'url', 'scalar referrer remains typed at the host boundary');
+                assertEqual(
+                    request.referrer?.kind === 'url' ? request.referrer.value : '',
+                    scopedReferrer,
+                    'scoped resolver receives the authored scalar referrer'
+                );
+                return 'https://cdn.example.test/scoped/asset.css';
+            },
+        });
+        const scopedModule = await registerModuleUrlInstance(
+            root,
+            scopedRuntime,
+            'cem-element-story-uri-module-scoped',
+            'story-uri-module-scoped',
+            './asset.css',
+            'https://cdn.example.test/scoped/asset.css',
+            scopedReferrer
+        );
+        assertEqual(
+            scopedRuntime.snapshotInstance(scopedModule).slices.asset,
+            'https://cdn.example.test/scoped/asset.css',
+            'scope-aware cem-module-url publishes the resolved absolute URL'
+        );
 
         const failureRuntime = new CemElementRuntime({
             declarationTag: 'cem-element-story-uri-module-fail',
@@ -2615,12 +2652,12 @@ export const UriAndModuleResolutionPolicy: Story = {
             'cem-element-story-uri-module-fail',
             'story-uri-module-fail',
             '@missing/icon.svg',
-            '@missing/icon.svg'
+            null
         );
-        assertEqual(
-            requiredElement(failedModule, 'a.asset').getAttribute('href'),
-            '@missing/icon.svg',
-            'failed module-url resolution falls back to the original specifier'
+        const failedSnapshot = failureRuntime.snapshotInstance(failedModule);
+        assert(
+            !Object.hasOwn(failedSnapshot.slices, 'asset'),
+            'failed cem-module-url resolution does not publish the authored specifier as a URL'
         );
         assertDiagnostic(failureRuntime.diagnosticsFor(failedModule), 'cem-element.module_url_resolve_failed');
     },
@@ -4591,10 +4628,8 @@ export const CemMlRenderMetadataCarriesAuthorByteFrames: Story = {
             attributes: { label: 'Submit' },
         }),
     play: async ({ canvasElement }) => {
-        await nextFrame();
-
         const instance = requiredElement(canvasElement, 'story-meta-cem');
-        const section = requiredElement(instance, 'section');
+        const section = await waitForElement(instance, 'section');
         const button = requiredElement(instance, 'button');
 
         for (const el of [section, button]) {
@@ -6887,12 +6922,14 @@ async function registerModuleUrlInstance(
     declarationTag: string,
     producedTag: string,
     specifier: string,
-    expectedHref: string
+    expectedHref: string | null,
+    referrer?: string
 ): Promise<HTMLElement> {
     const declaration = document.createElement(declarationTag);
     declaration.setAttribute('tag', producedTag);
     const template = document.createElement('template');
-    template.innerHTML = `<module-url slice="asset" src="${specifier}"></module-url><a class="asset" href="{$asset}">${'${$asset}'}</a>`;
+    const referrerAttribute = referrer === undefined ? '' : ` referrer="${referrer}"`;
+    template.innerHTML = `<cem-module-url slice="asset" src="${specifier}"${referrerAttribute}></cem-module-url><a class="asset" href="{$asset}">${'${$asset}'}</a>`;
     declaration.appendChild(template);
     root.appendChild(declaration);
     assert(runtime.registerDeclaration(declaration), `${producedTag} module-url declaration registers`);
@@ -6900,10 +6937,19 @@ async function registerModuleUrlInstance(
 
     const instance = document.createElement(producedTag);
     root.appendChild(instance);
-    await waitForCondition(
-        () => instance.querySelector('a.asset')?.getAttribute('href') === expectedHref,
-        `${producedTag} module-url settles`
-    );
+    if (expectedHref === null) {
+        await waitForCondition(
+            () => runtime.diagnosticsFor(instance).some(
+                (diagnostic) => diagnostic.code === 'cem-element.module_url_resolve_failed'
+            ),
+            `${producedTag} failed cem-module-url settles`
+        );
+    } else {
+        await waitForCondition(
+            () => instance.querySelector('a.asset')?.getAttribute('href') === expectedHref,
+            `${producedTag} cem-module-url settles`
+        );
+    }
     return instance;
 }
 

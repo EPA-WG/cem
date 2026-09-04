@@ -87,6 +87,37 @@ fn precompiled_template_preserves_static_declaration_stylesheets() {
 }
 
 #[test]
+fn precompiled_template_preserves_static_module_map_metadata() {
+    let source = r#"{module-map |
+        {resource @specifier="demo-image" @target="./image.svg" @content-type="image/svg+xml"}
+        {scope @prefix="./feature/" |
+            {import @specifier="demo-code" @target="./feature.js"}
+        }
+    }
+    {cem-module-url @slice=imageUrl @src="demo-image"}"#;
+    let options = compile_options();
+    let source_driven = compile_template(source, &options);
+    let compiled =
+        compile_template_artifact(source, &options, TemplateArtifactSourceMapMode::Dev);
+    let reloaded = CompiledTemplateArtifact::from_bytes(compiled.bytes)
+        .expect("module-map artifact envelope reloads")
+        .reload(&load_context(source))
+        .expect("module-map artifact IR reloads");
+
+    assert_eq!(reloaded.module_map, source_driven.module_map);
+    let module_map = reloaded.module_map.as_ref().expect("module-map metadata");
+    assert_eq!(
+        module_map.specifiers.resources["demo-image"]
+            .content_type_hint
+            .as_deref(),
+        Some("image/svg+xml")
+    );
+    assert_eq!(module_map.scopes[0].prefix, "./feature/");
+    let rendered = render_compiled_template(&reloaded, &TemplateData::default());
+    assert!(!render_plan_to_html(&rendered).contains("module-map"));
+}
+
+#[test]
 fn template_artifact_bytes_are_deterministic() {
     let source = fixture_source();
     let options = compile_options();

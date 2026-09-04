@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use cem_ml::diagnostics::Diagnostic;
+use cem_ml::module_resolution::CemModuleUrlResolutionCapability;
 use cem_ml::resolver::{ResolverPolicy, ResolverRegistry};
 use cem_ml::validation::xpath::{
     validate_xpath_expression_ast, xpath_expression_ast_from_source_bytes,
@@ -100,6 +101,7 @@ pub struct CemQlXPathHostBindings {
 pub struct CemQlXPathRuntimeContext<'a> {
     pub resolver_registry: &'a ResolverRegistry,
     pub resolver_policy: &'a ResolverPolicy,
+    pub module_resolution: Option<&'a CemModuleUrlResolutionCapability>,
 }
 
 pub fn invoke_cem_ql_xpath_expression_slot(
@@ -131,6 +133,7 @@ pub fn invoke_cem_ql_xpath_expression_slot(
         resolver_policy: runtime.resolver_policy,
         evaluation_limits,
         safety_policy_stamp,
+        module_resolution: runtime.module_resolution,
     })
 }
 

@@ -660,6 +660,7 @@ pub fn validate_embedded_functional_fixture(
             diagnostics: Vec::new(),
             policy_bindings: fixture.bindings.clone(),
             current_item: None,
+            module_resolution: None,
         },
     ));
     report

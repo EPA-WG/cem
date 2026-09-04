@@ -36,6 +36,7 @@ pub(crate) fn evaluate_query_source_json(source: &str, bindings_json: &str) -> S
             diagnostics: Vec::new(),
             policy_bindings,
             current_item: None,
+            module_resolution: None,
         },
     );
     query_result_json(&stream).to_string()

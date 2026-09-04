@@ -736,13 +736,18 @@ impl IrLowerer {
         let arg_ids: Vec<IrId> = args.iter().map(|arg| self.lower_expr(arg)).collect();
         if let Expression::Name(name, _) = callee {
             if let Some(module) = self.stdlib_module_for(name) {
+                let ty = if module.0 == "cem:stdlib/modules" && name.local == "module_url" {
+                    Type::atom(AtomType::AnyUri)
+                } else {
+                    Type::Any
+                };
                 return self.push_node(
                     IrNode::StdlibCall {
                         module,
                         name: name.clone(),
                         args: arg_ids,
                     },
-                    Type::Any,
+                    ty,
                     range,
                     None,
                     transform,
@@ -988,6 +993,9 @@ impl IrLowerer {
     }
 
     fn stdlib_module_for(&self, name: &QName) -> Option<ModuleUri> {
+        if name.prefix.is_none() && name.local == "module_url" {
+            return Some(ModuleUri("cem:stdlib/modules".to_owned()));
+        }
         if name.prefix.is_none() && name.local == "read" {
             return Some(ModuleUri("cem:stdlib/content-types".to_owned()));
         }
@@ -1288,6 +1296,7 @@ fn stdlib_aliases() -> HashMap<String, ModuleUri> {
         ("dt", "cem:stdlib/datetime"),
         ("dom", "cem:stdlib/dom"),
         ("item", "cem:stdlib/items"),
+        ("module", "cem:stdlib/modules"),
         ("record", "cem:stdlib/records"),
         ("report", "cem:stdlib/report"),
         ("state", "cem:stdlib/state"),

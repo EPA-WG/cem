@@ -7,8 +7,11 @@ Schema URI: `https://cem.dev/ns/template/cem-element/1`
 
 Primary content type: `application/vnd.cem.element-template+cem`
 
-The profile declares `attribute`, `slice`, `module-url`, `data`, and `option`
-authoring instructions. CEM control flow remains in the core `cem:` namespace,
+The profile declares `attribute`, `slice`, canonical `cem-module-url`, its static
+`module-map` prelude entries, legacy `module-url`, `data`, and `option` authoring
+instructions. `cem-module-url` accepts a scalar `referrer` or the mutually exclusive
+browser `referrer-selector` bridge to one rendered descendant CEM context. CEM control
+flow remains in the core `cem:` namespace,
 output HTML/SVG/custom elements remain governed by their registered schemas,
 and embedded expressions remain governed by CEM-QL. The compiler makes
 `datadom`, declared attributes, and declared slices available as runtime

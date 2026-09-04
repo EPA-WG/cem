@@ -7,6 +7,11 @@ pub use syntax::*;
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{FormatIdentity, TransformTemplateKind};
 use crate::lifecycle::LoadedInputAstStream;
+use crate::module_resolution::{
+    CemModuleUrlReferrer, CemModuleUrlResolutionCapability,
+    CemModuleUrlResolutionErrorReason, CemModuleUrlResolutionPurpose,
+    CemResolutionContextHandle,
+};
 use crate::query::{
     QueryAstOwner, QueryEncodedOutput, QueryEvaluatorAdapter, QueryExecutionRequest,
     QueryExecutionResult, QueryExportFormat, QueryExportRequest, QueryInputModel, QueryInputOwner,
@@ -50,6 +55,7 @@ use xee_xpath_lexer::Token as XeeToken;
 const XPATH_PACKAGE_ID: &str = "xpath";
 const XPATH_FACT_BEHAVIOR: &str = "xpath-report-fact";
 pub const XPATH_GRAMMAR_VERSION: &str = "xpath-3.1/cem-ast-1";
+pub const CEM_QL_XPATH_FUNCTION_NAMESPACE: &str = "https://cem.dev/ns/query/cem-ql/1";
 
 #[derive(Debug, Clone, Copy)]
 pub struct XPathSourceRequest<'a> {
@@ -749,6 +755,7 @@ pub enum XPathNativeNodeHandle {
 pub struct XPathNativeNode {
     owner: Arc<LoadedInputAstStream>,
     handle: XPathNativeNodeHandle,
+    resolution_context: Option<CemResolutionContextHandle>,
 }
 
 impl std::fmt::Debug for XPathNativeNode {
@@ -816,6 +823,7 @@ impl XPathNativeNode {
         Ok(Self {
             owner,
             handle: XPathNativeNodeHandle::XmlDocument,
+            resolution_context: None,
         })
     }
 
@@ -836,6 +844,7 @@ impl XPathNativeNode {
         Ok(Self {
             owner,
             handle: XPathNativeNodeHandle::XmlEvent { event_index },
+            resolution_context: None,
         })
     }
 
@@ -864,7 +873,17 @@ impl XPathNativeNode {
                 event_index,
                 attribute_index,
             },
+            resolution_context: None,
         })
+    }
+
+    pub fn with_resolution_context(mut self, context: CemResolutionContextHandle) -> Self {
+        self.resolution_context = Some(context);
+        self
+    }
+
+    pub fn resolution_context(&self) -> Option<&CemResolutionContextHandle> {
+        self.resolution_context.as_ref()
     }
 
     pub fn owner(&self) -> &Arc<LoadedInputAstStream> {
@@ -944,6 +963,7 @@ impl XPathNativeNode {
         Self {
             owner: Arc::clone(&self.owner),
             handle: XPathNativeNodeHandle::XmlDocument,
+            resolution_context: self.resolution_context.clone(),
         }
     }
 
@@ -977,7 +997,8 @@ impl XPathNativeNode {
             if event.depth != child_depth || xpath_xml_event_node_kind(event.kind).is_none() {
                 continue;
             }
-            if let Ok(node) = Self::xml_event(Arc::clone(&self.owner), event.index) {
+            if let Ok(mut node) = Self::xml_event(Arc::clone(&self.owner), event.index) {
+                node.resolution_context = self.resolution_context.clone();
                 children.push(node);
             }
         }
@@ -1005,7 +1026,12 @@ impl XPathNativeNode {
                 attribute.qualified_name != "xmlns" && attribute.prefix.as_deref() != Some("xmlns")
             })
             .filter_map(|(attribute_index, _)| {
-                Self::xml_attribute(Arc::clone(&self.owner), event_index, attribute_index).ok()
+                Self::xml_attribute(Arc::clone(&self.owner), event_index, attribute_index)
+                    .ok()
+                    .map(|mut node| {
+                        node.resolution_context = self.resolution_context.clone();
+                        node
+                    })
             })
             .collect()
     }
@@ -1014,7 +1040,12 @@ impl XPathNativeNode {
         let event_index = match self.handle {
             XPathNativeNodeHandle::XmlDocument => return None,
             XPathNativeNodeHandle::XmlAttribute { event_index, .. } => {
-                return Self::xml_event(Arc::clone(&self.owner), event_index).ok();
+                return Self::xml_event(Arc::clone(&self.owner), event_index)
+                    .ok()
+                    .map(|mut node| {
+                        node.resolution_context = self.resolution_context.clone();
+                        node
+                    });
             }
             XPathNativeNodeHandle::XmlEvent { event_index } => event_index,
         };
@@ -1030,6 +1061,10 @@ impl XPathNativeNode {
                     && candidate.depth.saturating_add(1) == event.depth
             })
             .and_then(|parent| Self::xml_event(Arc::clone(&self.owner), parent.index).ok())
+            .map(|mut node| {
+                node.resolution_context = self.resolution_context.clone();
+                node
+            })
     }
 
     fn descendant_nodes(&self) -> Vec<Self> {
@@ -1545,18 +1580,25 @@ pub struct XPathEvaluationRequest<'a> {
     pub resolver_policy: &'a ResolverPolicy,
     pub evaluation_limits: XPathEvaluationLimits,
     pub safety_policy_stamp: &'a str,
+    /// Owning context's scope-aware module/resource URL resolver.
+    pub module_resolution: Option<&'a CemModuleUrlResolutionCapability>,
 }
 
 struct XPathEvaluationRuntime {
     limits: XPathEvaluationLimits,
     safe_points: Option<crate::operation_control::SafePointPoller>,
+    module_resolution: Option<CemModuleUrlResolutionCapability>,
 }
 
 impl XPathEvaluationRuntime {
-    fn new(limits: XPathEvaluationLimits) -> Self {
+    fn new(
+        limits: XPathEvaluationLimits,
+        module_resolution: Option<&CemModuleUrlResolutionCapability>,
+    ) -> Self {
         Self {
             limits,
             safe_points: None,
+            module_resolution: module_resolution.cloned(),
         }
     }
 
@@ -1564,6 +1606,7 @@ impl XPathEvaluationRuntime {
         limits: XPathEvaluationLimits,
         control: &crate::operation_control::OperationControl,
         scope: crate::operation_control::ExecutionScopeId,
+        module_resolution: Option<&CemModuleUrlResolutionCapability>,
     ) -> Self {
         Self {
             limits,
@@ -1571,6 +1614,7 @@ impl XPathEvaluationRuntime {
                 control.clone(),
                 scope,
             )),
+            module_resolution: module_resolution.cloned(),
         }
     }
 
@@ -1677,9 +1721,14 @@ impl CemXPathEvaluator {
             )]);
         };
         let mut runtime = control.map_or_else(
-            || XPathEvaluationRuntime::new(request.evaluation_limits),
+            || XPathEvaluationRuntime::new(request.evaluation_limits, request.module_resolution),
             |(control, scope)| {
-                XPathEvaluationRuntime::controlled(request.evaluation_limits, control, scope)
+                XPathEvaluationRuntime::controlled(
+                    request.evaluation_limits,
+                    control,
+                    scope,
+                    request.module_resolution,
+                )
             },
         );
         runtime
@@ -1935,6 +1984,7 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
                     resolver_policy: runtime.resolver_policy,
                     evaluation_limits,
                     safety_policy_stamp: &safety_policy_stamp,
+                    module_resolution: None,
                 },
                 runtime.operation_control,
                 runtime.execution_scope,
@@ -3728,6 +3778,7 @@ fn xpath_evaluate_primary(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum XPathNativeFunction {
+    CemQlModuleUrl,
     Position,
     Last,
     Count,
@@ -3795,6 +3846,12 @@ impl XPathRoundFunctionContract {
 }
 
 fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFunction> {
+    if name.namespace_uri.as_deref() == Some(CEM_QL_XPATH_FUNCTION_NAMESPACE)
+        && name.local_name == "module-url"
+        && matches!(arity, 1 | 2)
+    {
+        return Some(XPathNativeFunction::CemQlModuleUrl);
+    }
     if name.namespace_uri.as_deref() == Some("http://www.w3.org/2001/XMLSchema") && arity == 1 {
         let target = match name.local_name.as_str() {
             "untypedAtomic" => "untypedAtomic",
@@ -3846,6 +3903,7 @@ fn xpath_builtin_namespace_for_prefix(prefix: &str) -> Option<&'static str> {
         "array" => Some("http://www.w3.org/2005/xpath-functions/array"),
         "err" => Some("http://www.w3.org/2005/xqt-errors"),
         "output" => Some("http://www.w3.org/2010/xslt-xquery-serialization"),
+        "cem-ql" => Some(CEM_QL_XPATH_FUNCTION_NAMESPACE),
         _ => None,
     }
 }
@@ -4029,6 +4087,126 @@ fn xpath_evaluate_function_call(
         .expect("resolved sequence functions have one argument");
     let items =
         xpath_evaluate_expression_node(expression, argument, focus, variable_bindings, runtime)?;
+    if function == XPathNativeFunction::CemQlModuleUrl {
+        let mut atomized = xpath_atomize_cast_sequence(&items, argument.source_range)?;
+        let specifier = match atomized.as_mut_slice() {
+            [XPathCastAtomic::Untyped(value)
+            | XPathCastAtomic::String(value)
+            | XPathCastAtomic::AnyUri(value)] => std::mem::take(value),
+            _ => {
+                return Err(XPathEvaluationError::dynamic(
+                    "cem.xpath.module_url_invalid",
+                    "cem-ql:module-url() expects exactly one xs:string, xs:anyURI, or xs:untypedAtomic item",
+                    argument.source_range,
+                ))
+            }
+        };
+        let capability = runtime.module_resolution.clone().ok_or_else(|| {
+            XPathEvaluationError::dynamic(
+                "cem.xpath.module_url_unavailable",
+                "cem-ql:module-url() requires a host module URL resolution capability",
+                source_range,
+            )
+        })?;
+        let current_context = focus
+            .context_item
+            .and_then(XPathResultItem::native_node)
+            .and_then(XPathNativeNode::resolution_context)
+            .cloned()
+            .unwrap_or_else(|| capability.context().clone());
+        let referrer = if let Some(referrer_argument) = arguments.get(1) {
+            let referrer_items = xpath_evaluate_expression_node(
+                expression,
+                referrer_argument,
+                focus,
+                variable_bindings,
+                runtime,
+            )?;
+            match referrer_items.as_slice() {
+                [XPathResultItem::Atomic { value, .. }]
+                    if matches!(
+                        value.type_name.as_str(),
+                        "xs:string" | "xs:anyURI" | "xs:untypedAtomic"
+                    ) => Some(CemModuleUrlReferrer::Url(value.lexical_value.clone())),
+                [XPathResultItem::Node {
+                    native_node: Some(node),
+                    ..
+                }] => {
+                    let context = node.resolution_context().cloned().ok_or_else(|| {
+                        XPathEvaluationError::dynamic(
+                            "cem.xpath.module_url_referrer_unavailable",
+                            "cem-ql:module-url() node referrer has no live resolution context",
+                            referrer_argument.source_range,
+                        )
+                    })?;
+                    Some(CemModuleUrlReferrer::Context(context))
+                }
+                [XPathResultItem::Node { .. }] => {
+                    return Err(XPathEvaluationError::dynamic(
+                        "cem.xpath.module_url_referrer_unavailable",
+                        "cem-ql:module-url() node referrer has no retained native scope",
+                        referrer_argument.source_range,
+                    ));
+                }
+                _ => {
+                    return Err(XPathEvaluationError::dynamic(
+                        "cem.xpath.module_url_referrer_invalid",
+                        "cem-ql:module-url() expects exactly one xs:string, xs:anyURI, xs:untypedAtomic, or node referrer",
+                        referrer_argument.source_range,
+                    ));
+                }
+            }
+        } else {
+            None
+        };
+        let resolution = capability.resolve_from_context(
+            CemModuleUrlResolutionPurpose::XPath,
+            specifier,
+            &current_context,
+            referrer,
+            source_range.source_map(
+                expression.attachment.source_id(),
+                expression.source.media_type.as_str(),
+            ),
+        );
+        runtime.force(source_range)?;
+        let resolution = resolution.map_err(|error| {
+            let code = match error.reason {
+                CemModuleUrlResolutionErrorReason::Invalid => "cem.xpath.module_url_invalid",
+                CemModuleUrlResolutionErrorReason::Unresolved => "cem.xpath.module_url_unresolved",
+                CemModuleUrlResolutionErrorReason::Blocked => "cem.xpath.module_url_blocked",
+                CemModuleUrlResolutionErrorReason::PolicyDenied => {
+                    "cem.xpath.module_url_policy_denied"
+                }
+                CemModuleUrlResolutionErrorReason::Unavailable => {
+                    "cem.xpath.module_url_unavailable"
+                }
+                CemModuleUrlResolutionErrorReason::ReferrerInvalid => {
+                    "cem.xpath.module_url_referrer_invalid"
+                }
+                CemModuleUrlResolutionErrorReason::ReferrerUnresolved => {
+                    "cem.xpath.module_url_referrer_unresolved"
+                }
+                CemModuleUrlResolutionErrorReason::ReferrerUnavailable => {
+                    "cem.xpath.module_url_referrer_unavailable"
+                }
+                CemModuleUrlResolutionErrorReason::ReferrerScopeDenied => {
+                    "cem.xpath.module_url_referrer_scope_denied"
+                }
+            };
+            XPathEvaluationError::dynamic(code, error.message, source_range)
+        })?;
+        return Ok(vec![xpath_atomic_result_item(
+            expression,
+            source_range,
+            XPathAtomicValue {
+                type_name: "xs:anyURI".to_owned(),
+                lexical_value: resolution.resolved_url,
+                namespace_uri: None,
+                local_name: None,
+            },
+        )]);
+    }
     if function == XPathNativeFunction::String {
         let value = xpath_string_function_value(&items, argument.source_range)?;
         return Ok(vec![xpath_string_result_item(
@@ -4268,6 +4446,9 @@ fn xpath_evaluate_function_call(
         };
     }
     let result = match function {
+        XPathNativeFunction::CemQlModuleUrl => {
+            unreachable!("module URL functions return after host resolution")
+        }
         XPathNativeFunction::Count => xpath_numeric_result_item(
             expression,
             source_range,
@@ -10145,6 +10326,7 @@ impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
                 resolver_policy: request.resolver_policy,
                 evaluation_limits: XPathEvaluationLimits { max_sequence_items },
                 safety_policy_stamp: request.safety_policy_stamp,
+                module_resolution: None,
             },
             request.operation_control,
             request.execution_scope,
@@ -10490,6 +10672,7 @@ mod tests {
             resolver_policy: &resolver_policy,
             evaluation_limits: XPathEvaluationLimits { max_sequence_items },
             safety_policy_stamp: "xpath-safety/1;pure",
+            module_resolution: None,
         })
     }
 
@@ -11870,6 +12053,7 @@ mod tests {
             resolver_policy: &resolver_policy,
             evaluation_limits: XPathEvaluationLimits::default(),
             safety_policy_stamp: "xpath-safety/1;pure",
+            module_resolution: None,
         };
 
         assert!(request.expression.syntax_ast.is_some());
@@ -11969,6 +12153,7 @@ mod tests {
                     max_sequence_items: Some(2),
                 },
                 safety_policy_stamp: "xpath-safety/1;cemt-render",
+                module_resolution: None,
             })
             .expect("CEMT invokes the native evaluator over typed bindings");
 
@@ -12010,6 +12195,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;cemt-render",
+                module_resolution: None,
             })
             .expect_err("a CEMT adapter only accepts CEMT-owned XPath AST slots");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
@@ -12064,6 +12250,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;cemt-render",
+                module_resolution: None,
             })
             .expect_err("lexical binding keys do not alias expanded QNames");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
@@ -12184,6 +12371,7 @@ mod tests {
                     max_sequence_items: Some(2),
                 },
                 safety_policy_stamp: "xpath-safety/1;xslt-transform",
+                module_resolution: None,
             })
         };
 
@@ -12255,6 +12443,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;xslt-transform",
+                module_resolution: None,
             })
             .expect_err("an XSLT-owned AST cannot be invoked as a different host language");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
@@ -12277,6 +12466,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;xslt-transform",
+                module_resolution: None,
             })
             .expect_err("an XSLT adapter only accepts XSLT-owned XPath attributes");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
@@ -12344,6 +12534,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
+                module_resolution: None,
             })
             .expect("native path evaluation");
 
@@ -12389,6 +12580,7 @@ mod tests {
                 max_sequence_items: Some(128),
             },
             safety_policy_stamp: "xpath-safety/1;controlled-range",
+            module_resolution: None,
         };
         let evaluator = CemXPathEvaluator::default();
         let ordinary = evaluator.evaluate(request()).unwrap();
@@ -12459,6 +12651,7 @@ mod tests {
                     resolver_policy: &resolver_policy,
                     evaluation_limits: XPathEvaluationLimits::default(),
                     safety_policy_stamp: "xpath-safety/1;pure",
+                    module_resolution: None,
                 })
                 .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
 
@@ -12528,6 +12721,7 @@ mod tests {
                     resolver_policy: &resolver_policy,
                     evaluation_limits: XPathEvaluationLimits::default(),
                     safety_policy_stamp: "xpath-safety/1;pure",
+                    module_resolution: None,
                 })
                 .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"))
         };
@@ -12629,6 +12823,7 @@ mod tests {
                     resolver_policy: &resolver_policy,
                     evaluation_limits: XPathEvaluationLimits::default(),
                     safety_policy_stamp: "xpath-safety/1;pure",
+                    module_resolution: None,
                 })
                 .unwrap_or_else(|diagnostics| panic!("`{xpath_source}` failed: {diagnostics:?}"));
 
@@ -12715,6 +12910,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
+                module_resolution: None,
             })
             .expect_err("the optional namespace axis remains unsupported");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
@@ -12767,6 +12963,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
+                module_resolution: None,
             })
             .expect("native scalar evaluation");
 
@@ -17631,6 +17828,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
+                module_resolution: None,
             })
         };
         let french_default = evaluate_with_default_language("fr")
@@ -18959,6 +19157,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
+                module_resolution: None,
             })
             .expect_err("XQuery switch expressions remain outside the XPath evaluator contract");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");

@@ -26131,6 +26131,7 @@ pub fn invoke_transform_template_xpath(
             resolver_policy: runtime.resolver_policy,
             evaluation_limits,
             safety_policy_stamp: "xpath-safety/1;cemt-authored-slot",
+            module_resolution: None,
         },
         runtime.operation_control,
         runtime.execution_scope,

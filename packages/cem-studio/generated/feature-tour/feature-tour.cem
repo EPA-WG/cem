@@ -19,6 +19,10 @@
     {export @id="sample-cem-ast-projection-output" @out="../../dist/static/samples/feature-tour/resources/cem-ast-projection-basic-ast.cem-bin" @content-type="application/vnd.cem.ast+cem-bin"}
   }
 
+  {import @id="sample-cem-data-island" @src="../../../cem_ml/schema-packages/cem-data-island/v1/examples/complete-instance.cem" @content-type="application/vnd.cem.data-island+cem" @opaque=true |
+    {export @id="sample-cem-data-island-output" @out="../../dist/static/samples/feature-tour/resources/cem-data-island-complete-instance.cem" @content-type="application/vnd.cem.data-island+cem"}
+  }
+
   {import @id="sample-cem-dom-projection" @src="../../../cem_ml/schema-packages/cem-dom-projection/v1/examples/basic-dom.cem-bin" @content-type="application/vnd.cem.dom+cem-bin" @opaque=true |
     {export @id="sample-cem-dom-projection-output" @out="../../dist/static/samples/feature-tour/resources/cem-dom-projection-basic-dom.cem-bin" @content-type="application/vnd.cem.dom+cem-bin"}
   }

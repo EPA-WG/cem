@@ -166,6 +166,90 @@ registration identities may reuse an inherited or existing definition.
       brings Storybook to 134 tests and exercises A1, A2, B, and 1-13. Demo
       selectors are structural, with no `data-role`, `data-testid`, or test-only
       `id` attributes; the 15-page / 21-source-document browser gate passes.
+- [x] Fixture: load `demo/module-url.html` through a dedicated Storybook story
+      using the same external `<cem-element src="…">` boundary as the data-slices
+      demo, and verify its page-root import map, global mapping, URL-referrer
+      scope selection, published absolute URLs, and transient-control removal.
+    - Completed 2026-09-01 and expanded below: the exact five-legend source
+      contract runs in `test:unit`; the Storybook interaction loads the authored
+      HTML rather than copying its declarations and exercises root and local
+      maps through Storybook's host-owned root configuration.
+- [x] Expand `demo/module-url.html` into the executable module-resolution
+      matrix: relative, bare-module, and absolute `src` values; implicit,
+      relative-URL, bare-module, absolute-URL, and descendant-node referrers;
+      and a component-local module map shown both naked and inside an
+      outer-map wrapper whose winning mapping changes the rendered image.
+    - [x] Specify and implement component-local map ownership and selector-based
+          node referrers before relying on either capability in the fixture.
+    - [x] Cover every new legend in the exact source contract, source-loaded
+          Storybook interaction, and standalone/source demo-fixture gate.
+    - Completed 2026-09-01: static `module-map` preludes compile into portable
+      template-artifact metadata and install before local-map custom-element
+      upgrade; clone-safe `referrer-selector` controls select exactly one live
+      rendered descendant and retain shared descendant authorization. The demo
+      covers the scalar 3-by-3 matrix plus all three `src` forms through a node
+      referrer, and proves naked-inner, wrapped-outer override, and inner-only
+      fallback images. Focused native map/artifact tests, 198 package unit tests,
+      135 Storybook interactions, and the 15-page / 21-source-document browser
+      gate pass.
+- [x] Fix the module-URL `image-link` helper to invoke Tier A `str:shorten`
+      as a text expression and render resolved URL labels at no more than 32
+      codepoints while retaining the complete URL in `href`.
+    - [x] Fixture: add the helper legend to the exact source and source-loaded
+          Storybook inventories, covering file-relative, naked, and
+          wrapper-resolved URL labels.
+    - Completed 2026-09-03: `image-link` resolves its input from the declaring
+      template's URL, retains that full URL for image/link attributes, and
+      renders a 32-codepoint middle-shortened label. Exact source contracts,
+      199 unit tests, 135 Storybook interactions, typecheck, lint, and the
+      15-page / 21-source-document browser fixture gate pass.
+- [x] Add a live `str:shorten` query/result matrix to the module-URL demo.
+    - [x] Cover unchanged input, odd and even budgets, custom and empty
+          ellipses, Unicode codepoints, and a URL-shaped value in exact source,
+          Storybook, and standalone/source-loaded browser contracts.
+    - Completed 2026-09-03: the seven-row matrix displays each executable
+      CEM-QL query beside its evaluated result. All 200 unit tests, 135
+      Storybook interactions, and the 15-page / 21-source-document browser
+      fixture gate pass.
+- [x] Replace direct rendered images and links in every module-URL sample with
+      the shared `image-link` helper.
+    - [x] Resolve explicit image and link targets independently for the
+          package-logo case; same-target callers pass the resolved URL to both.
+    - [x] Prove samples 4, 5, and 7 contain no direct CEM-ML `img`/`a` output
+          and retain their resolved image, link, and shortened-label behavior.
+    - Completed 2026-09-03: samples 4, 5, and 7 now delegate image and anchor
+      rendering to `image-link`; only that helper owns CEM-ML `img`/`a` nodes.
+      Its separately resolved `src` and `href` preserve the package-README
+      case while same-target calls remain explicit. All 200 unit tests, 135
+      Storybook interactions, and the 15-page / 21-source-document fixture
+      gate pass.
+- [x] Repair module-URL example 7 after its formatting refactor split the
+      inner-only resource's `@target` attribute sigil from its name.
+    - [x] Add an exact-source guard for the complete component-local resource
+          mapping and rerun naked, wrapper-override, and node-referrer browser
+          contracts in both standalone and source-loaded contexts.
+    - Completed 2026-09-03: the inner-only mapping again declares one intact
+      `@target` attribute, and the exact-source contract rejects the split
+      `@ target` spelling. All 200 unit tests, the focused module-URL
+      Storybook interaction, lint, typecheck, and the 15-page /
+      21-source-document browser fixture gate pass.
+- [ ] Enforce one-to-one source-loaded Storybook coverage for every authored
+      sample in `packages/cem-elements/index.html` and every HTML document under
+      `packages/cem-elements/demo/`, following the current data-slices and
+      module-url pattern.
+    - [ ] Add a machine-checked page-and-legend inventory that fails when an
+          authored demo page or `html-demo-element[legend]` lacks a corresponding
+          Storybook contract, or when a contract names a removed page or legend.
+    - [ ] Load each authored HTML file through `<cem-element src="…">`; do not
+          copy its CEM-ML declarations into the story or replace host-owned
+          resource/import-map behavior with per-example resolver callbacks.
+    - [ ] Exercise every sample's observable rendered outcome in an asynchronous
+          Storybook `play` test, while retaining exact source-shape assertions in
+          `test:unit` and avoiding test-only IDs, roles, or data attributes in the
+          demo HTML.
+    - [ ] Keep `verify-demo-fixtures` as the independent standalone-page and
+          source-document browser gate, and require `test:unit`, Storybook
+          Chromium, and demo-fixture inventory checks to pass together.
 - [x] Fix sample B dynamic inline-style interpolation so mouse-event `offsetX`
       and `offsetY` values produce valid pixel lengths in `box-shadow`, with a
       native render regression and a computed-style browser assertion.
@@ -187,6 +271,94 @@ registration identities may reuse an inherited or existing definition.
       generated schema-package README, 220 native tests, 170 package unit tests,
       134 Storybook interactions, schema-package verification, typecheck, and
       the 15-page / 21-source-document browser gate pass.
+- [x] Add Tier A `str:shorten(value, max_length, ellipsis?)` with a default
+      Unicode ellipsis, codepoint-safe middle elision, suffix-favored odd
+      budgets, and marker-aware minimum-length clamping.
+    - [x] Fixture: publish and verify default, custom, and empty-marker examples
+          in the CEM-QL schema package alongside focused registry and native
+          evaluation coverage.
+    - Completed 2026-09-01: `str:shorten` is registered at arities 2–3 and
+      preserves both ends with the default `…`, arbitrary multi-codepoint, or
+      empty markers. All 234 CEM-QL tests and the CEM-QL schema-package
+      generation/verification target pass.
+- [ ] Add a pure Tier A `url:` function family (`cem:stdlib/url`) for parsing,
+      normalizing, assembling, and disassembling URLs according to the
+      [WHATWG URL Standard](https://url.spec.whatwg.org/) and the browser
+      [URL API](https://developer.mozilla.org/en-US/docs/Web/API/URL).
+    - [ ] Specify the non-mutating CEM-QL surface and exact types:
+        - `url:can_parse(input, base?) -> boolean` mirrors `URL.canParse()`;
+        - `url:href(input, base?) -> anyURI` mirrors construction plus canonical
+          `href` serialization and reports invalid input;
+        - `url:parse(input, base?) -> record?` returns `href`, `origin`,
+          `protocol`, `username`, `password`, `host`, `hostname`, `port`,
+          `pathname`, `search`, `hash`, and ordered duplicate-preserving query
+          entries, returning an empty result for invalid input;
+        - `url:assemble(parts, base?) -> anyURI` and
+          `url:with_parts(input, parts) -> anyURI` provide immutable equivalents
+          of construction and writable URL-property setters, with specified
+          precedence or diagnostics for conflicting `href`, `host`/`hostname`,
+          `port`, `search`, and query-entry inputs.
+    - [ ] Cover the complete pure
+          [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)
+          surface with an ordered `stream<record(name, value)>` parameter value:
+        - `url:params(init?) -> stream<record(name, value)>` mirrors construction
+          from a raw search string, record, or sequence of two-item pairs; a
+          leading `?` is stripped, but a complete URL string is not parsed;
+        - `url:params_size(params) -> integer`,
+          `url:params_entries(params) -> stream<record(name, value)>`,
+          `url:params_keys(params) -> stream<string>`, and
+          `url:params_values(params) -> stream<string>` cover `size`, the default
+          iterator/`entries()`, `keys()`, and `values()` while retaining source
+          order and duplicate names;
+        - `url:params_get(params, name) -> string?`,
+          `url:params_get_all(params, name) -> stream<string>`, and
+          `url:params_has(params, name, value?) -> boolean` preserve first-value,
+          all-values, and optional name/value matching behavior;
+        - `url:params_append(params, name, value)`,
+          `url:params_delete(params, name, value?)`,
+          `url:params_set(params, name, value)`, and
+          `url:params_sort(params)` return new ordered parameter streams as the
+          immutable equivalents of the mutating methods;
+        - `url:params_string(params) -> string` mirrors `toString()` without a
+          leading `?`; `forEach()` maps to ordinary `seq:map`/stream iteration
+          rather than a redundant callback-specific URL function.
+    - [ ] Specify `URLSearchParams` edge semantics: stable key sorting, duplicate
+          insertion order, `set()` retaining the first matching position while
+          deleting later matches, optional-value `has()`/`delete()`, empty value
+          versus missing `=`, decoded keys and values at the function boundary,
+          literal `%` double-encoding, `+`-to-space parsing, space-to-`+`
+          serialization, and the WHATWG `application/x-www-form-urlencoded`
+          percent-encode set. Connect `url:parse(...).query` and
+          `url:with_parts(..., { query: params })` without conflating raw search
+          strings with complete URLs.
+    - [ ] Keep `url:` distinct from `module_url()`: it never consults import
+          maps, resource policies, node scopes, or an ambient page/template
+          referrer. Relative input requires an explicit base; contextual module
+          and resource resolution continues to use `module_url()`.
+    - [ ] Define invalid-input and setter-failure diagnostics, component-specific
+          percent-encoding, Unicode/IDNA behavior, default-port elision,
+          dot-segment normalization, special and non-special schemes, opaque
+          paths/origins, IPv4/IPv6 hosts, credentials, and `file:` URLs. Exclude
+          stateful host-only `URL.createObjectURL()` and `URL.revokeObjectURL()`
+          from the pure stdlib.
+    - [ ] Implement one native semantic path shared by CLI, SSR, WASM, and
+          browser execution; do not delegate conformance to the embedding
+          platform's JavaScript `URL` implementation.
+    - [ ] Add registry/type-checking/evaluation tests plus selected
+          Web Platform Test vectors for parse/serialize/setter/query behavior,
+          round-trip idempotence, invalid bases, and cross-runtime parity; add
+          generated schema-package reference tables and an executable
+          query/result fixture matrix.
+- [x] Restore zero-hard-violation fixture validation by lowering legacy
+      `//slice[//slice/event]` selection to the split CEM-QL slice/event-payload
+      data model instead of leaving an XPath predicate in generated CEM-QL.
+    - [x] Prove the material input and autocomplete event-gated value selectors
+          compile through the native converter and default fixture-validation
+          corpus.
+    - Completed 2026-09-01: the bridge emits an event-payload-gated conditional
+      whose empty branch preserves lazy `??` fallback behavior. All 72 focused
+      legacy-converter tests pass, and the rebuilt CLI validates all 55 default
+      fixtures with 158 warnings, zero errors/fatals/hard violations, and exit 0.
 - [x] Fixture: make external-template example 4 render the complete native
       inert `<template>` data-island tree through its external
       CEMT, including arbitrary element attributes, dataset attributes, named

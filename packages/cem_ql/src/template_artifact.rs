@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::render::{
     compile_template, ChooseBranch, CompileTemplateOptions, CompiledTemplateExpression,
     TemplateArtifact, TemplateAttribute, TemplateAttributePart, TemplateAttributeValue,
-    TemplateNode, TemplateStylesheetArtifact,
+    TemplateModuleMapArtifact, TemplateNode, TemplateStylesheetArtifact,
 };
 
 pub const CEM_TEMPLATE_ARTIFACT_CONTENT_TYPE: &str =
@@ -108,6 +108,8 @@ struct TemplateArtifactPayload {
     nodes: Vec<TemplateNode>,
     #[serde(default)]
     stylesheets: Vec<TemplateStylesheetArtifact>,
+    #[serde(default)]
+    module_map: Option<TemplateModuleMapArtifact>,
     diagnostics_json: Vec<u8>,
 }
 
@@ -139,6 +141,7 @@ pub fn compile_template_artifact(
     let payload = TemplateArtifactPayload {
         nodes: artifact.nodes,
         stylesheets: artifact.stylesheets,
+        module_map: artifact.module_map,
         diagnostics_json: serde_json::to_vec(&artifact.diagnostics)
             .expect("CEM diagnostics serialize as JSON"),
     };
@@ -197,6 +200,7 @@ impl CompiledTemplateArtifact {
         Ok(TemplateArtifact {
             nodes: payload.nodes,
             stylesheets: payload.stylesheets,
+            module_map: payload.module_map,
             diagnostics,
         })
     }

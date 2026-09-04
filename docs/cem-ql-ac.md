@@ -395,6 +395,7 @@ function inventory that makes those obligations executable.
   `any` and `all` are the canonical quantified-predicate helpers.
 - **Tier A string helpers:** `str:length`, `str:codepoints`, `str:lower`,
   `str:upper`, `str:slice`, `str:concat`, `str:contains`,
+  `str:shorten`,
   `str:starts_with`, `str:ends_with`, `str:normalize_space`,
   `str:replace`, `str:translate`, `str:substring`,
   `str:substring_before`, and `str:substring_after`. Binary string

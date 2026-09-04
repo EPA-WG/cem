@@ -55,6 +55,7 @@ fn contexts() -> (CompileContext, EvaluationContext) {
             diagnostics: Vec::new(),
             policy_bindings,
             current_item: None,
+            module_resolution: None,
         },
     )
 }

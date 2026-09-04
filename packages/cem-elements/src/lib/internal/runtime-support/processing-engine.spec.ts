@@ -50,6 +50,25 @@ vi.mock('./cem-ql-render.js', () => {
         renderPlan: {
             ...input.identity,
             nodes: [
+                ...(sources.get(artifactId)?.includes('cem-module-url') ? [{
+                    kind: 'element' as const,
+                    namespace: null,
+                    tag: 'cem-module-url',
+                    attributes: sources.get(artifactId)?.includes('referrer-selector')
+                        ? [
+                            { name: 'slice', value: 'asset' },
+                            { name: 'src', value: 'inner-image' },
+                            { name: 'referrer-selector', value: 'cem-inner-image' },
+                        ]
+                        : [
+                            { name: 'slice', value: 'asset' },
+                            { name: 'src', value: './asset.css' },
+                            { name: 'referrer', value: '@scope/module.js' },
+                        ],
+                    renderNodeId: `${input.identity.producedTag}-module-url-1`,
+                    children: [],
+                    sourceMapRef: { fidelity: 'author-byte-exact' as const, frame: 'cem:3' },
+                }] : []),
                 ...(sources.get(artifactId)?.includes('http-request') ? [{
                     kind: 'element' as const,
                     namespace: null,
@@ -454,6 +473,84 @@ describe('Phase 3A retained processing engine', () => {
             sourceMapRef: { fidelity: 'author-byte-exact', frame: 'cem:0' },
         }]);
         expect(JSON.stringify(rendered.frames)).not.toContain('http-request');
+        expect(structuredClone(rendered)).toEqual(rendered);
+    });
+
+    it('lowers canonical module URL controls with their scalar referrer', async () => {
+        const engine = new CemProcessingEngine();
+        const snapshot = snapshotFixture('1', 'template-worker-module-url-1', 'cem-worker-module-url');
+        const compiled = await engine.compile({
+            language: 'cem-ml',
+            producedTag: 'cem-worker-module-url',
+            templateArtifactId: snapshot.templateArtifactId,
+            registrationIdentity: 'cem-registration-v1:worker-module-url',
+            source: createCemProcessingTextSource(
+                '{cem-module-url @slice=asset @src=./asset.css @referrer=@scope/module.js}' +
+                    '{span | {$asset}}',
+                7
+            ),
+            sourceRef: { kind: 'url', value: 'https://example.test/components/card.cem' },
+            resolverIdentity: 'module-map:fixture-v1',
+            scopePolicyStamp: snapshot.scopePolicyStamp,
+            sourceMapMode: 'dev',
+        });
+
+        const rendered = await engine.renderDiff({
+            artifact: compiled.artifact,
+            revision: revision(snapshot),
+            snapshot,
+            data: {},
+            scopeUid: 'worker-module-url-scope',
+            previousRenderPlan: null,
+        });
+
+        expect(rendered.resourceControls).toEqual([{
+            kind: 'module-url',
+            renderNodeId: 'cem-worker-module-url-module-url-1',
+            sliceName: 'asset',
+            authoredSpecifier: './asset.css',
+            referrer: '@scope/module.js',
+            sourceMapRef: { fidelity: 'author-byte-exact', frame: 'cem:3' },
+        }]);
+        expect(JSON.stringify(rendered.frames)).not.toContain('cem-module-url');
+        expect(structuredClone(rendered)).toEqual(rendered);
+    });
+
+    it('preserves a descendant selector as a clone-safe module URL referrer control', async () => {
+        const engine = new CemProcessingEngine();
+        const snapshot = snapshotFixture('1', 'template-worker-module-node-1', 'cem-worker-module-node');
+        const compiled = await engine.compile({
+            language: 'cem-ml',
+            producedTag: 'cem-worker-module-node',
+            templateArtifactId: snapshot.templateArtifactId,
+            registrationIdentity: 'cem-registration-v1:worker-module-node',
+            source: createCemProcessingTextSource(
+                '{cem-module-url @slice=asset @src=inner-image @referrer-selector="cem-inner-image"}' +
+                    '{cem-inner-image}',
+                7
+            ),
+            sourceRef: { kind: 'url', value: 'https://example.test/components/wrapper.cem' },
+            resolverIdentity: 'module-map:fixture-v1',
+            scopePolicyStamp: snapshot.scopePolicyStamp,
+            sourceMapMode: 'dev',
+        });
+
+        const rendered = await engine.renderDiff({
+            artifact: compiled.artifact,
+            revision: revision(snapshot),
+            snapshot,
+            data: {},
+            scopeUid: 'worker-module-node-scope',
+            previousRenderPlan: null,
+        });
+
+        expect(rendered.resourceControls).toEqual([expect.objectContaining({
+            kind: 'module-url',
+            sliceName: 'asset',
+            authoredSpecifier: 'inner-image',
+            referrerSelector: 'cem-inner-image',
+        })]);
+        expect(JSON.stringify(rendered.frames)).not.toContain('cem-module-url');
         expect(structuredClone(rendered)).toEqual(rendered);
     });
 

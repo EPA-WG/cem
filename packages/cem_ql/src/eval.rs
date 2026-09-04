@@ -6,6 +6,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
+use cem_ml::module_resolution::{
+    CemModuleUrlResolutionCapability, CemResolutionContextHandle,
+};
 use cem_ml::operation_control::{
     ControlError, ControlFailure, ControlTerminalClass, ExecutionScopeId, OperationControl,
     SafePointPoller, ROOT_EXECUTION_SCOPE_ID,
@@ -143,6 +146,18 @@ impl Item {
     pub fn view(&self) -> Option<&NativeItemView> {
         match self {
             Self::Native(view) => Some(view),
+            _ => None,
+        }
+    }
+
+    pub fn module_resolution_node_identity(&self) -> Option<String> {
+        match self {
+            Self::Node(identity) => Some(format!("node:{identity}")),
+            Self::Native(view) if view.kind() == QueryItemViewKind::Node => Some(format!(
+                "native:{}:{}",
+                view.representation_id(),
+                view.identity()
+            )),
             _ => None,
         }
     }
@@ -364,6 +379,7 @@ pub(crate) struct EvalCtx<'a> {
     call_depth: u64,
     diagnostics: Vec<Diagnostic>,
     error: Option<EvalError>,
+    module_resolution: Option<CemModuleUrlResolutionCapability>,
 }
 
 impl<'a> EvalCtx<'a> {
@@ -385,6 +401,7 @@ impl<'a> EvalCtx<'a> {
             call_depth: 0,
             diagnostics: context.diagnostics.clone(),
             error: None,
+            module_resolution: context.module_resolution.clone(),
         };
         ctx.index_bindings();
         ctx.bind_policy_bindings(context);
@@ -755,6 +772,30 @@ impl<'a> EvalCtx<'a> {
         self.diagnostics.push(diagnostic.clone());
         self.error = Some(error.clone());
         ItemStream::failed(error, diagnostic)
+    }
+
+    pub(crate) fn module_resolution(&self) -> Option<&CemModuleUrlResolutionCapability> {
+        self.module_resolution.as_ref()
+    }
+
+    pub(crate) fn current_module_resolution_context(
+        &self,
+        capability: &CemModuleUrlResolutionCapability,
+    ) -> CemResolutionContextHandle {
+        self.current_items
+            .last()
+            .and_then(Item::module_resolution_node_identity)
+            .and_then(|identity| capability.node_context(&identity).cloned())
+            .unwrap_or_else(|| capability.context().clone())
+    }
+
+    pub(crate) fn source_map(&self, source: IrId) -> SourceMapStack {
+        self.query
+            .tree
+            .source_maps
+            .get(source.0 as usize)
+            .cloned()
+            .unwrap_or_default()
     }
 
     fn eval_call(&mut self, source: IrId, callee: IrId, args: &[IrId]) -> ItemStream {

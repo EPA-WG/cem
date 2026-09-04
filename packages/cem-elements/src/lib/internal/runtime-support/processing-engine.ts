@@ -367,6 +367,13 @@ function lowerResourceControls(plan: RenderPlan): {
                 retained.push(node);
                 continue;
             }
+            if (node.tag === 'cem-module-url' || node.tag === 'module-url') {
+                const control = lowerModuleUrlControl(node);
+                if (control) {
+                    resourceControls.push(control);
+                }
+                continue;
+            }
             if (node.tag === 'http-request') {
                 const control = lowerHttpRequestControl(node);
                 if (control) {
@@ -395,6 +402,28 @@ function lowerResourceControls(plan: RenderPlan): {
     return {
         renderPlan: { ...plan, nodes: lowerNodes(plan.nodes) },
         resourceControls,
+    };
+}
+
+function lowerModuleUrlControl(
+    node: Extract<RenderPlanNode, { kind: 'element' }>
+): CemProcessingResourceControl | null {
+    const attributes = renderAttributeRecord(node.attributes);
+    const sliceName = attributes.slice?.trim() ?? '';
+    const authoredSpecifier = attributes.src?.trim() ?? '';
+    if (!sliceName || !authoredSpecifier) {
+        return null;
+    }
+    const referrer = optionalControlAttribute(attributes, 'referrer');
+    const referrerSelector = optionalControlAttribute(attributes, 'referrer-selector');
+    return {
+        kind: 'module-url',
+        renderNodeId: node.renderNodeId,
+        sliceName,
+        authoredSpecifier,
+        ...(referrer === undefined ? {} : { referrer }),
+        ...(referrerSelector === undefined ? {} : { referrerSelector }),
+        ...(node.sourceMapRef === undefined ? {} : { sourceMapRef: node.sourceMapRef }),
     };
 }
 

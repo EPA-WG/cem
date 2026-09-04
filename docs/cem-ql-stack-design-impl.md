@@ -910,6 +910,7 @@ public-API floor):
 | `str:lower`       | `(string) -> string` | A |
 | `str:upper`       | `(string) -> string` | A |
 | `str:slice`       | `(string, integer, integer?) -> string` | A |
+| `str:shorten`     | `(string, integer, string?) -> string` | A |
 | `str:concat`      | `(stream<string>, string?) -> string` | A |
 | `str:contains` `str:starts_with` `str:ends_with` | `(string, string) -> boolean` | A |
 | `str:normalize_space` | `(string) -> string` | A |
@@ -917,6 +918,13 @@ public-API floor):
 | `str:translate` | `(string, string, string) -> string` | A |
 | `str:substring` `str:substring_before` `str:substring_after` | substring helpers | A |
 | `str:nfc` `str:nfd` `str:matches` `str:split` | regex / normalization | B |
+
+`str:shorten` returns its input unchanged when it fits. Otherwise it replaces
+the middle with the complete optional marker (default `…`), counts all lengths
+in Unicode codepoints, and includes the marker in the maximum. Its effective
+maximum is clamped to the marker length plus two so both ends remain present;
+an odd content budget gives its extra codepoint to the suffix. An explicit
+empty marker is valid.
 
 ### 11.3 `cem:stdlib/numbers`
 

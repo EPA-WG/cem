@@ -10,6 +10,9 @@ use std::collections::BTreeMap;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::interpreter::{OutputSpan, OutputTarget, TransformOutput};
+use cem_ml::module_resolution::{
+    CemModuleUrlMapping, CemModuleUrlScopedMap, CemModuleUrlSpecifierMap,
+};
 use cem_ml::operation_control::{ExecutionScopeId, OperationControl, SafePointPoller};
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
@@ -59,6 +62,7 @@ pub struct CompileTemplateOptions {
 pub struct TemplateArtifact {
     pub nodes: Vec<TemplateNode>,
     pub stylesheets: Vec<TemplateStylesheetArtifact>,
+    pub module_map: Option<TemplateModuleMapArtifact>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -66,6 +70,13 @@ pub struct TemplateArtifact {
 pub struct TemplateStylesheetArtifact {
     pub css: String,
     pub scope: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateModuleMapArtifact {
+    pub scopes: Vec<CemModuleUrlScopedMap>,
+    pub specifiers: CemModuleUrlSpecifierMap,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -277,6 +288,7 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         skip_cemt_function_bodies: options.skip_cemt_function_bodies,
     };
     let mut nodes = compiler.compile_all();
+    let module_map = extract_static_module_map(&mut nodes, &mut compiler.diagnostics);
     let mut stylesheets = Vec::new();
     extract_static_stylesheets(
         &mut nodes,
@@ -287,7 +299,243 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     TemplateArtifact {
         nodes,
         stylesheets,
+        module_map,
         diagnostics: compiler.diagnostics,
+    }
+}
+
+fn extract_static_module_map(
+    nodes: &mut Vec<TemplateNode>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<TemplateModuleMapArtifact> {
+    let mut retained = Vec::with_capacity(nodes.len());
+    let mut module_map = None;
+    for node in nodes.drain(..) {
+        let TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            source_map,
+        } = &node
+        else {
+            retained.push(node);
+            continue;
+        };
+        if local_template_name(tag) != "module-map" {
+            retained.push(node);
+            continue;
+        }
+        if module_map.is_some() {
+            diagnostics.push(render_diagnostic(
+                "cem.ql.template.module_map_duplicate",
+                "a template resolution context may declare at most one `module-map` prelude"
+                    .to_owned(),
+                source_map_start(source_map),
+                source_map.clone(),
+            ));
+            continue;
+        }
+        if !attributes.is_empty() {
+            diagnostics.push(render_diagnostic(
+                "cem.ql.template.module_map_invalid",
+                "the inline `module-map` prelude does not accept attributes".to_owned(),
+                source_map_start(source_map),
+                source_map.clone(),
+            ));
+        }
+        module_map = parse_static_module_map(children, diagnostics, source_map);
+    }
+    *nodes = retained;
+    module_map
+}
+
+fn parse_static_module_map(
+    children: &[TemplateNode],
+    diagnostics: &mut Vec<Diagnostic>,
+    source_map: &SourceMapStack,
+) -> Option<TemplateModuleMapArtifact> {
+    let mut map = TemplateModuleMapArtifact::default();
+    let mut valid = true;
+    for child in children {
+        let TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            source_map: child_source_map,
+        } = child
+        else {
+            if !matches!(child, TemplateNode::Text { text, .. } if text.trim().is_empty())
+                && !matches!(child, TemplateNode::Comment { .. })
+            {
+                valid = false;
+                diagnostics.push(render_diagnostic(
+                    "cem.ql.template.module_map_dynamic_unsupported",
+                    "`module-map` content must be static `import`, `resource`, or `scope` entries"
+                        .to_owned(),
+                    source_map_start(source_map),
+                    source_map.clone(),
+                ));
+            }
+            continue;
+        };
+        match local_template_name(tag) {
+            "import" | "resource" => {
+                valid &= insert_static_module_mapping(
+                    &mut map.specifiers,
+                    local_template_name(tag),
+                    attributes,
+                    children,
+                    diagnostics,
+                    child_source_map,
+                );
+            }
+            "scope" => {
+                let Some(prefix) = required_static_attribute(
+                    attributes,
+                    "prefix",
+                    "scope",
+                    diagnostics,
+                    child_source_map,
+                ) else {
+                    valid = false;
+                    continue;
+                };
+                let mut specifiers = CemModuleUrlSpecifierMap::default();
+                for scoped_child in children {
+                    let TemplateNode::Element {
+                        tag,
+                        attributes,
+                        children,
+                        source_map,
+                    } = scoped_child
+                    else {
+                        if !matches!(scoped_child, TemplateNode::Text { text, .. } if text.trim().is_empty())
+                            && !matches!(scoped_child, TemplateNode::Comment { .. })
+                        {
+                            valid = false;
+                            diagnostics.push(render_diagnostic(
+                                "cem.ql.template.module_map_dynamic_unsupported",
+                                "a module-map `scope` may contain only static `import` or `resource` entries"
+                                    .to_owned(),
+                                source_map_start(child_source_map),
+                                child_source_map.clone(),
+                            ));
+                        }
+                        continue;
+                    };
+                    let kind = local_template_name(tag);
+                    if kind != "import" && kind != "resource" {
+                        valid = false;
+                        diagnostics.push(render_diagnostic(
+                            "cem.ql.template.module_map_invalid",
+                            format!("unsupported module-map scope entry `{kind}`"),
+                            source_map_start(source_map),
+                            source_map.clone(),
+                        ));
+                        continue;
+                    }
+                    valid &= insert_static_module_mapping(
+                        &mut specifiers,
+                        kind,
+                        attributes,
+                        children,
+                        diagnostics,
+                        source_map,
+                    );
+                }
+                map.scopes
+                    .push(CemModuleUrlScopedMap { prefix, specifiers });
+            }
+            kind => {
+                valid = false;
+                diagnostics.push(render_diagnostic(
+                    "cem.ql.template.module_map_invalid",
+                    format!("unsupported module-map entry `{kind}`"),
+                    source_map_start(child_source_map),
+                    child_source_map.clone(),
+                ));
+            }
+        }
+    }
+    valid.then_some(map)
+}
+
+fn insert_static_module_mapping(
+    specifiers: &mut CemModuleUrlSpecifierMap,
+    kind: &str,
+    attributes: &[TemplateAttribute],
+    children: &[TemplateNode],
+    diagnostics: &mut Vec<Diagnostic>,
+    source_map: &SourceMapStack,
+) -> bool {
+    if !children.iter().all(|child| {
+        matches!(child, TemplateNode::Text { text, .. } if text.trim().is_empty())
+            || matches!(child, TemplateNode::Comment { .. })
+    }) {
+        diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_map_invalid",
+            format!("module-map `{kind}` entries cannot have content"),
+            source_map_start(source_map),
+            source_map.clone(),
+        ));
+        return false;
+    }
+    let Some(specifier) =
+        required_static_attribute(attributes, "specifier", kind, diagnostics, source_map)
+    else {
+        return false;
+    };
+    let Some(target) =
+        required_static_attribute(attributes, "target", kind, diagnostics, source_map)
+    else {
+        return false;
+    };
+    if specifiers.imports.contains_key(&specifier) || specifiers.resources.contains_key(&specifier)
+    {
+        diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_map_duplicate",
+            format!("duplicate module-map specifier `{specifier}`"),
+            source_map_start(source_map),
+            source_map.clone(),
+        ));
+        return false;
+    }
+    let mut mapping = CemModuleUrlMapping::target(target);
+    if kind == "resource" {
+        mapping.content_type_hint = optional_static_attribute(attributes, "content-type");
+        mapping.integrity = optional_static_attribute(attributes, "integrity");
+        specifiers.resources.insert(specifier, mapping);
+    } else {
+        specifiers.imports.insert(specifier, mapping);
+    }
+    true
+}
+
+fn required_static_attribute(
+    attributes: &[TemplateAttribute],
+    name: &str,
+    entry: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    source_map: &SourceMapStack,
+) -> Option<String> {
+    let value = optional_static_attribute(attributes, name);
+    if value.as_ref().is_some_and(|value| !value.trim().is_empty()) {
+        return value;
+    }
+    diagnostics.push(render_diagnostic(
+        "cem.ql.template.module_map_invalid",
+        format!("module-map `{entry}` requires a static non-empty `{name}` attribute"),
+        source_map_start(source_map),
+        source_map.clone(),
+    ));
+    None
+}
+
+fn optional_static_attribute(attributes: &[TemplateAttribute], name: &str) -> Option<String> {
+    let attribute = attributes.iter().find(|attribute| attribute.name == name)?;
+    match &attribute.value {
+        Some(TemplateAttributeValue::Literal(value)) => Some(value.trim().to_owned()),
+        _ => None,
     }
 }
 
@@ -408,6 +656,7 @@ fn render_compiled_template_internal(
             diagnostics: Vec::new(),
             policy_bindings,
             current_item: None,
+            module_resolution: None,
         },
         diagnostics: artifact.diagnostics.clone(),
         templates,
@@ -3352,6 +3601,64 @@ mod tests {
         );
         let plan = render_compiled_template(&artifact, &TemplateData::default());
         assert!(!render_plan_to_html(&plan).contains("<style"));
+    }
+
+    #[test]
+    fn compile_extracts_static_module_map_prelude_from_render_nodes() {
+        let artifact = compile_template(
+            r#"{module-map |
+                {import @specifier="demo-image" @target="./images/smiley.svg"}
+                {resource @specifier="demo-data" @target="./data.json" @content-type="application/json" @integrity="sha256-demo"}
+                {scope @prefix="./feature/" |
+                    {import @specifier="demo-image" @target="./images/feature.svg"}
+                }
+            }
+            {cem-module-url @slice=imageUrl @src="demo-image"}"#,
+            &CompileTemplateOptions::default(),
+        );
+
+        let module_map = artifact.module_map.as_ref().expect("module map prelude");
+        assert_eq!(
+            module_map.specifiers.imports["demo-image"]
+                .target
+                .as_deref(),
+            Some("./images/smiley.svg")
+        );
+        assert_eq!(
+            module_map.specifiers.resources["demo-data"]
+                .content_type_hint
+                .as_deref(),
+            Some("application/json")
+        );
+        assert_eq!(module_map.scopes[0].prefix, "./feature/");
+        assert_eq!(
+            module_map.scopes[0].specifiers.imports["demo-image"]
+                .target
+                .as_deref(),
+            Some("./images/feature.svg")
+        );
+
+        let plan = render_compiled_template(&artifact, &TemplateData::default());
+        let html = render_plan_to_html(&plan);
+        assert!(!html.contains("module-map"));
+        assert!(html.contains("cem-module-url"));
+    }
+
+    #[test]
+    fn compile_rejects_duplicate_module_map_keys_across_collections() {
+        let artifact = compile_template(
+            r#"{module-map |
+                {import @specifier="demo-image" @target="./image.js"}
+                {resource @specifier="demo-image" @target="./image.svg"}
+            }"#,
+            &CompileTemplateOptions::default(),
+        );
+
+        assert!(artifact.module_map.is_none());
+        assert!(artifact
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == "cem.ql.template.module_map_duplicate" }));
     }
 
     #[test]

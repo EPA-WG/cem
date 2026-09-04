@@ -48,6 +48,11 @@ use crate::capability::{
     capability_manifest, CapabilityAvailability, CapabilityManifest, CapabilityRequest,
     ControlCapabilityKind, ControlCoverage, ExecutorTopology, RuntimeKind,
 };
+use crate::module_resolution::{
+    CemModuleUrlContext, CemModuleUrlReferrer, CemModuleUrlResolutionPurpose,
+    CemModuleUrlResolutionRequest, CemModuleUrlResolver, CemResolutionContextHandle,
+    CemScopedModuleUrlResolver,
+};
 use crate::observability::{EngineObserver, ReportEvent};
 use crate::operation_control::OperationId;
 use crate::operation_handle::OPERATION_PROTOCOL_VERSION;
@@ -87,6 +92,84 @@ thread_local! {
 #[wasm_bindgen(js_name = "version")]
 pub fn version() -> String {
     crate::VERSION.to_owned()
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WasmModuleUrlResolutionRequest {
+    purpose: CemModuleUrlResolutionPurpose,
+    authored_specifier: String,
+    current_context: CemResolutionContextHandle,
+    #[serde(default)]
+    referrer: Option<WasmModuleUrlReferrer>,
+    contexts: Vec<WasmModuleUrlContextRegistration>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WasmModuleUrlContextRegistration {
+    handle: CemResolutionContextHandle,
+    #[serde(default)]
+    parent: Option<CemResolutionContextHandle>,
+    context: CemModuleUrlContext,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+enum WasmModuleUrlReferrer {
+    Url { value: String },
+    Context { context: CemResolutionContextHandle },
+}
+
+/// Resolve a module URL through the same scoped resolver used by native CEM-QL
+/// and XPath. Context construction remains host-owned; this boundary only
+/// transports immutable, already-normalized frame stacks into browser/Node
+/// WASM runtimes.
+#[wasm_bindgen(js_name = "resolveModuleUrl")]
+pub fn resolve_module_url_json(request_json: &str) -> String {
+    let request: WasmModuleUrlResolutionRequest = match serde_json::from_str(request_json) {
+        Ok(request) => request,
+        Err(error) => {
+            return serde_json::json!({
+                "error": {
+                    "code": "cem.module_url.request_invalid",
+                    "message": error.to_string(),
+                }
+            })
+            .to_string()
+        }
+    };
+    let mut resolver = CemScopedModuleUrlResolver::new();
+    for registration in request.contexts {
+        if let Some(parent) = registration.parent {
+            resolver.insert_child_context(registration.handle, parent, registration.context);
+        } else {
+            resolver.insert_context(registration.handle, registration.context);
+        }
+    }
+    let referrer = request.referrer.map(|referrer| match referrer {
+        WasmModuleUrlReferrer::Url { value } => CemModuleUrlReferrer::Url(value),
+        WasmModuleUrlReferrer::Context { context } => CemModuleUrlReferrer::Context(context),
+    });
+    let request = CemModuleUrlResolutionRequest {
+        purpose: request.purpose,
+        authored_specifier: request.authored_specifier,
+        current_context: request.current_context,
+        referrer,
+        source_map: crate::source_map::SourceMapStack::default(),
+    };
+    match resolver.resolve_module_url(&request) {
+        Ok(resolution) => serde_json::json!({
+            "status": "resolved",
+            "resolution": resolution,
+        })
+        .to_string(),
+        Err(error) => serde_json::json!({
+            "status": "error",
+            "error": error,
+        })
+        .to_string(),
+    }
 }
 
 /// Projects the common capability contract for a host-provided runtime

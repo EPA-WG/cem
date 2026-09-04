@@ -1,4 +1,11 @@
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
 use cem_ml::diagnostics::Severity;
+use cem_ml::module_resolution::{
+    CemModuleUrlContext, CemModuleUrlFrame, CemModuleUrlMapping, CemModuleUrlResolutionCapability,
+    CemResolutionContextHandle, CemScopedModuleUrlResolver,
+};
 use cem_ml::scheduler::ScopePolicy;
 use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
 use cem_ql::eval::{AtomValue, Item, QueryContextScope};
@@ -14,6 +21,7 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
             diagnostics: Vec::new(),
             policy_bindings: Default::default(),
             current_item: None,
+            module_resolution: None,
         },
     )
 }
@@ -22,11 +30,29 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 59);
+    assert_eq!(registry.functions.len(), 61);
+    assert!(registry
+        .resolve("cem:stdlib/modules", "module_url", 1)
+        .is_some());
+    assert!(registry
+        .resolve("cem:stdlib/modules", "module_url", 2)
+        .is_some());
     assert!(registry.resolve("cem:stdlib/sequence", "map", 2).is_some());
     assert!(registry.resolve("cem:stdlib/sequence", "any", 2).is_some());
     assert!(registry.resolve("cem:stdlib/sequence", "all", 2).is_some());
     assert!(registry.resolve("cem:stdlib/strings", "slice", 3).is_some());
+    assert!(registry
+        .resolve("cem:stdlib/strings", "shorten", 2)
+        .is_some());
+    assert!(registry
+        .resolve("cem:stdlib/strings", "shorten", 3)
+        .is_some());
+    assert!(registry
+        .resolve("cem:stdlib/strings", "shorten", 1)
+        .is_none());
+    assert!(registry
+        .resolve("cem:stdlib/strings", "shorten", 4)
+        .is_none());
     assert!(registry
         .resolve("cem:stdlib/strings", "replace", 3)
         .is_some());
@@ -57,6 +83,183 @@ fn tier_a_registry_lists_every_documented_module_function() {
         function.module == "cem:stdlib/dom"
             && function.implementation == StdlibImplKind::HostContext
     }));
+}
+
+#[test]
+fn module_url_uses_the_host_scope_and_returns_any_uri() {
+    let handle = CemResolutionContextHandle::new("query-test");
+    let mut frame = CemModuleUrlFrame::new("template", "https://example.test/card/card.cem");
+    frame.specifiers.imports.insert(
+        "pkg/".to_owned(),
+        CemModuleUrlMapping::target("https://cdn.example.test/pkg/"),
+    );
+    let resolver = CemScopedModuleUrlResolver::new().with_context(
+        handle.clone(),
+        CemModuleUrlContext {
+            identity: "query-context:v1".to_owned(),
+            resolver_identity: "query-resolver:v1".to_owned(),
+            resource_policy_stamp: "query-policy:v1".to_owned(),
+            frames: vec![frame],
+        },
+    );
+    let query = compile(r#"module_url("pkg/button.js")"#, &CompileContext::default())
+        .expect("module_url should be a built-in CEM-QL function");
+    let stream = evaluate(
+        &query,
+        &EvaluationContext {
+            module_resolution: Some(CemModuleUrlResolutionCapability::new(
+                Arc::new(resolver),
+                handle,
+            )),
+            ..EvaluationContext::default()
+        },
+    );
+
+    assert_eq!(
+        stream.items,
+        vec![Item::Atomic(AtomValue::AnyUri(
+            "https://cdn.example.test/pkg/button.js".to_owned()
+        ))]
+    );
+    assert!(stream.error.is_none(), "{:?}", stream.diagnostics);
+}
+
+#[test]
+fn module_url_reports_an_unavailable_host_capability() {
+    let stream = eval(r#"module_url("pkg")"#);
+    assert!(stream.items.is_empty());
+    assert!(stream
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.ql.module_url_unavailable"));
+}
+
+#[test]
+fn module_url_rejects_a_statically_non_string_argument() {
+    let error = compile("module_url(42)", &CompileContext::default())
+        .expect_err("an integer is not a module URL specifier");
+    assert_eq!(error.code, "cem.ql.compile_failed");
+    assert!(error.message.contains("cem.ql.type_error"), "{error}");
+}
+
+#[test]
+fn module_url_accepts_an_explicit_scalar_referrer() {
+    let handle = CemResolutionContextHandle::new("query-referrer");
+    let resolver = CemScopedModuleUrlResolver::new().with_context(
+        handle.clone(),
+        CemModuleUrlContext {
+            identity: "query-referrer-context:v1".to_owned(),
+            resolver_identity: "query-resolver:v1".to_owned(),
+            resource_policy_stamp: "query-policy:v1".to_owned(),
+            frames: vec![CemModuleUrlFrame::new(
+                "page",
+                "https://example.test/index.html",
+            )],
+        },
+    );
+    let query = compile(
+        r#"module_url("./asset.css", "https://cdn.example.test/pkg/module.js")"#,
+        &CompileContext::default(),
+    )
+    .expect("two-argument module_url should compile");
+    let stream = evaluate(
+        &query,
+        &EvaluationContext {
+            module_resolution: Some(CemModuleUrlResolutionCapability::new(
+                Arc::new(resolver),
+                handle,
+            )),
+            ..EvaluationContext::default()
+        },
+    );
+
+    assert_eq!(
+        stream.items,
+        vec![Item::Atomic(AtomValue::AnyUri(
+            "https://cdn.example.test/pkg/asset.css".to_owned()
+        ))]
+    );
+    assert!(stream.error.is_none(), "{:?}", stream.diagnostics);
+}
+
+#[test]
+fn module_url_uses_dynamic_node_scope_and_accepts_descendant_node_referrer() {
+    let root_handle = CemResolutionContextHandle::new("query-root");
+    let child_handle = CemResolutionContextHandle::new("query-child");
+    let root_frame = CemModuleUrlFrame::new("page", "https://example.test/index.html");
+    let mut child_frame =
+        CemModuleUrlFrame::new("template", "https://example.test/components/card.cem");
+    child_frame.specifiers.resources.insert(
+        "asset".to_owned(),
+        CemModuleUrlMapping::target("./card.css"),
+    );
+    let resolver = CemScopedModuleUrlResolver::new()
+        .with_context(
+            root_handle.clone(),
+            CemModuleUrlContext {
+                identity: "query-root-context:v1".to_owned(),
+                resolver_identity: "query-resolver:v1".to_owned(),
+                resource_policy_stamp: "query-policy:v1".to_owned(),
+                frames: vec![root_frame.clone()],
+            },
+        )
+        .with_child_context(
+            child_handle.clone(),
+            root_handle.clone(),
+            CemModuleUrlContext {
+                identity: "query-child-context:v1".to_owned(),
+                resolver_identity: "query-resolver:v1".to_owned(),
+                resource_policy_stamp: "query-policy:v1".to_owned(),
+                frames: vec![root_frame, child_frame],
+            },
+        );
+    let capability = CemModuleUrlResolutionCapability::new(Arc::new(resolver), root_handle)
+        .with_node_context("node:current", child_handle.clone())
+        .with_node_context("node:referrer", child_handle);
+
+    let contextual_query = compile(r#"module_url("asset")"#, &CompileContext::default()).unwrap();
+    let contextual = evaluate(
+        &contextual_query,
+        &EvaluationContext {
+            current_item: Some(Item::Node("current".to_owned())),
+            module_resolution: Some(capability.clone()),
+            ..EvaluationContext::default()
+        },
+    );
+    assert_eq!(
+        contextual.items,
+        vec![Item::Atomic(AtomValue::AnyUri(
+            "https://example.test/components/card.css".to_owned()
+        ))]
+    );
+
+    let mut policy_bindings = BTreeMap::new();
+    policy_bindings.insert(
+        "referrer".to_owned(),
+        cem_ql::eval::ItemStream::once(Item::Node("referrer".to_owned())),
+    );
+    let query = compile(
+        r#"module_url("asset", referrer)"#,
+        &CompileContext {
+            policy_bindings: policy_bindings.clone(),
+            ..CompileContext::default()
+        },
+    )
+    .unwrap();
+    let explicit = evaluate(
+        &query,
+        &EvaluationContext {
+            policy_bindings,
+            module_resolution: Some(capability),
+            ..EvaluationContext::default()
+        },
+    );
+    assert_eq!(
+        explicit.items,
+        vec![Item::Atomic(AtomValue::AnyUri(
+            "https://example.test/components/card.css".to_owned()
+        ))]
+    );
 }
 
 #[test]
@@ -131,6 +334,29 @@ fn string_stdlib_functions_evaluate() {
             "--cem-gap 0.5rem".to_owned()
         ))]
     );
+}
+
+#[test]
+fn shorten_elides_the_middle_with_a_bounded_codepoint_length() {
+    for (source, expected) in [
+        (r#"str:shorten("short", 8)"#, "short"),
+        (r#"str:shorten("seventh", 7)"#, "seventh"),
+        (r#"str:shorten("abcdefghij", 7)"#, "abc…hij"),
+        (r#"str:shorten("abcdefghij", 8)"#, "abc…ghij"),
+        (r#"str:shorten("abcdefghij", 8, "...")"#, "ab...hij"),
+        (r#"str:shorten("abcdefghij", 3, "...")"#, "a...j"),
+        (r#"str:shorten("abcdefghij", 6, "")"#, "abchij"),
+        (r#"str:shorten("abcdefghij", 0)"#, "a…j"),
+        (r#"str:shorten("abcdefghij", -4)"#, "a…j"),
+        (r#"str:shorten("αβ😀δεζη", 5, "💠")"#, "αβ💠ζη"),
+        (r#"str:shorten("", 3)"#, ""),
+    ] {
+        assert_eq!(
+            eval(source).items,
+            vec![Item::Atomic(AtomValue::String(expected.to_owned()))],
+            "{source}"
+        );
+    }
 }
 
 #[test]

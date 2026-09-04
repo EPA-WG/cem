@@ -26,6 +26,7 @@ import initCemQlWasm, {
     importTemplateArtifact,
     renderTemplate,
     renderTemplateSource,
+    resolveModuleUrl as resolveModuleUrlWasm,
     templateArtifactPayloadKey,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 import {
@@ -38,6 +39,7 @@ import {
     type RenderPlanNode,
     type SourceMapRef,
 } from '../../projection.js';
+import type { CemBrowserModuleUrlMap } from './module-url-resolution.js';
 
 export interface RuntimeSupportDiagnostic {
     code: string;
@@ -65,6 +67,7 @@ export interface CemQlStylesheetArtifact {
 
 export interface CemMlTemplateCompileResult {
     stylesheets: CemQlStylesheetArtifact[];
+    moduleMap: CemBrowserModuleUrlMap | null;
     diagnostics: RuntimeSupportDiagnostic[];
 }
 
@@ -104,6 +107,7 @@ export interface CemMlTemplateArtifactPayloadKey {
 export interface RetainedCemMlTemplate {
     artifactId: number;
     stylesheets: CemQlStylesheetArtifact[];
+    moduleMap: CemBrowserModuleUrlMap | null;
     diagnostics: RuntimeSupportDiagnostic[];
     contentHash?: string;
     formatVersion?: string;
@@ -145,6 +149,15 @@ export function runtimeVersion(): string {
 }
 
 /**
+ * Resolve one immutable module-context request through the Rust-owned resolver
+ * compiled into the shared CEM-QL WASM runtime.
+ */
+export async function resolveCemModuleUrl(request: unknown): Promise<unknown> {
+    await ensureRuntimeReady();
+    return JSON.parse(resolveModuleUrlWasm(JSON.stringify(request))) as unknown;
+}
+
+/**
  * Compile a CEM-ML template through the `cem_ql` WASM boundary to surface
  * **declaration-time** diagnostics, returning only structural (`cem.tokenizer.*`)
  * well-formedness errors. cem-ql expression diagnostics (`cem.ql.*`) are intentionally
@@ -156,6 +169,7 @@ export async function compileCemMlTemplate(source: string): Promise<CemMlTemplat
     const result = JSON.parse(compileTemplate(source, '[]')) as {
         artifactId?: number;
         stylesheets?: WasmStylesheetArtifact[];
+        moduleMap?: CemBrowserModuleUrlMap | null;
         diagnostics?: WasmDiagnostic[];
     };
     if (Number.isSafeInteger(result.artifactId) && (result.artifactId ?? 0) > 0) {
@@ -163,11 +177,13 @@ export async function compileCemMlTemplate(source: string): Promise<CemMlTemplat
     }
     return {
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
+        moduleMap: result.moduleMap ?? null,
         diagnostics: (result.diagnostics ?? [])
             .filter((diagnostic) => {
                 const code = diagnostic.code ?? '';
                 return code.startsWith('cem.tokenizer.')
-                    || code === 'cem.ql.template.stylesheet_dynamic_unsupported';
+                    || code === 'cem.ql.template.stylesheet_dynamic_unsupported'
+                    || code.startsWith('cem.ql.template.module_map_');
             })
             .map(mapDiagnostic),
     };
@@ -212,6 +228,7 @@ export async function retainCemMlTemplateSource(
     const result = JSON.parse(compileTemplate(source, JSON.stringify([...hostBindings]))) as {
         artifactId?: number;
         stylesheets?: WasmStylesheetArtifact[];
+        moduleMap?: CemBrowserModuleUrlMap | null;
         diagnostics?: WasmDiagnostic[];
     };
     if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
@@ -220,6 +237,7 @@ export async function retainCemMlTemplateSource(
     return {
         artifactId: result.artifactId as number,
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
+        moduleMap: result.moduleMap ?? null,
         diagnostics: (result.diagnostics ?? []).map(mapDiagnostic),
     };
 }
@@ -244,6 +262,7 @@ export async function retainCemMlTemplateArtifact(
         contentHash?: string;
         formatVersion?: string;
         stylesheets?: WasmStylesheetArtifact[];
+        moduleMap?: CemBrowserModuleUrlMap | null;
         diagnostics?: WasmDiagnostic[];
     };
     if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
@@ -255,6 +274,7 @@ export async function retainCemMlTemplateArtifact(
     return {
         artifactId: result.artifactId as number,
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
+        moduleMap: result.moduleMap ?? null,
         contentHash: result.contentHash,
         formatVersion: result.formatVersion,
         diagnostics: (result.diagnostics ?? []).map(mapDiagnostic),

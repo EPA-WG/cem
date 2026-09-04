@@ -53,10 +53,12 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
     );
     let diagnostics = diagnostics_json(&artifact.diagnostics);
     let stylesheets = stylesheets_json(&artifact);
+    let module_map = module_map_json(&artifact);
     let artifact_id = retain_artifact(artifact);
     json!({
         "artifactId": artifact_id,
         "stylesheets": stylesheets,
+        "moduleMap": module_map,
         "diagnostics": diagnostics
     })
     .to_string()
@@ -144,12 +146,14 @@ pub fn wasm_import_template_artifact(
     };
     let diagnostics = diagnostics_json(&template.diagnostics);
     let stylesheets = stylesheets_json(&template);
+    let module_map = module_map_json(&template);
     let artifact_id = retain_artifact(template);
     json!({
         "artifactId": artifact_id,
         "contentHash": artifact.content_hash.header_value(),
         "formatVersion": CEM_TEMPLATE_ARTIFACT_VERSION,
         "stylesheets": stylesheets,
+        "moduleMap": module_map,
         "diagnostics": diagnostics,
     })
     .to_string()
@@ -288,6 +292,15 @@ fn stylesheets_json(artifact: &TemplateArtifact) -> Value {
             })
             .collect(),
     )
+}
+
+fn module_map_json(artifact: &TemplateArtifact) -> Value {
+    artifact
+        .module_map
+        .as_ref()
+        .map_or(Value::Null, |module_map| {
+            serde_json::to_value(module_map).expect("template module map serializes as JSON")
+        })
 }
 
 fn node_json(node: &RenderPlanNode) -> Value {
