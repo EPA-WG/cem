@@ -26,83 +26,80 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
         ],
     },
     {
-        legend: '4. module path by symbolic name',
+        legend: '1. module path by symbolic name',
         includes: [
-            '<cem-element tag="cem-module-link">',
-            '{cem-module-url @slice=packageUrl @src="@epa-wg/material"}',
-            '{cem-module-url @slice=logoUrl @src="@epa-wg/cem-elements/demo/lib-dir/Smiley.svg"}',
-            '{image-link @class=resolved-logo',
+            '<cem-element>',
+            '@slice=logoUrl',
+            '@src="@epa-wg/cem-elements/demo/wc-square.svg"',
+            '{image-link',
             '@src="{$datadom.slices.logoUrl}"',
-            '@href="{$datadom.slices.packageUrl}README.md"',
-            '<cem-module-link></cem-module-link>',
         ],
         excludes: ['{module-url', '{img ', '{a '],
     },
     {
-        legend: '5. src forms: relative URL, module path, and absolute URL',
+        legend: '2. src forms: relative URL',
         includes: [
-            '<cem-element tag="cem-module-src-forms">',
-            '@slice=relativeUrl @src="./lib-dir/Smiley.svg?src=relative"',
-            '@slice=moduleUrl @src="demo-src-image"',
-            '@slice=absoluteUrl @src="data:image/svg+xml,',
-            '{image-link @class=resolved-logo @src="{$datadom.slices.relativeUrl}" @href="{$datadom.slices.relativeUrl}"',
-            '{image-link @class=resolved-logo @src="{$datadom.slices.moduleUrl}" @href="{$datadom.slices.moduleUrl}"',
-            '{image-link @class=resolved-logo @src="{$datadom.slices.absoluteUrl}" @href="{$datadom.slices.absoluteUrl}"',
-            '<cem-module-src-forms></cem-module-src-forms>',
+            '<cem-element>',
+            '@slice=relativeUrl',
+            '@src="./lib-dir/Smiley.svg?src=relative"',
+            '{image-link',
+            '@src="{$datadom.slices.relativeUrl}"',
         ],
         excludes: ['{module-url', '{img ', '{a '],
     },
     {
-        legend: '6. src by scalar referrer matrix',
+        legend: '3. src forms: absolute URL',
         includes: [
-            '<cem-element tag="cem-module-referrer-matrix">',
-            '@src="../lib-dir/Smiley.svg?case=relative-relative" @referrer="./relative-referrer/component.js"',
-            '@src="demo-referrer-image" @referrer="demo-module-referrer"',
-            '@src="https://assets.example.test/logo.svg" @referrer="https://referrer.example.test/absolute/component.js"',
-            '{$datadom.slices.relativeByRelative}',
-            '{$datadom.slices.moduleByModule}',
-            '{$datadom.slices.absoluteByAbsolute}',
-            '<cem-module-referrer-matrix></cem-module-referrer-matrix>',
+            '<cem-element>',
+            '@slice=absoluteUrl',
+            '@src="data:image/svg+xml,',
+            '{image-link',
+            '@src="{$datadom.slices.absoluteUrl}"',
         ],
-        excludes: ['{module-url'],
+        excludes: ['{module-url', '{img ', '{a '],
     },
     {
-        legend: '7. component-local map: naked, wrapper override, and node referrer',
+        legend: '5. component-local map: naked',
         includes: [
-            '<cem-element tag="cem-local-map-image">',
+            '<cem-element tag="cem-local-map-naked-image">',
             '{module-map |',
             '@specifier="demo-component-image" @target="./lib-dir/Smiley.svg?owner=component"',
-            '@specifier="demo-inner-only-image" @target="./wc-square.svg?owner=component"',
-            '<cem-element tag="cem-local-map-wrapper">',
-            '@specifier="demo-component-image" @target="./confused.svg?owner=wrapper"',
-            '@src="./lib-dir/Smiley.svg?referrer=node" @referrer-selector="cem-local-map-image"',
-            '@src="demo-inner-only-image" @referrer-selector="cem-local-map-image"',
-            '@src="https://assets.example.test/logo.svg" @referrer-selector="cem-local-map-image"',
-            '{$datadom.slices.relativeFromChildUrl}',
-            '{$datadom.slices.innerOnlyImageUrl}',
-            '{$datadom.slices.absoluteFromChildUrl}',
-            '{image-link @class="resolved-logo node-referrer-image"',
-            '@src="{$datadom.slices.innerOnlyImageUrl}"',
-            '@href="{$datadom.slices.innerOnlyImageUrl}"',
-            '<cem-local-map-image></cem-local-map-image>',
-            '<cem-local-map-wrapper></cem-local-map-wrapper>',
+            '{cem-module-url @slice=imageUrl @src="demo-component-image"}',
+            '{image-link @class="component-owned-image"',
+            '@src="{$datadom.slices.imageUrl}"',
+            '<cem-local-map-naked-image></cem-local-map-naked-image>',
         ],
         excludes: ['{module-url', '{img ', '{a ', '@ target='],
     },
     {
-        legend: '8. str:shorten query/result matrix',
+        legend: '6. component-local map: wrapper override',
         includes: [
-            '<cem-element tag="cem-str-shorten-matrix">',
-            '{code | str:shorten("short", 8)}',
-            '{$str:shorten("short", 8)}',
-            '{$str:shorten("abcdefghij", 7)}',
-            '{$str:shorten("abcdefghij", 8)}',
-            '{$str:shorten("abcdefghij", 8, "...")}',
-            '{$str:shorten("abcdefghij", 6, "")}',
-            '{$str:shorten("αβ😀δεζη", 5, "💠")}',
-            '{$str:shorten( "https://example.test/lib/semantic-card.cem" , 32)}',
-            '<cem-str-shorten-matrix></cem-str-shorten-matrix>',
+            '<cem-element tag="cem-local-map-override-image">',
+            '@specifier="demo-component-image" @target="./lib-dir/Smiley.svg?owner=component"',
+            '<cem-element tag="cem-local-map-override-wrapper">',
+            '@specifier="demo-component-image" @target="./confused.svg?owner=wrapper"',
+            '{cem-local-map-override-image}',
+            '<cem-local-map-override-wrapper></cem-local-map-override-wrapper>',
         ],
+        excludes: ['{module-url', '{a ', '@ target='],
+    },
+    {
+        legend: '7. component-local map: node referrer',
+        includes: [
+            '<cem-element tag="cem-local-map-referrer">',
+            '@specifier="demo-inner-only-image" @target="./wc-square.svg?owner=component"',
+            '<cem-element tag="cem-local-map-referrer-demo">',
+            '@src="./lib-dir/Smiley.svg?referrer=node" @referrer-selector="cem-local-map-referrer"',
+            '@src="demo-inner-only-image" @referrer-selector="cem-local-map-referrer"',
+            '@src="https://assets.example.test/logo.svg" @referrer-selector="cem-local-map-referrer"',
+            '{image-link @class="node-referrer-image"',
+            '@src="{$datadom.slices.innerOnlyImageUrl}"',
+            '{expando-link @href="{$datadom.slices.relativeFromChildUrl}"}',
+            '{expando-link @href="{$datadom.slices.innerOnlyImageUrl}"}',
+            '{expando-link @href="{$datadom.slices.absoluteFromChildUrl}"}',
+            '<cem-local-map-referrer-demo></cem-local-map-referrer-demo>',
+        ],
+        excludes: ['{module-url', '{img ', '{a ', '@ target='],
     },
     {
         legend: 'image-link',
@@ -111,12 +108,15 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
             '{a @href="{$href}" |{$str:shorten(href, 32)} }',
             '<cem-element tag="image-link">',
             '{cem-module-url @slice=imageUrl @src="{$src}"}',
-            '{cem-module-url @slice=linkUrl @src="{$href}"}',
-            '{expando-link @href="{$datadom.slices.linkUrl}"}',
+            '{expando-link @href="{$datadom.slices.imageUrl}"}',
             '<image-link src="./confused.svg"',
             'href="./confused.svg"',
         ],
-        excludes: ['{str:shorten($src, 32)}', '{str:shorten(src, 32)}'],
+        excludes: [
+            '{cem-module-url @slice=linkUrl',
+            '{str:shorten($src, 32)}',
+            '{str:shorten(src, 32)}',
+        ],
     },
 ] as const;
 
@@ -136,6 +136,7 @@ describe('module-url demo source contracts', () => {
         expect(() => JSON.parse(source ?? '')).not.toThrow();
         expect(JSON.parse(source ?? '{}')).toMatchObject({
             imports: {
+                '@epa-wg/cem-elements/': '../',
                 'demo-src-image': './lib-dir/Smiley.svg?src=module',
                 'demo-referrer-image': './lib-dir/Smiley.svg?referrer=default',
                 'demo-module-referrer': './module-referrer/component.js',
@@ -157,6 +158,11 @@ describe('module-url demo source contracts', () => {
     it('uses the shared resolver rather than a demo-only compatibility callback', () => {
         expect(DEMO_SOURCE).toContain('installCemElementRuntime(window);');
         expect(DEMO_SOURCE).not.toContain('resolveModuleUrl(specifier');
+    });
+
+    it('links to the extracted referrer and string-function demos', () => {
+        expect(DEMO_SOURCE).toContain('href="./module-url-referrer.html"');
+        expect(DEMO_SOURCE).toContain('href="./functions/str.html"');
     });
 
     it.each(SAMPLE_CONTRACTS)('$legend', ({ legend, includes, excludes = [] }) => {

@@ -282,21 +282,27 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/for-each.html',
         checks: [
-            countAtLeast('cem-loop-list article.demo-card', 6),
-            countAtLeast('cem-loop-list li', 3),
-            text('cem-loop-list li', 'Apple'),
-            countAtLeast('cem-loop-list tbody tr', 3),
-            clickThenText('cem-loop-list input[type="checkbox"]', 'cem-loop-list span', '1 : First'),
-            text('cem-loop-list .payload-feed li', 'payload-alpha : Payload Alpha'),
-            text('cem-loop-list .payload-feed li', 'payload-beta : Payload Beta'),
-            text('cem-loop-list .location-feed li', 'topic = feeds'),
-            text('cem-loop-list .location-feed li', 'item = payload,resource'),
-            text('cem-loop-list output[data-role="json-state"]', 'loaded'),
-            text('cem-loop-list .http-json-feed li', 'alpha : ready'),
-            text('cem-loop-list .http-json-feed li', 'beta : loaded'),
-            text('cem-loop-list output[data-role="xml-state"]', 'loaded'),
-            text('cem-loop-list .http-xml-feed li', 'gamma : xml-ready'),
-            text('cem-loop-list .http-xml-feed li', 'delta : xml-loaded'),
+            countExactly('html-demo-element[legend]', 9),
+            countExactly('cem-loop-simple li', 3),
+            text('cem-loop-simple li', 'Apple'),
+            text('cem-loop-position', '1 . Red'),
+            text('cem-loop-position', '3 . Blue'),
+            clickThenText('cem-loop-conditional input[type="checkbox"]', 'cem-loop-conditional span', '1 : First'),
+            countExactly('cem-loop-nested-table tbody tr', 3),
+            text('cem-loop-nested-table tbody', 'B2'),
+            text('cem-loop-attributes', '# 1 Alice ( admin )'),
+            text('cem-loop-attributes', '# 3 Charlie ( viewer )'),
+            clickThenText('cem-loop-dynamic-table input[type="checkbox"]', 'cem-loop-dynamic-table tbody', 'Widget'),
+            text('cem-loop-payload .payload-feed li', 'payload-alpha : Payload Alpha'),
+            text('cem-loop-payload .payload-feed li', 'payload-beta : Payload Beta'),
+            text('cem-loop-location .location-feed li', 'topic = feeds'),
+            text('cem-loop-location .location-feed li', 'item = payload,resource'),
+            text('cem-loop-http output[data-role="json-state"]', 'loaded'),
+            text('cem-loop-http .http-json-feed li', 'alpha : ready'),
+            text('cem-loop-http .http-json-feed li', 'beta : loaded'),
+            text('cem-loop-http output[data-role="xml-state"]', 'loaded'),
+            text('cem-loop-http .http-xml-feed li', 'gamma : xml-ready'),
+            text('cem-loop-http .http-xml-feed li', 'delta : xml-loaded'),
         ],
     },
     {
@@ -377,32 +383,71 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/module-url.html',
         checks: [
-            attributeContains('cem-module-link a', 'href', '/packages/custom-element/material/'),
             attributeContains(
-                'cem-module-link img.resolved-logo',
+                'html-demo-element[legend="1. module path by symbolic name"] image-link',
                 'src',
-                '/packages/cem-elements/demo/lib-dir/Smiley.svg',
+                '/packages/cem-elements/demo/wc-square.svg',
             ),
-            text('cem-module-link p', 'Smiley.svg'),
-            shortenedHrefText('cem-module-link image-link a', 32),
-            attributeContains('cem-module-src-forms image-link:first-of-type img', 'src', 'Smiley.svg?src=relative'),
-            attributeContains('cem-module-src-forms image-link:nth-of-type(2) img', 'src', 'Smiley.svg?src=module'),
-            attributeContains('cem-module-src-forms image-link:last-of-type img', 'src', 'data:image/svg+xml,'),
-            shortenedHrefText('cem-module-src-forms image-link:first-of-type a', 32),
-            shortenedHrefText('cem-module-src-forms image-link:nth-of-type(2) a', 32),
-            shortenedHrefText('cem-module-src-forms image-link:last-of-type a', 32),
-            text('cem-module-referrer-matrix tbody tr:first-of-type td:nth-of-type(2)', 'Smiley.svg?referrer=relative'),
-            text('cem-module-referrer-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'confused.svg?referrer=module'),
-            text('cem-module-referrer-matrix tbody tr:last-of-type td:nth-of-type(2)', 'wc-square.svg?referrer=absolute'),
-            attributeContains('cem-local-map-image:first-of-type img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
-            attributeContains('cem-local-map-wrapper cem-local-map-image img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
-            shortenedHrefText('cem-local-map-image:first-of-type image-link a', 32),
-            shortenedHrefText('cem-local-map-wrapper cem-local-map-image image-link a', 32),
-            attributeContains('cem-local-map-wrapper img.node-referrer-image', 'src', 'wc-square.svg?owner=component'),
-            shortenedHrefText('cem-local-map-wrapper image-link.node-referrer-image a', 32),
-            text('cem-local-map-wrapper table.node-referrer-matrix td:first-of-type', 'Smiley.svg?referrer=node'),
-            text('cem-local-map-wrapper table.node-referrer-matrix td:nth-of-type(2)', 'wc-square.svg?owner=component'),
-            text('cem-local-map-wrapper table.node-referrer-matrix td:last-of-type', 'https://assets.example.test/logo.svg'),
+            attributeContains(
+                'html-demo-element[legend="1. module path by symbolic name"] image-link img',
+                'src',
+                '/packages/cem-elements/demo/wc-square.svg',
+            ),
+            attributeContains(
+                'html-demo-element[legend="1. module path by symbolic name"] image-link a',
+                'href',
+                '/packages/cem-elements/demo/wc-square.svg',
+            ),
+            shortenedHrefText('html-demo-element[legend="1. module path by symbolic name"] image-link a', 32),
+            attributeContains(
+                'html-demo-element[legend="2. src forms: relative URL"] image-link',
+                'src',
+                'Smiley.svg?src=relative',
+            ),
+            attributeContains(
+                'html-demo-element[legend="2. src forms: relative URL"] image-link img',
+                'src',
+                'Smiley.svg?src=relative',
+            ),
+            shortenedHrefText('html-demo-element[legend="2. src forms: relative URL"] image-link a', 32),
+            attributeContains(
+                'html-demo-element[legend="3. src forms: absolute URL"] image-link',
+                'src',
+                'data:image/svg+xml,',
+            ),
+            attributeContains(
+                'html-demo-element[legend="3. src forms: absolute URL"] image-link img',
+                'src',
+                'data:image/svg+xml,',
+            ),
+            shortenedHrefText('html-demo-element[legend="3. src forms: absolute URL"] image-link a', 32),
+            attributeContains('cem-local-map-naked-image img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
+            shortenedHrefText('cem-local-map-naked-image image-link a', 32),
+            attributeContains('cem-local-map-override-wrapper img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
+            shortenedHrefText('cem-local-map-override-wrapper image-link a', 32),
+            attributeContains('cem-local-map-referrer-demo img.node-referrer-image', 'src', 'wc-square.svg?owner=component'),
+            shortenedHrefText('cem-local-map-referrer-demo image-link.node-referrer-image a', 32),
+            text('cem-local-map-referrer-demo table.node-referrer-matrix td:first-of-type', 'Smiley.svg?referrer=node'),
+            text('cem-local-map-referrer-demo table.node-referrer-matrix td:nth-of-type(2)', 'wc-square.svg?owner=component'),
+            text('cem-local-map-referrer-demo table.node-referrer-matrix td:last-of-type', 'https://assets.example.test/logo.svg'),
+            shortenedHrefText('html-demo-element[legend="image-link"] image-link a', 32),
+            countExactly('cem-module-url', 0),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/module-url-referrer.html',
+        checks: [
+            text('tbody tr:first-of-type td:first-of-type', 'Smiley.svg?case=relative-relative'),
+            text('tbody tr:first-of-type td:nth-of-type(2)', 'Smiley.svg?referrer=relative'),
+            text('tbody tr:nth-of-type(2) td:nth-of-type(2)', 'confused.svg?referrer=module'),
+            text('tbody tr:last-of-type td:first-of-type', 'https://referrer.example.test/lib-dir/Smiley.svg?case=relative-absolute'),
+            text('tbody tr:last-of-type td:nth-of-type(2)', 'wc-square.svg?referrer=absolute'),
+            countExactly('cem-module-url', 0),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/functions/str.html',
+        checks: [
             normalizedText('cem-str-shorten-matrix tbody tr:first-of-type td:nth-of-type(2)', 'short'),
             normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'abc…hij'),
             normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(3) td:nth-of-type(2)', 'abc…ghij'),
@@ -410,8 +455,6 @@ const fixtureSpecs = [
             normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(5) td:nth-of-type(2)', 'abchij'),
             normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(6) td:nth-of-type(2)', 'αβ💠ζη'),
             normalizedText('cem-str-shorten-matrix tbody tr:last-of-type td:nth-of-type(2)', 'https://example…emantic-card.cem'),
-            shortenedHrefText('html-demo-element[legend="image-link"] image-link a', 32),
-            countExactly('cem-module-url', 0),
         ],
     },
     {
@@ -846,12 +889,42 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/for-each.html',
         samples: [
             sampleContract('1. Simple for-each', [
-                countAtLeast('cem-loop-list article.demo-card', 6),
-                text('cem-loop-list li', 'Apple'),
-                countAtLeast('cem-loop-list tbody tr', 3),
-                text('cem-loop-list .payload-feed', 'payload-beta : Payload Beta'),
-                text('cem-loop-list .http-json-feed', 'beta : loaded'),
-                text('cem-loop-list .http-xml-feed', 'delta : xml-loaded'),
+                countExactly('cem-loop-simple li', 3),
+                text('cem-loop-simple li', 'Apple'),
+            ]),
+            sampleContract('2. for-each with position()', [
+                text('cem-loop-position', '1 . Red'),
+                text('cem-loop-position', '3 . Blue'),
+            ]),
+            sampleContract('3. Conditional for-each', [
+                text('cem-loop-conditional', 'BEFORE'),
+                text('cem-loop-conditional', 'AFTER'),
+                clickThenText('cem-loop-conditional input[type="checkbox"]', 'cem-loop-conditional span', '1 : First'),
+            ]),
+            sampleContract('4. Nested for-each table', [
+                countExactly('cem-loop-nested-table tbody tr', 3),
+                text('cem-loop-nested-table tbody', 'B2'),
+            ]),
+            sampleContract('5. for-each with attributes', [
+                text('cem-loop-attributes', '# 1 Alice ( admin )'),
+                text('cem-loop-attributes', '# 3 Charlie ( viewer )'),
+            ]),
+            sampleContract('6. Dynamic table with toggle', [
+                clickThenText('cem-loop-dynamic-table input[type="checkbox"]', 'cem-loop-dynamic-table tbody', 'Widget'),
+            ]),
+            sampleContract('7. for-each over payload data', [
+                text('cem-loop-payload .payload-feed', 'payload-alpha : Payload Alpha'),
+                text('cem-loop-payload .payload-feed', 'payload-beta : Payload Beta'),
+            ]),
+            sampleContract('8. for-each over location data', [
+                text('cem-loop-location .location-feed', 'topic = feeds'),
+                text('cem-loop-location .location-feed', 'item = payload,resource'),
+            ]),
+            sampleContract('9. for-each over HTTP JSON/XML data', [
+                text('cem-loop-http output[data-role="json-state"]', 'loaded'),
+                text('cem-loop-http .http-json-feed', 'beta : loaded'),
+                text('cem-loop-http output[data-role="xml-state"]', 'loaded'),
+                text('cem-loop-http .http-xml-feed', 'delta : xml-loaded'),
             ]),
         ],
     },
@@ -891,35 +964,58 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/module-url.html',
         samples: [
             sampleContract('this page import maps', [text(':scope', '"lib-root"'), text(':scope', '"embed-lib"')]),
-            sampleContract('4. module path by symbolic name', [attributeContains('cem-module-link a', 'href', '/packages/custom-element/material/'), attributeContains('cem-module-link img', 'src', '/packages/cem-elements/demo/lib-dir/Smiley.svg'), shortenedHrefText('cem-module-link image-link a', 32)]),
-            sampleContract('5. src forms: relative URL, module path, and absolute URL', [
-                attributeContains('cem-module-src-forms image-link:first-of-type img', 'src', 'Smiley.svg?src=relative'),
-                attributeContains('cem-module-src-forms image-link:nth-of-type(2) img', 'src', 'Smiley.svg?src=module'),
-                attributeContains('cem-module-src-forms image-link:last-of-type img', 'src', 'data:image/svg+xml,'),
-                shortenedHrefText('cem-module-src-forms image-link:first-of-type a', 32),
-                shortenedHrefText('cem-module-src-forms image-link:nth-of-type(2) a', 32),
-                shortenedHrefText('cem-module-src-forms image-link:last-of-type a', 32),
+            sampleContract('1. module path by symbolic name', [
+                attributeContains('image-link', 'src', '/packages/cem-elements/demo/wc-square.svg'),
+                attributeContains('image-link img', 'src', '/packages/cem-elements/demo/wc-square.svg'),
+                attributeContains('image-link a', 'href', '/packages/cem-elements/demo/wc-square.svg'),
+                shortenedHrefText('image-link a', 32),
             ]),
-            sampleContract('6. src by scalar referrer matrix', [
-                text('cem-module-referrer-matrix tbody tr:first-of-type td:first-of-type', 'Smiley.svg?case=relative-relative'),
-                text('cem-module-referrer-matrix tbody tr:first-of-type td:nth-of-type(2)', 'Smiley.svg?referrer=relative'),
-                text('cem-module-referrer-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'confused.svg?referrer=module'),
-                text('cem-module-referrer-matrix tbody tr:last-of-type td:first-of-type', 'https://referrer.example.test/lib-dir/Smiley.svg?case=relative-absolute'),
-                text('cem-module-referrer-matrix tbody tr:last-of-type td:nth-of-type(2)', 'wc-square.svg?referrer=absolute'),
+            sampleContract('2. src forms: relative URL', [
+                attributeContains('image-link', 'src', 'Smiley.svg?src=relative'),
+                attributeContains('image-link img', 'src', 'Smiley.svg?src=relative'),
+                shortenedHrefText('image-link a', 32),
             ]),
-            sampleContract('7. component-local map: naked, wrapper override, and node referrer', [
-                attributeContains('cem-local-map-image:first-of-type img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
-                attributeContains('cem-local-map-wrapper cem-local-map-image img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
-                shortenedHrefText('cem-local-map-image:first-of-type image-link a', 32),
-                shortenedHrefText('cem-local-map-wrapper cem-local-map-image image-link a', 32),
-                attributeContains('cem-local-map-wrapper img.node-referrer-image', 'src', 'wc-square.svg?owner=component'),
-                shortenedHrefText('cem-local-map-wrapper image-link.node-referrer-image a', 32),
-                text('cem-local-map-wrapper table.node-referrer-matrix td:first-of-type', 'Smiley.svg?referrer=node'),
-                text('cem-local-map-wrapper table.node-referrer-matrix td:nth-of-type(2)', 'wc-square.svg?owner=component'),
-                text('cem-local-map-wrapper table.node-referrer-matrix td:last-of-type', 'https://assets.example.test/logo.svg'),
+            sampleContract('3. src forms: absolute URL', [
+                attributeContains('image-link', 'src', 'data:image/svg+xml,'),
+                attributeContains('image-link img', 'src', 'data:image/svg+xml,'),
+                shortenedHrefText('image-link a', 32),
+            ]),
+            sampleContract('5. component-local map: naked', [
+                attributeContains('cem-local-map-naked-image img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
+                shortenedHrefText('cem-local-map-naked-image image-link a', 32),
+            ]),
+            sampleContract('6. component-local map: wrapper override', [
+                attributeContains('cem-local-map-override-wrapper img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
+                shortenedHrefText('cem-local-map-override-wrapper image-link a', 32),
+            ]),
+            sampleContract('7. component-local map: node referrer', [
+                attributeContains('cem-local-map-referrer-demo img.node-referrer-image', 'src', 'wc-square.svg?owner=component'),
+                shortenedHrefText('cem-local-map-referrer-demo image-link.node-referrer-image a', 32),
+                text('cem-local-map-referrer-demo table.node-referrer-matrix td:first-of-type', 'Smiley.svg?referrer=node'),
+                text('cem-local-map-referrer-demo table.node-referrer-matrix td:nth-of-type(2)', 'wc-square.svg?owner=component'),
+                text('cem-local-map-referrer-demo table.node-referrer-matrix td:last-of-type', 'https://assets.example.test/logo.svg'),
                 countExactly('cem-module-url', 0),
             ]),
-            sampleContract('8. str:shorten query/result matrix', [
+            sampleContract('image-link', [shortenedHrefText('image-link a', 32)]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/module-url-referrer.html',
+        samples: [
+            sampleContract('src by scalar referrer matrix', [
+                text('tbody tr:first-of-type td:first-of-type', 'Smiley.svg?case=relative-relative'),
+                text('tbody tr:first-of-type td:nth-of-type(2)', 'Smiley.svg?referrer=relative'),
+                text('tbody tr:nth-of-type(2) td:nth-of-type(2)', 'confused.svg?referrer=module'),
+                text('tbody tr:last-of-type td:first-of-type', 'https://referrer.example.test/lib-dir/Smiley.svg?case=relative-absolute'),
+                text('tbody tr:last-of-type td:nth-of-type(2)', 'wc-square.svg?referrer=absolute'),
+                countExactly('cem-module-url', 0),
+            ]),
+        ],
+    },
+    {
+        path: '/packages/cem-elements/demo/functions/str.html',
+        samples: [
+            sampleContract('str:shorten query/result matrix', [
                 normalizedText('cem-str-shorten-matrix tbody tr:first-of-type td:nth-of-type(2)', 'short'),
                 normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'abc…hij'),
                 normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(3) td:nth-of-type(2)', 'abc…ghij'),
@@ -928,7 +1024,6 @@ const sourceDocumentSpecs = [
                 normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(6) td:nth-of-type(2)', 'αβ💠ζη'),
                 normalizedText('cem-str-shorten-matrix tbody tr:last-of-type td:nth-of-type(2)', 'https://example…emantic-card.cem'),
             ]),
-            sampleContract('image-link', [shortenedHrefText('image-link a', 32)]),
         ],
     },
     {
@@ -963,6 +1058,7 @@ const sourceHarnessHtml = `<!doctype html>
     <script type="importmap">
         {
             "imports": {
+                "@epa-wg/cem-elements/": "/packages/cem-elements/",
                 "@epa-wg/cem-elements/demo/lib-dir/Smiley.svg": "/packages/cem-elements/demo/lib-dir/Smiley.svg",
                 "@epa-wg/material": "/packages/custom-element/material/",
                 "demo-src-image": "/packages/cem-elements/demo/lib-dir/Smiley.svg?src=module",
@@ -1020,7 +1116,14 @@ const server = createServer(async (request, response) => {
             response.end(sourceHarnessHtml);
             return;
         }
-        const filePath = normalize(join(repoRoot, pathname));
+        // The source harness is the page URL for ordinary relative HTML assets.
+        // Provide the comparison image used by the module-URL wrapper sample at
+        // that page-relative address; CEM module resolution remains covered by
+        // the distinct /packages/cem-elements/demo/... URLs.
+        const fixturePathname = pathname === '/lib-dir/Smiley.svg'
+            ? '/packages/cem-elements/demo/lib-dir/Smiley.svg'
+            : pathname;
+        const filePath = normalize(join(repoRoot, fixturePathname));
         if (filePath !== repoRoot && !filePath.startsWith(repoRoot + sep)) {
             response.writeHead(403);
             response.end('Forbidden');

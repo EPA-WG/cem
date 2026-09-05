@@ -233,6 +233,40 @@ registration identities may reuse an inherited or existing definition.
       `@ target` spelling. All 200 unit tests, the focused module-URL
       Storybook interaction, lint, typecheck, and the 15-page /
       21-source-document browser fixture gate pass.
+- [x] Repair simplified module-URL sample 1 so its anonymous declaration passes
+      the resolved package-subpath URL into `image-link`.
+    - [x] Cover the package-prefix import-map entry, published slice value, and
+          rendered image/link URL in exact-source and browser fixture contracts.
+    - Completed 2026-09-05: executable, displayed, Storybook, and source-harness
+      import maps use the valid `@epa-wg/cem-elements/` prefix entry, and the
+      anonymous sample publishes its absolute URL through `image-link` to the
+      rendered image and anchor.
+- [x] Move the scalar URL-referrer matrix from `demo/module-url.html` into the
+      standalone `demo/module-url-referrer.html` page.
+    - [x] Explain scalar-referrer base and scope selection, distinguish
+          `referrer-selector`, link the extracted page from the original demo,
+          and cover it in exact-source, Storybook, standalone, source-loaded,
+          and inventory checks.
+- [x] Establish `packages/cem-elements/demo/functions/` as the executable
+      CEM-QL function-demo collection.
+    - [x] Move the `str:shorten` query/result matrix out of `module-url.html`
+          into the standalone `functions/str.html` string-function page.
+    - [x] Add exact-source, source-loaded Storybook, standalone browser, and
+          inventory coverage for the function-demo page after the current demo
+          restructuring is complete.
+    - Completed 2026-09-05: `module-url.html` links both extracted demos without
+      changing its prettified source layout. All 207 unit tests, three focused
+      Storybook interactions, lint, typecheck, and the expanded 17-page /
+      23-source-document browser gate pass.
+- [x] Split the bundled `demo/for-each.html` fixture into one independent
+      `html-demo-element` per authored use case.
+    - [x] Give all nine cases declaration and instance ownership local to their
+          sample, including conditional state, payload, location, and HTTP data.
+    - [x] Update standalone and source-loaded fixture inventory and interaction
+          checks for each new legend.
+    - Completed 2026-09-05: all nine cases now render as independent samples;
+      unit source contracts (217 total tests), focused Storybook interactions,
+      lint, typecheck, and the 17-page / 23-source-document browser gate pass.
 - [ ] Enforce one-to-one source-loaded Storybook coverage for every authored
       sample in `packages/cem-elements/index.html` and every HTML document under
       `packages/cem-elements/demo/`, following the current data-slices and

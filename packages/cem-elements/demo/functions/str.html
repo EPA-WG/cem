@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CEM-QL string functions demo</title>
+    <link rel="stylesheet" href="../demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav">
+    <a href="../../index.html">cem-element demo</a>
+    <h1>CEM-QL string functions</h1>
+</nav>
+
+<main>
+    <section>
+        <p>Executable examples for CEM-QL <code>str:</code> functions.</p>
+    </section>
+
+    <html-demo-element
+        legend="str:shorten query/result matrix"
+        description="Live CEM-QL examples cover unchanged text, <br/>
+            length-budget parity, alternate ellipses, Unicode codepoints, and URL labels">
+        <template>
+<cem-element tag="cem-str-shorten-matrix">
+    <template type="text/cem-ml">
+{table @class="demo-card str-shorten-matrix" |
+    {thead | {tr | {th | Query} {th | Result}}}
+    {tbody |
+        {tr |
+            {td | {code | str:shorten("short", 8)}}
+            {td | {code | {$str:shorten("short", 8)}}}
+        }
+        {tr |
+            {td | {code | str:shorten("abcdefghij", 7)}}
+            {td | {code | {$str:shorten("abcdefghij", 7)}}}
+        }
+        {tr |
+            {td | {code | str:shorten("abcdefghij", 8)}}
+            {td | {code | {$str:shorten("abcdefghij", 8)}}}
+        }
+        {tr |
+            {td | {code | str:shorten("abcdefghij", 8, "...")}}
+            {td | {code | {$str:shorten("abcdefghij", 8, "...")}}}
+        }
+        {tr |
+            {td | {code | str:shorten("abcdefghij", 6, "")}}
+            {td | {code | {$str:shorten("abcdefghij", 6, "")}}}
+        }
+        {tr |
+            {td | {code | str:shorten("αβ😀δεζη", 5, "💠")}}
+            {td | {code | {$str:shorten("αβ😀δεζη", 5, "💠")}}}
+        }
+        {tr |
+            {td | {code |
+                str:shorten( {br}
+                    "https://example.test/lib/semantic-card.cem" {br}
+                    , 32)}}
+            {td | {code |
+                {$str:shorten(
+                    "https://example.test/lib/semantic-card.cem"
+                    , 32)}}}
+}   }   }
+    </template>
+</cem-element>
+
+<cem-str-shorten-matrix></cem-str-shorten-matrix>
+        </template>
+    </html-demo-element>
+</main>
+
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+</body>
+</html>

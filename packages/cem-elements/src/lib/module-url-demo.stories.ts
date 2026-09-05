@@ -4,11 +4,12 @@ const SOURCE_TAG = 'story-module-url-document';
 const MODULE_URL_DEMO_URL = new URL('../../demo/module-url.html', import.meta.url);
 const EXPECTED_LEGENDS = [
     'this page import maps',
-    '4. module path by symbolic name',
-    '5. src forms: relative URL, module path, and absolute URL',
-    '6. src by scalar referrer matrix',
-    '7. component-local map: naked, wrapper override, and node referrer',
-    '8. str:shorten query/result matrix',
+    '1. module path by symbolic name',
+    '2. src forms: relative URL',
+    '3. src forms: absolute URL',
+    '5. component-local map: naked',
+    '6. component-local map: wrapper override',
+    '7. component-local map: node referrer',
     'image-link',
 ] as const;
 
@@ -49,79 +50,67 @@ export const EveryAuthoredSample: Story = {
         assertDeepEqual(actualLegends, [...EXPECTED_LEGENDS], 'module-url sample inventory');
 
         const symbolic = sampleByLegend(host, EXPECTED_LEGENDS[1]);
+        const squareUrl = new URL('./wc-square.svg', MODULE_URL_DEMO_URL).href;
         await waitForCondition(
-            () => symbolic.querySelector('cem-module-link a')?.getAttribute('href') ===
-                'https://storybook.example.test/material/README.md',
-            () => `symbolic package URL resolves through the Storybook root map; observed ${symbolic.querySelector('cem-module-link')?.outerHTML ?? 'no host'}`
+            () => symbolic.querySelector('image-link')?.getAttribute('src') === squareUrl
+                && symbolic.querySelector('image-link img')?.getAttribute('src') === squareUrl
+                && symbolic.querySelector('image-link a')?.getAttribute('href') === squareUrl,
+            () => `resolved package-subpath slice reaches image-link src; observed ${symbolic.querySelector('image-link')?.outerHTML ?? 'no image-link'}`
         );
         assertEqual(
-            requiredElement(symbolic, 'cem-module-link img').getAttribute('src'),
-            new URL('./lib-dir/Smiley.svg', MODULE_URL_DEMO_URL).href,
-            'symbolic logo URL resolves through the Storybook root map'
+            requiredElement(symbolic, 'image-link img').getAttribute('src'),
+            squareUrl,
+            'image-link renders the package-subpath image URL'
+        );
+        assertEqual(
+            requiredElement(symbolic, 'image-link a').getAttribute('href'),
+            squareUrl,
+            'image-link retains the package-subpath URL as its link target'
         );
 
-        const srcForms = sampleByLegend(host, EXPECTED_LEGENDS[2]);
         const smileyUrl = new URL('./lib-dir/Smiley.svg', MODULE_URL_DEMO_URL);
         const relativeSrcUrl = withSearch(smileyUrl, 'src', 'relative');
-        const moduleSrcUrl = withSearch(smileyUrl, 'src', 'module');
-        const srcFormValues = () => Array.from(
-            srcForms.querySelectorAll('cem-module-src-forms img'),
-            (image) => image.getAttribute('src')
+        const relative = sampleByLegend(host, EXPECTED_LEGENDS[2]);
+        await waitForCondition(
+            () => relative.querySelector('image-link')?.getAttribute('src') === relativeSrcUrl,
+            'anonymous relative-URL sample passes its resolved slice to image-link'
         );
-        const srcFormLinks = () => Array.from(
-            srcForms.querySelectorAll('cem-module-src-forms image-link a'),
-            (link) => link.getAttribute('href')
-        );
+
+        const absolute = sampleByLegend(host, EXPECTED_LEGENDS[3]);
         await waitForCondition(
             () => {
-                const values = srcFormValues();
-                const links = srcFormLinks();
-                return values[0] === relativeSrcUrl
-                    && values[1] === moduleSrcUrl
-                    && values[2]?.startsWith('data:image/svg+xml,')
-                    && links.length === values.length
-                    && links.every((value, index) => value === values[index]);
+                const source = absolute.querySelector('image-link')?.getAttribute('src');
+                return source?.startsWith('data:image/svg+xml,') === true
+                    && absolute.querySelector('image-link img')?.getAttribute('src') === source
+                    && absolute.querySelector('image-link a')?.getAttribute('href') === source;
             },
-            () => `relative, mapped module, and absolute src forms resolve through image-link; observed images ${JSON.stringify(srcFormValues())}, links ${JSON.stringify(srcFormLinks())}`
+            'absolute src passes unchanged through image-link'
         );
 
-        const matrix = sampleByLegend(host, EXPECTED_LEGENDS[3]);
-        const matrixCells = () => Array.from(
-            matrix.querySelectorAll('cem-module-referrer-matrix tbody td'),
-            (cell) => normalize(cell.textContent ?? '')
-        );
         const confusedUrl = new URL('./confused.svg', MODULE_URL_DEMO_URL);
-        const squareUrl = new URL('./wc-square.svg', MODULE_URL_DEMO_URL);
-        const expectedMatrix = [
-            withSearch(smileyUrl, 'case', 'relative-relative'),
-            withSearch(smileyUrl, 'referrer', 'relative'),
-            'https://assets.example.test/logo.svg',
-            withSearch(smileyUrl, 'case', 'relative-module'),
-            withSearch(confusedUrl, 'referrer', 'module'),
-            'https://assets.example.test/logo.svg',
-            'https://referrer.example.test/lib-dir/Smiley.svg?case=relative-absolute',
-            withSearch(squareUrl, 'referrer', 'absolute'),
-            'https://assets.example.test/logo.svg',
-        ];
-        await waitForCondition(
-            () => matrixCells().length === expectedMatrix.length &&
-                matrixCells().every((value, index) => value === expectedMatrix[index]),
-            'all scalar src by referrer combinations publish their expected URLs'
-        );
-
-        const localMaps = sampleByLegend(host, EXPECTED_LEGENDS[4]);
-        const componentImages = () => Array.from(
-            localMaps.querySelectorAll<HTMLElement>('cem-local-map-image img.component-owned-image')
-        );
-        const componentLinks = () => Array.from(
-            localMaps.querySelectorAll<HTMLAnchorElement>('cem-local-map-image image-link a')
-        );
+        const squareReferrerUrl = new URL('./wc-square.svg', MODULE_URL_DEMO_URL);
         const nakedUrl = withSearch(smileyUrl, 'owner', 'component');
         const wrappedUrl = withSearch(confusedUrl, 'owner', 'wrapper');
-        const nodeReferrerUrl = withSearch(squareUrl, 'owner', 'component');
+        const nodeReferrerUrl = withSearch(squareReferrerUrl, 'owner', 'component');
+
+        const naked = sampleByLegend(host, EXPECTED_LEGENDS[4]);
+        await waitForCondition(
+            () => naked.querySelector('cem-local-map-naked-image img')?.getAttribute('src') === nakedUrl
+                && naked.querySelector('cem-local-map-naked-image a')?.getAttribute('href') === nakedUrl,
+            'naked component resolves through its own module map'
+        );
+
+        const override = sampleByLegend(host, EXPECTED_LEGENDS[5]);
+        await waitForCondition(
+            () => override.querySelector('cem-local-map-override-image img')?.getAttribute('src') === wrappedUrl
+                && override.querySelector('cem-local-map-override-image a')?.getAttribute('href') === wrappedUrl,
+            'wrapper module map overrides the child mapping'
+        );
+
+        const nodeReferrer = sampleByLegend(host, EXPECTED_LEGENDS[6]);
         const nodeReferrerCells = () => Array.from(
-            localMaps.querySelectorAll('cem-local-map-wrapper table.node-referrer-matrix td'),
-            (cell) => normalize(cell.textContent ?? '')
+            nodeReferrer.querySelectorAll('cem-local-map-referrer-demo table.node-referrer-matrix td expando-link a'),
+            (link) => link.getAttribute('href')
         );
         const expectedNodeReferrerCells = [
             withSearch(smileyUrl, 'referrer', 'node'),
@@ -129,16 +118,10 @@ export const EveryAuthoredSample: Story = {
             'https://assets.example.test/logo.svg',
         ];
         await waitForCondition(
-            () => componentImages().length === 2 &&
-                componentImages()[0].getAttribute('src') === nakedUrl &&
-                componentImages()[1].getAttribute('src') === wrappedUrl &&
-                componentLinks().length === 2 &&
-                normalize(componentLinks()[0].textContent ?? '') === shortenMiddle(nakedUrl, 32) &&
-                normalize(componentLinks()[1].textContent ?? '') === shortenMiddle(wrappedUrl, 32) &&
-                localMaps.querySelector('cem-local-map-wrapper img.node-referrer-image')?.getAttribute('src') === nodeReferrerUrl &&
+            () => nodeReferrer.querySelector('cem-local-map-referrer-demo img.node-referrer-image')?.getAttribute('src') === nodeReferrerUrl &&
                 nodeReferrerCells().length === expectedNodeReferrerCells.length &&
                 nodeReferrerCells().every((value, index) => value === expectedNodeReferrerCells[index]),
-            'local component map, wrapper override, and all descendant node-referrer src forms resolve'
+            () => `descendant node-referrer values resolve; observed image ${nodeReferrer.querySelector('img.node-referrer-image')?.getAttribute('src') ?? 'none'}, cells ${JSON.stringify(nodeReferrerCells())}`
         );
         assertEqual(
             nodeReferrerCells()[1],
@@ -146,42 +129,12 @@ export const EveryAuthoredSample: Story = {
             'node referrer publishes the inner-only child mapping'
         );
         assertEqual(
-            localMaps.querySelector('cem-local-map-wrapper image-link.node-referrer-image a')?.getAttribute('href'),
+            nodeReferrer.querySelector('cem-local-map-referrer-demo image-link.node-referrer-image a')?.getAttribute('href'),
             nodeReferrerUrl,
             'node-referrer image-link retains the full resolved URL'
         );
-        assertEqual(componentLinks()[0].getAttribute('href'), nakedUrl, 'naked component link retains its full URL');
-        assertEqual(componentLinks()[1].getAttribute('href'), wrappedUrl, 'wrapped component link retains its full URL');
 
-        const shortenMatrix = sampleByLegend(host, EXPECTED_LEGENDS[5]);
-        await waitForCondition(
-            () => shortenMatrix.querySelectorAll('cem-str-shorten-matrix tbody tr').length === 7,
-            'all str:shorten matrix rows render'
-        );
-        const shortenQueries = Array.from(
-            shortenMatrix.querySelectorAll('cem-str-shorten-matrix tbody td:first-of-type'),
-            (cell) => normalize(cell.textContent ?? '')
-        );
-        const shortenResults = Array.from(
-            shortenMatrix.querySelectorAll('cem-str-shorten-matrix tbody td:nth-of-type(2)'),
-            (cell) => normalize(cell.textContent ?? '')
-        );
-        assertDeepEqual(shortenQueries, [
-            'str:shorten("short", 8)',
-            'str:shorten("abcdefghij", 7)',
-            'str:shorten("abcdefghij", 8)',
-            'str:shorten("abcdefghij", 8, "...")',
-            'str:shorten("abcdefghij", 6, "")',
-            'str:shorten("αβ😀δεζη", 5, "💠")',
-            'str:shorten( "https://example.test/lib/semantic-card.cem" , 32)',
-        ], 'str:shorten query matrix');
-        assertDeepEqual(
-            shortenResults,
-            ['short', 'abc…hij', 'abc…ghij', 'ab...hij', 'abchij', 'αβ💠ζη', 'https://example…emantic-card.cem'],
-            'str:shorten result matrix'
-        );
-
-        const helper = sampleByLegend(host, EXPECTED_LEGENDS[6]);
+        const helper = sampleByLegend(host, EXPECTED_LEGENDS[7]);
         const helperLink = requiredElement(helper, 'image-link a');
         assertEqual(
             normalize(helperLink.textContent ?? ''),

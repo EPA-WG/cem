@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-module-url referrer demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "demo-referrer-image": "./lib-dir/Smiley.svg?referrer=default",
+                "demo-module-referrer": "./module-referrer/component.js"
+            },
+            "scopes": {
+                "./relative-referrer/": {
+                    "demo-referrer-image": "./lib-dir/Smiley.svg?referrer=relative"
+                },
+                "./module-referrer/": {
+                    "demo-referrer-image": "./confused.svg?referrer=module"
+                },
+                "https://referrer.example.test/absolute/": {
+                    "demo-referrer-image": "./wc-square.svg?referrer=absolute"
+                }
+            }
+        }
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav">
+    <a href="../index.html">cem-element demo</a>
+    <h1>cem-module-url referrers</h1>
+</nav>
+
+<main>
+    <section>
+        <h2>Purpose of <code>referrer</code></h2>
+        <p>
+            <code>referrer</code> supplies the URL context used to resolve <code>src</code>.
+            A relative <code>src</code> is resolved against that URL, while a module-path
+            <code>src</code> uses it to select the matching import-map scope. An absolute
+            <code>src</code> remains unchanged.
+        </p>
+        <p>
+            The referrer may itself be a relative URL, module path, or absolute URL.
+            It changes URL resolution only; it does not enter another component's local
+            module-map context. Use <code>referrer-selector</code> when resolution must use
+            the context owned by a rendered descendant component.
+        </p>
+    </section>
+
+    <html-demo-element
+        legend="src by scalar referrer matrix"
+        description="Each src form is resolved with a relative-URL, bare-module, and absolute-URL referrer;<br/>
+                    module-map scopes affect only the mapped src while relative src changes base and absolute src stays fixed">
+        <template>
+            <cem-element>
+                <template type="text/cem-ml">
+                    {cem-module-url @slice=relativeByRelative @src="../lib-dir/Smiley.svg?case=relative-relative"   @referrer="./relative-referrer/component.js"}
+                    {cem-module-url @slice=moduleByRelative   @src="demo-referrer-image"                            @referrer="./relative-referrer/component.js"}
+                    {cem-module-url @slice=absoluteByRelative @src="https://assets.example.test/logo.svg"           @referrer="./relative-referrer/component.js"}
+
+                    {cem-module-url @slice=relativeByModule @src="../lib-dir/Smiley.svg?case=relative-module"   @referrer="demo-module-referrer"}
+                    {cem-module-url @slice=moduleByModule   @src="demo-referrer-image"                          @referrer="demo-module-referrer"}
+                    {cem-module-url @slice=absoluteByModule @src="https://assets.example.test/logo.svg"         @referrer="demo-module-referrer"}
+
+                    {cem-module-url @slice=relativeByAbsolute @src="../lib-dir/Smiley.svg?case=relative-absolute"   @referrer="https://referrer.example.test/absolute/component.js"}
+                    {cem-module-url @slice=moduleByAbsolute   @src="demo-referrer-image"                            @referrer="https://referrer.example.test/absolute/component.js"}
+                    {cem-module-url @slice=absoluteByAbsolute @src="https://assets.example.test/logo.svg"           @referrer="https://referrer.example.test/absolute/component.js"}
+
+                    {table @class=demo-card |
+                        {thead | {tr | {th | referrer / src} {th | relative URL} {th | module path} {th | absolute URL}}}
+                        {tbody |
+                            {tr | {th | relative URL} {td | {$datadom.slices.relativeByRelative}} {td | {$datadom.slices.moduleByRelative}} {td | {$datadom.slices.absoluteByRelative}}}
+                            {tr | {th | module path } {td | {$datadom.slices.relativeByModule  }} {td | {$datadom.slices.moduleByModule  }} {td | {$datadom.slices.absoluteByModule  }}}
+                            {tr | {th | absolute URL} {td | {$datadom.slices.relativeByAbsolute}} {td | {$datadom.slices.moduleByAbsolute}} {td | {$datadom.slices.absoluteByAbsolute}}}
+                        }
+                    }
+                </template>
+            </cem-element>
+        </template>
+    </html-demo-element>
+</main>
+
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+</body>
+</html>

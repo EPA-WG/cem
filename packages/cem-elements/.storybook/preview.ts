@@ -21,6 +21,7 @@ function installStorybookRuntime(): CemElementRuntime {
         moduleUrlRoot: {
             importMap: {
                 imports: {
+                    '@epa-wg/cem-elements/': new URL('../', moduleUrlDemoUrl).href,
                     '@epa-wg/cem-elements/demo/lib-dir/Smiley.svg': moduleUrlDemoSmileyUrl.href,
                     '@epa-wg/material': 'https://storybook.example.test/material/',
                     'demo-src-image': withSearch(moduleUrlDemoSmileyUrl, 'src', 'module'),
