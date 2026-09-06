@@ -267,6 +267,30 @@ registration identities may reuse an inherited or existing definition.
     - Completed 2026-09-05: all nine cases now render as independent samples;
       unit source contracts (217 total tests), focused Storybook interactions,
       lint, typecheck, and the 17-page / 23-source-document browser gate pass.
+- [x] Apply the scoped demo-authoring contract to `demo/dom-merge.html`.
+    - [x] Split the textarea and input counters into independent, anonymous,
+          flush-left `html-demo-element` samples with reader-focused context.
+    - [x] Cover both samples through exact-source, Storybook interaction,
+          standalone, source-loaded, and Nx input contracts without test-only
+          markup anchors.
+    - Completed 2026-09-05: both DOM-merge samples now preserve edited control
+      identity and focus while updating derived values. All 221 unit tests, two
+      focused Storybook stories, lint, typecheck, the 17-page / 23-document
+      browser gate, and the two-card desktop layout check pass.
+- [x] Port the five form use cases and explanatory contract from
+      `@epa-wg/custom-element@0.0.39/demo/form.html` to the `cem-elements` demo.
+    - [x] Adapt simple validation, form lifecycle, native control messages,
+          form custom messages, and a form-associated DCE into independent,
+          compact, flush-left samples using current CEM-ML data paths.
+    - [x] Add exact-source, Storybook interaction, standalone, source-loaded,
+          inventory, and Nx input coverage without demo-local JavaScript or
+          test-only markup anchors.
+    - Completed 2026-09-05: all five legacy cases and their descriptive form
+      contract are adapted to current `datadom` paths; the nested fruit-choice
+      DCE contributes native form values through the declarative `choice-select`
+      capability. All 229 unit tests, the focused five-case Storybook flow,
+      lint, typecheck, the 17-page / 23-document browser gate, and the compact
+      desktop layout check pass.
 - [ ] Enforce one-to-one source-loaded Storybook coverage for every authored
       sample in `packages/cem-elements/index.html` and every HTML document under
       `packages/cem-elements/demo/`, following the current data-slices and

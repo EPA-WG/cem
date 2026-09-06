@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 interface SampleContract {
     legend: string;
-    tag: string;
+    tag?: string;
     includes: readonly string[];
 }
 
@@ -27,17 +27,14 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     },
     {
         legend: '3. Conditional for-each',
-        tag: 'cem-loop-conditional',
         includes: ['@slice=show-items', '@as=item', '{$position}:{$item}'],
     },
     {
         legend: '4. Nested for-each table',
-        tag: 'cem-loop-nested-table',
         includes: ['@as=row', '@select="$row.cells" @as=cell', '{td | {$cell}}'],
     },
     {
         legend: '5. for-each with attributes',
-        tag: 'cem-loop-attributes',
         includes: ['@as=user', '{$user.id}', '{$user.name}', '{$user.role}'],
     },
     {
@@ -52,7 +49,6 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     },
     {
         legend: '8. for-each over location data',
-        tag: 'cem-loop-location',
         includes: ['{location-element @slice=loop-location', 'datadom.slices.loop-location.paramEntries'],
     },
     {
@@ -73,14 +69,19 @@ describe('for-each demo source contracts', () => {
         expect(samples).toHaveLength(9);
     });
 
-    it.each(SAMPLE_CONTRACTS)('$legend owns only its declaration and instance', ({ legend, tag, includes }) => {
+    it.each(SAMPLE_CONTRACTS)('$legend owns only the declaration shape it needs', ({ legend, tag, includes }) => {
         const sample = samples.find((candidate) => candidate.legend === legend);
         expect(sample, `missing authored sample ${legend}`).toBeDefined();
         const normalizedSource = (sample?.source ?? '').replace(/\s+/gu, ' ');
-        expect(normalizedSource).toContain(`<cem-element tag="${tag}">`);
-        expect(normalizedSource).toContain(`<${tag}`);
-        expect(normalizedSource).toContain(`</${tag}>`);
         expect(normalizedSource.match(/<cem-element(?:\s|>)/gu)).toHaveLength(1);
+        if (tag) {
+            expect(normalizedSource).toContain(`<cem-element tag="${tag}">`);
+            expect(normalizedSource).toContain(`<${tag}`);
+            expect(normalizedSource).toContain(`</${tag}>`);
+        } else {
+            expect(normalizedSource).toContain('<cem-element>');
+            expect(normalizedSource).not.toMatch(/<cem-element\s+[^>]*\btag=/u);
+        }
         for (const required of includes) {
             expect(normalizedSource, `${legend} must include ${required}`).toContain(
                 required.replace(/\s+/gu, ' ')

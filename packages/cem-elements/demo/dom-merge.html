@@ -11,45 +11,104 @@
     </script>
 </head>
 <body>
-<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>DOM update and data island</h1></nav>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>DOM merge and live slices</h1></nav>
 
 <main>
-    <html-demo-element legend="1. Word count in textarea"
-                       description="Counter update happens on change event(focus change).">
-        <template>
-            <cem-element tag="cem-dom-merge-field">
-                <template type="text/cem-ml">
-                    {slice @name=text-container | Hello world!}
-                    {slice @name=txt | Type time update}
-                    {article @class=demo-card |
-                        {h2 | 1. Word count in textarea}
-                        {form |
-                            {label |
-                                {textarea @slice=text-container @slice-event=input @slice-value="$target.value" | {$datadom.slices.text-container}}
-                                {span | Word count:
-                                    {b | {$(str:length(str:normalize_space(datadom.slices.text-container)) - str:length(str:translate(str:normalize_space(datadom.slices.text-container), " ", "")) + 1)}}
-                                }
-                            }
-                        }
-                    }
-                    {article @class=demo-card |
-                        {h2 | 2. Word and character count in input}
-                        {form |
-                            {label |
-                                {input @type=text @value="{$datadom.slices.txt}" @slice=txt @slice-event=input @slice-value="$target.value"}
-                                {span | Character count: {b | {$str:length(datadom.slices.txt)}}}
-                                {span | Word count:
-                                    {b | {$(str:length(str:normalize_space(datadom.slices.txt)) - str:length(str:translate(str:normalize_space(datadom.slices.txt), " ", "")) + 1)}}
-                                }
-                            }
-                            {p | txt slice:}
-                            {blockquote | {$datadom.slices.txt}}
-                        }
-                    }
-                </template>
-            </cem-element>
+    <section>
+        <h2>Live editing without replacing controls</h2>
+        <p>
+            These examples bind each control's <code>input</code> event to a slice in
+            the component data island. Rendering derives new counts from that slice,
+            while DOM merge updates the dependent text without replacing the control
+            being edited.
+        </p>
+        <h3>See also</h3>
+        <p><a href="./data-slices.html">Slice declarations and event bindings</a></p>
+        <p><a href="./functions/str.html">CEM-QL string functions</a></p>
+    </section>
 
-            <cem-dom-merge-field></cem-dom-merge-field>
+    <html-demo-element
+        legend="1. Textarea word count"
+        description="Typing updates one slice and its derived word count">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | Hello world!}
+{article @class=demo-card |
+    {h2 | 1. Textarea word count}
+    {p | The count is recalculated from the slice after every input event.}
+    {form |
+        {label |
+            Text
+            {textarea
+                @slice=text
+                @slice-event=input
+                @slice-value="$target.value"
+                | {$datadom.slices.text}
+            }
+        }
+        {p |
+            Word count:
+            {strong |
+                {$(
+                    str:length(str:normalize_space(datadom.slices.text))
+                    - str:length(
+                        str:translate(
+                            str:normalize_space(datadom.slices.text)
+                            , " "
+                            , ""
+                        )
+                    )
+                    + 1
+                )}
+}   }   }   }
+    </template>
+</cem-element>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element
+        legend="2. Input word and character count"
+        description="One input slice drives its value, character count, word count, and displayed value">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | Type to update}
+{article @class=demo-card |
+    {h2 | 2. Input word and character count}
+    {p | Several rendered values update from the same edited slice.}
+    {form |
+        {label |
+            Text
+            {input
+                @type=text
+                @value="{$datadom.slices.text}"
+                @slice=text
+                @slice-event=input
+                @slice-value="$target.value"
+            }
+        }
+        {p | Character count: {strong | {$str:length(datadom.slices.text)}}}
+        {p |
+            Word count:
+            {strong |
+                {$(
+                    str:length(str:normalize_space(datadom.slices.text))
+                    - str:length(
+                        str:translate(
+                            str:normalize_space(datadom.slices.text)
+                            , " "
+                            , ""
+                        )
+                    )
+                    + 1
+                )}
+            }
+        }
+        {p | Current slice: {output | {$datadom.slices.text}}}
+}   }   }
+    </template>
+</cem-element>
         </template>
     </html-demo-element>
 </main>

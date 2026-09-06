@@ -14,36 +14,324 @@
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Forms</h1></nav>
 
 <main>
-    <html-demo-element legend="1. Simple validation"
-                       description="custom-validity boolean value prevents submission, username length switches Next to 'Sign In' button">
-        <template>
-            <cem-element tag="cem-form-preview">
-                <template type="text/cem-ml">
-                    {slice @name=username}
-                    {slice @name=password}
-                    {article @class=demo-card |
-                        {form @slice=signin @custom-validity="string-length(/datadom/slice/signin/form-data/username) &gt; 2 and string-length(//form-data/password) &gt; 3 ?? 'enter username and password'" |
-                            {label | Username {input @name=username @autocomplete=username @required=true @value="{$username}" @slice=username @slice-event=input @slice-value="{$target.value}"}}
-                            {label | Password {input @name=password @type=password @required=true @minlength=4 @custom-validity="string-length(//form-data/password) &gt; 3 ?? 'password is too short'" @value="{$password}" @slice=password @slice-event=input @slice-value="{$target.value}"}}
-                            {button @type=button | Preview}
-                        }
-                        {p | username: {output | {$datadom.slices.username}}}
-                        {p | form username: {output @data-role=form-username | {$datadom.formData.signin.username}}}
-                        {p | mirrored form username: {output @data-role=mirror-username | {$datadom.slices.signin.formData.username}}}
-                        {p | form valid: {output @data-role=form-valid | {$datadom.validationState.signin.valid}}}
-                        {p | form message: {output @data-role=form-message | {$datadom.validationState.signin.validationMessage}}}
-                        {p | password valid: {output @data-role=password-valid | {$datadom.validationState.signin.controls.password.valid}}}
-                        {p | password message: {output @data-role=password-message | {$datadom.validationState.signin.controls.password.validationMessage}}}
-                        {p | password slice set: {cem:choose |
-                            {cem:when @test="datadom.slices.password" | yes}
-                            {cem:otherwise | no}
-                        }}
-                    }
-                </template>
-            </cem-element>
+    <section>
+        <h2>Form data and validation</h2>
+        <p>
+            A form with <code>slice</code> captures its named controls under
+            <code>datadom.formData.&lt;slice&gt;</code> as controls emit events and when
+            the form submits. The same data is mirrored under the form slice and is
+            the source of truth for rendering and validation.
+        </p>
+        <p>
+            The <code>custom-validity</code> expression can return a boolean or a
+            message string. A false boolean prevents submission; a string makes the
+            form or control invalid and supplies its validation message. Native and
+            custom messages are available through <code>datadom.validationState</code>.
+        </p>
+        <p>
+            See the browser APIs behind these examples in
+            <a href="https://developer.mozilla.org/en-US/docs/Web/API/FormData">FormData</a>
+            and
+            <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Guides/Constraint_validation">Constraint validation</a>.
+        </p>
+        <h3>See also</h3>
+        <p><a href="./data-slices.html">Slice declarations and event bindings</a></p>
+        <p><a href="./dom-merge.html">DOM merge during live control updates</a></p>
+        <p><a href="./attributes.html">DCE attributes and derived values</a></p>
+    </section>
 
-            <cem-form-preview></cem-form-preview>
-            <p class="status-note">Parity target: form custom-validity expressions now project through <code>datadom.validationState</code>.</p>
+    <html-demo-element
+        legend="1. Simple validation"
+        description="Username length reveals the password step; form validity then requires both values">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=username}
+{slice @name=password}
+{article @class=demo-card |
+    {h2 | 1. Simple validation}
+    {p | Enter more than 10 username characters to reveal the password step.}
+    {form
+        @slice=signin
+        @custom-validity='
+            str:length(datadom.formData.signin.username) &gt; 10
+            and str:length(datadom.formData.signin.password) &gt; 3
+            ?? "Enter a long username and password"' |
+        {label |
+            Username
+            {input
+                @name=username
+                @autocomplete=username
+                @required=true
+                @value="{$datadom.slices.username}"
+                @slice=username
+                @slice-event=input
+                @slice-value="$target.value"
+            }
+        }
+        {cem:choose |
+            {cem:when @test="str:length(datadom.slices.username) &gt; 10" |
+                {label |
+                    Password
+                    {input
+                        @name=password
+                        @type=password
+                        @autocomplete=current-password
+                        @required=true
+                        @minlength=4
+                        @value="{$datadom.slices.password}"
+                        @slice=password
+                        @slice-event=input
+                        @slice-value="$target.value"
+                    }
+                }
+                {button @type=submit | Sign in}
+            }
+            {cem:otherwise |
+                {button @type=submit | Next}
+            }
+        }
+        {p | Username: {output | {$datadom.formData.signin.username}}}
+        {p | Form valid: {output | {$datadom.validationState.signin.valid}}}
+        {p | Form message: {output | {$datadom.validationState.signin.validationMessage}}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element
+        legend="2. Form lifecycle"
+        description="Live username validation and the confirmation choice drive conditional form controls">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=username}
+{slice @name=password}
+{article @class=demo-card |
+    {h2 | 2. Form lifecycle}
+    {p | Form data is the source of truth for validation and conditional fields.}
+    {form
+        @slice=lifecycle
+        @custom-validity='
+            str:length(datadom.formData.lifecycle.username) &gt; 9
+            and (
+                datadom.formData.lifecycle.confirmBy == "sms"
+                or datadom.formData.lifecycle.confirmBy == "email"
+                or (
+                    datadom.formData.lifecycle.confirmBy == "password"
+                    and str:length(datadom.formData.lifecycle.password) &gt; 3
+                )
+            )
+            ?? "Complete the username and confirmation method"' |
+        {label |
+            Email, phone, or username
+            {input
+                @name=username
+                @autocomplete=username
+                @placeholder="10 or more characters"
+                @required=true
+                @custom-validity='
+                    str:length(datadom.slices.username) &gt; 9
+                    ?? "Use at least 10 characters"'
+                @value="{$datadom.slices.username}"
+                @slice=username
+                @slice-event=input
+                @slice-value="$target.value"
+            }
+        }
+        {p |
+            Username message:
+            {output |
+                {$datadom.validationState.lifecycle.controls.username.validationMessage}}
+        }
+        {fieldset |
+            {legend | Confirm by}
+            {label | {input @type=radio @name=confirmBy @value=email} Email}
+            {label | {input @type=radio @name=confirmBy @value=sms} Text message}
+            {label | {input @type=radio @name=confirmBy @value=password} Password}
+            {cem:if @test='datadom.formData.lifecycle.confirmBy == "password"' |
+                {label |
+                    Password
+                    {input
+                        @name=password
+                        @type=password
+                        @autocomplete=current-password
+                        @required=true
+                        @custom-validity='
+                            str:length(datadom.formData.lifecycle.password) &gt; 3
+                            ?? "Password is too short"'
+                        @value="{$datadom.slices.password}"
+                        @slice=password
+                        @slice-event=input
+                        @slice-value="$target.value"
+                    }
+                }
+            }
+            {cem:if @test='datadom.formData.lifecycle.confirmBy == "sms"' |
+                {p | Message and data rates may apply.}
+            }
+            {cem:if @test="not(datadom.formData.lifecycle.confirmBy)" |
+                {p | Select a confirmation method.}
+            }
+        }
+        {button @type=submit | Sign in}
+        {p | Username: {output | {$datadom.formData.lifecycle.username}}}
+        {p | Confirm by: {output | {$datadom.formData.lifecycle.confirmBy}}}
+        {p | Form valid: {output | {$datadom.validationState.lifecycle.valid}}}
+        {p | Form message: {output | {$datadom.validationState.lifecycle.validationMessage}}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element
+        legend="3. Native control validity message"
+        description="A required input's browser validationMessage is projected into validation state">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=email | person@example.test}
+{article @class=demo-card |
+    {h2 | 3. Native control validity message}
+    {p | Clear the required field to expose the browser's system message.}
+    {form @slice=nativeMessage |
+        {label |
+            Email
+            {input
+                @name=email
+                @type=email
+                @placeholder=non-empty
+                @required=true
+                @value="{$datadom.slices.email}"
+                @slice=email
+                @slice-event=input
+                @slice-value="$target.value"
+            }
+        }
+        {p |
+            Control valid:
+            {output | {$datadom.validationState.nativeMessage.controls.email.valid}}
+        }
+        {p |
+            Control message:
+            {output |
+                {$datadom.validationState.nativeMessage.controls.email.validationMessage}}
+        }
+        {button @type=submit | Next
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element
+        legend="4. Form custom validity message"
+        description="A string custom-validity result becomes the form's validation message">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=email}
+{article @class=demo-card |
+    {h2 | 4. Form custom validity message}
+    {p | Enter four or more characters to clear the derived form message.}
+    {form
+        @slice=customMessage
+        @custom-validity='
+            str:length(datadom.slices.email) &gt; 3
+            ?? "Use more than 3 characters"' |
+        {label |
+            Email or username
+            {input
+                @name=email
+                @required=true
+                @value="{$datadom.slices.email}"
+                @slice=email
+                @slice-event=input
+                @slice-value="$target.value"
+            }
+        }
+        {button @type=submit | Next}
+        {p | Current slice: {output | {$datadom.slices.email}}}
+        {p | Current length: {output | {$str:length(datadom.slices.email)}}}
+        {p | Form valid: {output | {$datadom.validationState.customMessage.valid}}}
+        {p |
+            Form message:
+            {output | {$datadom.validationState.customMessage.validationMessage}}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element
+        legend="5. DCE as a form input"
+        description="Two form-associated DCE choices contribute values and matching selections satisfy the form">
+        <template>
+<cem-element tag="cem-form-fruit-choice" capability="choice-select">
+    <template type="text/cem-ml">
+{style |```
+    fieldset { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    button[aria-pressed="true"] { font-weight: bold; }
+```}
+{attribute @name=label | Fruit}
+{slice @name=groups}
+{slice @name=value}
+{fieldset @class=cem-select__control |
+    {legend | {$datadom.attributes.label}}
+    {cem:for-each @select="datadom.slices.groups" @as=group |
+        {cem:for-each @select="$group.options" @as=option |
+            {button
+                @type=button
+                @data-option-index="{$option.index}"
+                @aria-pressed="{$option.selected}" |
+                {$option.label}
+}   }   }
+    {p | Selected: {output | {$datadom.slices.value}}}
+}
+    </template>
+</cem-element>
+
+<cem-element>
+    <template type="text/cem-ml">
+{article @class=demo-card |
+    {h2 | 5. DCE as a form input}
+    {p | Choose the same fruit in both form-associated DCE controls.}
+    {form
+        @slice=fruitForm
+        @custom-validity='
+            str:length(datadom.formData.fruitForm.firstFruit) &gt; 0
+            and str:length(datadom.formData.fruitForm.secondFruit) &gt; 0
+            and (
+                datadom.formData.fruitForm.firstFruit
+                == datadom.formData.fruitForm.secondFruit
+            )
+            ?? "Choose the same fruit"' |
+        {cem-form-fruit-choice @name=firstFruit @label="First fruit" @required=true |
+            {cem-option @value="" | Choose fruit}
+            {cem-option @value="🍏" | Apple}
+            {cem-option @value="🍌" | Banana}
+        }
+        {cem-form-fruit-choice @name=secondFruit @label="Second fruit" @required=true |
+            {cem-option @value="" | Choose fruit}
+            {cem-option @value="🍏" | Apple}
+            {cem-option @value="🍌" | Banana}
+        }
+        {button @type=submit | Submit matching fruit}
+        {p |
+            Picked:
+            {output | {$datadom.formData.fruitForm.firstFruit}}
+            and
+            {output | {$datadom.formData.fruitForm.secondFruit}}
+        }
+        {p | Form valid: {output | {$datadom.validationState.fruitForm.valid}}}
+        {p |
+            Form message:
+            {output | {$datadom.validationState.fruitForm.validationMessage}}
+}   }   }
+    </template>
+</cem-element>
         </template>
     </html-demo-element>
 </main>

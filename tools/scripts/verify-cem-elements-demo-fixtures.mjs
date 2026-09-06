@@ -193,12 +193,26 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/dom-merge.html',
         checks: [
-            text('cem-dom-merge-field article.demo-card h2', 'Word count in textarea'),
+            text('html-demo-element[legend="1. Textarea word count"] h2', 'Textarea word count'),
             fillThenText(
-                'cem-dom-merge-field input[type="text"]',
+                'html-demo-element[legend="1. Textarea word count"] textarea',
+                'one two three',
+                'html-demo-element[legend="1. Textarea word count"] form > p strong',
+                '3',
+            ),
+            fillThenText(
+                'html-demo-element[legend="2. Input word and character count"] input',
                 'two words',
-                'cem-dom-merge-field blockquote',
+                'html-demo-element[legend="2. Input word and character count"] output',
                 'two words',
+            ),
+            text(
+                'html-demo-element[legend="2. Input word and character count"] form > p:first-of-type strong',
+                '9',
+            ),
+            text(
+                'html-demo-element[legend="2. Input word and character count"] form > p:nth-of-type(2) strong',
+                '2',
             ),
         ],
     },
@@ -287,16 +301,16 @@ const fixtureSpecs = [
             text('cem-loop-simple li', 'Apple'),
             text('cem-loop-position', '1 . Red'),
             text('cem-loop-position', '3 . Blue'),
-            clickThenText('cem-loop-conditional input[type="checkbox"]', 'cem-loop-conditional span', '1 : First'),
-            countExactly('cem-loop-nested-table tbody tr', 3),
-            text('cem-loop-nested-table tbody', 'B2'),
-            text('cem-loop-attributes', '# 1 Alice ( admin )'),
-            text('cem-loop-attributes', '# 3 Charlie ( viewer )'),
+            clickThenText('html-demo-element[legend="3. Conditional for-each"] input[type="checkbox"]', 'html-demo-element[legend="3. Conditional for-each"] span', '1 : First'),
+            countExactly('html-demo-element[legend="4. Nested for-each table"] tbody tr', 3),
+            text('html-demo-element[legend="4. Nested for-each table"] tbody', 'B2'),
+            text('html-demo-element[legend="5. for-each with attributes"] article', '# 1 Alice ( admin )'),
+            text('html-demo-element[legend="5. for-each with attributes"] article', '# 3 Charlie ( viewer )'),
             clickThenText('cem-loop-dynamic-table input[type="checkbox"]', 'cem-loop-dynamic-table tbody', 'Widget'),
             text('cem-loop-payload .payload-feed li', 'payload-alpha : Payload Alpha'),
             text('cem-loop-payload .payload-feed li', 'payload-beta : Payload Beta'),
-            text('cem-loop-location .location-feed li', 'topic = feeds'),
-            text('cem-loop-location .location-feed li', 'item = payload,resource'),
+            text('html-demo-element[legend="8. for-each over location data"] .location-feed li', 'topic = feeds'),
+            text('html-demo-element[legend="8. for-each over location data"] .location-feed li', 'item = payload,resource'),
             text('cem-loop-http output[data-role="json-state"]', 'loaded'),
             text('cem-loop-http .http-json-feed li', 'alpha : ready'),
             text('cem-loop-http .http-json-feed li', 'beta : loaded'),
@@ -308,25 +322,73 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/form.html',
         checks: [
-            text('cem-form-preview article.demo-card', 'password slice set:'),
+            countExactly('html-demo-element[legend]', 5),
+            text('main > section', 'datadom.formData.<slice>'),
             fillThenText(
-                'cem-form-preview input[name="username"]',
-                'ada',
-                'cem-form-preview output[data-role="form-username"]',
-                'ada',
+                'html-demo-element[legend="1. Simple validation"] input[name="username"]',
+                'long-username',
+                'html-demo-element[legend="1. Simple validation"] form',
+                'Sign in',
             ),
-            text('cem-form-preview output[data-role="mirror-username"]', 'ada'),
-            text('cem-form-preview output[data-role="form-valid"]', 'false'),
-            text('cem-form-preview output[data-role="form-message"]', 'enter username and password'),
-            text('cem-form-preview output[data-role="password-message"]', 'password is too short'),
             fillThenText(
-                'cem-form-preview input[name="password"]',
+                'html-demo-element[legend="1. Simple validation"] input[name="password"]',
                 'secret',
-                'cem-form-preview output[data-role="password-valid"]',
+                'html-demo-element[legend="1. Simple validation"] form > p:nth-of-type(2) output',
                 'true',
             ),
-            text('cem-form-preview output[data-role="form-valid"]', 'true'),
-            text('cem-form-preview p', 'yes'),
+            fillThenText(
+                'html-demo-element[legend="2. Form lifecycle"] input[name="username"]',
+                'long-username',
+                'html-demo-element[legend="2. Form lifecycle"] form > p:nth-of-type(2) output',
+                'long-username',
+            ),
+            clickThenText(
+                'html-demo-element[legend="2. Form lifecycle"] input[value="sms"]',
+                'html-demo-element[legend="2. Form lifecycle"] fieldset',
+                'Message and data rates may apply.',
+            ),
+            clickThenText(
+                'html-demo-element[legend="2. Form lifecycle"] input[value="password"]',
+                'html-demo-element[legend="2. Form lifecycle"] form > p:nth-of-type(3) output',
+                'password',
+            ),
+            fillThenText(
+                'html-demo-element[legend="2. Form lifecycle"] input[name="password"]',
+                'secret',
+                'html-demo-element[legend="2. Form lifecycle"] form > p:nth-of-type(4) output',
+                'true',
+            ),
+            fillThenText(
+                'html-demo-element[legend="3. Native control validity message"] input[name="email"]',
+                '',
+                'html-demo-element[legend="3. Native control validity message"] form > p:nth-of-type(2) output',
+                'Please fill out this field.',
+            ),
+            fillThenText(
+                'html-demo-element[legend="4. Form custom validity message"] input[name="email"]',
+                'abc',
+                'html-demo-element[legend="4. Form custom validity message"] form > p:nth-of-type(4) output',
+                'Use more than 3 characters',
+            ),
+            text(
+                'html-demo-element[legend="4. Form custom validity message"] form > p:nth-of-type(2) output',
+                '3',
+            ),
+            clickThenText(
+                'html-demo-element[legend="5. DCE as a form input"] cem-form-fruit-choice:first-of-type button[data-option-index="1"]',
+                'html-demo-element[legend="5. DCE as a form input"] form > p:first-of-type output:first-of-type',
+                '🍏',
+            ),
+            clickThenText(
+                'html-demo-element[legend="5. DCE as a form input"] cem-form-fruit-choice:last-of-type button[data-option-index="2"]',
+                'html-demo-element[legend="5. DCE as a form input"] form > p:nth-of-type(3) output',
+                'Choose the same fruit',
+            ),
+            clickThenText(
+                'html-demo-element[legend="5. DCE as a form input"] cem-form-fruit-choice:last-of-type button[data-option-index="1"]',
+                'html-demo-element[legend="5. DCE as a form input"] form > p:nth-of-type(2) output',
+                'true',
+            ),
         ],
     },
     {
@@ -788,9 +850,15 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/dom-merge.html',
         samples: [
-            sampleContract('1. Word count in textarea', [
-                text('cem-dom-merge-field article.demo-card h2', 'Word count in textarea'),
-                fillThenText('cem-dom-merge-field input[type="text"]', 'two words', 'cem-dom-merge-field blockquote', 'two words'),
+            sampleContract('1. Textarea word count', [
+                text('h2', 'Textarea word count'),
+                fillThenText('textarea', 'one two three', 'form > p strong', '3'),
+            ]),
+            sampleContract('2. Input word and character count', [
+                text('h2', 'Input word and character count'),
+                fillThenText('input', 'two words', 'output', 'two words'),
+                text('form > p:first-of-type strong', '9'),
+                text('form > p:nth-of-type(2) strong', '2'),
             ]),
         ],
     },
@@ -897,17 +965,17 @@ const sourceDocumentSpecs = [
                 text('cem-loop-position', '3 . Blue'),
             ]),
             sampleContract('3. Conditional for-each', [
-                text('cem-loop-conditional', 'BEFORE'),
-                text('cem-loop-conditional', 'AFTER'),
-                clickThenText('cem-loop-conditional input[type="checkbox"]', 'cem-loop-conditional span', '1 : First'),
+                text('article', 'BEFORE'),
+                text('article', 'AFTER'),
+                clickThenText('input[type="checkbox"]', 'span', '1 : First'),
             ]),
             sampleContract('4. Nested for-each table', [
-                countExactly('cem-loop-nested-table tbody tr', 3),
-                text('cem-loop-nested-table tbody', 'B2'),
+                countExactly('tbody tr', 3),
+                text('tbody', 'B2'),
             ]),
             sampleContract('5. for-each with attributes', [
-                text('cem-loop-attributes', '# 1 Alice ( admin )'),
-                text('cem-loop-attributes', '# 3 Charlie ( viewer )'),
+                text('article', '# 1 Alice ( admin )'),
+                text('article', '# 3 Charlie ( viewer )'),
             ]),
             sampleContract('6. Dynamic table with toggle', [
                 clickThenText('cem-loop-dynamic-table input[type="checkbox"]', 'cem-loop-dynamic-table tbody', 'Widget'),
@@ -917,8 +985,8 @@ const sourceDocumentSpecs = [
                 text('cem-loop-payload .payload-feed', 'payload-beta : Payload Beta'),
             ]),
             sampleContract('8. for-each over location data', [
-                text('cem-loop-location .location-feed', 'topic = feeds'),
-                text('cem-loop-location .location-feed', 'item = payload,resource'),
+                text('.location-feed', 'topic = feeds'),
+                text('.location-feed', 'item = payload,resource'),
             ]),
             sampleContract('9. for-each over HTTP JSON/XML data', [
                 text('cem-loop-http output[data-role="json-state"]', 'loaded'),
@@ -932,10 +1000,38 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/form.html',
         samples: [
             sampleContract('1. Simple validation', [
-                text('cem-form-preview article.demo-card', 'password slice set:'),
-                fillThenText('cem-form-preview input[name="username"]', 'ada', 'cem-form-preview output[data-role="form-username"]', 'ada'),
-                fillThenText('cem-form-preview input[name="password"]', 'secret', 'cem-form-preview output[data-role="password-valid"]', 'true'),
-                text('cem-form-preview output[data-role="form-valid"]', 'true'),
+                fillThenText('input[name="username"]', 'long-username', 'form', 'Sign in'),
+                fillThenText('input[name="password"]', 'secret', 'form > p:nth-of-type(2) output', 'true'),
+            ]),
+            sampleContract('2. Form lifecycle', [
+                fillThenText('input[name="username"]', 'long-username', 'form > p:nth-of-type(2) output', 'long-username'),
+                clickThenText('input[value="sms"]', 'fieldset', 'Message and data rates may apply.'),
+                clickThenText('input[value="password"]', 'form > p:nth-of-type(3) output', 'password'),
+                fillThenText('input[name="password"]', 'secret', 'form > p:nth-of-type(4) output', 'true'),
+            ]),
+            sampleContract('3. Native control validity message', [
+                fillThenText('input[name="email"]', '', 'form > p:nth-of-type(2) output', 'Please fill out this field.'),
+            ]),
+            sampleContract('4. Form custom validity message', [
+                fillThenText('input[name="email"]', 'abc', 'form > p:nth-of-type(4) output', 'Use more than 3 characters'),
+                text('form > p:nth-of-type(2) output', '3'),
+            ]),
+            sampleContract('5. DCE as a form input', [
+                clickThenText(
+                    'cem-form-fruit-choice:first-of-type button[data-option-index="1"]',
+                    'form > p:first-of-type output:first-of-type',
+                    '🍏',
+                ),
+                clickThenText(
+                    'cem-form-fruit-choice:last-of-type button[data-option-index="2"]',
+                    'form > p:nth-of-type(3) output',
+                    'Choose the same fruit',
+                ),
+                clickThenText(
+                    'cem-form-fruit-choice:last-of-type button[data-option-index="1"]',
+                    'form > p:nth-of-type(2) output',
+                    'true',
+                ),
             ]),
         ],
     },
@@ -1544,7 +1640,7 @@ async function collectDebugSnapshot(page, check) {
                 'cem-css-dynamic',
                 'cem-css-fragment',
                 'cem-css-keyframes',
-                'cem-form-preview',
+                'cem-form-fruit-choice',
             ];
             const failedSelector =
                 failedCheck?.selector ??

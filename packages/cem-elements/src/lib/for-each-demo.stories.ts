@@ -67,29 +67,29 @@ export const EveryAuthoredSample: Story = {
 
         const conditional = sampleByLegend(host, EXPECTED_LEGENDS[2]);
         await waitForCondition(
-            () => conditional.querySelector('cem-loop-conditional input') !== null,
+            () => conditional.querySelector('input') !== null,
             'conditional loop control renders'
         );
-        const conditionalInput = requiredElement(conditional, 'cem-loop-conditional input') as HTMLInputElement;
+        const conditionalInput = requiredElement(conditional, 'input') as HTMLInputElement;
         conditionalInput.click();
         await waitForCondition(
-            () => textList(conditional, 'cem-loop-conditional article > div span').join('|') ===
+            () => textList(conditional, 'article > div span').join('|') ===
                 '1:First|2:Second|3:Third',
-            () => `conditional loop renders after its checkbox changes; checked=${conditionalInput.checked}, spans=${JSON.stringify(textList(conditional, 'cem-loop-conditional span'))}`
+            () => `conditional loop renders after its checkbox changes; checked=${conditionalInput.checked}, spans=${JSON.stringify(textList(conditional, 'span'))}`
         );
 
         const nested = sampleByLegend(host, EXPECTED_LEGENDS[3]);
         await waitForCondition(
-            () => textList(nested, 'cem-loop-nested-table tbody td').join('|') ===
+            () => textList(nested, 'tbody td').join('|') ===
                 'A1|A2|A3|B1|B2|B3|C1|C2|C3',
             'nested loops render the complete table'
         );
 
         const attributes = sampleByLegend(host, EXPECTED_LEGENDS[4]);
         await waitForCondition(
-            () => normalize(attributes.querySelector('cem-loop-attributes')?.textContent ?? '')
+            () => normalize(attributes.querySelector('article')?.textContent ?? '')
                 .includes('#1 Alice (admin)')
-                && normalize(attributes.querySelector('cem-loop-attributes')?.textContent ?? '')
+                && normalize(attributes.querySelector('article')?.textContent ?? '')
                     .includes('#3 Charlie (viewer)'),
             'record fields render through loop variables'
         );
@@ -117,7 +117,7 @@ export const EveryAuthoredSample: Story = {
 
         const location = sampleByLegend(host, EXPECTED_LEGENDS[7]);
         await waitForCondition(
-            () => textList(location, 'cem-loop-location .location-feed li').join('|') ===
+            () => textList(location, '.location-feed li').join('|') ===
                 'topic = feeds|item = payload,resource',
             'location loop renders ordered query parameter entries'
         );
