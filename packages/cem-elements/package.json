@@ -28,6 +28,9 @@
         "dist",
         "!**/*.tsbuildinfo"
     ],
+    "devDependencies": {
+        "@epa-wg/cem-demo-element": "workspace:^"
+    },
     "publishConfig": {
         "access": "public"
     }

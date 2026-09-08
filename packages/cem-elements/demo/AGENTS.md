@@ -21,7 +21,7 @@ repository-level `AGENTS.md` and `CLAUDE.md` instructions continue to apply.
 
 ## Isolate cases
 
-- Put exactly one authored use case in each `html-demo-element`. Do not combine
+- Put exactly one authored use case in each `cem-demo-element`. Do not combine
   naked, wrapped, overridden, referrer, input-form, or state variants merely to
   make a visual comparison. Give each variant its own legend and sample.
 - Keep each sample self-contained: place its declaration, instance, payload,
@@ -40,11 +40,11 @@ repository-level `AGENTS.md` and `CLAUDE.md` instructions continue to apply.
 
 ## Keep the gallery compact
 
-- Design ordinary samples so at least two `html-demo-element` cards can fit in
+- Design ordinary samples so at least two `cem-demo-element` cards can fit in
   one row at desktop widths. Avoid unnecessary fixed widths, many table
   columns, long labels, and unbroken output.
-- Treat whitespace inside an `html-demo-element`'s direct `<template>` as demo
-  content. `html-demo-element` preserves that indentation when it presents the
+- Treat whitespace inside an `cem-demo-element`'s direct `<template>` as demo
+  content. `cem-demo-element` preserves that indentation when it presents the
   sample, so leading spaces widen the displayed source and can prevent two
   cards from fitting in a row.
 - Start the sample payload at column 1 on the line immediately after the direct
@@ -53,7 +53,7 @@ repository-level `AGENTS.md` and `CLAUDE.md` instructions continue to apply.
   its own structure:
 
   ```html
-  <html-demo-element legend="Example" description="What this case proves">
+  <cem-demo-element legend="Example" description="What this case proves">
       <template>
   <cem-element>
       <template type="text/cem-ml">
@@ -61,7 +61,7 @@ repository-level `AGENTS.md` and `CLAUDE.md` instructions continue to apply.
       </template>
   </cem-element>
       </template>
-  </html-demo-element>
+  </cem-demo-element>
   ```
 
 - Shorten long displayed URLs while preserving access to the complete value;
@@ -99,7 +99,7 @@ repository-level `AGENTS.md` and `CLAUDE.md` instructions continue to apply.
 - Preserve the established formatting of cases unrelated to the edit. Do not
   run a broad formatter over a hand-arranged demo page. In particular, do not
   let an HTML formatter re-indent payload content under an
-  `html-demo-element > template` boundary.
+  `cem-demo-element > template` boundary.
 - Escape URLs correctly for the containing syntax, including `&amp;` in HTML
   attributes, and keep resolution inputs explicit enough that a reader can see
   whether a URL is relative, absolute, or import-map based.
@@ -127,7 +127,7 @@ repository-level `AGENTS.md` and `CLAUDE.md` instructions continue to apply.
 
 ## Before finishing
 
-- Confirm that each `html-demo-element` teaches only one case and has a useful
+- Confirm that each `cem-demo-element` teaches only one case and has a useful
   description.
 - Confirm that tags, helper components, markup, and styling are necessary for
   the demo rather than its tests.

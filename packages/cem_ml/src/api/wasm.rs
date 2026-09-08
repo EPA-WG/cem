@@ -94,6 +94,14 @@ pub fn version() -> String {
     crate::VERSION.to_owned()
 }
 
+/// Render trusted CEM-ML source to static light-DOM HTML through the shared
+/// parser/interpreter. The structured response includes diagnostics and source
+/// spans for both small component hosts and richer Studio preview surfaces.
+#[wasm_bindgen(js_name = "renderCemMlToHtmlV1")]
+pub fn render_cem_ml_to_html_v1(request_json: &str) -> String {
+    crate::api::html_render::render_cem_ml_to_html_v1_json(request_json)
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WasmModuleUrlResolutionRequest {

@@ -14,23 +14,240 @@
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>NPM versions</h1></nav>
 
 <main>
-    <html-demo-element legend="1. NPM package version picker"
-                       description="defaults, last version should be preselected">
-        <template>
-            <cem-element tag="cem-version-row">
-                <template type="text/cem-ml">
-                    {article @class=demo-card |
-                        {h2 | {$datadom.attributes.package}}
-                        {p | selected version: {$datadom.attributes.version ?? "local"}}
-                        {p @class=status-note | Live registry lookup through http-request is queued for parity.}
-                    }
-                </template>
-            </cem-element>
+    <section>
+        <h2>Choose a package version from registry data</h2>
+        <p>
+            The reusable template loads package metadata with <code>http-request</code>
+            and turns the version records into a native select. It supports a current
+            version, optional publication dates, a projected label, value propagation,
+            and synchronization with the page hash.
+        </p>
+        <p>
+            This demo uses a small same-origin registry fixture so every case remains
+            deterministic and works offline. Replace its request URL with an allowed
+            NPM registry endpoint in an application that permits that origin.
+        </p>
+        <dl>
+            <dt>package</dt><dd>Package name shown by the picker.</dd>
+            <dt>initialversion</dt><dd>Version selected after the records load.</dd>
+            <dt>showdate</dt><dd>Set to <code>true</code> to append publication dates.</dd>
+            <dt>value</dt><dd>Reflects the latest user selection.</dd>
+            <dt>label slot</dt><dd>Overrides the default package label.</dd>
+        </dl>
+        <h3>See also</h3>
+        <p><a href="./http-request.html">Load structured response data</a></p>
+        <p><a href="./location-element.html">Read the page URL</a></p>
+        <p><a href="./set-url.html">Write the page URL</a></p>
+    </section>
 
-            <cem-version-row package="@epa-wg/cem-elements" version="workspace"></cem-version-row>
+    <template id="npm-version" type="text/cem-ml">
+{style |```
+    label { display: grid; gap: 0.35rem; }
+    select { min-inline-size: 14rem; }
+```}
+{attribute @name=package}
+{attribute @name=initialversion}
+{attribute @name=showdate}
+{attribute
+    @name=value
+    @select='if datadom.eventPayloads.selectedVersion
+             { datadom.slices.selectedVersion }
+             else { "" }'}
+{http-request
+    @slice=registry
+    @url="./npm-versions.json"
+    @method=GET
+    @header-accept="application/json"
+    @content-type="application/json"
+}
+{label |
+    {span | {slot @name=label |
+        {code | {$package}} version:
+    }}
+    {cem:if @test='datadom.slices.registry.state == "loaded"' |
+        {select
+            @name=version
+            @autocomplete=off
+            @slice=selectedVersion
+            @slice-event=change
+            @slice-value="$target.value" |
+            {cem:for-each
+                @select="datadom.slices.registry.data.versions"
+                @as=version |
+                {cem:choose |
+                    {cem:when
+                        @test='version.version == initialversion' |
+                        {option @value="{$version.version}" @selected=true |
+                            {$version.version}
+                            {cem:if @test='showdate == "true"' |
+                                - {$version.date}}
+                        }
+                    }
+                    {cem:otherwise |
+                        {option @value="{$version.version}" |
+                            {$version.version}
+                            {cem:if @test='showdate == "true"' |
+                                - {$version.date}}
+                        }
+                    }
+}   }   }   }
+}
+    </template>
+
+    <cem-demo-element
+        legend="1. Default to the latest version"
+        description="Without initialversion, the native select keeps the first and latest fixture record selected">
+        <template>
+<cem-element
+    tag="cem-npm-version-default"
+    src="#npm-version"
+></cem-element>
+
+<cem-npm-version-default
+    package="@epa-wg/cem-elements"
+></cem-npm-version-default>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="2. Preselect a version and show dates"
+        description="initialversion selects 0.0.22 and showdate appends each publication date">
+        <template>
+<cem-element
+    tag="cem-npm-version-preselected"
+    src="#npm-version"
+></cem-element>
+
+<cem-npm-version-preselected
+    package="@epa-wg/cem-elements"
+    initialversion="0.0.22"
+    showdate="true"
+></cem-npm-version-preselected>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="3. Propagate the selected value"
+        description="The picker change bubbles to its wrapper, updates selected-version, and reflects value on the picker host">
+        <template>
+<cem-element
+    tag="cem-npm-version-propagated"
+    src="#npm-version"
+></cem-element>
+
+<cem-element>
+    <template type="text/cem-ml">
+{article @class=demo-card |
+    {cem-npm-version-propagated
+        @package="@epa-wg/cem-elements"
+        @slice=selectedVersion
+        @slice-event=change
+        @slice-value="$target.value"
+    }
+    {p | selected-version slice:
+        {output | {$datadom.slices.selectedVersion}}
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="4. Override the label slot"
+        description="Projected label content replaces the reusable template's package fallback">
+        <template>
+<cem-element
+    tag="cem-npm-version-label"
+    src="#npm-version"
+></cem-element>
+
+<cem-element>
+    <template type="text/cem-ml">
+{article @class=demo-card |
+    {cem-npm-version-label
+        @package="@epa-wg/cem-elements"
+        @slice=selectedVersion
+        @slice-event=change
+        @slice-value="$target.value" |
+        {i @slot=label | Select a release:}
+    }
+    {p | selected-version slice:
+        {output | {$datadom.slices.selectedVersion}}
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="5. Synchronize the selected version with the URL"
+        description="A live URL read preselects #version=0.0.22; Apply selection writes a later picker value back to the hash">
+        <template>
+<cem-element
+    tag="cem-npm-version-url"
+    src="#npm-version"
+></cem-element>
+
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=targetVersion}
+{location-element @slice=current @live=true}
+{article @class=demo-card |
+    {p | Set a URL version first, then choose another version.}
+    {button
+        @type=button
+        @value=0.0.22
+        @slice=targetVersion
+        @slice-event=click |
+        Set URL to 0.0.22
+    }
+    {cem:if @test=datadom.slices.targetVersion |
+        {location-element
+            @method=location.hash
+            @src="#version={$datadom.slices.targetVersion}"}
+    }
+    {cem:choose |
+        {cem:when @test=datadom.slices.selectedVersion |
+            {cem-npm-version-url
+                @package="@epa-wg/cem-elements"
+                @showdate=true
+                @initialversion="{$datadom.slices.selectedVersion}"
+                @slice=selectedVersion
+                @slice-event=change
+                @slice-value="$target.value"
+            }
+        }
+        {cem:otherwise |
+            {cem-npm-version-url
+                @package="@epa-wg/cem-elements"
+                @showdate=true
+                @initialversion="{$datadom.slices.targetVersion}"
+                @slice=selectedVersion
+                @slice-event=change
+                @slice-value="$target.value"
+            }
+        }
+    }
+    {button
+        @type=button
+        @value=apply
+        @slice=targetVersion
+        @slice-event=click
+        @slice-value="$selectedVersion" |
+        Apply selection to URL
+    }
+    {p | Current hash: {output | {$datadom.slices.current.hash}}}
+    {p | selected-version slice:
+        {output | {$datadom.slices.selectedVersion}}
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
 </main>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

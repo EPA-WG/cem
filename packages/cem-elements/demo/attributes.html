@@ -36,7 +36,7 @@
 </ol>
     </p>
 
-    <html-demo-element legend="1. attributes definition">
+    <cem-demo-element legend="1. attributes definition">
         <template>
             <cem-element tag="cem-attr-defaults">
                 <template type="text/cem-ml">
@@ -70,9 +70,9 @@
             </section>
             <cem-attr-defaults id="defaults-3" p1="123" p3="qwe"></cem-attr-defaults>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="2. attribute from slice"
+    <cem-demo-element legend="2. attribute from slice"
                        description="typing updates the title binding and reflected host title attribute">
         <template>
             <cem-element tag="cem-attr-title">
@@ -93,9 +93,9 @@
 
             <cem-attr-title id="title-from-slice"></cem-attr-title>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="3. V attribute matches input value"
+    <cem-demo-element legend="3. V attribute matches input value"
                        description="typing updates v and is-changed on the host">
         <template>
             <cem-element tag="cem-attr-value">
@@ -119,9 +119,9 @@
             <cem-attr-value id="value-default"></cem-attr-value>
             <cem-attr-value id="value-container" v="V1"></cem-attr-value>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="4. attribute defaults, from container, and from slice"
+    <cem-demo-element legend="4. attribute defaults, from container, and from slice"
                        description="attribute defaults can combine with container attributes and slice updates">
         <template>
             <cem-element tag="cem-attr-slice">
@@ -144,8 +144,8 @@
             <cem-attr-slice id="precedence-default"></cem-attr-slice>
             <cem-attr-slice id="precedence-container" v="From Container"></cem-attr-slice>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 </main>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

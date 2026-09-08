@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import { installCemElementRuntime, type CemElementRuntime } from '../src/index.js';
+import '@epa-wg/cem-demo-element';
 import '@epa-wg/cem-theme/styles.css';
 import { definePreview } from '@storybook/web-components-vite';
 
@@ -27,6 +28,8 @@ function installStorybookRuntime(): CemElementRuntime {
                     'demo-src-image': withSearch(moduleUrlDemoSmileyUrl, 'src', 'module'),
                     'demo-referrer-image': withSearch(moduleUrlDemoSmileyUrl, 'referrer', 'default'),
                     'demo-module-referrer': new URL('./module-referrer/component.js', moduleUrlDemoUrl).href,
+                    'embed-lib': new URL('./lib-dir/embed-lib.html', moduleUrlDemoUrl).href,
+                    'lib-root/': new URL('./lib-dir/', moduleUrlDemoUrl).href,
                 },
                 scopes: {
                     [moduleUrlDemoRelativeReferrerUrl.href]: {

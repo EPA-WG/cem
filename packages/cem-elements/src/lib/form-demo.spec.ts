@@ -49,7 +49,7 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
 ] as const;
 
 const samples = Array.from(
-    DEMO_SOURCE.matchAll(/<html-demo-element[\s\S]*?legend="([^"]+)"[\s\S]*?<\/html-demo-element>/gu),
+    DEMO_SOURCE.matchAll(/<cem-demo-element[\s\S]*?legend="([^"]+)"[\s\S]*?<\/cem-demo-element>/gu),
     (match) => ({ legend: match[1].replace(/\s+/gu, ' ').trim(), source: match[0] })
 );
 
@@ -61,7 +61,7 @@ describe('form demo source contracts', () => {
         expect(DEMO_SOURCE).toContain('href="https://developer.mozilla.org/en-US/docs/Web/API/FormData"');
     });
 
-    it('ports each legacy use case into its own html-demo-element', () => {
+    it('ports each legacy use case into its own cem-demo-element', () => {
         expect(samples.map(({ legend }) => legend)).toEqual(SAMPLE_CONTRACTS.map(({ legend }) => legend));
         expect(samples).toHaveLength(5);
     });

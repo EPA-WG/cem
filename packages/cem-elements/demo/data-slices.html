@@ -14,7 +14,7 @@
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Data slices and events</h1></nav>
 
 <main>
-    <html-demo-element legend="A1. inline slice initialization, change on event"
+    <cem-demo-element legend="A1. inline slice initialization, change on event"
                        description="initial value should be 0; + and - should change the number in input field">
         <template>
 <cem-element tag="cem-slice-counter-input-default">
@@ -29,8 +29,8 @@
 </cem-element>
 <cem-slice-counter-input-default></cem-slice-counter-input-default>
         </template>
-    </html-demo-element>
-    <html-demo-element legend="A2. slice initialization, change on event"
+    </cem-demo-element>
+    <cem-demo-element legend="A2. slice initialization, change on event"
                        description="initial value should be 0; + and - should change the number in input field">
         <template>
 <cem-element tag="cem-slice-counter">
@@ -48,9 +48,9 @@
 </cem-element>
 <cem-slice-counter></cem-slice-counter>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="B. slice event data."
+    <cem-demo-element legend="B. slice event data."
                        description="move the mouse over TEXTAREA and click to see slice and slice event changed">
         <template>
 <cem-element tag="cem-slice-event-data">
@@ -74,9 +74,9 @@
 </cem-element>
 <cem-slice-event-data></cem-slice-event-data>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="1. slice change on event. 1:1 slice⮂value"
+    <cem-demo-element legend="1. slice change on event. 1:1 slice⮂value"
                        description="initial value blank; type and unfocus to see slice changed">
         <template>
 <cem-element tag="cem-slice-basic">
@@ -91,9 +91,9 @@
 </cem-element>
 <cem-slice-basic></cem-slice-basic>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="2. initial slice value, slice change on event. slice⮂value"
+    <cem-demo-element legend="2. initial slice value, slice change on event. slice⮂value"
                        description="initial value from input; type and unfocus to see slice changed">
         <template>
 <cem-element tag="cem-slice-initial-change">
@@ -107,9 +107,9 @@
 </cem-element>
 <cem-slice-initial-change></cem-slice-initial-change>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="3. on input event. slice⮂value"
+    <cem-demo-element legend="3. on input event. slice⮂value"
                        description="initial value from input; type to see slice changed">
         <template>
 <cem-element tag="cem-slice-initial-input">
@@ -123,9 +123,9 @@
 </cem-element>
 <cem-slice-initial-input></cem-slice-initial-input>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="4. initial slice value from attribute"
+    <cem-demo-element legend="4. initial slice value from attribute"
                        description="initial value from input; type to see slice changed">
         <template>
 <cem-element tag="cem-slice-attribute-initial">
@@ -142,9 +142,9 @@
 <cem-slice-attribute-initial></cem-slice-attribute-initial>
 <cem-slice-attribute-initial a="🤗"></cem-slice-attribute-initial>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="5. slice value computed from event"
+    <cem-demo-element legend="5. slice value computed from event"
                        description="initial value from input as 'xB'; type and unfocus to see slice changed">
         <template>
 <cem-element tag="cem-slice-transform">
@@ -160,9 +160,9 @@
 </cem-element>
 <cem-slice-transform></cem-slice-transform>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="6. button ignored till change on click."
+    <cem-demo-element legend="6. button ignored till change on click."
                        description="initial value from input as 'anonymous'; on button click change to 'broccoli'">
         <template>
 <cem-element tag="cem-slice-broccoli">
@@ -179,9 +179,9 @@
 </cem-element>
 <cem-slice-broccoli></cem-slice-broccoli>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="7. initial slice value from SLICE element"
+    <cem-demo-element legend="7. initial slice value from SLICE element"
                        description="synthetic SLICE element serves as initial value holder, button ignored till change on click.">
         <template>
 <cem-element tag="cem-slice-declared-counter">
@@ -200,9 +200,9 @@
 </cem-element>
 <cem-slice-declared-counter></cem-slice-declared-counter>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="8. multiple slices by SLICE element"
+    <cem-demo-element legend="8. multiple slices by SLICE element"
                        description="synthetic SLICE elements serve as initial value holder.">
         <template>
 <cem-element tag="cem-slice-multi-directive">
@@ -226,9 +226,9 @@
 </cem-element>
 <cem-slice-multi-directive></cem-slice-multi-directive>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="9. slice in attribute"
+    <cem-demo-element legend="9. slice in attribute"
                        description="initial attribute value should be smile as emoji and :) <br/> on blur from input it should be updated from value">
         <template>
 <cem-element tag="cem-slice-emotion-attribute">
@@ -248,9 +248,9 @@
     ></cem-slice-emotion-attribute>
 <cem-slice-emotion-attribute></cem-slice-emotion-attribute>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="10. multiple slices by same field"
+    <cem-demo-element legend="10. multiple slices by same field"
                        description="same element value sets s1 and s2 slice">
         <template>
 <cem-element tag="cem-slice-fanout">
@@ -267,9 +267,9 @@
 </cem-element>
 <cem-slice-fanout></cem-slice-fanout>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="11. slices and attribute"
+    <cem-demo-element legend="11. slices and attribute"
                        description="initial attribute value should be smile as emoji and :) <br/> on blur from input it should be updated from value">
         <template>
 <cem-element tag="cem-slice-attribute-fanout">
@@ -286,9 +286,9 @@
 </cem-element>
 <cem-slice-attribute-fanout></cem-slice-attribute-fanout>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="12. checkbox use"
+    <cem-demo-element legend="12. checkbox use"
                        description="The value is empty when unchecked. <br/>Otherwise taken either from slice-value or value attribute.">
         <template>
 <cem-element tag="cem-slice-checkboxes">
@@ -314,9 +314,9 @@
 </cem-element>
 <cem-slice-checkboxes></cem-slice-checkboxes>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="13. Radio group"
+    <cem-demo-element legend="13. Radio group"
                        description="The value propagated into slice from the last checked radiobutton.">
         <template>
 <cem-element tag="cem-slice-radios">
@@ -340,8 +340,8 @@
 </cem-element>
 <cem-slice-radios></cem-slice-radios>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 </main>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

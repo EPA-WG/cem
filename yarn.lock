@@ -1361,9 +1361,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@epa-wg/cem-demo-element@workspace:^, @epa-wg/cem-demo-element@workspace:packages/cem-demo-element":
+  version: 0.0.0-use.local
+  resolution: "@epa-wg/cem-demo-element@workspace:packages/cem-demo-element"
+  dependencies:
+    "@epa-wg/cem-ml": "npm:^0.1.0"
+  languageName: unknown
+  linkType: soft
+
 "@epa-wg/cem-elements@npm:0.1.1, @epa-wg/cem-elements@npm:^0.1.1, @epa-wg/cem-elements@workspace:packages/cem-elements":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-elements@workspace:packages/cem-elements"
+  dependencies:
+    "@epa-wg/cem-demo-element": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1379,7 +1389,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/cem-ml@npm:0.1.0, @epa-wg/cem-ml@workspace:packages/cem-ml-npm":
+"@epa-wg/cem-ml@npm:0.1.0, @epa-wg/cem-ml@npm:^0.1.0, @epa-wg/cem-ml@workspace:packages/cem-ml-npm":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-ml@workspace:packages/cem-ml-npm"
   languageName: unknown

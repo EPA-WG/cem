@@ -1,0 +1,17 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "dist",
+        "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
+        "emitDeclarationOnly": false,
+        "forceConsistentCasingInFileNames": true,
+        "lib": ["es2022", "dom", "dom.iterable"]
+    },
+    "include": ["src/**/*.ts"],
+    "exclude": [
+        "src/**/*.stories.ts",
+        "src/**/*.spec.ts",
+        "src/**/*.test.ts"
+    ]
+}

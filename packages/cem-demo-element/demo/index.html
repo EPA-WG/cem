@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-demo-element examples</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+            }
+        }
+    </script>
+    <script type="module" src="../dist/index.js"></script>
+</head>
+<body>
+<nav><strong>cem-demo-element</strong><a href="./advanced.html">Advanced use</a></nav>
+<h1>Offline HTML and CEM-ML examples</h1>
+<p>
+    The source presenter, styles, live HTML, and CEM-ML renderer are all loaded from
+    this workspace. No CDN connection is required.
+</p>
+<p>
+    <strong>Language support:</strong> The set of languages available for source
+    formatting comes from the CEM-ML formatters; <code>cem-demo-element</code> does
+    not define a separate language set.
+</p>
+<main>
+    <cem-demo-element legend="1. Inline HTML">
+        <style>
+            @import "demo.css";
+        </style>
+        <div class="heart">💖</div>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="2. Legend and description"
+        description="The description stays with the example heading."
+    >
+        <template><p>Eating our own dog food 🦴</p></template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="3. TEMPLATE tag as source">
+        <template><i>Candle 🕯️</i></template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="4. Slots use. <br/>slot='legend' is normally on top, now on the bottom">
+        <template>Ignored default template</template>
+        <template slot="source"><i>Croissant 🥐</i></template>
+        <h3>4. Slots use </h3>
+        <p><code>slot="source"</code> selects the code to present.</p>
+
+        <p><code>slot="demo"</code> receives the live HTML from that source.</p>
+        <div slot="demo">Replaced by the tasty demo.</div>
+
+        <p><code>slot="text"</code> receives the highlighted source.</p>
+        <div slot="text">Replaced by the highlighted code.</div>
+        <div slot="description">
+            <b>slot="description"</b> is normally below the legend; now it is above it.<hr/>
+            <i>And HTML decorated.</i>
+        </div>
+        <div slot="legend"></div>
+    </cem-demo-element>
+
+    <cem-demo-element legend="5. CEM-ML rendered by WASM" type="cem-ml">
+        <template>{article @class=message | {strong | Hello from CEM-ML}}</template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="6. src from relative URL<br/>src=./dwarfs.json" src="./dwarfs.json" type="auto">
+    </cem-demo-element>
+</main>
+</body>
+</html>

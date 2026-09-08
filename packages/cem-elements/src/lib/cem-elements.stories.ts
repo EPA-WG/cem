@@ -662,13 +662,13 @@ export const NestedDomTemplateContentProjection: Story = {
     play: () => {
         const declaration = document.createElement('template');
         declaration.innerHTML = `
-            <html-demo-element legend="projection fixture">
+            <cem-demo-element legend="projection fixture">
                 <template><strong class="nested-content">Nested demo content</strong></template>
-            </html-demo-element>
+            </cem-demo-element>
         `;
 
         const source = readTemplateSource(declaration.content);
-        const demo = source.find((node) => node.kind === 'element' && node.tag === 'html-demo-element');
+        const demo = source.find((node) => node.kind === 'element' && node.tag === 'cem-demo-element');
         assert(demo?.kind === 'element', 'the outer demo element survives DOM source projection');
         const nestedTemplate = demo.children.find((node) => node.kind === 'element' && node.tag === 'template');
         assert(nestedTemplate?.kind === 'element', 'the nested template survives DOM source projection');

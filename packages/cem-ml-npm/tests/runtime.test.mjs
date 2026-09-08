@@ -24,6 +24,16 @@ test('Node export initializes the common WASM runtime', async () => {
   assert.equal(manifest.runtime, 'wasm-node');
   assert.equal(manifest.commonVersion, packageMetadata.version);
   assert.equal(manifest.executorTopology, 'sequential');
+
+  const rendered = JSON.parse(
+    runtime.renderCemMlToHtmlV1(
+      JSON.stringify({ source: '{p @class=message | Offline preview}', sourceUrl: 'memory:demo.cem' }),
+    ),
+  );
+  assert.equal(rendered.status, 'rendered');
+  assert.equal(rendered.html, '<p class="message">Offline preview</p>');
+  assert.equal(rendered.diagnostics.length, 0);
+  assert.ok(rendered.outputSpans.length > 0);
 });
 
 test('browser loader accepts bytes and initializes the same WASM ABI', async () => {
@@ -47,6 +57,13 @@ test('browser loader accepts bytes and initializes the same WASM ABI', async () 
   assert.equal(typeof browserRuntime.readCommandArtifactV1, 'function');
   assert.equal(typeof browserRuntime.disposeCommandArtifactV1, 'function');
   assert.equal(typeof browserRuntime.disposeCommandArtifactsV1, 'function');
+  assert.equal(typeof browserRuntime.renderCemMlToHtmlV1, 'function');
+
+  const rendered = JSON.parse(
+    browserRuntime.renderCemMlToHtmlV1(JSON.stringify({ source: '{strong | Browser WASM}' })),
+  );
+  assert.equal(rendered.status, 'rendered');
+  assert.equal(rendered.html, '<strong>Browser WASM</strong>');
 
   const progress = [];
   const result = await executeVersionCommand(browserRuntime, 'wasm-browser-worker', undefined, {

@@ -44,7 +44,7 @@
     </section>
 </nav>
 
-<html-demo-element legend="1. simple payload"
+<cem-demo-element legend="1. simple payload"
                    description="payload is ignored as in DCE definition there is no default slot">
     <template>
 <cem-element tag="dce-link" hidden>
@@ -54,9 +54,9 @@
 </cem-element>
 <dce-link><i>🍋</i></dce-link>
     </template>
-</html-demo-element>
+</cem-demo-element>
 
-<html-demo-element legend="2. payload with slot definition and slot value"
+<cem-demo-element legend="2. payload with slot definition and slot value"
                    description="slots are filled as in template+shadow root">
     <template>
 <cem-element tag="dce-1-slot" hidden>
@@ -66,9 +66,9 @@
 </cem-element>
 <dce-1-slot><i slot="slot1">🥕</i></dce-1-slot>
     </template>
-</html-demo-element>
+</cem-demo-element>
 
-<html-demo-element legend="2a. payload with slot definition and slot value"
+<cem-demo-element legend="2a. payload with slot definition and slot value"
                    description="unlike in TEMPLATE, same slot can be used multiple times and within attribute ">
     <template>
 <cem-element tag="dce-2-slots" hidden>
@@ -81,9 +81,9 @@
 <dce-2-slots><i slot="slot2">🥕</i></dce-2-slots>
 <dce-2-slots></dce-2-slots>
     </template>
-</html-demo-element>
+</cem-demo-element>
 
-<html-demo-element legend="2b. named default slot"
+<cem-demo-element legend="2b. named default slot"
                    description="slot without `name` attribute or with blank value `name=''` use whole payload">
     <template>
 <cem-element tag="dce-3-slot" hidden>
@@ -96,9 +96,9 @@
 <dce-3-slot><i slot="">🥕</i></dce-3-slot>
 <dce-3-slot>✌️</dce-3-slot>
     </template>
-</html-demo-element>
+</cem-demo-element>
 
-<html-demo-element legend="2c. named default slot"
+<cem-demo-element legend="2c. named default slot"
                    description="slot without `name` attribute or with blank value `name=''` use whole payload">
     <template>
 <cem-element tag="dce-4-slot" hidden>
@@ -109,9 +109,9 @@
 </cem-element>
 <dce-4-slot>🥕</dce-4-slot>
     </template>
-</html-demo-element>
+</cem-demo-element>
 
-<html-demo-element legend="2d. default slot"
+<cem-demo-element legend="2d. default slot"
                    description="slot without `name` attribute use whole payload">
     <template>
         <cem-element tag="greet-element" hidden>
@@ -122,9 +122,9 @@
         <greet-element></greet-element>
         <greet-element>👋</greet-element>
     </template>
-</html-demo-element>
+</cem-demo-element>
 
-<html-demo-element legend="3. 💪 DCE template "
+<cem-demo-element legend="3. 💪 DCE template "
                    description="Complex case with slots, attributes, dataset, conditional render">
     <template>
 <cem-element tag="pokemon-tile" hidden id="shared-template">
@@ -189,8 +189,8 @@
     <li pokemon-id="37">vulpix</li>
 </pokemon-tile>
     </template>
-</html-demo-element>
+</cem-demo-element>
 
-<script type="module" src="https://unpkg.com/html-demo-element@1.0/html-demo-element.js"></script>
+<script type="module" src="../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

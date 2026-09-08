@@ -446,6 +446,11 @@ Deliverables:
 - SSR host fixture that emits initial HTML plus hydration metadata from a serialized `DataIslandSnapshot` and validates
   hydration against template artifact identity, `RenderRevision`, source-map mode, and retained render-plan identity.
   The Node-only reference fixture implements this path with fail-closed identity, privacy, storage, and HTML checks.
+- Add a repository demo-compilation lane that runs the CEM-ML CLI transformation graph over
+  `packages/cem-elements/index.html` and every HTML document under `packages/cem-elements/demo/`, emitting deterministic
+  SSR HTML and hydration artifacts while preserving each document's base URL, import maps, scoped module resolution,
+  and source-map identity. Gate the generated pages against the same page/legend inventory and observable outcomes as
+  the source-loaded browser demos so SSR coverage cannot silently drift from client rendering.
 - Edge processing fixture that accepts a serialized snapshot plus previous render-plan identity and produces a
   patch-frame stream without access to live browser DOM.
   The Node-only reference fixture now verifies retained state and content, advances it by expected-ETag

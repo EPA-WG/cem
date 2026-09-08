@@ -25,9 +25,9 @@
 
 <template id="embed-relative-file" type="text/cem-ml">
     👍 from embed-relative-file invoking
-    {module-url @slice=up-url @src="./embed-1.html"}
+    {module-url @slice=up-url @src="../embed-1.html"}
     {a @href="{$datadom.slices.up-url}" | ../embed-1.html}:
-    {cem-element @tag=dce-embed-lib-file @src="./embed-1.html"}
+    {cem-element @tag=dce-embed-lib-file @src="../embed-1.html"}
     {dce-embed-lib-file | loading from ../embed-1.html ...}
 </template>
 

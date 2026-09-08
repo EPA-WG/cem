@@ -6,9 +6,25 @@
     <title>cem-element local-storage demo</title>
     <link rel="stylesheet" href="./demo.css">
     <script>
-        localStorage.setItem('cemDemoDraft', 'stored initial');
-        localStorage.setItem('cemDemoCount', '3');
-        localStorage.setItem('cemDemoBasket', JSON.stringify({ fruit: 'apple' }));
+        const localStorageDefaults = {
+            cemDemoLiveText: 'stored initial',
+            cemDemoPersistedDefault: 'DEF',
+            cemDemoDate: '2024-04-20',
+            cemDemoTime: '13:30',
+            cemDemoLocalDateTime: '1977-04-01T14:00:30',
+            cemDemoNumber: '1.23456e+5',
+            cemDemoInvalidNumber: 'ABC',
+            cemDemoJson: JSON.stringify({ a: 1, b: 'B' }),
+            cemDemoCherries: '12',
+            cemDemoBasket: JSON.stringify({ cherries: 12, lemons: 1 }),
+            cemDemoFruitLemons: '1',
+            cemDemoFruitCherries: '12',
+            cemDemoFruitApples: '0',
+            cemDemoFruitBananas: '0',
+        };
+        for (const [key, value] of Object.entries(localStorageDefaults)) {
+            if (localStorage.getItem(key) === null) localStorage.setItem(key, value);
+        }
     </script>
     <script type="module">
         import { installCemElementRuntime } from '../dist/index.js';
@@ -19,40 +35,327 @@
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>local-storage</h1></nav>
 
 <main>
+    <section>
+        <h2>Persistent browser state as slices</h2>
+        <p>
+            <code>local-storage</code> reads one same-origin <code>localStorage</code>
+            key into a named slice. A slice change writes the value back, while
+            <code>live</code> also observes later writes to that key so independent
+            component instances remain synchronized.
+        </p>
+        <p>
+            Browser storage contains strings. The <code>type</code> attribute parses
+            text, number, date, time, datetime-local, or JSON values; an invalid value
+            becomes null. An authored <code>value</code> is authoritative and rewrites
+            the key on every render. Omit it when a stored value must survive reloads.
+        </p>
+        <p>
+            Storage is synchronous, origin-scoped, and visible to page scripts. Keep
+            values small and do not use it for secrets or authoritative server data.
+        </p>
+        <h3>See also</h3>
+        <p><a href="./data-slices.html">Slice declarations and event bindings</a></p>
+        <p><a href="./dom-merge.html">DOM merge during live control updates</a></p>
+        <p><a href="./form.html">Forms and declarative input state</a></p>
+    </section>
 
-    <code>local-storage</code> allows to read and write its value to the key in <code>localStorage</code>.
-    The <code>type</code> attribute allows to place the validation constrains to the value: when the value does not
-    match the expected type, it would not be assigned, keeping empty <code>value</code> instead.
-
-    <html-demo-element legend="3. localStorage type"
-                       description="type validation happy path. Invalid for type value in storage would be treated as null">
+    <cem-demo-element
+        legend="0. Read a live text value"
+        description="Editing either instance writes one storage key and live synchronization updates the other">
         <template>
-            <cem-element tag="cem-local-storage-panel">
-                <template type="text/cem-ml">
-                    {local-storage @key=cemDemoDraft @slice=draft @type=text @live=true}
-                    {local-storage @key=cemDemoCount @slice=count @type=number @live=true}
-                    {local-storage @key=cemDemoBasket @slice=basket @type=json @live=true}
-                    {article @class=demo-card |
-                        {label | Draft {input @value="{$draft}" @slice=draft @slice-event=input @slice-value="{$target.value}"}}
-                        {button @type=button @data-storage-write=draft | External write}
-                        {p | draft: {output @data-role=draft | {$datadom.slices.draft}}}
-                        {p | number: {output @data-role=count | {$datadom.slices.count}}}
-                        {p | basket fruit: {output @data-role=basket | {$datadom.slices.basket.fruit}}}
-                    }
-                </template>
-            </cem-element>
-
-            <cem-local-storage-panel></cem-local-storage-panel>
-        </template>
-    </html-demo-element>
-</main>
-<script>
-    document.addEventListener('click', (event) => {
-        if (event.target?.matches?.('[data-storage-write="draft"]')) {
-            localStorage.setItem('cemDemoDraft', 'external update');
+<cem-element tag="cem-storage-live-text">
+    <template type="text/cem-ml">
+{attribute @name=label | Editor}
+{local-storage
+    @key=cemDemoLiveText
+    @slice=liveText
+    @type=text
+    @live=true}
+{article @class=demo-card |
+    {label |
+        {$datadom.attributes.label}
+        {input
+            @value="{$datadom.slices.liveText}"
+            @slice=liveText
+            @slice-event=input
+            @slice-value="$target.value"
         }
-    });
-</script>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+    }
+    {p | Stored text: {output | {$datadom.slices.liveText}}}
+}
+    </template>
+</cem-element>
+
+<cem-storage-live-text label="Editor A"></cem-storage-live-text>
+<cem-storage-live-text label="Editor B"></cem-storage-live-text>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="1. Always override a stored value"
+        description="An authored value remains authoritative when an event tries to replace or clear the slice">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{local-storage
+    @key=cemDemoOverride
+    @slice=overrideValue
+    @type=text
+    @value=ABC}
+{article @class=demo-card |
+    {p | The declaration writes ABC on every render.}
+    {button
+        @type=button
+        @slice=overrideValue
+        @slice-event=click
+        @slice-value="'text value'" |
+        Try text value
+    }
+    {button
+        @type=button
+        @slice=overrideValue
+        @slice-event=click
+        @slice-value="''" |
+        Try empty
+    }
+    {p | Stored text: {output | {$datadom.slices.overrideValue}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="2. Stored value with a default"
+        description="Host setup supplies DEF only for a missing key; edits persist because the declaration has no value attribute">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{local-storage
+    @key=cemDemoPersistedDefault
+    @slice=persistedDefault
+    @type=text
+    @live=true}
+{article @class=demo-card |
+    {p | The first visit starts with DEF; later visits read the last edit.}
+    {label |
+        Stored text
+        {input
+            @value="{$datadom.slices.persistedDefault}"
+            @slice=persistedDefault
+            @slice-event=input
+            @slice-value="$target.value"
+        }
+    }
+    {p | Current value: {output | {$datadom.slices.persistedDefault}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="3. Typed localStorage values"
+        description="Browser-compatible types are coerced on read, JSON is projected as data, and invalid input becomes null">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dt { font-weight: 700; }
+    dd { margin: 0; padding: 0; }
+```}
+{local-storage @key=cemDemoDate          @slice=date          @type=date}
+{local-storage @key=cemDemoTime          @slice=time          @type=time}
+{local-storage @key=cemDemoLocalDateTime @slice=localDateTime @type=datetime-local}
+{local-storage @key=cemDemoNumber        @slice=number        @type=number}
+{local-storage @key=cemDemoInvalidNumber @slice=invalidNumber @type=number}
+{local-storage @key=cemDemoJson          @slice=json          @type=json}
+{article @class=demo-card |
+    {dl |
+        {dt | date}{dd | {$datadom.slices.date}}
+        {dt | time}{dd | {$datadom.slices.time}}
+        {dt | datetime}{dd | {$datadom.slices.localDateTime}}
+        {dt | number}{dd | {$datadom.slices.number}}
+        {dt | invalid number}{dd | {$(datadom.slices.invalidNumber ?? "null")}}
+        {dt | JSON a}{dd | {$datadom.slices.json.a}}
+        {dt | JSON b}{dd | {$datadom.slices.json.b}}
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="4. Simplest initial read"
+        description="Without live, storage is read for the initial render and the instance payload supplies the unit">
+        <p>The rendered result is <strong>12🍒</strong>.</p>
+        <template>
+<cem-element tag="cem-storage-cherries">
+    <template type="text/cem-ml">
+{local-storage @key=cemDemoCherries @slice=cherries @type=number}
+{output | {$datadom.slices.cherries}}{slot | 🤔}
+    </template>
+</cem-element>
+
+<cem-storage-cherries>🍒</cem-storage-cherries>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="5. Live JSON basket"
+        description="Editing the stored JSON text updates a live parsed basket and its calculated total">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    label { display: grid; gap: 0.25rem; }
+    textarea { box-sizing: border-box; width: 100%; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dt { font-weight: 700; }
+    dd { margin: 0; padding: 0; }
+```}
+{local-storage
+    @key=cemDemoBasket
+    @slice=basketText
+    @type=text
+    @live=true}
+{local-storage
+    @key=cemDemoBasket
+    @slice=basket
+    @type=json
+    @live=true}
+{article @class=demo-card |
+    {p | Edit the counts as JSON. Invalid JSON clears the parsed values.}
+    {label |
+        Basket JSON
+        {textarea
+            @slice=basketText
+            @slice-event=input
+            @slice-value="$target.value" |
+            {$datadom.slices.basketText}
+        }
+    }
+    {dl |
+        {dt | cherries}{dd | {$datadom.slices.basket.cherries}}
+        {dt | lemons}{dd | {$datadom.slices.basket.lemons}}
+        {dt | 🛒 total}
+        {dd |
+            {$(
+                datadom.slices.basket.cherries
+                + datadom.slices.basket.lemons
+            )}
+        }
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="6. Fruit buttons and a storage watcher"
+        description="An independent writer increments fruit keys while a live DCE observes those keys and updates its slices and total">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{local-storage @key=cemDemoFruitLemons   @slice=lemons   @type=number}
+{local-storage @key=cemDemoFruitCherries @slice=cherries @type=number}
+{local-storage @key=cemDemoFruitApples   @slice=apples   @type=number}
+{local-storage @key=cemDemoFruitBananas  @slice=bananas  @type=number}
+{fieldset |
+    {legend | Add one fruit to localStorage}
+    {button
+        @type=button
+        @aria-label="Add lemon"
+        @title="Add lemon"
+        @slice=lemons
+        @slice-event=click
+        @slice-value="//lemons + 1" |
+        🍋
+    }
+    {button
+        @type=button
+        @aria-label="Add cherry"
+        @title="Add cherry"
+        @slice=cherries
+        @slice-event=click
+        @slice-value="//cherries + 1" |
+        🍒
+    }
+    {button
+        @type=button
+        @aria-label="Add apple"
+        @title="Add apple"
+        @slice=apples
+        @slice-event=click
+        @slice-value="//apples + 1" |
+        🍏
+    }
+    {button
+        @type=button
+        @aria-label="Add banana"
+        @title="Add banana"
+        @slice=bananas
+        @slice-event=click
+        @slice-value="//bananas + 1" |
+        🍌
+    }
+}
+    </template>
+</cem-element>
+
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dt { font-weight: 700; }
+    dd { margin: 0; padding: 0; text-align: right; }
+```}
+{local-storage
+    @key=cemDemoFruitLemons
+    @slice=lemons
+    @type=number
+    @live=true}
+{local-storage
+    @key=cemDemoFruitCherries
+    @slice=cherries
+    @type=number
+    @live=true}
+{local-storage
+    @key=cemDemoFruitApples
+    @slice=apples
+    @type=number
+    @live=true}
+{local-storage
+    @key=cemDemoFruitBananas
+    @slice=bananas
+    @type=number
+    @live=true}
+{article @class=demo-card |
+    {h2 | Watched fruit counts}
+    {dl |
+        {dt | 🍋 lemons}{dd | {$datadom.slices.lemons}}
+        {dt | 🍒 cherries}{dd | {$datadom.slices.cherries}}
+        {dt | 🍏 apples}{dd | {$datadom.slices.apples}}
+        {dt | 🍌 bananas}{dd | {$datadom.slices.bananas}}
+        {dt | Total}
+        {dd |
+            {$(
+                datadom.slices.lemons
+                + datadom.slices.cherries
+                + datadom.slices.apples
+                + datadom.slices.bananas
+            )}
+        }
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

@@ -59,12 +59,12 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
 ] as const;
 
 const samples = Array.from(
-    DEMO_SOURCE.matchAll(/<html-demo-element\s+legend="([^"]+)"[\s\S]*?<\/html-demo-element>/gu),
+    DEMO_SOURCE.matchAll(/<cem-demo-element\s+legend="([^"]+)"[\s\S]*?<\/cem-demo-element>/gu),
     (match) => ({ legend: match[1].replace(/\s+/gu, ' ').trim(), source: match[0] })
 );
 
 describe('for-each demo source contracts', () => {
-    it('has one independent html-demo-element for every use case', () => {
+    it('has one independent cem-demo-element for every use case', () => {
         expect(samples.map(({ legend }) => legend)).toEqual(SAMPLE_CONTRACTS.map(({ legend }) => legend));
         expect(samples).toHaveLength(9);
     });

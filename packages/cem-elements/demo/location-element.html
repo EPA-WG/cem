@@ -14,49 +14,137 @@
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>location-element</h1></nav>
 
 <main>
+    <section>
+        <h2>Read URLs as structured slice data</h2>
+        <p>
+            Omit <code>href</code> from <code>location-element</code> to read the current
+            page URL. Add <code>live</code> when history, hash, or navigation changes
+            must update the slice and UI. Supply <code>href</code> to parse another URL
+            without changing the page.
+        </p>
+        <p>
+            The slice exposes URL fields such as <code>href</code>, <code>hostname</code>,
+            <code>pathname</code>, <code>search</code>, and <code>hash</code>. Repeated query
+            parameters are available through <code>paramEntries</code> and preserve all
+            values.
+        </p>
+        <h3>See also</h3>
+        <p><a href="./set-url.html">Set the page URL with location-element</a></p>
+        <p><a href="./module-url.html">Resolve module and resource URLs</a></p>
+    </section>
 
-    <h3>How to get the page URL by location-element?</h3>
-    Answer: by defining following attributes:
-    <ol>
-        <li><code>slice</code> to one of values provided bellow</li>
-        <li><code>src</code> optionally with URL, If omitted, it would match the <code>window.location.href</code> </li>
-    </ol>
-    URL properties would be a part of slice data.
-    <p><a href="./set-url.html">Set page URL demo</a> </p>
-
-    <html-demo-element legend="1. window.location live update"
-                       description="Change the window URL via link or history change by controls in #1.">
+    <cem-demo-element
+        legend="1. Window location live update"
+        description="History controls change the page URL; the live location slice updates its fields and repeated parameters">
         <template>
-            <cem-element tag="cem-location-panel">
-                <template type="text/cem-ml">
-                    {location-element @slice=current @live=true}
-                    {location-element @slice=sample @href="https://example.test/demo/path?mode=demo&tag=one&tag=two#fixture"}
-                    {article @class=demo-card |
-                        {button @type=button @data-location-push=true | Push URL}
-                        {p | current href: {output @data-role=current-href | {$datadom.slices.current.href}}}
-                        {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
-                        {p | sample host: {output @data-role=sample-host | {$datadom.slices.sample.hostname}}}
-                        {p | sample hash: {output @data-role=sample-hash | {$datadom.slices.sample.hash}}}
-                        {ul @class=sample-params |
-                            {cem:for-each @select="datadom.slices.sample.paramEntries" @as=param |
-                                {li | {$param.name} = {$param.text}}
-                            }
-                        }
-                    }
-                </template>
-            </cem-element>
-
-            <cem-location-panel></cem-location-panel>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dt { font-weight: 700; }
+    dd { margin: 0; padding: 0; overflow-wrap: anywhere; }
+```}
+{slice @name=method}
+{location-element @slice=current @live=true}
+{article @class=demo-card |
+    {p | Change this document without reloading it.}
+    {button
+        @type=button
+        @value=history.pushState
+        @slice=method
+        @slice-event=click |
+        history.pushState
+    }
+    {button
+        @type=button
+        @value=history.replaceState
+        @slice=method
+        @slice-event=click |
+        history.replaceState
+    }
+    {cem:if @test=datadom.slices.method |
+        {location-element
+            @method="{$datadom.slices.method}"
+            @src="?mode={$datadom.slices.method}&amp;tag=one&amp;tag=two#checked"}
+    }
+    {dl |
+        {dt | href}{dd | {$datadom.slices.current.href}}
+        {dt | pathname}{dd | {$datadom.slices.current.pathname}}
+        {dt | hash}{dd | {$datadom.slices.current.hash}}
+    }
+    {h3 | Query parameters}
+    {ul |
+        {cem:for-each
+            @select=datadom.slices.current.paramEntries
+            @as=param |
+            {li | {$param.name} = {$param.text}}
+    }   }
+}
+    </template>
+</cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="2. Window location initial read"
+        description="Without live, the current URL is captured for the initial render only">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dt { font-weight: 700; }
+    dd { margin: 0; padding: 0; overflow-wrap: anywhere; }
+```}
+{location-element @slice=initial}
+{article @class=demo-card |
+    {dl |
+        {dt | source}{dd | {$datadom.slices.initial.source}}
+        {dt | origin}{dd | {$datadom.slices.initial.origin}}
+        {dt | pathname}{dd | {$datadom.slices.initial.pathname}}
+        {dt | search}{dd | {$datadom.slices.initial.search}}
+        {dt | hash}{dd | {$datadom.slices.initial.hash}}
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="3. External URL from href"
+        description="An explicit href is parsed into URL fields and repeated parameter entries without navigating">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dt { font-weight: 700; }
+    dd { margin: 0; padding: 0; overflow-wrap: anywhere; }
+```}
+{location-element
+    @slice=external
+    @href="https://my.example/docs?a=1&amp;b=2&amp;b=3#details"}
+{article @class=demo-card |
+    {dl |
+        {dt | href}{dd | {$datadom.slices.external.href}}
+        {dt | hostname}{dd | {$datadom.slices.external.hostname}}
+        {dt | pathname}{dd | {$datadom.slices.external.pathname}}
+        {dt | hash}{dd | {$datadom.slices.external.hash}}
+    }
+    {h3 | Query parameters}
+    {ul |
+        {cem:for-each
+            @select=datadom.slices.external.paramEntries
+            @as=param |
+            {li | {$param.name} = {$param.text}}
+    }   }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
 </main>
-<script>
-    document.addEventListener('click', (event) => {
-        if (event.target?.matches?.('[data-location-push="true"]')) {
-            history.pushState({}, '', './location-element.html?mode=live#checked');
-        }
-    });
-</script>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

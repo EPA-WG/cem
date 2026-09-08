@@ -21,6 +21,33 @@ import * as cemMl from '@epa-wg/cem-ml/wasm';
 console.log(cemMl.version());
 ```
 
+## Static CEM-ML HTML rendering
+
+`renderCemMlToHtmlV1(requestJson)` exposes the common Rust parser and light-DOM
+renderer to small browser components and richer preview hosts such as CEM
+Studio. The versioned JSON request contains `source` and an optional
+`sourceUrl`. Its response contains:
+
+- `status`: `rendered`, `invalid`, or `error`;
+- escaped/static `html` produced by the implementation interpreter;
+- structured `diagnostics`; and
+- `outputSpans` mapping generated UTF-8 byte ranges back through source-map
+  stacks.
+
+```js
+const result = JSON.parse(cemMl.renderCemMlToHtmlV1(JSON.stringify({
+    source: '{article @class=message | {strong | Hello}}',
+    sourceUrl: 'memory:example.cem',
+})));
+
+if (result.status === 'rendered') preview.replaceChildren();
+if (result.status === 'rendered') preview.innerHTML = result.html;
+```
+
+The API renders trusted CEM-ML. Hosts remain responsible for deciding whether
+the resulting live markup may be injected and must treat any status other than
+`rendered` as non-renderable.
+
 The generated `executeCommandServiceV1` binding is the low-level asynchronous
 bridge used by the universal CLI package. It accepts the canonical JSON
 `CommandServiceRequestV1`, a common capability request, and five host callbacks:

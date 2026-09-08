@@ -15,8 +15,6 @@ type Story = StoryObj;
 
 export const EveryAuthoredSample: Story = {
     render: () => {
-        defineHtmlDemoElementFixture();
-
         const root = document.createElement('section');
         root.setAttribute('aria-label', 'source-loaded module URL referrer demo coverage');
 
@@ -31,11 +29,11 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
-            () => host.querySelectorAll('html-demo-element[legend]').length === 1,
+            () => host.querySelectorAll('cem-demo-element[legend]').length === 1,
             'the module-URL referrer sample renders from the HTML source'
         );
 
-        const sample = requiredElement(host, `html-demo-element[legend="${MATRIX_LEGEND}"]`);
+        const sample = requiredElement(host, `cem-demo-element[legend="${MATRIX_LEGEND}"]`);
         const cells = () => Array.from(
             sample.querySelectorAll('tbody td'),
             (cell) => normalize(cell.textContent ?? '')
@@ -66,25 +64,6 @@ export const EveryAuthoredSample: Story = {
     },
 };
 
-function defineHtmlDemoElementFixture(): void {
-    if (customElements.get('html-demo-element')) return;
-
-    class HtmlDemoElementFixture extends HTMLElement {
-        connectedCallback(): void {
-            if (this.querySelector(':scope > [slot="demo"]')) return;
-            const template = Array.from(this.children).find(
-                (child): child is HTMLTemplateElement => child instanceof HTMLTemplateElement
-            );
-            if (!template) return;
-            const demo = document.createElement('div');
-            demo.slot = 'demo';
-            demo.append(template.content.cloneNode(true));
-            this.append(demo);
-        }
-    }
-
-    customElements.define('html-demo-element', HtmlDemoElementFixture);
-}
 
 function withSearch(input: URL, name: string, value: string): string {
     const url = new URL(input);

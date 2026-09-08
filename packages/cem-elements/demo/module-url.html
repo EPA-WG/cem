@@ -9,6 +9,7 @@
         {
             "imports": {
                 "lib-root": "./lib-dir/",
+                "lib-root/": "./lib-dir/",
                 "embed-lib": "./lib-dir/embed-lib.html",
                 "@epa-wg/cem-elements/": "../",
                 "@epa-wg/cem-elements/demo/lib-dir/Smiley.svg": "./lib-dir/Smiley.svg",
@@ -34,7 +35,7 @@
         import { installCemElementRuntime } from '../dist/index.js';
         installCemElementRuntime(window);
     </script>
-    <style>html-demo-element img{ width: 2rem;} </style>
+    <style>cem-demo-element img{ width: 2rem;} </style>
 </head>
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>cem-module-url</h1></nav>
@@ -72,8 +73,9 @@
         <h3>Where NOT to use <code>cem-module-url</code>?</h3>
         Answer:
         <ol>
-            <li> in the <code>src</code> attribute of &lt;custom-element &gt;<br/>
-                - It uses the same module resolving mechanism
+            <li> for relative or absolute <code>src</code> values on
+                <code>cem-element</code>, which already resolve from the declaration base URL;
+                resolve a mapped bare specifier first and pass its URL to a dynamic declaration
             </li>
             <li> for getting/setting the page URL,<br/>
                 - see <a href="./set-url.html">How to set page URL in <code>custom-element</code>?</a>
@@ -87,12 +89,13 @@
         <p><a href="./functions/str.html">CEM-QL string functions</a></p>
     </section>
     <section>
-        <html-demo-element legend="this page import maps"
+        <cem-demo-element legend="this page import maps"
         >
             <template>
 <pre>
 {   "imports": {
         "lib-root": "./lib-dir/",
+        "lib-root/": "./lib-dir/",
         "embed-lib": "./lib-dir/embed-lib.html",
         "@epa-wg/cem-elements/": "../",
         "@epa-wg/cem-elements/demo/lib-dir/Smiley.svg": "./lib-dir/Smiley.svg",
@@ -113,10 +116,10 @@
 }   }   }
 </pre>
             </template>
-        </html-demo-element>
+        </cem-demo-element>
     </section>
 
-    <html-demo-element legend="1. module path by symbolic name"
+    <cem-demo-element legend="1. module path by symbolic name"
                        description="The resolved image links to the mapped package one">
         <template>
 <cem-element>
@@ -132,9 +135,9 @@
     </template>
 </cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element
+    <cem-demo-element
         legend="2. src forms: relative URL"
         description="Relative src uses the declaration source URL">
         <template>
@@ -150,8 +153,8 @@
     </template>
 </cem-element>
         </template>
-    </html-demo-element>
-    <html-demo-element
+    </cem-demo-element>
+    <cem-demo-element
         legend="3. src forms: absolute URL"
         description="Absolute src remains absolute">
         <template>
@@ -170,9 +173,101 @@
     </template>
 </cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element
+    <cem-demo-element
+        legend="4. Relative declaration source"
+        description="cem-module-url resolves a relative document from this demo's base URL before the declaration loads it">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem-module-url @slice=documentUrl @src="./embed-1.html"}
+{article @class=demo-card |
+    {p | Relative document: {output | {$datadom.slices.documentUrl}}}
+    {cem:if @test=datadom.slices.documentUrl |
+        {cem-element
+            @tag=cem-module-relative-declaration
+            @src="{$datadom.slices.documentUrl}"}
+        {a @href="{$datadom.slices.documentUrl}" |
+            {cem-module-relative-declaration |
+                loading ./embed-1.html}
+        }
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="4a. Mapped declaration source"
+        description="cem-module-url resolves a bare specifier before its absolute URL is passed to a dynamic cem-element declaration">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem-module-url @slice=libUrl @src=embed-lib}
+{article @class=demo-card |
+    {p | Mapped document: {output | {$datadom.slices.libUrl}}}
+    {cem:if @test=datadom.slices.libUrl |
+        {cem-element
+            @tag=cem-module-mapped-declaration
+            @src="{$datadom.slices.libUrl}#embed-lib-component"}
+        {cem-module-mapped-declaration |
+            failed to load embed-lib}
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="4b. Missing import-map entry"
+        description="An unmapped bare specifier publishes no URL and records a module_url_resolve_failed diagnostic">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem-module-url
+    @slice=missingUrl
+    @src="missing-demo-lib/embed-lib.html"}
+{article @class=demo-card |
+    {p | Requested: {code | missing-demo-lib/embed-lib.html}}
+    {p | Resolved slice:
+        {output | {$datadom.slices.missingUrl ?? "not published"}}
+    }
+    {p | Inspect the host diagnostics for
+        {code | cem-element.module_url_resolve_failed}.}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="4c. Mapped fragment with a relative dependency"
+        description="The mapped template fragment resolves its nested ../embed-1.html dependency from the fragment document">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem-module-url
+    @slice=fragmentUrl
+    @src="lib-root/embed-lib.html#embed-relative-file"}
+{article @class=demo-card |
+    {p | Mapped fragment: {output | {$datadom.slices.fragmentUrl}}}
+    {cem:if @test=datadom.slices.fragmentUrl |
+        {cem-element
+            @tag=cem-module-mapped-fragment
+            @src="{$datadom.slices.fragmentUrl}"}
+        {cem-module-mapped-fragment |
+            failed to load mapped fragment}
+    }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
         legend="5. component-local map: naked"
         description="The naked component resolves the image through its own module map">
         <template>
@@ -192,9 +287,9 @@
 </cem-element>
 <cem-local-map-naked-image></cem-local-map-naked-image>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element
+    <cem-demo-element
         legend="6. component-local map: wrapper override"
         description="The wrapper's module map overrides the component's mapping for the same key">
         <template>
@@ -227,9 +322,9 @@
 </cem-element>
 <cem-local-map-override-wrapper></cem-local-map-override-wrapper>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element
+    <cem-demo-element
         legend="7. component-local map: node referrer"
         description="referrer-selector enters the rendered child context to resolve its inner-only key">
         <template>
@@ -281,8 +376,8 @@
 </cem-element>
 <cem-local-map-referrer-demo></cem-local-map-referrer-demo>
         </template>
-    </html-demo-element>
-    <html-demo-element
+    </cem-demo-element>
+    <cem-demo-element
         legend="image-link"
         description="helper to display image and its url as link">
         <template>
@@ -320,9 +415,9 @@
             href="./confused.svg"
     ></image-link>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
 </main>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

@@ -14,7 +14,7 @@
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>cem:for-each</h1></nav>
 
 <main>
-    <html-demo-element legend="1. Simple for-each"
+    <cem-demo-element legend="1. Simple for-each"
                        description="Loop over inline XML data and render each item">
         <template>
             <cem-element tag="cem-loop-simple">
@@ -31,9 +31,9 @@
 
             <cem-loop-simple></cem-loop-simple>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="2. for-each with position()"
+    <cem-demo-element legend="2. for-each with position()"
                        description="Use the loop position and record fields to number styled rows">
         <template>
             <cem-element tag="cem-loop-position">
@@ -58,9 +58,9 @@
 
             <cem-loop-position></cem-loop-position>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="3. Conditional for-each"
+    <cem-demo-element legend="3. Conditional for-each"
                        description="Items appear when the checkbox slice is true">
         <template>
             <cem-element>
@@ -92,9 +92,9 @@
 </template>
             </cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="4. Nested for-each table"
+    <cem-demo-element legend="4. Nested for-each table"
                        description="Nested loops render rows and cells from record sequence data">
         <template>
 <cem-element>
@@ -119,9 +119,9 @@
     </template>
 </cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="5. for-each with attributes"
+    <cem-demo-element legend="5. for-each with attributes"
                        description="Attribute access maps to record fields in CEM-ML">
         <template>
 <cem-element>
@@ -149,9 +149,9 @@
     </template>
 </cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="6. Dynamic table with toggle"
+    <cem-demo-element legend="6. Dynamic table with toggle"
                        description="Rows appear and disappear based on checkbox state">
         <template>
 <cem-element tag="cem-loop-dynamic-table">
@@ -188,9 +188,9 @@
 
 <cem-loop-dynamic-table></cem-loop-dynamic-table>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="7. for-each over payload data"
+    <cem-demo-element legend="7. for-each over payload data"
                        description="Payload elements are serialized into datadom and selected by attribute">
         <template>
 <cem-element tag="cem-loop-payload">
@@ -216,9 +216,9 @@
     <span feed="payload" label="payload-beta">Payload Beta</span>
 </cem-loop-payload>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="8. for-each over location data"
+    <cem-demo-element legend="8. for-each over location data"
                        description="Resource primitives expose structured slices that can be looped">
         <template>
 <cem-element>
@@ -236,9 +236,9 @@
     </template>
 </cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="9. for-each over HTTP JSON/XML data"
+    <cem-demo-element legend="9. for-each over HTTP JSON/XML data"
                        description="Local JSON and XML fixtures feed record sequences into the same loop syntax">
         <template>
 <cem-element tag="cem-loop-http">
@@ -272,8 +272,8 @@
 
 <cem-loop-http json-url="./http-data.json" xml-url="./http-data.xml"></cem-loop-http>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 </main>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

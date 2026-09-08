@@ -1,0 +1,70 @@
+{
+    "name": "@epa-wg/cem-demo-element",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/cem-demo-element/src",
+    "projectType": "library",
+    "implicitDependencies": ["@epa-wg/cem-ml"],
+    "targets": {
+        "build": {
+            "dependsOn": [{ "projects": ["@epa-wg/cem-ml"], "target": "build" }]
+        },
+        "typecheck": {
+            "dependsOn": [{ "projects": ["@epa-wg/cem-ml"], "target": "build" }]
+        },
+        "storybook": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "yarn storybook dev --config-dir packages/cem-demo-element/.storybook --host 127.0.0.1 --port 4401 --no-open",
+                "cwd": "{workspaceRoot}"
+            }
+        },
+        "build-storybook": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "outputs": ["{projectRoot}/storybook-static"],
+            "options": {
+                "command": "yarn storybook build --config-dir packages/cem-demo-element/.storybook --output-dir packages/cem-demo-element/storybook-static",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/.storybook/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/demo/**/*",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                { "dependentTasksOutputFiles": "**/*", "transitive": false }
+            ]
+        },
+        "test": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "yarn vitest --config packages/cem-demo-element/vitest.config.mts --project=storybook --run",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/.storybook/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/demo/**/*",
+                "{projectRoot}/vitest.config.mts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                { "dependentTasksOutputFiles": "**/*", "transitive": false }
+            ],
+            "outputs": []
+        },
+        "verify": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["lint", "typecheck", "build", "test", "build-storybook"],
+            "options": {
+                "command": "node -e \"console.log('@epa-wg/cem-demo-element verification passed.')\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        }
+    }
+}

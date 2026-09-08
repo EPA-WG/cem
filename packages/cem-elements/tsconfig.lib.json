@@ -13,6 +13,9 @@
     "references": [
         {
             "path": "../cem-theme/tsconfig.lib.json"
+        },
+        {
+            "path": "../cem-demo-element/tsconfig.lib.json"
         }
     ],
     "exclude": [

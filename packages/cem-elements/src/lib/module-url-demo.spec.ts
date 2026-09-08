@@ -19,6 +19,7 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
         legend: 'this page import maps',
         includes: [
             '"demo-src-image": "./lib-dir/Smiley.svg?src=module"',
+            '"lib-root/": "./lib-dir/"',
             '"demo-module-referrer": "./module-referrer/component.js"',
             '"./relative-referrer/"',
             '"./module-referrer/"',
@@ -57,6 +58,42 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
             '@src="{$datadom.slices.absoluteUrl}"',
         ],
         excludes: ['{module-url', '{img ', '{a '],
+    },
+    {
+        legend: '4. Relative declaration source',
+        includes: [
+            '{cem-module-url @slice=documentUrl @src="./embed-1.html"}',
+            '@tag=cem-module-relative-declaration',
+            '@src="{$datadom.slices.documentUrl}"',
+            '{cem-module-relative-declaration |',
+        ],
+    },
+    {
+        legend: '4a. Mapped declaration source',
+        includes: [
+            '{cem-module-url @slice=libUrl @src=embed-lib}',
+            '@tag=cem-module-mapped-declaration',
+            '@src="{$datadom.slices.libUrl}#embed-lib-component"',
+            '{cem-module-mapped-declaration |',
+        ],
+    },
+    {
+        legend: '4b. Missing import-map entry',
+        includes: [
+            '@slice=missingUrl',
+            '@src="missing-demo-lib/embed-lib.html"',
+            'datadom.slices.missingUrl ?? "not published"',
+            'cem-element.module_url_resolve_failed',
+        ],
+    },
+    {
+        legend: '4c. Mapped fragment with a relative dependency',
+        includes: [
+            '@slice=fragmentUrl',
+            '@src="lib-root/embed-lib.html#embed-relative-file"',
+            '@tag=cem-module-mapped-fragment',
+            '@src="{$datadom.slices.fragmentUrl}"',
+        ],
     },
     {
         legend: '5. component-local map: naked',
@@ -121,7 +158,7 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
 ] as const;
 
 const samples = Array.from(
-    DEMO_SOURCE.matchAll(/<html-demo-element\s+legend="([^"]+)"[\s\S]*?<\/html-demo-element>/gu),
+    DEMO_SOURCE.matchAll(/<cem-demo-element\s+legend="([^"]+)"[\s\S]*?<\/cem-demo-element>/gu),
     (match) => ({ legend: match[1].replace(/\s+/gu, ' ').trim(), source: match[0] })
 );
 
@@ -140,6 +177,7 @@ describe('module-url demo source contracts', () => {
                 'demo-src-image': './lib-dir/Smiley.svg?src=module',
                 'demo-referrer-image': './lib-dir/Smiley.svg?referrer=default',
                 'demo-module-referrer': './module-referrer/component.js',
+                'lib-root/': './lib-dir/',
             },
             scopes: {
                 './relative-referrer/': {

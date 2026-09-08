@@ -9,46 +9,186 @@
         import { installCemElementRuntime } from '../dist/index.js';
         installCemElementRuntime(window);
     </script>
+    <style>
+        button
+        {   display: inline-flex; flex-direction: column; align-items: center; flex: auto;
+            box-shadow: inset silver 0px 0px 1rem; min-width: 12rem; padding: 1rem;
+            color: coral; text-shadow: 1px 1px silver; font-weight: bolder;
+        }
+        button img{ max-height: 10vw; min-height: 4rem;}
+    </style>
 </head>
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>http-request</h1></nav>
 
 <main>
-    <html-demo-element legend="0. url from text to http-request"
-                       description="read data from arbitrary URL">
-        <template>
-            <cem-element tag="cem-resource-panel">
-                <template type="text/cem-ml">
-                    {http-request @slice=page @url="{$datadom.attributes.url}" @header-accept="application/json" @content-type="application/json"}
-                    {http-request @slice=xml @url="{$datadom.attributes.xml-url}" @header-accept="application/xml" @content-type="application/xml"}
-                    {article @class=demo-card |
-                        {h2 | {$datadom.attributes.title}}
-                        {p | Requested URL: {$datadom.attributes.url}}
-                        {p | state: {output | {$datadom.slices.page.state}}}
-                        {cem:if @test='datadom.slices.page.state == "loaded"' |
-                            {ul |
-                                {cem:for-each @select="datadom.slices.page.data.results" @as=item |
-                                    {li | {$item.name}: {$item.status}}
-                                }
-                            }
-                        }
-                        {p | XML URL: {$datadom.attributes.xml-url}}
-                        {p | xml state: {output | {$datadom.slices.xml.state}}}
-                        {cem:if @test='datadom.slices.xml.state == "loaded"' |
-                            {ul @class=xml-results |
-                                {cem:for-each @select="datadom.slices.xml.data.children" @as=item |
-                                    {li | {$item.attributes.name}: {$item.attributes.status}}
-                                }
-                            }
-                        }
-                    }
-                </template>
-            </cem-element>
+    <section>
+        <h2>HTTP responses as declarative data</h2>
+        <p>
+            <code>http-request</code> resolves a URL in its declaration scope, performs
+            an authorized <code>GET</code> or <code>HEAD</code>, and publishes a serializable
+            resource envelope under <code>datadom.slices.&lt;slice&gt;</code>. Templates can render
+            its lifecycle, request and response metadata, and parsed response data without
+            receiving live <code>Request</code> or <code>Response</code> objects.
+        </p>
+        <p>
+            These examples use same-origin JSON fixtures. Browser hosts still enforce Fetch,
+            CORS, credentials, content-type, response-size, and timeout policy; cross-origin
+            requests require explicit host authorization.
+        </p>
+        <h3>See also</h3>
+        <p><a href="./for-each.html">Rendering JSON and XML response records with for-each</a></p>
+        <p><a href="./module-url.html">Scoped URL and module-map resolution</a></p>
+        <p><a href="../../../docs/cem-elements-http-request-design.md">HTTP request resource design</a></p>
+    </section>
 
-            <cem-resource-panel title="HTTP request parity target" url="./http-data.json" xml-url="./http-data.xml"></cem-resource-panel>
+    <cem-demo-element
+        legend="0. URL from text to http-request"
+        description="Choose or edit a URL, then copy it into the request slice with GET">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |
+    article { max-inline-size: 30rem; }
+    .url-presets { display: flex; flex-wrap: wrap; gap: .5rem; }
+    label, input { display: block; inline-size: 100%; }
+}
+{slice @name=selectedUrl | ./http-data.json}
+{slice @name=requestUrl | ./http-data.json}
+{http-request
+    @slice=selectedResult
+    @url="{$datadom.slices.requestUrl}"
+    @method=GET
+    @header-accept="application/json"
+    @content-type="application/json"
+}
+{article @class=demo-card |
+    {h2 | 0. URL selected at runtime}
+    {p | A preset or edited value does not start a request until GET copies it.}
+    {div @class=url-presets |
+        {button @type=button
+                @slice=selectedUrl
+                @slice-event=click
+                @slice-value="'./http-data.json'" | All records}
+        {button @type=button
+                @slice=selectedUrl
+                @slice-event=click
+                @slice-value="'./http-data-compact.json'" | Compact records}
+    }
+    {label |
+        Request URL
+        {input @type=text
+               @value="{$datadom.slices.selectedUrl}"
+               @slice=selectedUrl
+               @slice-event=input
+               @slice-value="$target.value"}
+    }
+    {button @type=button
+            @slice=requestUrl
+            @slice-event=click
+            @slice-value="$selectedUrl" | GET}
+    {p | Selected URL: {output | {$datadom.slices.selectedUrl}}}
+    {p | Requested URL: {output | {$datadom.slices.requestUrl}}}
+    {p | Request state: {output | {$datadom.slices.selectedResult.state}}}
+    {cem:if @test='datadom.slices.selectedResult.state == "loaded"' |
+        {ul |
+            {cem:for-each
+                @select="datadom.slices.selectedResult.data.results"
+                @as=item |
+                {li | {$item.name}: {$item.status}}
+}   }   }   }
+    </template>
+</cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="1. Simplest http-request"
+        description="Load the list of pokemons from a local JSON response">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |
+    article { max-inline-size: 30rem; }
+    .result-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .result-buttons button { display: grid; justify-items: center; }
+    .result-buttons img { block-size: 4rem; inline-size: 4rem; }
+}
+{http-request
+    @slice=catalog
+    @url="./http-pokemon.json"
+    @method=GET
+    @header-accept="application/json"
+    @content-type="application/json"
+}
+{cem:variable @name=spriteUrl
+              @select='"https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world"'}
+{article @class=demo-card |
+    {h2 | Pokemon buttons from API}
+    {p | The result should be six Pokémon SVG buttons.}
+    {p | Request state: {output | {$datadom.slices.catalog.state}}}
+    {cem:if @test='datadom.slices.catalog.state == "loaded"' |
+        {div @class=result-buttons |
+            {cem:for-each
+                @select="datadom.slices.catalog.data.results"
+                @as=item |
+                {button @type=button
+                        @aria-label="{$item.name}"
+                        @title="{$item.name}" |
+                    {img @src="{$spriteUrl}/{$item.id}.svg"
+                         @alt="{$item.name}"}
+}   }   }   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="2. http-request response and headers"
+        description="The resource envelope exposes request headers and response metadata to CEM-QL">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |
+    article { max-inline-size: 30rem; }
+    dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .5rem; }
+    dt { font-weight: bold; }
+    dd { margin: 0; overflow-wrap: anywhere; }
+}
+{http-request
+    @slice=inspection
+    @url="./http-data.json"
+    @method=GET
+    @header-accept="application/json"
+    @header-x-demo="ported-from-legacy"
+    @content-type="application/json"
+}
+{article @class=demo-card |
+    {h2 | 2. Request and response metadata}
+    {p |
+        The slice keeps metadata beside parsed data, so rendering never needs a live
+        browser Request or Response object.
+    }
+    {dl |
+        {dt | State}{dd | {output | {$datadom.slices.inspection.state}}}
+        {dt | Method}{dd | {code | {$datadom.slices.inspection.request.method}}}
+        {dt | Authored URL}{dd | {code | {$datadom.slices.inspection.request.authoredUrl}}}
+        {dt | Resolved URL}
+        {dd |
+            {a @href="{$datadom.slices.inspection.request.resolvedUrl}"
+               @title="{$datadom.slices.inspection.request.resolvedUrl}" |
+                {$str:shorten(datadom.slices.inspection.request.resolvedUrl, 32)}}
+        }
+        {dt | Accept header}{dd | {code | {$datadom.slices.inspection.request.headers.accept}}}
+        {dt | X-Demo header}{dd | {code | {$datadom.slices.inspection.request.headers.x-demo}}}
+        {dt | Status}{dd | {output | {$datadom.slices.inspection.response.status}}}
+        {dt | Content type}{dd | {code | {$datadom.slices.inspection.response.contentType}}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
 </main>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

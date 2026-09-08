@@ -291,12 +291,134 @@ registration identities may reuse an inherited or existing definition.
       capability. All 229 unit tests, the focused five-case Storybook flow,
       lint, typecheck, the 17-page / 23-document browser gate, and the compact
       desktop layout check pass.
+- [x] Port the three HTTP-request use cases from the local legacy
+      `demo/http-request.html` to the `cem-elements` demo.
+    - [x] Adapt runtime URL selection, a minimal image-backed GET, and request /
+          response metadata inspection into independent, compact samples using
+          same-origin repository fixtures.
+    - [x] Add deterministic local image-backed and compact-response fixtures
+          for the migrated cases.
+    - [x] Add exact-source, Storybook interaction, standalone, source-loaded,
+          inventory, and Nx input coverage without test-only demo markup.
+    - Completed 2026-09-05: the three legacy scenarios now use current resource
+      envelopes, scoped relative URLs, and deterministic local JSON/image data.
+      All 235 unit tests, the focused three-case Storybook interaction, lint,
+      typecheck, the 17-page / 23-document browser gate, and the two-card desktop
+      layout check pass.
+- [x] Restore the legacy six-Pokémon list in the simplest HTTP-request demo.
+    - [x] Add a deterministic local Pokémon response fixture with self-contained
+          images instead of reintroducing the remote PokeAPI dependency.
+    - [x] Update source, Storybook, standalone, source-loaded, and Nx input
+          contracts for the six rendered image buttons.
+    - Completed 2026-09-05: the simplest case loads bulbasaur through charizard
+      from `http-pokemon.json` and renders six locally backed image buttons. All
+      235 unit tests, the focused Storybook interaction, lint, typecheck, and the
+      17-page / 23-document browser gate pass.
+- [x] Match the simplest HTTP-request case's legacy Pokémon presentation.
+    - [x] Render the version-pinned Dream World Pokémon SVGs rather than text or
+          placeholder-letter artwork, while retaining accessible button names.
+    - [x] Cover the image-only source and resolved sprite URLs in unit,
+          Storybook, standalone, and source-loaded fixture contracts.
+    - Completed 2026-09-05: `Pokemon buttons from API` renders the six Dream
+      World sprites without visible name text; `aria-label`, `title`, and `alt`
+      retain each Pokémon name. All 235 unit tests, the focused Storybook
+      interaction, lint, typecheck, and the 17-page / 23-document browser gate
+      pass, with browser fixtures intercepting the pinned sprite URLs offline.
+- [x] Port the six local-storage use cases from the local legacy
+      `demo/local-storage.html` to the `cem-elements` demo.
+    - [x] Adapt live text synchronization, authoritative values, persisted
+          defaults, typed coercion, an initial-only read, and a live JSON basket
+          into independent, compact current CEM-ML samples.
+    - [x] Add exact-source, Storybook interaction, standalone, source-loaded,
+          inventory, and Nx input coverage without test-only demo markup.
+    - Completed 2026-09-05: all six legacy scenarios are independent CEM-ML
+      samples. Live instances synchronize through one key; authoritative and
+      persisted-default semantics remain distinct; typed, initial-only, and
+      editable JSON reads are covered. All 244 unit tests, 142 Storybook
+      interactions, lint, typecheck, the 17-page / 23-document browser gate,
+      and the three-card desktop layout check pass.
+- [x] Add declarative lemon, cherry, apple, and banana storage controls to the
+      local-storage demo.
+    - [x] Keep the fruit writer independent from a live watching DCE that owns
+          the four associated slices and rendered counts.
+    - [x] Cover each button-to-storage-to-watcher update in source, Storybook,
+          standalone, and source-loaded fixture contracts.
+    - Completed 2026-09-05: an anonymous writer DCE increments the four numeric
+      fruit keys, and an independent anonymous watcher uses `live` resources to
+      update its matching slices, visible counts, and total from 13 to 17. All
+      245 unit tests, 142 Storybook interactions, lint, typecheck, the 17-page /
+      23-document browser gate, and the desktop no-overflow check pass.
+- [x] Port the remaining top-level legacy demos from `location-element.html`
+      through `set-url.html` into the current `cem-elements` gallery.
+    - [x] Restore independent live, initial-only, and explicit-HREF location
+          readers, with URL-changing controls owned by the live case.
+    - [x] Add the missing legacy module-URL declaration-loading, unmapped
+          specifier, and mapped-fragment scenarios without disturbing the
+          current scope/referrer matrix.
+    - [x] Replace the NPM-version placeholder with deterministic default,
+          preselected/date, propagated-value, label-slot, and URL-sync cases.
+    - [x] Map the remaining legacy scoped-CSS descendant-selector and external
+          template lessons onto the current stricter CSS ownership contract.
+    - [x] Restore the four independent URL-write cases for hash, method,
+          conditional injection, and form-driven selection.
+    - [x] Preserve `module-url-referrer.html`, which has no legacy counterpart,
+          and keep bidirectional related-demo links accurate.
+    - [x] Add exact-source, Storybook, standalone/source-loaded fixture,
+          inventory, and Nx input coverage for every added or changed sample.
+    - Completed 2026-09-06: the location reader, module URL loader, NPM-version
+      picker, scoped CSS, and URL writer demos now cover the applicable legacy
+      lessons as independent current CEM-ML cases. `module-url-referrer.html`
+      remains the focused referrer matrix. All 282 unit tests, 146 Storybook
+      interactions, lint, typecheck, and the 17-page / 23-document browser gate
+      pass.
+- [x] Restore the legacy framework-logo honeycomb in `demo/hex-grid.html` using
+      responsive semantic-list layout principles from Web Tiki's CSS grid.
+    - [x] Render the legacy framework set with deterministic local assets for
+          relative-image cases and one legacy remote asset for the full-URL
+          case, all inside keyboard-accessible hexagonal links.
+    - [x] Preserve one reusable payload-driven DCE case with scoped CSS,
+          responsive staggered row counts, and scope-aware logo URL resolution.
+    - [x] Add exact-source, source-loaded Storybook, standalone/source-loaded
+          fixture, inventory, Nx input, lint, and typecheck coverage.
+    - [x] Accept semantic link-with-image payload and prove that both link
+          destinations and image sources resolve from relative or full URLs.
+    - [x] Raise the revealed label into the hexagon and size, balance, and wrap
+          longer labels responsively against each tile's inline size.
+    - [x] Document and demonstrate percentage and fixed-length grid `size`
+          values that scale the complete cell system without separating links.
+    - [x] Keep link border boxes inside standalone demo cells, make background
+          alternation an opt-in parameter, and show loading/error image fallback
+          with a long wrapping label.
+    - Completed 2026-09-06: the payload-driven grid renders 14 framework logos
+      as semantic links, resolves each payload link and image through
+      `cem-module-url`, and responds from 5–4 desktop rows down to 2–1 narrow
+      rows without page overflow. The source, Storybook, and standalone/source-
+      loaded fixture contracts cover relative and full URL forms.
+- [x] Replace the CDN-dependent `html-demo-element` with the independent,
+      offline-capable `@epa-wg/cem-demo-element` package.
+    - [x] Add a structured CEM-ML-to-HTML Rust/WASM render API shared by the
+          demo element and future CEM Studio previews.
+    - [x] Preserve inline HTML/template, named-region, external-source,
+          language detection, programmatic-source, and legend/description
+          behavior while adding trusted CEM-ML live rendering and explicit
+          loading/error states.
+    - [x] Fixture: cover every public behavior through real Chromium Storybook
+          interaction tests as the package's unit-test suite, and prove the
+          package demos load local workspace artifacts with all network access
+          disabled.
+    - [x] Replace `cem-elements` demo markup/imports and fixture inventories with
+          `cem-demo-element` without adding test-only markup.
+    - Completed 2026-09-07: `@epa-wg/cem-demo-element` supplies local source
+      presentation and lazy CEM-ML WASM rendering, its nine Storybook Chromium
+      tests cover the public and offline-demo contracts, and all 147 existing
+      `cem-elements` Storybook interactions plus the 17-page standalone/23-
+      document source-loaded fixture matrix pass against the real element.
 - [ ] Enforce one-to-one source-loaded Storybook coverage for every authored
       sample in `packages/cem-elements/index.html` and every HTML document under
       `packages/cem-elements/demo/`, following the current data-slices and
       module-url pattern.
     - [ ] Add a machine-checked page-and-legend inventory that fails when an
-          authored demo page or `html-demo-element[legend]` lacks a corresponding
+          authored demo page or `cem-demo-element[legend]` lacks a corresponding
           Storybook contract, or when a contract names a removed page or legend.
     - [ ] Load each authored HTML file through `<cem-element src="…">`; do not
           copy its CEM-ML declarations into the story or replace host-owned

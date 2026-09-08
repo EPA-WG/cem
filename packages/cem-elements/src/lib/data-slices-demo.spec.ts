@@ -170,7 +170,7 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
 ] as const;
 
 const samples = Array.from(
-    DEMO_SOURCE.matchAll(/<html-demo-element\s+legend="([^"]+)"[\s\S]*?<\/html-demo-element>/gu),
+    DEMO_SOURCE.matchAll(/<cem-demo-element\s+legend="([^"]+)"[\s\S]*?<\/cem-demo-element>/gu),
     (match) => ({ legend: match[1].replace(/\s+/gu, ' ').trim(), source: match[0] })
 );
 

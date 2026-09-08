@@ -11,6 +11,9 @@
         },
         {
             "path": "./packages/cem-elements"
+        },
+        {
+            "path": "./packages/cem-demo-element"
         }
     ]
 }

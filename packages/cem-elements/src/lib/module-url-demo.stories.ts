@@ -7,6 +7,10 @@ const EXPECTED_LEGENDS = [
     '1. module path by symbolic name',
     '2. src forms: relative URL',
     '3. src forms: absolute URL',
+    '4. Relative declaration source',
+    '4a. Mapped declaration source',
+    '4b. Missing import-map entry',
+    '4c. Mapped fragment with a relative dependency',
     '5. component-local map: naked',
     '6. component-local map: wrapper override',
     '7. component-local map: node referrer',
@@ -24,8 +28,6 @@ type Story = StoryObj;
 
 export const EveryAuthoredSample: Story = {
     render: () => {
-        defineHtmlDemoElementFixture();
-
         const root = document.createElement('section');
         root.setAttribute('aria-label', 'source-loaded module URL demo coverage');
 
@@ -40,11 +42,11 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
-            () => host.querySelectorAll('html-demo-element[legend]').length === EXPECTED_LEGENDS.length,
+            () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
             'all module-url samples render from the HTML source'
         );
 
-        const actualLegends = Array.from(host.querySelectorAll('html-demo-element[legend]'), (sample) =>
+        const actualLegends = Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
             normalize(sample.getAttribute('legend') ?? '')
         );
         assertDeepEqual(actualLegends, [...EXPECTED_LEGENDS], 'module-url sample inventory');
@@ -55,7 +57,8 @@ export const EveryAuthoredSample: Story = {
             () => symbolic.querySelector('image-link')?.getAttribute('src') === squareUrl
                 && symbolic.querySelector('image-link img')?.getAttribute('src') === squareUrl
                 && symbolic.querySelector('image-link a')?.getAttribute('href') === squareUrl,
-            () => `resolved package-subpath slice reaches image-link src; observed ${symbolic.querySelector('image-link')?.outerHTML ?? 'no image-link'}`
+            () => `resolved package-subpath slice reaches image-link src; observed ${symbolic.querySelector('image-link')?.outerHTML ?? 'no image-link'}`,
+            400
         );
         assertEqual(
             requiredElement(symbolic, 'image-link img').getAttribute('src'),
@@ -93,21 +96,48 @@ export const EveryAuthoredSample: Story = {
         const wrappedUrl = withSearch(confusedUrl, 'owner', 'wrapper');
         const nodeReferrerUrl = withSearch(squareReferrerUrl, 'owner', 'component');
 
-        const naked = sampleByLegend(host, EXPECTED_LEGENDS[4]);
+        const relativeDeclaration = sampleByLegend(host, EXPECTED_LEGENDS[4]);
+        await waitForCondition(
+            () => normalize(relativeDeclaration.querySelector('output')?.textContent ?? '') === new URL('./embed-1.html', MODULE_URL_DEMO_URL).href,
+            'a relative declaration document URL resolves from the demo source document',
+            300
+        );
+
+        const mappedDeclaration = sampleByLegend(host, EXPECTED_LEGENDS[5]);
+        await waitForCondition(
+            () => normalize(mappedDeclaration.querySelector('output')?.textContent ?? '') === new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href,
+            'a bare declaration document URL resolves through the import map',
+            300
+        );
+
+        const missing = sampleByLegend(host, EXPECTED_LEGENDS[6]);
+        await waitForCondition(
+            () => normalize(missing.querySelector('output')?.textContent ?? '') === 'not published',
+            'an unmapped bare specifier does not publish a misleading URL'
+        );
+
+        const fragment = sampleByLegend(host, EXPECTED_LEGENDS[7]);
+        await waitForCondition(
+            () => normalize(fragment.querySelector('output')?.textContent ?? '') === `${new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href}#embed-relative-file`,
+            'a mapped template fragment resolves through the import map',
+            300
+        );
+
+        const naked = sampleByLegend(host, EXPECTED_LEGENDS[8]);
         await waitForCondition(
             () => naked.querySelector('cem-local-map-naked-image img')?.getAttribute('src') === nakedUrl
                 && naked.querySelector('cem-local-map-naked-image a')?.getAttribute('href') === nakedUrl,
             'naked component resolves through its own module map'
         );
 
-        const override = sampleByLegend(host, EXPECTED_LEGENDS[5]);
+        const override = sampleByLegend(host, EXPECTED_LEGENDS[9]);
         await waitForCondition(
             () => override.querySelector('cem-local-map-override-image img')?.getAttribute('src') === wrappedUrl
                 && override.querySelector('cem-local-map-override-image a')?.getAttribute('href') === wrappedUrl,
             'wrapper module map overrides the child mapping'
         );
 
-        const nodeReferrer = sampleByLegend(host, EXPECTED_LEGENDS[6]);
+        const nodeReferrer = sampleByLegend(host, EXPECTED_LEGENDS[10]);
         const nodeReferrerCells = () => Array.from(
             nodeReferrer.querySelectorAll('cem-local-map-referrer-demo table.node-referrer-matrix td expando-link a'),
             (link) => link.getAttribute('href')
@@ -134,7 +164,7 @@ export const EveryAuthoredSample: Story = {
             'node-referrer image-link retains the full resolved URL'
         );
 
-        const helper = sampleByLegend(host, EXPECTED_LEGENDS[7]);
+        const helper = sampleByLegend(host, EXPECTED_LEGENDS[11]);
         const helperLink = requiredElement(helper, 'image-link a');
         assertEqual(
             normalize(helperLink.textContent ?? ''),
@@ -149,28 +179,9 @@ export const EveryAuthoredSample: Story = {
     },
 };
 
-function defineHtmlDemoElementFixture(): void {
-    if (customElements.get('html-demo-element')) return;
-
-    class HtmlDemoElementFixture extends HTMLElement {
-        connectedCallback(): void {
-            if (this.querySelector(':scope > [slot="demo"]')) return;
-            const template = Array.from(this.children).find(
-                (child): child is HTMLTemplateElement => child instanceof HTMLTemplateElement
-            );
-            if (!template) return;
-            const demo = document.createElement('div');
-            demo.slot = 'demo';
-            demo.append(template.content.cloneNode(true));
-            this.append(demo);
-        }
-    }
-
-    customElements.define('html-demo-element', HtmlDemoElementFixture);
-}
 
 function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
-    const sample = Array.from(host.querySelectorAll<HTMLElement>('html-demo-element[legend]')).find(
+    const sample = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]')).find(
         (candidate) => normalize(candidate.getAttribute('legend') ?? '') === legend
     );
     assert(sample, `expected sample ${legend}`);

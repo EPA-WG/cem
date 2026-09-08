@@ -18,8 +18,6 @@ type Story = StoryObj;
 
 export const EveryAuthoredSample: Story = {
     render: () => {
-        defineHtmlDemoElementFixture();
-
         const root = document.createElement('section');
         root.setAttribute('aria-label', 'source-loaded DOM merge demo coverage');
 
@@ -34,12 +32,12 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
-            () => host.querySelectorAll('html-demo-element[legend] article').length === EXPECTED_LEGENDS.length,
+            () => host.querySelectorAll('cem-demo-element[legend] article').length === EXPECTED_LEGENDS.length,
             'both DOM merge samples render from the HTML source'
         );
 
         assertDeepEqual(
-            Array.from(host.querySelectorAll('html-demo-element[legend]'), (sample) =>
+            Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
                 normalize(sample.getAttribute('legend') ?? '')
             ),
             [...EXPECTED_LEGENDS],
@@ -69,28 +67,9 @@ export const EveryAuthoredSample: Story = {
     },
 };
 
-function defineHtmlDemoElementFixture(): void {
-    if (customElements.get('html-demo-element')) return;
-
-    class HtmlDemoElementFixture extends HTMLElement {
-        connectedCallback(): void {
-            if (this.querySelector(':scope > [slot="demo"]')) return;
-            const template = Array.from(this.children).find(
-                (child): child is HTMLTemplateElement => child instanceof HTMLTemplateElement
-            );
-            if (!template) return;
-            const demo = document.createElement('div');
-            demo.slot = 'demo';
-            demo.append(template.content.cloneNode(true));
-            this.append(demo);
-        }
-    }
-
-    customElements.define('html-demo-element', HtmlDemoElementFixture);
-}
 
 function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
-    const sample = Array.from(host.querySelectorAll<HTMLElement>('html-demo-element[legend]')).find(
+    const sample = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]')).find(
         (candidate) => normalize(candidate.getAttribute('legend') ?? '') === legend
     );
     if (!sample) throw new Error(`expected sample ${legend}`);

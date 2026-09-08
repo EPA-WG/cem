@@ -11,44 +11,193 @@
     </script>
 </head>
 <body>
-<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>set-url</h1></nav>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Set URLs</h1></nav>
 
 <main>
+    <section>
+        <h2>Write browser location declaratively</h2>
+        <p>
+            A <code>location-element</code> with <code>method</code> and
+            <code>src</code> writes the page URL. Supported methods mirror
+            <code>location.href</code>, <code>location.hash</code>,
+            <code>location.assign()</code>, <code>location.replace()</code>,
+            <code>history.pushState()</code>, and <code>history.replaceState()</code>.
+        </p>
+        <p>
+            Render a writer only in response to deliberate state or an event. A
+            writer whose target already equals the current URL is inert, preventing
+            repeated renders from producing duplicate history entries.
+        </p>
+        <h3>See also</h3>
+        <p><a href="./location-element.html">Read current and explicit URLs</a></p>
+        <p><a href="./data-slices.html">Slice declarations and event bindings</a></p>
+    </section>
 
-    <h3>How to set the page URL by <code>location-element</code>?</h3>
-    Answer: by defining following attributes:
-    <ol>
-        <li><code>method</code> to one of values provided bellow</li>
-        <li><code>src</code> with URL </li>
-    </ol>
-    <p> &lt;location-element&gt; is safe to be used unconditionally as long as `src` is missing or same as page URL.
-        Otherwise it can be injected by event driven condition as in sample <a href="#dce3">#3</a> </p>
-
-    <html-demo-element legend="4. Set page URL methods"
-                       description="To define the URL, fill input field or click the radio button, then 'set' button.">
+    <cem-demo-element
+        legend="1. Set the page hash"
+        description="Each button supplies a hash; a conditional location writer applies it and a live reader displays the result">
         <template>
-            <cem-element tag="cem-set-url-panel">
-                <template type="text/cem-ml">
-                    {slice @name=method | history.pushState}
-                    {slice @name=url | #cem-demo}
-                    {location-element @slice=current @live=true}
-                    {article @class=demo-card |
-                        {label | Method {input @value="{$method}" @slice=method @slice-event=input @slice-value="{$target.value}"}}
-                        {label | URL {input @value="{$url}" @slice=url @slice-event=input @slice-value="{$target.value}"}}
-                        {button @type=button @slice=apply-url @slice-event=click @slice-value="$event.type" | Set}
-                        {cem:if @test="datadom.slices.apply-url" |
-                            {location-element @method="{$method}" @src="{$url}"}
-                        }
-                        {p | pending set: {output | {$method}} = {output | {$url}}}
-                        {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
-                    }
-                </template>
-            </cem-element>
-
-            <cem-set-url-panel></cem-set-url-panel>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=hashTarget}
+{location-element @slice=current @live=true}
+{article @class=demo-card |
+    {button
+        @type=button
+        @value="#hash-one"
+        @slice=hashTarget
+        @slice-event=click |
+        #hash-one
+    }
+    {button
+        @type=button
+        @value="#hash-two"
+        @slice=hashTarget
+        @slice-event=click |
+        #hash-two
+    }
+    {cem:if @test=datadom.slices.hashTarget |
+        {location-element
+            @method=location.hash
+            @src="{$datadom.slices.hashTarget}"}
+    }
+    {p | Selected target: {output | {$datadom.slices.hashTarget}}}
+    {p | Current hash: {output | {$datadom.slices.current.hash}}}
+}
+    </template>
+</cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="2. Select the URL write method"
+        description="Method buttons drive one conditional writer; the selected method is also used as the observable hash">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    .methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; }
+```}
+{slice @name=method}
+{location-element @slice=current @live=true}
+{article @class=demo-card |
+    {div @class=methods |
+        {button @type=button @value=location.href
+            @slice=method @slice-event=click | location.href}
+        {button @type=button @value=location.hash
+            @slice=method @slice-event=click | location.hash}
+        {button @type=button @value=location.assign
+            @slice=method @slice-event=click | location.assign}
+        {button @type=button @value=location.replace
+            @slice=method @slice-event=click | location.replace}
+        {button @type=button @value=history.pushState
+            @slice=method @slice-event=click | history.pushState}
+        {button @type=button @value=history.replaceState
+            @slice=method @slice-event=click | history.replaceState}
+    }
+    {cem:if @test=datadom.slices.method |
+        {location-element
+            @method="{$datadom.slices.method}"
+            @src="#{$datadom.slices.method}"}
+    }
+    {p | Selected method: {output | {$datadom.slices.method}}}
+    {p | Current hash: {output | {$datadom.slices.current.hash}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="3. Conditionally inject a URL writer"
+        description="No writer exists initially; clicking Set renders one location-element for the requested URL">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=requestedUrl}
+{location-element @slice=current @live=true}
+{article @class=demo-card |
+    {p | The URL remains unchanged until the event creates a target slice.}
+    {button
+        @type=button
+        @value="#conditional-writer"
+        @slice=requestedUrl
+        @slice-event=click |
+        Set
+    }
+    {cem:if @test=datadom.slices.requestedUrl |
+        {location-element
+            @method=location.href
+            @src="{$datadom.slices.requestedUrl}"}
+    }
+    {p | Current hash: {output | {$datadom.slices.current.hash}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="4. Set URL from form controls"
+        description="Radio and text controls select a method and target before a button conditionally applies both">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=method | history.pushState}
+{slice @name=url | #form-driven}
+{slice @name=applyUrl}
+{location-element @slice=current @live=true}
+{article @class=demo-card |
+    {form |
+        {fieldset |
+            {legend | Method}
+            {label |
+                {input @type=radio @name=method @value=location.hash
+                    @slice=method @slice-event=change}
+                location.hash
+            }
+            {label |
+                {input @type=radio @name=method @value=history.pushState
+                    @slice=method @slice-event=change @checked=true}
+                history.pushState
+            }
+            {label |
+                {input @type=radio @name=method @value=history.replaceState
+                    @slice=method @slice-event=change}
+                history.replaceState
+            }
+        }
+        {label |
+            URL
+            {input
+                @type=text
+                @value="{$datadom.slices.url}"
+                @slice=url
+                @slice-event=input
+                @slice-value="$target.value"
+            }
+        }
+        {button
+            @type=button
+            @value=apply
+            @slice=applyUrl
+            @slice-event=click |
+            Set
+        }
+    }
+    {cem:if @test=datadom.slices.applyUrl |
+        {location-element
+            @method="{$datadom.slices.method}"
+            @src="{$datadom.slices.url}"}
+    }
+    {p | Pending: {output | {$datadom.slices.method}} = {output | {$datadom.slices.url}}}
+    {p | Current hash: {output | {$datadom.slices.current.hash}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
 </main>
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

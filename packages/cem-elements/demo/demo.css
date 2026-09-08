@@ -17,13 +17,13 @@ nav
     dce-root{ box-shadow:none; padding: 0;}
 }
 
-html-demo-element *:has(>[data-cem-island]){ box-shadow: 0 0 0.5rem lime; padding: 1rem;  flex:1; display: block; }
+cem-demo-element *:has(>[data-cem-island]){ box-shadow: 0 0 0.5rem lime; padding: 1rem;  flex:1; display: block; }
 script{ display:none !important; }
 dd{ padding: 1rem;}
 p{ margin: 0;}
 code{ font-weight: bold; color: green; text-wrap: nowrap; }
 
-html-demo-element h3
+cem-demo-element h3
 {   text-shadow: 0 0 0.25em white;
     letter-spacing: 0.1rem;
 }

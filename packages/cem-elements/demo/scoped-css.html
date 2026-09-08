@@ -32,7 +32,25 @@
         </nav>
 
         <main>
-            <html-demo-element
+            <section>
+                <h2>Keep component CSS local while preserving intentional sharing</h2>
+                <p>
+                    These cases show private declaration CSS, named shared groups,
+                    per-instance payload overrides, static-style enforcement,
+                    fragment and external templates, anonymous declarations, descendant
+                    selectors, and stable keyframe rewriting.
+                </p>
+                <p>
+                    Declaration styles are compiled into native <code>@scope</code>
+                    boundaries. Ordinary page cascade can still enter a component, while
+                    a declaration selector cannot leak into unrelated page elements.
+                </p>
+                <h3>See also</h3>
+                <p><a href="./external-template.html">External template loading</a></p>
+                <p><a href="./hex-grid.html">Grid components and instance styling</a></p>
+            </section>
+
+            <cem-demo-element
                 legend="1. Private declaration CSS and ordinary outer cascade"
                 description="The dashed green border stays inside the two DCE instances while the classless outside button keeps its browser-default border.<hr/>
                             The violet button text demonstrates an intentional higher-specificity page override of declaration CSS inside the native component scope."
@@ -59,9 +77,9 @@
     Browser default border
 </button>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="2. Component in a named scope shares default declaration styles with peers in the same scope"
                 description="A <b>sample-shared-bare</b> class is shared when the declaration has a <b>scope=css-samples</b> and no matching explicit scoped style."
             >
@@ -83,9 +101,9 @@
 <cem-css-shared-bare></cem-css-shared-bare>
 <cem-css-shared-peer></cem-css-shared-peer>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="3. Style can be scoped explicitly"
                 description="A matching style scope contributes only to the named public group boundary."
             >
@@ -107,9 +125,9 @@
 <cem-css-shared-explicit></cem-css-shared-explicit>
 <cem-css-explicit-peer></cem-css-explicit-peer>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="4. Mixed private and shared styles"
                 description="A style with <b>scope</b> is shared, style without kept private; selectors are never combined."
             >
@@ -133,9 +151,9 @@
 <cem-css-mixed></cem-css-mixed>
 <cem-css-mixed-peer></cem-css-mixed-peer>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="5. Invalid and mismatched scopes fail closed"
                 description="Unscoped explicit and mismatched styles are omitted; an invalid explicit style does not change a valid bare shorthand."
             >
@@ -184,9 +202,9 @@
 <cem-css-mismatch-bare></cem-css-mismatch-bare>
 <cem-css-invalid-declaration></cem-css-invalid-declaration>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="6. Payload style belongs to one instance"
                 description="The source style begins inert in an explicit payload template, then becomes a managed direct child under an implicit parent-rooted native scope."
             >
@@ -204,8 +222,8 @@
         }
     </template>
 </cem-element>
-<cem-css-instance data-testid="instance-blue">blue</cem-css-instance>
-<cem-css-instance data-testid="instance-red">
+<cem-css-instance>blue</cem-css-instance>
+<cem-css-instance>
     <template>
         <style>
             :host {
@@ -216,9 +234,9 @@
     </template>
 </cem-css-instance>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="7. Declaration styles must be static"
                 description="A dynamic style scope and a conditional declaration style diagnose and render no style node."
             >
@@ -243,9 +261,9 @@
 </cem-element>
 <cem-css-dynamic></cem-css-dynamic>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="8. Fragment template CSS uses the effective produced tag"
                 description="A reusable url#fragment template keeps its CSS artifact but scopes it to the consuming declaration tag."
             >
@@ -265,14 +283,14 @@
 ></cem-element>
 <cem-css-fragment></cem-css-fragment>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="9. Anonymous declaration CSS uses its generated tag"
                 description="The explicit <b>uid-seed</b> participates in the deterministic anonymous tag, which is both the browser element name and private CSS boundary."
             >
                 <template>
-<cem-element uid-seed="demo/css/anonymous" data-testid="anonymous-declaration">
+<cem-element uid-seed="demo/css/anonymous">
     <template type="text/cem-ml">
         {style |```
             .sample-anonymous { color: violet; } ```
@@ -281,9 +299,9 @@
     </template>
 </cem-element>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
 
-            <html-demo-element
+            <cem-demo-element
                 legend="10. uid-seed stabilizes keyframe names"
                 description="The authored <b>seeded-pulse</b> keyframes and animation reference are rewritten with the declaration's deterministic render identity. Here <b>uid-seed=demo/css/keyframes</b> makes that internal suffix stable; it does not define the native CSS scope."
             >
@@ -303,9 +321,48 @@
         {span @part=indicator | deterministic keyframes}
     </template>
 </cem-element>
-<cem-css-keyframes data-testid="keyframes"></cem-css-keyframes>
+<cem-css-keyframes></cem-css-keyframes>
                 </template>
-            </html-demo-element>
+            </cem-demo-element>
+
+            <cem-demo-element
+                legend="11. Descendant selectors stay inside the component"
+                description="Host text is green, the descendant b is blue, and native :checked state strengthens only that descendant">
+                <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    :host { color: rgb(0, 128, 0); }
+    b { color: rgb(0, 0, 255); }
+    input:checked + b {
+        color: rgb(0, 0, 139);
+        text-shadow: 0 0 4px springgreen;
+    }
+```}
+{label |
+    green
+    {input @type=checkbox @checked=true}
+    {b | glowing blue}
+}
+    </template>
+</cem-element>
+                </template>
+            </cem-demo-element>
+
+            <cem-demo-element
+                legend="12. CSS from an external template fragment"
+                description="A declaration loaded from another HTML file keeps its style artifact and scopes it to the consuming tag">
+                <template>
+<cem-element
+    tag="cem-css-external-fragment"
+    src="./external-template-templates.html#scoped-css-external-template"
+></cem-element>
+
+<cem-css-external-fragment>
+    projected external template
+</cem-css-external-fragment>
+                </template>
+            </cem-demo-element>
 
             <p class="status-note">
                 Private CSS uses native <code>@scope (&lt;cem-tag&gt;)</code>; named shared CSS uses the public
@@ -315,6 +372,6 @@
                 <code>data-cem-render-scope</code> is not a CSS hook, and no per-instance CSS marker is generated.
             </p>
         </main>
-        <script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+        <script type="module" src="../../cem-demo-element/dist/index.js"></script>
     </body>
 </html>

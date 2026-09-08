@@ -24,7 +24,7 @@ can be scoped against real gaps rather than guesses.
 ## Component → feature usage
 
 Each component declares one or more `<custom-element>` definitions and consumes sibling components by tag.
-The "Page chrome" rows (`index.html#nav-head`, `html-demo-element`, FontAwesome/Material icon fonts) are demo
+The "Page chrome" rows (`index.html#nav-head`, `cem-demo-element`, FontAwesome/Material icon fonts) are demo
 scaffolding, not parity surface, and are excluded from the support matrix below.
 
 | Component   | Declares (tag)                         | Imports by `src`                                                              | Notable authoring features used                                                                                  |

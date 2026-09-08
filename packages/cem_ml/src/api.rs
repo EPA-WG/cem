@@ -12,5 +12,7 @@
 //!   (`onResolveRead`, `onResolveWrite`) to JS callers per AC-C-1
 //!   (browser / Node parity with the Rust surface).
 
+pub mod html_render;
+
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-demo-element advanced examples</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+            }
+        }
+    </script>
+    <script type="module" src="../dist/index.js"></script>
+</head>
+<body>
+<nav><a href="./index.html">Basic use</a><strong>Advanced use</strong></nav>
+<h1>Programmatic and slotted sources</h1>
+<main>
+    <section>
+        <p>
+            The <code>source</code> property accepts text or a DOM node. Changing it
+            refreshes the source presentation without replacing an existing HTML demo.
+        </p>
+        <p>
+            <button type="button" data-source="html">HTML</button>
+            <button type="button" data-source="css">CSS</button>
+            <button type="button" data-source="js">JavaScript</button>
+        </p>
+        <cem-demo-element id="programmatic" legend="Programmatic source">
+            <template><p>Choose a source type above.</p></template>
+        </cem-demo-element>
+    </section>
+
+    <cem-demo-element id="live-cem" legend="Live CEM-ML property update" type="cem-ml">
+        <template>{p | Initial WASM output}</template>
+    </cem-demo-element>
+</main>
+<script type="module">
+    const examples = {
+        html: '<button type="button">HTML button</button>',
+        css: 'button { color: rebeccapurple; }',
+        js: 'const answer = 42;',
+    };
+    const programmatic = document.querySelector('#programmatic');
+    document.querySelectorAll('[data-source]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const type = button.dataset.source;
+            programmatic.type = type;
+            programmatic.source = examples[type];
+        });
+    });
+    const liveCem = document.querySelector('#live-cem');
+    await liveCem.updateComplete;
+    liveCem.source = '{p | Updated through the source property}';
+</script>
+</body>
+</html>
