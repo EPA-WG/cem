@@ -210,11 +210,30 @@ async function assertPresentationModes(host: HTMLElement): Promise<void> {
     const wrapper = requiredElement(host, `cem-demo-element[legend="${WRAPPER_LEGEND}"]`);
     const wrapperFrame = requiredElement(wrapper, '.theme-frame');
     const wrapperLink = requiredElement(wrapper, '.hex-link');
+    const wrapperSibling = requiredElement(wrapper, '.hex:nth-child(2) .hex-link');
     const wrapperLabel = requiredElement(wrapper, '.hex-label');
     assertIncludes(getComputedStyle(wrapperLink).backgroundImage, 'rgb(49, 46, 129)', 'wrapper background start');
     assertEqual(getComputedStyle(wrapperLabel).color, 'rgb(30, 27, 75)', 'wrapper label color');
     assertEqual(getComputedStyle(wrapperFrame).backgroundColor, 'rgb(238, 242, 255)', 'wrapper frame background');
     assertEqual(getComputedStyle(wrapperFrame).borderTopColor, 'rgb(99, 102, 241)', 'wrapper frame border');
+    const siblingBackground = getComputedStyle(wrapperSibling).backgroundImage;
+    wrapperLink.focus();
+    await waitForCondition(
+        () => {
+            const activeBackground = getComputedStyle(wrapperLink).backgroundImage;
+            return activeBackground.includes('rgb(0, 128, 0)') && activeBackground.includes('rgb(255, 255, 0)');
+        },
+        () => {
+            const style = getComputedStyle(wrapperLink);
+            return `wrapper interaction colors apply to the active nested grid link; focused=${wrapperLink.matches(':focus-visible')}, start=${style.getPropertyValue('--cem-hex-hover-background-start')}, end=${style.getPropertyValue('--cem-hex-hover-background-end')}, background=${style.backgroundImage}`;
+        },
+    );
+    assertEqual(
+        getComputedStyle(wrapperSibling).backgroundImage,
+        siblingBackground,
+        'wrapper interaction leaves sibling cell background unchanged',
+    );
+    wrapperLink.blur();
 
     const imageButton = requiredElement(host, `cem-demo-element[legend="${IMAGE_BUTTON_LEGEND}"]`);
     const imageButtonLink = requiredElement(imageButton, '.hex-link');

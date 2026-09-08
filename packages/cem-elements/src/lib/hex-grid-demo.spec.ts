@@ -44,6 +44,7 @@ describe('hex-grid demo source contract', () => {
         expect(normalized).toContain('white image plate is only a loading/error fallback');
         expect(normalized).toContain('A wrapper DCE can theme a nested grid');
         expect(DEMO_SOURCE).toContain('<code>--cem-hex-background-*</code>');
+        expect(DEMO_SOURCE).toContain('<code>--cem-hex-hover-background-*</code>');
         expect(DEMO_SOURCE).toContain('<code>--cem-hex-label-*</code>');
         expect(DEMO_SOURCE).toContain('<code>--cem-hex-link-hover-filter</code>');
         expect(DEMO_SOURCE).toContain('https://web-tiki.github.io/responsive-grid-of-hexagons/');
@@ -133,6 +134,12 @@ describe('hex-grid demo source contract', () => {
         expect(DEMO_SOURCE).toContain('background: var(--cem-hex-label-background, rgb(15 118 110 / 0.88))');
         expect(DEMO_SOURCE).toContain('--cem-hex-background-start: #312e81');
         expect(DEMO_SOURCE).toContain('--cem-hex-label-background: rgb(254 240 138 / 0.92)');
+        expect(DEMO_SOURCE).toContain('--cem-hex-hover-background-start: green');
+        expect(DEMO_SOURCE).toContain('--cem-hex-hover-background-end: yellow');
+        expect(DEMO_SOURCE).toContain('var(--cem-hex-hover-background-start, var(--hex-start))');
+        expect(DEMO_SOURCE).toContain('var(--cem-hex-hover-background-end, var(--hex-end))');
+        expect(DEMO_SOURCE).not.toContain(':host:hover {');
+        expect(DEMO_SOURCE).not.toContain('&:hover a');
     });
 
     it('offers a wrapper-styled image-button presentation', () => {

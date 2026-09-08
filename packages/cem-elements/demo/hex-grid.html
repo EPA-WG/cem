@@ -59,7 +59,8 @@
             private structure. Set the inherited
             <code>--cem-hex-background-*</code> and
             <code>--cem-hex-label-*</code> custom properties in the wrapper's
-            style, then project the grid through the wrapper. A button-like
+            style, then project the grid through the wrapper. Per-cell hover
+            colors use <code>--cem-hex-hover-background-*</code>. A button-like
             presentation can keep the label raised with
             <code>--cem-hex-label-shift: 0%</code> and supply normal and hover
             filters through <code>--cem-hex-link-filter</code> and
@@ -109,6 +110,11 @@
     .hex-link:hover, .hex-link:focus-visible {
         --label-shift: 0%;
         z-index: 1;
+        background: linear-gradient(
+            145deg,
+            var(--cem-hex-hover-background-start, var(--hex-start)),
+            var(--cem-hex-hover-background-end, var(--hex-end))
+        );
         filter: var(--cem-hex-link-hover-filter,
                     saturate(1.2) brightness(0.96));
         transform: scale(0.94);
@@ -410,12 +416,10 @@
     :host {
         --cem-hex-background-start: #312e81;
         --cem-hex-background-end: #0f766e;
+        --cem-hex-hover-background-start: green;
+        --cem-hex-hover-background-end: yellow;
         --cem-hex-label-color: #1e1b4b;
         --cem-hex-label-background: rgb(254 240 138 / 0.92);
-        a:hover{
-        --cem-hex-background-start: green;
-        --cem-hex-background-end: yellow;
-        }
         display: block;
     }
     .theme-frame {
