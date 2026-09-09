@@ -26,8 +26,23 @@ export interface CemMlHtmlRenderResult {
     outputSpans: CemMlOutputSpan[];
 }
 
+export interface CemMlSourceHighlightSpan {
+    byteOffset: number;
+    byteLength: number;
+    role: string;
+}
+
+export interface CemMlSourceHighlightResult {
+    schemaVersion: 1;
+    status: 'highlighted' | 'unsupported' | 'invalid' | 'error';
+    html: string;
+    diagnostics: CemMlDiagnostic[];
+    spans: CemMlSourceHighlightSpan[];
+}
+
 interface CemMlWasmRuntime {
     renderCemMlToHtmlV1(request: string): string;
+    highlightSourceToHtmlV1(request: string): string;
 }
 
 let runtimePromise: Promise<CemMlWasmRuntime> | undefined;
@@ -41,6 +56,24 @@ export async function renderCemMlSource(
     const response = JSON.parse(runtime.renderCemMlToHtmlV1(JSON.stringify({ source, sourceUrl })));
     if (!isRenderResult(response)) {
         throw new TypeError('CEM-ML WASM returned an unsupported HTML-render response');
+    }
+    return response;
+}
+
+/** Format authored HTML or CEM-ML as lossless semantic source markup. */
+export async function highlightCemSource(
+    source: string,
+    contentType: string,
+    sourceUrl?: string
+): Promise<CemMlSourceHighlightResult> {
+    const runtime = await loadRuntime();
+    const response = JSON.parse(runtime.highlightSourceToHtmlV1(JSON.stringify({
+        source,
+        contentType,
+        sourceUrl,
+    })));
+    if (!isSourceHighlightResult(response)) {
+        throw new TypeError('CEM-ML WASM returned an unsupported source-highlight response');
     }
     return response;
 }
@@ -64,4 +97,17 @@ function isRenderResult(value: unknown): value is CemMlHtmlRenderResult {
         && typeof candidate.html === 'string'
         && Array.isArray(candidate.diagnostics)
         && Array.isArray(candidate.outputSpans);
+}
+
+function isSourceHighlightResult(value: unknown): value is CemMlSourceHighlightResult {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Partial<CemMlSourceHighlightResult>;
+    return candidate.schemaVersion === 1
+        && (candidate.status === 'highlighted'
+            || candidate.status === 'unsupported'
+            || candidate.status === 'invalid'
+            || candidate.status === 'error')
+        && typeof candidate.html === 'string'
+        && Array.isArray(candidate.diagnostics)
+        && Array.isArray(candidate.spans);
 }

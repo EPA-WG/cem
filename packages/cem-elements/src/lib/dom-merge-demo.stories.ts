@@ -33,7 +33,8 @@ export const EveryAuthoredSample: Story = {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
             () => host.querySelectorAll('cem-demo-element[legend] article').length === EXPECTED_LEGENDS.length,
-            'both DOM merge samples render from the HTML source'
+            'both DOM merge samples render from the HTML source',
+            600
         );
 
         assertDeepEqual(

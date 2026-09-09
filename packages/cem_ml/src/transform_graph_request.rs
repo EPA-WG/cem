@@ -549,10 +549,7 @@ fn transform_graph_reference_matcher(pattern: &str) -> Result<Regex, String> {
 /// binding grammar used by both filesystem and manifest-backed lowering.
 /// Host adapters use this during pre-request discovery so they never need a
 /// second implementation of graph selector semantics.
-pub fn transform_graph_reference_matches(
-    pattern: &str,
-    candidate: &str,
-) -> Result<bool, String> {
+pub fn transform_graph_reference_matches(pattern: &str, candidate: &str) -> Result<bool, String> {
     transform_graph_reference_matcher(pattern).map(|matcher| matcher.is_match(candidate))
 }
 
@@ -1535,13 +1532,19 @@ impl TransformGraphRequestLowerer<'_> {
         for (identity, asset) in &target_map.imports {
             deployment_assets.insert(
                 identity.clone(),
-                (asset.path.clone(), content_type_essence(&asset.content_type)),
+                (
+                    asset.path.clone(),
+                    content_type_essence(&asset.content_type),
+                ),
             );
         }
         for (identity, asset) in &target_map.resources {
             deployment_assets.insert(
                 identity.clone(),
-                (asset.path.clone(), content_type_essence(&asset.content_type)),
+                (
+                    asset.path.clone(),
+                    content_type_essence(&asset.content_type),
+                ),
             );
         }
 
@@ -1613,7 +1616,11 @@ impl TransformGraphRequestLowerer<'_> {
             let scheduler_scope_id = self.take_scope();
             self.imports.push(TransformGraphImport {
                 id: import_id.clone(),
-                input: engine_input_from_resource(resource, Some(source_content_type.clone()), None),
+                input: engine_input_from_resource(
+                    resource,
+                    Some(source_content_type.clone()),
+                    None,
+                ),
                 opaque: true,
                 scheduler_scope_id,
             });
@@ -1674,7 +1681,9 @@ impl TransformGraphRequestLowerer<'_> {
                 return Err(config_error(
                     self.config_uri,
                     "cem.module_map.module_imports_invalid",
-                    format!("module-map resource `{name}` cannot declare `moduleImports` before v3"),
+                    format!(
+                        "module-map resource `{name}` cannot declare `moduleImports` before v3"
+                    ),
                 ));
             }
             if !source.module_imports.is_empty() && source_content_type != "text/javascript" {
@@ -2098,10 +2107,7 @@ fn module_asset_manifest(
         append_module_asset_hash_field(&mut canonical, asset.target.as_bytes());
         append_module_asset_hash_field(&mut canonical, asset.content_type.as_bytes());
         if contract_version >= 2 {
-            append_module_asset_hash_field(
-                &mut canonical,
-                &asset.source_byte_length.to_be_bytes(),
-            );
+            append_module_asset_hash_field(&mut canonical, &asset.source_byte_length.to_be_bytes());
             append_module_asset_hash_field(&mut canonical, asset.source_sha256.as_bytes());
         }
         append_module_asset_hash_field(&mut canonical, &asset.byte_length.to_be_bytes());
@@ -2261,7 +2267,10 @@ fn rewrite_declared_module_specifiers(
                 ),
             ));
         };
-        if !matches!(content_type.as_str(), "text/javascript" | "application/json") {
+        if !matches!(
+            content_type.as_str(),
+            "text/javascript" | "application/json"
+        ) {
             return Err(config_error(
                 config_uri,
                 "cem.module_map.module_import_target_invalid",
@@ -2410,8 +2419,7 @@ fn javascript_tokens(source: &[u8]) -> Vec<JavaScriptToken> {
         }
         if byte == b'/' && source.get(index + 1) == Some(&b'*') {
             index += 2;
-            while index + 1 < source.len()
-                && !(source[index] == b'*' && source[index + 1] == b'/')
+            while index + 1 < source.len() && !(source[index] == b'*' && source[index + 1] == b'/')
             {
                 index += 1;
             }
@@ -2468,7 +2476,8 @@ fn javascript_tokens(source: &[u8]) -> Vec<JavaScriptToken> {
             index = (index + 1).min(source.len());
             tokens.push(JavaScriptToken {
                 kind: JavaScriptTokenKind::String {
-                    value: String::from_utf8_lossy(&source[content_start..content_end]).into_owned(),
+                    value: String::from_utf8_lossy(&source[content_start..content_end])
+                        .into_owned(),
                     escaped,
                 },
                 start,
@@ -3714,13 +3723,21 @@ export { metadata };
         let source_with_edge = r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"@pkg/app":{"path":"../runtime/app.js","contentType":"text/javascript","moduleImports":{"@pkg/runtime":"@pkg/runtime"}},"@pkg/runtime":{"path":"../runtime/runtime.js","contentType":"text/javascript"}}}"#;
         let target_with_edge = r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"@pkg/app":{"path":"./app.js","contentType":"text/javascript","moduleImports":{"@pkg/runtime":"@pkg/runtime"}},"@pkg/runtime":{"path":"./runtime.js","contentType":"text/javascript"}}}"#;
         assert_eq!(
-            lowering_error(source_with_edge, target_with_edge, b"export const app = true;\n"),
+            lowering_error(
+                source_with_edge,
+                target_with_edge,
+                b"export const app = true;\n"
+            ),
             "cem.module_map.javascript_rewrite_unused"
         );
 
         let target_mismatch = target_with_edge.replace("@pkg/runtime\"}", "@pkg/app\"}");
         assert_eq!(
-            lowering_error(source_with_edge, &target_mismatch, b"import '@pkg/runtime';\n"),
+            lowering_error(
+                source_with_edge,
+                &target_mismatch,
+                b"import '@pkg/runtime';\n"
+            ),
             "cem.module_map.module_imports_mismatch"
         );
     }
@@ -3806,11 +3823,7 @@ export { metadata };
             let error = validate_module_specifier("graph.cem", specifier).unwrap_err();
             assert_eq!(error.code(), "cem.module_map.specifier_invalid");
         }
-        for target in [
-            "../runtime.js",
-            "./../runtime.js",
-            "./runtime.js?x=1",
-        ] {
+        for target in ["../runtime.js", "./../runtime.js", "./runtime.js?x=1"] {
             let error = validate_module_import_target(
                 "graph.cem",
                 "@pkg/runtime",

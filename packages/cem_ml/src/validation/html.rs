@@ -193,6 +193,10 @@ impl HtmlEventAst {
                 .iter()
                 .map(HtmlAttributeAst::to_cemt_subject)
                 .collect::<Vec<_>>(),
+            "markupTokens": html_event_markup_tokens(self)
+                .iter()
+                .map(HtmlMarkupTokenAst::to_cemt_subject)
+                .collect::<Vec<_>>(),
             "value": self.value,
             "lexeme": self.lexeme,
             "whitespaceOnly": self.whitespace_only,
@@ -228,6 +232,338 @@ impl HtmlEventKind {
             Self::Rcdata => "rcdata",
             Self::Comment => "comment",
         }
+    }
+}
+
+/// Lossless lexical pieces exposed to the HTML formatter/colorizer pipeline.
+///
+/// Quotes are deliberately separate from attribute values. This lets an HTML
+/// color profile style all markup punctuation (`<`, `>`, `/`, `=`, and quotes)
+/// consistently without sacrificing the exact source spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HtmlMarkupTokenKind {
+    Delimiter,
+    ElementName,
+    Whitespace,
+    AttributeName,
+    Equals,
+    Quote,
+    AttributeValue,
+    Keyword,
+    Raw,
+}
+
+impl HtmlMarkupTokenKind {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Delimiter => "delimiter",
+            Self::ElementName => "element-name",
+            Self::Whitespace => "whitespace",
+            Self::AttributeName => "attribute-name",
+            Self::Equals => "equals",
+            Self::Quote => "quote",
+            Self::AttributeValue => "attribute-value",
+            Self::Keyword => "keyword",
+            Self::Raw => "raw",
+        }
+    }
+
+    pub(crate) fn semantic_role(self) -> &'static str {
+        match self {
+            Self::Delimiter | Self::Equals | Self::Quote => "syntax.punctuation",
+            Self::ElementName => "syntax.name",
+            Self::AttributeName => "syntax.attribute",
+            Self::AttributeValue => "syntax.string",
+            Self::Keyword => "syntax.keyword",
+            Self::Whitespace | Self::Raw => "syntax.raw",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HtmlMarkupTokenAst {
+    pub(crate) kind: HtmlMarkupTokenKind,
+    pub(crate) text: String,
+    pub(crate) source_range: HtmlSourceRange,
+}
+
+impl HtmlMarkupTokenAst {
+    #[cfg(test)]
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "kind": self.kind.as_str(),
+            "text": self.text,
+            "role": self.kind.semantic_role(),
+            "sourceRange": self.source_range.to_cemt_subject(),
+            "sourceMap": serde_json::to_value(self.source_range.source_map())
+                .unwrap_or(Value::Null),
+        })
+    }
+}
+
+pub(crate) fn html_event_markup_tokens(event: &HtmlEventAst) -> Vec<HtmlMarkupTokenAst> {
+    match event.kind {
+        HtmlEventKind::StartElement | HtmlEventKind::EndElement => html_tag_markup_tokens(event),
+        HtmlEventKind::Doctype => html_doctype_markup_tokens(event),
+        _ => Vec::new(),
+    }
+}
+
+fn html_tag_markup_tokens(event: &HtmlEventAst) -> Vec<HtmlMarkupTokenAst> {
+    let bytes = event.lexeme.as_bytes();
+    let mut tokens = Vec::new();
+    let mut offset = 0usize;
+    if bytes.starts_with(b"</") {
+        html_push_markup_token(event, &mut tokens, HtmlMarkupTokenKind::Delimiter, 0, 2);
+        offset = 2;
+    } else if bytes.starts_with(b"<") {
+        html_push_markup_token(event, &mut tokens, HtmlMarkupTokenKind::Delimiter, 0, 1);
+        offset = 1;
+    }
+
+    let name_start = offset;
+    while offset < bytes.len()
+        && !bytes[offset].is_ascii_whitespace()
+        && !matches!(bytes[offset], b'/' | b'>')
+    {
+        offset += 1;
+    }
+    html_push_markup_token(
+        event,
+        &mut tokens,
+        HtmlMarkupTokenKind::ElementName,
+        name_start,
+        offset,
+    );
+
+    let mut expecting_value = false;
+    while offset < bytes.len() {
+        if bytes[offset].is_ascii_whitespace() {
+            let start = offset;
+            while offset < bytes.len() && bytes[offset].is_ascii_whitespace() {
+                offset += 1;
+            }
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::Whitespace,
+                start,
+                offset,
+            );
+            continue;
+        }
+        if bytes[offset..].starts_with(b"/>") {
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::Delimiter,
+                offset,
+                offset + 2,
+            );
+            offset += 2;
+            expecting_value = false;
+            continue;
+        }
+        if bytes[offset] == b'>' {
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::Delimiter,
+                offset,
+                offset + 1,
+            );
+            offset += 1;
+            expecting_value = false;
+            continue;
+        }
+        if bytes[offset] == b'=' {
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::Equals,
+                offset,
+                offset + 1,
+            );
+            offset += 1;
+            expecting_value = true;
+            continue;
+        }
+        if expecting_value && matches!(bytes[offset], b'\'' | b'"') {
+            let quote = bytes[offset];
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::Quote,
+                offset,
+                offset + 1,
+            );
+            offset += 1;
+            let value_start = offset;
+            while offset < bytes.len() && bytes[offset] != quote {
+                offset += 1;
+            }
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::AttributeValue,
+                value_start,
+                offset,
+            );
+            if offset < bytes.len() {
+                html_push_markup_token(
+                    event,
+                    &mut tokens,
+                    HtmlMarkupTokenKind::Quote,
+                    offset,
+                    offset + 1,
+                );
+                offset += 1;
+            }
+            expecting_value = false;
+            continue;
+        }
+
+        let start = offset;
+        while offset < bytes.len()
+            && !bytes[offset].is_ascii_whitespace()
+            && !matches!(bytes[offset], b'=' | b'/' | b'>')
+        {
+            offset += 1;
+        }
+        if offset == start {
+            offset += 1;
+            html_push_markup_token(event, &mut tokens, HtmlMarkupTokenKind::Raw, start, offset);
+        } else {
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                if expecting_value {
+                    HtmlMarkupTokenKind::AttributeValue
+                } else {
+                    HtmlMarkupTokenKind::AttributeName
+                },
+                start,
+                offset,
+            );
+            expecting_value = false;
+        }
+    }
+    tokens
+}
+
+fn html_doctype_markup_tokens(event: &HtmlEventAst) -> Vec<HtmlMarkupTokenAst> {
+    let bytes = event.lexeme.as_bytes();
+    let mut tokens = Vec::new();
+    let mut offset = 0usize;
+    if bytes.starts_with(b"<!") {
+        html_push_markup_token(event, &mut tokens, HtmlMarkupTokenKind::Delimiter, 0, 2);
+        offset = 2;
+    }
+    let keyword_start = offset;
+    while offset < bytes.len() && !bytes[offset].is_ascii_whitespace() && bytes[offset] != b'>' {
+        offset += 1;
+    }
+    html_push_markup_token(
+        event,
+        &mut tokens,
+        HtmlMarkupTokenKind::Keyword,
+        keyword_start,
+        offset,
+    );
+    while offset < bytes.len() {
+        if bytes[offset].is_ascii_whitespace() {
+            let start = offset;
+            while offset < bytes.len() && bytes[offset].is_ascii_whitespace() {
+                offset += 1;
+            }
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::Whitespace,
+                start,
+                offset,
+            );
+        } else if bytes[offset] == b'>' {
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::Delimiter,
+                offset,
+                offset + 1,
+            );
+            offset += 1;
+        } else {
+            let start = offset;
+            while offset < bytes.len()
+                && !bytes[offset].is_ascii_whitespace()
+                && bytes[offset] != b'>'
+            {
+                offset += 1;
+            }
+            html_push_markup_token(
+                event,
+                &mut tokens,
+                HtmlMarkupTokenKind::ElementName,
+                start,
+                offset,
+            );
+        }
+    }
+    tokens
+}
+
+fn html_push_markup_token(
+    event: &HtmlEventAst,
+    tokens: &mut Vec<HtmlMarkupTokenAst>,
+    kind: HtmlMarkupTokenKind,
+    start: usize,
+    end: usize,
+) {
+    let Some(text) = event.lexeme.get(start..end) else {
+        return;
+    };
+    if text.is_empty() {
+        return;
+    }
+    tokens.push(HtmlMarkupTokenAst {
+        kind,
+        text: text.to_owned(),
+        source_range: html_source_range_within(event.source_range, &event.lexeme, start, end),
+    });
+}
+
+fn html_source_range_within(
+    outer_range: HtmlSourceRange,
+    source: &str,
+    start: usize,
+    end: usize,
+) -> HtmlSourceRange {
+    let mut line = outer_range.start.line;
+    let mut column = outer_range.start.column;
+    let mut chars = source[..start].chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                line = line.saturating_add(1);
+                column = 1;
+            }
+            '\n' => {
+                line = line.saturating_add(1);
+                column = 1;
+            }
+            _ => column = column.saturating_add(1),
+        }
+    }
+    HtmlSourceRange {
+        start: HtmlSourcePosition {
+            line,
+            column,
+            byte_offset: outer_range.start.byte_offset + start as u64,
+        },
+        byte_length: (end - start) as u64,
     }
 }
 
@@ -1530,6 +1866,72 @@ mod tests {
             .unwrap()
             .iter()
             .any(|event| event["lexicalName"] == "HTML" && event["localName"] == "html"));
+    }
+
+    #[test]
+    fn html_markup_tokens_split_punctuation_names_quotes_and_values_losslessly() {
+        let source = "<picture data-kind='hero' loading=eager disabled></picture>";
+        let (document, diagnostics) = parse(source, HTML_CONTENT_TYPE);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let start = document
+            .events
+            .iter()
+            .find(|event| event.kind == HtmlEventKind::StartElement)
+            .expect("start element");
+        let tokens = html_event_markup_tokens(start);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| (token.kind, token.text.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                (HtmlMarkupTokenKind::Delimiter, "<"),
+                (HtmlMarkupTokenKind::ElementName, "picture"),
+                (HtmlMarkupTokenKind::Whitespace, " "),
+                (HtmlMarkupTokenKind::AttributeName, "data-kind"),
+                (HtmlMarkupTokenKind::Equals, "="),
+                (HtmlMarkupTokenKind::Quote, "'"),
+                (HtmlMarkupTokenKind::AttributeValue, "hero"),
+                (HtmlMarkupTokenKind::Quote, "'"),
+                (HtmlMarkupTokenKind::Whitespace, " "),
+                (HtmlMarkupTokenKind::AttributeName, "loading"),
+                (HtmlMarkupTokenKind::Equals, "="),
+                (HtmlMarkupTokenKind::AttributeValue, "eager"),
+                (HtmlMarkupTokenKind::Whitespace, " "),
+                (HtmlMarkupTokenKind::AttributeName, "disabled"),
+                (HtmlMarkupTokenKind::Delimiter, ">"),
+            ]
+        );
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.text.as_str())
+                .collect::<String>(),
+            start.lexeme
+        );
+        assert_eq!(tokens[0].source_range.start.byte_offset, 0);
+        assert_eq!(tokens[6].source_range.start.byte_offset, 20);
+    }
+
+    #[test]
+    fn html_doctype_markup_tokens_keep_angle_brackets_as_punctuation() {
+        let (document, diagnostics) = parse("<!DOCTYPE html>", HTML_CONTENT_TYPE);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let tokens = html_event_markup_tokens(&document.events[0]);
+
+        assert_eq!(tokens[0].kind, HtmlMarkupTokenKind::Delimiter);
+        assert_eq!(tokens[0].text, "<!");
+        assert_eq!(tokens[1].kind, HtmlMarkupTokenKind::Keyword);
+        assert_eq!(tokens[1].text, "DOCTYPE");
+        assert_eq!(tokens.last().map(|token| token.text.as_str()), Some(">"));
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.text.as_str())
+                .collect::<String>(),
+            "<!DOCTYPE html>"
+        );
     }
 
     #[test]

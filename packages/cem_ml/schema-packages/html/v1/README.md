@@ -42,8 +42,11 @@ The public colorizer profile names are `terminal`, `html`, and `md`.
 All six public wrappers and their private helpers execute through the package
 CEMT pipeline. Current formatter profiles are lexically lossless: they retain
 the event lexemes and source maps while recording profile-specific layout
-decisions. The text writer adds one final newline. Colorizers attach syntax
-roles for terminal, HTML-class, and Markdown-span consumers.
+decisions. Markup events are split into lossless semantic tokens for delimiters,
+element names, whitespace, attribute names, equals signs, quotes, and values;
+comments, text, raw text, and RCDATA retain event-level tokens. The text writer
+adds one final newline. Colorizers attach syntax roles for terminal, HTML-class,
+and Markdown-span consumers.
 
 ## Validation
 

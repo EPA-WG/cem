@@ -1,0 +1,1 @@
+{article | Valid text before an invalid bare interpolation: {42}}

@@ -91,8 +91,8 @@ export const EveryAuthoredSample: Story = {
         );
 
         const descendant = sampleByLegend(host, EXPECTED_LEGENDS[10]);
-        await styleEquals(descendant, 'label', 'color', 'rgb(0, 128, 0)');
-        await styleEquals(descendant, 'b', 'color', 'rgb(0, 0, 139)');
+        await styleEquals(descendant, '[slot="demo"] label', 'color', 'rgb(0, 128, 0)');
+        await styleEquals(descendant, '[slot="demo"] b', 'color', 'rgb(0, 0, 139)');
 
         const external = sampleByLegend(host, EXPECTED_LEGENDS[11]);
         await waitForCondition(

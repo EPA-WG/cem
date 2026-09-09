@@ -12,11 +12,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::command_service::{
-    sha256_hex, CommandPolicyStampV1, CommandProjectRevisionV1,
-    CommandResourceVersionV1, CommandRunPlanV1, CommandServiceRequestV1,
-    CommandServiceResultV1, CommandTransformResultV1, CommandTransformSourceV1,
-    CommandUriMapV1, PortableOperationRequestV1, PortableOperationResultV1,
-    VirtualResourceV1, COMMAND_SERVICE_PROTOCOL_VERSION,
+    sha256_hex, CommandPolicyStampV1, CommandProjectRevisionV1, CommandResourceVersionV1,
+    CommandRunPlanV1, CommandServiceRequestV1, CommandServiceResultV1, CommandTransformResultV1,
+    CommandTransformSourceV1, CommandUriMapV1, PortableOperationRequestV1,
+    PortableOperationResultV1, VirtualResourceV1, COMMAND_SERVICE_PROTOCOL_VERSION,
 };
 use crate::diagnostics::Severity;
 use crate::engine::{
@@ -25,9 +24,9 @@ use crate::engine::{
 use crate::report_projection::project_report_v1;
 use crate::resolver::{has_uri_scheme, is_windows_drive_path, ResolvePurpose};
 use crate::run_config::{
-    self, InputSpec, NormalizedDiagnosticsMode, NormalizedPrimaryKind,
-    NormalizedReportProjection, NormalizedRunPlan, NormalizedRunPlanRequest, ResolverSpec,
-    RunConfig, RunConfigDefaults, RunConfigParseRequest, ScopeConfig,
+    self, InputSpec, NormalizedDiagnosticsMode, NormalizedPrimaryKind, NormalizedReportProjection,
+    NormalizedRunPlan, NormalizedRunPlanRequest, ResolverSpec, RunConfig, RunConfigDefaults,
+    RunConfigParseRequest, ScopeConfig,
 };
 use crate::transform_config::{
     parse_transform_graph_config, TransformGraphNodeKind, TransformGraphParseRequest,
@@ -212,9 +211,9 @@ pub fn build_command_invocation_v1(
         Ok(BuildOutcome::Needs(requirements)) => {
             CommandInvocationBuildResponseV1::NeedsResources { requirements }
         }
-        Ok(BuildOutcome::Ready(invocation)) => CommandInvocationBuildResponseV1::Ready {
-            invocation,
-        },
+        Ok(BuildOutcome::Ready(invocation)) => {
+            CommandInvocationBuildResponseV1::Ready { invocation }
+        }
         Err(error) => CommandInvocationBuildResponseV1::Error { error },
     }
 }
@@ -234,7 +233,12 @@ fn build_command_invocation(
         .command_path
         .first()
         .map(String::as_str)
-        .ok_or_else(|| usage("cem.command.required_command", "a CEM-ML command is required"))?;
+        .ok_or_else(|| {
+            usage(
+                "cem.command.required_command",
+                "a CEM-ML command is required",
+            )
+        })?;
     if command == "version" {
         let request = command_request(
             environment,
@@ -441,9 +445,12 @@ fn load_run_config(
         return Ok(RunConfig::default());
     };
     let uri = resolve_host_uri(&environment.cwd, &raw_uri);
-    let resource = resources
-        .get(&uri)
-        .ok_or_else(|| usage("cem.command.resource_missing", format!("resource `{uri}` is missing")))?;
+    let resource = resources.get(&uri).ok_or_else(|| {
+        usage(
+            "cem.command.resource_missing",
+            format!("resource `{uri}` is missing"),
+        )
+    })?;
     let parsed_config = run_config::parse_run_config(RunConfigParseRequest {
         bytes: resource.bytes.clone(),
         identity: run_config_identity(parsed, &uri),
@@ -514,7 +521,10 @@ fn command_operation(
         if plan.inputs.len() != 1 {
             Err(usage(
                 "cem.command.input_count",
-                format!("{command} requires exactly one input; found {}", plan.inputs.len()),
+                format!(
+                    "{command} requires exactly one input; found {}",
+                    plan.inputs.len()
+                ),
             ))
         } else {
             Ok(plan.inputs[0].input_id.clone())
@@ -649,12 +659,17 @@ fn command_operation(
                     VirtualResourceV1 {
                         bytes: expression.into_bytes(),
                         identity: Some(FormatIdentity {
-                            content_type: Some(option_string(parsed, "template_content_type").unwrap_or_else(
-                                || crate::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE.to_owned(),
+                            content_type: Some(
+                                option_string(parsed, "template_content_type").unwrap_or_else(
+                                    || {
+                                        crate::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE
+                                            .to_owned()
+                                    },
+                                ),
+                            ),
+                            schema: Some(option_string(parsed, "template_schema").unwrap_or_else(
+                                || crate::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI.to_owned(),
                             )),
-                            schema: Some(option_string(parsed, "template_schema").unwrap_or_else(|| {
-                                crate::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI.to_owned()
-                            })),
                             base_uri: Some(INLINE_TEMPLATE_URI.to_owned()),
                             ..FormatIdentity::default()
                         }),
@@ -696,10 +711,7 @@ fn operation_resource_requirements(
     let mut requirements = Vec::new();
     let mut add_input = |input_id: &str| {
         if let Some(input) = plan.inputs.iter().find(|input| input.input_id == input_id) {
-            let uri = input
-                .resolved_uri
-                .as_deref()
-                .unwrap_or(&input.declared_uri);
+            let uri = input.resolved_uri.as_deref().unwrap_or(&input.declared_uri);
             add_read_requirement(
                 &mut requirements,
                 resources,
@@ -880,12 +892,11 @@ fn scope_resource_requirements(
             Some(package.identity.clone()),
         );
     }
-    for scope in plan
-        .inputs
-        .iter()
-        .map(|input| &input.root_scope)
-        .chain(plan.schema_packages.iter().map(|package| &package.root_scope))
-    {
+    for scope in plan.inputs.iter().map(|input| &input.root_scope).chain(
+        plan.schema_packages
+            .iter()
+            .map(|package| &package.root_scope),
+    ) {
         if let Some(module_map) = scope.module_map.as_ref() {
             let uri = module_map
                 .resolved_uri
@@ -1031,7 +1042,10 @@ pub fn project_command_presentation_v1(
 }
 
 fn document_value_bytes(value: &Value) -> Result<Vec<u8>, CommandInvocationErrorV1> {
-    if let Some(content) = value.as_str().or_else(|| value.get("content").and_then(Value::as_str)) {
+    if let Some(content) = value
+        .as_str()
+        .or_else(|| value.get("content").and_then(Value::as_str))
+    {
         return Ok(content.as_bytes().to_vec());
     }
     serde_json::to_vec_pretty(value)
@@ -1071,8 +1085,13 @@ fn diagnostics_mode(
     })
 }
 
-fn input_scope(parsed: &ParsedCommandInvocationV1) -> Result<ScopeConfig, CommandInvocationErrorV1> {
-    let transform_data = parsed.command_path.first().is_some_and(|command| command == "transform");
+fn input_scope(
+    parsed: &ParsedCommandInvocationV1,
+) -> Result<ScopeConfig, CommandInvocationErrorV1> {
+    let transform_data = parsed
+        .command_path
+        .first()
+        .is_some_and(|command| command == "transform");
     Ok(ScopeConfig {
         default_content_type: if transform_data {
             option_string(parsed, "data_content_type")
@@ -1107,12 +1126,16 @@ fn output_scope(
         scope.output_color_type = option_string(parsed, "output_color_type");
         scope.cemt_formatter = option_string(parsed, "cemt_formatter");
         scope.cemt_formatter_profile = option_string(parsed, "cemt_formatter_profile");
-        scope.cemt_formatter_options =
-            parse_pairs("cemt_formatter_options", &option_strings(parsed, "cemt_formatter_options"))?;
+        scope.cemt_formatter_options = parse_pairs(
+            "cemt_formatter_options",
+            &option_strings(parsed, "cemt_formatter_options"),
+        )?;
         scope.cemt_colorizer = option_string(parsed, "cemt_colorizer");
         scope.cemt_color_profile = option_string(parsed, "cemt_color_profile");
         if option_bool(parsed, "tabular") {
-            scope.output_color_type.get_or_insert_with(|| "ansi-256".to_owned());
+            scope
+                .output_color_type
+                .get_or_insert_with(|| "ansi-256".to_owned());
             scope
                 .cemt_formatter_profile
                 .get_or_insert_with(|| "tabular".to_owned());
@@ -1134,14 +1157,16 @@ fn output_scope(
         }
     } else if command == "trace" {
         let format = option_string(parsed, "format").unwrap_or_else(|| "json".to_owned());
-        scope.default_content_type = Some(match format.as_str() {
-            "xml" => "application/xml",
-            "cem" => "application/cem+xml",
-            "html" => "text/html",
-            "text" => "text/plain",
-            _ => "application/json",
-        }
-        .to_owned());
+        scope.default_content_type = Some(
+            match format.as_str() {
+                "xml" => "application/xml",
+                "cem" => "application/cem+xml",
+                "html" => "text/html",
+                "text" => "text/plain",
+                _ => "application/json",
+            }
+            .to_owned(),
+        );
     }
     Ok(scope)
 }
@@ -1162,12 +1187,7 @@ fn report_routes(
         let projection = report_projection(
             &option_string(parsed, "report_format").unwrap_or_else(|| "cem".to_owned()),
         )?;
-        routes.push(file_report_route(
-            environment,
-            &path,
-            basename,
-            projection,
-        ));
+        routes.push(file_report_route(environment, &path, basename, projection));
     }
     if let Some(path) = option_string(parsed, "report_json") {
         routes.push(file_report_route(
@@ -1226,12 +1246,14 @@ fn primary_output_destination(parsed: &ParsedCommandInvocationV1, command: &str)
 }
 
 fn command_has_primary_output(command: &str) -> bool {
-    matches!(command, "parse" | "inspect" | "convert" | "query" | "trace")
-        || command == "transform"
+    matches!(command, "parse" | "inspect" | "convert" | "query" | "trace") || command == "transform"
 }
 
 fn supports_run_options(command: &str) -> bool {
-    matches!(command, "parse" | "validate" | "check" | "inspect" | "convert" | "trace")
+    matches!(
+        command,
+        "parse" | "validate" | "check" | "inspect" | "convert" | "trace"
+    )
 }
 
 fn output_record(input: Option<&str>, destination: &str) -> String {
@@ -1454,7 +1476,10 @@ fn option_strings(parsed: &ParsedCommandInvocationV1, field: &str) -> Vec<String
 }
 
 fn option_bool(parsed: &ParsedCommandInvocationV1, field: &str) -> bool {
-    matches!(option_value(parsed, field), Some(ParsedCommandValueV1::Boolean(true)))
+    matches!(
+        option_value(parsed, field),
+        Some(ParsedCommandValueV1::Boolean(true))
+    )
 }
 
 fn global_string(parsed: &ParsedCommandInvocationV1, field: &str) -> Option<String> {
@@ -1547,11 +1572,8 @@ mod tests {
             "format".to_owned(),
             ParsedCommandValueV1::String("ast".to_owned()),
         );
-        let first = build_command_invocation_v1(
-            command.clone(),
-            environment(),
-            CommandUriMapV1::new(),
-        );
+        let first =
+            build_command_invocation_v1(command.clone(), environment(), CommandUriMapV1::new());
         let CommandInvocationBuildResponseV1::NeedsResources { requirements } = first else {
             panic!("expected a resource read");
         };

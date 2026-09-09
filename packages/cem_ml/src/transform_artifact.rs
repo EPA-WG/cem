@@ -31,8 +31,8 @@ use crate::validation::generic_data::{
     GenericDataStreamDocumentAst, GenericDataValueAst,
 };
 use crate::validation::html::{
-    HtmlAttributeAst, HtmlDocumentAst, HtmlDocumentSource, HtmlEncodingReportAst, HtmlEventAst,
-    HtmlFact,
+    html_event_markup_tokens, HtmlAttributeAst, HtmlDocumentAst, HtmlDocumentSource,
+    HtmlEncodingReportAst, HtmlFact, HtmlMarkupTokenAst,
 };
 use crate::validation::json::{
     JsonDocumentAst, JsonMemberAst, JsonNumberKind, JsonSourceRange, JsonValueAst,
@@ -1502,9 +1502,16 @@ pub enum XmlFamilyDocumentCemtSubjectRef<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum XmlFamilyMarkupPackage {
+    Html,
     Svg,
     MathMl,
     Xslt,
+}
+
+#[derive(Debug, Clone)]
+pub enum XmlFamilyMarkupTokenAst {
+    Html(HtmlMarkupTokenAst),
+    Xml(XmlMarkupTokenAst),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2808,7 +2815,8 @@ pub enum CemtEvaluatorSequenceRef<'a> {
         attributes: &'a [HtmlAttributeAst],
     },
     XmlFamilyMarkupTokens {
-        event: &'a XmlEventAst,
+        document: XmlFamilyDocumentCemtSubjectRef<'a>,
+        index: usize,
         content_type: &'a str,
         package: XmlFamilyMarkupPackage,
     },
@@ -2969,7 +2977,12 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
             Self::XmlFamilyEvents { document } => xml_family_event_count(*document),
             Self::XmlAttributes { attributes } => attributes.len(),
             Self::HtmlAttributes { attributes } => attributes.len(),
-            Self::XmlFamilyMarkupTokens { event, .. } => xml_event_markup_tokens(event).len(),
+            Self::XmlFamilyMarkupTokens {
+                document,
+                index,
+                package,
+                ..
+            } => xml_family_markup_tokens(*document, *index, *package).len(),
             Self::YamlParseFacts { facts } => facts.len(),
             Self::YamlDirectives { directives } => directives.len(),
             Self::YamlComments { comments } => comments.len(),
@@ -3105,10 +3118,11 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                 CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::HtmlAttribute { attribute })
             }),
             Self::XmlFamilyMarkupTokens {
-                event,
+                document,
+                index: event_index,
                 content_type,
                 package,
-            } => xml_event_markup_tokens(event)
+            } => xml_family_markup_tokens(*document, *event_index, *package)
                 .get(index)
                 .cloned()
                 .map(|token| {
@@ -3533,7 +3547,7 @@ pub enum CemtEvaluatorRecordRef<'a> {
         attribute: &'a HtmlAttributeAst,
     },
     XmlFamilyMarkupToken {
-        token: XmlMarkupTokenAst,
+        token: XmlFamilyMarkupTokenAst,
         content_type: &'a str,
         package: XmlFamilyMarkupPackage,
     },
@@ -5809,6 +5823,7 @@ fn xml_family_event_evaluator_field_names(
             "selfClosing",
             "voidElement",
             "recovered",
+            "markupTokens",
             "sourceRange",
             "sourceMap",
         ],
@@ -6331,7 +6346,7 @@ fn xml_family_event_evaluator_field<'a>(
 ) -> Option<CemtEvaluatorValueRef<'a>> {
     match document {
         XmlFamilyDocumentCemtSubjectRef::Html(document) => {
-            html_event_evaluator_field(document.events.get(index)?, name)
+            html_event_evaluator_field(document, index, name)
         }
         XmlFamilyDocumentCemtSubjectRef::Css(document) => {
             css_event_evaluator_field(document.events.get(index)?, name)
@@ -6391,7 +6406,8 @@ fn xml_backed_event_evaluator_field<'a>(
         }),
         "markupTokens" => markup_package.map(|package| {
             CemtEvaluatorValueRef::Sequence(CemtEvaluatorSequenceRef::XmlFamilyMarkupTokens {
-                event,
+                document,
+                index,
                 content_type,
                 package,
             })
@@ -6424,9 +6440,11 @@ fn xml_family_event_content_type<'a>(document: XmlFamilyDocumentCemtSubjectRef<'
 }
 
 fn html_event_evaluator_field<'a>(
-    event: &'a HtmlEventAst,
+    document: &'a HtmlDocumentAst,
+    index: usize,
     name: &str,
 ) -> Option<CemtEvaluatorValueRef<'a>> {
+    let event = document.events.get(index)?;
     match name {
         "index" => Some(usize_evaluator_value(event.index)),
         "kind" => Some(CemtEvaluatorValueRef::String(event.kind.as_str())),
@@ -6448,6 +6466,14 @@ fn html_event_evaluator_field<'a>(
         "selfClosing" => Some(CemtEvaluatorValueRef::Boolean(event.self_closing)),
         "voidElement" => Some(CemtEvaluatorValueRef::Boolean(event.void_element)),
         "recovered" => Some(CemtEvaluatorValueRef::Boolean(event.recovered)),
+        "markupTokens" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::XmlFamilyMarkupTokens {
+                document: XmlFamilyDocumentCemtSubjectRef::Html(document),
+                index,
+                content_type: HTML_CONTENT_TYPE,
+                package: XmlFamilyMarkupPackage::Html,
+            },
+        )),
         "sourceRange" => Some(xml_family_source_range_evaluator_value(
             event.source_range.start.byte_offset,
             event.source_range.byte_length,
@@ -6534,29 +6560,75 @@ fn html_attribute_evaluator_field<'a>(
 }
 
 fn xml_family_markup_token_evaluator_field<'a>(
-    token: &XmlMarkupTokenAst,
+    token: &XmlFamilyMarkupTokenAst,
     content_type: &str,
     _package: XmlFamilyMarkupPackage,
     name: &str,
 ) -> Option<CemtEvaluatorValueRef<'a>> {
-    match name {
-        "kind" => Some(CemtEvaluatorValueRef::String(token.kind.as_str())),
-        "text" => Some(CemtEvaluatorValueRef::OwnedString(Arc::from(
+    let (kind, text, byte_offset, byte_length, line, column, role) = match token {
+        XmlFamilyMarkupTokenAst::Html(token) => (
+            token.kind.as_str(),
             token.text.as_str(),
-        ))),
-        "role" => Some(CemtEvaluatorValueRef::String(xml_family_markup_token_role(
-            token.kind,
-        ))),
-        "sourceRange" => Some(xml_family_source_range_evaluator_value(
             token.source_range.start.byte_offset,
             token.source_range.byte_length,
             token.source_range.start.line,
             token.source_range.start.column,
+            token.kind.semantic_role(),
+        ),
+        XmlFamilyMarkupTokenAst::Xml(token) => (
+            token.kind.as_str(),
+            token.text.as_str(),
+            token.source_range.start.byte_offset,
+            token.source_range.byte_length,
+            token.source_range.start.line,
+            token.source_range.start.column,
+            xml_family_markup_token_role(token.kind),
+        ),
+    };
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(kind)),
+        "text" => Some(CemtEvaluatorValueRef::OwnedString(Arc::from(text))),
+        "role" => Some(CemtEvaluatorValueRef::String(role)),
+        "sourceRange" => Some(xml_family_source_range_evaluator_value(
+            byte_offset,
+            byte_length,
+            line,
+            column,
         )),
         "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
-            xml_family_source_map(token.source_range, content_type),
+            xml_family_source_map_from_coordinates(byte_offset, byte_length, content_type),
         ))),
         _ => None,
+    }
+}
+
+fn xml_family_markup_tokens(
+    document: XmlFamilyDocumentCemtSubjectRef<'_>,
+    index: usize,
+    package: XmlFamilyMarkupPackage,
+) -> Vec<XmlFamilyMarkupTokenAst> {
+    match (document, package) {
+        (XmlFamilyDocumentCemtSubjectRef::Html(document), XmlFamilyMarkupPackage::Html) => document
+            .events
+            .get(index)
+            .map(html_event_markup_tokens)
+            .unwrap_or_default()
+            .into_iter()
+            .map(XmlFamilyMarkupTokenAst::Html)
+            .collect(),
+        (_, XmlFamilyMarkupPackage::Html) => Vec::new(),
+        (
+            _,
+            XmlFamilyMarkupPackage::Svg
+            | XmlFamilyMarkupPackage::MathMl
+            | XmlFamilyMarkupPackage::Xslt,
+        ) => xml_family_xml_document(document)
+            .and_then(|document| document.events.get(index))
+            .map(xml_event_markup_tokens)
+            .unwrap_or_default()
+            .into_iter()
+            .map(XmlFamilyMarkupTokenAst::Xml)
+            .collect(),
     }
 }
 
@@ -6712,6 +6784,7 @@ fn xml_family_element_requires_lexical_layout(
 ) -> bool {
     let local_name = event.local_name.as_deref().unwrap_or_default();
     let name_requires_layout = match package {
+        XmlFamilyMarkupPackage::Html => false,
         XmlFamilyMarkupPackage::Svg => matches!(
             local_name,
             "text" | "tspan" | "textPath" | "title" | "desc" | "style" | "script" | "foreignObject"
@@ -6725,6 +6798,7 @@ fn xml_family_element_requires_lexical_layout(
         }
     };
     let expected_namespace = match package {
+        XmlFamilyMarkupPackage::Html => crate::schema::registry::HTML_NAMESPACE_URI,
         XmlFamilyMarkupPackage::Svg => SVG_NAMESPACE_URI,
         XmlFamilyMarkupPackage::MathMl => MATHML_NAMESPACE_URI,
         XmlFamilyMarkupPackage::Xslt => XSLT_NAMESPACE_URI,

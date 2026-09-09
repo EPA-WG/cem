@@ -48,9 +48,7 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     BuiltinSchemaPackageArtifactSource {
         package_id: "cli-command",
         path: "schema-packages/cli-command/v1/schema/cli-command.schema.json",
-        source: include_str!(
-            "../../schema-packages/cli-command/v1/schema/cli-command.schema.json"
-        ),
+        source: include_str!("../../schema-packages/cli-command/v1/schema/cli-command.schema.json"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "studio-project",
@@ -864,21 +862,23 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         package_id: "module-map-v2",
         schema_path: "schema-packages/module-map-v2/v1/schema/module-map-v2.cem",
         manifest_source: include_str!("../../schema-packages/module-map-v2/v1/package.cem"),
-        schema_source: include_str!("../../schema-packages/module-map-v2/v1/schema/module-map-v2.cem"),
+        schema_source: include_str!(
+            "../../schema-packages/module-map-v2/v1/schema/module-map-v2.cem"
+        ),
     },
     BuiltinSchemaPackageSource {
         package_id: "module-map-v3",
         schema_path: "schema-packages/module-map-v3/v1/schema/module-map-v3.cem",
         manifest_source: include_str!("../../schema-packages/module-map-v3/v1/package.cem"),
-        schema_source: include_str!("../../schema-packages/module-map-v3/v1/schema/module-map-v3.cem"),
+        schema_source: include_str!(
+            "../../schema-packages/module-map-v3/v1/schema/module-map-v3.cem"
+        ),
     },
     BuiltinSchemaPackageSource {
         package_id: "cli-command",
         schema_path: "schema-packages/cli-command/v1/schema/cli-command.cem",
         manifest_source: include_str!("../../schema-packages/cli-command/v1/package.cem"),
-        schema_source: include_str!(
-            "../../schema-packages/cli-command/v1/schema/cli-command.cem"
-        ),
+        schema_source: include_str!("../../schema-packages/cli-command/v1/schema/cli-command.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "studio-project",
@@ -1020,11 +1020,10 @@ mod tests {
         JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, MODULE_MAP_CONTENT_TYPE,
         MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI, MODULE_MAP_V3_SCHEMA_URI,
-        RELAX_NG_COMPACT_CONTENT_TYPE,
-        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI,
-        SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-        XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
-        YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
+        SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
+        XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI,
+        XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
 
     #[test]
@@ -1035,7 +1034,9 @@ mod tests {
             package.schema_path,
             "schema-packages/cem-data-island/v1/schema/cem-data-island.cem"
         );
-        assert!(package.manifest_source.contains("https://cem.dev/ns/runtime/data-island"));
+        assert!(package
+            .manifest_source
+            .contains("https://cem.dev/ns/runtime/data-island"));
         assert!(package.schema_source.contains("@name=\"context-root\""));
         let examples = schema_package_examples_from_package_sources(package)
             .expect("CEM data-island package examples");

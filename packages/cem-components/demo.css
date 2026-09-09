@@ -1,0 +1,41 @@
+html {
+    font-family: system-ui, sans-serif;
+}
+
+body {
+    margin: var(--cem-gap-group);
+}
+
+nav,
+main {
+    display: flex;
+    gap: var(--cem-gap-group);
+    flex-wrap: wrap;
+}
+
+nav {
+    align-items: baseline;
+    margin-block-end: var(--cem-gap-group);
+}
+
+nav h1,
+nav p {
+    flex-basis: 100%;
+    margin: 0;
+}
+
+cem-demo-element {
+    flex: 1 1 28rem;
+    min-width: 0;
+}
+
+cem-demo-element > [slot="demo"] {
+    display: grid;
+    gap: var(--cem-gap-group);
+}
+
+form,
+cem-stack {
+    display: grid;
+    gap: var(--cem-gap-group);
+}

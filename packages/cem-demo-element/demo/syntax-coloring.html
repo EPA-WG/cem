@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CEM syntax-coloring decisions</title>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+            }
+        }
+    </script>
+    <script type="module" src="../dist/index.js"></script>
+</head>
+<body class="syntax-coloring" data-theme="cem-theme-light">
+<nav>
+    <a href="./index.html">Basic use</a>
+    <a href="./advanced.html">Advanced use</a>
+    <strong>Syntax coloring</strong>
+</nav>
+<h1>HTML and CEM-ML syntax coloring</h1>
+<p>
+    This decision page puts every HTML event/markup-token family and every CEM-ML
+    tokenizer family on the same emotional palette. It is intentionally broad:
+    use it when changing role assignments, theme mappings, or contrast.
+</p>
+
+<form class="theme-switch" aria-label="Syntax color theme">
+    <label for="theme-mode">CEM theme</label>
+    <select id="theme-mode" name="theme">
+        <option value="cem-theme-native">Native</option>
+        <option value="cem-theme-light" selected>Light</option>
+        <option value="cem-theme-dark">Dark</option>
+        <option value="cem-theme-contrast-light">Contrast light</option>
+        <option value="cem-theme-contrast-dark">Contrast dark</option>
+    </select>
+    <output id="theme-description" for="theme-mode">
+        Branded light palette.
+    </output>
+</form>
+<p>
+    Contrast light and contrast dark are included because they are public CEM
+    theme modes. Today syntax colors intentionally share the corresponding
+    light/dark emotional endpoints; keeping them here exposes any future mode
+    remapping. Operating-system forced colors remain a separate browser setting.
+</p>
+<p>
+    Variable-like identifiers and attributes receive the strongest scan color,
+    <code>--cem-action-destructive-pending-background</code>. Tag names receive
+    the next emphasis level from
+    <code>--cem-action-primary-active-background</code>, while keywords use
+    <code>--cem-action-primary-pending-background</code> and strings use
+    <code>--cem-action-contextual-pending-background</code>. Invalid source and
+    error diagnostics use
+    <code>--cem-action-destructive-hover-background</code>.
+</p>
+<p>
+    The rendered source uses native elements as its compact visual vocabulary:
+    <code>&lt;b&gt;</code> for tags, <code>&lt;var&gt;</code> for attributes and
+    variables, <code>&lt;strong&gt;</code> for keywords, <code>&lt;i&gt;</code> for
+    strings, <code>&lt;u&gt;</code> for numbers, <code>&lt;small&gt;</code> for
+    comments, <code>&lt;samp&gt;</code> for source text, and
+    <code>&lt;mark&gt;</code> for errors. Only the enclosing
+    <code>&lt;code&gt;</code> carries classes; punctuation and raw source remain
+    unwrapped.
+</p>
+
+<section class="syntax-model-key" aria-labelledby="syntax-model-heading">
+    <h2 id="syntax-model-heading">Source model coverage</h2>
+    <dl>
+        <div>
+            <dt>HTML events</dt>
+            <dd>
+                <code>Doctype</code>, <code>StartElement</code>,
+                <code>EndElement</code>, <code>Text</code>,
+                <code>RawText</code>, <code>Rcdata</code>, and
+                <code>Comment</code>
+            </dd>
+        </div>
+        <div>
+            <dt>HTML markup tokens</dt>
+            <dd>
+                <code>Delimiter</code>, <code>ElementName</code>,
+                <code>Whitespace</code>, <code>AttributeName</code>,
+                <code>Equals</code>, <code>Quote</code>,
+                <code>AttributeValue</code>, <code>Keyword</code>, and
+                <code>Raw</code>
+            </dd>
+        </div>
+        <div>
+            <dt>CEM-ML tokenizer</dt>
+            <dd>
+                <code>NodeStart</code>, <code>NodeEnd</code>,
+                <code>Attribute</code>, <code>Text</code>, <code>Trivia</code>,
+                <code>Comment</code>, <code>ProcessingInstruction</code>,
+                <code>ExpressionNode</code>, <code>AnonymousScopeStart</code>,
+                <code>Directive</code>, <code>RichContent</code>, and
+                <code>Error</code>
+            </dd>
+        </div>
+    </dl>
+</section>
+
+<section class="syntax-role-key" aria-labelledby="syntax-role-heading">
+    <h2 id="syntax-role-heading">Semantic role mapping</h2>
+    <table>
+        <thead>
+            <tr><th>Formatter role</th><th>Specimen</th><th>CEM emotional source</th></tr>
+        </thead>
+        <tbody>
+            <tr data-syntax-role="punctuation">
+                <th><code>syntax.punctuation</code></th>
+                <td><code>&lt; &gt; / = &quot; ' { } @ |</code></td>
+                <td><code>--cem-palette-conservative-x</code>, subdued</td>
+            </tr>
+            <tr data-syntax-role="name">
+                <th><code>syntax.name</code></th>
+                <td><code><b>article section</b></code></td>
+                <td><code>--cem-action-primary-active-background</code></td>
+            </tr>
+            <tr data-syntax-role="attribute">
+                <th><code>syntax.attribute</code></th>
+                <td><code><var>$variable class data-state</var></code></td>
+                <td><code>--cem-action-destructive-pending-background</code></td>
+            </tr>
+            <tr data-syntax-role="string">
+                <th><code>syntax.string</code></th>
+                <td><code><i>hero / {.ready}</i></code></td>
+                <td><code>--cem-action-contextual-pending-background</code></td>
+            </tr>
+            <tr data-syntax-role="number">
+                <th><code>syntax.number</code></th>
+                <td><code><u>32 1.5</u></code></td>
+                <td>
+                    <code>--cem-palette-creativity-x</code>; generic formatter
+                    role (HTML/CEM-ML attribute values are strings)
+                </td>
+            </tr>
+            <tr data-syntax-role="keyword">
+                <th><code>syntax.keyword</code></th>
+                <td><code><strong>DOCTYPE @doc</strong></code></td>
+                <td><code>--cem-action-primary-pending-background</code></td>
+            </tr>
+            <tr data-syntax-role="comment">
+                <th><code>syntax.comment</code></th>
+                <td><code><small>&lt;!-- note --&gt; // note</small></code></td>
+                <td><code>--cem-palette-calm-x</code>, subdued</td>
+            </tr>
+            <tr data-syntax-role="text">
+                <th><code>syntax.text</code></th>
+                <td><code><samp>Rendered text</samp></code></td>
+                <td><code>--cem-palette-comfort-text</code></td>
+            </tr>
+            <tr data-syntax-role="raw">
+                <th><code>syntax.raw</code></th>
+                <td><code>spaces and unclassified source</code></td>
+                <td><code>--cem-palette-conservative-x</code>, subdued</td>
+            </tr>
+            <tr data-syntax-role="error">
+                <th><code>diagnostic.error</code></th>
+                <td><code><mark>invalid source and error diagnostics</mark></code></td>
+                <td><code>--cem-action-destructive-hover-background</code></td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<main>
+    <section>
+        <h2>HTML AST surface</h2>
+        <p>
+            Covers doctype, comment, start/end elements, text, raw text, RCDATA,
+            foreign content, void/self-closing syntax, boolean, quoted and
+            unquoted attributes, equals signs, quotes, and source whitespace.
+            <a href="./syntax/html-complete.html">Open the source specimen</a>.
+        </p>
+        <cem-demo-element
+            id="html-syntax-complete"
+            class="source-only"
+            legend="1. HTML event and markup-token families"
+            src="./syntax/html-complete.html"
+            type="html"
+        ></cem-demo-element>
+    </section>
+
+    <section>
+        <h2>HTML recovery surface</h2>
+        <p>
+            Exercises browser recovery boundaries without changing the authored
+            bytes shown by the formatter.
+            <a href="./syntax/html-recovery.html">Open the recovery specimen</a>.
+        </p>
+        <cem-demo-element
+            id="html-syntax-recovery"
+            class="source-only"
+            legend="2. HTML recovered structure"
+            src="./syntax/html-recovery.html"
+            type="html"
+        ></cem-demo-element>
+    </section>
+
+    <section>
+        <h2>CEM-ML AST surface</h2>
+        <p>
+            Covers directives, line/block comments, named and anonymous nodes,
+            attributes with every value form, trivia/content boundaries, text,
+            expression nodes, processing instructions, rich content, and closes.
+            <a href="./syntax/cem-ml-complete.cem">Open the source specimen</a>.
+        </p>
+        <cem-demo-element
+            id="cem-ml-syntax-complete"
+            class="source-only"
+            legend="3. CEM-ML tokenizer and AST families"
+            src="./syntax/cem-ml-complete.cem"
+            type="cem-ml"
+        ></cem-demo-element>
+    </section>
+
+    <section>
+        <h2>CEM-ML error surface</h2>
+        <p>
+            Keeps the tokenizer error path visible beside valid syntax.
+            <a href="./syntax/cem-ml-error.cem">Open the error specimen</a>.
+        </p>
+        <cem-demo-element
+            id="cem-ml-syntax-error"
+            class="source-only"
+            legend="4. CEM-ML tokenizer error"
+            src="./syntax/cem-ml-error.cem"
+            type="cem-ml"
+        ></cem-demo-element>
+    </section>
+</main>
+
+<script type="module">
+    const descriptions = {
+        'cem-theme-native': 'System colors adapted through CEM native tokens.',
+        'cem-theme-light': 'Branded light palette.',
+        'cem-theme-dark': 'Branded dark palette.',
+        'cem-theme-contrast-light': 'Light contrast mode; syntax roles retain their emotional identities.',
+        'cem-theme-contrast-dark': 'Dark contrast mode; syntax roles retain their emotional identities.',
+    };
+    const select = document.querySelector('#theme-mode');
+    const description = document.querySelector('#theme-description');
+    select.addEventListener('change', () => {
+        document.body.dataset.theme = select.value;
+        description.value = descriptions[select.value];
+    });
+</script>
+</body>
+</html>

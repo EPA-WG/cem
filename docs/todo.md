@@ -413,6 +413,83 @@ registration identities may reuse an inherited or existing definition.
       tests cover the public and offline-demo contracts, and all 147 existing
       `cem-elements` Storybook interactions plus the 17-page standalone/23-
       document source-loaded fixture matrix pass against the real element.
+- [x] Move HTML and CEM-ML source coloring into the CEM-ML formatter boundary
+      and apply a Chromium DevTools-inspired semantic palette in
+      `cem-demo-element`.
+    - [x] Make lossless HTML formatter tokens distinguish markup delimiters,
+          tag names, attribute names, equals signs, quotes, values, comments,
+          and text without changing the authored source bytes.
+    - [x] Expose semantic HTML and CEM-ML source highlighting through the
+          shared Rust/WASM runtime so the demo element does not own a parallel
+          markup grammar.
+    - [x] Fixture: prove Rust token roles, Node/browser WASM transport, and real
+          Chromium Storybook rendering for HTML and CEM-ML source.
+    - Completed 2026-09-07: CEM-ML's HTML formatter exposes lossless semantic
+      markup tokens, the versioned Node/browser WASM source formatter covers
+      HTML and CEM-ML, and `cem-demo-element` applies customizable Chromium
+      source-view light/dark palettes. Focused native formatter/API tests, both
+      WASM runtimes, TypeScript build/lint, and all nine Storybook Chromium
+      cases pass.
+- [x] Derive the source-code theme from CEM's emotional palette while making
+      tag names, attribute names, and values perceptually distinct.
+    - [x] Map structure to trust, modifiers to enthusiasm, values to creativity,
+          comments to calm, and punctuation to conservative palette endpoints;
+          keep danger reserved for actual errors.
+    - [x] Fixture: verify the resolved tag, attribute, and value colors in the
+          real `cem-demo-element` Storybook rendering.
+    - Completed 2026-09-08: native inline/CSS-variable colorizers and
+      `cem-demo-element` resolve syntax roles through the CEM emotional palette,
+      with standalone light/dark fallbacks. Focused Rust tests, the WASM and
+      demo builds, both lint targets, and all nine Storybook Chromium cases
+      pass.
+- [x] Add a syntax-coloring decision page for the complete HTML and CEM-ML AST
+      token/event surfaces.
+    - [x] Cover valid and recovery/error variants for both content types and
+          identify every semantic source-color role and its emotional token.
+    - [x] Provide native, light, dark, contrast-light, and contrast-dark theme
+          switching using the generated `cem-theme` CSS, without copying theme
+          token values into the demo page.
+    - [x] Fixture: load the complete page and source specimens offline in the
+          `cem-demo-element` Storybook suite, switch every theme mode, and
+          verify representative resolved HTML and CEM-ML syntax colors.
+    - Completed 2026-09-08: the standalone decision page names every HTML event,
+      HTML markup-token, and CEM-ML tokenizer variant, renders complete and
+      recovery/error specimens, documents the emotional role mapping, and
+      switches all five public CEM theme modes. The offline Chromium fixture,
+      lint, component build, and production Storybook build pass.
+- [x] Finalize the approved action-token hierarchy as the shared HTML/CEM-ML
+      source-color contract.
+    - [x] Promote tag, attribute/variable, keyword, string, and error colors
+          from the decision page into the shared CSS-variable colorizer and
+          `cem-demo-element` defaults.
+    - [x] Make tag names and attribute/variable identifiers bold across shared
+          formatter output and the browser fallback renderer.
+    - [x] Replace per-token source classes/role attributes with a compact native
+          tag vocabulary beneath one classified `<code>` root.
+    - [x] Give tokenizer errors an explicit `diagnostic.error` source role so
+          invalid source and its structured diagnostic share the error color.
+    - [x] Fixture: prove exact generated CSS-variable fallbacks, native/WASM
+          error-role transport, and resolved offline Storybook colors in all
+          five CEM theme modes.
+    - Completed 2026-09-08: source highlighting now uses one classified `<code>`
+      root with semantic descendant tags, preserves structured source roles for
+      consumers, applies the approved emotional action tokens and weights in
+      native and browser renderers, and colors tokenizer errors consistently.
+      Rust, Node/WASM, offline Storybook, lint, typecheck, component build, and
+      production Storybook checks pass across all five CEM theme modes.
+- [x] Apply `cem-demo-element` to the `cem-elements` and `cem-components`
+      package demo pages.
+    - [x] Keep the existing `cem-elements` landing-page examples on the local
+          demo element and verify their source uses the semantic tag vocabulary.
+    - [x] Add a `cem-components` landing-page gallery that loads each canonical
+          declarative workflow fragment without modifying the fixture sources.
+    - [x] Fixture the component gallery inventory, live primitive rendering,
+          and source highlighting in the shared Storybook browser suite.
+    - Completed 2026-09-08: both package landing pages use the local demo
+      element and CEM-ML formatter. The new component gallery loads all eight
+      canonical workflow fragments, while the shared Storybook suite verifies
+      its exact inventory, highlighted source, live primitives, and rebased
+      native resource URLs.
 - [ ] Enforce one-to-one source-loaded Storybook coverage for every authored
       sample in `packages/cem-elements/index.html` and every HTML document under
       `packages/cem-elements/demo/`, following the current data-slices and

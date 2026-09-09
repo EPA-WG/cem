@@ -4990,7 +4990,10 @@ fn transform_template_html_inline_style_for_role(role: &str) -> String {
         "source.highlight" | "source.secondary-highlight" => {
             "background-color: #dbeafe; color: #1e3a8a".to_owned()
         }
-        "diagnostic.error" | "diagnostic.warning" | "syntax.keyword" => {
+        "syntax.name" | "syntax.attribute" => {
+            format!("color: {color}; font-weight: 700")
+        }
+        "diagnostic.error" | "diagnostic.warning" | "status.error" | "syntax.keyword" => {
             format!("color: {color}; font-weight: 600")
         }
         "diagnostic.hint" | "source.gutter" | "syntax.comment" => {
@@ -5004,11 +5007,22 @@ fn transform_template_html_inline_style_for_role(role: &str) -> String {
 
 fn transform_template_html_css_var_style_for_role(role: &str, class_role: &str) -> String {
     let fallback = transform_template_html_color_for_role(role);
+    let fallback = match transform_template_html_css_token_for_role(role) {
+        Some(token) => format!("var({token}, {fallback})"),
+        None => fallback.to_owned(),
+    };
     match role {
         "source.highlight" | "source.secondary-highlight" => format!(
             "background-color: var(--cem-color-{class_role}-background, #dbeafe); color: var(--cem-color-{class_role}, #1e3a8a)"
         ),
-        "diagnostic.error" | "diagnostic.warning" | "syntax.keyword" | "diff.added" => format!(
+        "syntax.name" | "syntax.attribute" => format!(
+            "color: var(--cem-color-{class_role}, {fallback}); font-weight: 700"
+        ),
+        "diagnostic.error"
+        | "diagnostic.warning"
+        | "status.error"
+        | "syntax.keyword"
+        | "diff.added" => format!(
             "color: var(--cem-color-{class_role}, {fallback}); font-weight: 600"
         ),
         "diagnostic.hint" | "source.gutter" | "syntax.comment" => format!(
@@ -5029,13 +5043,13 @@ fn transform_template_html_color_for_role(role: &str) -> &'static str {
         "diagnostic.hint" | "source.gutter" => "#667085",
         "source.line-number" => "#3b6ea8",
         "source.highlight" | "source.secondary-highlight" => "#1e3a8a",
-        "syntax.keyword" => "#7a4cc2",
-        "syntax.name" | "syntax.attribute" => "#087990",
-        "syntax.punctuation" => "#667085",
-        "syntax.string" | "status.success" | "diff.added" => "#067647",
-        "syntax.number" => "#8a5a00",
-        "syntax.comment" => "#4e7f4e",
-        "syntax.raw" => "#475467",
+        "syntax.keyword" | "syntax.name" => "#002f65",
+        "syntax.attribute" => "#502400",
+        "syntax.punctuation" | "syntax.raw" => "#5f6368",
+        "syntax.string" | "syntax.number" => "#6a1b9a",
+        "syntax.comment" => "#006a6a",
+        "syntax.text" => "#202124",
+        "status.success" | "diff.added" => "#067647",
         "data.field.1" => "#2a75dd",
         "data.field.2" => "#067647",
         "data.field.3" => "#c45c00",
@@ -5045,6 +5059,21 @@ fn transform_template_html_color_for_role(role: &str) -> &'static str {
         "data.field.7" => "#8a5a00",
         "data.field.8" => "#486fba",
         _ => "#344054",
+    }
+}
+
+fn transform_template_html_css_token_for_role(role: &str) -> Option<&'static str> {
+    match role {
+        "diagnostic.error" | "status.error" => Some("--cem-action-destructive-hover-background"),
+        "syntax.keyword" => Some("--cem-action-primary-pending-background"),
+        "syntax.name" => Some("--cem-action-primary-active-background"),
+        "syntax.attribute" => Some("--cem-action-destructive-pending-background"),
+        "syntax.string" => Some("--cem-action-contextual-pending-background"),
+        "syntax.number" => Some("--cem-palette-creativity-x"),
+        "syntax.comment" => Some("--cem-palette-calm-x"),
+        "syntax.punctuation" | "syntax.raw" => Some("--cem-palette-conservative-x"),
+        "syntax.text" => Some("--cem-palette-comfort-text"),
+        _ => None,
     }
 }
 
@@ -6367,7 +6396,10 @@ pub fn transform_template_encode_cem_attribute_value(
     value: &str,
     context: &str,
 ) -> Result<String, String> {
-    if value.chars().any(transform_template_cem_string_control_is_unsupported) {
+    if value
+        .chars()
+        .any(transform_template_cem_string_control_is_unsupported)
+    {
         return Err(format!(
             "{context} cannot contain control characters other than tab or line endings"
         ));
@@ -6379,7 +6411,10 @@ pub fn transform_template_encode_cem_attribute_value(
 }
 
 pub fn transform_template_encode_cem_string_literal(value: &str) -> Result<String, String> {
-    if value.chars().any(transform_template_cem_string_control_is_unsupported) {
+    if value
+        .chars()
+        .any(transform_template_cem_string_control_is_unsupported)
+    {
         return Err(
             "CEM string literal cannot contain control characters other than tab or line endings"
                 .to_owned(),
@@ -38198,9 +38233,47 @@ mod tests {
         assert_eq!(
             html,
             Value::String(
-                r#"<span class="cem-color cem-color-diagnostic-error" data-role="diagnostic.error" style="color: var(--cem-color-diagnostic-error, #b42318); font-weight: 600">Broken</span><span class="cem-color cem-color-syntax-string" data-role="syntax.string" style="color: var(--cem-color-syntax-string, #067647)">"ok"</span>"#
+                r#"<span class="cem-color cem-color-diagnostic-error" data-role="diagnostic.error" style="color: var(--cem-color-diagnostic-error, var(--cem-action-destructive-hover-background, #b42318)); font-weight: 600">Broken</span><span class="cem-color cem-color-syntax-string" data-role="syntax.string" style="color: var(--cem-color-syntax-string, var(--cem-action-contextual-pending-background, #6a1b9a))">"ok"</span>"#
                     .to_owned()
             )
+        );
+    }
+
+    #[test]
+    fn html_css_var_source_roles_use_final_cem_action_tokens() {
+        assert_eq!(
+            transform_template_html_inline_style_for_role("syntax.name"),
+            "color: #002f65; font-weight: 700"
+        );
+        assert_eq!(
+            transform_template_html_inline_style_for_role("syntax.attribute"),
+            "color: #502400; font-weight: 700"
+        );
+        assert_eq!(
+            transform_template_html_css_var_style_for_role("syntax.name", "syntax-name"),
+            "color: var(--cem-color-syntax-name, var(--cem-action-primary-active-background, #002f65)); font-weight: 700"
+        );
+        assert_eq!(
+            transform_template_html_css_var_style_for_role(
+                "syntax.attribute",
+                "syntax-attribute"
+            ),
+            "color: var(--cem-color-syntax-attribute, var(--cem-action-destructive-pending-background, #502400)); font-weight: 700"
+        );
+        assert_eq!(
+            transform_template_html_css_var_style_for_role("syntax.keyword", "syntax-keyword"),
+            "color: var(--cem-color-syntax-keyword, var(--cem-action-primary-pending-background, #002f65)); font-weight: 600"
+        );
+        assert_eq!(
+            transform_template_html_css_var_style_for_role("syntax.string", "syntax-string"),
+            "color: var(--cem-color-syntax-string, var(--cem-action-contextual-pending-background, #6a1b9a))"
+        );
+        assert_eq!(
+            transform_template_html_css_var_style_for_role(
+                "diagnostic.error",
+                "diagnostic-error"
+            ),
+            "color: var(--cem-color-diagnostic-error, var(--cem-action-destructive-hover-background, #b42318)); font-weight: 600"
         );
     }
 

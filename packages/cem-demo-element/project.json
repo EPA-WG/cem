@@ -3,7 +3,7 @@
     "$schema": "../../node_modules/nx/schemas/project-schema.json",
     "sourceRoot": "packages/cem-demo-element/src",
     "projectType": "library",
-    "implicitDependencies": ["@epa-wg/cem-ml"],
+    "implicitDependencies": ["@epa-wg/cem-ml", "@epa-wg/cem-theme"],
     "targets": {
         "build": {
             "dependsOn": [{ "projects": ["@epa-wg/cem-ml"], "target": "build" }]
@@ -13,7 +13,10 @@
         },
         "storybook": {
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build",
+                { "projects": ["@epa-wg/cem-theme"], "target": "build:css" }
+            ],
             "options": {
                 "command": "yarn storybook dev --config-dir packages/cem-demo-element/.storybook --host 127.0.0.1 --port 4401 --no-open",
                 "cwd": "{workspaceRoot}"
@@ -21,7 +24,10 @@
         },
         "build-storybook": {
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build",
+                { "projects": ["@epa-wg/cem-theme"], "target": "build:css" }
+            ],
             "outputs": ["{projectRoot}/storybook-static"],
             "options": {
                 "command": "yarn storybook build --config-dir packages/cem-demo-element/.storybook --output-dir packages/cem-demo-element/storybook-static",
@@ -40,7 +46,10 @@
         "test": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build",
+                { "projects": ["@epa-wg/cem-theme"], "target": "build:css" }
+            ],
             "options": {
                 "command": "yarn vitest --config packages/cem-demo-element/vitest.config.mts --project=storybook --run",
                 "cwd": "{workspaceRoot}"

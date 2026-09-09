@@ -34,6 +34,16 @@ test('Node export initializes the common WASM runtime', async () => {
   assert.equal(rendered.html, '<p class="message">Offline preview</p>');
   assert.equal(rendered.diagnostics.length, 0);
   assert.ok(rendered.outputSpans.length > 0);
+
+  const highlighted = JSON.parse(
+    runtime.highlightSourceToHtmlV1(
+      JSON.stringify({ source: '<p class="message">Ready</p>', contentType: 'text/html' }),
+    ),
+  );
+  assert.equal(highlighted.status, 'highlighted');
+  assert.match(highlighted.html, /&lt;<b>p<\/b>/);
+  assert.match(highlighted.html, /<var>class<\/var>=&quot;<i>message<\/i>&quot;/);
+  assert.doesNotMatch(highlighted.html, /class=|data-role=/);
 });
 
 test('browser loader accepts bytes and initializes the same WASM ABI', async () => {
@@ -58,12 +68,30 @@ test('browser loader accepts bytes and initializes the same WASM ABI', async () 
   assert.equal(typeof browserRuntime.disposeCommandArtifactV1, 'function');
   assert.equal(typeof browserRuntime.disposeCommandArtifactsV1, 'function');
   assert.equal(typeof browserRuntime.renderCemMlToHtmlV1, 'function');
+  assert.equal(typeof browserRuntime.highlightSourceToHtmlV1, 'function');
 
   const rendered = JSON.parse(
     browserRuntime.renderCemMlToHtmlV1(JSON.stringify({ source: '{strong | Browser WASM}' })),
   );
   assert.equal(rendered.status, 'rendered');
   assert.equal(rendered.html, '<strong>Browser WASM</strong>');
+
+  const highlighted = JSON.parse(
+    browserRuntime.highlightSourceToHtmlV1(
+      JSON.stringify({ source: '{strong @class="message" | Browser WASM}', contentType: 'application/cem' }),
+    ),
+  );
+  assert.equal(highlighted.status, 'highlighted');
+  assert.match(highlighted.html, /{<b>strong<\/b>/);
+  assert.doesNotMatch(highlighted.html, /class=|data-role=/);
+
+  const highlightedError = JSON.parse(
+    browserRuntime.highlightSourceToHtmlV1(
+      JSON.stringify({ source: '{article | Invalid: {42}}', contentType: 'application/cem' }),
+    ),
+  );
+  assert.equal(highlightedError.diagnostics[0].code, 'cem.tokenizer.bare_brace_text');
+  assert.match(highlightedError.html, /<mark>\{42\}<\/mark>/);
 
   const progress = [];
   const result = await executeVersionCommand(browserRuntime, 'wasm-browser-worker', undefined, {

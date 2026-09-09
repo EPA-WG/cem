@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CEM components demo</title>
+    <link rel="stylesheet" href="../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="./dist/styles.css">
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-ml/wasm": "../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../cem-elements/dist/index.js';
+        import { installCemComponentPrimitives } from './dist/lib/primitives.js';
+
+        const runtime = installCemElementRuntime(window);
+        const result = await installCemComponentPrimitives(runtime);
+        const errors = result.diagnostics.filter(
+            ({ severity }) => severity === 'error' || severity === 'fatal'
+        );
+        if (errors.length > 0) {
+            throw new Error(errors.map(({ code, message }) => `${code}: ${message}`).join('\n'));
+        }
+        await import('../cem-demo-element/dist/index.js');
+    </script>
+</head>
+<body class="cem-theme-native">
+<nav>
+    <a href="../cem-elements/index.html">cem-element demo</a>
+    <h1><code>cem-components</code> workflow demos</h1>
+    <p>
+        Each example loads its canonical declarative HTML fragment, presents the
+        highlighted source, and renders the same fragment with the production
+        light-DOM component primitives. No example-specific JavaScript is used.
+    </p>
+</nav>
+
+<main>
+    <cem-demo-element
+        legend="1. Authentication form"
+        description="Text fields, a checkbox, and the primary sign-in action."
+        src="./examples/auth-form.html"
+    ></cem-demo-element>
+
+    <cem-demo-element
+        legend="2. Registration"
+        description="Required, invalid, readonly, loading, and progress states."
+        src="./examples/registration.html"
+    ></cem-demo-element>
+
+    <cem-demo-element
+        legend="3. Password reset"
+        description="Help and error relationships with loading feedback."
+        src="./examples/password-reset.html"
+    ></cem-demo-element>
+
+    <cem-demo-element
+        legend="4. Profile editor"
+        description="Avatar, editable fields, preferences, feedback, and save action."
+        src="./examples/profile-editor.html"
+    ></cem-demo-element>
+
+    <cem-demo-element
+        legend="5. Asset browser"
+        description="Navigation, filtering, tabular content, status, and media preview."
+        src="./examples/asset-browser.html"
+    ></cem-demo-element>
+
+    <cem-demo-element
+        legend="6. Discussion thread"
+        description="Messages, composer, status feedback, and post action."
+        src="./examples/discussion-thread.html"
+    ></cem-demo-element>
+
+    <cem-demo-element
+        legend="7. Settings"
+        description="Choices, feedback, progress, dialog, and sheet components."
+        src="./examples/settings.html"
+    ></cem-demo-element>
+
+    <cem-demo-element
+        legend="8. Feedback settings compatibility"
+        description="The retained compatibility alias for the combined settings example."
+        src="./examples/feedback-settings.html"
+    ></cem-demo-element>
+</main>
+</body>
+</html>

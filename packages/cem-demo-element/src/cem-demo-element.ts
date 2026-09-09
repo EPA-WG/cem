@@ -1,4 +1,5 @@
 import {
+    highlightCemSource,
     renderCemMlSource,
     type CemMlDiagnostic,
     type CemMlHtmlRenderResult,
@@ -218,10 +219,24 @@ export class CemDemoElement extends HTMLElement {
         this.#renderHeading();
         const source = this.#sourceValue ?? '';
         const type = this.#effectiveType();
-        this.#renderSource(source, type);
+        this.#setState('loading');
+        await this.#renderSource(source, type);
+        if (generation !== this.#generation) return;
 
         if (type !== 'cem-ml') {
             this.#lastResult = undefined;
+            if (this.src !== null) {
+                const demo = this.#requiredRegion('demo');
+                if (type === 'html') {
+                    demo.replaceChildren(trustedHtmlFragment(
+                        this.ownerDocument,
+                        source,
+                        this.#sourceUrl
+                    ));
+                } else {
+                    demo.replaceChildren();
+                }
+            }
             this.#renderDiagnostics([]);
             this.#setState('ready');
             this.dispatchEvent(new CustomEvent<CemDemoRenderDetail>('cem-demo-render', {
@@ -266,11 +281,24 @@ export class CemDemoElement extends HTMLElement {
         else if (description.dataset.cemDemoRegion) description.replaceChildren();
     }
 
-    #renderSource(source: string, type: string): void {
+    async #renderSource(source: string, type: string): Promise<void> {
         const code = this.ownerDocument.createElement('code');
-        code.className = `language-${type}`;
+        code.className = `cem-source-code language-${type}`;
         code.dataset.language = type;
-        code.innerHTML = highlightedSource(source, type);
+        if (type === 'html' || type === 'cem-ml') {
+            try {
+                const highlighted = await highlightCemSource(
+                    source,
+                    type === 'html' ? 'text/html' : 'application/cem',
+                    this.#sourceUrl
+                );
+                code.innerHTML = highlighted.html;
+            } catch {
+                code.innerHTML = highlightedSource(source, type);
+            }
+        } else {
+            code.innerHTML = highlightedSource(source, type);
+        }
         const pre = this.ownerDocument.createElement('pre');
         pre.append(code);
         this.#requiredRegion('text').replaceChildren(pre);
@@ -366,15 +394,79 @@ function normalizeType(type: string): string {
     return type;
 }
 
+const HTML_URL_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
+    a: ['href'],
+    area: ['href'],
+    audio: ['src'],
+    base: ['href'],
+    blockquote: ['cite'],
+    button: ['formaction'],
+    del: ['cite'],
+    embed: ['src'],
+    form: ['action'],
+    iframe: ['src'],
+    img: ['src'],
+    input: ['formaction', 'src'],
+    ins: ['cite'],
+    link: ['href'],
+    object: ['data'],
+    q: ['cite'],
+    script: ['src'],
+    source: ['src'],
+    track: ['src'],
+    video: ['poster', 'src'],
+};
+
+function trustedHtmlFragment(
+    document: Document,
+    source: string,
+    sourceUrl: string | undefined
+): DocumentFragment {
+    const template = document.createElement('template');
+    template.innerHTML = source;
+    if (!sourceUrl) return template.content;
+
+    for (const element of template.content.querySelectorAll<HTMLElement>('*')) {
+        for (const attribute of HTML_URL_ATTRIBUTES[element.localName] ?? []) {
+            const value = element.getAttribute(attribute);
+            if (value === null) continue;
+            try {
+                element.setAttribute(attribute, new URL(value, sourceUrl).href);
+            } catch {
+                // Preserve values that are not URL references for their element.
+            }
+        }
+    }
+    return template.content;
+}
+
 function installStyles(document: Document): void {
     if (document.head.querySelector(`style[${STYLE_MARKER}]`)) return;
     const style = document.createElement('style');
     style.setAttribute(STYLE_MARKER, '');
     style.textContent = `
 cem-demo-element {
-    --cem-demo-border: #7553a6;
-    --cem-demo-heading: #ece9f1;
-    --cem-demo-code: #f7f7f8;
+    --cem-demo-border: var(--cem-palette-creativity-x, #7553a6);
+    --cem-demo-heading: var(--cem-palette-conservative, #ece9f1);
+    --cem-demo-code: var(--cem-palette-comfort, #f7f7f8);
+    --cem-color-syntax-punctuation: color-mix(
+        in srgb,
+        var(--cem-palette-conservative-x, #1a1c18) 68%,
+        var(--cem-demo-code)
+    );
+    --cem-color-syntax-name: var(--cem-action-primary-active-background, #002f65);
+    --cem-color-syntax-attribute: var(--cem-action-destructive-pending-background, #502400);
+    --cem-color-syntax-string: var(--cem-action-contextual-pending-background, #6a1b9a);
+    --cem-color-syntax-number: var(--cem-palette-creativity-x, #6a1b9a);
+    --cem-color-syntax-keyword: var(--cem-action-primary-pending-background, #002f65);
+    --cem-color-syntax-comment: color-mix(
+        in srgb,
+        var(--cem-palette-calm-x, #006a6a) 90%,
+        var(--cem-demo-code)
+    );
+    --cem-color-syntax-text: var(--cem-palette-comfort-text, #202124);
+    --cem-color-syntax-raw: var(--cem-color-syntax-punctuation);
+    --cem-color-diagnostic-error: var(--cem-action-destructive-hover-background, #b42318);
     display: flex;
     min-width: 0;
     flex-direction: column;
@@ -416,7 +508,43 @@ cem-demo-element > [slot="text"] pre {
     white-space: pre;
 }
 cem-demo-element > [slot="text"] code {
+    color: var(--cem-color-syntax-text);
     font: 0.875rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+cem-demo-element > [slot="text"] code.cem-source-code {
+    color: var(--cem-color-syntax-raw);
+}
+cem-demo-element code.cem-source-code > b {
+    color: var(--cem-color-syntax-name);
+    font-weight: 700;
+}
+cem-demo-element code.cem-source-code > var {
+    color: var(--cem-color-syntax-attribute);
+    font-weight: 700;
+}
+cem-demo-element code.cem-source-code > strong {
+    color: var(--cem-color-syntax-keyword);
+    font-weight: 600;
+}
+cem-demo-element code.cem-source-code > i {
+    color: var(--cem-color-syntax-string);
+}
+cem-demo-element code.cem-source-code > u {
+    color: var(--cem-color-syntax-number);
+}
+cem-demo-element code.cem-source-code > small {
+    color: var(--cem-color-syntax-comment);
+    font-size: inherit;
+    font-style: italic;
+}
+cem-demo-element code.cem-source-code > samp {
+    color: var(--cem-color-syntax-text);
+    font: inherit;
+}
+cem-demo-element code.cem-source-code > mark {
+    background: transparent;
+    color: var(--cem-color-diagnostic-error);
+    font-weight: 600;
 }
 cem-demo-element > [slot="demo"] {
     min-width: 0;
@@ -424,26 +552,32 @@ cem-demo-element > [slot="demo"] {
 }
 cem-demo-element > [slot="status"] {
     padding: 0 1rem 0.75rem;
-    color: #9c1c1c;
+    color: var(--cem-color-diagnostic-error);
 }
-.cem-demo-comment { color: #65726a; }
-.cem-demo-tag, .cem-demo-keyword { color: #7c2e8e; }
-.cem-demo-string { color: #0b6e3f; }
-.cem-demo-number { color: #9a4d00; }
-.cem-demo-name { color: #1d5a91; }
-.cem-demo-punctuation { color: #59636e; }
 @media (prefers-color-scheme: dark) {
     cem-demo-element {
-        --cem-demo-border: #bfa1ea;
-        --cem-demo-heading: #302a38;
-        --cem-demo-code: #1d1d20;
+        --cem-demo-border: var(--cem-palette-creativity-x, #bfa1ea);
+        --cem-demo-heading: var(--cem-palette-conservative, #302a38);
+        --cem-demo-code: var(--cem-palette-comfort, #1d1d20);
+        --cem-color-syntax-punctuation: color-mix(
+            in srgb,
+            var(--cem-palette-conservative-x, #f1f1eb) 60%,
+            var(--cem-demo-code)
+        );
+        --cem-color-syntax-name: var(--cem-action-primary-active-background, #d7e3ff);
+        --cem-color-syntax-attribute: var(--cem-action-destructive-pending-background, #f0f070);
+        --cem-color-syntax-string: var(--cem-action-contextual-pending-background, #e1bee7);
+        --cem-color-syntax-number: var(--cem-palette-creativity-x, #e1bee7);
+        --cem-color-syntax-keyword: var(--cem-action-primary-pending-background, #d7e3ff);
+        --cem-color-syntax-comment: color-mix(
+            in srgb,
+            var(--cem-palette-calm-x, #00fbfb) 55%,
+            var(--cem-demo-code)
+        );
+        --cem-color-syntax-text: var(--cem-palette-comfort-text, #e8eaed);
+        --cem-color-syntax-raw: var(--cem-color-syntax-punctuation);
+        --cem-color-diagnostic-error: var(--cem-action-destructive-hover-background, #ffb4ab);
     }
-    .cem-demo-comment { color: #98a59d; }
-    .cem-demo-tag, .cem-demo-keyword { color: #dda8ed; }
-    .cem-demo-string { color: #8fdcb7; }
-    .cem-demo-number { color: #efb06b; }
-    .cem-demo-name { color: #9bcdf4; }
-    .cem-demo-punctuation { color: #bbc2ca; }
 }
 `;
     document.head.append(style);

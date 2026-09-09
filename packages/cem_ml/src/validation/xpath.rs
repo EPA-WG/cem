@@ -8,9 +8,8 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{FormatIdentity, TransformTemplateKind};
 use crate::lifecycle::LoadedInputAstStream;
 use crate::module_resolution::{
-    CemModuleUrlReferrer, CemModuleUrlResolutionCapability,
-    CemModuleUrlResolutionErrorReason, CemModuleUrlResolutionPurpose,
-    CemResolutionContextHandle,
+    CemModuleUrlReferrer, CemModuleUrlResolutionCapability, CemModuleUrlResolutionErrorReason,
+    CemModuleUrlResolutionPurpose, CemResolutionContextHandle,
 };
 use crate::query::{
     QueryAstOwner, QueryEncodedOutput, QueryEvaluatorAdapter, QueryExecutionRequest,
@@ -4127,7 +4126,10 @@ fn xpath_evaluate_function_call(
                     if matches!(
                         value.type_name.as_str(),
                         "xs:string" | "xs:anyURI" | "xs:untypedAtomic"
-                    ) => Some(CemModuleUrlReferrer::Url(value.lexical_value.clone())),
+                    ) =>
+                {
+                    Some(CemModuleUrlReferrer::Url(value.lexical_value.clone()))
+                }
                 [XPathResultItem::Node {
                     native_node: Some(node),
                     ..

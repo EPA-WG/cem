@@ -102,6 +102,13 @@ pub fn render_cem_ml_to_html_v1(request_json: &str) -> String {
     crate::api::html_render::render_cem_ml_to_html_v1_json(request_json)
 }
 
+/// Format authored HTML or CEM-ML source as escaped, semantically colored HTML
+/// without normalizing or executing the source.
+#[wasm_bindgen(js_name = "highlightSourceToHtmlV1")]
+pub fn highlight_source_to_html_v1(request_json: &str) -> String {
+    crate::api::source_highlight::highlight_source_to_html_v1_json(request_json)
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WasmModuleUrlResolutionRequest {
@@ -704,8 +711,8 @@ pub fn build_command_invocation_v1(
     resources_json: &str,
 ) -> String {
     use crate::command_invocation::{
-        CommandInvocationBuildResponseV1, CommandInvocationErrorV1,
-        CommandInvocationEnvironmentV1, ParsedCommandInvocationV1,
+        CommandInvocationBuildResponseV1, CommandInvocationEnvironmentV1, CommandInvocationErrorV1,
+        ParsedCommandInvocationV1,
     };
     use crate::command_service::{CommandUriMapV1, VirtualResourceV1};
 
@@ -741,19 +748,18 @@ pub fn build_command_invocation_v1(
 /// read so stdout never becomes a transactional command-service destination.
 #[wasm_bindgen(js_name = "projectCommandPresentationV1")]
 pub fn project_command_presentation_v1(plan_json: &str, result_json: &str) -> String {
-    let projected = serde_json::from_str::<crate::command_invocation::CommandPresentationPlanV1>(
-        plan_json,
-    )
-    .map_err(|error| format!("presentation plan is invalid: {error}"))
-    .and_then(|plan| {
-        serde_json::from_str::<crate::command_service::CommandServiceResultV1>(result_json)
-            .map(|result| (plan, result))
-            .map_err(|error| format!("command result is invalid: {error}"))
-    })
-    .and_then(|(plan, result)| {
-        crate::command_invocation::project_command_presentation_v1(&plan, &result)
-            .map_err(|error| format!("{}: {}", error.code, error.message))
-    });
+    let projected =
+        serde_json::from_str::<crate::command_invocation::CommandPresentationPlanV1>(plan_json)
+            .map_err(|error| format!("presentation plan is invalid: {error}"))
+            .and_then(|plan| {
+                serde_json::from_str::<crate::command_service::CommandServiceResultV1>(result_json)
+                    .map(|result| (plan, result))
+                    .map_err(|error| format!("command result is invalid: {error}"))
+            })
+            .and_then(|(plan, result)| {
+                crate::command_invocation::project_command_presentation_v1(&plan, &result)
+                    .map_err(|error| format!("{}: {}", error.code, error.message))
+            });
     match projected {
         Ok(projected) => serde_json::to_string(&projected).unwrap_or_else(wasm_serialize_error),
         Err(message) => serde_json::json!({

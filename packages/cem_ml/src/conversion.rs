@@ -24767,7 +24767,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let source = b"<article><h2>Card</h2><p>Body</article>\n";
+        let source = b"<!-- Card --><article data-kind='hero'><h2>Card</h2><p>Body</p></article>\n";
         let (document, diagnostics) = crate::validation::html::html_document_ast_from_source_bytes(
             crate::validation::html::HtmlSourceValidationRequest {
                 bytes: source,
@@ -24806,6 +24806,37 @@ mod tests {
             assert_eq!(colored.value["category"], "html-document");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+            for role in [
+                "syntax.punctuation",
+                "syntax.name",
+                "syntax.attribute",
+                "syntax.string",
+                "syntax.comment",
+            ] {
+                assert!(
+                    colored.value["nodes"]
+                        .as_array()
+                        .is_some_and(|nodes| nodes.iter().any(|node| {
+                            node["value"]["colorRole"] == role && node["style"]["colorRole"] == role
+                        })),
+                    "{profile}: missing {role}"
+                );
+            }
+            let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+            let visible = match profile {
+                "terminal" => strip_ansi_codes(output),
+                "html" | "md" => {
+                    colored_markup_text_content(output.strip_suffix('\n').unwrap_or(output))
+                }
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                visible.trim_end_matches(['\r', '\n']),
+                std::str::from_utf8(source)
+                    .unwrap()
+                    .trim_end_matches(['\r', '\n']),
+                "{profile}"
+            );
         }
     }
 

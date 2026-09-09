@@ -5,6 +5,13 @@ import advancedDemoSource from '../demo/advanced.html?raw';
 import demoCss from '../demo/demo.css?raw';
 import dwarfsSource from '../demo/dwarfs.json?raw';
 import basicDemoSource from '../demo/index.html?raw';
+import syntaxColoringDemoSource from '../demo/syntax-coloring.html?raw';
+import cemMlCompleteSource from '../demo/syntax/cem-ml-complete.cem?raw';
+import cemMlErrorSource from '../demo/syntax/cem-ml-error.cem?raw';
+import htmlCompleteSource from '../demo/syntax/html-complete.html?raw';
+import htmlRecoverySource from '../demo/syntax/html-recovery.html?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- The offline syntax fixture embeds the generated CEM theme used by the authored demo page.
+import cemThemeCss from '../../cem-theme/dist/lib/css/cem-combined.css?raw';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- The offline document fixture initializes the exact generated browser loader as a local blob.
 import wasmLoaderSource from '../../cem-ml-npm/dist/wasm/browser/cem_ml.js?raw';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- The offline document fixture supplies the exact local WASM bytes to that generated loader.
@@ -22,6 +29,7 @@ const elementModuleUrl = moduleBlobUrl(
         .replaceAll("'./cem-ml-runtime.js'", JSON.stringify(runtimeModuleUrl))
         .replaceAll("'./source-highlight.js'", JSON.stringify(highlightModuleUrl))
 );
+const fetchedHtmlUrl = new URL('../demo/fetched.fixture', import.meta.url).href;
 
 const meta: Meta = {
     title: 'CEM Demo Element/Behavior',
@@ -73,7 +81,22 @@ export const TemplateLegendAndDescription: Story = {
         );
         const code = requiredRegion(demo, 'text').querySelector('code');
         await expect(code).toHaveTextContent('<p class="message">Candle 🕯️</p>');
-        await expect(code?.querySelector('.cem-demo-tag')).not.toBeNull();
+        await expect(code).toHaveClass('cem-source-code', 'language-html');
+        await expect(code?.querySelector(':scope > [class], :scope > [data-role]')).toBeNull();
+        const name = code?.querySelector(':scope > b');
+        const attribute = code?.querySelector(':scope > var');
+        const value = code?.querySelector(':scope > i');
+        await expect(name).toHaveTextContent('p');
+        await expect(attribute).toHaveTextContent('class');
+        await expect(value).toHaveTextContent('message');
+        await expect(
+            getComputedStyle(demo).getPropertyValue('--cem-color-syntax-name').trim()
+        ).toBe('#002f65');
+        await expect(getComputedStyle(name as Element).color).toBe('rgb(0, 47, 101)');
+        await expect(getComputedStyle(attribute as Element).color).toBe('rgb(80, 36, 0)');
+        await expect(getComputedStyle(value as Element).color).toBe('rgb(106, 27, 154)');
+        await expect(getComputedStyle(name as Element).fontWeight).toBe('700');
+        await expect(getComputedStyle(attribute as Element).fontWeight).toBe('700');
     },
 };
 
@@ -153,8 +176,8 @@ export const ProgrammaticSource: Story = {
         await demo.updateComplete;
         const code = requiredRegion(demo, 'text').querySelector('code');
         await expect(code).toHaveTextContent('const answer = 42;');
-        await expect(code?.querySelector('.cem-demo-keyword')).toHaveTextContent('const');
-        await expect(code?.querySelector('.cem-demo-number')).toHaveTextContent('42');
+        await expect(code?.querySelector(':scope > strong')).toHaveTextContent('const');
+        await expect(code?.querySelector(':scope > u')).toHaveTextContent('42');
         await expect(requiredRegion(demo, 'legend')).toHaveTextContent('Updated programmatically');
         await expect(requiredRegion(demo, 'description')).toHaveTextContent(
             'Property-backed description'
@@ -177,10 +200,30 @@ export const ExternalSourceWithAutoType: Story = {
     },
 };
 
+export const ExternalHtmlSource: Story = {
+    render: () => `<cem-demo-element
+        legend="Fetched HTML source"
+        type="html"
+        src="${fetchedHtmlUrl}"
+    ></cem-demo-element>`,
+    play: async ({ canvasElement }) => {
+        const demo = requiredDemo(canvasElement);
+        await waitFor(() => expect(demo).toHaveAttribute('data-state', 'ready'));
+
+        const code = requiredRegion(demo, 'text').querySelector('code');
+        const live = within(requiredRegion(demo, 'demo'));
+        await expect(code).toHaveAttribute('data-language', 'html');
+        await expect(code?.querySelector('b')).toHaveTextContent('article');
+        await expect(live.getByRole('heading', { name: 'Fetched HTML is live' })).toBeVisible();
+        await expect(live.getByRole('link', { name: 'Open the neighboring data file' }))
+            .toHaveAttribute('href', new URL('./dwarfs.json', fetchedHtmlUrl).href);
+    },
+};
+
 export const CemMlWasmRender: Story = {
     render: () => `
         <cem-demo-element legend="CEM-ML to HTML" type="cem-ml">
-            <template>{article @id=welcome | {strong | Hello from CEM-ML}}</template>
+            <template>{article @id="welcome" | {strong | Hello from CEM-ML}}</template>
         </cem-demo-element>
     `,
     play: async ({ canvasElement }) => {
@@ -193,6 +236,10 @@ export const CemMlWasmRender: Story = {
         await expect(demo.lastResult?.schemaVersion).toBe(1);
         await expect(demo.lastResult?.status).toBe('rendered');
         await expect(demo.lastResult?.outputSpans.length).toBeGreaterThan(0);
+        const code = requiredRegion(demo, 'text').querySelector('code');
+        await expect(code?.querySelector(':scope > b')).toHaveTextContent('article');
+        await expect(code?.querySelector(':scope > var')).toHaveTextContent('id');
+        await expect(code?.querySelector(':scope > i')).toHaveTextContent('welcome');
     },
 };
 
@@ -248,12 +295,15 @@ export const OfflineDemoDocuments: Story = {
         const advanced = document.createElement('iframe');
         advanced.title = 'Advanced demo document';
         advanced.srcdoc = offlineDemoDocument(advancedDemoSource);
-        root.append(basic, advanced);
+        const syntaxColoring = document.createElement('iframe');
+        syntaxColoring.title = 'Syntax coloring decision document';
+        syntaxColoring.srcdoc = offlineDemoDocument(syntaxColoringDemoSource);
+        root.append(basic, advanced, syntaxColoring);
         return root;
     },
     play: async ({ canvasElement }) => {
         const frames = Array.from(canvasElement.querySelectorAll('iframe'));
-        await expect(frames).toHaveLength(2);
+        await expect(frames).toHaveLength(3);
 
         for (const frame of frames) {
             await waitFor(() => {
@@ -287,6 +337,121 @@ export const OfflineDemoDocuments: Story = {
             throw new Error(`Expected offline CEM-ML output; observed ${cemMlDemo?.outerHTML ?? 'no CEM-ML demo'}`);
         }
         await expect(renderedStrong).toHaveTextContent('Hello from CEM-ML');
+
+        const syntaxWindow = frames[2]?.contentWindow;
+        const syntaxDocument = frames[2]?.contentDocument;
+        if (!syntaxWindow || !syntaxDocument) {
+            throw new Error('Expected the same-origin syntax-coloring iframe');
+        }
+        const roleRows = syntaxDocument.querySelectorAll('[data-syntax-role]');
+        await expect(roleRows).toHaveLength(10);
+        const sourceModelKinds = Array.from(
+            syntaxDocument.querySelectorAll('.syntax-model-key dd code'),
+            (element) => element.textContent
+        );
+        await expect(sourceModelKinds).toHaveLength(28);
+        await expect(sourceModelKinds).toEqual(expect.arrayContaining([
+            'Doctype',
+            'StartElement',
+            'EndElement',
+            'Text',
+            'RawText',
+            'Rcdata',
+            'Comment',
+            'Delimiter',
+            'ElementName',
+            'Whitespace',
+            'AttributeName',
+            'Equals',
+            'Quote',
+            'AttributeValue',
+            'Keyword',
+            'Raw',
+            'NodeStart',
+            'NodeEnd',
+            'Attribute',
+            'Trivia',
+            'ProcessingInstruction',
+            'ExpressionNode',
+            'AnonymousScopeStart',
+            'Directive',
+            'RichContent',
+            'Error',
+        ]));
+
+        const htmlTags = sourceTags(syntaxDocument, '#html-syntax-complete');
+        await expect(htmlTags).toEqual(expect.arrayContaining([
+            'strong', 'b', 'var', 'i', 'small', 'samp',
+        ]));
+        const cemMlTags = sourceTags(syntaxDocument, '#cem-ml-syntax-complete');
+        await expect(cemMlTags).toEqual(expect.arrayContaining([
+            'strong', 'b', 'var', 'i', 'small',
+        ]));
+        await expect(
+            syntaxDocument.querySelector('#cem-ml-syntax-error')
+        ).toHaveAttribute('data-state', 'error');
+        await expect(
+            syntaxDocument.querySelector('#cem-ml-syntax-error [slot="text"] mark')
+        ).toHaveTextContent('{42}');
+
+        const select = syntaxDocument.querySelector<HTMLSelectElement>('#theme-mode');
+        const description = syntaxDocument.querySelector<HTMLOutputElement>('#theme-description');
+        if (!select || !description) throw new Error('Expected syntax theme controls');
+        const themes = [
+            'cem-theme-native',
+            'cem-theme-light',
+            'cem-theme-dark',
+            'cem-theme-contrast-light',
+            'cem-theme-contrast-dark',
+        ];
+        for (const theme of themes) {
+            select.value = theme;
+            select.dispatchEvent(new syntaxWindow.Event('change', { bubbles: true }));
+            await expect(syntaxDocument.body.dataset.theme).toBe(theme);
+            await expect(description.value).not.toBe('');
+
+            const htmlColors = sourceColors(
+                syntaxWindow,
+                syntaxDocument,
+                '#html-syntax-complete'
+            );
+            const cemMlColors = sourceColors(
+                syntaxWindow,
+                syntaxDocument,
+                '#cem-ml-syntax-complete'
+            );
+            await expect(cemMlColors).toEqual(htmlColors);
+            await expect(htmlColors.every((color) => color !== 'rgba(0, 0, 0, 0)')).toBe(true);
+            await expect(htmlColors).toEqual(
+                syntaxRoleKeyColors(syntaxWindow, syntaxDocument)
+            );
+            await expect(
+                sourceRoleColor(
+                    syntaxWindow,
+                    syntaxDocument,
+                    '#cem-ml-syntax-error',
+                    'diagnostic.error'
+                )
+            ).toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'error'));
+            await expect(
+                syntaxWindow.getComputedStyle(
+                    requiredSourceToken(
+                        syntaxDocument,
+                        '#html-syntax-complete',
+                        'syntax.name'
+                    )
+                ).fontWeight
+            ).toBe('700');
+            await expect(
+                syntaxWindow.getComputedStyle(
+                    requiredSourceToken(
+                        syntaxDocument,
+                        '#html-syntax-complete',
+                        'syntax.attribute'
+                    )
+                ).fontWeight
+            ).toBe('700');
+        }
     },
 };
 
@@ -308,12 +473,100 @@ function offlineDemoDocument(source: string): string {
         defineCemDemoElement(customElements);
     </script>`;
     const dwarfsUrl = `data:application/json;charset=utf-8,${encodeURIComponent(dwarfsSource)}`;
+    const syntaxFixtures = new Map([
+        ['./syntax/html-complete.html', sourceDataUrl('text/html', htmlCompleteSource)],
+        ['./syntax/html-recovery.html', sourceDataUrl('text/html', htmlRecoverySource)],
+        ['./syntax/cem-ml-complete.cem', sourceDataUrl('application/cem', cemMlCompleteSource)],
+        ['./syntax/cem-ml-error.cem', sourceDataUrl('application/cem', cemMlErrorSource)],
+    ]);
 
-    return source
+    let documentSource = source
         .replace(/<link rel="stylesheet" href="\.\/demo\.css">/u, `<style>${demoCss}</style>`)
+        .replace(
+            '<link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">',
+            `<style>${cemThemeCss}</style>`
+        )
         .replace(/<script type="importmap">[\s\S]*?<\/script>/u, importMap)
         .replace('<script type="module" src="../dist/index.js"></script>', componentImport)
         .replaceAll('./dwarfs.json', dwarfsUrl);
+    for (const [path, dataUrl] of syntaxFixtures) {
+        documentSource = documentSource.replaceAll(path, dataUrl);
+    }
+    return documentSource;
+}
+
+function sourceDataUrl(contentType: string, source: string): string {
+    return `data:${contentType};charset=utf-8,${encodeURIComponent(source)}`;
+}
+
+function sourceTags(document: Document, demoSelector: string): string[] {
+    return Array.from(
+        document.querySelectorAll(`${demoSelector} [slot="text"] code > *`),
+        (element) => element.localName
+    );
+}
+
+function sourceColors(
+    window: Window,
+    document: Document,
+    demoSelector: string
+): [string, string, string, string] {
+    return ['syntax.name', 'syntax.attribute', 'syntax.keyword', 'syntax.string'].map(
+        (role) => sourceRoleColor(window, document, demoSelector, role)
+    ) as [string, string, string, string];
+}
+
+function sourceRoleColor(
+    window: Window,
+    document: Document,
+    demoSelector: string,
+    role: string
+): string {
+    return window.getComputedStyle(requiredSourceToken(document, demoSelector, role)).color;
+}
+
+function requiredSourceToken(
+    document: Document,
+    demoSelector: string,
+    role: string
+): Element {
+    const tag = sourceRoleTag(role);
+    const token = document.querySelector(`${demoSelector} [slot="text"] code > ${tag}`);
+    if (!token) throw new Error(`Expected ${role} in ${demoSelector}`);
+    return token;
+}
+
+function sourceRoleTag(role: string): string {
+    const tags: Record<string, string> = {
+        'syntax.name': 'b',
+        'syntax.attribute': 'var',
+        'syntax.keyword': 'strong',
+        'syntax.string': 'i',
+        'syntax.number': 'u',
+        'syntax.comment': 'small',
+        'syntax.text': 'samp',
+        'diagnostic.error': 'mark',
+    };
+    const tag = tags[role];
+    if (!tag) throw new Error(`No semantic source tag for ${role}`);
+    return tag;
+}
+
+function syntaxRoleKeyColors(
+    window: Window,
+    document: Document
+): [string, string, string, string] {
+    return ['name', 'attribute', 'keyword', 'string'].map((role) =>
+        syntaxRoleKeyColor(window, document, role)
+    ) as [string, string, string, string];
+}
+
+function syntaxRoleKeyColor(window: Window, document: Document, role: string): string {
+    const token = document.querySelector(
+        `[data-syntax-role="${role}"] td:nth-child(2) code > *`
+    );
+    if (!token) throw new Error(`Expected ${role} syntax-role specimen`);
+    return window.getComputedStyle(token).color;
 }
 
 function moduleBlobUrl(source: string): string {

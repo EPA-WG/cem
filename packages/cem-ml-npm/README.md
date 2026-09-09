@@ -48,6 +48,35 @@ The API renders trusted CEM-ML. Hosts remain responsible for deciding whether
 the resulting live markup may be injected and must treat any status other than
 `rendered` as non-renderable.
 
+## Lossless source highlighting
+
+`highlightSourceToHtmlV1(requestJson)` formats authored HTML and CEM-ML as
+escaped semantic HTML without executing it or changing its source bytes. The
+request contains `source`, `contentType`, and an optional `sourceUrl`. The
+response includes `html`, parser `diagnostics`, and byte-addressed `spans`.
+Roles such as `syntax.punctuation`, `syntax.name`, `syntax.attribute`,
+`syntax.string`, and `syntax.comment` use the same formatter/colorizer contract
+as native CEM-ML output.
+
+```js
+const source = '<button type="button">Save</button>';
+const result = JSON.parse(cemMl.highlightSourceToHtmlV1(JSON.stringify({
+    source,
+    contentType: 'text/html',
+})));
+
+if (result.status === 'highlighted') {
+  code.classList.add('cem-source-code');
+  code.innerHTML = result.html;
+}
+```
+
+The `html` fragment carries no per-token classes or attributes. It uses `b` for
+tag/name, `var` for attribute/variable, `strong` for keyword, `i` for string,
+`u` for number, `small` for comment, `samp` for source text, and `mark` for
+error. Punctuation and raw source remain unwrapped. The parallel `spans` array
+retains the exact semantic roles and byte ranges for non-HTML consumers.
+
 The generated `executeCommandServiceV1` binding is the low-level asynchronous
 bridge used by the universal CLI package. It accepts the canonical JSON
 `CommandServiceRequestV1`, a common capability request, and five host callbacks:

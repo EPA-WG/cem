@@ -60,6 +60,22 @@ const fixtureSpecs = [
             text('pokemon-tile button', 'ivysaur'),
             text('pokemon-tile button', 'venusaur'),
             text('pokemon-tile button', 'vulpix'),
+            countAtLeast(
+                'cem-demo-element[legend^="1."] code.cem-source-code.language-html > b',
+                2,
+            ),
+            countAtLeast(
+                'cem-demo-element[legend^="1."] code.cem-source-code.language-html > var',
+                1,
+            ),
+            countAtLeast(
+                'cem-demo-element[legend^="1."] code.cem-source-code.language-html > i',
+                1,
+            ),
+            countExactly(
+                'cem-demo-element[legend^="1."] code.cem-source-code [class], cem-demo-element[legend^="1."] code.cem-source-code [data-role]',
+                0,
+            ),
         ],
     },
     {

@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+// CEM-ML line comment
+/* CEM-ML block comment */
+{section
+    @id="syntax-card"
+    @class='featured'
+    @data-count=32
+    @aria-busy={$ false}
+    |
+    Plain text and https://example.test/content
+    {h2 | Nested named node}
+    {$ str:concat(("Expression ", "node"))}
+    {@type="text/html" | <strong>Anonymous typed scope</strong>}
+    <?preview mode="syntax"?>
+    ```<em data-kind="rich">Opaque rich content</em>```
+    {input @disabled}
+}

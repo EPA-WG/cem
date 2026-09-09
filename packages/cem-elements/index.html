@@ -6,6 +6,13 @@
     <title>cem-element CEM-ML demo</title>
     <link rel="icon" href="../custom-element/demo/wc-square.svg">
     <link rel="stylesheet" href="./demo/demo.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-ml/wasm": "../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+            }
+        }
+    </script>
     <script type="module">
         import { installCemElementRuntime } from './dist/index.js';
 

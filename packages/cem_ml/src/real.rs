@@ -3066,13 +3066,12 @@ fn convert_transform_graph_artifact(
                 if encoded.encoding == TransformEncoding::Text =>
             {
                 let source_uri = input.uri.as_deref().unwrap_or(&conversion.id);
-                let (document, mut parse_diagnostics) = html_document_ast_from_source_bytes(
-                    HtmlSourceValidationRequest {
+                let (document, mut parse_diagnostics) =
+                    html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
                         bytes: encoded.bytes.as_ref(),
                         source_uri,
                         content_type: source.content_type.as_deref(),
-                    },
-                );
+                    });
                 diagnostics.append(&mut parse_diagnostics);
                 if has_hard_transform_diagnostic(diagnostics) {
                     return None;
@@ -14179,10 +14178,12 @@ mod tests {
         )
         .expect("registered HTML recovery converter should execute");
 
-        assert!(diagnostics
-            .iter()
-            .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
-            "{diagnostics:?}");
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}"
+        );
         assert_eq!(artifact.identity.as_ref(), Some(&conversion.target));
         let TransformArtifactBody::HtmlDomProjection(document) = artifact.body else {
             panic!("HTML recovery must retain a native DOM projection owner");
@@ -20853,7 +20854,10 @@ mod tests {
                 .bytes,
         )
         .unwrap();
-        assert!(presentation.starts_with("@doc cem-ml 1\n"), "{presentation}");
+        assert!(
+            presentation.starts_with("@doc cem-ml 1\n"),
+            "{presentation}"
+        );
         assert!(presentation.contains("@ns cemevents"), "{presentation}");
         assert!(presentation.contains("{event-stream "), "{presentation}");
         assert!(presentation.contains("@kind=trivia"), "{presentation}");

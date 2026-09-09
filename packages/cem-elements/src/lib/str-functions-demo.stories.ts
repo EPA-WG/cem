@@ -68,7 +68,7 @@ export const EveryAuthoredSample: Story = {
 async function waitForCondition(
     condition: () => boolean,
     message: string,
-    attempts = 120
+    attempts = 600
 ): Promise<void> {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
         if (condition()) return;

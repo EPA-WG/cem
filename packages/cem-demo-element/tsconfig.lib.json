@@ -9,9 +9,10 @@
         "lib": ["es2022", "dom", "dom.iterable"]
     },
     "include": ["src/**/*.ts"],
-    "exclude": [
-        "src/**/*.stories.ts",
-        "src/**/*.spec.ts",
-        "src/**/*.test.ts"
+    "exclude": ["src/**/*.stories.ts", "src/**/*.spec.ts", "src/**/*.test.ts"],
+    "references": [
+        {
+            "path": "../cem-theme/tsconfig.lib.json"
+        }
     ]
 }

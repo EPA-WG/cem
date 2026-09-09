@@ -13,6 +13,7 @@
 //!   (browser / Node parity with the Rust surface).
 
 pub mod html_render;
+pub mod source_highlight;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
