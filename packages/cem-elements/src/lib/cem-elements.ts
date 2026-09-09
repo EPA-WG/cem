@@ -133,6 +133,8 @@ export interface CemElementDiagnostic {
 
 export interface DeclarationShapeInput {
     tag: string | null;
+    /** Optional exact SemVer for the declaration/template contract. */
+    version?: string | null;
     src: string | null;
     directTemplateCount: number;
     directLiveNodeCount: number;
@@ -141,6 +143,7 @@ export interface DeclarationShapeInput {
 export interface DeclarationShapeResult {
     ok: boolean;
     tag: string | null;
+    version: string | null;
     src: string | null;
     diagnostics: CemElementDiagnostic[];
 }
@@ -179,6 +182,7 @@ export type { CemDeclarationTemplateLanguage } from './legacy-xslt/template-lang
 
 export interface DeclarationRegistrationIdentityInput {
     tag: string;
+    declarationVersion?: string | null;
     resolvedTemplateSource: string;
     templateLanguage: CemDeclarationTemplateLanguage;
     hasBehavior: boolean;
@@ -293,6 +297,8 @@ export interface DataIslandSnapshot {
     instanceId: string;
     producedTag: string;
     declarationTag: string;
+    /** Exact SemVer of the declaration which produced this state; absent for legacy islands. */
+    declarationVersion?: string;
     templateArtifactId: string;
     dataRevision: string;
     renderAttempt?: number;
@@ -332,6 +338,7 @@ export type ExportedDataIslandSnapshot = Pick<
     | 'instanceId'
     | 'producedTag'
     | 'declarationTag'
+    | 'declarationVersion'
     | 'templateArtifactId'
     | 'dataRevision'
     | 'renderAttempt'
@@ -689,6 +696,7 @@ interface SliceDeclaration {
 interface CompiledDeclaration {
     declarationElement: HTMLElement;
     declarationTag: string;
+    declarationVersion: string | null;
     producedTag: string;
     anonymousTag: boolean;
     uidSeed: string | null;
@@ -1037,6 +1045,7 @@ const ANONYMOUS_DECLARATION_ONLY_ATTRIBUTES = new Set([
     'style',
     'tag',
     'uid-seed',
+    'version',
 ]);
 const UID_SEED_ATTR = 'uid-seed';
 const PUBLIC_STYLE_SCOPE_ATTR = 'scope';
@@ -1159,6 +1168,7 @@ export function analyzeInstanceLifecycleShape(
 export function analyzeDeclarationShape(input: DeclarationShapeInput): DeclarationShapeResult {
     const diagnostics: CemElementDiagnostic[] = [];
     const tag = input.tag?.trim() || null;
+    const version = input.version === undefined || input.version === null ? null : input.version.trim();
     const src = input.src?.trim() || null;
 
     if (!tag) {
@@ -1169,6 +1179,16 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
                 'cem-element.tag_invalid',
                 `declaration tag \`${tag}\` is not a valid custom-element name`,
                 tag,
+            ),
+        );
+    }
+
+    if (version !== null && !parseExactSemVer(version)) {
+        diagnostics.push(
+            declarationDiagnostic(
+                'cem-element.version_invalid',
+                'declaration `version` must be an exact Semantic Version such as `1.2.3`',
+                tag ?? undefined,
             ),
         );
     }
@@ -1214,9 +1234,69 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
     return {
         ok: !diagnostics.some((diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'fatal'),
         tag,
+        version,
         src,
         diagnostics,
     };
+}
+
+interface ExactSemVer {
+    major: string;
+    minor: string;
+    patch: string;
+    prerelease: string | null;
+}
+
+const EXACT_SEMVER_PATTERN =
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+function parseExactSemVer(value: string): ExactSemVer | undefined {
+    const match = EXACT_SEMVER_PATTERN.exec(value);
+    if (!match) {
+        return undefined;
+    }
+    return {
+        major: match[1],
+        minor: match[2],
+        patch: match[3],
+        prerelease: match[4] ?? null,
+    };
+}
+
+/**
+ * Whether an exact SSR declaration version and the current browser declaration
+ * occupy the same caret-style compatibility band. Build metadata is ignored.
+ * Prerelease declarations are adoptable only when their core and prerelease
+ * identifiers match exactly.
+ */
+export function areCemDeclarationVersionsCompatible(
+    ssrVersion: string | null | undefined,
+    browserVersion: string | null | undefined,
+): boolean {
+    if (!ssrVersion || !browserVersion) {
+        return false;
+    }
+    const ssr = parseExactSemVer(ssrVersion);
+    const browser = parseExactSemVer(browserVersion);
+    if (!ssr || !browser) {
+        return false;
+    }
+    if (ssr.prerelease !== null || browser.prerelease !== null) {
+        return ssr.major === browser.major
+            && ssr.minor === browser.minor
+            && ssr.patch === browser.patch
+            && ssr.prerelease === browser.prerelease;
+    }
+    if (ssr.major !== browser.major) {
+        return false;
+    }
+    if (ssr.major !== '0') {
+        return true;
+    }
+    if (ssr.minor !== browser.minor) {
+        return false;
+    }
+    return ssr.minor !== '0' || ssr.patch === browser.patch;
 }
 
 /**
@@ -1300,6 +1380,7 @@ export function analyzeDeclarationRegistrationIdentity(
     const digest = edgeContentAddress('template-artifact', {
         contract: 'cem-declaration-registration-v1',
         producedTag: input.tag.trim(),
+        ...(input.declarationVersion == null ? {} : { declarationVersion: input.declarationVersion }),
         resolvedTemplateSource: input.resolvedTemplateSource,
         templateLanguage: input.templateLanguage,
         behaviorIdentity: input.hasBehavior ? behaviorIdentity : null,
@@ -1371,6 +1452,7 @@ export function exportDataIslandSnapshotForEdge(
         privacyPolicyStamp: policy.privacyPolicyStamp ?? snapshot.privacyPolicyStamp,
     };
     if (snapshot.version !== undefined) exported.version = snapshot.version;
+    if (snapshot.declarationVersion !== undefined) exported.declarationVersion = snapshot.declarationVersion;
     if (snapshot.renderAttempt !== undefined) exported.renderAttempt = snapshot.renderAttempt;
     if (snapshot.sourceMapMode !== undefined) exported.sourceMapMode = snapshot.sourceMapMode;
     for (const field of DATA_ISLAND_EXPORT_FIELDS) {
@@ -1607,6 +1689,7 @@ export class CemElementRuntime {
                     this.registerExternalDeclaration(
                         declarationElement,
                         shape.tag,
+                        shape.version,
                         shape.src,
                         reference,
                         declarationScope,
@@ -1625,6 +1708,7 @@ export class CemElementRuntime {
                 this.registerResolvedDeclaration(
                     declarationElement,
                     shape.tag,
+                    shape.version,
                     localTemplate,
                     shape.diagnostics,
                     declarationScope,
@@ -1656,6 +1740,7 @@ export class CemElementRuntime {
             this.registerResolvedDeclaration(
                 declarationElement,
                 shape.tag,
+                shape.version,
                 template,
                 shape.diagnostics,
                 declarationScope,
@@ -1715,6 +1800,7 @@ export class CemElementRuntime {
     private async registerResolvedDeclaration(
         declarationElement: HTMLElement,
         tag: string,
+        declarationVersion: string | null,
         template: HTMLTemplateElement,
         shapeDiagnostics: CemElementDiagnostic[],
         declarationScope: CemDeclarationScope,
@@ -1747,6 +1833,7 @@ export class CemElementRuntime {
         }
         const compiled = compileInlineDeclaration(declarationElement, tag, template, {
             declarationTag: this.declarationTag,
+            declarationVersion,
             declarationScope,
             source,
             uidSeed: this.uidSeedOption,
@@ -1851,6 +1938,7 @@ export class CemElementRuntime {
     private async registerExternalDeclaration(
         declarationElement: HTMLElement,
         tag: string,
+        declarationVersion: string | null,
         src: string,
         reference: SrcReference,
         declarationScope: CemDeclarationScope,
@@ -1899,7 +1987,7 @@ export class CemElementRuntime {
             ]);
             return;
         }
-        await this.registerResolvedDeclaration(declarationElement, tag, sourceTemplate, [], declarationScope, {
+        await this.registerResolvedDeclaration(declarationElement, tag, declarationVersion, sourceTemplate, [], declarationScope, {
             ...loaded.source,
             ...(loaded.kind === 'xslt'
                 ? {
@@ -2059,6 +2147,11 @@ export class CemElementRuntime {
         }
         const island = this.ensureDataIsland(instance);
         return this.createSnapshot(instance, declaration, island);
+    }
+
+    /** Read the effective declaration version without reserving a property on the produced element. */
+    declarationVersionFor(instance: HTMLElement): string | null {
+        return this.declarationForInstance(instance)?.declarationVersion ?? null;
     }
 
     /** Update serializable instance slices from an opt-in browser behavior adapter. */
@@ -3202,6 +3295,30 @@ export class CemElementRuntime {
         this.hydrationSnapshots.set(instance, snapshot);
         this.instanceIds.set(instance, snapshot.instanceId);
         this.dataRevisions.set(instance, parseDataRevision(snapshot.dataRevision));
+
+        const browserDeclarationVersion = this.declarationForInstance(instance)?.declarationVersion;
+        if (!snapshot.declarationVersion || !browserDeclarationVersion) {
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.hydration_declaration_version_missing',
+                    'SSR output or the current browser declaration did not declare a component version; rerendering from the understood data island',
+                    instance.localName,
+                    'warning'
+                ),
+            ]);
+            return false;
+        }
+        if (!areCemDeclarationVersionsCompatible(snapshot.declarationVersion, browserDeclarationVersion)) {
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.hydration_declaration_version_incompatible',
+                    `SSR declaration version \`${snapshot.declarationVersion}\` is not compatible with browser declaration version \`${browserDeclarationVersion}\`; rerendering from the understood data island`,
+                    instance.localName,
+                    'warning'
+                ),
+            ]);
+            return false;
+        }
 
         if (!bounds) {
             return false;
@@ -5277,6 +5394,9 @@ export class CemElementRuntime {
             instanceId: this.instanceId(instance),
             producedTag: compiled.producedTag,
             declarationTag: compiled.declarationTag,
+            ...(compiled.declarationVersion === null
+                ? {}
+                : { declarationVersion: compiled.declarationVersion }),
             templateArtifactId: compiled.artifactId,
             dataRevision,
             outputTarget: 'light-dom',
@@ -5487,6 +5607,7 @@ function analyzeDeclarationElement(element: HTMLElement): DeclarationShapeResult
         && Boolean(element.getAttribute('src')?.trim());
     return analyzeDeclarationShape({
         tag: element.getAttribute('tag'),
+        version: element.hasAttribute('version') ? element.getAttribute('version') : undefined,
         src: element.getAttribute('src'),
         directTemplateCount: anonymousSrcPayload ? 0 : directTemplateChildren(element).length,
         directLiveNodeCount: anonymousSrcPayload ? 0 : directLiveNodeCount(element),
@@ -5541,6 +5662,7 @@ function compileInlineDeclaration(
     });
     const registration = analyzeDeclarationRegistrationIdentity({
         tag: producedTag,
+        declarationVersion: options.declarationVersion,
         resolvedTemplateSource: sourceText,
         templateLanguage: mode,
         hasBehavior: options.behavior !== undefined,
@@ -5563,6 +5685,7 @@ function compileInlineDeclaration(
     return {
         declarationElement,
         declarationTag: options.declarationTag,
+        declarationVersion: options.declarationVersion,
         producedTag,
         anonymousTag: declarationElement.hasAttribute('data-cem-anonymous-declaration'),
         uidSeed: uidSeedResolution.seed,
@@ -5673,6 +5796,7 @@ function extractDomDeclarationStylesheets(
 
 interface InlineDeclarationCompileOptions {
     declarationTag: string;
+    declarationVersion: string | null;
     declarationScope: CemDeclarationScope;
     source: ResolvedDeclarationSource;
     uidSeed?: CemElementRuntimeOptions['uidSeed'];
@@ -7297,6 +7421,8 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
         instanceId: typeof hydration.instanceId === 'string' ? hydration.instanceId : '',
         producedTag: typeof hydration.producedTag === 'string' ? hydration.producedTag : '',
         declarationTag: typeof hydration.declarationTag === 'string' ? hydration.declarationTag : '',
+        declarationVersion:
+            typeof hydration.declarationVersion === 'string' ? hydration.declarationVersion : undefined,
         templateArtifactId:
             typeof hydration.templateArtifactId === 'string' ? hydration.templateArtifactId : '',
         dataRevision: typeof hydration.dataRevision === 'string' ? hydration.dataRevision : '',
@@ -7643,6 +7769,7 @@ function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
         record.producedTag.length > 0 &&
         typeof record.declarationTag === 'string' &&
         record.declarationTag.length > 0 &&
+        (record.declarationVersion === undefined || typeof record.declarationVersion === 'string') &&
         typeof record.templateArtifactId === 'string' &&
         record.templateArtifactId.length > 0 &&
         typeof record.dataRevision === 'string' &&
@@ -7718,10 +7845,15 @@ function declarationDiagnostic(code: string, message: string, tag?: string): Cem
     };
 }
 
-function renderDiagnostic(code: string, message: string, tag?: string): CemElementDiagnostic {
+function renderDiagnostic(
+    code: string,
+    message: string,
+    tag?: string,
+    severity: CemElementDiagnosticSeverity = 'error',
+): CemElementDiagnostic {
     return {
         code,
-        severity: 'error',
+        severity,
         source: 'render',
         message,
         tag,
@@ -8952,6 +9084,7 @@ export function writeDataIslandHydrationData(
         instanceId: snapshot.instanceId,
         producedTag: snapshot.producedTag,
         declarationTag: snapshot.declarationTag,
+        declarationVersion: snapshot.declarationVersion,
         templateArtifactId: snapshot.templateArtifactId,
         dataRevision: snapshot.dataRevision,
         renderAttempt: snapshot.renderAttempt,

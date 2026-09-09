@@ -53,6 +53,7 @@ describe('browser-to-edge snapshot export boundary', () => {
     it('omits default-denied fields before creating an initial-render host request', () => {
         const secret = 'initial-default-deny-secret';
         const snapshot = privateSnapshot('Before', '1', secret);
+        snapshot.declarationVersion = '1.2.3';
         const request = initialBrowserRequest(snapshot);
         const store = new InMemoryEdgeRenderStateStore();
 
@@ -64,6 +65,7 @@ describe('browser-to-edge snapshot export boundary', () => {
         expect(request.payload.snapshot).not.toHaveProperty('formData');
         expect(request.payload.snapshot).not.toHaveProperty('validationState');
         expect(request.payload.snapshot).not.toHaveProperty('eventPayloads');
+        expect(request.payload.snapshot.declarationVersion).toBe('1.2.3');
         expect(JSON.stringify(request)).not.toContain(secret);
 
         const response = executeNonBrowserSsrInitialRenderFixture(request, store);

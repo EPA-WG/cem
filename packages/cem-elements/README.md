@@ -5,6 +5,21 @@ Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 `@epa-wg/cem-elements` provides the `<cem-element>` browser substrate for declarative light-DOM custom elements. It is
 the Phase 3.1 runtime gate before the project moves into Edge/SSR support and later `@epa-wg/custom-element` adoption.
 
+Declarations may publish an exact Semantic Version for SSR adoption:
+
+```html
+<cem-element tag="cem-card" version="1.2.3">
+    <template type="text/cem-ml">...</template>
+</cem-element>
+```
+
+The declaration owns the version. Each SSR data island records it as
+`declarationVersion`; produced instances do not receive a public `version`
+attribute or property. `runtime.declarationVersionFor(instance)` provides
+collision-safe introspection. Hydration adopts caret-compatible versions. A
+missing, malformed, or incompatible declaration version rerenders from an
+understood island, while an unsupported island schema still fails closed.
+
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
 resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) as the base contract and
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements

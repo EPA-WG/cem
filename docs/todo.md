@@ -721,6 +721,16 @@ registration identities may reuse an inherited or existing definition.
       `$island`. Build, lint, typecheck, 174 unit tests, 134 browser stories, 16
       Edge/SSR unit tests, 6 Edge/SSR stories, and the 15-page / 21-source-document
       demo gate pass.
+- [x] Fixture: cover declaration-owned exact SemVer across registration identity,
+      data-island/Edge serialization, compatible SSR adoption, incompatible SSR
+      browser rerender, and collision-safe produced-instance introspection.
+    - Completed 2026-09-09: optional `<cem-element version>` values validate as
+      exact SemVer and participate in registration identity. Versioned islands
+      carry `declarationVersion` independently from the island schema version;
+      caret-compatible declarations retain SSR output, while missing, malformed,
+      or incompatible versions rerender only from an understood island. Unit,
+      browser, and the seven-case isolated Edge/SSR Storybook gate cover the
+      contract without claiming the produced instance's `version` attribute.
 - [x] Add executable stylesheet-ownership and anonymous-declaration fixtures for
       the historical low-specificity CSS baseline, since superseded by native
       `@scope`: declaration styles installed once under

@@ -13,6 +13,8 @@ type Story = StoryObj;
 
 export const SsrHydrationFromSerializedSnapshot: Story =
     edgeSsrStories.SsrHydrationFromSerializedSnapshot;
+export const SsrHydrationRerendersIncompatibleDeclarationVersion: Story =
+    edgeSsrStories.SsrHydrationRerendersIncompatibleDeclarationVersion;
 export const SsrHydrationRejectsUnsupportedSnapshotVersion: Story =
     edgeSsrStories.SsrHydrationRejectsUnsupportedSnapshotVersion;
 export const SsrHydrationRejectsIncompleteMarkup: Story =

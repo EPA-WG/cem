@@ -83,9 +83,9 @@ Phase 3 separates two registries that have different scopes:
   same logical lookup and collision contract.
 
 Every resolved declaration has a stable **registration identity** that binds the
-produced tag, resolved template source identity, template language, and browser
-behavior contract. Registration is decided before calling
-`CustomElementRegistry#define`:
+produced tag, optional declaration version, resolved template source identity,
+template language, and browser behavior contract. Registration is decided before
+calling `CustomElementRegistry#define`:
 
 1. A second declaration for the same tag in the same logical scope is an error,
    even when both registration identities match
@@ -148,8 +148,9 @@ The construction, ancestry, lookup, and disposal contract is executable in the
 pure declaration-scope tests. `CemElementRuntimeOptions.declarationScope` selects an
 explicit scope; otherwise inline and external declarations select their owning
 document's default root. The runtime derives a `cem-registration-v1` content address
-from the produced tag, resolved template source, template language, and browser
-behavior version. `CemDeclarationRegistrationOptions.behaviorIdentity` is required
+from the produced tag, exact declaration version when present, resolved template
+source, template language, and browser behavior version.
+`CemDeclarationRegistrationOptions.behaviorIdentity` is required
 and non-empty whenever `behavior` is present because function source text and object
 identity are not stable across builds. Behavior-less declarations use a fixed null
 behavior component and need no extra option.
@@ -170,6 +171,29 @@ Before upgrade, a produced custom element instance may contain author fallback
 payload. On upgrade, that payload is captured into the instance's inert data-island
 `<template>`, and only the rendered projection remains visible.
 
+### Declaration version
+
+`version` on `<cem-element>` is an optional exact Semantic Version for the
+declaration/template contract. It is not the `@epa-wg/cem-elements` package
+version and does not version the data-island schema. A present malformed value
+rejects declaration registration with `cem-element.version_invalid`.
+
+The declaration is the sole authoring authority. Its effective value is included
+in registration identity and serialized into produced islands as
+`declarationVersion`. The runtime does not claim a public `version` attribute or
+property on the produced tag, because that name remains available as component
+data. Hosts can use `CemElementRuntime.declarationVersionFor(instance)` for
+collision-safe introspection.
+
+During hydration, stable `1.x` versions share one compatibility band, `0.x`
+uses the same-minor band, and `0.0.x` requires the same patch. Build metadata is
+ignored; prerelease identifiers must match exactly. A compatible version still
+must pass every artifact, revision, scope, source, and boundary identity check.
+A missing, malformed, or incompatible declaration version makes retained output
+non-adoptable. If the island schema and payload are understood, the browser
+rerenders from the island and diagnoses the fallback. An unsupported island
+schema remains frozen static output.
+
 The accepted CSS target reserves one unmarked direct instance `<template>` as an
 explicit inert payload envelope when payload-owned CSS is required. The runtime
 moves its content into the payload section of a distinct runtime-owned data island
@@ -183,7 +207,7 @@ native `@scope` compilation, is normative in the
 implemented by the browser, worker, Edge/SSR, and hydration render paths.
 
 ```html
-<cem-element tag="cem-button">
+<cem-element tag="cem-button" version="1.0.0">
   <template>
     {attribute @name="disabled"}
     {attribute @name="busy"}
@@ -201,7 +225,7 @@ implemented by the browser, worker, Edge/SSR, and hydration render paths.
 Or the XML/HTML parity form (lowered to the same AST):
 
 ```html
-<cem-element tag="cem-button">
+<cem-element tag="cem-button" version="1.0.0">
   <template>
     <attribute name="disabled" />
     <attribute name="busy" />
@@ -254,7 +278,7 @@ existing POC and with the material parity benchmark (which uses
 
 ```html
 <!-- External resource with fragment identifier -->
-<cem-element tag="cem-icon" src="./icon-link.html#cem-icon-link"></cem-element>
+<cem-element tag="cem-icon" version="1.0.0" src="./icon-link.html#cem-icon-link"></cem-element>
 
 <!-- Same-document fragment -->
 <cem-element tag="cem-icon" hidden src="#cem-icon-template"></cem-element>
@@ -312,8 +336,8 @@ Rules:
   declaration receives a deterministic anonymous tag and creates one contained
   instance. Non-declaration attributes and authored children move to that
   instance before connection, then follow the normal data-island payload-capture
-  lifecycle. The declaration retains `src`, generated `tag`, `uid-seed`, scope,
-  and its declaration/runtime identity attributes.
+  lifecycle. The declaration retains `src`, generated `tag`, `uid-seed`,
+  `version`, scope, and its declaration/runtime identity attributes.
 - All other declaration semantics (data-island isolation, scope policy, source
   maps, render pipeline, patch transport) are identical to the inline form. `src`
   is purely a source-acquisition shape.
@@ -356,6 +380,8 @@ does not evaluate browser state.
    - checks first for one direct `<template data-cem-island="instance">`; its presence
      resumes the serialized lifecycle and prevents all sibling output from being
      recaptured as payload;
+   - compares the island's `declarationVersion` with the current declaration and
+     rerenders from an understood island when the versions are not compatible;
    - otherwise captures ordinary author children, or the content of one unmarked inert
      payload `<template>`, into a newly created marked island's payload section;
    - records slot names, default payload, slices, validation state, and event payloads

@@ -79,6 +79,36 @@ The declaration and the complete island state then produce a new rendered
 projection. Source payload nodes remain inert in the island while materialized
 render nodes occupy the instance's owned render range.
 
+## Declaration version and SSR compatibility
+
+A declaration may publish its template contract as an exact Semantic Version:
+
+```html
+<cem-element tag="cem-card" version="1.2.3">
+    <template type="text/cem-ml">...</template>
+</cem-element>
+```
+
+The declaration attribute is the authoring authority. The runtime carries the
+same value as `declarationVersion` in every produced data-island snapshot, but
+does not reflect it to a public `version` attribute or property on produced
+instances: `version` remains available as component-owned input. Runtime code
+can inspect the effective value through `declarationVersionFor(instance)`.
+
+Declaration versions use caret-style compatibility bands. Stable `1.x`
+versions are mutually compatible, `0.2.x` is compatible only within `0.2`, and
+`0.0.3` is compatible only with `0.0.3`. Build metadata does not affect
+compatibility. A prerelease is compatible only with the same core version and
+prerelease identifiers.
+
+The attribute is optional during migration. A missing, malformed, or
+incompatible declaration version never authorizes adoption. A malformed author
+declaration is rejected. When the serialized island schema and payload are
+understood, a missing, malformed, or incompatible SSR declaration version causes
+a diagnosed browser render from island state. It does not cause rendered output
+to be recaptured as payload. An unsupported island schema remains frozen because
+the browser cannot safely interpret its state.
+
 ## Reconnection, serialized HTML, and hydration
 
 The presence of one direct marked island selects resume mode before the runtime
@@ -91,10 +121,12 @@ examines any other child. In resume mode:
 - a valid identity-matched rendered range is adopted without an initial rerender;
 - provisional content, including a server- or loader-supplied `loading...` view,
   is replaced when the instance renders on load; and
-- invalid, incomplete, unknown, duplicated, out-of-order, identity-mismatched,
-  or unsafe serialized regions diagnose and fail closed without turning rendered
-  output into input data. Existing SSR output remains frozen static content; no
-  render, event, resource, or capability work starts.
+- invalid, incomplete, unknown, duplicated, out-of-order, or unsafe serialized
+  regions diagnose and fail closed without turning rendered output into input
+  data. Existing SSR output remains frozen static content; no render, event,
+  resource, or capability work starts. A missing, malformed, or incompatible
+  declaration version is the explicit render-on-load exception when the island
+  itself is understood.
 
 This rule applies both to a new element parsed from SSR HTML and to an existing
 in-memory instance reconnecting to a document.
@@ -112,16 +144,19 @@ Hydration has two valid outcomes:
 
 1. **Render on load.** The island and any hydration-provided data are used as
    render input. Provisional or loading output is replaced by the committed
-   projection.
-2. **Adopt retained output.** When island version, instance identity, declaration
-   artifact, data revision, scope policy, source fidelity, and render boundaries
-   agree, the existing rendered range is retained and client invalidation takes
-   over without an initial rerender.
+   projection. This includes the forward-compatibility fallback for a missing,
+   malformed, or incompatible SSR declaration version when the island is
+   understood.
+2. **Adopt retained output.** When island version, compatible declaration
+   version, instance identity, declaration artifact, data revision, scope
+   policy, source fidelity, and render boundaries agree, the existing rendered
+   range is retained and client invalidation takes over without an initial
+   rerender.
 
 DOM-native hydration data and rendered output must agree on revision identity.
-On mismatch, retained output is not trusted. The runtime renders from the island
-when the island schema is understood; it never reconstructs payload from the
-stale output.
+On mismatch, retained output is not trusted. The declaration-version fallback
+renders only from an understood island; it never reconstructs payload from stale
+output. Other invalid or unsafe identity conditions continue to fail closed.
 
 Structured-clone `DataIslandSnapshot` records remain valid processing-boundary
 transport for workers, Edge, or other non-DOM hosts. They are derived from the

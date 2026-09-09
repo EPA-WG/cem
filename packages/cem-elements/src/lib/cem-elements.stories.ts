@@ -5047,7 +5047,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             declarationTag: 'cem-element-story-ssr',
             producedTag: 'story-ssr-card',
             innerHTML: templateHtml,
-            declarationAttributes: { scope: 'hydration-group' },
+            declarationAttributes: { scope: 'hydration-group', version: '1.5.0' },
             runtimeOptions: {
                 scopePolicyStamp: 'story-scope',
                 privacyPolicyStamp: 'story-privacy',
@@ -5056,6 +5056,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         const snapshot = projectionSnapshot('story-ssr-card', { label: 'Server Card' });
         snapshot.instanceId = 'ssr-instance-1';
         snapshot.declarationTag = 'cem-element-story-ssr';
+        snapshot.declarationVersion = '1.2.3';
         snapshot.templateArtifactId = runtime.snapshotInstance(
             document.createElement('story-ssr-card') as HTMLElement
         ).templateArtifactId;
@@ -5172,6 +5173,13 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             'hydration data is serialized as HTML DOM inside the instance data island'
         );
         assertEqual(
+            island.content.querySelector(
+                'cem-hydration\\:data > cem-hydration\\:field[name="declarationVersion"]'
+            )?.textContent,
+            '1.2.3',
+            'a caret-compatible SSR declaration version is retained in the adopted island'
+        );
+        assertEqual(
             island.content.querySelector('[slot="detail"]')?.textContent,
             'Server detail',
             'client hydration keeps the same instance data island payload'
@@ -5186,6 +5194,103 @@ const SsrHydrationFromSerializedSnapshot: Story = {
         await waitForCondition(
             () => requiredElement(instance, 'article.ssr-card').querySelector('h2')?.textContent === 'Client Card',
             'client-side invalidation takes over after hydration'
+        );
+    },
+};
+
+const SsrHydrationRerendersIncompatibleDeclarationVersion: Story = {
+    render: () =>
+        storyPanel(
+            'SSR declaration version fallback',
+            'an understood island rendered by an incompatible declaration version is regenerated in the browser'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        canvasElement.appendChild(root);
+        const templateHtml =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="ssr-version-card"><h2>${$label}</h2></article>';
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-ssr-version-fallback',
+            scopePolicyStamp: 'story-scope',
+            privacyPolicyStamp: 'story-privacy',
+        });
+        runtime.install(window);
+        const declaration = document.createElement('cem-element-story-ssr-version-fallback');
+        declaration.setAttribute('tag', 'story-ssr-version-card');
+        declaration.setAttribute('version', '2.0.0');
+        const declarationTemplate = document.createElement('template');
+        declarationTemplate.innerHTML = templateHtml;
+        declaration.appendChild(declarationTemplate);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const sourceTemplate = document.createElement('template');
+        sourceTemplate.innerHTML = templateHtml;
+        const snapshot = projectionSnapshot('story-ssr-version-card', {
+            label: 'Server Card',
+            version: 'instance-data',
+        });
+        snapshot.instanceId = 'ssr-version-instance-1';
+        snapshot.declarationTag = 'cem-element-story-ssr-version-fallback';
+        snapshot.declarationVersion = '1.9.0';
+        snapshot.templateArtifactId = runtime.snapshotInstance(
+            document.createElement('story-ssr-version-card') as HTMLElement
+        ).templateArtifactId;
+        snapshot.dataRevision = '4';
+        const serverNodes = Array.from(
+            materializeRenderPlan(
+                projectTemplate(readTemplateSource(sourceTemplate.content), {
+                    snapshot,
+                    values: { label: 'Server Card' },
+                }),
+                document
+            ).childNodes
+        );
+        const serverArticle = serverNodes.find((node) => node.nodeType === Node.ELEMENT_NODE) as Element | undefined;
+        serverArticle?.setAttribute('data-ssr-retained', 'incompatible-version');
+
+        const instance = document.createElement('story-ssr-version-card');
+        instance.setAttribute('label', 'Server Card');
+        instance.setAttribute('version', 'instance-data');
+        const island = document.createElement('template');
+        island.setAttribute('data-cem-island', 'instance');
+        writeDataIslandHydrationData(island, snapshot);
+        instance.append(
+            island,
+            document.createComment('cem-render-start'),
+            ...serverNodes,
+            document.createComment('cem-render-end')
+        );
+        root.appendChild(instance);
+
+        await runtime.whenRenderSettled(instance);
+
+        assertDiagnostic(
+            runtime.diagnosticsFor(instance),
+            'cem-element.hydration_declaration_version_incompatible'
+        );
+        assertEqual(
+            requiredElement(instance, 'article.ssr-version-card').hasAttribute('data-ssr-retained'),
+            false,
+            'the browser replaces rather than adopts output from an incompatible declaration version'
+        );
+        assertEqual(
+            island.content.querySelector(
+                'cem-hydration\\:data > cem-hydration\\:field[name="declarationVersion"]'
+            )?.textContent,
+            '2.0.0',
+            'the replacement island records the browser declaration version'
+        );
+        assertEqual(
+            runtime.declarationVersionFor(instance),
+            '2.0.0',
+            'runtime introspection exposes the effective declaration version without claiming an instance attribute'
+        );
+        assertEqual(
+            instance.getAttribute('version'),
+            'instance-data',
+            'the produced instance version attribute remains available for component-owned data'
         );
     },
 };
@@ -5297,6 +5402,7 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
         runtime.install(window);
         const declaration = document.createElement('cem-element-story-ssr-incomplete');
         declaration.setAttribute('tag', 'story-ssr-incomplete-card');
+        declaration.setAttribute('version', '1.0.0');
         const declTemplate = document.createElement('template');
         declTemplate.innerHTML = templateHtml;
         declaration.appendChild(declTemplate);
@@ -5309,6 +5415,7 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
         const snapshot = projectionSnapshot('story-ssr-incomplete-card', { label: 'Server Card' });
         snapshot.instanceId = 'ssr-incomplete-instance-1';
         snapshot.declarationTag = 'cem-element-story-ssr-incomplete';
+        snapshot.declarationVersion = '1.0.0';
         snapshot.templateArtifactId = runtime.snapshotInstance(
             document.createElement('story-ssr-incomplete-card') as HTMLElement
         ).templateArtifactId;
@@ -6136,6 +6243,7 @@ const EdgeRenderStateHybridStorageModel: Story = {
 /** Deferred Phase 3.5 cases are registered by the dedicated Edge/SSR CSF. */
 export const edgeSsrStories = {
     SsrHydrationFromSerializedSnapshot,
+    SsrHydrationRerendersIncompatibleDeclarationVersion,
     SsrHydrationRejectsUnsupportedSnapshotVersion,
     SsrHydrationRejectsIncompleteMarkup,
     EdgePatchFramesFromSerializedSnapshot,

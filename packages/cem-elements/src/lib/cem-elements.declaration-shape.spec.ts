@@ -6,6 +6,7 @@ import {
     analyzeDeclarationRegistration,
     analyzeDeclarationRegistrationIdentity,
     analyzeDeclarationShape,
+    areCemDeclarationVersionsCompatible,
 } from './cem-elements.js';
 
 describe('cem-element declarative capability contract', () => {
@@ -110,12 +111,65 @@ describe('cem-element declaration shape contract', () => {
             frame: 'decl:Bad-Tag',
         });
     });
+
+    it('accepts an optional exact SemVer declaration version and rejects malformed values', () => {
+        const versioned = analyzeDeclarationShape({
+            tag: 'story-versioned-shape',
+            version: '1.2.3-beta.1+browser.4',
+            src: null,
+            directTemplateCount: 1,
+            directLiveNodeCount: 0,
+        });
+        expect(versioned.ok).toBe(true);
+        expect(versioned.version).toBe('1.2.3-beta.1+browser.4');
+
+        const versionless = analyzeDeclarationShape({
+            tag: 'story-versionless-shape',
+            src: null,
+            directTemplateCount: 1,
+            directLiveNodeCount: 0,
+        });
+        expect(versionless.ok).toBe(true);
+        expect(versionless.version).toBeNull();
+
+        for (const version of ['1', '1.2', '01.2.3', '1.2.03', '1.2.3-', 'v1.2.3', '^1.2.3']) {
+            const invalid = analyzeDeclarationShape({
+                tag: 'story-invalid-version-shape',
+                version,
+                src: null,
+                directTemplateCount: 1,
+                directLiveNodeCount: 0,
+            });
+            expect(invalid.ok).toBe(false);
+            expect(codes(invalid)).toContain('cem-element.version_invalid');
+        }
+    });
+});
+
+describe('cem-element declaration version compatibility', () => {
+    it('uses caret-style SemVer compatibility bands', () => {
+        expect(areCemDeclarationVersionsCompatible('1.2.3', '1.9.0')).toBe(true);
+        expect(areCemDeclarationVersionsCompatible('1.2.3', '2.0.0')).toBe(false);
+        expect(areCemDeclarationVersionsCompatible('0.2.3', '0.2.9')).toBe(true);
+        expect(areCemDeclarationVersionsCompatible('0.2.3', '0.3.0')).toBe(false);
+        expect(areCemDeclarationVersionsCompatible('0.0.3', '0.0.3+browser.1')).toBe(true);
+        expect(areCemDeclarationVersionsCompatible('0.0.3', '0.0.4')).toBe(false);
+    });
+
+    it('makes missing, malformed, and differing prerelease versions non-adoptable', () => {
+        expect(areCemDeclarationVersionsCompatible(undefined, '1.2.3')).toBe(false);
+        expect(areCemDeclarationVersionsCompatible('1.2.3', null)).toBe(false);
+        expect(areCemDeclarationVersionsCompatible('latest', '1.2.3')).toBe(false);
+        expect(areCemDeclarationVersionsCompatible('1.2.3-beta.1', '1.2.3-beta.2')).toBe(false);
+        expect(areCemDeclarationVersionsCompatible('1.2.3-beta.1+ssr', '1.2.3-beta.1+browser')).toBe(true);
+    });
 });
 
 describe('cem-element declaration registration contract', () => {
     it('content-addresses source, language, tag, and an explicit browser behavior identity', () => {
         const base = {
             tag: 'cem-button',
+            declarationVersion: '1.2.3',
             resolvedTemplateSource: '{button | Save}',
             templateLanguage: 'cem-ml' as const,
             hasBehavior: false,
@@ -129,6 +183,7 @@ describe('cem-element declaration registration contract', () => {
         const identities = [
             identity.registrationIdentity,
             analyzeDeclarationRegistrationIdentity({ ...base, tag: 'cem-link' }).registrationIdentity,
+            analyzeDeclarationRegistrationIdentity({ ...base, declarationVersion: '1.2.4' }).registrationIdentity,
             analyzeDeclarationRegistrationIdentity({
                 ...base,
                 resolvedTemplateSource: '{button | Delete}',
