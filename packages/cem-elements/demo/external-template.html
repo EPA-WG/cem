@@ -6,6 +6,13 @@
     <title>http-request Declarative Custom Element implementation demo</title>
     <link rel="icon" href="./wc-square.svg"/>
 
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+            }
+        }
+    </script>
     <script type="module">
         import { installCemElementRuntime } from '../dist/index.js';
         installCemElementRuntime(window);

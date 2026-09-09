@@ -19,6 +19,7 @@ use crate::schema::registry::{
 };
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::syntax::{source_syntax_ast_stream, SourceSyntaxTokenAst};
 use crate::validation::css::{
     CssDocumentAst, CssDocumentSource, CssEncodingReportAst, CssEventAst, CssFact,
 };
@@ -2820,6 +2821,9 @@ pub enum CemtEvaluatorSequenceRef<'a> {
         content_type: &'a str,
         package: XmlFamilyMarkupPackage,
     },
+    SourceSyntaxTokens {
+        tokens: Arc<[SourceSyntaxTokenAst]>,
+    },
     YamlParseFacts {
         facts: &'a [YamlDocumentParseFact],
     },
@@ -2983,6 +2987,7 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                 package,
                 ..
             } => xml_family_markup_tokens(*document, *index, *package).len(),
+            Self::SourceSyntaxTokens { tokens } => tokens.len(),
             Self::YamlParseFacts { facts } => facts.len(),
             Self::YamlDirectives { directives } => directives.len(),
             Self::YamlComments { comments } => comments.len(),
@@ -3132,6 +3137,9 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                         package: *package,
                     })
                 }),
+            Self::SourceSyntaxTokens { tokens } => tokens.get(index).cloned().map(|token| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::SourceSyntaxToken { token })
+            }),
             Self::YamlParseFacts { facts } => facts.get(index).map(|fact| {
                 CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlParseFact { fact })
             }),
@@ -3551,6 +3559,9 @@ pub enum CemtEvaluatorRecordRef<'a> {
         content_type: &'a str,
         package: XmlFamilyMarkupPackage,
     },
+    SourceSyntaxToken {
+        token: SourceSyntaxTokenAst,
+    },
     XmlFamilySourceRange {
         byte_offset: u64,
         byte_length: u64,
@@ -3751,6 +3762,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::XmlAttribute { .. }
             | Self::HtmlAttribute { .. }
             | Self::XmlFamilyMarkupToken { .. }
+            | Self::SourceSyntaxToken { .. }
             | Self::XmlFamilySourceRange { .. }
             | Self::YamlDocument { .. }
             | Self::YamlSource { .. }
@@ -3846,6 +3858,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::XmlAttribute { .. }
             | Self::HtmlAttribute { .. }
             | Self::XmlFamilyMarkupToken { .. }
+            | Self::SourceSyntaxToken { .. }
             | Self::XmlFamilySourceRange { .. }
             | Self::YamlDocument { .. }
             | Self::YamlSource { .. }
@@ -4228,6 +4241,17 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::XmlFamilyMarkupToken { .. } => {
                 &["kind", "text", "role", "sourceRange", "sourceMap"]
             }
+            Self::SourceSyntaxToken { .. } => &[
+                "kind",
+                "text",
+                "role",
+                "contentType",
+                "formatter",
+                "colorizer",
+                "scopeDepth",
+                "sourceRange",
+                "sourceMap",
+            ],
             Self::XmlFamilySourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
             Self::YamlDocument { document } if document.line_ending.is_some() => &[
                 "kind",
@@ -4508,6 +4532,10 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "name",
                 "formatterProfile",
                 "formatterRole",
+                "contentType",
+                "formatter",
+                "colorizer",
+                "scopeDepth",
                 "sourceRange",
                 "memberIndex",
                 "eventIndex",
@@ -4781,6 +4809,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 content_type,
                 package,
             } => xml_family_markup_token_evaluator_field(token, content_type, *package, name),
+            Self::SourceSyntaxToken { token } => source_syntax_token_evaluator_field(token, name),
             Self::XmlFamilySourceRange {
                 byte_offset,
                 byte_length,
@@ -5705,6 +5734,7 @@ fn xml_family_document_evaluator_field_names(
             "encodingReport",
             "parseFacts",
             "events",
+            "syntaxTokens",
             "lineEnding",
             "recoveryCount",
         ],
@@ -5824,6 +5854,7 @@ fn xml_family_event_evaluator_field_names(
             "voidElement",
             "recovered",
             "markupTokens",
+            "embeddedSyntaxTokens",
             "sourceRange",
             "sourceMap",
         ],
@@ -5960,6 +5991,14 @@ fn xml_family_document_evaluator_field<'a>(
         "events" => Some(CemtEvaluatorValueRef::Sequence(
             CemtEvaluatorSequenceRef::XmlFamilyEvents { document },
         )),
+        "syntaxTokens" => match document {
+            XmlFamilyDocumentCemtSubjectRef::Html(document) => Some(
+                CemtEvaluatorValueRef::Sequence(CemtEvaluatorSequenceRef::SourceSyntaxTokens {
+                    tokens: html_document_source_syntax_tokens(document),
+                }),
+            ),
+            _ => None,
+        },
         "lineEnding" => Some(optional_string_evaluator_value(xml_family_line_ending(
             document,
         ))),
@@ -6474,6 +6513,24 @@ fn html_event_evaluator_field<'a>(
                 package: XmlFamilyMarkupPackage::Html,
             },
         )),
+        "embeddedSyntaxTokens" => {
+            let event_start = event.source_range.start.byte_offset as usize;
+            let event_end = event_start.saturating_add(event.source_range.byte_length as usize);
+            let tokens = html_document_source_syntax_tokens(document)
+                .iter()
+                .filter(|token| {
+                    token.scope_depth > 0
+                        && token.byte_offset >= event_start
+                        && token.end() <= event_end
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::SourceSyntaxTokens {
+                    tokens: Arc::from(tokens),
+                },
+            ))
+        }
         "sourceRange" => Some(xml_family_source_range_evaluator_value(
             event.source_range.start.byte_offset,
             event.source_range.byte_length,
@@ -6491,6 +6548,22 @@ fn html_event_evaluator_field<'a>(
     }
 }
 
+fn html_document_source_syntax_tokens(document: &HtmlDocumentAst) -> Arc<[SourceSyntaxTokenAst]> {
+    document
+        .source_syntax_tokens
+        .get_or_init(|| {
+            let tokens = source_syntax_ast_stream(
+                &document.source_text,
+                &document.source.content_type,
+                Some(&document.source.uri),
+            )
+            .map(|stream| stream.tokens)
+            .unwrap_or_default();
+            Arc::from(tokens)
+        })
+        .clone()
+}
+
 fn css_event_evaluator_field<'a>(
     event: &'a CssEventAst,
     name: &str,
@@ -6500,6 +6573,7 @@ fn css_event_evaluator_field<'a>(
         "depth" => Some(usize_evaluator_value(event.depth)),
         "kind" => Some(CemtEvaluatorValueRef::String(&event.kind)),
         "tokenKind" => Some(CemtEvaluatorValueRef::String(&event.token_kind)),
+        "semanticKind" => Some(CemtEvaluatorValueRef::String(event.semantic_kind.as_str())),
         "value" => Some(optional_string_evaluator_value(event.value.as_deref())),
         "lexeme" => Some(CemtEvaluatorValueRef::String(&event.lexeme)),
         "recovered" => Some(CemtEvaluatorValueRef::Boolean(event.recovered)),
@@ -6597,6 +6671,39 @@ fn xml_family_markup_token_evaluator_field<'a>(
         )),
         "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
             xml_family_source_map_from_coordinates(byte_offset, byte_length, content_type),
+        ))),
+        _ => None,
+    }
+}
+
+fn source_syntax_token_evaluator_field<'a>(
+    token: &SourceSyntaxTokenAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(token.kind)),
+        "text" => Some(CemtEvaluatorValueRef::OwnedString(Arc::from(
+            token.text.as_str(),
+        ))),
+        "role" => Some(CemtEvaluatorValueRef::String(token.role)),
+        "contentType" => Some(CemtEvaluatorValueRef::OwnedString(Arc::from(
+            token.content_type.as_str(),
+        ))),
+        "formatter" => Some(CemtEvaluatorValueRef::String(token.formatter)),
+        "colorizer" => Some(CemtEvaluatorValueRef::String(token.colorizer)),
+        "scopeDepth" => Some(usize_evaluator_value(token.scope_depth)),
+        "sourceRange" => Some(xml_family_source_range_evaluator_value(
+            token.byte_offset as u64,
+            token.byte_length as u64,
+            token.line,
+            token.column,
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            xml_family_source_map_from_coordinates(
+                token.byte_offset as u64,
+                token.byte_length as u64,
+                &token.content_type,
+            ),
         ))),
         _ => None,
     }
@@ -8111,6 +8218,16 @@ fn writer_token_metadata_evaluator_field<'a>(
         "formatterRole" => Some(optional_string_evaluator_value(
             metadata.formatter_role.as_deref(),
         )),
+        "contentType" => Some(optional_string_evaluator_value(
+            metadata.content_type.as_deref(),
+        )),
+        "formatter" => Some(optional_string_evaluator_value(
+            metadata.formatter.as_deref(),
+        )),
+        "colorizer" => Some(optional_string_evaluator_value(
+            metadata.colorizer.as_deref(),
+        )),
+        "scopeDepth" => Some(optional_u64_evaluator_value(metadata.scope_depth)),
         "sourceRange" => Some(match metadata.source_range.as_ref() {
             Some(range) => {
                 CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::WriterTokenSourceRange {

@@ -20,8 +20,8 @@ use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::validation::css::{
-    CssDocumentAst, CssDocumentSource, CssEncodingReportAst, CssEntryMode, CssEventAst,
-    CssSourcePosition, CssSourceRange,
+    annotate_css_semantic_kinds, CssDocumentAst, CssDocumentSource, CssEncodingReportAst,
+    CssEntryMode, CssEventAst, CssSemanticKindAst, CssSourcePosition, CssSourceRange,
 };
 use std::collections::BTreeMap;
 
@@ -2795,6 +2795,7 @@ impl<'a> ScssEvaluator<'a> {
             );
         }
         let byte_length = events.iter().map(|event| event.lexeme.len()).sum();
+        annotate_css_semantic_kinds(&mut events, CssEntryMode::Stylesheet);
         CssDocumentAst {
             source: CssDocumentSource {
                 uri: self.stylesheet.source.uri.clone(),
@@ -2861,6 +2862,7 @@ fn push_css_event(
         depth,
         kind: kind.to_owned(),
         token_kind: token_kind.to_owned(),
+        semantic_kind: CssSemanticKindAst::Raw,
         value: None,
         lexeme: lexeme.to_owned(),
         recovered: false,

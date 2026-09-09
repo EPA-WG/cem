@@ -285,11 +285,15 @@ export class CemDemoElement extends HTMLElement {
         const code = this.ownerDocument.createElement('code');
         code.className = `cem-source-code language-${type}`;
         code.dataset.language = type;
-        if (type === 'html' || type === 'cem-ml') {
+        if (type === 'html' || type === 'cem-ml' || type === 'css') {
             try {
                 const highlighted = await highlightCemSource(
                     source,
-                    type === 'html' ? 'text/html' : 'application/cem',
+                    type === 'html'
+                        ? 'text/html'
+                        : type === 'css'
+                          ? 'text/css'
+                          : 'application/cem',
                     this.#sourceUrl
                 );
                 code.innerHTML = highlighted.html;
@@ -456,6 +460,12 @@ cem-demo-element {
     );
     --cem-color-syntax-name: var(--cem-action-primary-active-background, #002f65);
     --cem-color-syntax-attribute: var(--cem-action-destructive-pending-background, #502400);
+    --cem-color-syntax-property: light-dark(
+        var(--cem-action-destructive-active-background, #b42318),
+        #9cdcfe
+    );
+    --cem-color-syntax-value: light-dark(#0451a5, #ce9178);
+    --cem-color-syntax-function: light-dark(#795e26, #dcdcaa);
     --cem-color-syntax-string: var(--cem-action-contextual-pending-background, #6a1b9a);
     --cem-color-syntax-number: var(--cem-palette-creativity-x, #6a1b9a);
     --cem-color-syntax-keyword: var(--cem-action-primary-pending-background, #002f65);
@@ -522,6 +532,20 @@ cem-demo-element code.cem-source-code > var {
     color: var(--cem-color-syntax-attribute);
     font-weight: 700;
 }
+cem-demo-element code.cem-source-code > dfn {
+    color: var(--cem-color-syntax-property);
+}
+cem-demo-element code.cem-source-code > data {
+    color: var(--cem-color-syntax-value);
+}
+cem-demo-element code.cem-source-code > kbd {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--cem-color-syntax-function);
+    font: inherit;
+}
 cem-demo-element code.cem-source-code > strong {
     color: var(--cem-color-syntax-keyword);
     font-weight: 600;
@@ -566,6 +590,12 @@ cem-demo-element > [slot="status"] {
         );
         --cem-color-syntax-name: var(--cem-action-primary-active-background, #d7e3ff);
         --cem-color-syntax-attribute: var(--cem-action-destructive-pending-background, #f0f070);
+        --cem-color-syntax-property: light-dark(
+            var(--cem-action-destructive-active-background, #ffb4ab),
+            #9cdcfe
+        );
+        --cem-color-syntax-value: light-dark(#0451a5, #ce9178);
+        --cem-color-syntax-function: light-dark(#795e26, #dcdcaa);
         --cem-color-syntax-string: var(--cem-action-contextual-pending-background, #e1bee7);
         --cem-color-syntax-number: var(--cem-palette-creativity-x, #e1bee7);
         --cem-color-syntax-keyword: var(--cem-action-primary-pending-background, #d7e3ff);

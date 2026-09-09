@@ -8,6 +8,7 @@ import basicDemoSource from '../demo/index.html?raw';
 import syntaxColoringDemoSource from '../demo/syntax-coloring.html?raw';
 import cemMlCompleteSource from '../demo/syntax/cem-ml-complete.cem?raw';
 import cemMlErrorSource from '../demo/syntax/cem-ml-error.cem?raw';
+import cssCompleteSource from '../demo/syntax/css-complete.css?raw';
 import htmlCompleteSource from '../demo/syntax/html-complete.html?raw';
 import htmlRecoverySource from '../demo/syntax/html-recovery.html?raw';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- The offline syntax fixture embeds the generated CEM theme used by the authored demo page.
@@ -196,6 +197,8 @@ export const ExternalSourceWithAutoType: Story = {
         const code = requiredRegion(demo, 'text').querySelector('code');
         await expect(code).toHaveAttribute('data-language', 'css');
         await expect(code).toHaveTextContent(source);
+        await expect(code?.querySelector(':scope > dfn')).toHaveTextContent('color');
+        await expect(code?.querySelector(':scope > data')).toHaveTextContent('rebeccapurple');
         await expect(demo.source).toBe(source);
     },
 };
@@ -344,12 +347,11 @@ export const OfflineDemoDocuments: Story = {
             throw new Error('Expected the same-origin syntax-coloring iframe');
         }
         const roleRows = syntaxDocument.querySelectorAll('[data-syntax-role]');
-        await expect(roleRows).toHaveLength(10);
+        await expect(roleRows).toHaveLength(13);
         const sourceModelKinds = Array.from(
             syntaxDocument.querySelectorAll('.syntax-model-key dd code'),
             (element) => element.textContent
         );
-        await expect(sourceModelKinds).toHaveLength(28);
         await expect(sourceModelKinds).toEqual(expect.arrayContaining([
             'Doctype',
             'StartElement',
@@ -377,6 +379,18 @@ export const OfflineDemoDocuments: Story = {
             'Directive',
             'RichContent',
             'Error',
+            'AtKeyword',
+            'Hash',
+            'IDHash',
+            'Percentage',
+            'Dimension',
+            'Function',
+            'BlockOpen',
+            'BlockClose',
+            'Selector',
+            'Property',
+            'CustomProperty',
+            'Value',
         ]));
 
         const htmlTags = sourceTags(syntaxDocument, '#html-syntax-complete');
@@ -386,6 +400,10 @@ export const OfflineDemoDocuments: Story = {
         const cemMlTags = sourceTags(syntaxDocument, '#cem-ml-syntax-complete');
         await expect(cemMlTags).toEqual(expect.arrayContaining([
             'strong', 'b', 'var', 'i', 'small',
+        ]));
+        const cssTags = sourceTags(syntaxDocument, '#css-syntax-complete');
+        await expect(cssTags).toEqual(expect.arrayContaining([
+            'strong', 'b', 'var', 'dfn', 'data', 'kbd', 'i', 'u', 'small', 'samp',
         ]));
         await expect(
             syntaxDocument.querySelector('#cem-ml-syntax-error')
@@ -425,6 +443,28 @@ export const OfflineDemoDocuments: Story = {
             await expect(htmlColors).toEqual(
                 syntaxRoleKeyColors(syntaxWindow, syntaxDocument)
             );
+            const cssSemanticColors = ['property', 'value', 'function'].map((role) =>
+                sourceRoleColor(
+                    syntaxWindow,
+                    syntaxDocument,
+                    '#css-syntax-complete',
+                    `syntax.${role}`
+                )
+            );
+            await expect(new Set(cssSemanticColors).size).toBe(3);
+            for (const [index, role] of ['property', 'value', 'function'].entries()) {
+                await expect(
+                    cssSemanticColors[index]
+                ).toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, role));
+            }
+            await expect(
+                sourceRoleColor(
+                    syntaxWindow,
+                    syntaxDocument,
+                    '#css-syntax-complete',
+                    'syntax.attribute'
+                )
+            ).toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'attribute'));
             await expect(
                 sourceRoleColor(
                     syntaxWindow,
@@ -478,6 +518,7 @@ function offlineDemoDocument(source: string): string {
         ['./syntax/html-recovery.html', sourceDataUrl('text/html', htmlRecoverySource)],
         ['./syntax/cem-ml-complete.cem', sourceDataUrl('application/cem', cemMlCompleteSource)],
         ['./syntax/cem-ml-error.cem', sourceDataUrl('application/cem', cemMlErrorSource)],
+        ['./syntax/css-complete.css', sourceDataUrl('text/css', cssCompleteSource)],
     ]);
 
     let documentSource = source
@@ -540,6 +581,9 @@ function sourceRoleTag(role: string): string {
     const tags: Record<string, string> = {
         'syntax.name': 'b',
         'syntax.attribute': 'var',
+        'syntax.property': 'dfn',
+        'syntax.value': 'data',
+        'syntax.function': 'kbd',
         'syntax.keyword': 'strong',
         'syntax.string': 'i',
         'syntax.number': 'u',

@@ -88,11 +88,60 @@ pub struct CssEventAst {
     pub depth: usize,
     pub kind: String,
     pub token_kind: String,
+    pub semantic_kind: CssSemanticKindAst,
     pub value: Option<String>,
     pub lexeme: String,
     pub recovered: bool,
     pub source_range: CssSourceRange,
     pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CssSemanticKindAst {
+    Raw,
+    Selector,
+    Property,
+    CustomProperty,
+    Value,
+    Function,
+}
+
+impl CssSemanticKindAst {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Raw => "raw",
+            Self::Selector => "selector",
+            Self::Property => "property",
+            Self::CustomProperty => "custom-property",
+            Self::Value => "value",
+            Self::Function => "function",
+        }
+    }
+}
+
+/// Semantic role declared by `css.format-document.role` for this AST event.
+///
+/// Source-oriented consumers use this native mirror of the schema formatter
+/// decision so an embedded CSS scope does not need a separate lexer or palette.
+pub(crate) fn css_event_semantic_role(event: &CssEventAst) -> &'static str {
+    match event.token_kind.as_str() {
+        "at-keyword" => "syntax.keyword",
+        "string" | "url" | "bad-string" | "bad-url" => "syntax.string",
+        "comment" => "syntax.comment",
+        "number" | "percentage" | "dimension" => "syntax.number",
+        "whitespace" | "presentation-gap" => "syntax.text",
+        _ => match event.semantic_kind {
+            CssSemanticKindAst::Selector => "syntax.name",
+            CssSemanticKindAst::Property => "syntax.property",
+            CssSemanticKindAst::CustomProperty => "syntax.attribute",
+            CssSemanticKindAst::Value => "syntax.value",
+            CssSemanticKindAst::Function => "syntax.function",
+            CssSemanticKindAst::Raw => match event.token_kind.as_str() {
+                "ident" | "id-hash" | "hash" => "syntax.name",
+                _ => "syntax.punctuation",
+            },
+        },
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -349,6 +398,7 @@ pub fn css_document_ast_from_source_bytes(
 
     let declared_charset = parameters.get("charset").cloned();
     let entry_mode = infer_entry_mode(&parameters, source, &events);
+    annotate_css_semantic_kinds(&mut events, entry_mode);
     let analysis_facts =
         collect_css_policy_facts(source, &line_index, declared_charset.as_deref(), entry_mode);
     for fact in analysis_facts {
@@ -495,6 +545,7 @@ fn collect_cssparser_events<'i, 't>(
                 "token".to_owned()
             },
             token_kind: metadata.token_kind.to_owned(),
+            semantic_kind: CssSemanticKindAst::Raw,
             value: metadata.value.clone(),
             lexeme: source.get(start..end).unwrap_or_default().to_owned(),
             recovered: metadata.recovered,
@@ -561,6 +612,7 @@ fn collect_cssparser_events<'i, 't>(
                     depth,
                     kind: "block-close".to_owned(),
                     token_kind: closing_kind.to_owned(),
+                    semantic_kind: CssSemanticKindAst::Raw,
                     value: None,
                     lexeme: source
                         .get(closing_start..outer_end)
@@ -657,6 +709,7 @@ fn normalize_lossless_events(source: &str, line_index: &LineIndex, events: &mut 
                 depth: event.depth,
                 kind: "trivia".to_owned(),
                 token_kind: "presentation-gap".to_owned(),
+                semantic_kind: CssSemanticKindAst::Raw,
                 value: None,
                 lexeme: source.get(cursor..start).unwrap_or_default().to_owned(),
                 recovered: false,
@@ -677,6 +730,7 @@ fn normalize_lossless_events(source: &str, line_index: &LineIndex, events: &mut 
             depth: 0,
             kind: "trivia".to_owned(),
             token_kind: "presentation-gap".to_owned(),
+            semantic_kind: CssSemanticKindAst::Raw,
             value: None,
             lexeme: source[cursor..].to_owned(),
             recovered: false,
@@ -692,6 +746,217 @@ fn normalize_lossless_events(source: &str, line_index: &LineIndex, events: &mut 
         source
     );
     *events = normalized;
+}
+
+/// Adds grammar-owned semantic context to the lossless CSS event stream.
+///
+/// `cssparser` owns token and balanced-block recovery. This pass works over
+/// that recovered tree: stylesheet preludes become selectors, declaration
+/// heads become properties, and declaration component values retain their
+/// value/function/custom-property identity. Keeping the context on each event
+/// lets schema formatters and source views share one decision instead of
+/// inferring CSS meaning from the rendered lexeme.
+pub(crate) fn annotate_css_semantic_kinds(events: &mut [CssEventAst], entry_mode: CssEntryMode) {
+    for event in events.iter_mut() {
+        event.semantic_kind = CssSemanticKindAst::Raw;
+    }
+    let end = events.len();
+    match entry_mode {
+        CssEntryMode::DeclarationList => classify_css_style_body(events, 0, end, 0),
+        CssEntryMode::Stylesheet | CssEntryMode::ScopedStyleBlock => {
+            classify_css_rule_list(events, 0, end, 0)
+        }
+    }
+}
+
+fn classify_css_rule_list(events: &mut [CssEventAst], start: usize, end: usize, depth: usize) {
+    let mut cursor = start;
+    while let Some(statement_start) = next_css_significant_event(events, cursor, end, depth) {
+        if events[statement_start].token_kind == "at-keyword" {
+            cursor = classify_css_at_rule(events, statement_start, end, depth);
+            continue;
+        }
+
+        let semicolon = next_css_event_kind(events, statement_start, end, depth, "semicolon");
+        let block_open = next_css_event_kind(events, statement_start, end, depth, "curly-open");
+        if semicolon.is_some_and(|semicolon| block_open.is_none_or(|open| semicolon < open)) {
+            cursor = semicolon.unwrap_or(statement_start).saturating_add(1);
+            continue;
+        }
+        let Some(block_open) = block_open else {
+            break;
+        };
+        classify_css_selector(events, statement_start, block_open);
+        let block_close = matching_css_block_close(events, block_open, end).unwrap_or(end);
+        classify_css_style_body(
+            events,
+            block_open.saturating_add(1),
+            block_close,
+            depth.saturating_add(1),
+        );
+        cursor = block_close.saturating_add(1);
+    }
+}
+
+fn classify_css_style_body(events: &mut [CssEventAst], start: usize, end: usize, depth: usize) {
+    let mut cursor = start;
+    while let Some(statement_start) = next_css_significant_event(events, cursor, end, depth) {
+        if events[statement_start].token_kind == "at-keyword" {
+            cursor = classify_css_at_rule(events, statement_start, end, depth);
+            continue;
+        }
+
+        let semicolon = next_css_event_kind(events, statement_start, end, depth, "semicolon");
+        let block_open = next_css_event_kind(events, statement_start, end, depth, "curly-open");
+        let colon =
+            next_css_event_kind(events, statement_start, end, depth, "colon").filter(|colon| {
+                semicolon.is_none_or(|semicolon| *colon < semicolon)
+                    && block_open.is_none_or(|block_open| *colon < block_open)
+            });
+        let starts_with_ident = events[statement_start].token_kind == "ident";
+        let custom_property =
+            starts_with_ident && css_event_is_custom_property(&events[statement_start]);
+        let declaration = starts_with_ident
+            && colon.is_some()
+            && (custom_property
+                || block_open.is_none()
+                || semicolon.is_some_and(|semicolon| {
+                    block_open.is_none_or(|block_open| semicolon < block_open)
+                }));
+
+        if declaration {
+            events[statement_start].semantic_kind = if custom_property {
+                CssSemanticKindAst::CustomProperty
+            } else {
+                CssSemanticKindAst::Property
+            };
+            let value_start = colon.unwrap_or(statement_start).saturating_add(1);
+            let value_end = semicolon.unwrap_or(end);
+            classify_css_value(events, value_start, value_end);
+            cursor = semicolon.map_or(end, |semicolon| semicolon.saturating_add(1));
+            continue;
+        }
+
+        if let Some(block_open) = block_open {
+            classify_css_selector(events, statement_start, block_open);
+            let block_close = matching_css_block_close(events, block_open, end).unwrap_or(end);
+            classify_css_style_body(
+                events,
+                block_open.saturating_add(1),
+                block_close,
+                depth.saturating_add(1),
+            );
+            cursor = block_close.saturating_add(1);
+        } else {
+            cursor = semicolon.map_or(statement_start.saturating_add(1), |semicolon| {
+                semicolon.saturating_add(1)
+            });
+        }
+    }
+}
+
+fn classify_css_at_rule(
+    events: &mut [CssEventAst],
+    at_keyword: usize,
+    end: usize,
+    depth: usize,
+) -> usize {
+    let semicolon = next_css_event_kind(events, at_keyword + 1, end, depth, "semicolon");
+    let block_open = next_css_event_kind(events, at_keyword + 1, end, depth, "curly-open");
+    let prelude_end = match (semicolon, block_open) {
+        (Some(semicolon), Some(block_open)) => semicolon.min(block_open),
+        (Some(semicolon), None) => semicolon,
+        (None, Some(block_open)) => block_open,
+        (None, None) => end,
+    };
+    classify_css_value(events, at_keyword.saturating_add(1), prelude_end);
+
+    if let Some(block_open) = block_open.filter(|open| semicolon.is_none_or(|semi| *open < semi)) {
+        let block_close = matching_css_block_close(events, block_open, end).unwrap_or(end);
+        classify_css_style_body(
+            events,
+            block_open.saturating_add(1),
+            block_close,
+            depth.saturating_add(1),
+        );
+        block_close.saturating_add(1)
+    } else {
+        semicolon.map_or(end, |semicolon| semicolon.saturating_add(1))
+    }
+}
+
+fn classify_css_selector(events: &mut [CssEventAst], start: usize, end: usize) {
+    for event in &mut events[start..end] {
+        if matches!(
+            event.token_kind.as_str(),
+            "ident" | "id-hash" | "hash" | "function-open"
+        ) {
+            event.semantic_kind = CssSemanticKindAst::Selector;
+        }
+    }
+}
+
+fn classify_css_value(events: &mut [CssEventAst], start: usize, end: usize) {
+    for event in &mut events[start..end] {
+        event.semantic_kind = match event.token_kind.as_str() {
+            "ident" if css_event_is_custom_property(event) => CssSemanticKindAst::CustomProperty,
+            "ident" | "id-hash" | "hash" => CssSemanticKindAst::Value,
+            "function-open" => CssSemanticKindAst::Function,
+            _ => continue,
+        };
+    }
+}
+
+fn css_event_is_custom_property(event: &CssEventAst) -> bool {
+    event
+        .value
+        .as_deref()
+        .unwrap_or(event.lexeme.as_str())
+        .starts_with("--")
+}
+
+fn next_css_significant_event(
+    events: &[CssEventAst],
+    start: usize,
+    end: usize,
+    depth: usize,
+) -> Option<usize> {
+    (start..end).find(|index| {
+        let event = &events[*index];
+        event.depth == depth
+            && event.kind != "block-close"
+            && !matches!(
+                event.token_kind.as_str(),
+                "whitespace" | "presentation-gap" | "comment"
+            )
+    })
+}
+
+fn next_css_event_kind(
+    events: &[CssEventAst],
+    start: usize,
+    end: usize,
+    depth: usize,
+    token_kind: &str,
+) -> Option<usize> {
+    (start..end).find(|index| {
+        let event = &events[*index];
+        event.depth == depth && event.token_kind == token_kind
+    })
+}
+
+fn matching_css_block_close(events: &[CssEventAst], open: usize, end: usize) -> Option<usize> {
+    let depth = events.get(open)?.depth;
+    let close_kind = match events[open].token_kind.as_str() {
+        "curly-open" => "curly-close",
+        "function-open" | "parenthesis-open" => "parenthesis-close",
+        "square-open" => "square-close",
+        _ => return None,
+    };
+    ((open + 1)..end).find(|index| {
+        let event = &events[*index];
+        event.depth == depth && event.kind == "block-close" && event.token_kind == close_kind
+    })
 }
 
 fn infer_entry_mode(
@@ -1344,6 +1609,19 @@ mod tests {
         (document.expect("typed CSS document"), diagnostics)
     }
 
+    fn event_with_lexeme<'a>(
+        document: &'a CssDocumentAst,
+        lexeme: &str,
+        occurrence: usize,
+    ) -> &'a CssEventAst {
+        document
+            .events
+            .iter()
+            .filter(|event| event.lexeme == lexeme)
+            .nth(occurrence)
+            .unwrap_or_else(|| panic!("missing CSS event {lexeme:?} occurrence {occurrence}"))
+    }
+
     #[test]
     fn css_document_ast_preserves_lossless_nested_component_events() {
         let source = "/* lead */\n.card:is(.active, [data-x=\"a,b\"]) { --gap: calc(1rem + 2px); }";
@@ -1368,6 +1646,102 @@ mod tests {
             .events
             .iter()
             .all(|event| { event.source_range.source_map().frames[0].source_id == SourceId(1) }));
+    }
+
+    #[test]
+    fn css_document_ast_roles_follow_declaration_and_nested_rule_context() {
+        let source = concat!(
+            ".card, #app {\n",
+            "  --accent: #312e81;\n",
+            "  color: var(--accent);\n",
+            "  display: grid;\n",
+            "  & .child:hover { border-color: red; }\n",
+            "}\n",
+            "@property --tone { syntax: \"<color>\"; inherits: false; initial-value: #fff; }",
+        );
+        let (document, diagnostics) = parse(source, "text/css");
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(
+            event_with_lexeme(&document, "card", 0).semantic_kind,
+            CssSemanticKindAst::Selector
+        );
+        assert_eq!(
+            event_with_lexeme(&document, "--accent", 0).semantic_kind,
+            CssSemanticKindAst::CustomProperty
+        );
+        assert_eq!(
+            event_with_lexeme(&document, "color", 0).semantic_kind,
+            CssSemanticKindAst::Property
+        );
+        assert_eq!(
+            event_with_lexeme(&document, "#312e81", 0).semantic_kind,
+            CssSemanticKindAst::Value
+        );
+        assert_eq!(
+            event_with_lexeme(&document, "var(", 0).semantic_kind,
+            CssSemanticKindAst::Function
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, ".", 0)),
+            "syntax.punctuation"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "card", 0)),
+            "syntax.name"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "--accent", 0)),
+            "syntax.attribute"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "#312e81", 0)),
+            "syntax.value"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "color", 0)),
+            "syntax.property"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "var(", 0)),
+            "syntax.function"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "--accent", 1)),
+            "syntax.attribute"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "grid", 0)),
+            "syntax.value"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "child", 0)),
+            "syntax.name"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "border-color", 0)),
+            "syntax.property"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "red", 0)),
+            "syntax.value"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "--tone", 0)),
+            "syntax.attribute"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "syntax", 0)),
+            "syntax.property"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "false", 0)),
+            "syntax.value"
+        );
+        assert_eq!(
+            css_event_semantic_role(event_with_lexeme(&document, "#fff", 0)),
+            "syntax.value"
+        );
     }
 
     #[test]

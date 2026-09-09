@@ -21,6 +21,7 @@ describe('module-url referrer demo source contract', () => {
         expect(() => JSON.parse(source ?? '')).not.toThrow();
         expect(JSON.parse(source ?? '{}')).toEqual({
             imports: {
+                '@epa-wg/cem-ml/wasm': '../../cem-ml-npm/dist/wasm/browser/cem_ml.js',
                 'demo-referrer-image': './lib-dir/Smiley.svg?referrer=default',
                 'demo-module-referrer': './module-referrer/component.js',
             },

@@ -142,6 +142,30 @@ button {
     font-weight: 700;
 }
 
+.syntax-role-key [data-syntax-role="property"] td:nth-child(2) {
+    color: light-dark(
+        var(--cem-action-destructive-active-background, #b42318),
+        #9cdcfe
+    );
+}
+
+.syntax-role-key [data-syntax-role="value"] td:nth-child(2) {
+    color: light-dark(#0451a5, #ce9178);
+}
+
+.syntax-role-key [data-syntax-role="function"] td:nth-child(2) {
+    color: light-dark(#795e26, #dcdcaa);
+}
+
+.syntax-role-key [data-syntax-role="function"] kbd {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+}
+
 .syntax-role-key [data-syntax-role="string"] td:nth-child(2) {
     color: var(--cem-action-contextual-pending-background, VisitedText);
 }

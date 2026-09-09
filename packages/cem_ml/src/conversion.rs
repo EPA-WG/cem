@@ -8051,6 +8051,10 @@ fn lower_materialized_writer_token_metadata(
             "name",
             "formatterProfile",
             "formatterRole",
+            "contentType",
+            "formatter",
+            "colorizer",
+            "scopeDepth",
             "sourceRange",
             "memberIndex",
             "eventIndex",
@@ -8104,6 +8108,10 @@ fn lower_materialized_writer_token_metadata(
         name: optional_typed_cemt_string(value, "name")?,
         formatter_profile: optional_typed_cemt_string(value, "formatterProfile")?,
         formatter_role: optional_typed_cemt_string(value, "formatterRole")?,
+        content_type: optional_typed_cemt_string(value, "contentType")?,
+        formatter: optional_typed_cemt_string(value, "formatter")?,
+        colorizer: optional_typed_cemt_string(value, "colorizer")?,
+        scope_depth: optional_typed_cemt_u64(value, "scopeDepth")?,
         source_range: value
             .field("sourceRange")
             .filter(|value| value.kind() != CemtEvaluatorValueKind::Null)
@@ -24838,6 +24846,95 @@ mod tests {
                 "{profile}"
             );
         }
+    }
+
+    #[test]
+    fn builtin_html_colorizer_switches_nested_ast_content_types_losslessly() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = br#"<template type="text/cem-ml">
+{style |```
+:host { --accent: #312e81; color: var(--accent); }
+```}
+{p @class=note |Hello}
+</template>"#;
+        let (document, diagnostics) = crate::validation::html::html_document_ast_from_source_bytes(
+            crate::validation::html::HtmlSourceValidationRequest {
+                bytes: source,
+                source_uri: "builtin:html-nested-content-color-output",
+                content_type: Some(HTML_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            cemt_color_profile: Some("html".to_owned()),
+            ..ScopeConfig::default()
+        };
+        let execution = execute_html_document_output_pipeline_with_environment(
+            &environment,
+            document.expect("HTML document"),
+            &target_scope,
+            Some("builtin:html-nested-content-color-output"),
+        );
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let colored = execution.colored_cem_tree.as_ref().expect("colored tree");
+        let nodes = colored.value["nodes"].as_array().expect("colored nodes");
+        for role in [
+            "syntax.name",
+            "syntax.attribute",
+            "syntax.property",
+            "syntax.value",
+            "syntax.function",
+        ] {
+            assert!(
+                nodes.iter().any(|node| {
+                    node["value"]["colorRole"] == role && node["style"]["colorRole"] == role
+                }),
+                "missing nested role {role}: {:?}",
+                colored.value
+            );
+        }
+        let css_token = nodes
+            .iter()
+            .find(|node| node["value"]["colorRole"] == "syntax.property")
+            .expect("CSS property token");
+        assert_eq!(
+            css_token["value"]["contentType"],
+            "text/css; mode=scoped-style-block"
+        );
+        assert_eq!(css_token["value"]["formatter"], "css.format-document");
+        assert_eq!(css_token["value"]["colorizer"], "css.color-document");
+        assert_eq!(css_token["value"]["scopeDepth"], 2);
+        let cem_token = nodes
+            .iter()
+            .find(|node| node["text"] == "style" && node["value"]["contentType"] == "text/cem-ml")
+            .expect("CEM-ML node token");
+        assert_eq!(cem_token["value"]["formatter"], "cem.format-tree");
+        assert_eq!(cem_token["value"]["colorizer"], "cem.color-tree");
+        assert_eq!(cem_token["value"]["scopeDepth"], 1);
+        let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+        for role in ["syntax.property", "syntax.value", "syntax.function"] {
+            assert!(
+                output.contains(&format!(r#"data-role="{role}""#)),
+                "missing rendered {role}: {output}"
+            );
+        }
+        assert_eq!(
+            colored_markup_text_content(output.strip_suffix('\n').unwrap_or(output)),
+            std::str::from_utf8(source).unwrap()
+        );
     }
 
     #[test]

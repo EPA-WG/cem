@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createReadStream } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -410,6 +410,37 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/hex-grid.html',
         checks: [
+            countAtLeast(
+                'cem-demo-element[legend="1. Responsive framework link honeycomb"] code.cem-source-code.language-html > b',
+                2,
+            ),
+            countAtLeast(
+                'cem-demo-element[legend="1. Responsive framework link honeycomb"] code.cem-source-code.language-html > var',
+                1,
+            ),
+            countAtLeast(
+                'cem-demo-element[legend="1. Responsive framework link honeycomb"] code.cem-source-code.language-html > i',
+                1,
+            ),
+            countExactly(
+                'cem-demo-element[legend="1. Responsive framework link honeycomb"] code.cem-source-code [class], cem-demo-element[legend="1. Responsive framework link honeycomb"] code.cem-source-code [data-role]',
+                0,
+            ),
+            computedStyle(
+                'cem-demo-element[legend="1. Responsive framework link honeycomb"] code.cem-source-code.language-html > b',
+                'color',
+                'rgb(0, 47, 101)',
+            ),
+            computedStyle(
+                'cem-demo-element[legend="1. Responsive framework link honeycomb"] code.cem-source-code.language-html > var',
+                'color',
+                'rgb(80, 36, 0)',
+            ),
+            computedStyle(
+                'cem-demo-element[legend="1. Responsive framework link honeycomb"] code.cem-source-code.language-html > i',
+                'color',
+                'rgb(106, 27, 154)',
+            ),
             countExactly('cem-demo-element[legend="1. Responsive framework link honeycomb"] cem-hex-grid .hex-link', 14),
             countExactly('cem-demo-element[legend="1. Responsive framework link honeycomb"] cem-hex-grid .hex-logo', 14),
             text('cem-demo-element[legend="1. Responsive framework link honeycomb"] cem-hex-grid .hex:last-child .hex-label', 'Next.js'),
@@ -451,6 +482,18 @@ const fixtureSpecs = [
             computedStyle('cem-demo-element[legend="6. Missing-image fallback"] .hex-logo', 'opacity', '0'),
             computedStyle('cem-demo-element[legend="6. Missing-image fallback"] .image-fallback', 'visibility', 'visible'),
             countExactly('cem-demo-element[legend="7. Wrapper DCE theme"] .hex-link', 3),
+            text(
+                'cem-demo-element[legend="7. Wrapper DCE theme"] code.cem-source-code.language-html > b',
+                'style',
+            ),
+            text(
+                'cem-demo-element[legend="7. Wrapper DCE theme"] code.cem-source-code.language-html > var',
+                '--cem-hex-background-start',
+            ),
+            text(
+                'cem-demo-element[legend="7. Wrapper DCE theme"] code.cem-source-code.language-html > u',
+                '1rem',
+            ),
             computedStyle('cem-demo-element[legend="7. Wrapper DCE theme"] .hex-label', 'color', 'rgb(30, 27, 75)'),
             computedStyle('cem-demo-element[legend="7. Wrapper DCE theme"] .theme-frame', 'backgroundColor', 'rgb(238, 242, 255)'),
             countExactly('cem-demo-element[legend="8. Image-button presentation"] .hex-link', 1),
@@ -884,7 +927,7 @@ const fixtureSpecs = [
                 'rgb(0, 128, 0)',
             ),
             computedStyle(
-                'cem-demo-element[legend="11. Descendant selectors stay inside the component"] b',
+                'cem-demo-element[legend="11. Descendant selectors stay inside the component"] [slot="demo"] b',
                 'color',
                 'rgb(0, 0, 139)',
             ),
@@ -1828,6 +1871,7 @@ console.log(
 
 async function verifySourceDocumentInventory() {
     const discovered = await demoHtmlPaths(resolve(repoRoot, 'packages/cem-elements/demo'));
+    await verifyDemoFormatterImportMaps(discovered);
     const declared = Array.from(
         new Set(
             sourceDocumentSpecs
@@ -1840,6 +1884,37 @@ async function verifySourceDocumentInventory() {
         const stale = declared.filter((path) => !discovered.includes(path));
         throw new Error(
             `source-loaded demo HTML inventory mismatch; missing contracts: ${missing.join(', ') || 'none'}; stale contracts: ${stale.join(', ') || 'none'}`,
+        );
+    }
+}
+
+async function verifyDemoFormatterImportMaps(paths) {
+    const expectedWasmPath = '/packages/cem-ml-npm/dist/wasm/browser/cem_ml.js';
+    const missing = [];
+    const invalid = [];
+    for (const documentPath of paths) {
+        const source = await readFile(resolve(repoRoot, documentPath.slice(1)), 'utf8');
+        if (!source.includes('cem-demo-element/dist/index.js')) continue;
+
+        const mapping = source.match(/"@epa-wg\/cem-ml\/wasm"\s*:\s*"([^"]+)"/u);
+        if (!mapping) {
+            missing.push(documentPath);
+            continue;
+        }
+        const resolvedPath = new URL(mapping[1], `https://fixture.test${documentPath}`).pathname;
+        const mappingIndex = source.indexOf(mapping[0]);
+        const firstModuleIndex = source.indexOf('<script type="module"');
+        if (
+            resolvedPath !== expectedWasmPath
+            || firstModuleIndex < 0
+            || mappingIndex > firstModuleIndex
+        ) {
+            invalid.push(`${documentPath} -> ${mapping[1]}`);
+        }
+    }
+    if (missing.length > 0 || invalid.length > 0) {
+        throw new Error(
+            `standalone demo formatter import-map mismatch; missing: ${missing.join(', ') || 'none'}; invalid or late: ${invalid.join(', ') || 'none'}`,
         );
     }
 }

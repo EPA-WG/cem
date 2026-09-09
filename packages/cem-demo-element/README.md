@@ -56,7 +56,7 @@ needs semantic formatting or live rendering. See [`demo/index.html`](./demo/inde
 > comes from the CEM-ML formatters; `cem-demo-element` does not define a
 > separate language set.
 
-HTML and CEM-ML use lossless semantic roles produced by CEM-ML. The default
+HTML, CEM-ML, and CSS use lossless semantic roles produced by CEM-ML. The default
 source theme derives those roles from CEM action and emotional tokens: bold tag
 names use `--cem-action-primary-active-background`; bold attribute/variable
 identifiers use `--cem-action-destructive-pending-background`; keywords use
@@ -64,15 +64,24 @@ identifiers use `--cem-action-destructive-pending-background`; keywords use
 `--cem-action-contextual-pending-background`; and errors use
 `--cem-action-destructive-hover-background`. Comments use `calm-x`, punctuation
 uses a subdued `conservative-x`, and numbers retain `creativity-x`.
+CSS declaration properties, ordinary values, and functions use separate
+IDE-inspired red/light-blue, blue/peach, and gold pairs. CSS custom-property
+definitions and `var()` references retain the bold variable role. The CSS
+parser records selector, property, custom-property, value, and function context
+on its lossless AST events; the source view does not infer those roles from
+token spelling alone.
 Highlighted source keeps classes on the enclosing `code.cem-source-code` only.
 Its compact native vocabulary is `b` for tag/name, `var` for
-attribute/variable, `strong` for keyword, `i` for string, `u` for number,
-`small` for comment, `samp` for source text, and `mark` for error; punctuation
-and raw source remain unwrapped. The semantic elements retain useful visual
+attribute/variable, `dfn` for CSS property, `data` for CSS value, `kbd` for CSS
+function, `strong` for keyword, `i` for string, `u` for number, `small` for
+comment, `samp` for source text, and `mark` for error; punctuation and raw
+source remain unwrapped. The semantic elements retain useful visual
 distinctions when CEM theme variables are unavailable.
 Override `--cem-color-syntax-punctuation`, `--cem-color-syntax-name`,
-`--cem-color-syntax-attribute`, `--cem-color-syntax-string`, or
-`--cem-color-syntax-comment` on an individual `cem-demo-element` to theme it.
+`--cem-color-syntax-attribute`, `--cem-color-syntax-property`,
+`--cem-color-syntax-value`, `--cem-color-syntax-function`,
+`--cem-color-syntax-string`, or `--cem-color-syntax-comment` on an individual
+`cem-demo-element` to theme it.
 The complete role and parser-event matrix, including native/light/dark and both
 contrast modes, is available in
 [`demo/syntax-coloring.html`](./demo/syntax-coloring.html).

@@ -1454,6 +1454,14 @@ pub struct CemTreeAstWriterTokenMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub formatter_role: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub colorizer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_depth: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_range: Option<CemTreeAstWriterTokenSourceRange>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub member_index: Option<u64>,
@@ -2602,6 +2610,11 @@ fn projection_token(event: &CssEventAst, source_id: &str) -> CemTreeAstNode {
         vec![
             projection_attribute("id", format!("token-{}", event.index), &event.source_map),
             projection_attribute("kind", &event.token_kind, &event.source_map),
+            projection_attribute(
+                "semantic-kind",
+                event.semantic_kind.as_str(),
+                &event.source_map,
+            ),
             projection_attribute("lexeme", &event.lexeme, &event.source_map),
             projection_attribute("source-id", source_id, &event.source_map),
             projection_attribute(

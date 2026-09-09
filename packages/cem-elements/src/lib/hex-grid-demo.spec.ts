@@ -30,6 +30,16 @@ const LOCAL_LOGOS = [
 ] as const;
 
 describe('hex-grid demo source contract', () => {
+    it('maps the local CEM-ML formatter before loading module scripts', () => {
+        const importMapIndex = DEMO_SOURCE.indexOf('"@epa-wg/cem-ml/wasm"');
+        const moduleScriptIndex = DEMO_SOURCE.indexOf('<script type="module">');
+        expect(importMapIndex).toBeGreaterThan(-1);
+        expect(DEMO_SOURCE).toContain(
+            '"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"',
+        );
+        expect(importMapIndex).toBeLessThan(moduleScriptIndex);
+    });
+
     it('documents the responsive honeycomb purpose and its related features', () => {
         const normalized = DEMO_SOURCE.replace(/\s+/gu, ' ');
         expect(normalized).toContain('Render responsive navigation as a honeycomb');
@@ -127,6 +137,8 @@ describe('hex-grid demo source contract', () => {
 
     it('lets a wrapper DCE theme a projected grid through public properties', () => {
         expect(DEMO_SOURCE).toContain('<cem-element tag="cem-themed-framework-grid">');
+        expect(DEMO_SOURCE).toContain('<template type="text/cem-ml">\n{style |```');
+        expect(DEMO_SOURCE).toContain('{section @class=theme-frame');
         expect(DEMO_SOURCE).toContain('{cem:project-payload @select=datadom.payload.nodes | }');
         expect(DEMO_SOURCE).toContain('--hex-start: var(--cem-hex-background-start, #dbeafe)');
         expect(DEMO_SOURCE).toContain('--hex-end: var(--cem-hex-background-end, #ccfbf1)');

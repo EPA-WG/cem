@@ -2709,10 +2709,14 @@ pub const TRANSFORM_TEMPLATE_COLOR_ROLES: &[&str] = &[
     "syntax.keyword",
     "syntax.name",
     "syntax.attribute",
+    "syntax.property",
+    "syntax.value",
+    "syntax.function",
     "syntax.punctuation",
     "syntax.string",
     "syntax.number",
     "syntax.comment",
+    "syntax.text",
     "syntax.raw",
     "data.field.1",
     "data.field.2",
@@ -4868,11 +4872,15 @@ fn transform_template_terminal_sgr_for_role(
             "source.highlight" | "source.secondary-highlight" => Some("7"),
             "syntax.keyword" => Some("1;35"),
             "syntax.name" | "syntax.attribute" => Some("36"),
+            "syntax.property" => Some("31"),
+            "syntax.value" => Some("34"),
+            "syntax.function" => Some("33"),
             "syntax.punctuation" => Some("2;37"),
             "syntax.string" | "status.success" | "diff.added" => Some("32"),
             "syntax.number" => Some("33"),
             "syntax.comment" => Some("2;32"),
             "syntax.raw" => Some("37"),
+            "syntax.text" => Some("37"),
             "data.field.1" => Some("36"),
             "data.field.2" => Some("32"),
             "data.field.3" => Some("33"),
@@ -4893,11 +4901,15 @@ fn transform_template_terminal_sgr_for_role(
             "source.highlight" | "source.secondary-highlight" => Some("7;38;5;33"),
             "syntax.keyword" => Some("1;38;5;141"),
             "syntax.name" | "syntax.attribute" => Some("38;5;81"),
+            "syntax.property" => Some("38;5;203"),
+            "syntax.value" => Some("38;5;75"),
+            "syntax.function" => Some("38;5;179"),
             "syntax.punctuation" => Some("2;38;5;244"),
             "syntax.string" | "status.success" | "diff.added" => Some("38;5;76"),
             "syntax.number" => Some("38;5;220"),
             "syntax.comment" => Some("2;38;5;108"),
             "syntax.raw" => Some("38;5;250"),
+            "syntax.text" => Some("38;5;250"),
             "data.field.1" => Some("38;5;75"),
             "data.field.2" => Some("38;5;76"),
             "data.field.3" => Some("38;5;208"),
@@ -4917,11 +4929,15 @@ fn transform_template_terminal_sgr_for_role(
             "source.highlight" | "source.secondary-highlight" => Some("7;38;2;30;90;180"),
             "syntax.keyword" => Some("1;38;2;128;88;190"),
             "syntax.name" | "syntax.attribute" => Some("38;2;0;130;145"),
+            "syntax.property" => Some("38;2;180;35;24"),
+            "syntax.value" => Some("38;2;4;81;165"),
+            "syntax.function" => Some("38;2;121;94;38"),
             "syntax.punctuation" => Some("2;38;2;96;105;120"),
             "syntax.string" | "status.success" | "diff.added" => Some("38;2;0;130;80"),
             "syntax.number" => Some("38;2;154;103;0"),
             "syntax.comment" => Some("2;38;2;84;130;84"),
             "syntax.raw" => Some("38;2;92;100;112"),
+            "syntax.text" => Some("38;2;32;33;36"),
             "data.field.1" => Some("38;2;42;117;221"),
             "data.field.2" => Some("38;2;0;130;80"),
             "data.field.3" => Some("38;2;196;92;0"),
@@ -5045,6 +5061,9 @@ fn transform_template_html_color_for_role(role: &str) -> &'static str {
         "source.highlight" | "source.secondary-highlight" => "#1e3a8a",
         "syntax.keyword" | "syntax.name" => "#002f65",
         "syntax.attribute" => "#502400",
+        "syntax.property" => "#b42318",
+        "syntax.value" => "#0451a5",
+        "syntax.function" => "#795e26",
         "syntax.punctuation" | "syntax.raw" => "#5f6368",
         "syntax.string" | "syntax.number" => "#6a1b9a",
         "syntax.comment" => "#006a6a",
@@ -5068,6 +5087,7 @@ fn transform_template_html_css_token_for_role(role: &str) -> Option<&'static str
         "syntax.keyword" => Some("--cem-action-primary-pending-background"),
         "syntax.name" => Some("--cem-action-primary-active-background"),
         "syntax.attribute" => Some("--cem-action-destructive-pending-background"),
+        "syntax.property" => Some("--cem-action-destructive-active-background"),
         "syntax.string" => Some("--cem-action-contextual-pending-background"),
         "syntax.number" => Some("--cem-palette-creativity-x"),
         "syntax.comment" => Some("--cem-palette-calm-x"),
@@ -38369,6 +38389,19 @@ mod tests {
         assert!(profile.non_color_cues);
         assert!(profile.supports_role("diagnostic.error"));
         assert!(profile.supports_role("syntax.token"));
+        for role in [
+            "syntax.property",
+            "syntax.value",
+            "syntax.function",
+            "syntax.text",
+        ] {
+            assert!(profile.supports_role(role), "missing {role}");
+            assert!(
+                transform_template_terminal_sgr_for_role(role, profile.terminal_capability)
+                    .is_some(),
+                "missing terminal treatment for {role}"
+            );
+        }
         profile.validate().expect("terminal profile is valid");
 
         let linked_profile =
@@ -38453,6 +38486,22 @@ mod tests {
         assert!(profile.fragment_safe);
         assert!(profile.non_color_cues);
         assert!(profile.supports_role("diff.added"));
+        for role in [
+            "syntax.property",
+            "syntax.value",
+            "syntax.function",
+            "syntax.text",
+        ] {
+            assert!(profile.supports_role(role), "missing {role}");
+            assert!(
+                transform_template_html_css_var_style_for_role(
+                    role,
+                    &transform_template_color_role_class(role)
+                )
+                .contains("--cem-color-"),
+                "missing HTML treatment for {role}"
+            );
+        }
         profile.validate().expect("HTML profile is valid");
 
         let inline = TransformTemplateColorOutputProfile::html_from_selector("inline-style")

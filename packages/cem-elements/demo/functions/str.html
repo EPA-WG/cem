@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CEM-QL string functions demo</title>
     <link rel="stylesheet" href="../demo.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+            }
+        }
+    </script>
     <script type="module">
         import { installCemElementRuntime } from '../../dist/index.js';
         installCemElementRuntime(window);

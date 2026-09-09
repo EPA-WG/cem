@@ -124,22 +124,29 @@
     {function @name="css.format-document.role" @visibility="private" @returns="string" @deterministic=true |
         {param @name="event" @type="object" @required=true}
         {body |
-            {$ match($event.tokenKind, {
-                "at-keyword": "syntax.keyword",
-                ident: "syntax.name",
-                "id-hash": "syntax.name",
-                hash: "syntax.name",
-                string: "syntax.string",
-                url: "syntax.string",
-                "bad-string": "syntax.string",
-                "bad-url": "syntax.string",
-                comment: "syntax.comment",
-                number: "syntax.number",
-                percentage: "syntax.number",
-                dimension: "syntax.number",
-                whitespace: "syntax.text",
-                "presentation-gap": "syntax.text",
-                default: "syntax.punctuation"
+            {$ match($event.semanticKind, {
+                selector: "syntax.name",
+                property: "syntax.property",
+                "custom-property": "syntax.attribute",
+                value: "syntax.value",
+                function: "syntax.function",
+                default: match($event.tokenKind, {
+                    "at-keyword": "syntax.keyword",
+                    ident: "syntax.name",
+                    "id-hash": "syntax.name",
+                    hash: "syntax.name",
+                    string: "syntax.string",
+                    url: "syntax.string",
+                    "bad-string": "syntax.string",
+                    "bad-url": "syntax.string",
+                    comment: "syntax.comment",
+                    number: "syntax.number",
+                    percentage: "syntax.number",
+                    dimension: "syntax.number",
+                    whitespace: "syntax.text",
+                    "presentation-gap": "syntax.text",
+                    default: "syntax.punctuation"
+                })
             }) }
         }
     }

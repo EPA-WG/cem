@@ -8,11 +8,12 @@ use crate::schema::registry::{
 use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::syntax::SourceSyntaxTokenAst;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 const HTML_PACKAGE_ID: &str = "html";
 const HTML_FACT_BEHAVIOR: &str = "html-report-fact";
@@ -27,6 +28,12 @@ pub struct HtmlSourceValidationRequest<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HtmlDocumentAst {
     pub source: HtmlDocumentSource,
+    /// Decoded source retained for lossless nested content-type formatter
+    /// handoffs. Byte ranges on events and child AST streams index this text.
+    pub source_text: String,
+    /// Lazily built once for formatter/colorizer presentation. Validation owns
+    /// the HTML AST; the generic syntax dispatcher owns nested language ASTs.
+    pub source_syntax_tokens: OnceLock<Arc<[SourceSyntaxTokenAst]>>,
     pub mode: HtmlDocumentMode,
     pub encoding_report: HtmlEncodingReportAst,
     pub events: Vec<HtmlEventAst>,
@@ -893,6 +900,8 @@ pub fn html_document_ast_from_source_bytes(
     });
     let ast = HtmlDocumentAst {
         source: source_info,
+        source_text: source.to_owned(),
+        source_syntax_tokens: OnceLock::new(),
         mode,
         encoding_report: HtmlEncodingReportAst {
             mime_charset,

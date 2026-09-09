@@ -1,0 +1,33 @@
+/* Lossless CSS tokens and grammar-owned semantic contexts. */
+@property --brand-color {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: #312e81;
+}
+
+:root,
+.card#featured:is([data-state~="ready"], [lang|="en"]) {
+    --brand-color: #312e81;
+    --space: 1.5rem;
+    color: var(--brand-color, rebeccapurple);
+    background-image: linear-gradient(135deg, #f5f3ff 0%, rgb(224 231 255) 100%);
+    inline-size: calc(100% - var(--space));
+    opacity: 0.85;
+    content: "CSS value";
+
+    & > .child:hover,
+    & [data-kind^="callout"][data-kind$="wide"][data-kind*="out"] {
+        border-color: color-mix(in srgb, var(--brand-color) 70%, white);
+        background-image: url(./texture.svg);
+    }
+}
+
+@media screen and (width >= 48rem) {
+    .card { display: grid; }
+}
+
+@keyframes reveal {
+    from { translate: 0 1rem; }
+    50% { opacity: 0.5; }
+    to { translate: 0; }
+}

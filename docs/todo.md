@@ -490,6 +490,86 @@ registration identities may reuse an inherited or existing definition.
       canonical workflow fragments, while the shared Storybook suite verifies
       its exact inventory, highlighted source, live primitives, and rebased
       native resource URLs.
+- [x] Restore semantic source coloring on standalone `cem-elements` demos.
+    - [x] Map the local `@epa-wg/cem-ml/wasm` dependency before module scripts
+          in every authored demo page that loads `cem-demo-element`.
+    - [x] Fixture the shared import-map contract across the complete demo
+          inventory and semantic source tokens on the standalone hex-grid page.
+    - Completed 2026-09-09: all 16 standalone demo pages now resolve the local
+      CEM-ML WASM formatter before module loading. Static inventory validation
+      rejects missing, late, or misresolved mappings, and the real-browser
+      hex-grid fixture verifies native name, attribute, and string tokens and
+      their computed syntax colors.
+- [x] Dispatch source formatting and coloring through nested AST content-type
+      scopes.
+    - [x] Treat an HTML `<template type="text/cem-ml">` body as a bounded
+          CEM-ML scope, then resume HTML formatting after its closing tag.
+    - [x] Treat a CEM-ML `style` rich-content body as scoped `text/css` and
+          apply the CSS formatter/colorizer roles inside its fence.
+    - [x] Fixture the nested HTML → CEM-ML → CSS transitions in hex-grid
+          Example 7 without introducing demo-only markup.
+    - Completed 2026-09-09: source highlighting now builds bounded child
+      content-type scopes from the parent HTML/CEM-ML AST, dispatches each body
+      to its language parser and formatter/colorizer role mapping, rebases the
+      resulting spans, and resumes the parent language at the closing boundary.
+      Native, unit, Storybook browser, and standalone demo fixtures cover the
+      HTML → CEM-ML → scoped CSS path in hex-grid Example 7.
+- [x] Distinguish CSS declaration keys and values with AST-owned source roles.
+    - [x] Record selector, property-name, declaration-value, function, and
+          custom-property contexts on lossless CSS AST events.
+    - [x] Drive the CSS schema formatter and native source colorizer from the
+          winning AST context while preserving number, string, comment, and
+          diagnostic roles.
+    - [x] Add compact semantic HTML hooks and independently overridable colors
+          for CSS properties, values, and functions.
+    - [x] Extend the syntax-coloring decision demo and fixtures with standard
+          declarations, custom-property definitions/references, functions,
+          hashes, nesting, and `@property` coverage.
+    - Completed 2026-09-09: CSS lossless events now carry a winning semantic
+      context used by both the schema formatter and native source highlighter.
+      `cem-demo-element` sends standalone CSS through the local WASM formatter,
+      renders properties/values/functions as compact `dfn`/`data`/`kbd` hooks,
+      and exposes independently overridable IDE-inspired light/dark colors while
+      retaining CEM action tokens where their light-mode meaning aligns. Native
+      formatter/colorizer tests, lint and typecheck targets, all 10 demo-element
+      and 148 cem-elements Storybook cases, and the 17-page/23-document browser
+      fixture matrix pass.
+- [x] Make every source formatter/colorizer follow AST-owned content-type
+      switches through one generic syntax stream.
+    - [x] Extract the HTML, CEM-ML, and CSS scope dispatcher from the browser
+          source-view API into a reusable, lossless AST token stream.
+    - [x] Preserve each token's active content type, semantic role, source
+          range, and parent-owned return boundary across nested scopes.
+    - [x] Feed the same stream to the lifecycle formatter/colorizer pipeline so
+          CLI HTML presentation invokes CEM-ML and CSS roles inside typed
+          embedded content, then resumes the parent formatter.
+    - [x] Prove HTML → CEM-ML → scoped CSS role switching and byte-for-byte
+          visible-source parity in native and CLI regression tests.
+    - Completed 2026-09-09: the public lossless source-syntax AST stream now
+      carries each token's active content type, formatter/colorizer identity,
+      semantic role, absolute source range, and scope depth. HTML lifecycle
+      presentation consumes that same stream for typed template bodies, so the
+      parent HTML formatter yields to CEM-ML, CEM-ML yields to scoped CSS, and
+      each parent resumes at its AST-owned boundary without changing visible
+      source bytes. All 2,012 `cem-ml` library tests and the focused real CLI
+      nested-content conversion regression pass.
+- [x] Define CLI-driven whole-page CEM SSR compilation over the shared
+      `cem-element` lifecycle.
+    - [x] Separate deployed page URL, source URI, and output destination in the
+          transform-graph contract, including directory fan-out.
+    - [x] Define HTML, CEM-ML, and `.cem.md` ingress plus CEMT orchestration,
+          shared render-plan execution, data-island serialization, hydration,
+          formatter/colorizer, policy, and parity boundaries.
+    - [x] Publish an implementation sequence, diagnostics contract, command and
+          transform-config examples, and acceptance matrix as a proposal.
+    - Completed 2026-09-09: `docs/cem-ml-cli-ssr-proposal.md` defines a
+      config-first CEMT transform over a shared native lifecycle intrinsic,
+      binary-first SSR page artifact, separate source/page/output identities,
+      HTML/CEM-ML/`.cem.md` inputs, single-file and directory routing, DOM-safe
+      HTML formatting, non-deployable colorized sidecars, and zero-rerender
+      hydration parity. It also defines exact tag-registered CEMT SSR
+      participants so `cem-demo-element` can transform its inert payload before
+      the generic lifecycle renders the activated inner DCEs.
 - [ ] Enforce one-to-one source-loaded Storybook coverage for every authored
       sample in `packages/cem-elements/index.html` and every HTML document under
       `packages/cem-elements/demo/`, following the current data-slices and

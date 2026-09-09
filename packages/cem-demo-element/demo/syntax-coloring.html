@@ -21,11 +21,12 @@
     <a href="./advanced.html">Advanced use</a>
     <strong>Syntax coloring</strong>
 </nav>
-<h1>HTML and CEM-ML syntax coloring</h1>
+<h1>HTML, CEM-ML, and CSS syntax coloring</h1>
 <p>
-    This decision page puts every HTML event/markup-token family and every CEM-ML
-    tokenizer family on the same emotional palette. It is intentionally broad:
-    use it when changing role assignments, theme mappings, or contrast.
+    This decision page puts HTML event/markup-token families, CEM-ML tokenizer
+    families, and CSS lexical and grammar-owned semantic contexts on one
+    palette. It is intentionally broad: use it when changing role assignments,
+    theme mappings, or contrast.
 </p>
 
 <form class="theme-switch" aria-label="Syntax color theme">
@@ -58,12 +59,19 @@
     <code>--cem-action-destructive-hover-background</code>.
 </p>
 <p>
+    CSS property keys use an IDE-inspired red/light-blue pair; ordinary values
+    use blue/peach. CSS functions use a gold pair. These colors remain explicit
+    when no close CEM emotional token exists.
+</p>
+<p>
     The rendered source uses native elements as its compact visual vocabulary:
     <code>&lt;b&gt;</code> for tags, <code>&lt;var&gt;</code> for attributes and
-    variables, <code>&lt;strong&gt;</code> for keywords, <code>&lt;i&gt;</code> for
+    variables, <code>&lt;dfn&gt;</code> for CSS properties,
+    <code>&lt;data&gt;</code> for CSS values, <code>&lt;kbd&gt;</code> for CSS
+    functions, <code>&lt;strong&gt;</code> for keywords, <code>&lt;i&gt;</code> for
     strings, <code>&lt;u&gt;</code> for numbers, <code>&lt;small&gt;</code> for
-    comments, <code>&lt;samp&gt;</code> for source text, and
-    <code>&lt;mark&gt;</code> for errors. Only the enclosing
+    comments, <code>&lt;samp&gt;</code> for source text, and <code>&lt;mark&gt;</code>
+    for errors. Only the enclosing
     <code>&lt;code&gt;</code> carries classes; punctuation and raw source remain
     unwrapped.
 </p>
@@ -101,6 +109,25 @@
                 <code>Error</code>
             </dd>
         </div>
+        <div>
+            <dt>CSS lossless events</dt>
+            <dd>
+                <code>AtKeyword</code>, <code>Ident</code>, <code>Hash</code>,
+                <code>IDHash</code>, <code>String</code>, <code>Url</code>,
+                <code>Number</code>, <code>Percentage</code>,
+                <code>Dimension</code>, <code>Comment</code>,
+                <code>Function</code>, <code>BlockOpen</code>,
+                <code>BlockClose</code>, and <code>Trivia</code>
+            </dd>
+        </div>
+        <div>
+            <dt>CSS semantic contexts</dt>
+            <dd>
+                <code>Selector</code>, <code>Property</code>,
+                <code>CustomProperty</code>, <code>Value</code>, and
+                <code>Function</code>
+            </dd>
+        </div>
     </dl>
 </section>
 
@@ -125,6 +152,21 @@
                 <th><code>syntax.attribute</code></th>
                 <td><code><var>$variable class data-state</var></code></td>
                 <td><code>--cem-action-destructive-pending-background</code></td>
+            </tr>
+            <tr data-syntax-role="property">
+                <th><code>syntax.property</code></th>
+                <td><code><dfn>color inline-size</dfn></code></td>
+                <td>IDE-inspired red/light-blue pair</td>
+            </tr>
+            <tr data-syntax-role="value">
+                <th><code>syntax.value</code></th>
+                <td><code><data>grid rebeccapurple #312e81</data></code></td>
+                <td>IDE-inspired blue/peach pair</td>
+            </tr>
+            <tr data-syntax-role="function">
+                <th><code>syntax.function</code></th>
+                <td><code><kbd>var( calc( color-mix(</kbd></code></td>
+                <td>IDE-inspired gold pair</td>
             </tr>
             <tr data-syntax-role="string">
                 <th><code>syntax.string</code></th>
@@ -231,6 +273,23 @@
             legend="4. CEM-ML tokenizer error"
             src="./syntax/cem-ml-error.cem"
             type="cem-ml"
+        ></cem-demo-element>
+    </section>
+
+    <section>
+        <h2>CSS AST surface</h2>
+        <p>
+            Covers selectors, at-rules, declaration properties, custom-property
+            definitions and references, identifiers, hashes, strings, numeric
+            forms, functions, URLs, selector operators, nesting, and blocks.
+            <a href="./syntax/css-complete.css">Open the source specimen</a>.
+        </p>
+        <cem-demo-element
+            id="css-syntax-complete"
+            class="source-only"
+            legend="5. CSS tokens and semantic contexts"
+            src="./syntax/css-complete.css"
+            type="css"
         ></cem-demo-element>
     </section>
 </main>

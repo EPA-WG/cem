@@ -13720,6 +13720,65 @@ This document has **strong** text and a link.
     }
 
     #[test]
+    fn convert_html_colorizer_switches_typed_template_and_css_ast_scopes() {
+        let source = r#"<template type="text/cem-ml">
+{style |```
+:host { --accent: #312e81; color: var(--accent); }
+```}
+{p @class=note |Hello}
+</template>"#;
+        let p = write_fixture("convert-html-nested-content-types.html", source);
+        let out_path = std::env::temp_dir()
+            .join("cem-ml-cli-tests/convert-html-nested-content-types.out.html");
+        let _ = std::fs::remove_file(&out_path);
+        let input_spec = format!(
+            "uri={},contentType=text/html,schema={}",
+            p.display(),
+            cem_ml::schema::registry::HTML_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/html",
+                "--to-schema",
+                cem_ml::schema::registry::HTML_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--cemt-color-profile",
+                "html",
+                "--out",
+                out_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        for role in [
+            "syntax.name",
+            "syntax.attribute",
+            "syntax.property",
+            "syntax.value",
+            "syntax.function",
+        ] {
+            assert!(
+                written.contains(&format!(r#"data-role="{role}""#)),
+                "missing {role}: {written}"
+            );
+        }
+        assert_eq!(
+            html_text_content(written.strip_suffix('\n').unwrap_or(&written)),
+            source
+        );
+    }
+
+    #[test]
     fn convert_xhtml_same_schema_uses_dedicated_lifecycle_output_pipeline() {
         let source = r#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg"><head/><body><br/><svg:svg><svg:path/></svg:svg></body></html>"#;
         let p = write_fixture("convert-xhtml-same-schema.xhtml", source);

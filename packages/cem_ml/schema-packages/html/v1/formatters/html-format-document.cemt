@@ -104,16 +104,45 @@
         {param @name="event" @type="object" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
-            {$ match(gt(length($event.markupTokens), 0), {
-                true: call("html.format-document.markup", { event: $event, profile: $profile }),
-                false: [call("html.format-document.token", {
-                    kind: concat("html.", match(typeOf($event.kind), { string: $event.kind, default: "raw" })),
-                    text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
-                    role: call("html.format-document.role", { event: $event }),
-                    sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
-                    value: call("html.format-document.event-value", { event: $event, profile: $profile })
-                })]
+            {$ match(gt(length($event.embeddedSyntaxTokens), 0), {
+                true: call("html.format-document.embedded-syntax", { event: $event, profile: $profile }),
+                false: match(gt(length($event.markupTokens), 0), {
+                    true: call("html.format-document.markup", { event: $event, profile: $profile }),
+                    false: [call("html.format-document.token", {
+                        kind: concat("html.", match(typeOf($event.kind), { string: $event.kind, default: "raw" })),
+                        text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
+                        role: call("html.format-document.role", { event: $event }),
+                        sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                        value: call("html.format-document.event-value", { event: $event, profile: $profile })
+                    })]
+                })
             }) }
+        }
+    }
+
+    {function @name="html.format-document.embedded-syntax" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($event.embeddedSyntaxTokens, [], extend(
+                $acc,
+                [call("html.format-document.token", {
+                    kind: concat("embedded.", $item.kind),
+                    text: $item.text,
+                    role: $item.role,
+                    sourceMap: match(exists($item.sourceMap), { true: $item.sourceMap, false: null }),
+                    value: merge(
+                        call("html.format-document.event-value", { event: $event, profile: $profile }),
+                        {
+                            contentType: $item.contentType,
+                            formatter: $item.formatter,
+                            colorizer: $item.colorizer,
+                            scopeDepth: $item.scopeDepth,
+                            sourceRange: match(exists($item.sourceRange), { true: $item.sourceRange, false: null })
+                        }
+                    )
+                })]
+            )) }
         }
     }
 

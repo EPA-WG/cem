@@ -208,6 +208,34 @@ async function assertPresentationModes(host: HTMLElement): Promise<void> {
     );
 
     const wrapper = requiredElement(host, `cem-demo-element[legend="${WRAPPER_LEGEND}"]`);
+    const wrapperSource = requiredElement(wrapper, 'code.cem-source-code.language-html');
+    const wrapperNames = Array.from(
+        wrapperSource.querySelectorAll('b'),
+        (token) => token.textContent ?? '',
+    );
+    const wrapperNumbers = Array.from(
+        wrapperSource.querySelectorAll('u'),
+        (token) => token.textContent ?? '',
+    );
+    const wrapperVariables = Array.from(
+        wrapperSource.querySelectorAll('var'),
+        (token) => token.textContent ?? '',
+    );
+    assertEqual(wrapperNames.includes('style'), true, 'typed template enters the CEM-ML scope');
+    assertEqual(wrapperNames.includes('section'), true, 'CEM-ML resumes after the style scope');
+    assertEqual(
+        wrapperVariables.includes('--cem-hex-background-start'),
+        true,
+        'style rich content enters the CSS custom-property scope',
+    );
+    assertEqual(wrapperNumbers.includes('1rem'), true, 'CSS dimensions use the CSS number role');
+    assertEqual(
+        Array.from(wrapperSource.querySelectorAll('i')).some((token) =>
+            (token.textContent ?? '').includes('--cem-hex-background-start')
+        ),
+        false,
+        'scoped CSS is not colored as one CEM-ML string',
+    );
     const wrapperFrame = requiredElement(wrapper, '.theme-frame');
     const wrapperLink = requiredElement(wrapper, '.hex-link');
     const wrapperSibling = requiredElement(wrapper, '.hex:nth-child(2) .hex-link');
