@@ -18,6 +18,18 @@ and the protected `0.1.0-rc.2` release, remote-byte verification, lane isolation
 and same-run recovery evidence are recorded in
 [`cem-ml-release-rehearsal-0.1.0-rc.2.md`](cem-ml-release-rehearsal-0.1.0-rc.2.md).
 
+## Native Markdown Documentation Builds
+
+- [x] Replace the npm `markdown-it` documentation generator with the typed
+      CEM-ML Markdown-to-HTML graph for `cem-theme` and `cem_ml`.
+    - [x] Preserve heading anchors, images, link titles, XHTML page structure,
+          source Markdown copies, static assets, source maps, and relative
+          `.md` to `.xhtml` deployment links.
+    - [x] Route generated token-coverage Markdown through the same CEMT XHTML
+          page layout and remove the now-unused npm Markdown dependencies.
+    - [x] Add focused native/CLI regression coverage and run the affected Nx
+          documentation and theme gates.
+
 The Phase 3 WASM topology is already decided: Option B, one dedicated browser
 worker, is primary; Option A, main-thread WASM, is the required fallback. The
 registration boundary is also locked: logical declaration lookup is scoped and

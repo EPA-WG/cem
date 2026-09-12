@@ -25,7 +25,7 @@
           id="cem-controls-template"
           data-token-url="../../../dist/lib/tokens/cem-controls.xhtml"
           data-slices="geometry=cem-controls-geometry progress=cem-progress-geometry slider=cem-slider-geometry overrides=cem-controls-geometry-overrides">
-{table |
+{table @id=cem-controls-geometry |
     {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-1-baseline-balanced-mode" | cem-controls-geometry} — visual control geometry (balanced baseline)}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.geometry" @as="row" |
@@ -38,7 +38,7 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-progress-geometry |
     {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#cem-progress-geometry" | cem-progress-geometry} — non-interactive progress graphic geometry}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.progress" @as="row" |
@@ -51,7 +51,7 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-slider-geometry |
     {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#cem-slider-geometry" | cem-slider-geometry} — slider visual geometry}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.slider" @as="row" |
@@ -64,7 +64,7 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-controls-geometry-overrides |
     {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-4-coupling-mode-overrides-visual-geometry-only" | cem-controls-geometry-overrides} — coupling mode overrides (visual geometry only)}
     {thead | {tr | {th | Token}{th | forgiving}{th | compact}}}
     {tbody | {cem:for-each @select="$datadom.slices.overrides" @as="row" |

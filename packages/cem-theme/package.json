@@ -36,15 +36,13 @@
         "!**/*.tsbuildinfo"
     ],
     "scripts": {
+        "build:docs": "../../dist/target/cem_ml_cli/debug/cem-ml transform --config src/docs.cem --quiet",
         "build:html": "node ../../tools/scripts/compile-html.mjs",
-        "build:css": "node ../../tools/scripts/compile-html.mjs && node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/cem-*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\" && node scripts/generate-token-coverage.mjs && node scripts/generate-css-index.mjs",
+        "build:css": "node ../../tools/scripts/compile-html.mjs && node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/cem-*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\" && node scripts/generate-token-coverage.mjs && ../../dist/target/cem_ml_cli/debug/cem-ml transform --config docs/generated-token-coverage.cem --quiet && node scripts/generate-css-index.mjs",
         "build:tokens": "node scripts/export-tokens.mjs"
     },
     "devDependencies": {
-        "chokidar": "5.0.0",
         "glob": "13.0.6",
-        "markdown-it": "14.1.1",
-        "markdown-it-anchor": "9.2.0",
         "playwright": "1.60.0",
         "postcss": "8.5.12"
     },

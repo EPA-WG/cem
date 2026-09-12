@@ -24,22 +24,22 @@
 <template type="cem-ml; version=0.0"
           id="cem-breakpoints-template"
           data-token-url="../../../dist/lib/tokens/cem-breakpoints.xhtml"
-          data-slices="basis=cem-bp-basis height=cem-bp-height cq=cem-bp-cq mediaRanges=cem-bp-media-ranges heightRanges=cem-bp-height-ranges">
-{table |
+          data-slices="basis=cem-bp-basis height=cem-bp-height active=cem-bp-active cq=cem-bp-cq mediaRanges=cem-bp-media-ranges heightRanges=cem-bp-height-ranges">
+{table @id=cem-bp-basis |
     {caption | {a @href="../../../dist/lib/tokens/cem-breakpoints.xhtml#5-1-basis-tokens-bounds" | cem-bp-basis} — width + epsilon basis tokens}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.basis" @as="row" |
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
 }
 {hr | }
-{table |
+{table @id=cem-bp-height |
     {caption | {a @href="../../../dist/lib/tokens/cem-breakpoints.xhtml#cem-bp-height" | cem-bp-height} — height basis tokens}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.height" @as="row" |
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
 }
 {hr | }
-{table |
+{table @id=cem-bp-cq |
     {caption | {a @href="../../../dist/lib/tokens/cem-breakpoints.xhtml#8-1-container-bounds-optional" | cem-bp-cq} — container query reference values}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.cq" @as="row" |

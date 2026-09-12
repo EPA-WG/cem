@@ -80,6 +80,15 @@ bypasses this import model is a deviation, not an alternate architecture. Such
 deviations MUST be tracked as remediation work and removed or narrowed until the
 observable behavior matches the generic source import contract.
 
+An input type may declare an implicit presentation conversion as part of generic
+document loading. Markdown is the initial case: source validation retains the
+Markdown AST, while a document consumer selects the registered Markdown-to-HTML
+edge, recovers the generated HTML into the native HTML document AST, and only
+then performs the same projection, query, transform, or SSR preparation used for
+an HTML source. File-extension fallback for `.md` and `.markdown` supplies
+`text/markdown; charset=utf-8; variant=CommonMark`; explicit loader metadata still
+takes precedence. A host command MUST NOT reimplement this lowering locally.
+
 ## Resource State
 
 Every external resource state exposed to templates MUST carry:

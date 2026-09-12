@@ -52,6 +52,7 @@ const MIME_TYPES = {
     '.xhtml': 'application/xhtml+xml',
     '.js': 'application/javascript',
     '.mjs': 'application/javascript',
+    '.wasm': 'application/wasm',
     '.css': 'text/css',
     '.json': 'application/json',
     '.xml': 'application/xml',

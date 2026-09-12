@@ -25,7 +25,7 @@
           id="cem-coupling-template"
           data-token-url="../../../dist/lib/tokens/cem-coupling.xhtml"
           data-slices="minimums=cem-coupling-minimums overrides=cem-coupling-halo-overrides">
-{table |
+{table @id=cem-coupling-minimums |
     {caption | {a @href="../../../dist/lib/tokens/cem-coupling.xhtml#4-1-hard-safety-minimums-policy-anchors" | cem-coupling-minimums} — hard safety minimums (mode-invariant)}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.minimums" @as="row" |
@@ -38,7 +38,7 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-coupling-halo-overrides |
     {caption | {a @href="../../../dist/lib/tokens/cem-coupling.xhtml#5-2-mode-switch-halo-policy" | cem-coupling-halo-overrides} — coupling mode halo overrides (visuals owned by D2c Controls)}
     {thead | {tr | {th | Token}{th | forgiving}{th | compact}}}
     {tbody | {cem:for-each @select="$datadom.slices.overrides" @as="row" |

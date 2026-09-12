@@ -42,17 +42,17 @@ Enforces UTF-8 encoding in Git operations:
 
 **Purpose**: Prevents Git from corrupting UTF-8 files during checkout/commit operations.
 
-### 3. Markdown Compilation Script
+### 3. Markdown Compilation
 
-The `tools/scripts/compile-markdown.mjs` explicitly specifies UTF-8:
+The CEM-ML transform graphs declare Markdown input as UTF-8 and export native text output:
 
-```javascript
-// Reading Markdown files
-const content = await readFile(srcPath, 'utf-8');
-
-// Writing XHTML files
-await writeFile(distPath, xhtml, 'utf-8');
+```cem
+{import @src="**/*.md"
+    @content-type="text/markdown; charset=utf-8; variant=GFM"
+    @schema="https://cem.dev/ns/data/markdown/1"}
 ```
+
+The CLI rejects invalid UTF-8 during typed Markdown loading instead of accepting replacement characters silently.
 
 ### 4. UTF-8 Validation Script
 

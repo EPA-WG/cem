@@ -31,7 +31,7 @@
           id="cem-shape-template"
           data-token-url="../../../dist/lib/tokens/cem-shape.xhtml"
           data-slices="basis=cem-shape-basis semantic=cem-shape-semantic pattern=cem-shape-pattern action=cem-shape-action-bindings sharp=cem-shape-mode-sharp round=cem-shape-mode-round">
-{table |
+{table @id=cem-shape-basis |
     {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#4-minimal-bend-basis-complexity-compliant" | cem-shape-basis} — bend basis tokens}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.basis" @as="row" |
@@ -44,7 +44,7 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-shape-semantic |
     {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#5-semantic-endpoints-product-facing-contract" | cem-shape-semantic} — role-first semantic endpoints}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.semantic" @as="row" |
@@ -57,22 +57,22 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-shape-pattern |
     {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#7-1-attachment-pattern-one-pattern-not-many-tokens" | cem-shape-pattern} — asymmetric attachment patterns}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.pattern" @as="row" |
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
 }
 {hr | }
-{table |
-    {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#6-2-mode-implementation-recommended" | cem-shape-mode-sharp} — data-cem-shape="sharp" overrides}
+{table @id=cem-shape-mode-sharp |
+    {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#6-2-mode-implementation-recommended" | cem-shape-mode-sharp} — `data-cem-shape="sharp"` overrides}
     {thead | {tr | {th | Token}{th | Override value}}}
     {tbody | {cem:for-each @select="$datadom.slices.sharp" @as="row" |
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}}}}
 }
 {hr | }
-{table |
-    {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#6-2-mode-implementation-recommended" | cem-shape-mode-round} — data-cem-shape="round" overrides}
+{table @id=cem-shape-mode-round |
+    {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#6-2-mode-implementation-recommended" | cem-shape-mode-round} — `data-cem-shape="round"` overrides}
     {thead | {tr | {th | Token}{th | Override value}}}
     {tbody | {cem:for-each @select="$datadom.slices.round" @as="row" |
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}}}}

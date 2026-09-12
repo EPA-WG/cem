@@ -9094,11 +9094,11 @@ mod tests {
         assert!(stderr.trim().is_empty(), "{stderr}");
         assert_eq!(
             std::fs::read_to_string(root.join("dist/first.html")).unwrap(),
-            "<h1>First</h1>\n<p>Hello <strong>CEM</strong>.</p>\n"
+            "<h1 id=\"first\" tabindex=\"-1\">First</h1>\n<p>Hello <strong>CEM</strong>.</p>\n"
         );
         assert_eq!(
             std::fs::read_to_string(root.join("dist/second.html")).unwrap(),
-            "<h1>Second</h1>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>\n"
+            "<h1 id=\"second\" tabindex=\"-1\">Second</h1>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>\n"
         );
         let source_map: serde_json::Value = serde_json::from_str(
             &std::fs::read_to_string(root.join("dist/first.html.map")).unwrap(),
@@ -9203,7 +9203,10 @@ mod tests {
         let html = std::fs::read_to_string(root.join("dist/index.html")).unwrap();
         let normalized = html.split_whitespace().collect::<Vec<_>>().join(" ");
         assert!(html.contains("<title>CEM Site</title>"), "{html}");
-        assert!(normalized.contains("<main><h1> CEM Site </h1>"), "{html}");
+        assert!(
+            normalized.contains("<main><h1 id=\"cem-site\" tabindex=\"-1\"> CEM Site </h1>"),
+            "{html}"
+        );
         assert!(normalized.contains("<strong> typed </strong>"), "{html}");
         assert!(!html.contains("&lt;h1"), "{html}");
         let source_map = std::fs::read_to_string(root.join("dist/index.html.map")).unwrap();
@@ -13992,9 +13995,9 @@ This document has **strong** text and a link.
     }
 
     #[test]
-    fn convert_markdown_to_html_embeds_cem_ml_svg() {
+    fn convert_markdown_path_implicitly_loads_html_dom_for_default_projection() {
         let p = write_fixture(
-            "convert-markdown-to-html-svg.md",
+            "convert-markdown-implicit-html-dom.md",
             r##"# Browser Markdown
 
 Markdown can produce browser HTML.
@@ -14008,59 +14011,49 @@ Markdown can produce browser HTML.
 ```
 "##,
         );
-        let out_path =
-            std::env::temp_dir().join("cem-ml-cli-tests/convert-markdown-to-html-svg.html");
-        let _ = std::fs::remove_file(&out_path);
-        let input_spec = format!(
-            "uri={},contentType=text/markdown; charset=utf-8; variant=CommonMark,schema={}",
-            p.display(),
-            cem_ml::schema::registry::MARKDOWN_SCHEMA_URI
-        );
 
-        let (outcome, stdout, stderr) = run(
-            &RealCemMlEngine::new(),
-            &[
-                "convert",
-                "--input-spec",
-                &input_spec,
-                "--to-content-type",
-                "text/html",
-                "--to-schema",
-                cem_ml::schema::registry::HTML_SCHEMA_URI,
-                "--cemt-formatter-profile",
-                "tabular",
-                "--cemt-color-profile",
-                "html",
-                "--out",
-                out_path.to_str().unwrap(),
-            ],
-        );
+        let (outcome, stdout, stderr) =
+            run(&RealCemMlEngine::new(), &["convert", p.to_str().unwrap()]);
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        assert!(stdout.trim().is_empty(), "{stdout}");
-        assert!(stderr.trim().is_empty(), "{stderr}");
-        let written = std::fs::read_to_string(&out_path).unwrap();
         assert!(
             !stderr.contains("cem.lifecycle.internal_ast_target_unsupported"),
             "{stderr}"
         );
-        let visible = html_text_content(&written);
-        assert!(visible.contains("<h1>Browser Markdown</h1>"), "{visible}");
-        assert!(visible.contains("<svg"), "{visible}");
-        assert!(visible.contains("<title>Inline SVG</title>"), "{visible}");
-        assert!(visible.contains("<path"), "{visible}");
         assert!(
-            written.contains(r#"data-role="syntax.name""#)
-                || written.contains(r#"data-role="syntax.punctuation""#),
-            "{written}"
+            !stderr.contains("cem.converter.edge_unavailable"),
+            "{stderr}"
         );
+        let projection: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        let projection = serde_json::to_string(&projection).unwrap();
+        for expected in [
+            r#""name":"h1""#,
+            r#""name":"svg""#,
+            r#""name":"title""#,
+            r#""name":"path""#,
+            "Browser Markdown",
+            "Inline SVG",
+        ] {
+            assert!(
+                projection.contains(expected),
+                "missing {expected}: {projection}"
+            );
+        }
     }
 
     #[test]
     fn convert_markdown_gfm_to_html_renders_tables_and_task_lists() {
         let p = write_fixture(
             "convert-markdown-gfm-to-html.md",
-            r#"# Worklog
+            r#"# Worklog & Images
+
+## Build status
+
+![CEM diagram](./diagram.svg "Architecture")
+
+[Release notes](./release.md "Release history")
+
+Reference: https://example.test/docs?q=a&b.
 
 | Task | Status |
 | --- | --- |
@@ -14095,9 +14088,30 @@ Markdown can produce browser HTML.
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(
+            stdout.contains(r#"<h1 id="worklog-images" tabindex="-1">Worklog &amp; Images</h1>"#),
+            "{stdout}"
+        );
+        assert!(
+            stdout.contains(r#"<h2 id="build-status" tabindex="-1">Build status</h2>"#),
+            "{stdout}"
+        );
+        assert!(
+            stdout.contains(r#"<img src="./diagram.svg" alt="CEM diagram" title="Architecture">"#),
+            "{stdout}"
+        );
+        assert!(
+            stdout.contains(r#"<a href="./release.md" title="Release history">Release notes</a>"#),
+            "{stdout}"
+        );
+        assert!(
+            stdout.contains(r#"<a href="https://example.test/docs?q=a&amp;b">https://example.test/docs?q=a&amp;b</a>."#),
+            "{stdout}"
+        );
         assert!(stdout.contains("<table>"), "{stdout}");
+        assert!(stdout.contains("<tbody>"), "{stdout}");
         assert!(stdout.contains("<thead>"), "{stdout}");
-        assert!(stdout.contains("<thead>\n<tr>\n<th>Task</th>"), "{stdout}");
+        assert!(stdout.contains("<thead>\n<tr><th>Task</th>"), "{stdout}");
         assert!(stdout.contains("<th>Task</th>"), "{stdout}");
         assert!(stdout.contains("<td>Schema validation</td>"), "{stdout}");
         assert!(
@@ -24404,6 +24418,31 @@ declare let broken = 1 +
     }
 
     #[test]
+    fn observe_events_markdown_path_uses_loaded_html_document() {
+        let p = write_fixture("observe-events-markdown.md", "# Heading\n\nText.\n");
+        let out_dir = std::env::temp_dir().join("cem-ml-cli-observe");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let out_path = out_dir.join("markdown-events.jsonl");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, _, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--observe-events",
+                out_path.to_str().unwrap(),
+                "parse",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let body = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            body.contains(r#""kind":"HtmlTokenizer""#),
+            "Markdown observation should enter the recovered HTML pipeline: {body}"
+        );
+    }
+
+    #[test]
     fn observe_events_file_uri_writes_jsonl_event_stream() {
         let p = write_fixture("observe-events-file-uri.cem", "{p | hi}");
         let out_dir = std::env::temp_dir().join("cem-ml-cli-observe-file-uri");
@@ -24855,7 +24894,6 @@ fn emit_observability_events(
     }
 
     let mut all_events: Vec<cem_ml::observability::ReportEvent> = Vec::new();
-    let registry = cem_ml::lifecycle::LifecycleRegistry::with_builtin_adapters();
     for input in inputs {
         let input = if input.bytes.is_empty() {
             match materialize_fixture_input(&context, &input) {
@@ -24880,7 +24918,7 @@ fn emit_observability_events(
         } else {
             input
         };
-        let loaded = registry.load(&input, &context);
+        let loaded = cem_ml::real::load_document_input(&input, &context);
         let observer = cem_ml::observability::BufferingObserver::new();
         let _ = cem_ml::real::observe_pipeline_scoped(
             &loaded.bytes,

@@ -15,7 +15,7 @@ export default [
             '{projectRoot}/vite.config.{js,ts,mjs,mts}',
             '{projectRoot}/vitest.config.{js,ts,mjs,mts}',
           ],
-          ignoredDependencies: ['playwright', 'markdown-it', 'markdown-it-anchor', 'postcss'],
+          ignoredDependencies: ['playwright', 'postcss'],
         },
       ],
     },

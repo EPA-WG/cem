@@ -45,7 +45,7 @@ artifacts; all generated projections stay under `dist/`.
 ┌─────────────────┐
 │  *.md (truth)   │
 └────────┬────────┘
-         │ build:docs (compile-markdown.mjs)
+         │ build:docs (CEM-ML transform graph)
          ▼
 ┌─────────────────┐         ┌──────────────────────────┐
 │  *.xhtml        │────────▶│  CSS pipeline (existing) │──▶ dist/lib/css/*.css
@@ -677,7 +677,7 @@ The pipeline extends — does not replace — what already exists:
 | `extractTable()`, `tokensFromTable()` | `packages/cem-theme/scripts/manifest-utils.mjs`         | Add `tokensFromTableWithValues()` capturing value cells, not just names + tier |
 | Validator pattern                     | `packages/cem-theme/scripts/validate-manifest.mjs`      | Mirror as `validate-platforms.mjs` for non-CSS outputs                         |
 | Playwright capture/debug scripts      | `tools/scripts/capture-xpath-text.mjs`, `debug-cem.mjs` | Model for CSS-backed computed-value capture in `export-tokens.mjs`             |
-| Markdown → XHTML compilation          | `tools/scripts/compile-markdown.mjs`                    | Unchanged; export pipeline reads its output                                    |
+| Markdown → XHTML compilation          | `src/docs.cem` + `tools/cemt/markdown-xhtml-page.cemt` | Native typed graph; export pipeline reads its XHTML output                     |
 | Nx target wiring                      | `packages/cem-theme/project.json`                       | Add `build:tokens` and `build:token-platforms` targets parallel to `build:css` |
 
 ### Nx target shape

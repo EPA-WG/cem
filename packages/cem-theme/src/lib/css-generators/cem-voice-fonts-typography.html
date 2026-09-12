@@ -11,7 +11,20 @@
         caption { font-size: 1.5rem; padding-bottom: 0.5rem; text-align: start; }
         tr>th:first-child { text-align: start; }
         code { color: green; font-weight: bold; }
-        .type-sample { display: inline-block; font-family: var(--cem-fontography-ui-family, system-ui, sans-serif); }
+        .sample-cell { min-width: 14rem; width: 18rem; }
+        .type-sample {
+            display: inline-block;
+            font-family: var(--cem-fontography-ui-family, system-ui, sans-serif);
+            letter-spacing: normal;
+            white-space: normal;
+        }
+        .type-sample-block { display: block; max-width: 18rem; white-space: normal; }
+        .sample-meter {
+            display: inline-block;
+            width: 6rem;
+            border-bottom: calc(2px * var(--sample-multiplier, 1)) solid currentColor;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -19,43 +32,108 @@
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
   datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
   cem_ql WASM boundary; no live browser XSLT. All token tables are td1=token td2=value td3=desc
-  td4=tier. The css-body is faithful; the preview tables are simplified (the legacy cosmetic
-  per-sample conditional rendering is dropped — it did not affect generated output).
+  td4=tier, except roles (td1=token td2=value td3=tier) and the dark/contrast override tables
+  (td1=token td2=value td3=description). Presentation previews and generated CSS are both derived
+  from those Markdown tables.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-voice-template"
           data-token-url="../../../dist/lib/tokens/cem-voice-fonts-typography.xhtml"
           data-slices="font=cem-typography-fontography thick=cem-typography-thickness size=cem-typography-size lh=cem-typography-line-height ls=cem-typography-letter-spacing feat=cem-typography-feature readerg=cem-typography-reading-ergonomics vink=cem-typography-voice-ink-thickness vicon=cem-typography-voice-icon-stroke-multiplier vvol=cem-typography-voice-speech-volume vrate=cem-typography-voice-speech-rate vpitch=cem-typography-voice-speech-pitch vssml=cem-typography-voice-ssml-emphasis roles=cem-typography-roles vinkdark=cem-typography-voice-ink-thickness-dark vinkcontrast=cem-typography-voice-ink-thickness-contrast">
-{table |
+{table @id=cem-typography-fontography |
     {caption | {a @href="../../../dist/lib/tokens/cem-voice-fonts-typography.xhtml#12-1-foundation" | cem-typography-fontography} — semantic family stacks}
     {thead | {tr | {th | Token}{th | Value}{th | Sample}{th | Tier}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.font" @as="row" |
         {tr |
             {th | {code | {$row.td1}}}
             {td | {code | {$row.td2}}}
-            {td | {span @class=type-sample @style="font-family: var({$row.td1});" | Reading UI 123}}
+            {td @class=sample-cell | {span @class=type-sample @style="font-family: var({$row.td1});" | Reading UI 123}}
             {td | {$row.td4}}
             {td | {$row.td3}}
         }}}
 }
 {hr | }
-{table |
-    {caption | typography primitives — thickness, size, line-height, letter-spacing, feature, reading-ergonomics}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.thick" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.size" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.lh" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.ls" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.feat" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.readerg" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
+{table @id=cem-typography-primitives |
+    {caption | thickness, size, line-height, letter-spacing, feature, reading-ergonomics}
+    {thead | {tr | {th | Token}{th | Value}{th | Sample}{th | Tier}{th | Description}}}
+    {tbody | {cem:for-each @select="(datadom.slices.thick,datadom.slices.size,datadom.slices.lh,datadom.slices.ls,datadom.slices.feat,datadom.slices.readerg)" @as="row" |
+        {tr |
+            {th | {code | {$row.td1}}}
+            {td | {code | {$row.td2}}}
+            {td @class=sample-cell |
+                {cem:choose |
+                    {cem:when @test='str:contains(row.td1, "thickness")' | {span @class=type-sample @style="font-weight: var({$row.td1});" | Weight Aa 123}}
+                    {cem:when @test='str:contains(row.td1, "-size-")' | {span @class=type-sample @style="font-size: var({$row.td1});" | Size Aa 123}}
+                    {cem:when @test='str:contains(row.td1, "line-height")' | {span @class="type-sample type-sample-block" @style="line-height: var({$row.td1});" | Line height example{br | }second line}}
+                    {cem:when @test='str:contains(row.td1, "letter-spacing")' | {span @class=type-sample @style="letter-spacing: var({$row.td1});" | TRACKING 123}}
+                    {cem:when @test='str:contains(row.td1, "numeric")' | {span @class=type-sample @style="font-variant-numeric: var({$row.td1});" | 1111 8888 12.34}}
+                    {cem:when @test='str:contains(row.td1, "ligatures")' | {span @class=type-sample @style="font-variant-ligatures: var({$row.td1});" | office affine ffi}}
+                    {cem:when @test='str:contains(row.td1, "optical-sizing")' | {span @class=type-sample @style="font-optical-sizing: var({$row.td1});" | Optical size}}
+                    {cem:when @test='str:contains(row.td1, "measure")' | {span @class="type-sample type-sample-block" @style="max-width: var({$row.td1});" | Readable measure example wraps only when the available table space is narrower than the token.}}
+                    {cem:when @test='str:contains(row.td1, "paragraph-gap")' |
+                        {span @class="type-sample type-sample-block" | Paragraph one.}
+                        {span @class="type-sample type-sample-block" @style="margin-top: var({$row.td1});" | Paragraph two.}
+                    }
+                    {cem:otherwise | {span @class=type-sample | Aa 123}}
+                }
+            }
+            {td | {$row.td4}}
+            {td | {$row.td3}}
+        }
+    }}
 }
 {hr | }
-{table |
-    {caption | voice metadata — ink-thickness, icon-stroke, speech volume/rate/pitch, ssml-emphasis}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.vink" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.vicon" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.vvol" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.vrate" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.vpitch" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.vssml" @as="row" |{tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
+{table @id=cem-typography-voice-channels |
+    {caption | voice channels — 7 voices × 6 channels (ink + speech)}
+    {thead | {tr | {th | Token}{th | Value}{th | Sample}{th | Tier}{th | Description}}}
+    {tbody | {cem:for-each @select="(datadom.slices.vink,datadom.slices.vicon,datadom.slices.vvol,datadom.slices.vrate,datadom.slices.vpitch,datadom.slices.vssml)" @as="row" |
+        {tr |
+            {th | {code | {$row.td1}}}
+            {td | {code | {$row.td2}}}
+            {td @class=sample-cell |
+                {cem:choose |
+                    {cem:when @test='str:contains(row.td1, "ink-thickness")' | {span @class=type-sample @style="font-weight: var({$row.td1});" | Voice ink Aa 123}}
+                    {cem:when @test='str:contains(row.td1, "icon-stroke-multiplier")' | {span @class=sample-meter @style="--sample-multiplier: var({$row.td1});" | }}
+                    {cem:when @test='str:contains(row.td1, "speech-volume")' | {span @class=type-sample @style="opacity: var({$row.td1});" | Speech volume {$row.td2}}}
+                    {cem:when @test='str:contains(row.td1, "speech-rate")' | {span @class=type-sample | Speech rate {$row.td2}}}
+                    {cem:when @test='str:contains(row.td1, "speech-pitch")' | {span @class=type-sample | Speech pitch {$row.td2}}}
+                    {cem:when @test='str:contains(row.td1, "ssml-emphasis")' | {span @class=type-sample | SSML emphasis: {$row.td2}}}
+                    {cem:otherwise | {span @class=type-sample | Voice value {$row.td2}}}
+                }
+            }
+            {td | {$row.td4}}
+            {td | {$row.td3}}
+        }
+    }}
 }
 {hr | }
-{table |
-    {caption | {a @href="../../../dist/lib/tokens/cem-voice-fonts-typography.xhtml#cem-typography-roles" | cem-typography-roles} — semantic role endpoints}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
+{table @id=cem-typography-roles |
+    {caption | semantic role endpoints — 8 roles × ~9-10 properties}
+    {thead | {tr | {th | Token}{th | Value}{th | Sample}{th | Tier}}}
     {tbody | {cem:for-each @select="$datadom.slices.roles" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
+        {tr |
+            {th | {code | {$row.td1}}}
+            {td | {code | {$row.td2}}}
+            {td @class=sample-cell |
+                {cem:choose |
+                    {cem:when @test='str:contains(row.td1, "font-family")' | {span @class=type-sample @style="font-family: var({$row.td1});" | Role family Aa 123}}
+                    {cem:when @test='str:contains(row.td1, "font-size")' | {span @class=type-sample @style="font-size: var({$row.td1});" | Role size Aa 123}}
+                    {cem:when @test='str:contains(row.td1, "line-height")' | {span @class="type-sample type-sample-block" @style="line-height: var({$row.td1});" | Role line height{br | }second line}}
+                    {cem:when @test='str:contains(row.td1, "letter-spacing")' | {span @class=type-sample @style="letter-spacing: var({$row.td1});" | ROLE TRACKING}}
+                    {cem:when @test='str:contains(row.td1, "font-weight")' | {span @class=type-sample @style="font-weight: var({$row.td1});" | Role weight Aa 123}}
+                    {cem:when @test='str:contains(row.td1, "font-variant-numeric")' | {span @class=type-sample @style="font-variant-numeric: var({$row.td1});" | 1111 8888 12.34}}
+                    {cem:when @test='str:contains(row.td1, "font-variant-ligatures")' | {span @class=type-sample @style="font-variant-ligatures: var({$row.td1});" | office affine ffi}}
+                    {cem:when @test='str:contains(row.td1, "text-transform")' | {span @class=type-sample @style="text-transform: var({$row.td1});" | role text}}
+                    {cem:when @test='str:contains(row.td1, "speech-volume")' | {span @class=type-sample @style="opacity: var({$row.td1});" | Speech volume {$row.td2}}}
+                    {cem:when @test='str:contains(row.td1, "speech-rate")' | {span @class=type-sample | Speech rate {$row.td2}}}
+                    {cem:when @test='str:contains(row.td1, "speech-pitch")' | {span @class=type-sample | Speech pitch {$row.td2}}}
+                    {cem:when @test='str:contains(row.td1, "ssml-emphasis")' | {span @class=type-sample | SSML emphasis: {$row.td2}}}
+                    {cem:otherwise | {span @class=type-sample | Role value {$row.td2}}}
+                }
+            }
+            {td | {$row.td3}}
+        }
+    }}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {

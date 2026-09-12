@@ -24,7 +24,7 @@
           id="cem-layering-template"
           data-token-url="../../../dist/lib/tokens/cem-layering.xhtml"
           data-slices="rungs=cem-layering-rungs semantic=cem-layering-semantic optional=cem-layering-semantic-optional forced=cem-layering-rungs-forced">
-{table |
+{table @id=cem-layering-rungs |
     {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#7-1-required-rung-tokens" | cem-layering-rungs} — signed-depth ladder (box-shadow recipes)}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.rungs" @as="row" |
@@ -37,15 +37,14 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-layering-semantic-table |
     {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#8-1-canonical-endpoints" | cem-layering-semantic} — required semantic endpoints}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.semantic" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.optional" @as="row" |
+    {tbody | {cem:for-each @select="(datadom.slices.semantic,datadom.slices.optional)" @as="row" |
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
 }
 {hr | }
-{table |
+{table @id=cem-layering-rungs-forced |
     {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#13-2-forced-colors" | cem-layering-rungs-forced} — forced-colors fallback}
     {thead | {tr | {th | Token}{th | Forced-colors value}}}
     {tbody | {cem:for-each @select="$datadom.slices.forced" @as="row" |

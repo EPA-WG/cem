@@ -92,6 +92,40 @@ fn assert_success(output: &Output) -> serde_json::Value {
 }
 
 #[test]
+fn query_markdown_path_uses_its_implicitly_loaded_html_dom() {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time after unix epoch")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("cem-ml-cli-markdown-query-{nanos}"));
+    fs::create_dir_all(&root).expect("create Markdown query test directory");
+    let data = root.join("guide.md");
+    fs::write(&data, "# Guide\n\nRead the **documentation**.\n")
+        .expect("write Markdown query data");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+        .arg("query")
+        .arg(&data)
+        .args([
+            "--query",
+            "h1",
+            "--query-content-type",
+            CSS_SELECTOR_CONTENT_TYPE,
+            "--query-schema",
+            CSS_SELECTOR_SCHEMA,
+            "--output",
+            "json",
+        ])
+        .output()
+        .expect("query implicitly loaded Markdown HTML DOM");
+    let result = assert_success(&output);
+
+    assert_eq!(result["language"], "css-selector");
+    assert_eq!(result["matches"].as_array().map(Vec::len), Some(1));
+    assert_eq!(result["matches"][0]["localName"], "h1");
+}
+
+#[test]
 fn query_executes_inline_css_selector_through_explicit_identity() {
     let (_root, data) = query_data();
     let result = assert_success(&run_query(

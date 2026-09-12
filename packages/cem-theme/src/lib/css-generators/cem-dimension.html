@@ -25,33 +25,32 @@
           id="cem-dimension-template"
           data-token-url="../../../dist/lib/tokens/cem-dimension.xhtml"
           data-slices="scale=cem-dim-scale gaps=cem-dim-gaps insets=cem-dim-insets rreading=cem-dim-rhythm-reading rdata=cem-dim-rhythm-data layout=cem-dim-layout overrides=cem-dim-spacing-overrides">
-{table |
+{table @id=cem-dim-scale |
     {caption | {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#5-1-primary-dimension-scale-semantic-css" | cem-dim-scale} — dimension scale}
     {thead | {tr | {th | Token}{th | Value}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.scale" @as="row" |
         {tr |
             {th | {code | {$row.td1}}}
-            {td @style="width:5rem; background-color: var(--cem-palette-comfort, #fff)" | {div @style="height: {$row.td2}; background: currentColor; min-height: 2px; max-height: 8rem;" @title="{$row.td1}" | }}
+            {td @style="width:5rem; background-color: var(--cem-palette-comfort, #fff)" | {div @style="height: {$row.td2}; background: currentColor; min-height: 2px; max-height: 8rem;" @title='{str:concat((row.td1, ": ", row.td2))}' | }}
             {td | {code | {$row.td2}} — {$row.td3}}
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-dim-spacing-endpoints |
     {caption | {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#6-1-relationship-gaps-between-items" | cem-dim-gaps} + {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#6-2-insets-inside-a-surface" | cem-dim-insets} — semantic spacing endpoints}
     {thead | {tr | {th | Token}{th | Value}{th | Swatch}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.gaps" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.insets" @as="row" |
+    {tbody | {cem:for-each @select="(datadom.slices.gaps,datadom.slices.insets)" @as="row" |
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}{td | {$row.td3}}}}}
 }
 {hr | }
-{table |
+{table @id=cem-dim-layout |
     {caption | {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#7-4-layout-token-table" | cem-dim-layout} — layout rhythm tokens}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.layout" @as="row" |
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
 }
 {hr | }
-{table |
+{table @id=cem-dim-spacing-overrides |
     {caption | {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#8-2-concrete-overrides-recommended-default-mapping" | cem-dim-spacing-overrides} — density mode overrides}
     {thead | {tr | {th | Token}{th | dense}{th | sparse}}}
     {tbody | {cem:for-each @select="$datadom.slices.overrides" @as="row" |

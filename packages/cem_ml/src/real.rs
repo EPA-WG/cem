@@ -947,7 +947,7 @@ fn load_schema_package_manifest_into_context(
     }
 
     let package_input = materialized_input(&package_input, context)?;
-    let loaded = load_input_through_lifecycle(&package_input, context);
+    let loaded = load_document_input(&package_input, context);
     let manifest_uri = input_uri(&package_input, context);
     let run = run_pipeline_as_scoped_with_context_and_source_uri(
         &loaded.bytes,
@@ -2742,8 +2742,46 @@ fn apply_scope_scheduler_fields(
     diagnostics
 }
 
-fn load_input_through_lifecycle(input: &EngineInput, context: &EngineContext) -> LoadedInput {
+fn load_source_input_through_lifecycle(
+    input: &EngineInput,
+    context: &EngineContext,
+) -> LoadedInput {
     LifecycleRegistry::with_builtin_adapters().load(input, context)
+}
+
+/// Loads an input for document processing, including any registered implicit
+/// presentation conversion required before the shared AST pipeline.
+pub fn load_document_input(input: &EngineInput, context: &EngineContext) -> LoadedInput {
+    let mut loaded = load_source_input_through_lifecycle(input, context);
+    lower_loaded_markdown_to_html_document(&mut loaded, input, context);
+    loaded
+}
+
+fn lower_loaded_markdown_to_html_document(
+    loaded: &mut LoadedInput,
+    input: &EngineInput,
+    context: &EngineContext,
+) {
+    let Some(LoadedInputAstStream::MarkdownDocument(document)) = loaded.ast_stream.take() else {
+        return;
+    };
+    let mut diagnostics = Vec::new();
+    let Some(projected) = markdown_document_ast_to_html_dom(
+        &document,
+        input.identity.as_ref(),
+        context,
+        &input.uri,
+        &mut diagnostics,
+    ) else {
+        loaded.ast_stream = Some(LoadedInputAstStream::MarkdownDocument(document));
+        loaded.diagnostics.append(&mut diagnostics);
+        return;
+    };
+
+    loaded.bytes = projected.content.into_bytes();
+    loaded.from_format = InputFormat::Html;
+    loaded.ast_stream = Some(LoadedInputAstStream::HtmlDocument(projected.document));
+    loaded.diagnostics.append(&mut diagnostics);
 }
 
 fn validate_input_through_lifecycle(input: &EngineInput, context: &EngineContext) -> LoadedInput {
@@ -2799,6 +2837,28 @@ fn scheduler_policy_for_convert(
     (policy, diagnostics)
 }
 
+fn convert_request_targets_markdown_source(request: &ConvertRequest) -> bool {
+    request
+        .target
+        .as_ref()
+        .and_then(|target| target.content_type.as_deref())
+        .map(content_type_essence)
+        .is_some_and(|content_type| content_type == MARKDOWN_CONTENT_TYPE)
+        || request
+            .target
+            .as_ref()
+            .and_then(|target| target.schema.as_deref())
+            == Some(MARKDOWN_SCHEMA_URI)
+        || request
+            .target_scope
+            .default_content_type
+            .as_deref()
+            .map(content_type_essence)
+            .is_some_and(|content_type| content_type == MARKDOWN_CONTENT_TYPE)
+        || request.target_scope.schema.as_deref() == Some(MARKDOWN_SCHEMA_URI)
+        || (request.target.is_none() && request.to_format == LayerFormat::Markdown)
+}
+
 fn scheduler_policy_for_transform_scope(
     context: &EngineContext,
     uri: &str,
@@ -2841,7 +2901,7 @@ fn load_transform_data_artifact(
         };
         return (artifact, diagnostics);
     }
-    let mut loaded = load_input_through_lifecycle(input, context);
+    let mut loaded = load_source_input_through_lifecycle(input, context);
     diagnostics.append(&mut loaded.diagnostics);
     let body = if let Some(ast_stream) = loaded.ast_stream.take() {
         TransformArtifactBody::Lifecycle(Arc::new(ast_stream))
@@ -3072,6 +3132,16 @@ fn convert_transform_graph_artifact(
                         source_uri,
                         content_type: source.content_type.as_deref(),
                     });
+                // A typed graph conversion only recovers generated HTML into a
+                // DOM projection; it does not dereference URLs. Preserve the
+                // resource attributes for a later deployment/export stage
+                // without treating this internal parse as a resource access.
+                parse_diagnostics.retain(|diagnostic| {
+                    !matches!(
+                        diagnostic.code.as_str(),
+                        "cem.html.external_resource_rejected" | "cem.html.script_rejected"
+                    )
+                });
                 diagnostics.append(&mut parse_diagnostics);
                 if has_hard_transform_diagnostic(diagnostics) {
                     return None;
@@ -3149,6 +3219,117 @@ fn convert_transform_graph_artifact(
                 source_map,
                 output_spans: Vec::new(),
                 raw_content: None,
+            },
+        ));
+    }
+
+    if matches!(rust_symbol, "HtmlExportConverter" | "XmlExportConverter") {
+        let TransformArtifactBody::HtmlDomProjection(document) = &input.body else {
+            diagnostics.push(Diagnostic {
+                uri: input.uri.clone(),
+                code: "cem.transform_runtime.convert_representation_unsupported".to_owned(),
+                severity: Severity::Fatal,
+                message: format!(
+                    "converter `{}` requires a native HTML DOM projection, got `{}`",
+                    selected.descriptor.id,
+                    input.body.representation_id()
+                ),
+                node: Some(format!("convert:{}", conversion.id)),
+                ..Diagnostic::default()
+            });
+            return None;
+        };
+        if rust_symbol == "XmlExportConverter" {
+            let content = serialize_html_dom_projection_as_xml(document);
+            let source_map = Some(SourceMapStack {
+                frames: vec![crate::source_map::SourceMapFrame {
+                    source_id: SourceId(1),
+                    span: crate::source_map::FrameSpan::Single(ByteRange::new(
+                        0,
+                        u32::try_from(document.source.byte_length).unwrap_or(u32::MAX),
+                    )),
+                    transform: crate::source_map::TransformKind::ContentTypeTransform {
+                        content_type: XML_CONTENT_TYPE.to_owned(),
+                    },
+                }],
+            });
+            let artifact = match TransformTemplateDataArtifact::encoded(
+                conversion.id.clone(),
+                input.uri.clone(),
+                conversion.target.clone(),
+                TransformEncoding::Text,
+                content.as_bytes().to_vec(),
+            ) {
+                Ok(artifact) => artifact,
+                Err(error) => {
+                    diagnostics.push(Diagnostic {
+                        uri: input.uri.clone(),
+                        code: "cem.transform_runtime.convert_output_invalid".to_owned(),
+                        severity: Severity::Fatal,
+                        message: format!("convert node `{}`: {error}", conversion.id),
+                        node: Some(format!("convert:{}", conversion.id)),
+                        ..Diagnostic::default()
+                    });
+                    return None;
+                }
+            };
+            return Some((
+                artifact,
+                TransformOutputMetadata {
+                    source_map,
+                    output_spans: Vec::new(),
+                    raw_content: Some(content),
+                },
+            ));
+        }
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &context.schema_registry,
+            conversion_registry: &context.converter_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let execution = execute_html_document_output_pipeline_with_environment(
+            &environment,
+            document.as_ref().clone(),
+            &conversion.target_scope,
+            input.uri.as_deref(),
+        );
+        diagnostics.extend(execution.diagnostics);
+        if has_hard_transform_diagnostic(diagnostics) {
+            return None;
+        }
+        let content = execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let artifact = match TransformTemplateDataArtifact::encoded(
+            conversion.id.clone(),
+            input.uri.clone(),
+            conversion.target.clone(),
+            TransformEncoding::Text,
+            content.as_bytes().to_vec(),
+        ) {
+            Ok(artifact) => artifact,
+            Err(error) => {
+                diagnostics.push(Diagnostic {
+                    uri: input.uri.clone(),
+                    code: "cem.transform_runtime.convert_output_invalid".to_owned(),
+                    severity: Severity::Fatal,
+                    message: format!("convert node `{}`: {error}", conversion.id),
+                    node: Some(format!("convert:{}", conversion.id)),
+                    ..Diagnostic::default()
+                });
+                return None;
+            }
+        };
+        return Some((
+            artifact,
+            TransformOutputMetadata {
+                source_map: execution.source_map,
+                output_spans: execution.output_spans,
+                raw_content: Some(content),
             },
         ));
     }
@@ -3252,6 +3433,144 @@ fn convert_transform_graph_artifact(
             raw_content: Some(content),
         },
     ))
+}
+
+/// Serializes the semantic HTML recovery stream with XML syntax.
+///
+/// The HTML formatter is deliberately lexical-lossless, so it cannot be used
+/// for this conversion: HTML boolean attributes and void elements are not
+/// well-formed XML. The DOM projection owns the normalized names and values
+/// needed to emit an XML-safe representation instead.
+fn serialize_html_dom_projection_as_xml(document: &HtmlDocumentAst) -> String {
+    use crate::validation::html::{HtmlEventKind, HtmlNamespace};
+
+    let mut output = String::with_capacity(document.source.byte_length + 39);
+    output.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    for event in &document.events {
+        match event.kind {
+            HtmlEventKind::Doctype => output.push_str("<!DOCTYPE html>"),
+            HtmlEventKind::StartElement => {
+                let Some(name) = event
+                    .lexical_name
+                    .as_deref()
+                    .or(event.local_name.as_deref())
+                else {
+                    continue;
+                };
+                output.push('<');
+                output.push_str(name);
+                for attribute in event
+                    .attributes
+                    .iter()
+                    .filter(|attribute| !attribute.duplicate)
+                {
+                    output.push(' ');
+                    output.push_str(&attribute.lexical_name);
+                    output.push_str("=\"");
+                    push_xml_safe_lexical(
+                        &mut output,
+                        attribute.value.as_deref().unwrap_or(""),
+                        true,
+                    );
+                    output.push('"');
+                }
+                if event.self_closing || event.void_element {
+                    output.push_str(" />");
+                } else {
+                    output.push('>');
+                }
+            }
+            HtmlEventKind::EndElement => {
+                let Some(name) = event
+                    .lexical_name
+                    .as_deref()
+                    .or(event.local_name.as_deref())
+                else {
+                    continue;
+                };
+                if event.namespace == HtmlNamespace::Html && html_name_is_void(name) {
+                    continue;
+                }
+                output.push_str("</");
+                output.push_str(name);
+                output.push('>');
+            }
+            HtmlEventKind::Text | HtmlEventKind::RawText | HtmlEventKind::Rcdata => {
+                push_xml_safe_lexical(
+                    &mut output,
+                    event.value.as_deref().unwrap_or(&event.lexeme),
+                    false,
+                );
+            }
+            HtmlEventKind::Comment => {
+                output.push_str("<!--");
+                output.push_str(event.value.as_deref().unwrap_or_default());
+                output.push_str("-->");
+            }
+        }
+    }
+    output
+}
+
+fn html_name_is_void(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "area"
+            | "base"
+            | "br"
+            | "col"
+            | "embed"
+            | "hr"
+            | "img"
+            | "input"
+            | "link"
+            | "meta"
+            | "param"
+            | "source"
+            | "track"
+            | "wbr"
+    )
+}
+
+fn push_xml_safe_lexical(output: &mut String, value: &str, attribute: bool) {
+    let mut cursor = 0;
+    while cursor < value.len() {
+        let remaining = &value[cursor..];
+        let Some(ch) = remaining.chars().next() else {
+            break;
+        };
+        match ch {
+            '&' => {
+                if let Some(length) = xml_reference_len(remaining) {
+                    output.push_str(&remaining[..length]);
+                    cursor += length;
+                    continue;
+                }
+                output.push_str("&amp;");
+            }
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            '"' if attribute => output.push_str("&quot;"),
+            _ => output.push(ch),
+        }
+        cursor += ch.len_utf8();
+    }
+}
+
+fn xml_reference_len(value: &str) -> Option<usize> {
+    let semicolon = value.find(';')?;
+    let candidate = &value[..=semicolon];
+    let valid = matches!(candidate, "&amp;" | "&lt;" | "&gt;" | "&quot;" | "&apos;")
+        || candidate
+            .strip_prefix("&#")
+            .and_then(|digits| digits.strip_suffix(';'))
+            .is_some_and(|digits| {
+                digits.strip_prefix(['x', 'X']).map_or_else(
+                    || !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()),
+                    |hex| !hex.is_empty() && hex.bytes().all(|byte| byte.is_ascii_hexdigit()),
+                )
+            });
+    valid.then_some(candidate.len())
 }
 
 type TransformGraphExportPrimary = (
@@ -7143,35 +7462,31 @@ fn convert_loaded_markdown_ast_output(
     )
 }
 
-fn convert_loaded_markdown_ast_to_html_output(
+#[derive(Debug)]
+struct MarkdownHtmlDom {
+    content: String,
+    document: HtmlDocumentAst,
+}
+
+fn markdown_document_ast_to_html_dom(
+    document: &MarkdownDocumentAst,
+    source_identity: Option<&FormatIdentity>,
     context: &EngineContext,
-    request: &ConvertRequest,
-    document: MarkdownDocumentAst,
+    source_uri: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
-    let pipeline =
-        cemt_output_pipeline_for_scope(direct_html_output_pipeline(), &request.target_scope);
-    let mut metadata =
-        convert_metadata_for_direct_output_pipeline("markdown-html-output", &pipeline);
-    metadata.implementation = Some("markdown-ast-stream-to-html-output-pipeline".to_owned());
-    let source = request
-        .input
-        .identity
-        .clone()
-        .unwrap_or_else(|| FormatIdentity {
-            content_type: Some(MARKDOWN_CONTENT_TYPE.to_owned()),
-            schema: Some(MARKDOWN_SCHEMA_URI.to_owned()),
-            ..FormatIdentity::default()
-        });
-    let target = request
-        .target
-        .clone()
-        .or_else(|| request.target_scope.format_identity_option())
-        .unwrap_or_else(|| FormatIdentity {
-            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
-            schema: Some(HTML_SCHEMA_URI.to_owned()),
-            ..FormatIdentity::default()
-        });
+) -> Option<MarkdownHtmlDom> {
+    let mut source = source_identity.cloned().unwrap_or_default();
+    source
+        .content_type
+        .get_or_insert_with(|| MARKDOWN_CONTENT_TYPE.to_owned());
+    source
+        .schema
+        .get_or_insert_with(|| MARKDOWN_SCHEMA_URI.to_owned());
+    let target = FormatIdentity {
+        content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+        schema: Some(HTML_SCHEMA_URI.to_owned()),
+        ..FormatIdentity::default()
+    };
     match context.converter_registry.resolve_direct_execution(
         &context.schema_registry,
         &context.template_adapter_registry,
@@ -7183,63 +7498,79 @@ fn convert_loaded_markdown_ast_to_html_output(
                 &selected.execution,
                 ConversionExecution::Rust { rust_symbol }
                     if rust_symbol == "MarkdownHtmlConverter"
-            ) =>
-        {
-            metadata.converter_id = Some(selected.descriptor.id.clone());
+            ) => {}
+        Ok(selected) => {
+            diagnostics.push(Diagnostic {
+                uri: Some(source_uri.to_owned()),
+                code: "cem.converter.execution_unsupported".to_owned(),
+                severity: Severity::Fatal,
+                message: format!(
+                    "Markdown-to-HTML conversion selected unsupported converter `{}`",
+                    selected.descriptor.id
+                ),
+                node: Some("load".to_owned()),
+                ..Diagnostic::default()
+            });
+            return None;
         }
-        Ok(selected) => diagnostics.push(Diagnostic {
-            uri: Some(request.input.uri.clone()),
-            code: "cem.converter.execution_unsupported".to_owned(),
-            severity: Severity::Fatal,
-            message: format!(
-                "Markdown-to-HTML conversion selected unsupported converter `{}`",
-                selected.descriptor.id
-            ),
-            node: Some("convert".to_owned()),
-            ..Diagnostic::default()
-        }),
-        Err(error) => diagnostics.push(Diagnostic {
-            uri: Some(request.input.uri.clone()),
-            code: "cem.converter.edge_unavailable".to_owned(),
-            severity: Severity::Fatal,
-            message: format!("Markdown-to-HTML converter edge is unavailable: {error}"),
-            node: Some("convert".to_owned()),
-            ..Diagnostic::default()
-        }),
+        Err(error) => {
+            diagnostics.push(Diagnostic {
+                uri: Some(source_uri.to_owned()),
+                code: "cem.converter.edge_unavailable".to_owned(),
+                severity: Severity::Fatal,
+                message: format!("Markdown-to-HTML converter edge is unavailable: {error}"),
+                node: Some("load".to_owned()),
+                ..Diagnostic::default()
+            });
+            return None;
+        }
     }
 
-    let html = markdown_document_ast_to_html(&document, context, &request.input.uri, diagnostics);
+    let html = markdown_document_ast_to_html(document, context, source_uri, diagnostics);
     if diagnostics
         .iter()
         .any(|diagnostic| diagnostic.severity.is_hard_violation())
     {
-        return (Value::Null, None, metadata);
+        return None;
     }
-
-    let Some(content) = markdown_generated_html_output(
-        &html.content,
-        &request.target_scope,
-        Some(&request.input.uri),
-        diagnostics,
-    ) else {
-        return (Value::Null, None, metadata);
-    };
-    let primary_bytes =
-        primary_bytes_from_text_document(&content, HTML_CONTENT_TYPE, HTML_SCHEMA_URI);
-    let hash = primary_bytes.hash.clone();
-    let primary = json!({
-        "kind": "document",
-        "contentType": primary_bytes.content_type,
-        "schema": HTML_SCHEMA_URI,
-        "hash": hash,
+    let (parsed, mut html_diagnostics) =
+        html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
+            bytes: html.content.as_bytes(),
+            source_uri,
+            content_type: Some(HTML_CONTENT_TYPE),
+        });
+    html_diagnostics.retain(|diagnostic| {
+        !matches!(
+            diagnostic.code.as_str(),
+            "cem.html.external_resource_rejected" | "cem.html.script_rejected"
+        )
     });
-    (primary, Some(primary_bytes), metadata)
+    diagnostics.append(&mut html_diagnostics);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return None;
+    }
+    let document = parsed?;
+    Some(MarkdownHtmlDom {
+        content: html.content,
+        document,
+    })
 }
 
 #[derive(Debug, Default)]
 struct MarkdownHtmlCodeBlock {
     info: String,
     text: String,
+    origin: Option<SourceMapStack>,
+}
+
+#[derive(Debug)]
+struct MarkdownHtmlImage {
+    destination: String,
+    title: Option<String>,
+    alt: String,
     origin: Option<SourceMapStack>,
 }
 
@@ -7258,9 +7589,13 @@ fn markdown_document_ast_to_html(
     let mut html = String::new();
     let mut output_spans = Vec::new();
     let mut code_block: Option<MarkdownHtmlCodeBlock> = None;
+    let mut image: Option<MarkdownHtmlImage> = None;
     let mut table_head_depth = 0_u32;
+    let mut table_body_open = false;
+    let mut heading_slugs = BTreeSet::new();
+    let mut link_depth = 0_u32;
 
-    for event in &document.events {
+    for (event_index, event) in document.events.iter().enumerate() {
         if let Some(block) = code_block.as_mut() {
             if event.kind == "end" && event.tag.as_deref() == Some("code-block") {
                 let block = code_block.take().expect("active Markdown code block");
@@ -7288,6 +7623,27 @@ fn markdown_document_ast_to_html(
             continue;
         }
 
+        if let Some(active_image) = image.as_mut() {
+            if event.kind == "end" && event.tag.as_deref() == Some("image") {
+                let active_image = image.take().expect("active Markdown image");
+                let output_start = html.len();
+                markdown_push_image_html(&mut html, &active_image);
+                markdown_push_generated_output_span(
+                    &mut output_spans,
+                    output_start,
+                    html.len(),
+                    active_image.origin,
+                );
+                continue;
+            }
+            if let Some(text) = event.text.as_deref() {
+                active_image.alt.push_str(text);
+            } else if matches!(event.kind.as_str(), "soft-break" | "hard-break") {
+                active_image.alt.push(' ');
+            }
+            continue;
+        }
+
         let output_start = html.len();
         match event.kind.as_str() {
             "start" => {
@@ -7297,19 +7653,61 @@ fn markdown_document_ast_to_html(
                         text: String::new(),
                         origin: Some(event.source_range.source_map()),
                     });
+                } else if event.tag.as_deref() == Some("image") {
+                    image = Some(MarkdownHtmlImage {
+                        destination: event.destination.clone().unwrap_or_default(),
+                        title: event.title.clone(),
+                        alt: String::new(),
+                        origin: Some(event.source_range.source_map()),
+                    });
                 } else {
-                    markdown_push_start_html(&mut html, event, table_head_depth > 0);
+                    if event.tag.as_deref() == Some("table-row")
+                        && table_head_depth == 0
+                        && !table_body_open
+                    {
+                        html.push_str("<tbody>\n");
+                        table_body_open = true;
+                    }
+                    let heading_slug = (event.tag.as_deref() == Some("heading")).then(|| {
+                        markdown_unique_heading_slug(
+                            markdown_heading_slug(markdown_heading_text(
+                                &document.events,
+                                event_index,
+                            )),
+                            &mut heading_slugs,
+                        )
+                    });
+                    markdown_push_start_html(
+                        &mut html,
+                        event,
+                        table_head_depth > 0,
+                        heading_slug.as_deref(),
+                    );
+                    if event.tag.as_deref() == Some("link") {
+                        link_depth = link_depth.saturating_add(1);
+                    }
                     if event.tag.as_deref() == Some("table-head") {
                         table_head_depth = table_head_depth.saturating_add(1);
                     }
                 }
             }
             "end" => {
+                if event.tag.as_deref() == Some("link") {
+                    link_depth = link_depth.saturating_sub(1);
+                }
+                if event.tag.as_deref() == Some("table") && table_body_open {
+                    html.push_str("</tbody>\n");
+                    table_body_open = false;
+                }
                 markdown_push_end_html(&mut html, event, table_head_depth > 0);
                 if event.tag.as_deref() == Some("table-head") {
                     table_head_depth = table_head_depth.saturating_sub(1);
                 }
             }
+            "text" if link_depth == 0 => markdown_push_linkified_html_text(
+                &mut html,
+                event.text.as_deref().unwrap_or_default(),
+            ),
             "text" => html.push_str(&transform_template_encode_html_text(
                 event.text.as_deref().unwrap_or_default(),
             )),
@@ -7358,6 +7756,66 @@ fn markdown_document_ast_to_html(
     }
 }
 
+fn markdown_push_linkified_html_text(html: &mut String, text: &str) {
+    let mut cursor = 0;
+    while cursor < text.len() {
+        let remaining = &text[cursor..];
+        let Some(relative_start) = [remaining.find("http://"), remaining.find("https://")]
+            .into_iter()
+            .flatten()
+            .min()
+        else {
+            break;
+        };
+        let start = cursor + relative_start;
+        html.push_str(&transform_template_encode_html_text(&text[cursor..start]));
+        if text[..start]
+            .chars()
+            .next_back()
+            .is_some_and(|ch| ch.is_alphanumeric() || ch == '_')
+        {
+            html.push('h');
+            cursor = start + 1;
+            continue;
+        }
+
+        let candidate_end = text[start..]
+            .find(|ch: char| ch.is_whitespace() || matches!(ch, '<' | '>' | '\"' | '\''))
+            .map(|end| start + end)
+            .unwrap_or(text.len());
+        let mut end = candidate_end;
+        while end > start
+            && text[..end]
+                .chars()
+                .next_back()
+                .is_some_and(|ch| matches!(ch, '.' | ',' | ';' | ':' | '!' | '?'))
+        {
+            end -= text[..end].chars().next_back().unwrap().len_utf8();
+        }
+        while end > start && text[..end].ends_with(')') {
+            let candidate = &text[start..end];
+            if candidate.matches(')').count() <= candidate.matches('(').count() {
+                break;
+            }
+            end -= 1;
+        }
+
+        let candidate = &text[start..end];
+        if !candidate.is_empty() && url::Url::parse(candidate).is_ok() {
+            html.push_str("<a href=\"");
+            html.push_str(&transform_template_encode_html_attribute(candidate));
+            html.push_str("\">");
+            html.push_str(&transform_template_encode_html_text(candidate));
+            html.push_str("</a>");
+            cursor = end;
+        } else {
+            html.push('h');
+            cursor = start + 1;
+        }
+    }
+    html.push_str(&transform_template_encode_html_text(&text[cursor..]));
+}
+
 fn markdown_push_generated_output_span(
     output_spans: &mut Vec<OutputSpan>,
     output_start: usize,
@@ -7383,12 +7841,19 @@ fn markdown_push_start_html(
     html: &mut String,
     event: &crate::validation::markdown::MarkdownEventAst,
     inside_table_head: bool,
+    heading_slug: Option<&str>,
 ) {
     match event.tag.as_deref() {
         Some("paragraph") => html.push_str("<p>"),
         Some("heading") => {
             let level = event.level.unwrap_or(1).clamp(1, 6);
-            html.push_str(&format!("<h{level}>"));
+            html.push_str(&format!("<h{level}"));
+            if let Some(slug) = heading_slug {
+                html.push_str(" id=\"");
+                html.push_str(&transform_template_encode_html_attribute(slug));
+                html.push_str("\" tabindex=\"-1\"");
+            }
+            html.push('>');
         }
         Some("blockquote") => html.push_str("<blockquote>\n"),
         Some("list") => html.push_str("<ul>\n"),
@@ -7408,7 +7873,13 @@ fn markdown_push_start_html(
             html.push_str(&transform_template_encode_html_attribute(
                 event.destination.as_deref().unwrap_or_default(),
             ));
-            html.push_str("\">");
+            html.push('"');
+            if let Some(title) = event.title.as_deref() {
+                html.push_str(" title=\"");
+                html.push_str(&transform_template_encode_html_attribute(title));
+                html.push('"');
+            }
+            html.push('>');
         }
         Some("table") => html.push_str("<table>\n"),
         Some("table-head") => html.push_str("<thead>\n<tr>"),
@@ -7417,6 +7888,72 @@ fn markdown_push_start_html(
         Some("table-cell") => html.push_str("<td>"),
         _ => {}
     }
+}
+
+fn markdown_heading_text(
+    events: &[crate::validation::markdown::MarkdownEventAst],
+    start: usize,
+) -> String {
+    let mut text = String::new();
+    for event in events.iter().skip(start + 1) {
+        if event.kind == "end" && event.tag.as_deref() == Some("heading") {
+            break;
+        }
+        if matches!(
+            event.kind.as_str(),
+            "text" | "code" | "inline-math" | "display-math" | "footnote-reference"
+        ) {
+            text.push_str(event.text.as_deref().unwrap_or_default());
+        }
+    }
+    text
+}
+
+fn markdown_heading_slug(text: String) -> String {
+    let mut slug = String::new();
+    let mut separator_pending = false;
+    for ch in text.trim().chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            if separator_pending && !slug.is_empty() {
+                slug.push('-');
+            }
+            separator_pending = false;
+            slug.push(ch.to_ascii_lowercase());
+        } else {
+            separator_pending = true;
+        }
+    }
+    slug
+}
+
+fn markdown_unique_heading_slug(base: String, used: &mut BTreeSet<String>) -> String {
+    if used.insert(base.clone()) {
+        return base;
+    }
+    let mut suffix = 1_u64;
+    loop {
+        let candidate = format!("{base}-{suffix}");
+        if used.insert(candidate.clone()) {
+            return candidate;
+        }
+        suffix = suffix.saturating_add(1);
+    }
+}
+
+fn markdown_push_image_html(html: &mut String, image: &MarkdownHtmlImage) {
+    html.push_str("<img src=\"");
+    html.push_str(&transform_template_encode_html_attribute(
+        &image.destination,
+    ));
+    html.push_str("\" alt=\"");
+    html.push_str(&transform_template_encode_html_attribute(&image.alt));
+    html.push('"');
+    if let Some(title) = image.title.as_deref() {
+        html.push_str(" title=\"");
+        html.push_str(&transform_template_encode_html_attribute(title));
+        html.push('"');
+    }
+    html.push('>');
 }
 
 fn markdown_push_end_html(
@@ -10045,7 +10582,7 @@ fn observe_pipeline_with_scope(
 impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
         request.context.ensure_active()?;
-        let mut loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let mut loaded = load_document_input(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
@@ -10169,7 +10706,7 @@ impl CemMlEngine for RealCemMlEngine {
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
         request.context.ensure_active()?;
         let started_at = Instant::now();
-        let mut loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let mut loaded = load_document_input(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
@@ -10315,7 +10852,11 @@ impl CemMlEngine for RealCemMlEngine {
                     "input",
                 );
                 diagnostics.append(&mut scope_diagnostics);
-                let mut loaded = registry.load(&request.input, &context);
+                let mut loaded = if convert_request_targets_markdown_source(&request) {
+                    load_source_input_through_lifecycle(&request.input, &context)
+                } else {
+                    load_document_input(&request.input, &context)
+                };
                 diagnostics.append(&mut loaded.diagnostics);
                 source_bytes_for_projection = Some(loaded.bytes.clone());
                 loaded_input = Some(loaded);
@@ -10337,7 +10878,13 @@ impl CemMlEngine for RealCemMlEngine {
 
             let mut loaded = loaded_input
                 .take()
-                .unwrap_or_else(|| registry.load(&request.input, &context));
+                .unwrap_or_else(|| {
+                    if convert_request_targets_markdown_source(&request) {
+                        load_source_input_through_lifecycle(&request.input, &context)
+                    } else {
+                        load_document_input(&request.input, &context)
+                    }
+                });
             diagnostics.append(&mut loaded.diagnostics);
             source_bytes_for_projection = Some(loaded.bytes.clone());
             let mut export = export_selection.take().unwrap_or_else(|| {
@@ -10747,13 +11294,19 @@ impl CemMlEngine for RealCemMlEngine {
                                 return;
                             }
 
-                            let (html_primary, html_primary_bytes, html_conversion) =
+                            let (html_primary, html_primary_bytes, mut html_conversion) =
                                 convert_loaded_html_ast_output(
                                     &context,
                                     &request,
                                     document_value,
                                     &mut diagnostics,
                                 );
+                            if loaded.adapter_id == Some("markdown") {
+                                html_conversion.converter_id =
+                                    Some("markdown-to-html-rust".to_owned());
+                                html_conversion.implementation =
+                                    Some("markdown-load-to-html-dom-output".to_owned());
+                            }
                             primary = Some(html_primary);
                             primary_bytes = html_primary_bytes;
                             conversion = Some(html_conversion);
@@ -10809,36 +11362,6 @@ impl CemMlEngine for RealCemMlEngine {
                         return;
                     }
                     LoadedInputAstStream::MarkdownDocument(document_value) => {
-                        if to_format == LayerFormat::Html {
-                            if diagnostics
-                                .iter()
-                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
-                            {
-                                primary = Some(Value::Null);
-                                let pipeline = cemt_output_pipeline_for_scope(
-                                    direct_html_output_pipeline(),
-                                    &request.target_scope,
-                                );
-                                conversion = Some(convert_metadata_for_direct_output_pipeline(
-                                    "markdown-html-output",
-                                    &pipeline,
-                                ));
-                                return;
-                            }
-
-                            let (html_primary, html_primary_bytes, html_conversion) =
-                                convert_loaded_markdown_ast_to_html_output(
-                                    &context,
-                                    &request,
-                                    document_value,
-                                    &mut diagnostics,
-                                );
-                            primary = Some(html_primary);
-                            primary_bytes = html_primary_bytes;
-                            conversion = Some(html_conversion);
-                            return;
-                        }
-
                         if to_format == LayerFormat::Markdown {
                             if diagnostics
                                 .iter()
@@ -12264,7 +12787,7 @@ impl CemMlEngine for RealCemMlEngine {
     fn trace(&self, request: TraceRequest) -> EngineResult<TraceResponse> {
         request.context.ensure_active()?;
         let started_at = Instant::now();
-        let loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let loaded = load_document_input(&request.input, &request.context);
         let from_format = loaded.from_format;
         let scheduler_trace = crate::scheduler::SchedulerTrace::new();
         let (policy, policy_diagnostics) = scheduler_policy_for_scope(
@@ -12347,7 +12870,7 @@ impl CemMlEngine for RealCemMlEngine {
                 request.context.ensure_active()?;
                 let input = materialized_input(input, &request.context)?;
                 let input_started_at = Instant::now();
-                let loaded = load_input_through_lifecycle(&input, &request.context);
+                let loaded = load_document_input(&input, &request.context);
                 let _ = run_pipeline_as_scoped_with_context_and_source_uri(
                     &loaded.bytes,
                     loaded.from_format,
@@ -12410,7 +12933,7 @@ impl CemMlEngine for RealCemMlEngine {
             let started_at = Instant::now();
             let mut input_diags =
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
-            let loaded = load_input_through_lifecycle(&input, &request.context);
+            let loaded = load_document_input(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
             let run = run_pipeline_as_scoped_with_context_and_source_uri(
                 &loaded.bytes,
@@ -12452,7 +12975,7 @@ impl CemMlEngine for RealCemMlEngine {
             let started_at = Instant::now();
             let mut input_diags =
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
-            let loaded = load_input_through_lifecycle(&input, &request.context);
+            let loaded = load_document_input(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
             let run = run_pipeline_as_scoped_with_context_and_source_uri(
                 &loaded.bytes,
@@ -13209,6 +13732,43 @@ mod tests {
             }),
             root_scope: Default::default(),
         }
+    }
+
+    #[test]
+    fn document_load_lowers_markdown_through_registered_html_dom_conversion() {
+        let input = identified_input(
+            b"# Loaded Markdown\n\nA **document** & literal `&lt;`.\n\n```html\n<button title=\"A & B\">Go</button>\n```\n",
+            "docs/loaded.md",
+            "text/markdown; charset=utf-8; variant=CommonMark",
+            MARKDOWN_SCHEMA_URI,
+        );
+
+        let loaded = load_document_input(&input, &ctx());
+
+        assert_eq!(loaded.adapter_id, Some("markdown"));
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(
+            std::str::from_utf8(&loaded.bytes).unwrap(),
+            "<h1 id=\"loaded-markdown\" tabindex=\"-1\">Loaded Markdown</h1>\n<p>A <strong>document</strong> &amp; literal <code>&amp;lt;</code>.</p>\n<pre><code class=\"language-html\">&lt;button title=\"A &amp; B\"&gt;Go&lt;/button&gt;\n</code></pre>\n"
+        );
+        let Some(LoadedInputAstStream::HtmlDocument(document)) = loaded.ast_stream else {
+            panic!("Markdown document load must produce the recovered HTML AST");
+        };
+        assert!(document.events.iter().any(|event| {
+            event.kind == crate::validation::html::HtmlEventKind::StartElement
+                && event.local_name.as_deref() == Some("strong")
+        }));
+        let recovered_text = document
+            .events
+            .iter()
+            .filter_map(|event| event.value.as_deref())
+            .collect::<String>();
+        assert!(recovered_text.contains("document & literal &lt;"));
+        assert!(recovered_text.contains("<button title=\"A & B\">Go</button>"));
+        assert!(loaded
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.severity.is_hard_violation()));
     }
 
     fn lifecycle_json_test_artifact(
@@ -14194,6 +14754,93 @@ mod tests {
         }));
         assert!(metadata.source_map.is_some());
         assert!(metadata.raw_content.is_none());
+    }
+
+    #[test]
+    fn transform_graph_serializes_generated_html_dom_as_well_formed_xml() {
+        let html = r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><img src="./diagram.svg" alt="Diagram"><input type="checkbox" disabled checked><script src="https://cdn.example/prism.js"></script></body></html>"#;
+        let input = encoded_text_test_artifact(
+            "page",
+            Some("page.html"),
+            FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            html,
+        );
+        let recovery = TransformGraphConversion {
+            id: "page-dom".to_owned(),
+            primary_input: "page".to_owned(),
+            converter_id: Some("html-to-cem-dom-projection-rust".to_owned()),
+            target: FormatIdentity {
+                content_type: Some(CEM_DOM_PROJECTION_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_id: 1,
+        };
+        let mut diagnostics = Vec::new();
+        let (dom, _) = convert_transform_graph_artifact(
+            &EngineContext::default(),
+            &recovery,
+            &input,
+            &mut diagnostics,
+        )
+        .expect("generated HTML recovery");
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}"
+        );
+
+        let xml = TransformGraphConversion {
+            id: "xml".to_owned(),
+            primary_input: "page-dom".to_owned(),
+            converter_id: Some("cem-dom-projection-to-xml-rust".to_owned()),
+            target: FormatIdentity {
+                content_type: Some(XML_CONTENT_TYPE.to_owned()),
+                schema: Some(XML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            target_scope: ScopeConfig {
+                default_content_type: Some(XML_CONTENT_TYPE.to_owned()),
+                schema: Some(XML_SCHEMA_URI.to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 2,
+        };
+        let (serialized, metadata) = convert_transform_graph_artifact(
+            &EngineContext::default(),
+            &xml,
+            &dom,
+            &mut diagnostics,
+        )
+        .expect("DOM to XML converter");
+        let content = serialized.encoded_text().expect("XML text");
+        assert!(
+            content.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"),
+            "{content}"
+        );
+        assert!(content.contains("<img"), "{content}");
+        assert!(content.contains("src=\"./diagram.svg\""), "{content}");
+        assert!(content.contains("disabled=\"\""), "{content}");
+        assert!(metadata.raw_content.as_deref() == Some(content));
+        let xml_diagnostics = crate::validation::xml::validate_xml_source_bytes(
+            crate::validation::xml::XmlSourceValidationRequest {
+                bytes: content.as_bytes(),
+                source_uri: "generated.xhtml",
+                content_type: Some(XML_CONTENT_TYPE),
+            },
+        );
+        assert!(
+            xml_diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{xml_diagnostics:?}\n{content}"
+        );
     }
 
     const OUTPUT_ARTIFACT_TEST_SCHEMA_SOURCE: &[u8] = br#"@doc cem-ml 1

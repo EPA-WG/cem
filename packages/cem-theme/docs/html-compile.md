@@ -22,7 +22,7 @@ packages/cem-theme/
 ├── src/lib/
 │   ├── css-generators/
 │   │   ├── cem-colors.html
-│   │   ├── cem-http-request.js
+│   │   ├── cem-css-generator.js
 │   │   └── cem-css-loader.js
 │   └── theme-editor/
 │       └── theme-editor.html
@@ -30,7 +30,7 @@ packages/cem-theme/
     ├── lib/
     │   ├── css-generators/
     │   │   ├── cem-colors.html
-    │   │   ├── cem-http-request.js
+    │   │   ├── cem-css-generator.js
     │   │   └── cem-css-loader.js
     │   ├── theme-editor/
     │   │   └── theme-editor.html
@@ -40,9 +40,6 @@ packages/cem-theme/
     │       └── cem-colors.css
     └── vendor/
         └── @epa-wg/
-            ├── custom-element/
-            │   ├── custom-element.js
-            │   └── http-request.js
             ├── cem-elements/
             │   └── dist/
             └── cem_ql/
@@ -67,30 +64,26 @@ packages/cem-theme/
 From `src/lib/css-generators/cem-colors.html` to `dist/lib/css-generators/cem-colors.html`:
 
 ```html
-<http-request url="../../../dist/lib/tokens/cem-colors.xhtml"></http-request>
+<template type="cem-ml; version=0.0"
+          data-token-url="../../../dist/lib/tokens/cem-colors.xhtml">
 ```
 
 becomes:
 
 ```html
-<http-request url="../tokens/cem-colors.xhtml"></http-request>
+<template type="cem-ml; version=0.0"
+          data-token-url="../tokens/cem-colors.xhtml">
 ```
 
-Runtime scripts:
+The CEM-ML generator bootstrap remains dist-relative:
 
 ```html
-<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
+<script src="./cem-css-generator.js" type="module"></script>
 ```
 
-becomes:
-
-```html
-<script src="../../vendor/@epa-wg/custom-element/custom-element.js" type="module"></script>
-```
-
-When `custom-element.js` is copied, the compiler also vendors the substrate runtime
-dependencies that the adapter imports: `@epa-wg/cem-elements/dist` and the
-`cem_ql` WASM files.
+The compiler unconditionally vendors the substrate runtime dependencies imported by that bootstrap:
+`@epa-wg/cem-elements/dist`, including its colocated `cem_ql_bg.wasm`, and the standalone `cem_ql` WASM distribution.
+Nx treats the whole `dist/vendor` tree as build output so cached builds cannot restore JavaScript without its WASM.
 
 From `src/lib/theme-editor/theme-editor.html` to `dist/lib/theme-editor/theme-editor.html`:
 

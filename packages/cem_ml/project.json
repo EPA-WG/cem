@@ -312,18 +312,25 @@
             }
         },
         "build:docs": {
+            "dependsOn": [{ "projects": ["cem_ml_cli"], "target": "build" }],
             "executor": "nx:run-commands",
             "options": {
-                "command": "node tools/scripts/compile-markdown.mjs --project packages/cem_ml --src-dir schema",
+                "command": "./dist/target/cem_ml_cli/debug/cem-ml transform --config packages/cem_ml/schema/docs.cem --quiet",
                 "cwd": "{workspaceRoot}"
             },
             "cache": true,
             "inputs": [
                 "{projectRoot}/schema/**/*.md",
                 "{projectRoot}/schema/**/*.json",
-                "{workspaceRoot}/tools/scripts/compile-markdown.mjs"
+                "{projectRoot}/schema/docs.cem",
+                "{workspaceRoot}/tools/cemt/markdown-xhtml-page.cemt"
             ],
-            "outputs": ["{projectRoot}/dist/**/*.md", "{projectRoot}/dist/**/*.xhtml", "{projectRoot}/dist/**/*.json"]
+            "outputs": [
+                "{projectRoot}/dist/**/*.md",
+                "{projectRoot}/dist/**/*.xhtml",
+                "{projectRoot}/dist/**/*.xhtml.map",
+                "{projectRoot}/dist/**/*.json"
+            ]
         },
         "build:schema-artifacts": {
             "executor": "nx:run-commands",
@@ -474,7 +481,8 @@
                 "{projectRoot}/schema/cli/report.schema.json",
                 "{projectRoot}/schema/cli/transform-config.md",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/*.report.expected.json",
-                "{workspaceRoot}/tools/scripts/compile-markdown.mjs",
+                "{projectRoot}/schema/docs.cem",
+                "{workspaceRoot}/tools/cemt/markdown-xhtml-page.cemt",
                 "{workspaceRoot}/tools/scripts/validate-cli-schema-artifacts.mjs"
             ],
             "outputs": []

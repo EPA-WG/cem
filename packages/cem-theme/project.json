@@ -8,8 +8,7 @@
             "dependsOn": ["^build", "build:tokens"],
             "executor": "nx:run-commands",
             "options": {
-                "commands": ["tsc --build tsconfig.lib.json", "node ../../tools/scripts/compile-markdown.mjs"],
-                "parallel": true,
+                "command": "tsc --build tsconfig.lib.json",
                 "cwd": "packages/cem-theme"
             },
             "cache": true,
@@ -42,6 +41,7 @@
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-layering.xhtml dist/lib/css/cem-layering.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-voice-fonts-typography.xhtml dist/lib/css/cem-voice-fonts-typography.css",
                     "node scripts/generate-token-coverage.mjs",
+                    "../../dist/target/cem_ml_cli/debug/cem-ml transform --config docs/generated-token-coverage.cem --quiet",
                     "node scripts/generate-css-index.mjs"
                 ],
                 "parallel": false,
@@ -53,6 +53,8 @@
                 "{projectRoot}/src/lib/css-generators/*.html",
                 "{projectRoot}/src/lib/css-generators/*.js",
                 "{projectRoot}/scripts/generate-token-coverage.mjs",
+                "{projectRoot}/docs/generated-token-coverage.cem",
+                "{workspaceRoot}/tools/cemt/markdown-xhtml-page.cemt",
                 "{projectRoot}/scripts/generate-css-index.mjs",
                 "{projectRoot}/scripts/manifest-utils.mjs",
                 "{projectRoot}/scripts/validate-manifest.mjs",
@@ -62,7 +64,8 @@
             "outputs": [
                 "{projectRoot}/dist/lib/css/*.css",
                 "{projectRoot}/dist/lib/tokens/generated-token-coverage.md",
-                "{projectRoot}/dist/lib/tokens/generated-token-coverage.xhtml"
+                "{projectRoot}/dist/lib/tokens/generated-token-coverage.xhtml",
+                "{projectRoot}/dist/lib/tokens/generated-token-coverage.xhtml.map"
             ]
         },
         "build:tokens": {
@@ -335,13 +338,14 @@
             "outputs": [
                 "{projectRoot}/dist/**/*.html",
                 "{projectRoot}/dist/lib/css-generators/*.js",
-                "{projectRoot}/dist/vendor/**/*.js"
+                "{projectRoot}/dist/vendor/**/*"
             ]
         },
         "build:docs": {
+            "dependsOn": [{ "projects": ["cem_ml_cli"], "target": "build" }],
             "executor": "nx:run-commands",
             "options": {
-                "command": "node ../../tools/scripts/compile-markdown.mjs",
+                "command": "../../dist/target/cem_ml_cli/debug/cem-ml transform --config src/docs.cem --quiet",
                 "cwd": "packages/cem-theme"
             },
             "cache": true,
@@ -349,18 +353,28 @@
                 "{projectRoot}/src/**/*.md",
                 "{projectRoot}/src/**/*.png",
                 "{projectRoot}/src/**/*.jpg",
+                "{projectRoot}/src/**/*.jpeg",
                 "{projectRoot}/src/**/*.svg",
                 "{projectRoot}/src/**/*.gif",
-                "{projectRoot}/src/**/*.webp"
+                "{projectRoot}/src/**/*.webp",
+                "{projectRoot}/src/**/*.ico",
+                "{projectRoot}/src/**/*.css",
+                "{projectRoot}/src/**/*.json",
+                "{projectRoot}/src/docs.cem",
+                "{workspaceRoot}/tools/cemt/markdown-xhtml-page.cemt"
             ],
             "outputs": [
                 "{projectRoot}/dist/**/*.md",
                 "{projectRoot}/dist/**/*.xhtml",
+                "{projectRoot}/dist/**/*.xhtml.map",
                 "{projectRoot}/dist/**/*.png",
                 "{projectRoot}/dist/**/*.jpg",
                 "{projectRoot}/dist/**/*.svg",
                 "{projectRoot}/dist/**/*.gif",
-                "{projectRoot}/dist/**/*.webp"
+                "{projectRoot}/dist/**/*.webp",
+                "{projectRoot}/dist/**/*.ico",
+                "{projectRoot}/dist/**/*.css",
+                "{projectRoot}/dist/**/*.json"
             ]
         },
         "verify:phase13": {

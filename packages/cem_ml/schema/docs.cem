@@ -1,0 +1,43 @@
+@doc cem-ml 1
+
+{run |
+  {import @id=markdown @src="**/*.md"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
+      @schema="https://cem.dev/ns/data/markdown/1" |
+    {convert @id=html @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @converter="markdown-to-html-rust" |
+      {convert @id=dom @content-type="application/vnd.cem.dom+cem-bin"
+          @schema="https://cem.dev/ns/projection/dom/1"
+          @converter="html-to-cem-dom-projection-rust" |
+        {transform @id=xhtml-page @src="../../../tools/cemt/markdown-xhtml-page.cemt"
+            @template-content-type="application/vnd.cem.transform+cem"
+            @template-schema="https://cem.dev/ns/transform/cem/1"
+            @entrypoint="page" |
+          {convert @id=page-dom
+              @content-type="application/vnd.cem.dom+cem-bin"
+              @schema="https://cem.dev/ns/projection/dom/1"
+              @converter="html-to-cem-dom-projection-rust" |
+            {convert @id=xhtml @content-type="application/xml"
+                @schema="https://cem.dev/ns/data/xml/1"
+                @converter="cem-dom-projection-to-xml-rust" |
+              {export @id=xhtml-document @out="../dist/{dir}/{stem}.xhtml"
+                  @content-type="application/xml"
+                  @schema="https://cem.dev/ns/data/xml/1"}
+            }
+          }
+        }
+      }
+    }
+  }
+
+  {import @id=markdown-source @src="**/*.md" @opaque=true
+      @content-type="text/markdown" |
+    {export @id=markdown-copy @out="../dist/{dir}/{stem}.md"}
+  }
+
+  {import @id=json-assets @src="**/*.json" @opaque=true
+      @content-type="application/json" |
+    {export @id=json-copy @out="../dist/{dir}/{stem}.{ext}"}
+  }
+}

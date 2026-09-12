@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity};
-use crate::lifecycle::{LifecycleRegistry, LoadedInputAstStream};
+use crate::lifecycle::LoadedInputAstStream;
 use crate::run_config::ScopeConfig;
 use crate::scheduler::ScopePolicy;
 use crate::validation::css_selector::{
@@ -376,8 +376,7 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
     let scope_policy = query_scope_policy(&request.context);
     let safety_policy_stamp = query_safety_policy_stamp(limits);
 
-    let mut loaded =
-        LifecycleRegistry::with_builtin_adapters().load(&request.data, &request.context);
+    let mut loaded = crate::real::load_document_input(&request.data, &request.context);
     let mut diagnostics = loaded.diagnostics;
     if has_hard_violation(&diagnostics) {
         return Err(execution_failure(language, inputs, diagnostics));

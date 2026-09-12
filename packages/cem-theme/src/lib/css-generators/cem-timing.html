@@ -24,7 +24,7 @@
           id="cem-timing-template"
           data-token-url="../../../dist/lib/tokens/cem-timing.xhtml"
           data-slices="durations=cem-timing-durations easings=cem-timing-easings reduced=cem-timing-reduced-motion">
-{table |
+{table @id=cem-timing-durations |
     {caption | {a @href="../../../dist/lib/tokens/cem-timing.xhtml#4-1-duration-tokens-required" | cem-timing-durations} — duration scale}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Demo}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.durations" @as="row" |
@@ -37,7 +37,7 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-timing-easings |
     {caption | {a @href="../../../dist/lib/tokens/cem-timing.xhtml#4-2-easing-tokens-required" | cem-timing-easings} — easing curves}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Demo}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.easings" @as="row" |
@@ -50,7 +50,7 @@
         }}}
 }
 {hr | }
-{table |
+{table @id=cem-timing-reduced-motion |
     {caption | {a @href="../../../dist/lib/tokens/cem-timing.xhtml#4-4-reduced-motion-overrides" | cem-timing-reduced-motion} — prefers-reduced-motion overrides}
     {thead | {tr | {th | Token}{th | Reduced value}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.reduced" @as="row" |

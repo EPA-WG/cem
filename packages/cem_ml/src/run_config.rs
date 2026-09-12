@@ -2399,7 +2399,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "json" => Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
         "yaml" | "yml" => Some(crate::schema::registry::YAML_CONTENT_TYPE.to_owned()),
         "csv" => Some(crate::schema::registry::CSV_CONTENT_TYPE.to_owned()),
-        "md" | "markdown" => Some(crate::schema::registry::MARKDOWN_CONTENT_TYPE.to_owned()),
+        "md" | "markdown" => Some("text/markdown; charset=utf-8; variant=CommonMark".to_owned()),
         _ => None,
     }
 }
@@ -2611,13 +2611,14 @@ mod tests {
 
     #[test]
     fn markdown_extensions_infer_markdown_content_type() {
+        let inferred = "text/markdown; charset=utf-8; variant=CommonMark";
         assert_eq!(
             infer_content_type_from_path("docs/readme.md").as_deref(),
-            Some(crate::schema::registry::MARKDOWN_CONTENT_TYPE)
+            Some(inferred)
         );
         assert_eq!(
             infer_content_type_from_path("docs/README.MARKDOWN").as_deref(),
-            Some(crate::schema::registry::MARKDOWN_CONTENT_TYPE)
+            Some(inferred)
         );
     }
 

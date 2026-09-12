@@ -1068,7 +1068,7 @@ fn build_html_events(
                     attributes.push(HtmlAttributeAst {
                         lexical_name: html_attribute_lexical_name(&attribute_lexeme),
                         local_name: name.clone(),
-                        value: value.clone(),
+                        value: value.as_deref().map(html_decode_character_references),
                         lexeme: attribute_lexeme,
                         duplicate,
                         source_range: attribute_range,
@@ -1224,6 +1224,11 @@ fn build_html_events(
                 let namespace = parent
                     .map(|frame| frame.child_namespace)
                     .unwrap_or(HtmlNamespace::Html);
+                let semantic_value = if kind == HtmlEventKind::RawText {
+                    value.clone()
+                } else {
+                    html_decode_character_references(value)
+                };
                 events.push(HtmlEventAst {
                     index: events.len(),
                     kind,
@@ -1233,9 +1238,9 @@ fn build_html_events(
                     namespace,
                     namespace_uri: namespace.uri().to_owned(),
                     attributes: Vec::new(),
-                    value: Some(value.clone()),
+                    value: Some(semantic_value.clone()),
                     lexeme: source_slice(source, token.byte_range).to_owned(),
-                    whitespace_only: value.trim().is_empty(),
+                    whitespace_only: semantic_value.trim().is_empty(),
                     self_closing: false,
                     void_element: false,
                     recovered: false,
@@ -1273,6 +1278,12 @@ fn build_html_events(
         meta_charset_range,
         recovery_count,
     }
+}
+
+fn html_decode_character_references(value: &str) -> String {
+    quick_xml::escape::unescape(value)
+        .map(|value| value.into_owned())
+        .unwrap_or_else(|_| value.to_owned())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1875,6 +1886,40 @@ mod tests {
             .unwrap()
             .iter()
             .any(|event| event["lexicalName"] == "HTML" && event["localName"] == "html"));
+    }
+
+    #[test]
+    fn html_ast_decodes_character_references_in_dom_values_but_preserves_lexemes() {
+        let source =
+            r#"<p title="A &amp; B">A &lt; B &amp;&amp; C &#x1f34b;</p><style>a&amp;b</style>"#;
+        let (document, diagnostics) = parse(source, HTML_CONTENT_TYPE);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let paragraph = document
+            .events
+            .iter()
+            .find(|event| {
+                event.kind == HtmlEventKind::StartElement
+                    && event.local_name.as_deref() == Some("p")
+            })
+            .expect("paragraph start event");
+        assert_eq!(paragraph.attributes[0].value.as_deref(), Some("A & B"));
+        assert!(paragraph.attributes[0].lexeme.contains("&amp;"));
+
+        let text = document
+            .events
+            .iter()
+            .find(|event| event.kind == HtmlEventKind::Text)
+            .expect("paragraph text event");
+        assert_eq!(text.value.as_deref(), Some("A < B && C 🍋"));
+        assert!(text.lexeme.contains("&lt;"));
+
+        let raw_text = document
+            .events
+            .iter()
+            .find(|event| event.kind == HtmlEventKind::RawText)
+            .expect("style raw-text event");
+        assert_eq!(raw_text.value.as_deref(), Some("a&amp;b"));
     }
 
     #[test]

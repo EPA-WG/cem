@@ -7,8 +7,6 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import MarkdownIt from "markdown-it";
-import anchor from "markdown-it-anchor";
 import {
     analyzeCSS,
     compareManifestToCss,
@@ -20,18 +18,6 @@ import {
 
 const packageRoot = process.cwd();
 const reportMarkdownPath = path.join(packageRoot, "dist/lib/tokens/generated-token-coverage.md");
-const reportXhtmlPath = path.join(packageRoot, "dist/lib/tokens/generated-token-coverage.xhtml");
-
-const md = new MarkdownIt({
-    html: true,
-    xhtmlOut: true,
-    breaks: false,
-    linkify: true,
-    typographer: true,
-}).use(anchor, {
-    permalink: false,
-    slugify: (s) => s.toLowerCase().replace(/[^\w]+/g, "-").replace(/^-|-$/g, ""),
-});
 
 async function readRequired(filePath) {
     try {
@@ -39,31 +25,6 @@ async function readRequired(filePath) {
     } catch (err) {
         throw new Error(`Cannot read ${path.relative(packageRoot, filePath)}\n${err.message}`, { cause: err });
     }
-}
-
-function renderXhtml(markdown) {
-    const html = md.render(markdown).replace(/\.md(["'\s#)])/g, ".xhtml$1").replace(/\.md/g, "");
-    const h1Match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
-    const title = h1Match ? h1Match[1].replace(/<[^>]+>/g, "") : "Generated Token Coverage";
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-<head>
-  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-  <title>${title}</title>
-  <style type="text/css">@import url("./index.css");</style>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs/themes/prism.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.js" type="application/javascript"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs/components/prism-css.min.js" type="application/javascript"></script>
-  <script type="application/javascript" defer="defer">
-    Prism.highlightAll();
-  </script>
-</head>
-<body>
-${html}
-</body>
-</html>`;
 }
 
 async function loadSpecCoverage(spec) {
@@ -169,18 +130,15 @@ async function main() {
     }
     const rows = categoryRows(reports);
     const markdown = renderMarkdown(rows, reports);
-    const xhtml = renderXhtml(markdown);
 
     await fs.mkdir(path.dirname(reportMarkdownPath), { recursive: true });
     await fs.writeFile(reportMarkdownPath, markdown, "utf8");
-    await fs.writeFile(reportXhtmlPath, xhtml, "utf8");
 
     const totalDefined = rows.reduce((sum, row) => sum + row.defined, 0);
     const totalGenerated = rows.reduce((sum, row) => sum + row.generated, 0);
     const totalGap = rows.reduce((sum, row) => sum + row.gap, 0);
     console.log(`✓ token coverage report generated (${totalGenerated}/${totalDefined}, gap ${totalGap})`);
     console.log(`  ${path.relative(packageRoot, reportMarkdownPath)}`);
-    console.log(`  ${path.relative(packageRoot, reportXhtmlPath)}`);
 }
 
 main().catch((err) => {
