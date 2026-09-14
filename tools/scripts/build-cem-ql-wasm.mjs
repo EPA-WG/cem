@@ -8,14 +8,16 @@ import { fileURLToPath } from 'node:url';
 const requiredWasmBindgen = '0.2.122';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const targetDir = 'dist/target/cem_ql';
-const wasmInput = `${targetDir}/wasm32-unknown-unknown/debug/cem_ql.wasm`;
+const wasmInput = `${targetDir}/wasm32-unknown-unknown/release/cem_ql.wasm`;
 const outDir = 'packages/cem_ql/dist/wasm';
 
 run('cargo', [
     'build',
+    '--locked',
     '--package',
     'cem-ql',
     '--lib',
+    '--release',
     '--target',
     'wasm32-unknown-unknown',
     '--target-dir',
@@ -47,6 +49,8 @@ run('wasm-bindgen', [
     outDir,
     '--out-name',
     'cem_ql',
+    '--remove-name-section',
+    '--remove-producers-section',
 ]);
 
 // wasm-bindgen `--target web` emits ESM, but the out dir has no package.json, so

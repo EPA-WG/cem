@@ -19,7 +19,11 @@
                 "{projectRoot}/src/**/*.jpg",
                 "{projectRoot}/src/**/*.svg",
                 "{projectRoot}/src/**/*.gif",
-                "{projectRoot}/src/**/*.webp"
+                "{projectRoot}/src/**/*.webp",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,ts,wasm,css,xhtml,cemt,json}",
+                    "transitive": true
+                }
             ],
             "outputs": ["{projectRoot}/dist"]
         },
@@ -329,15 +333,22 @@
             "inputs": [
                 "{projectRoot}/src/**/*.html",
                 "{projectRoot}/src/**/*.js",
+                "{projectRoot}/src/**/*.cemt",
+                "{workspaceRoot}/tools/scripts/compile-html.mjs",
                 "{workspaceRoot}/packages/custom-element/custom-element.js",
                 "{workspaceRoot}/packages/custom-element/http-request.js",
                 "{workspaceRoot}/packages/cem-elements/dist/**/*",
                 "{workspaceRoot}/packages/cem_ql/dist/wasm/**/*",
-                "{projectRoot}/dist/lib/**/*.xhtml"
+                "{projectRoot}/dist/lib/**/*.xhtml",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,wasm,xhtml,cemt}",
+                    "transitive": false
+                }
             ],
             "outputs": [
                 "{projectRoot}/dist/**/*.html",
                 "{projectRoot}/dist/lib/css-generators/*.js",
+                "{projectRoot}/dist/lib/css-generators/*.cemt",
                 "{projectRoot}/dist/vendor/**/*"
             ]
         },

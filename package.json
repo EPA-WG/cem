@@ -19,6 +19,8 @@
         "build:clean": "nx reset; rm -rf packages/cem-theme/dist; rm -rf packages/cem-components/dist; rm -rf packages/cem-demo-element/dist; rm -rf packages/cem-elements/dist",
         "build:theme": "nx run @epa-wg/cem-theme:build",
         "build:css": "nx run @epa-wg/cem-theme:build:css",
+        "build:demo": "nx run-many -t build -p cem-elements,@epa-wg/cem-demo-element,@epa-wg/cem-components,@epa-wg/cem-theme,@epa-wg/cem-ml",
+        "copy:demo": "node tools/scripts/copy-demo-site.mjs",
         "lint": "nx run-many -t lint",
         "validate:package-metadata": "node tools/scripts/validate-package-metadata.mjs",
         "publish:prepare": "./tools/scripts/publish-prepare.sh",

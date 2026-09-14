@@ -109,6 +109,8 @@ for (const [target, outputRoot] of [
     outputRoot,
     '--out-name',
     'cem_ml',
+    '--remove-name-section',
+    '--remove-producers-section',
   ]);
 }
 writeJson(resolve(nodeRoot, 'package.json'), { type: 'commonjs' });
