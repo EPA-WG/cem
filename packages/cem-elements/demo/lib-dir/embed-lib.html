@@ -16,7 +16,7 @@
     {module-url @slice=full-url @src="./embed-lib.html"}
     {module-url @slice=smiley-url @src="./Smiley.svg"}
     {a @href="{$datadom.slices.full-url}#embed-lib-component" |
-        {img @src="{$datadom.slices.smiley-url}"}
+        {img @src="{$datadom.slices.smiley-url}" @alt="Library Smiley"}
         #embed-lib-component
     }:
     {cem-element @tag=dce-embed-lib-component @src="./embed-lib.html#embed-lib-component"}

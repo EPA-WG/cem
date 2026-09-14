@@ -1,0 +1,185 @@
+{attribute @name=format | xml}
+{style |```
+    article { min-width: 0; }
+    label { display: block; margin-block: .5rem; }
+    textarea { box-sizing: border-box; width: 100%; min-height: 9rem;
+        font-family: monospace; resize: vertical; }
+    select, input { max-width: 100%; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .table-scroll { overflow: auto; max-height: 22rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .35rem; border: 1px solid var(--cem-table-border, #999);
+        text-align: start; overflow-wrap: anywhere; }
+    .value { white-space: pre-wrap; }
+    tr[aria-selected=true] { background: var(--cem-table-selected, #d3f5dd); color: #18251c; }
+    summary { cursor: pointer; overflow-wrap: anywhere; }
+    details { margin-block: .5rem; }
+    ul { padding-inline-start: 1.25rem; }
+    [role=alert] { color: var(--cem-table-error, #a51d32); overflow-wrap: anywhere; }
+```}
+{module |
+    {template @name=viewer @visibility=public |
+        {body |
+            {cem:variable @name=initial @select='str:trim(str:concat(datadom.payload.nodes.text, ""))'}
+            {cem:variable @name=source @select='datadom.slices.source ?? initial'}
+            {cem:variable @name=column @select='datadom.slices.column ?? ""'}
+            {cem:variable @name=direction @select='datadom.slices.direction ?? "ascending"'}
+            {cem:variable @name=mode @select='datadom.slices.mode ?? "text"'}
+            {cem:variable @name=selected @select='datadom.slices.selected ?? ""'}
+            {cem-data @name=document @select=source @type="{$format}"}
+            {cem:variable @name=columns @select='
+                seq:union(for entry in seq:where(document.root.descendants, fn(entry) => entry.kind == "element") {
+                    if entry.namespace == "cem:generic-data" {
+                        if entry.name == "property" { entry.attributes.value }
+                        else { if entry.name == "array" { "#value" } else { () } }
+                    } else {
+                        if entry.kind == "element" {
+                            (for attr in entry.attributes {
+                                "@" + (if attr.namespace == "" { "" } else { attr.namespace + "|" }) + attr.name
+                            }, "#text", (if entry.namespace == "" { "" } else { entry.namespace + "|" }) + entry.name)
+                        } else { () }
+                    }
+                }, ())'}
+            {article @class=demo-card |
+                {label | Source ({$str:upper(format)})
+                    {textarea @aria-label="Source" @spellcheck=false
+                        @slice=source @slice-event=change @slice-value="$target.value" | {$source}}}
+                {p | Edit, then Tab out to inspect.}
+                {div @class=toolbar |
+                    {button @type=button @aria-label="Reset source" @title="Reset source"
+                        @slice=source @slice-event=click @value="{$initial}" | ↺}
+                    {label | Sort column
+                        {select @aria-label="Sort column" @slice=column @slice-event=change @value="{$column}" |
+                            {option @value="" | Source order}
+                            {cem:for-each @select=columns @as=col | {option @value="{$col}" | {$col}}}}}
+                    {label | Compare
+                        {select @aria-label="Compare" @slice=mode @slice-event=change @value="{$mode}" |
+                            {option @value=text | A–Z}{option @value=number | 1–9}}}
+                    {label | Direction
+                        {select @aria-label="Direction" @slice=direction @slice-event=change @value="{$direction}" |
+                            {option @value=ascending | ↑}{option @value=descending | ↓}}}}
+                {cem:choose |
+                    {cem:when @test='document.error != ""' | {p @role=alert | ⚠ {$document.error}}}
+                    {cem:otherwise |
+                        {apply-templates @select=document.root.children @mode=inspect @with:key="document"}}}
+    }   }   }
+
+    {template @name=array @mode=inspect
+        @match='(node.namespace ?? "") == "cem:generic-data" && (node.name ?? "") == "array"' |
+        {param @name=node}{param @name=key}
+        {body | {call @template=table @with:rows="{$node.children}" @with:key="{$key}"}}}
+    {template @name=structure @mode=inspect @match='node.kind == "element"' @priority=-10 |
+        {param @name=node}{param @name=key}
+        {body | {call @template=tree @with:node="{$node}" @with:key="{$key}"}}}
+    {template @name=leaf @mode=inspect @match=true @priority=-20 |
+        {param @name=node}
+        {body | {span @class=value | {$node.value}}}}
+
+    {template @name=tree @visibility=public |
+        {param @name=node}{param @name=key}
+        {body |
+            {cem:choose |
+                {cem:when @test='node.namespace == "cem:generic-data" && node.name != "array" && node.name != "object"' |
+                    {span @class=value | {cem:choose |
+                        {cem:when @test='node.name == "null"' | null}
+                        {cem:when @test='str:concat(node.children.value, "") == ""' | ""}
+                        {cem:otherwise | {$str:concat(node.children.value, "")}}}}}
+                {cem:otherwise |
+                    {details @open=open |
+                        {summary | 🌳 {$key} · {$node.name}}
+                        {ul |
+                            {cem:choose |
+                                {cem:when @test='node.namespace == "cem:generic-data"' |
+                                    {cem:for-each @select=node.children @as=child |
+                                        {li | {cem:choose |
+                                            {cem:when @test='child.name == "property"' |
+                                                {strong | {$child.attributes.value}: }
+                                                {apply-templates @select=child.children @mode=inspect
+                                                    @with:key="{$child.attributes.value}"}}
+                                            {cem:otherwise |
+                                                {apply-templates @select=child @mode=inspect @with:key="{$key}"}}}}}}
+                                {cem:otherwise |
+                                    {cem:for-each @select=node.attributes @as=attr | {li | @{$attr.name}: {$attr.value}}}
+                                    {cem:for-each @select='seq:where(node.children,
+                                        fn(child) => child.kind != "element" && str:trim(child.value ?? "") != "")' @as=child |
+                                        {li | {span @class=value | {$child.value}}}}
+                                    {cem:for-each @select='
+                                        seq:group_by(seq:where(node.children, fn(child) => child.kind == "element"),
+                                            fn(child) => child.namespace + "|" + child.name)' @as=group |
+                                        {li | {cem:choose |
+                                            {cem:when @test='seq:count(group.items) > 1' |
+                                                {call @template=table @with:rows="{$group.items}"
+                                                    @with:key='{key + "/" + seq:first(group.items).name}'}}
+                                            {cem:otherwise |
+                                                {apply-templates @select=group.items @mode=inspect
+                                                    @with:key='{key + "/" + seq:first(group.items).name}'}}}}}}
+    }   }   }   }   }   }   }
+
+    {template @name=table @visibility=public |
+        {param @name=rows}{param @name=key}
+        {param @name=column}{param @name=direction}{param @name=mode}{param @name=selected}
+        {body |
+            {cem:variable @name=records @select='
+                for row in rows {
+                    {source: row, cells:
+                        if row.namespace == "cem:generic-data" {
+                            if row.name == "object" {
+                                seq:map(row.children, fn(property) =>
+                                    {key: property.attributes.value,
+                                     value: if seq:first(property.children).name == "null" { "null" }
+                                            else { str:concat(property.children.children.value, "") },
+                                     subject: property.children}
+                                )
+                            } else { {key: "#value", value: str:concat(row.children.value, ""), subject: row} }
+                        } else {
+                            (for attr in row.attributes {
+                                {key: "@" + (if attr.namespace == "" { "" } else { attr.namespace + "|" }) + attr.name,
+                                 value: attr.value, subject: ()}
+                            },
+                            {key: "#text", value: str:trim(str:concat(
+                                seq:where(row.children, fn(child) => child.kind == "text" || child.kind == "cdata").value, "")), subject: ()},
+                            for child in seq:where(row.children, fn(child) => child.kind == "element") {
+                                {key: (if child.namespace == "" { "" } else { child.namespace + "|" }) + child.name,
+                                 value: str:concat(child.children.value, ""), subject: child}
+                            })
+                        }
+                    }
+                }'}
+            {cem:variable @name=headings @select='seq:union(records.cells.key, ())'}
+            {cem:variable @name=ordered @select='
+                if column == "" { records } else {
+                    seq:sorted(records, fn(record) =>
+                        if seq:count(seq:where(record.cells, fn(cell) => cell.key == column)) == 0 { () }
+                        else { str:concat(seq:where(record.cells, fn(cell) => cell.key == column).value, " ") },
+                        direction, mode)
+                }'}
+            {details @open=open |
+                {summary | 🧮 {$key} · {$seq:count(rows)} rows}
+                {cem:choose |
+                    {cem:when @test='seq:count(rows) == 0' | {p | ∅ Empty collection}}
+                    {cem:otherwise |
+                        {div @class=table-scroll @tabindex=0 @role=region @aria-label="{$key}" |
+                            {table @aria-label="{$key}" |
+                                {thead | {tr | {th @scope=col | ✓}
+                                    {cem:for-each @select=headings @as=heading | {th @scope=col | {$heading}}}}}
+                                {tbody |
+                                    {cem:for-each @select=ordered @as=record |
+                                        {tr @aria-selected="{selected == record.source.id}" |
+                                            {td | {button @type=button @slice=selected @slice-event=click
+                                                @value="{$record.source.id}" @aria-label="Select source line {$record.source.line}"
+                                                @aria-pressed="{selected == record.source.id}" |
+                                                {cem:choose | {cem:when @test='selected == record.source.id' | ✓}{cem:otherwise | ○}}}}
+                                            {cem:for-each @select=headings @as=heading |
+                                                {cem:variable @name=cells @select='seq:where(record.cells, fn(cell) => cell.key == heading)'}
+                                                {td | {cem:choose |
+                                                    {cem:when @test='seq:count(cells) == 0' | ∅}
+                                                    {cem:otherwise |
+                                                        {cem:for-each @select=cells @as=cell |
+                                                            {cem:choose |
+                                                                {cem:when @test='seq:count(cell.subject) > 0' |
+                                                                    {apply-templates @select=cell.subject @mode=inspect @with:key="{$heading}"}}
+                                                                {cem:when @test='cell.value == ""' | ""}
+                                                                {cem:otherwise | {span @class=value | {$cell.value}}}}}}}}}}}}}}}}
+    }   }   }
+    {body | {call @template=viewer}}
+}

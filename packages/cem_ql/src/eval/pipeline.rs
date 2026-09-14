@@ -153,6 +153,9 @@ pub(crate) fn apply_stdlib_call(
 ) -> ItemStream {
     let arg_streams = ctx.eval_arg_streams(args);
     let source = args.first().copied().unwrap_or(IrId(0));
+    if let Some(failed) = arg_streams.iter().find(|stream| stream.error.is_some()) {
+        return failed.clone();
+    }
     if stdlib::ModuleRegistry::with_all_known()
         .resolve(&module.0, &name.local, args.len())
         .is_none()
@@ -201,6 +204,8 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/sequence", "peek") => arg_streams.into_iter().next().unwrap_or_default(),
         ("cem:stdlib/sequence", "any") => any_all_sequence(arg_streams, ctx, args, false),
         ("cem:stdlib/sequence", "all") => any_all_sequence(arg_streams, ctx, args, true),
+        ("cem:stdlib/sequence", "group_by") => keyed_collection(arg_streams, ctx, args, true),
+        ("cem:stdlib/sequence", "sorted") => keyed_collection(arg_streams, ctx, args, false),
         ("cem:stdlib/sequence", "count") => {
             let count = arg_streams
                 .into_iter()
@@ -233,6 +238,14 @@ pub(crate) fn apply_stdlib_call(
             let value = first_string(&arg_streams);
             ItemStream::once(Item::Atomic(AtomValue::String(value.to_uppercase())))
         }
+        ("cem:stdlib/strings", "split") => string_split(arg_streams),
+        ("cem:stdlib/strings", "trim" | "trim_start" | "trim_end") => {
+            string_trim(arg_streams, &name.local)
+        }
+        ("cem:stdlib/strings", "char_at") => string_character(arg_streams, false),
+        ("cem:stdlib/strings", "at") => string_character(arg_streams, true),
+        ("cem:stdlib/strings", "index_of") => string_index_of(arg_streams, false),
+        ("cem:stdlib/strings", "last_index_of") => string_index_of(arg_streams, true),
         ("cem:stdlib/strings", "slice") => string_slice(arg_streams),
         ("cem:stdlib/strings", "shorten") => string_shorten(arg_streams),
         ("cem:stdlib/strings", "concat") => string_concat(arg_streams),
@@ -293,8 +306,52 @@ pub(crate) fn apply_stdlib_call(
             source,
         ),
         ("cem:stdlib/report", "emit") => report_emit(arg_streams, ctx, source),
+        ("cem:stdlib/report", "raise") => {
+            let ([code], [message]) = (
+                arg_streams[0].items.as_slice(),
+                arg_streams[1].items.as_slice(),
+            ) else {
+                return ctx.type_error(
+                    source,
+                    "report:raise requires one code string and one message string",
+                );
+            };
+            let (Some(AtomValue::String(code)), Some(AtomValue::String(message))) =
+                (code.atom(), message.atom())
+            else {
+                return ctx.type_error(
+                    source,
+                    "report:raise requires one code string and one message string",
+                );
+            };
+            if code.is_empty() {
+                return ctx.type_error(source, "report:raise requires a non-empty code");
+            }
+            ctx.raise(source, code, message)
+        }
         ("cem:stdlib/report", "severity_floor") => ItemStream::empty(),
         ("cem:stdlib/cemml", "parse") => cemml_parse(arg_streams),
+        ("cem:stdlib/data", "read") => {
+            // Poll control before entering the bounded native parsers.
+            let input = first_string(&arg_streams);
+            for _ in 0..=input.len().min(32_768) / 64 {
+                if let Err(error) = ctx.poll_work(source) {
+                    return error;
+                }
+            }
+            let argument = |index: usize, default: &str| {
+                arg_streams
+                    .get(index)
+                    .and_then(|stream| stream.items.first())
+                    .and_then(item_string)
+                    .unwrap_or_else(|| default.to_owned())
+            };
+            let result = super::data::read(&input, &argument(1, ""), &argument(2, "cem"));
+            if let Err(error) = ctx.force_safe_point(source) {
+                return error;
+            }
+            ItemStream::once(result)
+        }
         ("cem:stdlib/cemml", "format") => {
             ItemStream::once(Item::Atomic(AtomValue::String(first_string(&arg_streams))))
         }
@@ -574,9 +631,12 @@ fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
     }
     if !items.iter().any(|item| {
         matches!(item, Item::Record(_))
-            || item
-                .view()
-                .is_some_and(|view| view.kind() == QueryItemViewKind::Record)
+            || item.view().is_some_and(|view| {
+                matches!(
+                    view.kind(),
+                    QueryItemViewKind::Record | QueryItemViewKind::Node
+                )
+            })
     }) {
         return None;
     }
@@ -951,6 +1011,137 @@ fn item_string(item: &Item) -> Option<String> {
     }
 }
 
+/// Generic stable grouping/sorting with expression-defined scalar keys. Items are
+/// retained verbatim, including native AST owner handles and source provenance.
+fn keyed_collection(
+    mut args: Vec<ItemStream>,
+    ctx: &mut EvalCtx<'_>,
+    ids: &[IrId],
+    group: bool,
+) -> ItemStream {
+    use std::cmp::Ordering;
+    let source = ids.first().copied().unwrap_or(IrId(0));
+    if let Some(error) = args.iter().find(|a| a.error.is_some()) {
+        let mut error = error.clone();
+        error.items.clear();
+        return error;
+    }
+    let Some(Item::Lambda(lambda)) = args.get(1).and_then(|a| a.items.first()).cloned() else {
+        return ctx.unsupported(source, "collection key must be a lambda");
+    };
+    let direction = args
+        .get(2)
+        .map(|a| first_string(std::slice::from_ref(a)))
+        .unwrap_or_else(|| "ascending".into());
+    let mode = args
+        .get(3)
+        .map(|a| first_string(std::slice::from_ref(a)))
+        .unwrap_or_else(|| "text".into());
+    if !matches!(direction.as_str(), "ascending" | "descending")
+        || !matches!(mode.as_str(), "text" | "number")
+    {
+        return ctx.unsupported(
+            source,
+            "sorted requires ascending/descending direction and text/number mode",
+        );
+    }
+    let mut out = ItemStream::empty();
+    for arg in &mut args {
+        out.diagnostics.append(&mut arg.diagnostics);
+    }
+    let mut keyed = Vec::new();
+    for item in std::mem::take(&mut args[0].items) {
+        if let Err(error) = ctx.charge_items(1, source) {
+            return error;
+        }
+        if let Err(error) = ctx.poll_work(source) {
+            return error;
+        }
+        let mut key = ctx.invoke_lambda(lambda, vec![ItemStream::once(item.clone())]);
+        if key.error.is_some() {
+            key.items.clear();
+            return key;
+        }
+        out.diagnostics.append(&mut key.diagnostics);
+        if key.items.len() > 1 || key.items.first().is_some_and(|item| item.atom().is_none()) {
+            return ctx.unsupported(source, "collection key must be empty or one atomic value");
+        }
+        keyed.push((key.items, item));
+    }
+    if group {
+        let mut positions = BTreeMap::new();
+        let mut groups: Vec<(Vec<Item>, Vec<Item>)> = Vec::new();
+        for (key, item) in keyed {
+            if let Err(error) = ctx.poll_work(source) {
+                return error;
+            }
+            let identity = key
+                .first()
+                .map(super::item_identity)
+                .unwrap_or_else(|| "empty".into());
+            let index = *positions.entry(identity).or_insert_with(|| {
+                let index = groups.len();
+                groups.push((key, Vec::new()));
+                index
+            });
+            groups[index].1.push(item);
+        }
+        out.items = groups
+            .into_iter()
+            .map(|(key, items)| {
+                Item::Record(BTreeMap::from([
+                    ("key".into(), key),
+                    ("items".into(), items),
+                ]))
+            })
+            .collect();
+    } else {
+        // Compute a key once per input, not once per comparator invocation.
+        let mut keyed: Vec<_> = keyed
+            .into_iter()
+            .map(|(key, item)| {
+                let text = key.first().and_then(item_string);
+                let number = text
+                    .as_deref()
+                    .and_then(|s| s.trim().parse::<f64>().ok())
+                    .filter(|n| n.is_finite());
+                (text, number, item)
+            })
+            .collect();
+        let mut control_error = None;
+        keyed.sort_by(|a, b| {
+            if control_error.is_none() {
+                if let Err(error) = ctx.poll_work(source) {
+                    control_error = Some(error);
+                }
+            }
+            let (valid_a, valid_b, comparison) = if mode == "number" {
+                (
+                    a.1.is_some(),
+                    b.1.is_some(),
+                    a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal),
+                )
+            } else {
+                (a.0.is_some(), b.0.is_some(), a.0.cmp(&b.0))
+            };
+            match (valid_a, valid_b) {
+                (false, true) => Ordering::Greater,
+                (true, false) => Ordering::Less,
+                _ if direction == "descending" => comparison.reverse(),
+                _ => comparison,
+            }
+        });
+        if let Some(error) = control_error {
+            return error;
+        }
+        out.items = keyed.into_iter().map(|(_, _, item)| item).collect();
+    }
+    if let Err(error) = ctx.force_safe_point(source) {
+        return error;
+    }
+    out
+}
+
 fn callable_sequence(
     mut arg_streams: Vec<ItemStream>,
     ctx: &mut EvalCtx<'_>,
@@ -1065,6 +1256,102 @@ fn item_number(item: &Item) -> Option<f64> {
         AtomValue::String(value) => value.parse().ok(),
         _ => None,
     }
+}
+
+/// Literal splitting returns a sequence, retaining empty fields. An empty separator
+/// yields Unicode scalar values, never UTF-16 surrogate halves or boundary empties.
+fn string_split(streams: Vec<ItemStream>) -> ItemStream {
+    let value = first_string(&streams);
+    let separator = nth_string(&streams, 1);
+    let items = if separator.is_empty() {
+        value
+            .chars()
+            .map(|ch| Item::Atomic(AtomValue::String(ch.to_string())))
+            .collect()
+    } else {
+        value
+            .split(&separator)
+            .map(|part| Item::Atomic(AtomValue::String(part.to_owned())))
+            .collect()
+    };
+    ItemStream::from_items(items)
+}
+
+/// ECMAScript WhiteSpace + LineTerminator (including BOM, excluding U+0085).
+/// Keep `normalize_space`'s existing Unicode-whitespace behavior independent.
+fn is_string_trim_space(ch: char) -> bool {
+    matches!(ch,
+        '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}'
+        | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}'
+        | '\u{205f}' | '\u{3000}' | '\u{feff}'
+    )
+}
+
+fn string_trim(streams: Vec<ItemStream>, method: &str) -> ItemStream {
+    let value = first_string(&streams);
+    let trimmed = match method {
+        "trim_start" => value.trim_start_matches(is_string_trim_space),
+        "trim_end" => value.trim_end_matches(is_string_trim_space),
+        _ => value.trim_matches(is_string_trim_space),
+    };
+    ItemStream::once(Item::Atomic(AtomValue::String(trimmed.to_owned())))
+}
+
+/// `at` accepts negative indices and returns the empty sequence outside the string;
+/// `char_at` only accepts nonnegative indices and returns an empty string outside it.
+fn string_character(streams: Vec<ItemStream>, relative: bool) -> ItemStream {
+    let value = first_string(&streams);
+    let mut index = streams.get(1).and_then(first_integer).unwrap_or(0);
+    if relative && index < 0 {
+        index = (value.chars().count() as i64).saturating_add(index);
+    }
+    let character = usize::try_from(index)
+        .ok()
+        .and_then(|index| value.chars().nth(index));
+    match character {
+        Some(ch) => ItemStream::once(Item::Atomic(AtomValue::String(ch.to_string()))),
+        None if relative => ItemStream::empty(),
+        None => ItemStream::once(Item::Atomic(AtomValue::String(String::new()))),
+    }
+}
+
+/// Search positions and results use zero-based Unicode codepoints. Backward search
+/// bounds the *start* of a match, not its end, and includes overlapping matches.
+fn string_index_of(streams: Vec<ItemStream>, backwards: bool) -> ItemStream {
+    let value = first_string(&streams);
+    let needle = nth_string(&streams, 1);
+    let length = value.chars().count();
+    let position = streams
+        .get(2)
+        .and_then(first_integer)
+        .map(|position| {
+            usize::try_from(position.max(0))
+                .unwrap_or(usize::MAX)
+                .min(length)
+        })
+        .unwrap_or(if backwards { length } else { 0 });
+    let start_byte = value
+        .char_indices()
+        .nth(position)
+        .map(|(byte, _)| byte)
+        .unwrap_or(value.len());
+    let found = if backwards {
+        // Extend the prefix so a match may start exactly at position. Round the
+        // end down to a UTF-8 boundary; every valid match ends on such a boundary.
+        let mut end = start_byte.saturating_add(needle.len()).min(value.len());
+        while !value.is_char_boundary(end) {
+            end -= 1;
+        }
+        value[..end].rfind(&needle)
+    } else {
+        value[start_byte..]
+            .find(&needle)
+            .map(|offset| start_byte + offset)
+    };
+    let index = found
+        .map(|byte| value[..byte].chars().count() as i64)
+        .unwrap_or(-1);
+    ItemStream::once(Item::Atomic(AtomValue::Integer(index)))
 }
 
 fn string_slice(streams: Vec<ItemStream>) -> ItemStream {

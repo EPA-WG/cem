@@ -11,6 +11,7 @@ const EXPECTED_LEGENDS = [
     '4a. Mapped declaration source',
     '4b. Missing import-map entry',
     '4c. Mapped fragment with a relative dependency',
+    '4d. Mapped image and same-library fragment',
     '5. component-local map: naked',
     '6. component-local map: wrapper override',
     '7. component-local map: node referrer',
@@ -109,6 +110,11 @@ export const EveryAuthoredSample: Story = {
             'a bare declaration document URL resolves through the import map',
             300
         );
+        assertEqual(
+            mappedDeclaration.querySelector('output')?.closest('a')?.getAttribute('href'),
+            new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href,
+            'the reader can open the resolved declaration source'
+        );
 
         const missing = sampleByLegend(host, EXPECTED_LEGENDS[6]);
         await waitForCondition(
@@ -122,22 +128,48 @@ export const EveryAuthoredSample: Story = {
             'a mapped template fragment resolves through the import map',
             300
         );
+        assertEqual(
+            fragment.querySelector('output')?.closest('a')?.getAttribute('href'),
+            `${new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href}#embed-relative-file`,
+            'the reader can open the resolved fragment source'
+        );
 
-        const naked = sampleByLegend(host, EXPECTED_LEGENDS[8]);
+        const paired = sampleByLegend(host, '4d. Mapped image and same-library fragment');
+        const libraryUrl = new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href;
+        await waitForCondition(
+            () => paired.querySelectorAll('article img').length === 2
+                && normalize(paired.querySelector('article')?.textContent ?? '').includes('👋 from embed-lib-component')
+                && Array.from(paired.querySelectorAll<HTMLImageElement>('article img'))
+                    .every((image) => image.src === smileyUrl.href && image.complete && image.naturalWidth > 0),
+            'both the prefix-mapped image and nested library image load, with the nested declaration rendered',
+            900
+        );
+        assertEqual(
+            requiredElement(paired, 'article > a').getAttribute('href'),
+            `${libraryUrl}#embed-relative-hash`,
+            'the mapped image opens the selected fragment'
+        );
+        assertEqual(
+            paired.querySelector('article img[alt="Library Smiley"]')?.closest('a')?.getAttribute('href'),
+            `${libraryUrl}#embed-lib-component`,
+            'the nested image opens the library-local component'
+        );
+
+        const naked = sampleByLegend(host, EXPECTED_LEGENDS[9]);
         await waitForCondition(
             () => naked.querySelector('cem-local-map-naked-image img')?.getAttribute('src') === nakedUrl
                 && naked.querySelector('cem-local-map-naked-image a')?.getAttribute('href') === nakedUrl,
             'naked component resolves through its own module map'
         );
 
-        const override = sampleByLegend(host, EXPECTED_LEGENDS[9]);
+        const override = sampleByLegend(host, EXPECTED_LEGENDS[10]);
         await waitForCondition(
             () => override.querySelector('cem-local-map-override-image img')?.getAttribute('src') === wrappedUrl
                 && override.querySelector('cem-local-map-override-image a')?.getAttribute('href') === wrappedUrl,
             'wrapper module map overrides the child mapping'
         );
 
-        const nodeReferrer = sampleByLegend(host, EXPECTED_LEGENDS[10]);
+        const nodeReferrer = sampleByLegend(host, EXPECTED_LEGENDS[11]);
         const nodeReferrerCells = () => Array.from(
             nodeReferrer.querySelectorAll('cem-local-map-referrer-demo table.node-referrer-matrix td expando-link a'),
             (link) => link.getAttribute('href')
@@ -164,7 +196,7 @@ export const EveryAuthoredSample: Story = {
             'node-referrer image-link retains the full resolved URL'
         );
 
-        const helper = sampleByLegend(host, EXPECTED_LEGENDS[11]);
+        const helper = sampleByLegend(host, EXPECTED_LEGENDS[12]);
         const helperLink = requiredElement(helper, 'image-link a');
         assertEqual(
             normalize(helperLink.textContent ?? ''),

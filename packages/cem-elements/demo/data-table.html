@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XML, CSV, YAML and JSON tables — CEM demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav">
+    <a href="../index.html">cem-element demo</a>
+    <h1>🧮 XML, CSV, YAML &amp; JSON tables</h1>
+</nav>
+<main>
+    <section>
+        <h2>Change the source, watch the table</h2>
+        <p>Edit any source and Tab out: <code>cem-data</code> imports a typed CEM AST.
+            The <a href="#data-table-view.cemt">CEMT viewer</a> discovers repeated
+            XML siblings or array members and builds the table and its columns.
+            Select a row with ○, then compare
+            A–Z with 1–9 sorting: “10” precedes “2” as text, but follows it as
+            a number. ↑ / ↓ changes direction; equal keys keep source order.</p>
+        <p><code>∅</code> means missing; <code>""</code> is an empty string.
+            Missing or nonnumeric keys sort last. Selection follows source
+            identity through sorting; editing the document clears its highlight.
+            ↺ restores the authored source. Expand/collapse each table with its
+            keyboard-operable summary.</p>
+        <p>XML attributes use <code>@name</code>, direct text uses
+            <code>#text</code>, and namespaces remain distinct. JSON/YAML
+            sequences become rows; nested collections get their own tables at
+            labeled collection names. CSV uses a comma delimiter and its first row
+            as headings; quoted commas, quotes and newlines are supported.</p>
+        <p>This is an explicit table view, not a lossless tree/export editor.
+            XML comments and processing instructions remain inert text and
+            never execute. DTDs/unresolved entities and YAML anchors, aliases, explicit
+            tags or complex keys are rejected. Sources are limited to 32 KiB,
+            64 levels and 4096 events/values; generic query and template budgets
+            also bound rendering. Keep this interactive teaching sample small.
+            Parse errors replace the tables rather than leave stale results.</p>
+        <p>Rust supplies format readers and reusable <code>seq:group_by</code> /
+            <code>seq:sorted</code> functions, not table-view code. Row discovery,
+            cells, headings and presentation are authored in CEMT, with no
+            page-local JavaScript behavior.</p>
+        <h3>🧩 Extend presentation with matching aspects</h3>
+        <p>Like <code>&lt;xsl:template match="…"&gt;</code>, a CEMT
+            <code>template @match</code> rule selects a presentation for the current
+            native <code>node</code>. <code>apply-templates @mode=inspect</code>
+            dispatches it. Higher priority wins, then local over imported rules,
+            then later declarations. Unmatched values emit nothing.</p>
+        <p>The fifth case imports the unchanged base viewer and adds
+            <a href="./data-table-aspects.cemt">two small presentation aspects</a>:
+            notes become a tree and an IP-filter record becomes a form.
+            Toggle 🧩 to restore the defaults; other collections keep their tables.
+            The form edits a local preview, not the original source or a firewall.</p>
+        <cem-element tag="cem-data-table" src="./data-table-view.cemt"></cem-element>
+        <h3>See also</h3>
+        <p><a href="./external-template.html">Data-island trees and external templates</a> ·
+            <a href="./for-each.html">Authored table rows</a> ·
+            <a href="./dom-merge.html">Focus-preserving edits</a></p>
+    </section>
+
+    <cem-demo-element legend="1. XML table: attributes and text"
+        description="Keep Pokémon names beside their IDs; later rows add columns, while nested evolutions become another table">
+        <template>
+<cem-data-table format="xml">
+&lt;pokemon&gt;
+  &lt;row id="10"&gt;caterpie&lt;/row&gt;
+  &lt;row id="2" mood="🌱"&gt;ivysaur&lt;/row&gt;
+  &lt;row id="3" mood=""&gt;venusaur
+    &lt;evolutions&gt;
+      &lt;name&gt;🌿&lt;/name&gt;&lt;name&gt;🌸&lt;/name&gt;
+    &lt;/evolutions&gt;
+  &lt;/row&gt;
+&lt;/pokemon&gt;
+</cem-data-table>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. CSV table: quoted fields"
+        description="Change a quantity or a quoted note; compare text with numeric sorting without splitting quoted commas">
+        <template>
+<cem-data-table format="csv">
+qty,fruit,note
+10,🍒,"sweet, red"
+2,🍋,"say ""zest"""
+3,🍌,
+</cem-data-table>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="3. YAML table: nested collections"
+        description="A later row adds a fresh column; tags stay inspectable in a separate nested table">
+        <template>
+<cem-data-table format="yaml">
+- qty: 10
+  fruit: 🍒
+  tags: [red, sweet]
+- qty: 2
+  fruit: 🍋
+  fresh: true
+- qty: 3
+  fruit: 🍌
+  fresh: false
+</cem-data-table>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="4. JSON table: empty and missing"
+        description="Compare an empty string, an absent key and null; break then repair the JSON to see errors recover">
+        <template>
+<cem-data-table format="json">
+[
+  {"qty": 10, "fruit": "🍒", "note": ""},
+  {"qty": 2, "fruit": "🍋"},
+  {"qty": 3, "fruit": "🍌", "note": null}
+]
+</cem-data-table>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="5. Presentation aspects: tree and IP-filter form"
+        description="Toggle matching aspects: notes change from table to tree, the filter becomes an editable form, and visits stay a table">
+        <template>
+<cem-element tag="cem-aspect-view"
+    src="./data-table-aspects.cemt"></cem-element>
+<cem-aspect-view format="json">
+{
+  "visits": [
+    {"address": "192.0.2.1", "hits": 10},
+    {"address": "192.0.2.2", "hits": 2}
+  ],
+  "notes": [{"message": "🍒 ready"}, {"message": "🍋 review"}],
+  "filter": {
+    "kind": "ip-filter",
+    "address": "192.0.2.0/24",
+    "action": "allow"
+  }
+}
+</cem-aspect-view>
+        </template>
+    </cem-demo-element>
+
+
+</main>
+<cem-demo-element
+    id="data-table-view.cemt"
+    src="./data-table-view.cemt"
+    type="text/cem-ml"
+    legend="./data-table-view.cemt"
+></cem-demo-element>
+
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

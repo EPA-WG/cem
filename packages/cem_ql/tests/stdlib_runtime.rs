@@ -16,6 +16,7 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
     evaluate(
         &query,
         &EvaluationContext {
+            native_functions: Default::default(),
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),
@@ -30,7 +31,7 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 61);
+    assert_eq!(registry.functions.len(), 69);
     assert!(registry
         .resolve("cem:stdlib/modules", "module_url", 1)
         .is_some());

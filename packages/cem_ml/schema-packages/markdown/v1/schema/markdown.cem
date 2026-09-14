@@ -60,6 +60,8 @@
         {constraint @kind="source-map-preferred" @target="block" @policy="required when parser exposes source ranges"}
         {constraint @kind="embedded-html-policy" @target="html" @policy="must be explicit before HTML is executed or trusted"}
         {constraint @kind="fragment-policy-variant-defined" @target="document" @policy="fragment identifiers are variant-defined"}
+        {constraint @kind="table-data-projection" @target="document" @policy="project converted table rows as JSON-compatible records with normalized header fields, ordered cells, source_table/source_row provenance, and tdN compatibility aliases"}
+        {constraint @kind="table-data-projection-reserved-fields" @target="document" @policy="named table fields must not overwrite cells, source_table, source_row, or tdN compatibility aliases"}
     }
 
     {diagnostics |
@@ -69,6 +71,9 @@
         {diagnostic @code="cem.markdown.unknown_variant" @severity="warning"}
         {diagnostic @code="cem.markdown.embedded_html_rejected" @severity="error"}
         {diagnostic @code="cem.markdown.source_map_unavailable" @severity="info"}
+        {diagnostic @code="cem.markdown.table_header_empty" @severity="warning"}
+        {diagnostic @code="cem.markdown.table_header_duplicate" @severity="warning"}
+        {diagnostic @code="cem.markdown.table_header_reserved" @severity="warning"}
     }
 
     {compatibility |

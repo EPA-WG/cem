@@ -97,6 +97,7 @@ pub enum EmbeddedArtifactRole {
     Converter,
     Validator,
     TransformConfig,
+    TemplateModule,
     Schema,
     PackageManifest,
     Example,
@@ -661,6 +662,7 @@ pub fn validate_embedded_functional_fixture(
             policy_bindings: fixture.bindings.clone(),
             current_item: None,
             module_resolution: None,
+            native_functions: Default::default(),
         },
     ));
     report
@@ -880,6 +882,10 @@ impl EmbeddedHostCompileSupport {
             Expression::UnaryOp { operand, .. } => {
                 self.collect_expression(operand);
             }
+            Expression::TryCatch { body, handler, .. } => {
+                self.collect_expression(body);
+                self.collect_expression(handler);
+            }
             Expression::If {
                 cond,
                 then_branch,
@@ -1084,6 +1090,7 @@ fn parse_artifact_role_scope(value: &str) -> Result<EmbeddedArtifactRole, String
         "converter" => Ok(EmbeddedArtifactRole::Converter),
         "validator" => Ok(EmbeddedArtifactRole::Validator),
         "transform-config" => Ok(EmbeddedArtifactRole::TransformConfig),
+        "template-module" => Ok(EmbeddedArtifactRole::TemplateModule),
         "schema" => Ok(EmbeddedArtifactRole::Schema),
         "package-manifest" => Ok(EmbeddedArtifactRole::PackageManifest),
         "example" => Ok(EmbeddedArtifactRole::Example),
@@ -1355,6 +1362,7 @@ fn expression_evaluation_phase(
         EmbeddedArtifactRole::Formatter
         | EmbeddedArtifactRole::Colorizer
         | EmbeddedArtifactRole::Converter
+        | EmbeddedArtifactRole::TemplateModule
         | EmbeddedArtifactRole::Example
         | EmbeddedArtifactRole::Demo
         | EmbeddedArtifactRole::Unknown => EmbeddedExpressionEvaluationPhase::Render,
@@ -1448,6 +1456,11 @@ pub fn classify_artifact_role(path: impl AsRef<Path>) -> EmbeddedArtifactRole {
     }
     if components.iter().any(|component| component == "examples") {
         return EmbeddedArtifactRole::Example;
+    }
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("cemt") => return EmbeddedArtifactRole::TemplateModule,
+        Some("cem") => return EmbeddedArtifactRole::TransformConfig,
+        _ => {}
     }
     EmbeddedArtifactRole::Unknown
 }
@@ -1660,6 +1673,14 @@ mod tests {
         assert_eq!(
             classify_artifact_role("packages/cem_ql/fixtures/component-template-artifact.cem"),
             EmbeddedArtifactRole::DocumentationFixture,
+        );
+        assert_eq!(
+            classify_artifact_role("packages/cem-theme/src/lib/css-generators/cem-token-docs.cemt"),
+            EmbeddedArtifactRole::TemplateModule,
+        );
+        assert_eq!(
+            classify_artifact_role("packages/cem-theme/src/docs.cem"),
+            EmbeddedArtifactRole::TransformConfig,
         );
     }
 

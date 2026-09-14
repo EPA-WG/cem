@@ -36,7 +36,9 @@ use crate::transform_template::{
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
     TransformTemplateRuntimeContext,
 };
-use crate::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind};
+use crate::validation::xml::{
+    xml_decode_entity_reference, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
+};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -754,6 +756,10 @@ pub enum XPathNativeNodeHandle {
 pub struct XPathNativeNode {
     owner: Arc<LoadedInputAstStream>,
     handle: XPathNativeNodeHandle,
+    // Text nodes use the first source event as their canonical identity and
+    // retain the exclusive end of the run. The XML owner's lexical AST stays
+    // unchanged; navigation, values and provenance use this XPath-only view.
+    text_run_end: Option<usize>,
     resolution_context: Option<CemResolutionContextHandle>,
 }
 
@@ -788,6 +794,13 @@ pub enum XPathNativeNodeError {
         event_index: usize,
         attribute_index: usize,
     },
+    XmlAttributeIsNamespace {
+        event_index: usize,
+        attribute_index: usize,
+    },
+    XmlEntityReferenceUnsupported {
+        event_index: usize,
+    },
 }
 
 impl std::fmt::Display for XPathNativeNodeError {
@@ -808,6 +821,17 @@ impl std::fmt::Display for XPathNativeNodeError {
                 formatter,
                 "XML attribute `{attribute_index}` does not exist on event `{event_index}`"
             ),
+            Self::XmlAttributeIsNamespace {
+                event_index,
+                attribute_index,
+            } => write!(
+                formatter,
+                "XML attribute `{attribute_index}` on event `{event_index}` declares a namespace, not an XPath attribute"
+            ),
+            Self::XmlEntityReferenceUnsupported { event_index } => write!(
+                formatter,
+                "XML entity reference at event `{event_index}` has no supported XPath text value"
+            ),
         }
     }
 }
@@ -822,6 +846,7 @@ impl XPathNativeNode {
         Ok(Self {
             owner,
             handle: XPathNativeNodeHandle::XmlDocument,
+            text_run_end: None,
             resolution_context: None,
         })
     }
@@ -840,9 +865,55 @@ impl XPathNativeNode {
         if xpath_xml_event_node_kind(event.kind).is_none() {
             return Err(XPathNativeNodeError::XmlEventIsNotNode { event_index });
         }
+        let (event_index, text_run_end) = if xpath_xml_event_is_text(event.kind) {
+            // Whitespace outside the document element is XML source trivia,
+            // not a child text node of an XDM document constructed from XML.
+            if event.depth == 0 {
+                return Err(XPathNativeNodeError::XmlEventIsNotNode { event_index });
+            }
+            let belongs_to_run = |candidate: &XmlEventAst| {
+                candidate.depth == event.depth && xpath_xml_event_is_text(candidate.kind)
+            };
+            let mut start = event_index;
+            while start > 0 && belongs_to_run(&document.events[start - 1]) {
+                start -= 1;
+            }
+            let mut end = event_index + 1;
+            while end < document.events.len() && belongs_to_run(&document.events[end]) {
+                end += 1;
+            }
+            let mut nonempty = false;
+            for member in &document.events[start..end] {
+                if member.kind == XmlEventKind::EntityReference {
+                    if member
+                        .value
+                        .as_deref()
+                        .and_then(xml_decode_entity_reference)
+                        .is_none()
+                    {
+                        return Err(XPathNativeNodeError::XmlEntityReferenceUnsupported {
+                            event_index: member.index,
+                        });
+                    }
+                    nonempty = true;
+                } else {
+                    nonempty |= member
+                        .value
+                        .as_deref()
+                        .is_some_and(|value| !value.is_empty());
+                }
+            }
+            if !nonempty {
+                return Err(XPathNativeNodeError::XmlEventIsNotNode { event_index });
+            }
+            (start, Some(end))
+        } else {
+            (event_index, None)
+        };
         Ok(Self {
             owner,
             handle: XPathNativeNodeHandle::XmlEvent { event_index },
+            text_run_end,
             resolution_context: None,
         })
     }
@@ -859,19 +930,25 @@ impl XPathNativeNode {
             .events
             .get(event_index)
             .ok_or(XPathNativeNodeError::XmlEventMissing { event_index })?;
-        event
-            .attributes
-            .get(attribute_index)
-            .ok_or(XPathNativeNodeError::XmlAttributeMissing {
+        let attribute = event.attributes.get(attribute_index).ok_or(
+            XPathNativeNodeError::XmlAttributeMissing {
                 event_index,
                 attribute_index,
-            })?;
+            },
+        )?;
+        if attribute.qualified_name == "xmlns" || attribute.prefix.as_deref() == Some("xmlns") {
+            return Err(XPathNativeNodeError::XmlAttributeIsNamespace {
+                event_index,
+                attribute_index,
+            });
+        }
         Ok(Self {
             owner,
             handle: XPathNativeNodeHandle::XmlAttribute {
                 event_index,
                 attribute_index,
             },
+            text_run_end: None,
             resolution_context: None,
         })
     }
@@ -908,13 +985,25 @@ impl XPathNativeNode {
                     },
                 }],
             },
-            XPathNativeNodeHandle::XmlEvent { event_index } => self
-                .xml_document_ast()
-                .events
-                .get(event_index)
-                .expect("validated XPath XML event handle")
-                .source_range
-                .source_map(),
+            XPathNativeNodeHandle::XmlEvent { event_index } => {
+                let events = &self.xml_document_ast().events;
+                let mut source_map = events[event_index].source_range.source_map();
+                if let Some(end) = self.text_run_end.filter(|end| *end > event_index + 1) {
+                    source_map.frames[0].span = FrameSpan::Multi(
+                        events[event_index..end]
+                            .iter()
+                            .map(|event| {
+                                let range = event.source_range;
+                                ByteRange::new(
+                                    range.start.byte_offset,
+                                    u32::try_from(range.byte_length).unwrap_or(u32::MAX),
+                                )
+                            })
+                            .collect(),
+                    );
+                }
+                source_map
+            }
             XPathNativeNodeHandle::XmlAttribute { .. } => self
                 .xml_attribute_ast()
                 .and_then(|attribute| attribute.value_source_range)
@@ -962,6 +1051,7 @@ impl XPathNativeNode {
         Self {
             owner: Arc::clone(&self.owner),
             handle: XPathNativeNodeHandle::XmlDocument,
+            text_run_end: None,
             resolution_context: self.resolution_context.clone(),
         }
     }
@@ -994,6 +1084,20 @@ impl XPathNativeNode {
                 break;
             }
             if event.depth != child_depth || xpath_xml_event_node_kind(event.kind).is_none() {
+                continue;
+            }
+            // Only visit the first lexical member of a text run. Besides
+            // deduplicating logical children this avoids rescanning long runs
+            // once for every CDATA/entity boundary.
+            if xpath_xml_event_is_text(event.kind)
+                && event.index > 0
+                && document
+                    .events
+                    .get(event.index - 1)
+                    .is_some_and(|previous| {
+                        previous.depth == event.depth && xpath_xml_event_is_text(previous.kind)
+                    })
+            {
                 continue;
             }
             if let Ok(mut node) = Self::xml_event(Arc::clone(&self.owner), event.index) {
@@ -1190,11 +1294,33 @@ impl XPathNativeNode {
                 .descendant_nodes()
                 .into_iter()
                 .filter(|node| node.result_node_kind() == XPathResultNodeKind::Text)
-                .filter_map(|node| node.xml_event_ast().and_then(|event| event.value.clone()))
+                .map(|node| node.string_value())
                 .collect(),
-            XPathResultNodeKind::Text | XPathResultNodeKind::Comment => self
+            XPathResultNodeKind::Text => {
+                let XPathNativeNodeHandle::XmlEvent { event_index } = self.handle else {
+                    unreachable!("text nodes are backed by XML event runs")
+                };
+                let end = self.text_run_end.expect("validated XPath text run");
+                let mut value = String::new();
+                for event in &self.xml_document_ast().events[event_index..end] {
+                    if event.kind == XmlEventKind::EntityReference {
+                        value.push(
+                            event
+                                .value
+                                .as_deref()
+                                .and_then(xml_decode_entity_reference)
+                                .expect("validated XPath entity reference"),
+                        );
+                    } else if let Some(text) = &event.value {
+                        value.push_str(&xpath_xml_normalize_line_endings(text));
+                    }
+                }
+                value
+            }
+            XPathResultNodeKind::Comment => self
                 .xml_event_ast()
-                .and_then(|event| event.value.clone())
+                .and_then(|event| event.value.as_deref())
+                .map(xpath_xml_normalize_line_endings)
                 .unwrap_or_default(),
             XPathResultNodeKind::ProcessingInstruction => self
                 .xml_event_ast()
@@ -1206,11 +1332,9 @@ impl XPathNativeNode {
                             matches!(character, ' ' | '\t' | '\r' | '\n').then_some(offset)
                         })
                         .map(|offset| {
-                            value[offset..]
-                                .trim_start_matches(|character| {
-                                    matches!(character, ' ' | '\t' | '\r' | '\n')
-                                })
-                                .to_owned()
+                            xpath_xml_normalize_line_endings(
+                                value[offset..].trim_start_matches([' ', '\t', '\r', '\n']),
+                            )
                         })
                         .unwrap_or_default()
                 })
@@ -1265,7 +1389,10 @@ impl XPathNativeNode {
                     range.start.line,
                     range.start.column,
                     range.start.byte_offset,
-                    range.byte_length,
+                    self.text_run_end.map_or(range.byte_length, |end| {
+                        let last = self.xml_document_ast().events[end - 1].source_range;
+                        last.start.byte_offset + last.byte_length - range.start.byte_offset
+                    }),
                 )
             }
             XPathNativeNodeHandle::XmlAttribute { .. } => {
@@ -1308,6 +1435,15 @@ impl XPathNativeNode {
             )
         } else {
             let event = self.xml_event_ast()?;
+            if event.kind == XmlEventKind::ProcessingInstruction {
+                return event.value.as_deref().map(|value| {
+                    value
+                        .split([' ', '\t', '\r', '\n'])
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned()
+                });
+            }
             (event.local_name.as_deref()?, event.namespace_uri.as_deref())
         };
         Some(match namespace_uri {
@@ -1354,7 +1490,11 @@ impl XPathNativeNode {
                     } => node_namespace_uri == Some(expected_namespace_uri.as_str()),
                 }
             }
-            XPathNodeTest::Kind { kind, .. } => match kind {
+            XPathNodeTest::Kind {
+                kind,
+                processing_instruction_target,
+                ..
+            } => match kind {
                 XPathKindTest::Document => self.result_node_kind() == XPathResultNodeKind::Document,
                 XPathKindTest::Element | XPathKindTest::SchemaElement => {
                     self.result_node_kind() == XPathResultNodeKind::Element
@@ -1364,6 +1504,9 @@ impl XPathNativeNode {
                 }
                 XPathKindTest::ProcessingInstruction => {
                     self.result_node_kind() == XPathResultNodeKind::ProcessingInstruction
+                        && processing_instruction_target
+                            .as_ref()
+                            .is_none_or(|target| self.expanded_name().as_ref() == Some(target))
                 }
                 XPathKindTest::Comment => self.result_node_kind() == XPathResultNodeKind::Comment,
                 XPathKindTest::Text => self.result_node_kind() == XPathResultNodeKind::Text,
@@ -1374,6 +1517,18 @@ impl XPathNativeNode {
             },
         }
     }
+}
+
+fn xpath_xml_event_is_text(kind: XmlEventKind) -> bool {
+    matches!(
+        kind,
+        XmlEventKind::Text | XmlEventKind::Cdata | XmlEventKind::EntityReference
+    )
+}
+
+fn xpath_xml_normalize_line_endings(value: &str) -> String {
+    // Numeric character references are decoded separately: &#13; stays CR.
+    value.replace("\r\n", "\n").replace('\r', "\n")
 }
 
 fn xpath_xml_event_node_kind(kind: XmlEventKind) -> Option<XPathResultNodeKind> {
@@ -2139,6 +2294,30 @@ impl XPathInvocationAdapter for XsltXPathInvocationAdapter {
         &self,
         request: XPathEvaluationRequest<'_>,
     ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        self.invoke_internal(request, None)
+    }
+}
+
+impl XsltXPathInvocationAdapter {
+    /// Reuse the invoking runtime's operation scope; no independent cancellation
+    /// domain is created at the XSLT/XPath boundary.
+    pub fn invoke_with_control(
+        &self,
+        request: XPathEvaluationRequest<'_>,
+        control: &crate::operation_control::OperationControl,
+        scope: crate::operation_control::ExecutionScopeId,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        self.invoke_internal(request, Some((control, scope)))
+    }
+
+    fn invoke_internal(
+        &self,
+        request: XPathEvaluationRequest<'_>,
+        control: Option<(
+            &crate::operation_control::OperationControl,
+            crate::operation_control::ExecutionScopeId,
+        )>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
         let attachment_matches = matches!(
             &request.expression.attachment,
             XPathAttachment::Host(host)
@@ -2159,7 +2338,12 @@ impl XPathInvocationAdapter for XsltXPathInvocationAdapter {
                     .map(|syntax| syntax.root.source_range),
             )]);
         }
-        CemXPathEvaluator::default().evaluate(request)
+        match control {
+            Some((control, scope)) => {
+                CemXPathEvaluator::default().evaluate_with_control(request, control, scope)
+            }
+            None => CemXPathEvaluator::default().evaluate(request),
+        }
     }
 }
 
@@ -4536,6 +4720,20 @@ fn xpath_evaluate_axis(
     input: &XPathResultItem,
     source_range: XPathSourceRange,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    if let XPathNodeTest::Kind {
+        kind: XPathKindTest::ProcessingInstruction,
+        processing_instruction_target: Some(target),
+        ..
+    } = node_test
+    {
+        if !lexer::is_ncname(target) {
+            return Err(XPathEvaluationError::dynamic(
+                "cem.xpath.processing_instruction_target",
+                "err:XPTY0004: XPath processing-instruction target must normalize to an NCName",
+                source_range,
+            ));
+        }
+    }
     let native_node = input.native_node().ok_or_else(|| XPathEvaluationError {
         code: "cem.xpath.context_item_native_node_required",
         message: "XPath axis evaluation requires native AST node items".to_owned(),
@@ -9806,6 +10004,18 @@ impl<'a> XPathSyntaxLowerer<'a> {
             xee_ast::NodeTest::KindTest(kind_test) => XPathNodeTest::Kind {
                 kind: self.lower_kind_test(kind_test),
                 lexical: self.node_test_lexical(start, end),
+                processing_instruction_target: match kind_test {
+                    xee_ast::KindTest::PI(Some(
+                        xee_ast::PITest::Name(target) | xee_ast::PITest::StringLiteral(target),
+                    )) => Some(
+                        target
+                            .split([' ', '\t', '\r', '\n'])
+                            .filter(|part| !part.is_empty())
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
+                    _ => None,
+                },
             },
         }
     }

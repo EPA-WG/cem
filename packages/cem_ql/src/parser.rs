@@ -234,6 +234,12 @@ impl<'src> Parser<'src> {
             | TokenKind::DoubleLit
             | TokenKind::BoolLit
             | TokenKind::NullLit => Some(Expression::Literal(literal_value(&token), token.range)),
+            TokenKind::Ident
+                if qname_from_token(&token).is_some_and(|name| name.local == "try")
+                    && self.at(TokenKind::LBrace) =>
+            {
+                self.parse_try(token)
+            }
             TokenKind::Ident | TokenKind::PrefixedName => {
                 Some(Expression::Name(qname_from_token(&token)?, token.range))
             }
@@ -291,6 +297,37 @@ impl<'src> Parser<'src> {
                 None
             }
         }
+    }
+
+    fn parse_try(&mut self, start: Token) -> Option<Expression> {
+        let body = self.parse_braced_expression("try body")?;
+        let catch = self.expect(TokenKind::Ident, "`catch` after try body")?;
+        if qname_from_token(&catch).is_none_or(|name| name.local != "catch") {
+            self.error_at(PARSE_ERROR, "expected `catch` after try body", catch.range);
+            return None;
+        }
+        self.expect(TokenKind::LParen, "`(` before catch bindings")?;
+        let code = self.parse_qname()?;
+        self.expect(TokenKind::Comma, "`,` between catch code and message")?;
+        let message = self.parse_qname()?;
+        self.expect(TokenKind::RParen, "`)` after catch bindings")?;
+        if code.prefix == message.prefix && code.local == message.local {
+            self.error_at(
+                PARSE_ERROR,
+                "catch bindings must have distinct names",
+                message.range,
+            );
+            return None;
+        }
+        let handler = self.parse_braced_expression("catch body")?;
+        let range = join_ranges(start.range, handler.range());
+        Some(Expression::TryCatch {
+            body: Box::new(body),
+            code,
+            message,
+            handler: Box::new(handler),
+            range,
+        })
     }
 
     fn parse_if(&mut self, start: Token) -> Option<Expression> {
@@ -925,6 +962,13 @@ pub struct FunctionParam {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
+    TryCatch {
+        body: Box<Expression>,
+        code: QName,
+        message: QName,
+        handler: Box<Expression>,
+        range: ByteRange,
+    },
     Literal(LiteralValue, ByteRange),
     Name(QName, ByteRange),
     LeadingDot(ByteRange),
@@ -1026,6 +1070,7 @@ impl Expression {
             | Expression::UnaryOp { range, .. }
             | Expression::SetOp { range, .. }
             | Expression::If { range, .. }
+            | Expression::TryCatch { range, .. }
             | Expression::Let { range, .. }
             | Expression::For { range, .. }
             | Expression::Quantified { range, .. }

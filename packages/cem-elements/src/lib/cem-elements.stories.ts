@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- This executable fixture intentionally exercises the canonical workspace example as raw source.
 import canonicalLoginFixture from '../../../../examples/cem-ml/login.cem?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- Shared native/browser module-closure parity fixture.
+import moduleClosureRootFixture from '../../../cem_ql/tests/fixtures/template-module-closure/root.cemt?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- Shared native/browser module-closure parity fixture.
+import moduleClosureDocsFixture from '../../../cem_ql/tests/fixtures/template-module-closure/docs.cemt?raw';
 import {
     CemElementRuntime,
     SNAPSHOT_SCHEMA_VERSION,
@@ -51,13 +55,21 @@ import {
     runtimeVersion,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
+import type { CemBrowserModuleUrlMap } from './internal/runtime-support/module-url-resolution.js';
 import {
     createCemProcessingReadyEnvelope,
     type CemProcessingRequestEnvelope,
     type CemProcessingResponseEnvelope,
     type CemProcessingWorkerFactory,
 } from './internal/runtime-support/processing-host.js';
-import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
+import {
+    domToRecord,
+    normalizeSpace,
+    normalizeTableHeading,
+    tableToProjection,
+    tokenTableProjection,
+    tokenTableRows,
+} from './data-document.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import {
     CEM_REPOSITORY_PROTOCOL_VERSION,
@@ -146,11 +158,56 @@ export const DataDocumentDomBridge: Story = {
         assertEqual(rows.length, 2, 'two tbody rows are projected (thead excluded)');
         assertEqual(rows[0].td1, '--cem-gap', 'cell text is whitespace-normalized (row 1, td1)');
         assertEqual(rows[0].td2, '0.5rem', 'cell text is whitespace-normalized (row 1, td2)');
+        assertEqual(rows[0].token, '--cem-gap', 'header-derived token field');
+        assertEqual(rows[0].value, '0.5rem', 'header-derived value field');
+        assertEqual(rows[0].cells.join('|'), '--cem-gap|0.5rem', 'ordered cell values');
+        assertEqual(rows[0].source_table, 'cem-coupling-minimums', 'source table provenance');
+        assertEqual(rows[0].source_row, 1, 'one-based source row provenance');
         assertEqual(rows[1].td1, '--cem-inset', 'row 2 td1');
         assertEqual(rows[1].td2, '1rem', 'row 2 td2');
 
         assertEqual(tokenTableRows(root, 'missing-anchor').length, 0, 'a missing anchor yields no rows');
         assertEqual(normalizeSpace('  a   b \n c '), 'a b c', 'normalizeSpace collapses whitespace');
+        assertEqual(
+            normalizeTableHeading(' Forced-colors value '),
+            'forced_colors_value',
+            'headings normalize to stable snake_case'
+        );
+
+        const invalid = document.createElement('table');
+        invalid.id = 'invalid-headings';
+        invalid.innerHTML = `
+            <thead><tr><th>Value</th><th>value!</th><th>---</th><th>Cells</th></tr></thead>
+            <tbody><tr><td>A</td><td>B</td><td>C</td><td>D</td></tr></tbody>
+        `;
+        const projection = tokenTableProjection(root, 'missing');
+        assertEqual(projection.diagnostics.length, 0, 'a missing table has no header diagnostics');
+        const invalidProjection = tableToProjection(invalid, invalid.id);
+        assertEqual(
+            invalidProjection.diagnostics.length,
+            3,
+            'duplicate, empty, and reserved headings are diagnosed'
+        );
+        assertEqual(
+            invalidProjection.diagnostics[0].code,
+            'cem.markdown.table_header_duplicate',
+            'duplicate normalized heading diagnostic'
+        );
+        assertEqual(
+            invalidProjection.diagnostics[1].code,
+            'cem.markdown.table_header_empty',
+            'empty normalized heading diagnostic'
+        );
+        assertEqual(
+            invalidProjection.diagnostics[2].code,
+            'cem.markdown.table_header_reserved',
+            'reserved normalized heading diagnostic'
+        );
+        assertEqual(invalidProjection.rows[0].value, 'A', 'the first named field wins');
+        assertEqual(invalidProjection.rows[0].td2, 'B', 'duplicate field remains available positionally');
+        assertEqual(invalidProjection.rows[0].cells[2], 'C', 'empty field remains in ordered cells');
+        assertEqual(invalidProjection.rows[0].cells[3], 'D', 'reserved field remains in ordered cells');
+        assertEqual(invalidProjection.rows[0].td4, 'D', 'reserved field remains available positionally');
 
         const table = root.querySelector('table');
         assert(table, 'the fixture includes a table');
@@ -928,6 +985,65 @@ export const CemQlWasmRenderBoundary: Story = {
         assert(
             /^cem:\d+$/.test(missingDiagnostic.sourceMapRef?.frame ?? ''),
             'WASM render diagnostics carry source byte-offset frames'
+        );
+    },
+};
+
+export const CemQlWasmModuleClosure: Story = {
+    render: () => storyPanel(
+        'cem_ql WASM module closure',
+        'scope-resolved CEMT imports compile to the same render-plan boundary'
+    ),
+    play: async () => {
+        const rootUrl = 'https://example.test/fixtures/root.cemt';
+        const docsUrl = 'https://example.test/fixtures/docs.cemt';
+        const resolutions: string[] = [];
+        const loads: string[] = [];
+        const localMaps: Array<CemBrowserModuleUrlMap | null> = [];
+        const result = await renderCemMlTemplate(
+            moduleClosureRootFixture,
+            {},
+            {
+                renderNodeIdPrefix: 'cem-module-closure',
+                moduleLoader: {
+                    rootUrl,
+                    resolverPolicyStamp: 'fixture-import-map/1',
+                    resolve: (specifier, referrerUrl, referrerModuleMap) => {
+                        resolutions.push(`${referrerUrl}|${specifier}`);
+                        localMaps.push(referrerModuleMap);
+                        const target = referrerModuleMap?.specifiers.imports[specifier]?.target ?? specifier;
+                        return new URL(target ?? specifier, referrerUrl).href;
+                    },
+                    load: (resolvedUrl) => {
+                        loads.push(resolvedUrl);
+                        if (resolvedUrl !== docsUrl) {
+                            throw new Error(`unexpected module URL ${resolvedUrl}`);
+                        }
+                        return moduleClosureDocsFixture;
+                    },
+                },
+            }
+        );
+
+        assertEqual(result.diagnostics.length, 0, 'a valid module closure renders without diagnostics');
+        assertEqual(resolutions.join(''), `${rootUrl}|docs`, 'the resolver receives the root referrer');
+        assertEqual(
+            localMaps[0]?.specifiers.imports.docs?.target,
+            './docs.cemt',
+            'preflight supplies the referrer template local module map'
+        );
+        assertEqual(loads.join(''), docsUrl, 'the loader receives the resolved absolute URL once');
+        const table = result.nodes.find((node) => node.kind === 'element' && node.tag === 'table');
+        assert(table?.kind === 'element', 'the imported template renders a table');
+        assertEqual(
+            table.children
+                .flatMap((child) => child.kind === 'element' ? child.children : [])
+                .map((child) => child.kind === 'element'
+                    ? child.children.map((text) => text.kind === 'text' ? text.text : '').join('')
+                    : '')
+                .join('|'),
+            '--cem-gap|0.5rem',
+            'imported template parameters retain typed render-plan content'
         );
     },
 };

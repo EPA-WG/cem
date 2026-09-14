@@ -68,7 +68,7 @@ export const EveryAuthoredSample: Story = {
             );
 
             const url = sampleByLegend(host, EXPECTED_LEGENDS[4]);
-            buttonByText(url, 'Set URL to 0.0.22').click();
+            buttonByName(url, 'Set URL to 0.0.22').click();
             await waitForCondition(
                 () => location.hash === '#version=0.0.22'
                     && url.querySelector<HTMLSelectElement>('select')?.value === '0.0.22',
@@ -81,13 +81,25 @@ export const EveryAuthoredSample: Story = {
                 ),
                 'the wrapper observes the later picker selection'
             );
-            buttonByText(url, 'Apply selection to URL').click();
             await waitForCondition(
                 () => location.hash === '#version=0.1.0'
                     && Array.from(url.querySelectorAll('output')).some(
                         (output) => normalize(output.textContent ?? '') === '#version=0.1.0'
                     ),
-                'Apply selection writes the later picker value to the page hash'
+                'selection writes the later picker value to the page hash without Apply'
+            );
+            buttonByName(url, 'Set URL to 0.0.25').click();
+            await waitForCondition(
+                () => location.hash === '#version=0.0.25'
+                    && url.querySelector<HTMLSelectElement>('select')?.value === '0.0.25',
+                'an external hash overrides the previous selection without a stale write'
+            );
+            choose(url, '0.1.0');
+            await waitForCondition(() => location.hash === '#version=0.1.0', 'selecting the same earlier value writes again');
+            buttonByName(url, 'Clear URL version').click();
+            await waitForCondition(
+                () => location.hash === '' && url.querySelector<HTMLSelectElement>('select')?.value === '0.1.0',
+                'an absent URL version falls back to latest without rewriting the hash'
             );
         } finally {
             history.replaceState({}, '', originalUrl);
@@ -139,9 +151,9 @@ function optionText(root: ParentNode, value: string): string {
     return normalize(option.textContent ?? '');
 }
 
-function buttonByText(root: ParentNode, expected: string): HTMLButtonElement {
+function buttonByName(root: ParentNode, expected: string): HTMLButtonElement {
     const button = Array.from(root.querySelectorAll('button')).find(
-        (candidate) => normalize(candidate.textContent ?? '') === expected
+        (candidate) => normalize(candidate.getAttribute('aria-label') ?? candidate.textContent ?? '') === expected
     );
     if (!button) throw new Error(`expected ${expected} button`);
     return button;

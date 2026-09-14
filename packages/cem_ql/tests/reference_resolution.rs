@@ -18,6 +18,7 @@ fn eval(source: &str) -> ItemStream {
     let stream = evaluate(
         &query,
         &EvaluationContext {
+            native_functions: Default::default(),
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),

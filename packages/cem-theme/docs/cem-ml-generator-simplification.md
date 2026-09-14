@@ -17,6 +17,23 @@ preview, and CSS-declaration patterns.
 This analysis distinguishes improvements already expressible with the language from gaps that require a portable
 runtime or data-shape addition. Theme-specific convenience must not become a core CEM-ML construct.
 
+## Implementation result
+
+Implemented 2026-09-12. All ten generators retain their Markdown-driven presentation and CSS protocols while sharing a
+package-local CEMT module:
+
+| Measure | Before | After |
+|---------|-------:|------:|
+| Generator source lines | 1,389 | 1,302 |
+| `cem:for-each` nodes | 137 | 76 |
+| Positional `row.tdN` accesses | 497 | 0 |
+| Shared table calls | 0 | 18 |
+| Shared CSS-property calls | 0 | 43 |
+
+The generated CSS remains 58,527 bytes across the ten generator outputs. All ten manifest checks, all 479 token-coverage
+checks, and the source-completeness/browser-capture verifier pass. Color matrices, typography previews, mode overrides,
+and other page-specific projections remain local where their data shapes genuinely differ.
+
 ## Existing constructs to use first
 
 ### Sequence construction
@@ -64,9 +81,10 @@ reusable render template.
 
 ## Highest-value data-shape improvement
 
-The dominant source of fragility is not missing query syntax; it is the browser bridge's positional row shape.
-`tokenTableRows()` currently emits only `td1`, `td2`, and so on. That requires every template to repeat a private column
-map and caused the typography role table to read its three-column `tier` as if it were the fourth column.
+The dominant source of fragility was not missing query syntax; it was the browser bridge's positional row shape.
+`tokenTableProjection()` now emits named fields and diagnostics, while `tokenTableRows()` remains as its row-only
+compatibility facade. This removes each template's private column map and prevents a three-column table such as
+typography roles from reading `tier` as if it were a fourth column.
 
 The bridge should add stable, header-derived names while preserving `tdN` during migration:
 
@@ -86,10 +104,11 @@ The bridge should add stable, header-derived names while preserving `tdN` during
 }
 ```
 
-Header aliases should use deterministic `snake_case` normalization (`Forced-colors value` becomes
-`forced_colors_value`). Duplicate or empty normalized headers must produce a diagnostic and remain accessible through
-`cells`/`tdN`; they must not silently overwrite one another. The portable row record and its provenance must be owned by
-the Markdown/table projection contract, not only by browser JavaScript, so browser and SSR receive the same shape.
+Header aliases use deterministic `snake_case` normalization (`Forced-colors value` becomes
+`forced_colors_value`). Duplicate, empty, or reserved normalized headers produce diagnostics and remain accessible
+through `cells`/`tdN`; they never silently overwrite one another. `cells`, `source_table`, `source_row`, and `tdN` names
+are reserved. The Markdown schema package now owns this portable contract, so browser and SSR inputs have one defined
+shape rather than a theme-specific JavaScript convention.
 
 This change improves clarity more than adding a `record:get()` helper. `row.value` states the contract; dynamic numeric
 lookup merely hides another positional index.
@@ -117,24 +136,25 @@ CEM-native template modules already define the required authoring surface:
 }
 ```
 
-The CLI transform adapter can preflight resolver-backed imports, compile the module closure, and execute imported public
-templates. The browser `renderCemMlTemplate()` path currently calls the raw `renderTemplateSource` WASM API, which
-compiles one source string without a resolved import closure. Therefore a shared imported presentation module cannot be
-adopted yet without creating browser/SSR divergence.
+The CLI transform adapter already preflighted resolver-backed imports. Browser runtime support now exposes
+`preflightCemMlTemplateModules()` and `retainCemMlTemplateModuleClosure()`, and `renderCemMlTemplate()` accepts a
+`moduleLoader`. The host resolves each static import through the existing scope-aware module URL service, performs I/O,
+and supplies an immutable closure to the Rust/WASM compiler. The compiler performs no I/O, rechecks hashes and runtime
+compatibility, namespaces imported templates by resolved URI, preserves nested module calls, and rejects calls to
+non-public entrypoints.
 
-The right runtime addition is not new CEM-ML syntax. Runtime support should accept a resolver-produced CEMT module
-closure or a compiled artifact whose identity includes:
+The closure identity includes:
 
 - the root template URL and content hash;
 - every resolved imported module URL and content hash;
 - the active scope/import-map policy stamp;
-- the selected entrypoint and parameter contract; and
+- the root-body entrypoint and sorted parameter contract; and
 - the CEM-ML/CEM-QL compatibility versions.
 
-Browser resolution must use the same scope-aware module URL service as `cem-module-url`; it must not add generator-local
-`fetch()` logic. SSR must consume the same closure/artifact. Once that boundary exists, a package-local
-`cem-token-docs.cemt` module can own the repeated standard tables, preview kinds, CSS property blocks, and mode override
-blocks.
+`cem-css-generator.js` uses the page root plus the template's local module map to build that resolution context. The
+default loader fetches only after resolution, so no generator-local URL algorithm exists. A checked-in root/module pair
+is rendered by both the native unit fixture and the browser Storybook fixture; nested imports, hash drift, and private
+entrypoints have separate native coverage.
 
 ## Reusable module boundary
 
@@ -142,10 +162,15 @@ The first shared module should stay small and data-driven:
 
 | Public template | Responsibility |
 |-----------------|----------------|
-| `token-table` | Standard Token/Value/Tier/Description projection with an optional known preview kind |
-| `token-row` | One named-field row; retained as a private helper unless consumers need it |
+| `standard-token-table` | Standard Token/Value/Tier/Description projection |
+| `width-token-table` | Standard projection with the common width swatch |
+| `preview-token-table` | Standard projection with a known preview kind |
+| `token-table` | Configurable table implementation used by the public wrappers |
 | `css-properties` | Ordered `token: value;` text for a row stream |
-| `mode-overrides` | One selector plus one named value column from an override table |
+
+`token-row` is a private module helper. A generic `mode-overrides` template was deliberately not added: current override
+tables use different named columns and selector structures, so a generic version would require dynamic field access or
+more parameters than the local loops it replaced.
 
 Preview kinds should initially be a closed module-owned set such as `none`, `width`, `height`, `stroke`, `radius`,
 `shadow`, `duration`, and `easing`. Color matrices and typography's semantic sample dispatch remain specialized until a
@@ -168,17 +193,15 @@ parameter covers the repeated theme cases while keeping call targets static and 
 - Do not expose dynamic template invocation yet. Static `{call @template}` and `{call @from @template}` keep module
   graphs auditable and cacheable.
 
-## Recommended order
+## Completed order
 
-1. Keep the current source-completeness gate for all ten generators.
-2. Add portable header-derived row fields and provenance, retaining `tdN` compatibility.
-3. Refactor templates from `row.tdN` to named fields; use mixed AVTs and local named templates where they materially
-   reduce specialized repetition.
-4. Expose resolver-preflighted CEMT module closures/artifacts through browser runtime support using the existing scoped
-   module resolver.
-5. Create and adopt `cem-token-docs.cemt`; require identical browser and SSR render plans in its acceptance tests.
-6. Re-measure source lines, loop count, positional accesses, rendered DOM, generated CSS bytes, diagnostics, and source
-   maps. Reduction is accepted only when output and provenance remain equivalent.
+1. Kept the source-completeness gate for all ten generators.
+2. Added portable header-derived row fields and provenance while retaining `tdN` compatibility.
+3. Refactored every generator expression from `row.tdN` to named fields.
+4. Exposed resolver-preflighted CEMT module closures through browser runtime support and the scoped module resolver.
+5. Created and adopted `cem-token-docs.cemt`, with one shared native/browser module fixture.
+6. Re-measured the source and reran rendered-DOM, CSS manifest/bytes, diagnostics, coverage, and protocol verification.
 
-No new core CEM-QL function or CEM-ML structural construct is required for steps 1–5. The only current platform gaps are
-the portable named-field table projection and browser access to the already-designed resolver-backed CEMT module graph.
+No new core CEM-QL function or CEM-ML structural construct was required. The two platform gaps were data/runtime
+boundaries—the portable named-field table projection and browser access to the existing resolver-backed CEMT module
+graph—and both are now implemented.

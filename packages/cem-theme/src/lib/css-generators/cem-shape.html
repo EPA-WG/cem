@@ -23,91 +23,74 @@
 <!--
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
   datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
-  cem_ql WASM boundary; no live browser XSLT. Columns — basis/semantic/pattern: td1=token td2=value
-  td3=desc td4=tier; mode-sharp/mode-round: td1=token td2=value. (The legacy cosmetic
+  cem_ql WASM boundary; no live browser XSLT. Rows use normalized Markdown heading fields such as
+  token/value/description/tier. (The legacy cosmetic
   preview-dependency injection of D1/D2c vars is dropped — it did not affect generated output.)
 -->
 <template type="cem-ml; version=0.0"
           id="cem-shape-template"
           data-token-url="../../../dist/lib/tokens/cem-shape.xhtml"
           data-slices="basis=cem-shape-basis semantic=cem-shape-semantic pattern=cem-shape-pattern action=cem-shape-action-bindings sharp=cem-shape-mode-sharp round=cem-shape-mode-round">
-{table @id=cem-shape-basis |
-    {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#4-minimal-bend-basis-complexity-compliant" | cem-shape-basis} — bend basis tokens}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.basis" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:5rem;" | {div @style="height:2rem; width:3rem; background: currentColor; border-radius: var({$row.td1});" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{module @version="1.0.0" |
+{import @as=docs @src="./cem-token-docs.cemt"}
+{body |
+{call @from=docs @template=preview-token-table
+    @with:rows={datadom.slices.basis} @with:id=cem-shape-basis
+    @with:href="../../../dist/lib/tokens/cem-shape.xhtml#4-minimal-bend-basis-complexity-compliant"
+    @with:link_label=cem-shape-basis @with:caption=" — bend basis tokens"
+    @with:preview_label=Sample @with:preview_kind=radius}
 {hr | }
-{table @id=cem-shape-semantic |
-    {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#5-semantic-endpoints-product-facing-contract" | cem-shape-semantic} — role-first semantic endpoints}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.semantic" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:5rem;" | {div @style="height:2rem; width:3rem; background: currentColor; border-radius: var({$row.td1});" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{call @from=docs @template=preview-token-table
+    @with:rows={datadom.slices.semantic} @with:id=cem-shape-semantic
+    @with:href="../../../dist/lib/tokens/cem-shape.xhtml#5-semantic-endpoints-product-facing-contract"
+    @with:link_label=cem-shape-semantic @with:caption=" — role-first semantic endpoints"
+    @with:preview_label=Sample @with:preview_kind=radius}
 {hr | }
-{table @id=cem-shape-pattern |
-    {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#7-1-attachment-pattern-one-pattern-not-many-tokens" | cem-shape-pattern} — asymmetric attachment patterns}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.pattern" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
-}
+{call @from=docs @template=standard-token-table
+    @with:rows={datadom.slices.pattern} @with:id=cem-shape-pattern
+    @with:href="../../../dist/lib/tokens/cem-shape.xhtml#7-1-attachment-pattern-one-pattern-not-many-tokens"
+    @with:link_label=cem-shape-pattern @with:caption=" — asymmetric attachment patterns"}
 {hr | }
 {table @id=cem-shape-mode-sharp |
     {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#6-2-mode-implementation-recommended" | cem-shape-mode-sharp} — `data-cem-shape="sharp"` overrides}
     {thead | {tr | {th | Token}{th | Override value}}}
     {tbody | {cem:for-each @select="$datadom.slices.sharp" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value}}}}}}
 }
 {hr | }
 {table @id=cem-shape-mode-round |
     {caption | {a @href="../../../dist/lib/tokens/cem-shape.xhtml#6-2-mode-implementation-recommended" | cem-shape-mode-round} — `data-cem-shape="round"` overrides}
     {thead | {tr | {th | Token}{th | Override value}}}
     {tbody | {cem:for-each @select="$datadom.slices.round" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value}}}}}}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
-  /* region bend basis — sharp / smooth / round / circle plus active alias */```{cem:for-each @select="$datadom.slices.basis" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region bend basis — sharp / smooth / round / circle plus active alias */```{call @from=docs @template=css-properties @with:rows={datadom.slices.basis} @with:indent="  "}```
   /* endregion bend basis */
 
-  /* region semantic endpoints — role-first product contract */```{cem:for-each @select="$datadom.slices.semantic" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region semantic endpoints — role-first product contract */```{call @from=docs @template=css-properties @with:rows={datadom.slices.semantic} @with:indent="  "}```
   /* endregion semantic endpoints */
 
-  /* region pattern tokens — asymmetric attachment */```{cem:for-each @select="$datadom.slices.pattern" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region pattern tokens — asymmetric attachment */```{call @from=docs @template=css-properties @with:rows={datadom.slices.pattern} @with:indent="  "}```
   /* endregion pattern tokens */
 
-  /* region action component bindings — geometry owned by D3 */```{cem:for-each @select="$datadom.slices.action" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region action component bindings — geometry owned by D3 */```{call @from=docs @template=css-properties @with:rows={datadom.slices.action} @with:indent="  "}```
   /* endregion action component bindings */
 }
 
 /* region shape mode: sharp — technical, precise brand expression */
-:root[data-cem-shape="sharp"] {```{cem:for-each @select="$datadom.slices.sharp" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+:root[data-cem-shape="sharp"] {```{call @from=docs @template=css-properties @with:rows={datadom.slices.sharp} @with:indent="  "}```
 }
 /* endregion shape mode: sharp */
 
 /* region shape mode: round — consumer, welcoming brand expression */
-:root[data-cem-shape="round"] {```{cem:for-each @select="$datadom.slices.round" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+:root[data-cem-shape="round"] {```{call @from=docs @template=css-properties @with:rows={datadom.slices.round} @with:indent="  "}```
 }
 /* endregion shape mode: round */
 ```}}
+}
+}
 </template>
 <main></main>
 <cem-css-loader></cem-css-loader>

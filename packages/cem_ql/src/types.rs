@@ -421,6 +421,22 @@ impl TypeChecker {
             Expression::SetOp {
                 lhs, rhs, range, ..
             } => self.infer_set(lhs, rhs, *range),
+            Expression::TryCatch {
+                body,
+                code,
+                message,
+                handler,
+                ..
+            } => {
+                let body_ty = self.infer_expression(body);
+                self.push_scope();
+                for name in [code, message] {
+                    self.declare_variable(QNameKey::from_qname(name), Type::atom(AtomType::String));
+                }
+                let handler_ty = self.infer_expression(handler);
+                self.pop_scope();
+                self.common_type(&body_ty, &handler_ty).unwrap_or(Type::Any)
+            }
             Expression::If {
                 cond,
                 then_branch,
@@ -1043,6 +1059,8 @@ impl TypeChecker {
             ("state", "cem:stdlib/state"),
             ("tpl", "cem:stdlib/template"),
             ("cemml", "cem:stdlib/cemml"),
+            ("data", "cem:stdlib/data"),
+            ("native", "cem:stdlib/native"),
             ("ct", "cem:stdlib/content-types"),
             ("user", "cem:stdlib/user"),
         ] {

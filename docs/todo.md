@@ -18,6 +18,406 @@ and the protected `0.1.0-rc.2` release, remote-byte verification, lane isolation
 and same-run recovery evidence are recorded in
 [`cem-ml-release-rehearsal-0.1.0-rc.2.md`](cem-ml-release-rehearsal-0.1.0-rc.2.md).
 
+## Immediate: XSLT-Authored Data-Table Viewer
+
+Feature list and scope gate:
+[`xslt-data-table-parity.md`](xslt-data-table-parity.md). Use standard XSLT 3.0 /
+XPath features when available; extensions may expose only capabilities without
+a standard equivalent. Keep all table/tree/form presentation in the stylesheet.
+Pause and request approval before expanding CEMT, CEM-QL, importers or browser
+runtime. This is not authorization to implement a complete XSLT 3.0 processor.
+
+- [x] XSLT-VIEW-LIST: record the bounded feature list, standards-first extension
+      policy, parity criteria and explicit scope gate before implementation.
+- [x] Fixture XSLT-VIEW-GATE: test the native data-model boundary before
+      lowering standard XML/JSON parsing. Verify source identity, JSON object
+      order, null array members and the distinction between CEM AST nodes and
+      the standard JSON-to-XML result. Record any essential shared capability
+      gap before changing shared implementation.
+      Gate result 2026-09-13: three native characterization tests pass in
+      `packages/cem_ql/tests/xslt_data_model_boundary.rs`. CEM array IR flattens
+      sequence members; the native JSON projection retains null/source order
+      but has CEM object/property nodes, not the standard json-to-xml tree.
+      Ordinary records preserve a referenced source but do not create native
+      node views. See the feature document for alternatives and evidence.
+- [x] XSLT-VIEW-APPROVAL: user approved the reusable native JSON-to-XML
+      projection on 2026-09-13, with ownership corrected to `cem-ml` JSON
+      import. Expose it explicitly through the existing data reader; keep the
+      default projection and array behavior unchanged. Standard XSLT function
+      syntax/semantics still belong to the compatibility layer. Other shared
+      capability expansions still require approval.
+- [x] Fixture XSLT-VIEW-JSON-PROJECTION: build native CEM AST directly from
+      the retained JSON AST using the standard XPath-functions namespace and
+      map/array/keyed-value structure. Test scalar roots, null slots, member
+      order, duplicate handling, XML-safe string escaping, source ranges and
+      depth/value limits first. Add an explicit query/declarative projection
+      selector, native-owner/identity tests, and default-import regression tests.
+      Completed 2026-09-13: `cem-ml::validation::json_xml` owns the projection;
+      `data:read(source, "json", "json-to-xml")` and the optional declarative
+      `projection` attribute select it without changing default imports.
+      Seven projector/presentation tests and 26 focused query/viewer/XSLT
+      regression tests pass. WASM build and Clippy checks pass. Standard XSLT
+      function lowering and the equivalent gallery cases remain open below.
+- [x] Fixture XSLT-VIEW-ERROR-GATE: characterize parse-report failures, fatal
+      diagnostic emission, coalescing after an evaluation error, and partial
+      output from a failing nested template call. Check whether existing CEMT
+      can supply scoped recovery for standard `xsl:try`/`xsl:catch` before
+      changing shared evaluation or rendering contracts.
+      Gate result 2026-09-13: four native characterization tests pass in
+      `packages/cem_ql/tests/xslt_error_recovery_boundary.rs`; 13 focused
+      error/data-model/legacy-XSLT tests pass together. Parse failures are
+      report values, even fatal report emission is not a raised query error,
+      coalescing does not recover errors, and failed nested calls keep partial
+      output. No shared implementation changed. AC-QE-2 already plans query
+      recovery as Tier B; it was not implemented at this gate (now completed
+      in the approved recovery items below).
+- [x] XSLT-VIEW-ERROR-DECISION: obtain direction before runtime lowering:
+      either approve reusable query error propagation/recovery and CEMT scoped
+      output recovery, or narrow the XSLT profile to an explicitly validated
+      parser-only `xsl:try` form lowered through reader reports. The latter is
+      not general recovery across expressions, template calls or imported
+      aspects. User approved reusable query/CEMT recovery on 2026-09-13.
+- [x] Fixture XSLT-VIEW-QUERY-RECOVERY: implement generic `report:raise` and
+      `try { ... } catch (code, msg) { ... }`; test parsing, lexical scope,
+      nested/rethrown errors, diagnostic source maps, native value identity,
+      artifact reload and uncatchable cancellation/resource limits. Preserve
+      diagnostic-only `report:emit` and reader-report behavior.
+      Completed 2026-09-13: eight dedicated native tests pass, including
+      first-error propagation and resource budgets across repeated catches.
+- [x] Fixture XSLT-VIEW-TEMPLATE-RECOVERY: implement scoped CEMT try/catch;
+      test nested/named/imported calls, catch selection and outer recovery,
+      rollback of nodes/constructed attributes/bindings, artifact reload,
+      source maps and uncatchable controls. Verify native CLI and WASM wiring
+      before resuming XSLT-specific lowering.
+      Completed 2026-09-13: ten dedicated native template tests and three CLI
+      recovery cases pass. The complete `cem-ql` suite passes (293 tests);
+      the Nx WASM build, three fresh WASM recovery checks and Nx lint pass
+      (Clippy reports existing warnings). CLI module calls now execute inside
+      the protected render boundary. Initial broader runs passed 92/93 adapter
+      tests and 8/9 CLI XSLT tests; the loader failure is now fixed below and
+      the independent stylesheet-export failure remains under XSLT-VIEW-OUTPUT.
+- [x] XSLT-VIEW-LOADER-DECISION: approve the separate existing document-loader
+      repair discovered by broad recovery verification. The adapter test
+      `common_query_runner_executes_registered_cem_ql_runtime_with_native_owners`
+      failed before evaluation: `lower_loaded_markdown_to_html_document` took
+      and discarded non-Markdown `loaded.ast_stream` values. The same bug exists
+      in `HEAD`. User approved preserving native owners and adding loader
+      regression coverage on 2026-09-13; no parser semantics are changed.
+- [x] Fixture XSLT-VIEW-LOADER-OWNERS: after approval, preserve native owners
+      when the Markdown-only conversion does not apply. Test XML/JSON/CSV/YAML
+      document loading, Markdown conversion/failure retention and the existing
+      native query-runner test. Verify downstream WASM reads for all four data
+      formats and the explicit JSON-to-XML projection. No parser semantics or
+      serialized AST fallback.
+      Completed 2026-09-13: the Markdown helper borrows the retained AST and
+      replaces it only after successful conversion. Five format tests failed
+      before the fix; all eight loader checks now pass (seven new, including
+      HTML, absent ASTs and failed Markdown conversion). Native allocation
+      identity, typed source metadata, bytes, format, adapter and diagnostics
+      are preserved. All 204 engine tests and 93 adapter tests pass, including
+      the previously failing native query-runner case. The three CLI recovery
+      cases pass; the CLI XSLT suite remains 8/9 because of the separate
+      stylesheet-export issue below. Both JSON-boundary audits pass. Fresh Nx
+      lint (existing warnings), WASM build and five WASM data-read checks pass.
+      Verification note: lint caches all of `dist/target/cem_ql`, overlapping
+      WASM outputs. An initial concurrent run lost a dependency artifact;
+      sequential `--skipNxCache` runs passed without build-configuration edits.
+- [x] Fixture XSLT-VIEW-XML-NODE-GATE: characterize the native XML node model
+      before lowering XPath paths or `fn:parse-xml`. Check adjacent text/CDATA,
+      empty text, namespace declarations, XML declarations, source identity and
+      native navigation. Inspect the existing native XPath owner as a reuse
+      candidate; do not mistake source events for normalized XDM nodes.
+      Gate result 2026-09-13: four native characterization tests pass in
+      `packages/cem_ql/tests/xslt_xml_model_boundary.rs`; 17 XML/JSON/error/
+      legacy-XSLT boundary tests pass together. `<r>a<![CDATA[b]]>c</r>` has
+      three source-oriented children, not one XDM text node. Empty CDATA,
+      whitespace and declaration/xmlns nodes also differ. The existing native
+      XPath owner retains ownership but likewise returns three text events.
+      No production code changed; runtime lowering remains open.
+- [x] XSLT-VIEW-XML-NODE-DECISION: if those probes require a new shared native
+      projection/view, request approval before implementation. Keep the default
+      source-preserving CEM AST unchanged; no serialized or record-shaped
+      pseudo-node workaround and no implicit restriction of XML sample input.
+      Resolved 2026-09-13: user directed this work to XPath/XDM, reused by XSLT,
+      and asked to continue. Normalize the existing `XPathNativeNode` view;
+      leave the core XML AST/importer, CEM AST and default `data:read` unchanged.
+      No new generic reader projection is authorized or required for this step.
+      Stop again if runtime integration needs a shared evaluator/reader change.
+- [x] Fixture XSLT-VIEW-XML-NODE-PROJECTION: after approval, test native XML
+      normalization, entity/CDATA/whitespace runs and comment/element boundaries,
+      namespace shadowing, PI targets, identity/order/navigation/source maps,
+      safety limits and unchanged default imports. Assess the existing XPath
+      owner for reuse without claiming that its current event handles are XDM.
+      Implement in the XPath layer: canonical text-run handles/values/source
+      maps, empty-text omission, namespace/PI metadata and axes over the logical
+      nodes. Cover constructor identity, node comparisons, positions, string/
+      typed values, cancellation/sequence limits and unchanged native owners.
+      Update only the XPath expectation in the original boundary fixture;
+      keep its default CEM-reader characterization assertions unchanged.
+      Completed 2026-09-13 in `validation::xpath` only (including its typed
+      parser metadata): text runs have canonical first-event identity and
+      multi-span provenance, decoded entities and normalized literal line
+      endings; empty/document-level text is omitted. PI names and parsed target
+      tests are supported; namespace declarations cannot become attributes.
+      All 11 native view tests and 86 existing XPath unit tests pass. Core XML
+      AST/importer and default CEM reader are unchanged by this work.
+      The 22 XSLT unit tests and 23 reader/XML/JSON/error/legacy-XSLT regression
+      tests also pass. Fresh uncached Nx lint passes with existing warnings.
+      The sequential uncached WASM build and five WASM reader checks pass;
+      XML still exposes separate text/CDATA events, and CSV/YAML/JSON plus the
+      explicit JSON-to-XML projection keep their existing shapes.
+- [x] Fixture XSLT-VIEW-XML-RUNTIME-GATE: verify XSLT-owned typed XPath can
+      reuse the normalized native XML view. Check whether generated CEMT can
+      invoke that path, including XML parsed from runtime-bound source strings.
+      Do not add generic reader projection, source reparse bridges or native
+      query callbacks without a separate scope decision.
+      Result 2026-09-13: an XSLT-owned select AST reuses normalized native XML
+      nodes across changed runtime inputs, with identity and source maps intact.
+      `XsltXPathInvocationAdapter` works, but the XSLT-to-CEMT adapter does not
+      call it. CEM-QL function dispatch is fixed; `EvaluationContext` has no
+      native query-function hook. The existing template-call callback returns
+      rendered output/failure, not query values. `data:read` retains XML behind
+      a private owner and exposes the unchanged source-oriented CEM tree.
+- [x] XSLT-VIEW-XML-RUNTIME-DECISION: approve a reusable native query-function
+      integration hook in CEM-QL/CEMT before wiring runtime XSLT XPath/parsing,
+      or choose another native execution route with an explicit scope contract.
+      Recommended: the shared hook owns only invocation, values, controls and
+      diagnostics; XPath owns XML normalization/evaluation, XSLT owns lowering,
+      standard function semantics and error translation. Keep core XML/CEM AST
+      and default imports unchanged. No table-specific code or source/AST
+      serialization bridge. Approved by the user on 2026-09-13.
+- [x] Fixture XSLT-VIEW-NATIVE-CALL: implement an explicit, opt-in native
+      query-function registry and generic `native:call` dispatch. Preserve
+      native arguments/results and sequence boundaries, validate names/arity,
+      reject duplicate registrations and missing capabilities, retain source
+      diagnostics, and enforce cancellation and call/result budgets. Callbacks
+      remain outside compiled artifacts and serialized/browser data bindings.
+      Implemented 2026-09-13: exact identifier/arity registration is explicit,
+      duplicate/missing capabilities fail, and each argument retains its native
+      sequence boundaries. The evaluator owns argument diagnostics, call/item
+      accounting and pre/post-call control checks; callbacks receive the active
+      scope and must cooperatively bound their own work/allocations. Default
+      registries are empty; no query/template artifact format change.
+- [x] Fixture XSLT-VIEW-NATIVE-CEMT: carry that registry through CEMT expression
+      evaluation, loops, named/module calls and scoped error recovery. Test
+      compile-once/render-many, artifact reload with explicit capability
+      rebinding, native ownership and uncatchable controls. Prove an XSLT-owned
+      typed XPath expression executes through this hook at render time without
+      expression reparsing or core AST/importer changes. Verify native/CLI
+      regressions, then sequential uncached Nx lint/WASM checks.
+      Native verification: 11 hook tests and all 308 CEM-QL tests pass, along
+      with 93 adapter tests, the new XSLT-owned XPath hook fixture, 86 XPath
+      tests and the CLI recovery fixture (three cases). The controlled XSLT
+      invocation method reuses its existing host validation and evaluator.
+      Verification completed 2026-09-13: sequential uncached Nx lint and WASM
+      build pass (22 existing lint warnings), followed by nine WASM checks for
+      native capability isolation, CEMT failure propagation and unchanged
+      XML/CSV/YAML/JSON reader projections. A transient Nx project-graph cache
+      read failure cleared on retry; no cache or configuration edits were needed.
+      The fixture exercises the runtime connection, not production stylesheet
+      lowering. Keep XSLT-VIEW-LOWER and the viewer/sample work open below.
+- [ ] Fixture XSLT-VIEW-LOWER: preserve XSLT instructions as runtime CEMT;
+      translate the needed XPath paths, predicates, variables, context,
+      sequences, conditionals and map/array operations with standard semantics.
+      Reject unsupported expressions; do not unroll current source data.
+- [ ] Fixture XSLT-VIEW-MATCH: lower recursive named/matched templates,
+      parameters, modes, priorities and imports. Preserve XSLT import precedence
+      independently of CEMT priority ordering and test imported overrides.
+- [ ] Fixture XSLT-VIEW-GROUP: lower for-each-group, current-group and
+      current-grouping-key to existing generic queries. Derive repeated rows
+      and first-seen union headings in the stylesheet, never in Rust.
+- [ ] Fixture XSLT-VIEW-SORT: lower dynamic stable multi-key sorting with
+      standard semantics. Author explicit missing/invalid-last keys in XSLT;
+      do not equate the legacy invalid-number-as-zero behavior with parity.
+- [ ] Fixture XSLT-VIEW-DATA: lower standard XML/JSON parsing and error
+      recovery to native data capabilities. Use CEM extensions only for
+      CSV/YAML parsing and unavailable host/provenance capabilities. Preserve
+      native owners; no serialized AST handoff or fake standard function names.
+- [ ] Fixture XSLT-VIEW-OUTPUT: preserve HTML, AVTs, whitespace, static styles
+      and existing slice/event bindings. Document the bounded profile and
+      source-located diagnostics without claiming full XSLT 3.0 support.
+      Regression found during recovery verification: the existing CLI test
+      `graph_config_projects_inline_style_export_to_css_and_links_html` fails
+      because the page lacks its CSS link. Compilation collects stylesheet
+      sidecars, but the XSLT export path does not consume them. Restore the
+      link/inline/omit/CSS export cases through the appropriate output boundary;
+      do not change declaration-style handling for browser CEMT components.
+- [ ] Fixture XSLT-VIEW-PARITY: author data-table-view.xslt and compare its
+      CLI-translated rendering with direct CEMT across XML/CSV/YAML/JSON,
+      heterogeneous/nested/empty data, sorting, selection and parse failures.
+- [ ] Fixture XSLT-VIEW-DEMO: add an independent XSLT viewer case and source
+      display to data-table.html. Add an imported XSLT aspect case for notes
+      as a tree and the IP-filter local-preview form; retain the CEMT cases.
+      Update teaching notes, source guards, stories, inventories and Nx inputs.
+- [ ] XSLT-VIEW-VERIFY: run native/CLI parity first, then WASM/browser gates,
+      standalone/source-loaded demos, lint/typecheck and desktop/mobile checks.
+      Verify edits/reset, sorting, selection, aspects, focus and instance state.
+
+## Immediate: Legacy Demo Case Coverage
+
+The local `~/aWork/custom-element/demo/` comparison found that current-gallery
+verification is not a one-to-one legacy case audit. In particular, anonymous
+whole-file XSLT loading and XSLT selected by `file.xhtml#id` initially lacked
+gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
+
+- [x] Map active legacy cases to current examples and executable coverage,
+      distinguishing preserved teaching points, intentional format/semantic
+      migrations, missing variants, and commented-out prototype examples.
+- [x] Fixture: freeze the local legacy case inventory with source fingerprints
+      and validate its current-case/evidence links without requiring the legacy
+      checkout in CI. Include unwrapped demos and helper/experimental files.
+- [x] Fixture: restore the module-URL prefix-map case that resolves an image
+      and a nested same-library fragment together; verify both image URLs,
+      rendered nested content, and clickable resource links in standalone and
+      source-loaded demos.
+- [x] Fixture: restore the active `hex-grid-dce.html` horizontal row and selected
+      item teaching point, using semantic current-item state and public styling
+      hooks; verify row layout, selection isolation, and keyboard navigation.
+    - Completion 2026-09-12: case 9 reuses the existing grid and image-link
+      helpers for a fixed-cell horizontal row. Payload `aria-current="page"`,
+      a visible ✓, and public current-color properties keep the current page
+      distinct from keyboard focus. Native typed-record projection, scoped-CSS
+      policy, desktop/mobile geometry, sibling/instance isolation, and real
+      Tab/Shift+Tab/Enter navigation are covered. All five unwrapped legacy
+      gallery examples now have mappings; the standalone XML viewers remain
+      a separate open migration review below.
+      Verification: 47 native render tests, 339 unit tests, 152 Storybook
+      tests (final full rerun with `--maxWorkers=2`), 17 standalone pages,
+      23 source-loaded documents, lint/typecheck, and 1440px/390px layout
+      checks pass. Run shared-output Nx build prerequisites without overlap;
+      parallel cache restores briefly removed WASM imports in an earlier run.
+- [x] Review the standalone `tree.xml` / `table.xml` viewers as separate native
+      CEM-ML migration work, including the table inspector's sorting/selection
+      lessons. These are not covered by the DCE gallery; do not restore browser
+      XSLT or MSXML/EXSLT script execution.
+    - [x] Fixture: guard the standalone viewer review and its open native
+          migration steps in the case inventory, without promoting the
+          scaffold-only legacy sort links to executable coverage.
+    - Review completion 2026-09-13:
+      [`xml-viewer-migration.md`](../packages/cem-elements/docs/xml-viewer-migration.md)
+      records the local source evidence and native boundary. Legacy sorting
+      has only a placeholder key/annotations, not an interaction handler;
+      selection is independent branch-local CSS, not selectable table rows.
+      First-row-only headers and omitted direct row text need deliberate
+      improvements. The viewer files remain unported. Execute XML-VIEW-1
+      through XML-VIEW-4 below; do not bypass the shared native prerequisites
+      with a demo-local parser, grouping function or sort handler.
+      Verification: seven case-map guard tests, all 341 unit tests, lint,
+      four unchanged legacy fingerprints and review links pass. The resolved
+      Nx unit target tracks the review document. No browser UI changed.
+- [x] Fixture DATA-IMPORT-1: replace the Rust-owned table projection with a
+      reusable declarative data-reading element. Import XML, CSV, YAML and
+      JSON through their existing parsers into the typed CEM AST, exposing
+      tree navigation, values, source identity and diagnostics to CEMT without
+      a JSON/DOM AST handoff. Test native import shapes and negative cases first.
+- [x] Fixture DATA-QUERY-1: add the smallest generic CEM-QL grouping and stable
+      sorting capabilities needed to query imported CEM AST nodes. Preserve
+      native node identity/provenance, expression-defined keys, stable ties,
+      numeric/text modes, missing-last direction behavior and evaluator budgets.
+      Do not bake row detection, column discovery or table presentation into Rust.
+- [x] Fixture DATA-ASPECT-1: expose generic CEMT match-based presentation
+      dispatch/override (like xsl:template match), reusing existing template
+      matching where possible. Demonstrate additive viewer aspects selecting
+      tree versus table for particular imported AST subtrees and a custom
+      editable IP-filter form. Keep the base viewer reusable and unchanged by
+      data-specific overrides; test match precedence, fallback, instance state
+      isolation and form updates. No table- or IP-filter-specific Rust code.
+- [x] Fixture DATA-MODULE-1: wire ordinary CEMT declaration imports through
+      resolver preflight and the worker/fallback processing engine. Retain the
+      complete closure in compilation/cache identity, install imported static
+      styles, and diagnose failed imports. Source-only binary cache entries must
+      not substitute for a dependency closure. Verify using the imported viewer
+      aspects and generic module closure/cache tests.
+- [x] Fixture DATA-TABLE-1: extend the requested table demo to XML, CSV, YAML
+      and JSON with CEMT-owned transformation of the imported CEM AST. Detect
+      repeated sibling/array constructs, derive columns, sort and iterate rows
+      in the template; remove the initial Rust data:table implementation.
+      Test heterogeneous/nested rows, namespace grouping,
+      text/number stable sorting, empty/missing cells, malformed input and
+      bounded resources before browser wiring. Add editable examples, selected
+      source-row feedback, reset, index/related links, source-loaded stories,
+      standalone inventory and desktop/mobile checks. This does not close the
+      separate lossless XML tree/disclosure migration below.
+      Direction corrected 2026-09-13: the point is demonstrating the CEMT
+      transformation, not displaying precomputed Rust tables. The initial
+      four-format browser implementation is a working interaction reference,
+      not the accepted transformation architecture.
+      Completed 2026-09-13: generic native import/group/sort/match primitives,
+      CEMT-owned table/tree transforms, imported notes-tree/IP-filter aspects,
+      and shared declaration-module loading. Native suites, 349 unit tests,
+      all 155 browser stories, 18 standalone/24 source-loaded documents,
+      lint/typecheck and desktop/390px/320px overflow checks pass.
+- [x] Fixture DATA-TABLE-2: fix repeated-expression text patch identities in
+      the shared WASM render adapter. Sorting exposed that repeated source
+      frames addressed the first cell instead of each rendered occurrence.
+      Preserve source provenance separately from unique text/comment patch
+      IDs, retain IDs through serialized patch ingress, and verify sorting,
+      sibling isolation, source edits and reset in native/browser tests.
+      Also synchronize a textarea's dirty live value when its authored body
+      changes, without resetting edits during unrelated renders.
+- [ ] Fixture XML-VIEW-1: define and verify a lossless, namespace-aware native
+      XML viewer projection from the existing typed XML AST. Retain source
+      identities/ranges, ordered mixed content, empty attributes, comments and
+      inert processing instructions; cover malformed XML, entity rejection
+      and resource/depth limits. No browser DOM-to-record or JSON handoff.
+- [ ] Fixture XML-VIEW-2: specify and implement the smallest reusable native
+      grouping and stable-sort capabilities needed by the table inspector,
+      aligned with the planned Tier B sequence helpers. Cover expanded-name
+      grouping, text versus numeric keys, missing cells, stable ties, direction
+      changes and evaluation budgets before using them in UI declarations.
+- [ ] Fixture XML-VIEW-3: add a separate explicit-source CEM-ML tree viewer
+      after XML-VIEW-1. Show editable/reloadable data, keyboard-operable
+      disclosure, independent visible branch selection and parse failures;
+      keep inspected content inert and CEM-ML the default structural view.
+- [ ] Fixture XML-VIEW-4: add the native table-inspector cases after XML-VIEW-1
+      and XML-VIEW-2. Union columns across heterogeneous sibling rows, retain
+      text-only rows and nested groups, and show real ascending/descending
+      sorting with selection keyed to source identity. Verify native results,
+      standalone/source-loaded interaction, compact layout and inventory links.
+- [ ] Stabilize browser startup waits under parallel Storybook load: the
+      unchanged scoped-CSS and legacy icon-link stories intermittently exhaust
+      their short frame/two-second waits, although isolated and earlier full
+      runs pass. Prefer declaration/render readiness over incidental delays.
+- [ ] Fixture: check declaration-owned stylesheet lifecycle across repeated
+      source-loaded gallery mounts in one document. A second hex-grid story
+      using the same source registration rendered unstyled links; isolate
+      registration reuse and unmount/remount cleanup from startup timing.
+- [x] Fixture: add an independent anonymous whole-file XSLT example, proving
+      the existing bounded native transform path before browser wiring and
+      testing rendered payload, disclosure interaction, and source resolution.
+- [x] Fixture: add genuine embedded XSLT selected by an external XHTML
+      `file#id`, preserving namespace identity and explicit compatibility
+      dispatch; cover native lowering, missing fragments, unsupported-instruction
+      diagnostics, and browser loading without `XSLTProcessor` or a demo-local
+      JavaScript workaround.
+- [x] Update source contracts, Storybook interactions, standalone/source-loaded
+      case inventories, and Nx inputs; verify native/WASM, demo, lint/typecheck,
+      and compact desktop/mobile presentation before closing these gaps.
+    - Completion 2026-09-12: External Template cases 7d and 7e restore these
+      variants with interactive payload trees. The fragment uses an explicit
+      compatibility wrapper, not automatic XSLT detection. Three native fixture
+      tests and the full `cem_ql:test` suite pass, along with 331 unit tests,
+      152 Storybook tests, 17 standalone pages, 23 source-loaded documents,
+      lint, and typecheck. Desktop/mobile checks pass at 1440px and 390px.
+      Native test cache inputs now track both authored stylesheet fixtures.
+      The initial two-case mapping and migration boundary are recorded in
+      [`demo-teaching-points.md`](../packages/cem-elements/docs/demo-teaching-points.md#case-level-loader-follow-up);
+      the complete legacy case inventory is recorded below.
+    - Case audit completion 2026-09-12: all 32 local legacy files are fingerprinted
+      in [`legacy-demo-cases.json`](../packages/cem-elements/docs/legacy-demo-cases.json).
+      All 80 wrapped cards (including the static form-data illustration) and
+      five unwrapped examples are classified. Four commented card prototypes
+      are excluded from runnable coverage. Current-case/fixture links have a
+      CI guard with explicit Nx inputs; the selected hex row and standalone
+      XML viewers were still open at audit time, not a claim of full parity.
+    - Mapped-resource completion 2026-09-12: module-URL case 4d resolves a
+      prefix-mapped image and same-library fragment, including the library's
+      own image and nested component. Both resource links and loaded images
+      are verified. The focused native resolver fixture, 337 unit tests,
+      152 Storybook tests (final rerun with `--maxWorkers=2`), 17 standalone
+      pages, 23 source-loaded documents, lint/typecheck, and 1440px/390px layout
+      checks pass. Default-run startup timing remains the separate TODO above.
+
 ## Native Markdown Documentation Builds
 
 - [x] Replace the npm `markdown-it` documentation generator with the typed
@@ -336,6 +736,55 @@ registration identities may reuse an inherited or existing definition.
       retain each Pokémon name. All 235 unit tests, the focused Storybook
       interaction, lint, typecheck, and the 17-page / 23-document browser gate
       pass, with browser fixtures intercepting the pinned sprite URLs offline.
+- [x] Use expressive emoji/Unicode labels across the demo gallery.
+    - [x] Keep clear accessible names and tooltips, and verify the symbolic
+          controls, fruit lists, and live counts in source, Storybook, standalone/source
+          fixtures, and desktop/mobile layouts.
+    - Completion: nine pages use symbolic controls and fruit values while
+      retaining readable accessible names, tooltips, and technical teaching
+      labels. Selected fruit options have an inset selection mark. Verified
+      321 unit tests, 151 Storybook tests (plus focused final form reruns),
+      17 standalone pages, 23 source-loaded documents, keyboard activation,
+      lint, typecheck, and two-card/overflow layouts at 1440px and 390px.
+      The headless host lacks an emoji font; Unicode text is browser-asserted,
+      but pictogram appearance needs an emoji-capable system font.
+- [x] Restore the remaining demo teaching points from `~/aWork/custom-element`.
+    - [x] Add and verify event-triggered URL writes so live readers do not
+          reapply stale navigation commands; cover repeated actions and drafts.
+    - [x] Add a malformed JSON response fixture and verify visible failure,
+          stale-result removal, and recovery through the authored GET controls.
+    - [x] Audit the remaining gallery pages and supporting templates against
+          the local legacy sources, recording preserved lessons and deviations.
+    - [x] Restore missing reader-driven interactions and observable outcomes
+          using current CEM-ML, with independent external controls where the
+          demonstrated capability observes external state.
+    - [x] Update affected source contracts, Storybook interactions, fixture
+          inventories, related links, and Nx inputs; verify layout and browser
+          behavior in standalone and source-loaded documents.
+    - Completed 2026-09-12: the local prototype
+      [audit](../packages/cem-elements/docs/demo-teaching-points.md) records
+      preserved lessons and intentional current-contract differences. External
+      History/attribute controls, actual URL/version synchronization, independent
+      event-triggered URL writers, native Next validation, focus/caret retention,
+      HTTP idle/failure/recovery, and split anonymous/external-template cases
+      now have observable outcomes. All 312 unit tests, 151 Storybook Chromium
+      tests, the 17-page / 23-source-document fixture gate, lint, and typecheck
+      pass. Desktop/mobile checks confirm compact rows and no page overflow;
+      Nx inputs cover the shared templates, assets, styles, and negative fixture.
+- [x] Restore the local-storage demo's external-write teaching points.
+    - [x] Restore direct Storage API controls, live validation and recovery,
+          removal versus empty values, persistence, initial-only reads, and
+          fruit/basket updates while keeping slice projection declarative.
+    - [x] Update source contracts, Storybook interactions, and standalone/source
+          fixture inventories; verify desktop layout, lint, and typecheck.
+    - Completed 2026-09-12: twelve cases restore independent Storage API writers
+      and declarative observers, typed invalid/valid transitions, JSON object and
+      array projections, empty/zero/false values, persistence, initial-only reads,
+      fruit totals, and a separate slice-to-storage editor. The 16 focused source
+      tests, source-loaded Storybook interaction, lint, typecheck, and 17-page /
+      23-document fixture gate pass, including real reload and cross-tab checks.
+      Desktop cards fit two per row without source overflow; the narrow viewport
+      has no page overflow. Existing Nx inputs already cover all changed fixtures.
 - [x] Port the six local-storage use cases from the local legacy
       `demo/local-storage.html` to the `cem-elements` demo.
     - [x] Adapt live text synchronization, authoritative values, persisted
@@ -620,6 +1069,24 @@ registration identities may reuse an inherited or existing definition.
       generated schema-package README, 220 native tests, 170 package unit tests,
       134 Storybook interactions, schema-package verification, typecheck, and
       the 15-page / 21-source-document browser gate pass.
+- [x] Add literal `str:split(value, separator)` and simple JavaScript-inspired
+      string helpers without changing existing CEM-QL string semantics.
+    - [x] Specify and implement trim variants, character access, and forward/
+          backward search with codepoint-safe indices and documented edge cases.
+    - [x] Fixture: cover registration/arity, empty values, Unicode, bounds,
+          overlapping searches, and composable word counting in native tests first.
+    - [x] Publish all eight helpers in the schema-package example and regenerate
+          and verify its reference documentation.
+    - [x] Replace demo word-count arithmetic with split/count, and add focused
+          interactive string-function samples with source and Storybook contracts.
+    - [x] Update the standalone/source-loaded sample inventories and verify native,
+          WASM, demo, lint/typecheck, and desktop/mobile behavior.
+    - Completed 2026-09-12: eight native Tier A helpers preserve CEM's codepoint
+      indexing and sequence semantics. Word-count demos use split/filter/count,
+      and each new helper has an independent interactive example. Native tests
+      and lint, WASM build, schema-package generation/verification, 330 unit
+      tests, the 151-test Storybook rerun, 17 standalone pages, 23 source-loaded
+      documents, lint/typecheck, and 1440px/390px layout checks pass.
 - [x] Add Tier A `str:shorten(value, max_length, ellipsis?)` with a default
       Unicode ellipsis, codepoint-safe middle elision, suffix-favored odd
       budgets, and marker-aware minimum-length clamping.
@@ -2514,3 +2981,32 @@ Phase 11 starts only after the Phase 10 UI Kit is reviewed and published.
       components, with native iOS/Android token-usage notes.
 - [ ] Record scenario tests, screenshots, and reviewed Figma evidence proving
       consistent tokens and component semantics across design and implementation.
+
+## Theme generator CEM-ML simplification
+
+- [x] Add portable Markdown-table row records with normalized named fields,
+      ordered cells, source-table/source-row provenance, and compatible `tdN`
+      aliases.
+    - [x] Fixture: prove normalization, provenance, compatibility aliases, and
+          diagnostics for duplicate or empty normalized headings.
+- [x] Add a resolver-preflighted CEMT module-closure render boundary shared by
+      browser/WASM and native CEM-ML execution.
+    - [x] Fixture: render the same imported public template through browser/WASM
+          and native execution and compare the render plan and diagnostics.
+- [x] Introduce and adopt the shared theme token-documentation CEMT module,
+      migrate generator expressions to named row fields, and retain the complete
+      Markdown-driven presentation and generated CSS protocols.
+    - [x] Fixture: re-run all ten source-completeness protocols and record the
+          before/after source complexity measurements.
+    - Completed 2026-09-12: the Markdown schema now owns normalized named row
+      fields, ordered cells, source provenance, positional compatibility aliases,
+      and collision diagnostics. Browser runtime support preflights resolver-backed
+      static CEMT closures, records resolver-policy identity, and lets the Rust
+      compiler validate hashes, root-body/parameter/runtime compatibility, nested
+      imports, and public entrypoint visibility. The shared `cem-token-docs.cemt`
+      supplies 18 table and 43 CSS-property call sites across the ten generators. Source size
+      fell from 1,389 to 1,302 lines, loops from 137 to 76, and positional accesses
+      from 497 to zero while the ten CSS outputs remained 58,527 bytes. Markdown
+      package verification, 149 Storybook tests, the complete `cem-ql` suite, both
+      affected lints, all ten manifest/source-completeness/browser-capture checks,
+      and 479/479 token coverage passed.

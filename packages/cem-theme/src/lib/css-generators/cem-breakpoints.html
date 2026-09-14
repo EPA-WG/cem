@@ -17,79 +17,75 @@
 <!--
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
   datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
-  cem_ql WASM boundary; no live browser XSLT. Columns — basis/height/cq: td1=token td2=value
-  td3=desc td4=tier; media-ranges/height-ranges: td1=range td2=min td3=max td4=note.
+  cem_ql WASM boundary; no live browser XSLT. Rows use normalized Markdown heading fields such as
+  token/value/description/tier and range/min_width/max_width/note.
   Conditional @media ranges use cem:choose/when/otherwise with bare cem-ql @test comparisons.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-breakpoints-template"
           data-token-url="../../../dist/lib/tokens/cem-breakpoints.xhtml"
           data-slices="basis=cem-bp-basis height=cem-bp-height active=cem-bp-active cq=cem-bp-cq mediaRanges=cem-bp-media-ranges heightRanges=cem-bp-height-ranges">
-{table @id=cem-bp-basis |
-    {caption | {a @href="../../../dist/lib/tokens/cem-breakpoints.xhtml#5-1-basis-tokens-bounds" | cem-bp-basis} — width + epsilon basis tokens}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.basis" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
-}
+{module @version="1.0.0" |
+{import @as=docs @src="./cem-token-docs.cemt"}
+{body |
+{call @from=docs @template=standard-token-table
+    @with:rows={datadom.slices.basis} @with:id=cem-bp-basis
+    @with:href="../../../dist/lib/tokens/cem-breakpoints.xhtml#5-1-basis-tokens-bounds"
+    @with:link_label=cem-bp-basis @with:caption=" — width + epsilon basis tokens"}
 {hr | }
-{table @id=cem-bp-height |
-    {caption | {a @href="../../../dist/lib/tokens/cem-breakpoints.xhtml#cem-bp-height" | cem-bp-height} — height basis tokens}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.height" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
-}
+{call @from=docs @template=standard-token-table
+    @with:rows={datadom.slices.height} @with:id=cem-bp-height
+    @with:href="../../../dist/lib/tokens/cem-breakpoints.xhtml#cem-bp-height"
+    @with:link_label=cem-bp-height @with:caption=" — height basis tokens"}
 {hr | }
-{table @id=cem-bp-cq |
-    {caption | {a @href="../../../dist/lib/tokens/cem-breakpoints.xhtml#8-1-container-bounds-optional" | cem-bp-cq} — container query reference values}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.cq" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
-}
+{call @from=docs @template=standard-token-table
+    @with:rows={datadom.slices.cq} @with:id=cem-bp-cq
+    @with:href="../../../dist/lib/tokens/cem-breakpoints.xhtml#8-1-container-bounds-optional"
+    @with:link_label=cem-bp-cq @with:caption=" — container query reference values"}
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```/* ── Block A — CSS custom property reference values ─────────────────────── */
 
 :root {
-  /* region width basis: epsilon + cem-bp-width-[range]-[min|max] */```{cem:for-each @select="$datadom.slices.basis" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region width basis: epsilon + cem-bp-width-[range]-[min|max] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.basis} @with:indent="  "}```
   /* endregion width basis */
 
-  /* region height basis: cem-bp-height-[range]-[min|max] */```{cem:for-each @select="$datadom.slices.height" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region height basis: cem-bp-height-[range]-[min|max] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.height} @with:indent="  "}```
   /* endregion height basis */
 
   /* region container query reference values: cem-cq-width-[range]-[min|max] */
-  /* Consumer must provide container-type: inline-size (see R-D1x-WRAP) */```{cem:for-each @select="$datadom.slices.cq" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* Consumer must provide container-type: inline-size (see R-D1x-WRAP) */```{call @from=docs @template=css-properties @with:rows={datadom.slices.cq} @with:indent="  "}```
   /* endregion container query reference values */
 }
 
 /* ── Block B — @media active-width helpers ───────────────────────────────── */
-/* Sets --cem-bp-active-width; read via JS: getComputedStyle(root).getPropertyValue('--cem-bp-active-width').trim() */```{cem:for-each @select="$datadom.slices.mediaRanges" @as="row" |{cem:choose |{cem:when @test='row.td2 == "0px"' |```
-@media (max-width: ```{$row.td3}```) {
-  :root { --cem-bp-active-width: ```{$row.td1}```; }
-}```}{cem:when @test='row.td3 == "—"' |```
-@media (min-width: ```{$row.td2}```) {
-  :root { --cem-bp-active-width: ```{$row.td1}```; }
+/* Sets --cem-bp-active-width; read via JS: getComputedStyle(root).getPropertyValue('--cem-bp-active-width').trim() */```{cem:for-each @select="$datadom.slices.mediaRanges" @as="row" |{cem:choose |{cem:when @test='row.min_width == "0px"' |```
+@media (max-width: ```{$row.max_width}```) {
+  :root { --cem-bp-active-width: ```{$row.range}```; }
+}```}{cem:when @test='row.max_width == "—"' |```
+@media (min-width: ```{$row.min_width}```) {
+  :root { --cem-bp-active-width: ```{$row.range}```; }
 }```}{cem:otherwise |```
-@media (min-width: ```{$row.td2}```) and (max-width: ```{$row.td3}```) {
-  :root { --cem-bp-active-width: ```{$row.td1}```; }
+@media (min-width: ```{$row.min_width}```) and (max-width: ```{$row.max_width}```) {
+  :root { --cem-bp-active-width: ```{$row.range}```; }
 }```}}}```
 
-/* Height helpers (informative — most apps adapt on width only) */```{cem:for-each @select="$datadom.slices.heightRanges" @as="row" |{cem:choose |{cem:when @test='row.td2 == "0px"' |```
-@media (max-height: ```{$row.td3}```) {
-  :root { --cem-bp-active-height: ```{$row.td1}```; }
-}```}{cem:when @test='row.td3 == "—"' |```
-@media (min-height: ```{$row.td2}```) {
-  :root { --cem-bp-active-height: ```{$row.td1}```; }
+/* Height helpers (informative — most apps adapt on width only) */```{cem:for-each @select="$datadom.slices.heightRanges" @as="row" |{cem:choose |{cem:when @test='row.min_height == "0px"' |```
+@media (max-height: ```{$row.max_height}```) {
+  :root { --cem-bp-active-height: ```{$row.range}```; }
+}```}{cem:when @test='row.max_height == "—"' |```
+@media (min-height: ```{$row.min_height}```) {
+  :root { --cem-bp-active-height: ```{$row.range}```; }
 }```}{cem:otherwise |```
-@media (min-height: ```{$row.td2}```) and (max-height: ```{$row.td3}```) {
-  :root { --cem-bp-active-height: ```{$row.td1}```; }
+@media (min-height: ```{$row.min_height}```) and (max-height: ```{$row.max_height}```) {
+  :root { --cem-bp-active-height: ```{$row.range}```; }
 }```}}}```
 
 /* ── Block C — @container helpers ────────────────────────────────────────── */
 /* Deferred: CEM does not emit @container selectors (R-D1x-WRAP).             */
 /* Use --cem-cq-width-* reference values in your own @container rules.        */
 ```}}
+}
+}
 </template>
 <main></main>
 <cem-css-loader></cem-css-loader>

@@ -96,6 +96,17 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
         ],
     },
     {
+        legend: '4d. Mapped image and same-library fragment',
+        includes: [
+            '@src="lib-root/embed-lib.html#embed-relative-hash"',
+            '@src="lib-root/Smiley.svg"',
+            '@href="{$datadom.slices.fragmentUrl}"',
+            '@src="{$datadom.slices.imageUrl}"',
+            '{cem-element @src="{$datadom.slices.fragmentUrl}"',
+        ],
+        excludes: ['@tag=', 'onclick=', 'XSLTProcessor'],
+    },
+    {
         legend: '5. component-local map: naked',
         includes: [
             '<cem-element tag="cem-local-map-naked-image">',

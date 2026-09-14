@@ -1,0 +1,6 @@
+{module |
+    {template @name=token-row @visibility=public |
+        {param @name=token}{param @name=value}
+        {body | {tr | {th | {$token}}{td | {$value}}}}
+    }
+}

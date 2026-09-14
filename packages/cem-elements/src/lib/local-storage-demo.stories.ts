@@ -6,10 +6,15 @@ const EXPECTED_LEGENDS = [
     '0. Read a live text value',
     '1. Always override a stored value',
     '2. Stored value with a default',
-    '3. Typed localStorage values',
+    '3a. Date validation',
+    '3b. Time validation',
+    '3c. Local date and time validation',
+    '3d. Number validation',
+    '3e. JSON validation',
     '4. Simplest initial read',
     '5. Live JSON basket',
     '6. Fruit buttons and a storage watcher',
+    '7. Write a slice back to storage',
 ] as const;
 
 const STORAGE_DEFAULTS = {
@@ -19,7 +24,6 @@ const STORAGE_DEFAULTS = {
     cemDemoTime: '13:30',
     cemDemoLocalDateTime: '1977-04-01T14:00:30',
     cemDemoNumber: '1.23456e+5',
-    cemDemoInvalidNumber: 'ABC',
     cemDemoJson: JSON.stringify({ a: 1, b: 'B' }),
     cemDemoCherries: '12',
     cemDemoBasket: JSON.stringify({ cherries: 12, lemons: 1 }),
@@ -27,6 +31,7 @@ const STORAGE_DEFAULTS = {
     cemDemoFruitCherries: '12',
     cemDemoFruitApples: '0',
     cemDemoFruitBananas: '0',
+    cemDemoSliceEditor: 'shared initial',
 } as const;
 
 const meta: Meta = {
@@ -57,7 +62,7 @@ export const EveryAuthoredSample: Story = {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
             () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
-            'all seven local-storage samples render from the HTML source',
+            'all local-storage samples render from the HTML source',
             300
         );
 
@@ -72,60 +77,157 @@ export const EveryAuthoredSample: Story = {
         await verifyLiveText(sampleByLegend(host, EXPECTED_LEGENDS[0]));
         await verifyAuthoritativeValue(sampleByLegend(host, EXPECTED_LEGENDS[1]));
         await verifyPersistedDefault(sampleByLegend(host, EXPECTED_LEGENDS[2]));
-        await verifyTypedValues(sampleByLegend(host, EXPECTED_LEGENDS[3]));
-        await verifyInitialRead(sampleByLegend(host, EXPECTED_LEGENDS[4]));
-        await verifyJsonBasket(sampleByLegend(host, EXPECTED_LEGENDS[5]));
-        await verifyFruitWriterAndWatcher(sampleByLegend(host, EXPECTED_LEGENDS[6]));
+        await verifyDateAndTime(host);
+        await verifyNumbers(sampleByLegend(host, EXPECTED_LEGENDS[6]));
+        await verifyJson(sampleByLegend(host, EXPECTED_LEGENDS[7]));
+        await verifyInitialRead(sampleByLegend(host, EXPECTED_LEGENDS[8]));
+        await verifyJsonBasket(sampleByLegend(host, EXPECTED_LEGENDS[9]));
+        await verifyFruitWriterAndWatcher(sampleByLegend(host, EXPECTED_LEGENDS[10]));
+        await verifySliceEditor(sampleByLegend(host, EXPECTED_LEGENDS[11]));
     },
 };
 
 async function verifyLiveText(sample: HTMLElement): Promise<void> {
+    await waitForText(sample, 'output', 'stored initial', 'the live text slice hydrates');
+    for (const [button, value, output] of [
+        ['text value', 'text value', 'text value'],
+        ['another value', 'another value', 'another value'],
+        ['Empty string', '', ''],
+        ['Clear key', null, 'null'],
+        ['text value', 'text value', 'text value'],
+    ] as const) {
+        buttonByText(sample, button).click();
+        await waitForText(sample, 'output', output, `${button} updates the live slice`);
+        assertEqual(localStorage.getItem('cemDemoLiveText'), value, `${button} writes storage directly`);
+    }
+    localStorage.setItem('cem-demo-unrelated-key', 'unrelated');
+    await nextFrame();
+    assertEqual(textList(sample, 'output')[0], 'text value', 'unrelated keys leave this slice alone');
+    localStorage.removeItem('cem-demo-unrelated-key');
+}
+
+async function verifySliceEditor(sample: HTMLElement): Promise<void> {
     await waitForCondition(
-        () => textList(sample, 'output').join('|') === 'stored initial|stored initial',
+        () => textList(sample, 'output').join('|') === 'shared initial|shared initial',
         'both live text instances hydrate from the same key'
     );
 
-    dispatchInput(requiredElement(sample, 'cem-storage-live-text:first-of-type input') as HTMLInputElement, 'shared edit');
+    dispatchInput(requiredElement(sample, 'cem-storage-editor:first-of-type input') as HTMLInputElement, 'shared edit');
     await waitForCondition(
         () => textList(sample, 'output').join('|') === 'shared edit|shared edit',
         'the second instance observes the first instance storage write'
     );
-    assertEqual(localStorage.getItem('cemDemoLiveText'), 'shared edit', 'the live text edit is persisted');
+    assertEqual(localStorage.getItem('cemDemoSliceEditor'), 'shared edit', 'the slice edit is persisted');
+    dispatchInput(requiredElement(sample, 'cem-storage-editor:last-of-type input') as HTMLInputElement, 'edit from B');
+    await waitForCondition(
+        () => textList(sample, 'output').join('|') === 'edit from B|edit from B',
+        'both instances can write the shared key'
+    );
+    assertEqual(localStorage.getItem('cemDemoSliceEditor'), 'edit from B', 'the second editor persists its slice');
 }
 
 async function verifyAuthoritativeValue(sample: HTMLElement): Promise<void> {
     await waitForText(sample, 'output', 'ABC', 'the authoritative value hydrates');
-    buttonByText(sample, 'Try text value').click();
-    await waitForCondition(
-        () => normalize(requiredElement(sample, 'output').textContent ?? '') === 'ABC',
-        'the value attribute wins after an attempted slice replacement'
-    );
-    assertEqual(localStorage.getItem('cemDemoOverride'), 'ABC', 'the authoritative value rewrites storage');
+    for (const button of ['Try text value', 'Clear key']) {
+        buttonByText(sample, button).click();
+        await waitForCondition(
+            () => localStorage.getItem('cemDemoOverride') === 'ABC'
+                && textList(sample, 'output')[0] === 'ABC',
+            `${button}: the value attribute restores both storage and the slice`
+        );
+    }
 }
 
 async function verifyPersistedDefault(sample: HTMLElement): Promise<void> {
     await waitForText(sample, 'output', 'DEF', 'the missing key receives the host default');
-    dispatchInput(requiredElement(sample, 'input') as HTMLInputElement, 'remember me');
+    buttonByText(sample, 'remember me').click();
     await waitForText(sample, 'output', 'remember me', 'the declaration accepts a later edit');
     assertEqual(
         localStorage.getItem('cemDemoPersistedDefault'),
         'remember me',
         'the declaration without value preserves the edit'
     );
+    buttonByText(sample, 'Empty string').click();
+    await waitForText(sample, 'output', '', 'an empty string does not invoke the default');
+    assertEqual(localStorage.getItem('cemDemoPersistedDefault'), '', 'empty is a stored value');
+    buttonByText(sample, 'Clear key').click();
+    await waitForText(sample, 'output', 'null', 'the default is seeded on page load, not on every render');
+    assertEqual(localStorage.getItem('cemDemoPersistedDefault'), null, 'clear removes the key');
+    buttonByText(sample, 'remember me').click();
+    await waitForText(sample, 'output', 'remember me', 'a later external write recovers');
 }
 
-async function verifyTypedValues(sample: HTMLElement): Promise<void> {
+async function verifyDateAndTime(host: HTMLElement): Promise<void> {
+    for (const [legend, key, initial, invalid, recovery] of [
+        [EXPECTED_LEGENDS[3], 'cemDemoDate', '2024-04-20', 'ABC — invalid', '2024-02-29'],
+        [EXPECTED_LEGENDS[4], 'cemDemoTime', '13:30', '25:00 — invalid', '09:15'],
+        [EXPECTED_LEGENDS[5], 'cemDemoLocalDateTime', '1977-04-01T14:00:30', 'ABC — invalid', '2024-04-20T09:15'],
+    ] as const) {
+        const sample = sampleByLegend(host, legend);
+        await waitForText(sample, 'output', initial, `${legend} hydrates`);
+        buttonByText(sample, invalid).click();
+        await waitForText(sample, 'output', 'null', `${legend} rejects invalid storage text`);
+        assertEqual(localStorage.getItem(key), invalid.split(' ')[0], 'invalid raw text remains in storage');
+        submitRaw(sample, recovery);
+        await waitForText(sample, 'output', recovery, `${legend} recovers through its text form`);
+    }
+    const date = sampleByLegend(host, EXPECTED_LEGENDS[3]);
+    buttonByText(date, 'ISO timestamp').click();
+    await waitForText(date, 'output', '2024-04-21', 'ISO timestamps normalize to a date');
+}
+
+async function verifyNumbers(sample: HTMLElement): Promise<void> {
+    await waitForText(sample, 'p:last-of-type output', '123456', 'the exponent hydrates as a number');
+    for (const [button, raw, parsed] of [
+        ['0001', '0001', '1'],
+        ['0', '0', '0'],
+        ['ABC — invalid', 'ABC', 'null'],
+        ['1.23456e+5', '1.23456e+5', '123456'],
+    ]) {
+        buttonByText(sample, button).click();
+        await waitForCondition(
+            () => textList(sample, 'output').join('|') === `${raw}|${parsed}`,
+            `${button} projects raw text and a coerced number`
+        );
+        assertEqual(localStorage.getItem('cemDemoNumber'), raw, 'coercion does not rewrite storage');
+    }
+    submitRaw(sample, '-2.5');
+    await waitForText(sample, 'p:last-of-type output', '-2.5', 'a custom decimal is accepted');
+    submitRaw(sample, '');
+    await waitForText(sample, 'p:last-of-type output', 'null', 'empty numeric text becomes null');
+    assertEqual(localStorage.getItem('cemDemoNumber'), '', 'invalid empty text is retained');
+}
+
+async function verifyJson(sample: HTMLElement): Promise<void> {
+    await waitForCondition(() => textList(sample, 'ul li').join('|') === 'a: 1|b: B', 'JSON object fields hydrate');
+    for (const [button, raw, parsed] of [
+        ['JSON string', '"ABC"', 'ABC'],
+        ['JSON number', '12.345', '12.345'],
+        ['JSON false', 'false', 'false'],
+        ['ABC — invalid', 'ABC', 'null'],
+    ]) {
+        buttonByText(sample, button).click();
+        await waitForCondition(
+            () => textList(sample, 'output').join('|') === `${raw}|${parsed}`,
+            `${button} projects the raw and parsed JSON values`
+        );
+        assertEqual(localStorage.getItem('cemDemoJson'), raw, 'JSON parsing does not rewrite storage');
+    }
+    submitRaw(sample, '0');
+    await waitForCondition(() => textList(sample, 'output').join('|') === '0|0', 'JSON zero stays zero');
+    submitRaw(sample, '[1,2,3]');
     await waitForCondition(
-        () => definitionValue(sample, 'JSON b') === 'B',
-        'typed storage values finish their initial resource render'
+        () => textList(sample, 'ol li').join('|') === '1|2|3'
+            && textList(sample, 'output')[1] === 'array',
+        'a JSON array projects each parsed member'
     );
-    assertDefinitionValue(sample, 'date', '2024-04-20');
-    assertDefinitionValue(sample, 'time', '13:30');
-    assertDefinitionValue(sample, 'datetime', '1977-04-01T14:00:30');
-    assertDefinitionValue(sample, 'number', '123456');
-    assertDefinitionValue(sample, 'invalid number', 'null');
-    assertDefinitionValue(sample, 'JSON a', '1');
-    assertDefinitionValue(sample, 'JSON b', 'B');
+    submitRaw(sample, '{"fruit":"cherry","count":0}');
+    await waitForCondition(
+        () => textList(sample, 'ul li').join('|') === 'count: 0|fruit: cherry',
+        'object projection follows newly written field names and retains zero'
+    );
+    buttonByText(sample, 'Object').click();
+    await waitForCondition(() => textList(sample, 'ul li').join('|') === 'a: 1|b: B', 'valid JSON restores object fields');
 }
 
 async function verifyInitialRead(sample: HTMLElement): Promise<void> {
@@ -133,53 +235,75 @@ async function verifyInitialRead(sample: HTMLElement): Promise<void> {
         () => normalize(requiredElement(sample, 'cem-storage-cherries').textContent ?? '') === '12🍒',
         'the initial-only reader combines the stored count and payload unit'
     );
+    const writer = buttonByLabel(sample, 'Store 24 cherries');
+    assertEqual(normalize(writer.textContent ?? ''), '24🍒', 'the initial writer displays its fruit count');
+    writer.click();
+    assertEqual(localStorage.getItem('cemDemoCherries'), '24', 'the external button writes a new count');
+    await nextFrame();
+    await nextFrame();
+    assertEqual(textList(sample, 'output')[0], '12', 'without live the existing instance retains its initial read');
+    const fresh = document.createElement('cem-storage-cherries');
+    fresh.textContent = '🍒';
+    sample.append(fresh);
+    try {
+        await waitForText(fresh, 'output', '24', 'a fresh instance reads the changed storage value');
+    } finally {
+        fresh.remove();
+    }
 }
 
 async function verifyJsonBasket(sample: HTMLElement): Promise<void> {
     await waitForCondition(
-        () => definitionValue(sample, '🛒 total') === '13',
+        () => definitionValue(sample, '🛒') === '13',
         'the JSON basket hydrates and calculates its initial total'
     );
 
-    dispatchInput(
-        requiredElement(sample, 'textarea') as HTMLTextAreaElement,
-        JSON.stringify({ cherries: 13, lemons: 2 })
-    );
+    assertEqual(normalize(buttonByLabel(sample, 'Add cherry').textContent ?? ''), '+🍒', 'add cherry is symbolic');
+    assertEqual(normalize(buttonByLabel(sample, 'Add lemon').textContent ?? ''), '+🍋', 'add lemon is symbolic');
+    assertEqual(normalize(buttonByLabel(sample, 'Reset basket').textContent ?? ''), '↺🛒', 'reset is symbolic');
+    buttonByLabel(sample, 'Add cherry').click();
+    await waitForCondition(() => definitionValue(sample, '🛒') === '14', 'a cherry updates the JSON basket');
+    buttonByLabel(sample, 'Add lemon').click();
     await waitForCondition(
-        () => definitionValue(sample, '🛒 total') === '15',
-        'editing JSON updates the parsed live basket'
+        () => definitionValue(sample, '🛒') === '15',
+        'an external JSON write updates the parsed live basket'
     );
-    assertDefinitionValue(sample, 'cherries', '13');
-    assertDefinitionValue(sample, 'lemons', '2');
+    assertDefinitionValue(sample, '🍒', '13');
+    assertDefinitionValue(sample, '🍋', '2');
     assertEqual(
         localStorage.getItem('cemDemoBasket'),
         JSON.stringify({ cherries: 13, lemons: 2 }),
         'the edited JSON text is persisted'
     );
+    buttonByLabel(sample, 'Reset basket').click();
+    await waitForCondition(() => definitionValue(sample, '🛒') === '13', 'reset restores the basket');
 }
 
 async function verifyFruitWriterAndWatcher(sample: HTMLElement): Promise<void> {
     await waitForCondition(
-        () => definitionValue(sample, 'Total') === '13',
+        () => definitionValue(sample, '🛒') === '13',
         'the watcher hydrates all four fruit slices'
     );
 
     const cases = [
-        { button: 'Add lemon', term: '🍋 lemons', key: 'cemDemoFruitLemons', expected: '2' },
-        { button: 'Add cherry', term: '🍒 cherries', key: 'cemDemoFruitCherries', expected: '13' },
-        { button: 'Add apple', term: '🍏 apples', key: 'cemDemoFruitApples', expected: '1' },
-        { button: 'Add banana', term: '🍌 bananas', key: 'cemDemoFruitBananas', expected: '1' },
+        { button: 'Add lemon', term: '🍋', key: 'cemDemoFruitLemons', expected: '2' },
+        { button: 'Add cherry', term: '🍒', key: 'cemDemoFruitCherries', expected: '13' },
+        { button: 'Add apple', term: '🍏', key: 'cemDemoFruitApples', expected: '1' },
+        { button: 'Add banana', term: '🍌', key: 'cemDemoFruitBananas', expected: '1' },
     ] as const;
 
     for (const fruit of cases) {
-        buttonByLabel(sample, fruit.button).click();
+        const button = buttonByLabel(sample, fruit.button);
+        assertEqual(normalize(button.textContent ?? ''), `+${fruit.term}`, `${fruit.button} displays its symbol`);
+        assertEqual(button.title, fruit.button, `${fruit.button} retains its tooltip`);
+        button.click();
         await waitForCondition(
             () => definitionValue(sample, fruit.term) === fruit.expected,
             `${fruit.button} updates the watching DCE`
         );
         assertEqual(localStorage.getItem(fruit.key), fruit.expected, `${fruit.button} persists its count`);
     }
-    assertDefinitionValue(sample, 'Total', '17');
+    assertDefinitionValue(sample, '🛒', '17');
 }
 
 function seedStorage(): void {
@@ -215,6 +339,16 @@ function dispatchInput(control: HTMLInputElement | HTMLTextAreaElement, value: s
     control.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+function submitRaw(sample: HTMLElement, value: string): void {
+    const form = requiredElement(sample, 'form') as HTMLFormElement;
+    (requiredElement(form, 'input[name="raw"]') as HTMLInputElement).value = value;
+    form.requestSubmit();
+}
+
+function nextFrame(): Promise<void> {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
 function textList(root: ParentNode, selector: string): string[] {
     return Array.from(root.querySelectorAll(selector), (element) => normalize(element.textContent ?? ''));
 }
@@ -242,7 +376,10 @@ function requiredElement(root: ParentNode, selector: string): HTMLElement {
 
 async function waitForText(root: ParentNode, selector: string, expected: string, label: string): Promise<void> {
     await waitForCondition(
-        () => normalize(requiredElement(root, selector).textContent ?? '') === expected,
+        () => {
+            const element = root.querySelector(selector);
+            return element !== null && normalize(element.textContent ?? '') === expected;
+        },
         label
     );
 }

@@ -29,7 +29,7 @@ the behavioral reference.
 | Declaration registers a produced custom-element tag from `tag` | `README.md` lifecycle / tag sections | Supported | `ProducedTagValidation`, `PackageRuntimeSurface` |
 | Inline declaration shape requires a direct template and rejects live declaration content | `README.md` declaration lifecycle | Supported with stricter shape | `InlineDeclarationShape`, `DeclarationLiveContentRejected`, `MissingInlineTemplateRejected` |
 | `src` may load local `#id`, external documents, `url#id` templates, and a standalone XSLT document | `README.md` `src`; `demo/external-template.html` | Supported | `LocalSrcDeclarationLoadingParity`, `ExternalSrcDeclarationLoadingParity`, `SrcDeclarationLoadingDiagnostics`, and External Template Example 7b; standalone XSLT preserves response media metadata, parses as XML, and enters the bounded native lowering path; bare module specifiers require host `loadSrcDocument` |
-| Omitted `tag` renders an inline instance | `README.md` "omitting tag" | Deferred | Not part of the produced-tag substrate MVP; record as bridge/adoption migration behavior |
+| Omitted `tag` renders an inline instance | `README.md` "omitting tag" | Supported | External Template cases 2, 3a, 5a, 7d, and 7e exercise anonymous local, SVG, HTML, standalone XSLT, and explicitly annotated embedded-XSLT sources. |
 | Host payload is captured into a durable data island and removed from live render output | `README.md` instance lifecycle | Supported | `DataIslandCaptureAndRender`, data-island isolation stories |
 | Declared attributes expose defaults and host overrides | `docs/attributes.md`; `demo/attributes.html` | Supported | `LegacyAttributeDefaultsAndHostOverridesParity`, `DeclaredAttributeWasmRenderLoop` |
 | External host attribute changes rerender produced instances | `docs/attributes.md` attribute changes | Supported | `AttributeInvalidationRerenders`, `AttributeObserverRerendersOnUndeclaredAttribute` |
@@ -57,6 +57,10 @@ the behavioral reference.
   external source enters the same bounded native lowering path through explicit
   `<cem-element src>` acquisition plus XSLT media identity, with `.xsl`/`.xslt`
   fallback limited to absent or generic XML metadata.
+  External Template case 7e selects a genuine stylesheet inside an explicitly
+  annotated template by `file.xhtml#id`; selecting an unannotated XSLT-shaped
+  subtree does not opt into compatibility execution. The historical
+  `embedded-xsl` ID contains CEM-ML and is not counted as XSLT evidence.
 - Legacy DOM text interpolation `${$name}` remains only for DOM-parity templates; canonical CEM-ML uses `{$name}`.
 - `src`, `module-url`, and external dependency resolution are host-policy driven. `src` uses `loadSrcDocument`;
   `module-url` uses `resolveModuleUrl`; bare module specifiers require host-provided resolver hooks.

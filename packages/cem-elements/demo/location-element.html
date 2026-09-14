@@ -35,6 +35,10 @@
             parameters are available through <code>paramEntries</code> and preserve all
             values.
         </p>
+        <p>The plain HTML controls below change browser state outside the DCE.
+            Compare the live reader with the initial-only reader, then try the
+            browser's Back and Forward buttons. A native GET submission reloads
+            the document, so both readers start again from that new URL.</p>
         <h3>See also</h3>
         <p><a href="./set-url.html">Set the page URL with location-element</a></p>
         <p><a href="./module-url.html">Resolve module and resource URLs</a></p>
@@ -44,36 +48,30 @@
         legend="1. Window location live update"
         description="History controls change the page URL; the live location slice updates its fields and repeated parameters">
         <template>
+<button type="button"
+    onclick="history.pushState({}, '',
+        '?mode=history.pushState&amp;tag=one&amp;tag=two#checked')">
+    history.pushState</button>
+<button type="button"
+    onclick="history.replaceState({}, '',
+        '?mode=history.replaceState&amp;tag=one&amp;tag=two#checked')">
+    history.replaceState</button>
+<a href="#native-link">Native hash link</a>
+<form method="get">
+    <label>Query <input name="query" value="hello world"></label>
+    <button type="submit" aria-label="Navigate with GET (reloads)"
+        title="Navigate with GET (reloads)">→ GET ↻</button>
+</form>
 <cem-element>
     <template type="text/cem-ml">
 {style |```
-    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr;
+        gap: 0.25rem 0.75rem; }
     dt { font-weight: 700; }
     dd { margin: 0; padding: 0; overflow-wrap: anywhere; }
 ```}
-{slice @name=method}
 {location-element @slice=current @live=true}
 {article @class=demo-card |
-    {p | Change this document without reloading it.}
-    {button
-        @type=button
-        @value=history.pushState
-        @slice=method
-        @slice-event=click |
-        history.pushState
-    }
-    {button
-        @type=button
-        @value=history.replaceState
-        @slice=method
-        @slice-event=click |
-        history.replaceState
-    }
-    {cem:if @test=datadom.slices.method |
-        {location-element
-            @method="{$datadom.slices.method}"
-            @src="?mode={$datadom.slices.method}&amp;tag=one&amp;tag=two#checked"}
-    }
     {dl |
         {dt | href}{dd | {$datadom.slices.current.href}}
         {dt | pathname}{dd | {$datadom.slices.current.pathname}}
@@ -94,12 +92,16 @@
 
     <cem-demo-element
         legend="2. Window location initial read"
-        description="Without live, the current URL is captured for the initial render only">
+        description="Click the external button: the address bar and live sample change, but this captured URL stays unchanged until reload">
         <template>
+<button type="button" aria-label="Change hash after initial read"
+    title="Change hash after initial read" onclick="location.hash = 'after-initial-read'">
+    →#</button>
 <cem-element>
     <template type="text/cem-ml">
 {style |```
-    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr;
+        gap: 0.25rem 0.75rem; }
     dt { font-weight: 700; }
     dd { margin: 0; padding: 0; overflow-wrap: anywhere; }
 ```}
@@ -125,7 +127,8 @@
 <cem-element>
     <template type="text/cem-ml">
 {style |```
-    dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr;
+        gap: 0.25rem 0.75rem; }
     dt { font-weight: 700; }
     dd { margin: 0; padding: 0; overflow-wrap: anywhere; }
 ```}

@@ -130,6 +130,13 @@ pub enum IrNode {
         lhs: IrId,
         rhs: IrId,
     },
+    // Append variants to preserve the discriminants of existing binary artifacts.
+    TryCatch {
+        body: IrId,
+        code: BindingId,
+        message: BindingId,
+        handler: IrId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -27,6 +27,19 @@ import "cem:stdlib/report" as report
     let strings = (
         str:length("CEM"),
         str:codepoints("AZ"),
+        str:split("🍒,🍋,,🍌", ","),
+        str:split("🍒🍋", ""),
+        str:trim("  🍒  🍋  "),
+        str:trim_start("  🍒  🍋  "),
+        str:trim_end("  🍒  🍋  "),
+        str:char_at("🍒🍋🍌", 1),
+        str:at("🍒🍋🍌", -1),
+        str:index_of("🍒🍋🍒", "🍒", 1),
+        str:last_index_of("🍒🍋🍒", "🍒", 1),
+        seq:count(seq:where(
+            str:split(str:normalize_space("  one  one two  "), " "),
+            fn(word) => word != ""
+        )),
         str:lower("CEM"),
         str:upper("cem"),
         str:slice("semantic", 2, 3),

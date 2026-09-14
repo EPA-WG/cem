@@ -36,39 +36,48 @@ export const EveryAuthoredSample: Story = {
                 ),
                 'the hash writer sample finishes rendering'
             );
-            buttonByText(hash, '#hash-two').click();
+            buttonByName(hash, '#hash-two').click();
             await waitForText(hash, 'Selected target: #hash-two', 'the button value updates the target slice');
             await waitForText(hash, 'Current hash: #hash-two', 'location.hash writer updates the live reader');
-            hash.remove();
 
             const methods = sampleByLegend(host, EXPECTED_LEGENDS[1]);
-            buttonByText(methods, 'history.pushState').click();
+            buttonByName(methods, 'history.pushState').click();
             await waitForText(
                 methods,
                 'Selected method: history.pushState Current hash: #history.pushState',
                 'the selected history method controls the writer'
             );
-            methods.remove();
 
             const conditional = sampleByLegend(host, EXPECTED_LEGENDS[2]);
-            buttonByText(conditional, 'Set').click();
+            buttonByName(conditional, 'Set').click();
             await waitForText(
                 conditional,
                 'Current hash: #conditional-writer',
                 'the event conditionally injects the location writer'
             );
-            conditional.remove();
 
             const form = sampleByLegend(host, EXPECTED_LEGENDS[3]);
             const input = requiredElement(form, 'input[type="text"]') as HTMLInputElement;
             input.value = '#form-verified';
             input.dispatchEvent(new Event('input', { bubbles: true }));
-            buttonByText(form, 'Set').click();
+            buttonByName(form, 'Set').click();
             await waitForText(
                 form,
                 'Pending: history.pushState = #form-verified Current hash: #form-verified',
                 'form controls supply the method and URL'
             );
+            input.value = '#second-draft';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            await waitForText(form, 'Pending: history.pushState = #second-draft', 'the next draft is visible');
+            if (location.hash !== '#form-verified') throw new Error('editing a draft reapplied the URL writer');
+            buttonByName(form, 'Set').click();
+            await waitForCondition(() => location.hash === '#second-draft', 'a second Set applies the next draft');
+            history.replaceState({}, '', '#external-change');
+            await waitForText(form, 'Current hash: #external-change', 'external navigation is not undone');
+            buttonByName(form, 'Set').click();
+            await waitForCondition(() => location.hash === '#second-draft', 'repeating an equal-value Set is a new command');
+            buttonByName(hash, '#hash-two').click();
+            await waitForCondition(() => location.hash === '#hash-two', 'earlier cards remain usable together');
         } finally {
             history.replaceState({}, '', originalUrl);
         }
@@ -101,9 +110,9 @@ function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
     return sample;
 }
 
-function buttonByText(root: ParentNode, expected: string): HTMLButtonElement {
+function buttonByName(root: ParentNode, expected: string): HTMLButtonElement {
     const button = Array.from(root.querySelectorAll('button')).find(
-        (candidate) => normalize(candidate.textContent ?? '') === expected
+        (candidate) => normalize(candidate.getAttribute('aria-label') ?? candidate.textContent ?? '') === expected
     );
     if (!button) throw new Error(`expected ${expected} button`);
     return button;

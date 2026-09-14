@@ -1,0 +1,1421 @@
+{
+  "formatVersion": 1,
+  "legacyRoot": "~/aWork/custom-element/demo",
+  "meaning": "Functional teaching-point coverage, not byte/syntax/API parity. covered permits CEM-ML syntax migration; migrated records a meaningful contract or presentation change; missing remains an actionable TODO. Source fingerprints pin this local audit without requiring the prototype in CI.",
+  "sources": [
+    {
+      "file": "attributes.html",
+      "sha256": "aa02574857de59eb511401c832a0931bf247db6dc8fc9bb344affa60589ee3a1",
+      "cases": [
+        {
+          "legacy": "attributes definition",
+          "status": "covered",
+          "current": [
+            {
+              "file": "attributes.html",
+              "legend": "1. attributes definition"
+            },
+            {
+              "file": "attributes.html",
+              "legend": "1a. External attribute changes"
+            },
+            {
+              "file": "attributes.html",
+              "legend": "1b. Container attribute values"
+            }
+          ],
+          "note": "Defaults, three reused instances, external setAttribute, authoritative select, and container overrides are separated; removal and empty values are additional checks."
+        },
+        {
+          "legacy": "attribute from slice",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "attributes.html",
+              "legend": "2. attribute from slice"
+            }
+          ],
+          "note": "Input updates the reflected title and tooltip; input replaces keyup so paste and other edits also work."
+        },
+        {
+          "legacy": "V attribute matches input value",
+          "status": "covered",
+          "current": [
+            {
+              "file": "attributes.html",
+              "legend": "3. V attribute matches input value"
+            },
+            {
+              "file": "attributes.html",
+              "legend": "3a. Container value before input"
+            }
+          ],
+          "note": "Default and container-initialized inputs reflect v and is-changed independently."
+        },
+        {
+          "legacy": "attribute defaults, from container, and from slice",
+          "status": "covered",
+          "current": [
+            {
+              "file": "attributes.html",
+              "legend": "4. attribute defaults, from container, and from slice"
+            },
+            {
+              "file": "attributes.html",
+              "legend": "4a. External changes versus user input"
+            }
+          ],
+          "note": "Container/default values yield to event-backed input, including an empty input; live external changes remain observable."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "confused.svg",
+      "sha256": "a7491aeacf244c4ede7934bf1c2aaa83d4899ea58bd9d1f47a6aaad1378a62cb",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "asset",
+      "unwrapped": [],
+      "currentFiles": [
+        "confused.svg"
+      ],
+      "note": "Owned image fixture used by anonymous/named source and module-map cases."
+    },
+    {
+      "file": "data-slices.html",
+      "sha256": "2edae6dc50f7771c669898c6078ed9e44960c839955d37e123fdecc78c97e538",
+      "cases": [
+        {
+          "legacy": "A. slice initialization, change on event",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "A1. inline slice initialization, change on event"
+            },
+            {
+              "file": "data-slices.html",
+              "legend": "A2. slice initialization, change on event"
+            }
+          ],
+          "note": "Increment, decrement, and numeric input share a slice; inline and declared initial-value variants are separate."
+        },
+        {
+          "legacy": "B. slice event data.",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "B. slice event data."
+            }
+          ],
+          "note": "Pointer/click event data updates coordinates, event type, and the textarea shadow."
+        },
+        {
+          "legacy": "1. slice change on event. 1:1 slice⮂value",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "1. slice change on event. 1:1 slice⮂value"
+            }
+          ],
+          "note": "Empty input commits on change/blur."
+        },
+        {
+          "legacy": "2. initial slice value, slice change on event. slice⮂value, w/ initial",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "2. initial slice value, slice change on event. slice⮂value"
+            }
+          ],
+          "note": "Initial B value commits on change/blur."
+        },
+        {
+          "legacy": "3. initial slice value, slice change on event. slice⮂value, w/ initial",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "3. on input event. slice⮂value"
+            }
+          ],
+          "note": "Initial B value updates on input."
+        },
+        {
+          "legacy": "4. initial slice value from attribute, slice change on event.",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "4. initial slice value from attribute"
+            }
+          ],
+          "note": "Default and supplied attribute values initialize separate instances."
+        },
+        {
+          "legacy": "5. initial slice value from attribute, slice change on event.",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "5. slice value computed from event"
+            }
+          ],
+          "note": "The slice prepends x while the input displays the unprefixed value."
+        },
+        {
+          "legacy": "6. initial slice value from input, button ignored till change on click.",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "6. button ignored till change on click."
+            }
+          ],
+          "note": "The input initializes nickname; the broccoli button changes it only on click."
+        },
+        {
+          "legacy": "7. initial slice value from SLICE element, button ignored till change on click.",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "7. initial slice value from SLICE element"
+            }
+          ],
+          "note": "An inert slice directive supplies zero; click/tap increments it."
+        },
+        {
+          "legacy": "8. multiple slices by SLICE element, button ignored till change on click.",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "8. multiple slices by SLICE element"
+            }
+          ],
+          "note": "One button owns click/tap and focus/blur slice directives."
+        },
+        {
+          "legacy": "9. slice in attribute",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "9. slice in attribute"
+            }
+          ],
+          "note": "Default and supplied emotion attributes are updated through the input slice target."
+        },
+        {
+          "legacy": "10. multiple slices by same field",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "10. multiple slices by same field"
+            }
+          ],
+          "note": "One input fans out to two slices."
+        },
+        {
+          "legacy": "11. slices and attribute",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "11. slices and attribute"
+            }
+          ],
+          "note": "One input updates both a host attribute and a slice."
+        },
+        {
+          "legacy": "12. checkbox use",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "12. checkbox use"
+            }
+          ],
+          "note": "Initially checked value, computed slice-value, and variable-derived value are all retained; unchecked becomes empty."
+        },
+        {
+          "legacy": "13. Radio group",
+          "status": "covered",
+          "current": [
+            {
+              "file": "data-slices.html",
+              "legend": "13. Radio group"
+            }
+          ],
+          "note": "Two named radio controls share the last checked value."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "demo.css",
+      "sha256": "b45cad7928bb5d23dadc20bf43d3274317b7e6d7826fa6a37f62d72c287354fc",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "presentation",
+      "unwrapped": [],
+      "currentFiles": [
+        "demo.css"
+      ],
+      "note": "Current compact gallery styles replace prototype layout; byte parity is not required."
+    },
+    {
+      "file": "dom-merge.html",
+      "sha256": "d497e64f93b9c43996e963c6ab9596cc0ac3daaf2954658adaaa060cdc65b8fb",
+      "cases": [
+        {
+          "legacy": "1. Word count in textarea",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "dom-merge.html",
+              "legend": "1. Textarea word count"
+            }
+          ],
+          "note": "Textarea commits on change and now counts words, correcting the legacy sample that counted characters despite its label."
+        },
+        {
+          "legacy": "2. Word count in HTML input field",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "dom-merge.html",
+              "legend": "2. Input word and character count"
+            }
+          ],
+          "note": "Live input counts characters and words while preserving focus/caret; empty and whitespace-only values now count as zero."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "embed-1.html",
+      "sha256": "f887dfbed334216e411dd18092f1fe5312ba1a71a59355e03b1db8bd54a17e37",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "library",
+      "unwrapped": [],
+      "currentFiles": [
+        "embed-1.html"
+      ],
+      "note": "Nested declaration used by external-template 8/10 and module-url 4/4c."
+    },
+    {
+      "file": "external-template.html",
+      "sha256": "df79a83a192cbe5b7e014804fc9d4a9aaed76b1346a8fb0b25661fc51376e585",
+      "cases": [
+        {
+          "legacy": "1. reference the template in page DOM",
+          "status": "covered",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "1. reference the template in page DOM"
+            }
+          ],
+          "note": "Local fragment, supplied slot and fallback slot content."
+        },
+        {
+          "legacy": "2. without TAG, inline instantiation",
+          "status": "covered",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "2. without TAG, inline instantiation"
+            }
+          ],
+          "note": "Two anonymous instances load a local template."
+        },
+        {
+          "legacy": "3. external SVG file",
+          "status": "covered",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "3. external SVG file"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "3a. Anonymous external SVG"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "3b. Missing source fallback"
+            }
+          ],
+          "note": "Named SVG, anonymous SVG, and missing-resource fallback are separate cards."
+        },
+        {
+          "legacy": "4. external XSLT file",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "4. external CEM-ML template file"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "7b. external XSLT data-island tree template"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "7d. Anonymous external XSLT"
+            }
+          ],
+          "note": "Full canonical context is shown by CEM-ML; named and anonymous standalone XSLT demonstrate the bounded payload-tree path, not the old datadom layout."
+        },
+        {
+          "legacy": "5. external HTML template",
+          "status": "covered",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "5. external HTML template"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "5a. Anonymous external HTML"
+            }
+          ],
+          "note": "Named and anonymous whole-HTML loading retains HTML, SVG, and MathML content."
+        },
+        {
+          "legacy": "6. HTML, SVG by ID within external file",
+          "status": "covered",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "6. HTML, SVG by ID within external file"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "6a. SVG fragment by ID"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "6b. MathML fragment by ID"
+            }
+          ],
+          "note": "Wave HTML, logo SVG, and formula MathML ID selection are separate cards."
+        },
+        {
+          "legacy": "7. XSLT by ID within external file",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "7e. Embedded XSLT fragment"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "7c. Missing fragment fallback"
+            }
+          ],
+          "note": "Real XSLT is selected inside an explicit lang=custom-element-v0 template; missing-ID fallback stays separate. Raw unannotated xsl:stylesheet ID dispatch is intentionally not restored."
+        },
+        {
+          "legacy": "8. external file with embedding of another external DCE",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "8. external file with embedding of another external DCE"
+            }
+          ],
+          "note": "An imported document contains another declaration; the current card names the outer declaration for its explicit instance."
+        },
+        {
+          "legacy": "9. external file with invoking of relative template as hash by enclosed custom-element",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "9. external file with invoking of relative template as hash by enclosed custom-element"
+            }
+          ],
+          "note": "Same-library nesting and image/link bases remain observable; explicit file#fragment replaces legacy bare #fragment lookup."
+        },
+        {
+          "legacy": "10. external file with invoking of template in another relative path file by enclosed custom-element",
+          "status": "covered",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "10. external file with invoking of template in another relative path file by enclosed custom-element"
+            }
+          ],
+          "note": "A library resolves ../embed-1.html and its link relative to that library."
+        },
+        {
+          "legacy": "embed-1.html external file",
+          "status": "covered",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "embed-1.html external file"
+            }
+          ],
+          "note": "The supporting document is shown through a source-loaded demo card."
+        },
+        {
+          "legacy": "embed-lib.html with multiple templates",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "embed-lib.html with multiple templates"
+            }
+          ],
+          "note": "The legacy gallery refers to a root embed-lib.html absent from this checkout; the current repository owns an explicit library fixture."
+        }
+      ],
+      "commentedLegends": [
+        "9. deep external files, complex rendering",
+        "9. own import maps",
+        "10. deep external files with own import maps",
+        "11. local template as a 'loading...' or fallback for remote, error handling"
+      ],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "for-each.html",
+      "sha256": "7d00478ba9ec7e22747f9c9cef8a644788e8d74de7624e15ced94f39a8ae689c",
+      "cases": [
+        {
+          "legacy": "1. Simple for-each",
+          "status": "covered",
+          "current": [
+            {
+              "file": "for-each.html",
+              "legend": "1. Simple for-each"
+            }
+          ],
+          "note": "Three fruit values render as a sequence; CEM-QL sequences replace EXSLT temporary node sets."
+        },
+        {
+          "legacy": "2. for-each with position()",
+          "status": "covered",
+          "current": [
+            {
+              "file": "for-each.html",
+              "legend": "2. for-each with position()"
+            }
+          ],
+          "note": "Position numbers and per-item color values remain visible."
+        },
+        {
+          "legacy": "3. Conditional for-each",
+          "status": "covered",
+          "current": [
+            {
+              "file": "for-each.html",
+              "legend": "3. Conditional for-each"
+            }
+          ],
+          "note": "A checkbox inserts/removes items between stable BEFORE/AFTER text."
+        },
+        {
+          "legacy": "4. Nested for-each (Table)",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "for-each.html",
+              "legend": "4. Nested for-each table"
+            }
+          ],
+          "note": "Nested row/cell loops render a 3-by-3 table; inert CEM-ML replaces the xhtml: parser workaround."
+        },
+        {
+          "legacy": "5. for-each with attributes",
+          "status": "covered",
+          "current": [
+            {
+              "file": "for-each.html",
+              "legend": "5. for-each with attributes"
+            }
+          ],
+          "note": "IDs, labels, and role fields are read from each item."
+        },
+        {
+          "legacy": "6. Dynamic table with toggle",
+          "status": "covered",
+          "current": [
+            {
+              "file": "for-each.html",
+              "legend": "6. Dynamic table with toggle"
+            }
+          ],
+          "note": "A checkbox inserts/removes product rows while table headings remain."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "form.html",
+      "sha256": "a9750392c2e8e7168af5627bb8ad6325d86bcc9ec10aad068eb94d36f937cbd0",
+      "cases": [
+        {
+          "legacy": "(unnamed form-data illustration)",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "form.html",
+              "legend": "1. Simple validation"
+            },
+            {
+              "file": "form.html",
+              "legend": "2. Form lifecycle"
+            }
+          ],
+          "note": "The unnamed hidden datadom illustration is replaced by typed form-data explanation and live username/confirmation outputs, not a fake runnable DOM tree."
+        },
+        {
+          "legacy": "1. Simple validation",
+          "status": "covered",
+          "current": [
+            {
+              "file": "form.html",
+              "legend": "1. Simple validation"
+            }
+          ],
+          "note": "Native validation and a deliberate Next action precede the password step; valid submission navigates."
+        },
+        {
+          "legacy": "2. Form life cycle demo",
+          "status": "covered",
+          "current": [
+            {
+              "file": "form.html",
+              "legend": "2. Form lifecycle"
+            }
+          ],
+          "note": "Username warning, email/SMS/password branches, custom field validity, and form-level validity."
+        },
+        {
+          "legacy": "3. read system validity message",
+          "status": "covered",
+          "current": [
+            {
+              "file": "form.html",
+              "legend": "3. Native control validity message"
+            }
+          ],
+          "note": "Native validationMessage is reflected in output and remains a browser validation message."
+        },
+        {
+          "legacy": "4. form validity message",
+          "status": "covered",
+          "current": [
+            {
+              "file": "form.html",
+              "legend": "4. Form custom validity message"
+            }
+          ],
+          "note": "Custom form errors track short input, block submission, and clear after correction."
+        },
+        {
+          "legacy": "5. using custom-element as form input",
+          "status": "covered",
+          "current": [
+            {
+              "file": "form.html",
+              "legend": "5. DCE as a form input"
+            }
+          ],
+          "note": "Two form-associated DCE values must match; valid submission carries both fruit values into URL parameters."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "hex-grid-dce.html",
+      "sha256": "9a1f4d15f9bccb1d28cc2e66028d3058ea1912172ae0935bd348a0e9e5aa943d",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "unwrapped-gallery-and-library",
+      "unwrapped": [
+        {
+          "legacy": "hex-grid.grid2x",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "hex-grid.html",
+              "legend": "1. Responsive framework link honeycomb"
+            },
+            {
+              "file": "hex-grid.html",
+              "legend": "2. Compact percentage links"
+            },
+            {
+              "file": "hex-grid.html",
+              "legend": "3. Fixed-length links"
+            }
+          ],
+          "note": "Reusable grid and size variants replace fixed item sizing with a bounded responsive honeycomb. Inert payload whitespace is excluded from authored item records."
+        },
+        {
+          "legacy": "hex-row.grid2x with img[selected]",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "hex-grid.html",
+              "legend": "9. Horizontal row with a current page"
+            }
+          ],
+          "note": "The existing grid's row mode keeps fixed-size cells horizontal with internal overflow. Payload links carry aria-current=page instead of img[selected]; a visible checkmark and inherited public current-color hooks distinguish current state from keyboard focus. Tab/Shift+Tab preserve the marker; Enter follows the focused link. All assets and destinations are local."
+        }
+      ]
+    },
+    {
+      "file": "hex-grid.html",
+      "sha256": "6da6ae63cf1c8755f9e8588c57dc33fe8ead1584ca35d259efdd9f31053bd3e2",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "unwrapped-gallery",
+      "unwrapped": [
+        {
+          "legacy": "hex-grid#grid1",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "hex-grid.html",
+              "legend": "3. Fixed-length links"
+            },
+            {
+              "file": "hex-grid.html",
+              "legend": "7. Wrapper DCE theme"
+            },
+            {
+              "file": "hex-grid.html",
+              "legend": "8. Image-button presentation"
+            }
+          ],
+          "note": "Sized navigation and instance/wrapper presentation use semantic links and public styling hooks. Page-level 3D perspective and private descendant overrides are decorative prototype details, not the current style contract."
+        },
+        {
+          "legacy": "hex-grid#grid2",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "hex-grid.html",
+              "legend": "1. Responsive framework link honeycomb"
+            }
+          ],
+          "note": "Responsive multi-row logo navigation uses owned assets, explicit links, hover and keyboard focus. The exact remote-logo inventory and perspective transform are not parity requirements."
+        }
+      ]
+    },
+    {
+      "file": "html-template.html",
+      "sha256": "6de3185c1e8fe72564f8033298020508120c49e79c94573f1852c710805aa7a6",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "library",
+      "unwrapped": [],
+      "currentFiles": [
+        "html-template.html"
+      ],
+      "note": "Whole document and HTML/SVG/MathML fragments; imported script stays inert."
+    },
+    {
+      "file": "html-template.xhtml",
+      "sha256": "f22ba535ae327cd90c1adb80e663ef435bafc07f14dbcd955c55e0f5846c116f",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "library",
+      "unwrapped": [],
+      "currentFiles": [
+        "html-template.xhtml"
+      ],
+      "note": "Old embedded-xsl ID now contains CEM-ML; embedded-xslt is real XSLT under an explicit compatibility template."
+    },
+    {
+      "file": "html-template.xml",
+      "sha256": "6f56a1ee87b2e7e256d0c65a5cbc14211c2d420fd48246270459ffacbf5b8790",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "unused-variant",
+      "unwrapped": [],
+      "currentFiles": [],
+      "note": "XML-extension duplicate is not referenced by an active legacy demo. Its automatic raw-XSLT-fragment behavior is not promised by the current compatibility contract."
+    },
+    {
+      "file": "http-request.html",
+      "sha256": "ec3691b473178b3f004c454cb13181adff1dcaabb1614c55894085e5f89ba35b",
+      "cases": [
+        {
+          "legacy": "0. url from text to http-request",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "http-request.html",
+              "legend": "0. URL from text to http-request"
+            }
+          ],
+          "note": "Editable draft URL versus GET; empty and alternate resources, malformed JSON and recovery. Local JSON fixtures replace public API-dependent text parsing."
+        },
+        {
+          "legacy": "1. http-request simplest",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "http-request.html",
+              "legend": "1. Simplest http-request"
+            }
+          ],
+          "note": "Six response-driven Pokemon image buttons retain names and assets; the response fixture is repository-owned."
+        },
+        {
+          "legacy": "2. http-request response and headers",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "http-request.html",
+              "legend": "2. http-request response and headers"
+            }
+          ],
+          "note": "Request mode/header and response headers/status/body remain inspectable as typed records, replacing recursive XSLT presentation."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "lib-dir/Smiley.svg",
+      "sha256": "810b2750585fbfe89a6246b1e8981a5dfc4f584fac5d90e488ff09e63083b2d0",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "asset",
+      "unwrapped": [],
+      "currentFiles": [
+        "lib-dir/Smiley.svg"
+      ],
+      "note": "Repository-owned image checks module/declaration-relative resource bases."
+    },
+    {
+      "file": "lib-dir/embed-lib.html",
+      "sha256": "6a60ab85c48304f4d021bc996ab42dfc0956509bdffd836bbfbcae186b545421",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "library",
+      "unwrapped": [],
+      "currentFiles": [
+        "lib-dir/embed-lib.html"
+      ],
+      "note": "Three templates cover direct content, same-library and parent-relative imports. Bare #fragment becomes explicit file#fragment."
+    },
+    {
+      "file": "local-storage.html",
+      "sha256": "48ef4f45a07c97f6b3f23e9961c8a0e8446e958f1f783981c6bbd4724a3134a2",
+      "cases": [
+        {
+          "legacy": "0. read localStorage text value",
+          "status": "covered",
+          "current": [
+            {
+              "file": "local-storage.html",
+              "legend": "0. Read a live text value"
+            }
+          ],
+          "note": "Two independent Storage API writes, empty text, and removal update the live slice."
+        },
+        {
+          "legacy": "1. always override",
+          "status": "covered",
+          "current": [
+            {
+              "file": "local-storage.html",
+              "legend": "1. Always override a stored value"
+            }
+          ],
+          "note": "The fixed value ABC overwrites an external write on rendering."
+        },
+        {
+          "legacy": "2. from storage with default",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "local-storage.html",
+              "legend": "2. Stored value with a default"
+            }
+          ],
+          "note": "A scoped key default survives reload and is restored after deletion; the broad localStorage.clear action is intentionally replaced with key-scoped removal."
+        },
+        {
+          "legacy": "3. localStorage type",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "local-storage.html",
+              "legend": "3a. Date validation"
+            },
+            {
+              "file": "local-storage.html",
+              "legend": "3b. Time validation"
+            },
+            {
+              "file": "local-storage.html",
+              "legend": "3c. Local date and time validation"
+            },
+            {
+              "file": "local-storage.html",
+              "legend": "3d. Number validation"
+            },
+            {
+              "file": "local-storage.html",
+              "legend": "3e. JSON validation"
+            }
+          ],
+          "note": "Date, time, local datetime, number, and JSON each have valid/invalid/editable external writes. Number notation and JSON scalar/object/array variants are covered. Shared set-all and nondeterministic now presets are replaced by independent controls."
+        },
+        {
+          "legacy": "3. localStorage simplest",
+          "status": "covered",
+          "current": [
+            {
+              "file": "local-storage.html",
+              "legend": "4. Simplest initial read"
+            }
+          ],
+          "note": "Initial-only cherry count remains unchanged after external writes until reload; projected fruit content remains."
+        },
+        {
+          "legacy": "2. localStorage basket JSON",
+          "status": "covered",
+          "current": [
+            {
+              "file": "local-storage.html",
+              "legend": "5. Live JSON basket"
+            }
+          ],
+          "note": "JSON fruit rows and total follow independent basket changes."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": [
+        {
+          "legacy": "Outside-gallery localStorage content fieldset",
+          "status": "covered",
+          "current": [
+            {
+              "file": "local-storage.html",
+              "legend": "6. Fruit buttons and a storage watcher"
+            }
+          ],
+          "note": "Fruit buttons write real storage, while a declarative table watches the results; no JS table renderer is retained."
+        }
+      ]
+    },
+    {
+      "file": "location-element.html",
+      "sha256": "c5cb829114e0809d4eba8231b315fe919b45753e8a9ea69c1e40ea1716029104",
+      "cases": [
+        {
+          "legacy": "Change window URL",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "location-element.html",
+              "legend": "1. Window location live update"
+            },
+            {
+              "file": "location-element.html",
+              "legend": "2. Window location initial read"
+            }
+          ],
+          "note": "The separate writer card is folded into each reader sample: hash links, native GET and plain pushState/replaceState controls change external URL state."
+        },
+        {
+          "legacy": "1. window.location live update",
+          "status": "covered",
+          "current": [
+            {
+              "file": "location-element.html",
+              "legend": "1. Window location live update"
+            }
+          ],
+          "note": "A live reader displays URL properties and query parameters after independent navigation."
+        },
+        {
+          "legacy": "2. window.location simplest",
+          "status": "covered",
+          "current": [
+            {
+              "file": "location-element.html",
+              "legend": "2. Window location initial read"
+            }
+          ],
+          "note": "An initial-only reader does not track later changes and refreshes on reload."
+        },
+        {
+          "legacy": "3. External URL as HREF attribute",
+          "status": "covered",
+          "current": [
+            {
+              "file": "location-element.html",
+              "legend": "3. External URL from href"
+            }
+          ],
+          "note": "An explicit external href is parsed without navigating the page."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "logo.png",
+      "sha256": "98387574fd0421db3a83b8bb49323eaaa10d3fd9a50aa07af477e50a39677a7c",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "unused-asset",
+      "unwrapped": [],
+      "currentFiles": [],
+      "note": "No active local demo references this bitmap. Current package-owned logos are not byte copies of every prototype asset."
+    },
+    {
+      "file": "module-url.html",
+      "sha256": "89d1f277de2181102e02c4b9cfaadb51b98fecae55fb03cf3139cf82170d5ec1",
+      "cases": [
+        {
+          "legacy": "this page import maps",
+          "status": "covered",
+          "current": [
+            {
+              "file": "module-url.html",
+              "legend": "this page import maps"
+            }
+          ],
+          "note": "The executable import map and its displayed source are visible."
+        },
+        {
+          "legacy": "1. relative to page path",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "module-url.html",
+              "legend": "4. Relative declaration source"
+            }
+          ],
+          "note": "Relative source resolution produces a clickable nested document; explicit cem-module-url resolution replaces implicit legacy src module resolution."
+        },
+        {
+          "legacy": "2. module by symbolic name",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "module-url.html",
+              "legend": "4a. Mapped declaration source"
+            }
+          ],
+          "note": "A mapped document loads its component fragment and exposes the resolved URL."
+        },
+        {
+          "legacy": "3. module by symbolic name with missing importmap entry",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "module-url.html",
+              "legend": "4b. Missing import-map entry"
+            }
+          ],
+          "note": "Missing mappings publish no URL and diagnose rather than rendering a misleading broken-link target."
+        },
+        {
+          "legacy": "4. module path by symbolic name",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "module-url.html",
+              "legend": "4d. Mapped image and same-library fragment"
+            }
+          ],
+          "note": "A prefix map resolves both Smiley.svg and embed-relative-hash; the latter loads its own relative image and same-library component with two clickable links."
+        },
+        {
+          "legacy": "5. module path by symbolic name to internal link within lib",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "module-url.html",
+              "legend": "4c. Mapped fragment with a relative dependency"
+            }
+          ],
+          "note": "A mapped fragment loads a parent-relative document; the visible link retains its full resolved URL."
+        },
+        {
+          "legacy": "./lib-dir/embed-lib.html",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "external-template.html",
+              "legend": "9. external file with invoking of relative template as hash by enclosed custom-element"
+            },
+            {
+              "file": "external-template.html",
+              "legend": "10. external file with invoking of template in another relative path file by enclosed custom-element"
+            }
+          ],
+          "note": "The library is exercised by the external-template same-library and parent-relative cases; the root current library is also source-loaded separately."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "npm-versions-demo.html",
+      "sha256": "f1684654b5c2dcf7ce6da21e4cee24cdda295cae28e91c3eba179a124d29b0a1",
+      "cases": [
+        {
+          "legacy": "1. NPM package version picker",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "npm-versions-demo.html",
+              "legend": "1. Default to the latest version"
+            }
+          ],
+          "note": "Latest release is preselected from the deterministic versions resource; the reusable picker is declared in this gallery rather than a legacy library file."
+        },
+        {
+          "legacy": "2. preselected NPM package version picker",
+          "status": "covered",
+          "current": [
+            {
+              "file": "npm-versions-demo.html",
+              "legend": "2. Preselect a version and show dates"
+            }
+          ],
+          "note": "Explicit current version and optional publication dates."
+        },
+        {
+          "legacy": "3. value attribute changed and propagated to slice",
+          "status": "covered",
+          "current": [
+            {
+              "file": "npm-versions-demo.html",
+              "legend": "3. Propagate the selected value"
+            }
+          ],
+          "note": "Selection reflects the host value and propagates to the enclosing slice."
+        },
+        {
+          "legacy": "4. label slot override",
+          "status": "covered",
+          "current": [
+            {
+              "file": "npm-versions-demo.html",
+              "legend": "4. Override the label slot"
+            }
+          ],
+          "note": "Named label slot replacement preserves the selection output."
+        },
+        {
+          "legacy": "5. control version in URL",
+          "status": "covered",
+          "current": [
+            {
+              "file": "npm-versions-demo.html",
+              "legend": "5. Synchronize the selected version with the URL"
+            }
+          ],
+          "note": "External hash edits update the picker; picker changes update the version segment while retaining the package/path."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "npm-versions.html",
+      "sha256": "880bf4e79826401afa0c3adae74508a0220608863030fe1c1cc037d88f71f443",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "library",
+      "unwrapped": [],
+      "currentFiles": [
+        "npm-versions-demo.html"
+      ],
+      "note": "Picker and URL-binding templates are authored in the current gallery with deterministic versions data; public registry transport is not exercised here."
+    },
+    {
+      "file": "scoped-css.html",
+      "sha256": "c915e0b226e7c9be77d82acf5f1e475a971ff0c76eb93d62e8a9fdae38f552be",
+      "cases": [
+        {
+          "legacy": "1. STYLE tag css rules are scoped within element",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "scoped-css.html",
+              "legend": "1. Private declaration CSS and ordinary outer cascade"
+            },
+            {
+              "file": "scoped-css.html",
+              "legend": "9. Anonymous declaration CSS uses its generated tag"
+            }
+          ],
+          "note": "Private styles do not leak to outside buttons; native @scope intentionally allows ordinary page cascade."
+        },
+        {
+          "legacy": "2. DCE with tag",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "scoped-css.html",
+              "legend": "1. Private declaration CSS and ordinary outer cascade"
+            }
+          ],
+          "note": "One declaration styles both named instances, not the outside button."
+        },
+        {
+          "legacy": "3. Override style in DCE payload",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "scoped-css.html",
+              "legend": "6. Payload style belongs to one instance"
+            }
+          ],
+          "note": "An inert payload style overrides only its instance, through the public custom-property contract."
+        },
+        {
+          "legacy": "4. simple internal override",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "scoped-css.html",
+              "legend": "11. Descendant selectors stay inside the component"
+            }
+          ],
+          "note": "Inherited host color, descendant color and native checked-state styling."
+        },
+        {
+          "legacy": "5. External template( inline lib )",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "scoped-css.html",
+              "legend": "8. Fragment template CSS uses the effective produced tag"
+            },
+            {
+              "file": "scoped-css.html",
+              "legend": "9. Anonymous declaration CSS uses its generated tag"
+            }
+          ],
+          "note": "Fragment CSS ownership and anonymous scoping are shown separately using canonical CEM-ML templates."
+        },
+        {
+          "legacy": "6. External template( ext lib )",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "scoped-css.html",
+              "legend": "12. CSS from an external template fragment"
+            },
+            {
+              "file": "scoped-css.html",
+              "legend": "6. Payload style belongs to one instance"
+            }
+          ],
+          "note": "External stylesheet ownership and inert instance overrides are covered separately; the old remote hex-grid fragment is replaced by owned fixtures and the dedicated grid gallery. This is a split migration, not identical composition."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "set-url.html",
+      "sha256": "6b49e81100ca0904e79c15f31cc09c4788b5d197d161e7b337f7132e8dc17997",
+      "cases": [
+        {
+          "legacy": "1. Set the page URL by location.hash",
+          "status": "covered",
+          "current": [
+            {
+              "file": "set-url.html",
+              "legend": "1. Set the page hash"
+            }
+          ],
+          "note": "Two hash targets change only after a click."
+        },
+        {
+          "legacy": "2. Set the page URL by method",
+          "status": "covered",
+          "current": [
+            {
+              "file": "set-url.html",
+              "legend": "2. Select the URL write method"
+            }
+          ],
+          "note": "All six write methods remain selectable and observable."
+        },
+        {
+          "legacy": "3. Set the page URL by location.href in conditionally injected location-element",
+          "status": "covered",
+          "current": [
+            {
+              "file": "set-url.html",
+              "legend": "3. Conditionally inject a URL writer"
+            }
+          ],
+          "note": "The URL writer is conditionally injected after the Set event."
+        },
+        {
+          "legacy": "4. Set page URL methods",
+          "status": "migrated",
+          "current": [
+            {
+              "file": "set-url.html",
+              "legend": "4. Set URL from form controls"
+            }
+          ],
+          "note": "Method radio presets and an editable draft require a deliberate submit; explicit revision triggers support repeated equal commands."
+        }
+      ],
+      "commentedLegends": [],
+      "kind": "gallery",
+      "unwrapped": []
+    },
+    {
+      "file": "table.xml",
+      "sha256": "acbed20c59be03701503731da38f866d1730292642ce6e2886ffcd67219b0ac7",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "partially-migrated-xml-viewer",
+      "unwrapped": [],
+      "currentFiles": ["data-table.html", "data-table-view.cemt"],
+      "note": "Native multi-format tables restore row text and grouping and add working sorting. The combined lossless tree and independent branch selection remain open; row selection is an intentional new presentation. See standaloneViewerReview."
+    },
+    {
+      "file": "table.xsl",
+      "sha256": "893045c9b259ef398a0517b56f583fbc5f5371a37d4f2e68af24bb40da0c3863",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "partially-migrated-xml-viewer",
+      "unwrapped": [],
+      "currentFiles": ["data-table.html", "data-table-view.cemt"],
+      "note": "Legacy grouping, branch selection and collapse use first-row headers and hidden checkboxes. Sorting has a placeholder key and annotations but no local handler. MSXML JScript/EXSLT machinery is outside bounded XSLT; standaloneViewerReview records the native migration prerequisites."
+    },
+    {
+      "file": "template.xsl",
+      "sha256": "a00f9938ff6fbc82ab1533ec0c0771ede4267268c4b25ae9454033345b1f2de0",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "unused-transform",
+      "unwrapped": [],
+      "currentFiles": [],
+      "note": "Unreferenced Pokemon attribute/payload/slot transform is an experimental source, not an active gallery case. Those primitives have current demos; exact transform execution is not claimed."
+    },
+    {
+      "file": "tree.xml",
+      "sha256": "499f010fdb0b33fb0ce821021a6ccea420a341f87161a8ee1d91f7e79b842c3a",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "unported-xml-viewer",
+      "unwrapped": [],
+      "currentFiles": [],
+      "note": "Standalone xml-stylesheet entry point remains unported. Recursive disclosure exists in external-template, but arbitrary XML inspection, lossless mixed content and a safe explicit loading boundary require the standaloneViewerReview follow-up."
+    },
+    {
+      "file": "tree.xsl",
+      "sha256": "ed13517f81c52b22b01cc4dd371299738cc98a93eee8b0ed857c190e68c674b1",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "library",
+      "unwrapped": [],
+      "currentFiles": [
+        "tree.cemt",
+        "data-island-tree.cemt",
+        "data-island-tree.xsl"
+      ],
+      "note": "Canonical full-context CEM-ML tree and bounded compatibility payload-tree examples replace legacy datadom structure."
+    },
+    {
+      "file": "wc-square.svg",
+      "sha256": "da08ee3d0c6b9b9ed1a128ccfff5a80e0028f475b875f3814e369b6d2bed0a06",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "asset",
+      "unwrapped": [],
+      "currentFiles": [
+        "wc-square.svg"
+      ],
+      "note": "Package-owned web-component logo; branding pixels are not a runtime parity contract."
+    },
+    {
+      "file": "xhtml-template.xhtml",
+      "sha256": "d0e25430308999d6ad602a91b945ca22058d3858130a046930e4bd63fb3e82e7",
+      "cases": [],
+      "commentedLegends": [],
+      "kind": "unused-variant",
+      "unwrapped": [],
+      "currentFiles": [],
+      "note": "Unreferenced prototype variant is not well-formed XHTML (unclosed meta); not promoted to a supported XML loader fixture."
+    }
+  ],
+  "standaloneViewerReview": {
+    "document": "packages/cem-elements/docs/xml-viewer-migration.md",
+    "status": "table-view-implemented-tree-open",
+    "tableDemo": "data-table.html",
+    "tableLegends": [
+      "1. XML table: attributes and text",
+      "2. CSV table: quoted fields",
+      "3. YAML table: nested collections",
+      "4. JSON table: empty and missing",
+      "5. Presentation aspects: tree and IP-filter form"
+    ],
+    "sources": [
+      "tree.xml",
+      "tree.xsl",
+      "table.xml",
+      "table.xsl"
+    ],
+    "sorting": "scaffold-only",
+    "selection": "independent-branch-checkboxes",
+    "openFixtures": [
+      "XML-VIEW-1",
+      "XML-VIEW-2",
+      "XML-VIEW-3",
+      "XML-VIEW-4"
+    ]
+  },
+  "evidence": {
+    "gallery": "tools/scripts/verify-cem-elements-demo-fixtures.mjs",
+    "native": [
+      "packages/cem_ql/tests/external_xslt_demos.rs",
+      "packages/cem_ql/tests/data_import.rs",
+      "packages/cem_ql/tests/sequence_collections.rs",
+      "packages/cem_ql/tests/template_matching.rs",
+      "packages/cem_ql/tests/data_view_templates.rs",
+      "packages/cem_ml/tests/module_url_demo.rs"
+    ],
+    "meaning": "The gallery gate asserts each mapped current legend in source-loaded documents and runs standalone checks. It does not execute the legacy sources or prove general-purpose XSLT parity."
+  }
+}

@@ -20,5 +20,10 @@ export default [...baseConfig, {
         parser: await import('jsonc-eslint-parser'),
     },
 }, {
-    ignores: ['**/out-tsc', '**/dist', '**/storybook-static'],
+    ignores: [
+        '**/out-tsc', '**/dist', '**/storybook-static',
+        // Deliberately malformed HTTP response; the source-contract test
+        // requires JSON.parse to fail so the demo can exercise recovery.
+        'demo/http-data-invalid.json',
+    ],
 }, ...storybook.configs["flat/recommended"]];

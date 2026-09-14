@@ -26,7 +26,277 @@ class HtmlDemoElement extends HTMLElement {
 customElements.define('cem-demo-element', HtmlDemoElement);
 `;
 
+const localStorageSamples = [
+    sampleContract('0. Read a live text value', [
+        normalizedText('output', 'stored initial'),
+        clickThenText('button:first-of-type', 'output', 'text value'),
+        clickThenText('button:nth-of-type(2)', 'output', 'another value'),
+        clickThenText('button:nth-of-type(3)', 'p', 'liveText slice:'),
+        normalizedText('output', ''),
+        clickThenText('button:nth-of-type(4)', 'output', 'null'),
+        clickThenText('button:first-of-type', 'output', 'text value'),
+    ]),
+    sampleContract('1. Always override a stored value', [
+        normalizedText('output', 'ABC'),
+        clickThenText('button:first-of-type', 'output', 'ABC'),
+        clickThenText('button:nth-of-type(2)', 'output', 'ABC'),
+    ]),
+    sampleContract('2. Stored value with a default', [
+        normalizedText('output', 'DEF'),
+        clickThenText('button:first-of-type', 'output', 'remember me'),
+        clickThenText('button:nth-of-type(3)', 'output', 'null'),
+        clickThenText('button:first-of-type', 'output', 'remember me'),
+    ]),
+    sampleContract('3a. Date validation', [
+        normalizedText('output', '2024-04-20'),
+        clickThenText('button:nth-of-type(3)', 'output', 'null'),
+        clickThenText('form button', 'output', '2024-02-29'),
+        clickThenText('button:nth-of-type(2)', 'output', '2024-04-21'),
+    ]),
+    sampleContract('3b. Time validation', [
+        normalizedText('output', '13:30'),
+        clickThenText('button:nth-of-type(2)', 'output', 'null'),
+        clickThenText('form button', 'output', '09:15'),
+    ]),
+    sampleContract('3c. Local date and time validation', [
+        normalizedText('output', '1977-04-01T14:00:30'),
+        clickThenText('button:nth-of-type(2)', 'output', 'null'),
+        clickThenText('form button', 'output', '2024-04-20T09:15'),
+    ]),
+    sampleContract('3d. Number validation', [
+        normalizedText('p:nth-of-type(2) output', '123456'),
+        clickThenText('button:nth-of-type(2)', 'p:nth-of-type(2) output', '1'),
+        normalizedText('p:first-of-type output', '0001'),
+        clickThenText('button:nth-of-type(3)', 'p:nth-of-type(2) output', '0'),
+        normalizedText('p:nth-of-type(2) output', '0'),
+        clickThenText('button:nth-of-type(4)', 'p:nth-of-type(2) output', 'null'),
+        normalizedText('p:first-of-type output', 'ABC'),
+        clickThenText('form button', 'p:nth-of-type(2) output', '24'),
+    ]),
+    sampleContract('3e. JSON validation', [
+        text('ul', 'b : B'),
+        clickThenText('button:nth-of-type(2)', 'p:nth-of-type(2) output', 'ABC'),
+        clickThenText('button:nth-of-type(3)', 'p:nth-of-type(2) output', '12.345'),
+        clickThenText('button:nth-of-type(4)', 'p:nth-of-type(2) output', 'false'),
+        clickThenText('button:nth-of-type(5)', 'p:nth-of-type(2) output', 'null'),
+        normalizedText('p:first-of-type output', 'ABC'),
+        clickThenText('form button', 'p:nth-of-type(2) output', 'array'),
+        normalizedText('ol', '1 2 3'),
+        clickThenText('button:first-of-type', 'ul', 'b : B'),
+    ]),
+    sampleContract('4. Simplest initial read', [
+        normalizedText('cem-storage-cherries', '12 🍒'),
+        clickThenText('button:first-of-type', 'output', '12'),
+    ]),
+    sampleContract('5. Live JSON basket', [
+        text('dl', '🛒 13'),
+        clickThenText('button:first-of-type', 'dl', '🛒 14'),
+        clickThenText('button:nth-of-type(2)', 'dl', '🛒 15'),
+        clickThenText('button:nth-of-type(3)', 'dl', '🛒 13'),
+    ]),
+    sampleContract('6. Fruit buttons and a storage watcher', [
+        text('dl', '🛒 13'),
+        clickThenText('button[aria-label="Add lemon"]', 'dl', '🍋 2'),
+        clickThenText('button[aria-label="Add cherry"]', 'dl', '🍒 13'),
+        clickThenText('button[aria-label="Add apple"]', 'dl', '🍏 1'),
+        clickThenText('button[aria-label="Add banana"]', 'dl', '🍌 1'),
+        text('dl', '🛒 17'),
+    ]),
+    sampleContract('7. Write a slice back to storage', [
+        text('cem-storage-editor:first-of-type output', 'shared initial'),
+        fillThenText(
+            'cem-storage-editor:first-of-type input',
+            'shared edit',
+            'cem-storage-editor:last-of-type output',
+            'shared edit',
+        ),
+    ]),
+];
+
+function splitPartChecks(...values) {
+    return [
+        countExactly('ol > li', values.length),
+        ...values.map((value, index) =>
+            propertyEquals(`ol > li:nth-of-type(${index + 1})`, 'textContent', `“${value}”`)),
+    ];
+}
+
+const stringMethodSamples = [
+    sampleContract('str:split', [
+        normalizedText('output', '4'),
+        ...splitPartChecks('🍒', '🍋', '', '🍌'),
+        fillThenText('label:nth-of-type(2) input', '', 'output', '6'),
+        fillThenText('label:first-of-type input', '🍒🍋', 'output', '2'),
+        ...splitPartChecks('🍒', '🍋'),
+        fillThenText('label:first-of-type input', '', 'output', '0'),
+        fillThenText('label:nth-of-type(2) input', ',', 'output', '1'),
+        ...splitPartChecks(''),
+        fillThenText('label:first-of-type input', 'a::b::::', 'ol', 'a::b::::'),
+        ...splitPartChecks('a::b::::'),
+        fillThenText('label:nth-of-type(2) input', '::', 'output', '4'),
+        ...splitPartChecks('a', 'b', '', ''),
+    ]),
+    ...[
+        ['trim', '🍒  🍋', '🍌'],
+        ['trim_start', '🍒  🍋  ', '🍌  '],
+        ['trim_end', '  🍒  🍋', '  🍌'],
+    ].map(([method, initial, edited]) => sampleContract(`str:${method}`, [
+        propertyEquals('output', 'textContent', initial),
+        fillThenText('input', '  🍌  ', 'output', '🍌'),
+        propertyEquals('output', 'textContent', edited),
+        fillThenText('input', '', 'output', ''),
+        propertyEquals('output', 'textContent', ''),
+    ])),
+    ...['char_at', 'at'].map((method) => sampleContract(`str:${method}`, [
+        normalizedText('output', method === 'at' ? '🍌' : '🍋'),
+        fillThenText('input[type="number"]', '99', 'output', method === 'at' ? '∅' : ''),
+        normalizedText('output', method === 'at' ? '∅' : ''),
+        fillThenText('input[type="number"]', '-1', 'output', method === 'at' ? '🍌' : ''),
+        normalizedText('output', method === 'at' ? '🍌' : ''),
+        fillThenText('input[type="number"]', '0', 'output', '🍒'),
+    ])),
+    ...['index_of', 'last_index_of'].map((method) => sampleContract(`str:${method}`, [
+        normalizedText('output', method === 'index_of' ? '0' : '2'),
+        fillThenText('input[type="number"]', '1', 'output', method === 'index_of' ? '2' : '0'),
+        fillThenText('label:nth-of-type(2) input', '🍋', 'output', '1'),
+        fillThenText('label:nth-of-type(2) input', '🥦', 'output', '-1'),
+        fillThenText('label:nth-of-type(2) input', '', 'output', '1'),
+        normalizedText('output', '1'),
+        fillThenText('input[type="number"]', '99', 'output', '3'),
+        fillThenText('label:first-of-type input', 'aaaa', 'output', '4'),
+        fillThenText('label:nth-of-type(2) input', 'aa', 'output', method === 'index_of' ? '-1' : '2'),
+        fillThenText('input[type="number"]', '1', 'output', '1'),
+        normalizedText('output', '1'),
+    ])),
+];
+
+const wordCountEdgeChecks = [
+    fillBlurThenText(
+        'cem-demo-element[legend="1. Textarea word count"] textarea', ' one\tone\n🍒  🍋 ',
+        'cem-demo-element[legend="1. Textarea word count"] form > p strong', '4',
+    ),
+    fillBlurThenText(
+        'cem-demo-element[legend="1. Textarea word count"] textarea', '\t\n\u00a0\u2003',
+        'cem-demo-element[legend="1. Textarea word count"] form > p strong', '0',
+    ),
+    fillThenText(
+        'cem-demo-element[legend="2. Input word and character count"] input', '🍒 🍒 🍋',
+        'cem-demo-element[legend="2. Input word and character count"] form > p:nth-of-type(2) strong', '3',
+    ),
+    normalizedText('cem-demo-element[legend="2. Input word and character count"] form > p:first-of-type strong', '5'),
+    fillThenText(
+        'cem-demo-element[legend="2. Input word and character count"] input', '',
+        'cem-demo-element[legend="2. Input word and character count"] form > p:nth-of-type(2) strong', '0',
+    ),
+];
+
+const dataTableSamples = [
+    sampleContract('1. XML table: attributes and text', [
+        text('table[aria-label$="/row"]', 'ivysaur'),
+        text('table[aria-label$="/row"]', '@mood'),
+        ...tableInteractions('@id', 'table[aria-label$="/row"]'),
+    ]),
+    sampleContract('2. CSV table: quoted fields', [
+        text('tbody', 'sweet, red'), text('tbody', 'say "zest"'),
+        ...tableInteractions('qty', 'table'),
+    ]),
+    sampleContract('3. YAML table: nested collections', [
+        countExactly('table', 2), text('table[aria-label="document"]', 'fresh'),
+        ...tableInteractions('qty', 'table[aria-label="document"]'),
+    ]),
+    sampleContract('4. JSON table: empty and missing', [
+        text('tbody', '∅'), text('tbody', '""'), text('tbody', 'null'),
+        ...tableInteractions('qty', 'table'),
+        fillBlurThenText('textarea', '[oops]', '[role="alert"]', '⚠'),
+        countExactly('table', 0),
+        clickThenText('button[aria-label="Reset source"]', 'tbody', '🍒'),
+        countExactly('[role="alert"]', 0),
+    ]),
+    sampleContract('5. Presentation aspects: tree and IP-filter form', [
+        countExactly('table[aria-label="visits"]', 1),
+        countExactly('table[aria-label="notes"]', 0),
+        text('form[aria-label="IP filter"] output', 'allow'),
+        text('form[aria-label="IP filter"] output', '192.0.2.0/24'),
+        fillBlurThenText('input[aria-label="Address / CIDR"]', '198.51.100.0/24', 'form output', '198.51.100.0/24'),
+        selectThenText('select[aria-label="Action"]', 'deny', 'form output', 'deny'),
+        clickThenText('input[aria-label="Presentation aspects"]', 'article', 'ip-filter'),
+        countExactly('table[aria-label="notes"]', 1),
+        countExactly('form[aria-label="IP filter"]', 0),
+        clickThenText('input[aria-label="Presentation aspects"]', 'form output', '198.51.100.0/24'),
+        text('form output', 'deny'),
+        countExactly('table[aria-label="notes"]', 0),
+        countExactly('table[aria-label="visits"]', 1),
+    ]),
+];
+
+function tableInteractions(column, table) {
+    return [
+        clickThenText(`${table} > tbody > tr:nth-child(2) > td > button`, `${table} > tbody`, '✓'),
+        selectThenText('select[aria-label="Sort column"]', column, `${table} > tbody > tr:first-child`, '10'),
+        selectThenText('select[aria-label="Compare"]', 'number', `${table} > tbody > tr:first-child > td:nth-child(2)`, '2'),
+        attributeEquals(`${table} > tbody > tr:first-child > td > button`, 'aria-pressed', 'true'),
+        selectThenText('select[aria-label="Direction"]', 'descending', `${table} > tbody > tr:first-child > td:nth-child(2)`, '10'),
+        attributeEquals(`${table} > tbody > tr:last-child > td > button`, 'aria-pressed', 'true'),
+        clickThenText('article > details > summary', 'article', 'Source'),
+        propertyEquals('article > details', 'open', false),
+        pressThenProperty('article > details > summary', 'Enter', 'article > details', 'open', true),
+        pressThenProperty('article > details > summary', 'Space', 'article > details', 'open', false),
+        pressThenProperty('article > details > summary', 'Enter', 'article > details', 'open', true),
+    ];
+}
+
+const xsltVariantSamples = [
+    sampleContract('7d. Anonymous external XSLT', [
+        text('article h2', 'XSLT data island tree'),
+        text('article', '🍒 from anonymous XSLT'),
+        countExactly('details', 4),
+        clickThenText('article > details > summary', 'article', 'catalog'),
+        propertyEquals('article > details', 'open', false),
+        clickThenText('article > details > summary', 'article', 'catalog'),
+        propertyEquals('article > details', 'open', true),
+    ]),
+    sampleContract('7e. Embedded XSLT fragment', [
+        text('article h2', 'Embedded XSLT fruit tree'),
+        normalizedText('summary', 'basket'),
+        countExactly('details', 1),
+        countExactly('li', 2),
+        normalizedText('li:first-of-type', '🍒'),
+        normalizedText('li:last-of-type', '🍋'),
+        clickThenText('summary', 'article', 'basket'),
+        propertyEquals('details', 'open', false),
+        clickThenText('summary', 'article', 'basket'),
+        propertyEquals('details', 'open', true),
+    ]),
+];
+
+const mappedImageFragmentSample = sampleContract('4d. Mapped image and same-library fragment', [
+    countExactly('article img', 2),
+    text('article', '👌 from embed-relative-hash'),
+    text('article', '👋 from embed-lib-component'),
+    attributeContains('img[alt="Mapped Smiley"]', 'src', '/demo/lib-dir/Smiley.svg'),
+    attributeContains('img[alt="Library Smiley"]', 'src', '/demo/lib-dir/Smiley.svg'),
+    attributeContains('article > a', 'href', '/demo/lib-dir/embed-lib.html#embed-relative-hash'),
+    attributeContains('article cem-element a', 'href', '/demo/lib-dir/embed-lib.html#embed-lib-component'),
+]);
+
+const hexRowSample = sampleContract('9. Horizontal row with a current page', [
+    countExactly('nav[aria-label="Demo page links"] a', 3),
+    countExactly('nav a[aria-current="page"]', 1),
+    countExactly('nav a[aria-current="false"]', 2),
+    attributeContains('nav a[aria-current="page"]', 'href', '/demo/hex-grid.html'),
+    text('nav a[aria-current="page"] .hex-label', '✓'),
+    computedStyle('nav ul', 'flexWrap', 'nowrap'),
+    computedStyle('nav ul', 'overflowX', 'auto'),
+    computedStyle('nav a[aria-current="page"] .hex-label', 'color', 'rgb(254, 240, 138)'),
+    computedStyle('nav a[aria-current="page"] .hex-label', 'transform', 'matrix(1, 0, 0, 1, 0, 0)'),
+]);
+
 const fixtureSpecs = [
+    {
+        path: '/packages/cem-elements/demo/data-table.html',
+        checks: dataTableSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
     {
         path: '/packages/cem-elements/index.html',
         checks: [
@@ -87,7 +357,7 @@ const fixtureSpecs = [
             attributeEquals('#defaults-1', 'p1', 'default_P1'),
             attributeEquals('#defaults-1', 'p2', 'always_p2'),
             attributeEquals('#defaults-1', 'p3', 'def_P3'),
-            clickThenText('button[data-target="#defaults-2"][data-attr="p2"]', '#defaults-2', 'p2: always_p2'),
+            clickThenText('button[aria-label="set p2"]', '#defaults-2', 'p2: always_p2'),
             attributeEquals('#defaults-2', 'p2', 'always_p2'),
             attributeEquals('#title-from-slice', 'title', '😃'),
             fillThenText('#title-from-slice input', 'Typed title', '#title-from-slice', 'title attribute: Typed title'),
@@ -97,12 +367,12 @@ const fixtureSpecs = [
             fillThenText('#value-default input', 'From input', '#value-default', 'v: From input'),
             attributeEquals('#value-default', 'v', 'From input'),
             attributeEquals('#value-default', 'is-changed', 'true'),
-            text('#precedence-default article.demo-card', '/datadom/attributes/v: def'),
+            text('#precedence-default article.demo-card', 'datadom.attributes.v: def'),
             typeThenText(
                 '#precedence-default input',
                 'qqq',
                 '#precedence-default article.demo-card',
-                '/datadom/attributes/v: qqq',
+                'datadom.attributes.v: qqq',
             ),
             text('#precedence-default article.demo-card', 'effective value: qqq'),
             text('#precedence-default article.demo-card', 'has-input: true'),
@@ -210,7 +480,7 @@ const fixtureSpecs = [
         path: '/packages/cem-elements/demo/dom-merge.html',
         checks: [
             text('cem-demo-element[legend="1. Textarea word count"] h2', 'Textarea word count'),
-            fillThenText(
+            fillBlurThenText(
                 'cem-demo-element[legend="1. Textarea word count"] textarea',
                 'one two three',
                 'cem-demo-element[legend="1. Textarea word count"] form > p strong',
@@ -230,6 +500,7 @@ const fixtureSpecs = [
                 'cem-demo-element[legend="2. Input word and character count"] form > p:nth-of-type(2) strong',
                 '2',
             ),
+            ...wordCountEdgeChecks,
         ],
     },
     {
@@ -238,12 +509,12 @@ const fixtureSpecs = [
         checks: [
             text('dce-internal', '👋'),
             text('dce-internal', 'World!'),
-            countAtLeast('dce-construction', 2),
-            text('dce-construction', 'construction'),
+            countExactly('cem-demo-element[legend="2. without TAG, inline instantiation"] cem-element[src="#template2"]', 2),
+            text('cem-demo-element[legend="2. without TAG, inline instantiation"] cem-element[src="#template2"]', 'construction'),
             countAtLeast('dce-external svg', 1),
             svgUseReferences('dce-external svg', ['#h', '#j']),
-            countAtLeast('dce-external-inline svg', 1),
-            svgUseReferences('dce-external-inline svg', ['#h', '#j']),
+            countAtLeast('cem-element[src="confused.svg"] svg', 1),
+            svgUseReferences('cem-element[src="confused.svg"] svg', ['#h', '#j']),
             text('dce-external-missing', 'fallback for missing image'),
             text('dce-external-4', 'External CEMT data-island transformation'),
             text('dce-external-4', 'template[data-cem-island="instance"]'),
@@ -304,6 +575,8 @@ const fixtureSpecs = [
             text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'),
             countAtLeast('dce-xslt-tree details', 4),
             text('dce-missing-none', 'element with id=none is missing in template'),
+            ...xsltVariantSamples.flatMap((sample) => sample.checks.map((check) =>
+                scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
             text('dce-embed-1', '🖖'),
             text('dce-embed-relative-hash', 'from embed-lib-component'),
             text('dce-embed-relative-file', '🖖'),
@@ -313,16 +586,16 @@ const fixtureSpecs = [
         path: '/packages/cem-elements/demo/for-each.html',
         checks: [
             countExactly('cem-demo-element[legend]', 9),
-            countExactly('cem-loop-simple li', 3),
-            text('cem-loop-simple li', 'Apple'),
-            text('cem-loop-position', '1 . Red'),
-            text('cem-loop-position', '3 . Blue'),
+            countExactly('cem-demo-element[legend="1. Simple for-each"] li', 3),
+            text('cem-demo-element[legend="1. Simple for-each"] li', '🍏'),
+            text('cem-demo-element[legend="2. for-each with position()"]', '1 . Red'),
+            text('cem-demo-element[legend="2. for-each with position()"]', '3 . Blue'),
             clickThenText('cem-demo-element[legend="3. Conditional for-each"] input[type="checkbox"]', 'cem-demo-element[legend="3. Conditional for-each"] span', '1 : First'),
             countExactly('cem-demo-element[legend="4. Nested for-each table"] tbody tr', 3),
             text('cem-demo-element[legend="4. Nested for-each table"] tbody', 'B2'),
             text('cem-demo-element[legend="5. for-each with attributes"] article', '# 1 Alice ( admin )'),
             text('cem-demo-element[legend="5. for-each with attributes"] article', '# 3 Charlie ( viewer )'),
-            clickThenText('cem-loop-dynamic-table input[type="checkbox"]', 'cem-loop-dynamic-table tbody', 'Widget'),
+            clickThenText('cem-demo-element[legend="6. Dynamic table with toggle"] input[type="checkbox"]', 'cem-demo-element[legend="6. Dynamic table with toggle"] tbody', 'Widget'),
             text('cem-loop-payload .payload-feed li', 'payload-alpha : Payload Alpha'),
             text('cem-loop-payload .payload-feed li', 'payload-beta : Payload Beta'),
             text('cem-demo-element[legend="8. for-each over location data"] .location-feed li', 'topic = feeds'),
@@ -344,7 +617,11 @@ const fixtureSpecs = [
                 'cem-demo-element[legend="1. Simple validation"] input[name="username"]',
                 'long-username',
                 'cem-demo-element[legend="1. Simple validation"] form',
-                'Sign in',
+                'Username: long-username',
+            ),
+            clickThenText(
+                'cem-demo-element[legend="1. Simple validation"] button',
+                'cem-demo-element[legend="1. Simple validation"] form', '🔑',
             ),
             fillThenText(
                 'cem-demo-element[legend="1. Simple validation"] input[name="password"]',
@@ -499,6 +776,9 @@ const fixtureSpecs = [
             countExactly('cem-demo-element[legend="8. Image-button presentation"] .hex-link', 1),
             computedStyleNot('cem-demo-element[legend="8. Image-button presentation"] .hex-link', 'filter', 'none'),
             computedStyle('cem-demo-element[legend="8. Image-button presentation"] .hex-label', 'transform', 'matrix(1, 0, 0, 1, 0, 0)'),
+            ...hexRowSample.checks.map((check) => scopeCheck(
+                check, `cem-demo-element[legend="${hexRowSample.legend}"]`,
+            )),
         ],
     },
     {
@@ -506,7 +786,11 @@ const fixtureSpecs = [
         checks: [
             text(
                 'cem-demo-element[legend="0. URL from text to http-request"] article',
-                'Request state: loaded',
+                'Request state: idle',
+            ),
+            clickThenText(
+                'cem-demo-element[legend="0. URL from text to http-request"] article > button',
+                'cem-demo-element[legend="0. URL from text to http-request"] article', 'Request state: loaded',
             ),
             text(
                 'cem-demo-element[legend="0. URL from text to http-request"] li',
@@ -566,79 +850,9 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/local-storage.html',
-        checks: [
-            text(
-                'cem-demo-element[legend="0. Read a live text value"] cem-storage-live-text:first-of-type output',
-                'stored initial',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="0. Read a live text value"] cem-storage-live-text:first-of-type input',
-                'shared edit',
-                'cem-demo-element[legend="0. Read a live text value"] cem-storage-live-text:last-of-type output',
-                'shared edit',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="1. Always override a stored value"] button:first-of-type',
-                'cem-demo-element[legend="1. Always override a stored value"] output',
-                'ABC',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="2. Stored value with a default"] input',
-                'remember me',
-                'cem-demo-element[legend="2. Stored value with a default"] output',
-                'remember me',
-            ),
-            text(
-                'cem-demo-element[legend="3. Typed localStorage values"] dl',
-                'invalid number null',
-            ),
-            text(
-                'cem-demo-element[legend="3. Typed localStorage values"] dl',
-                'JSON a 1',
-            ),
-            text(
-                'cem-demo-element[legend="3. Typed localStorage values"] dl',
-                'JSON b B',
-            ),
-            normalizedText(
-                'cem-demo-element[legend="4. Simplest initial read"] cem-storage-cherries',
-                '12 🍒',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="5. Live JSON basket"] textarea',
-                '{"cherries":13,"lemons":2}',
-                'cem-demo-element[legend="5. Live JSON basket"] dl',
-                '🛒 total 15',
-            ),
-            text(
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] dl',
-                'Total 13',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] button[aria-label="Add lemon"]',
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] dl',
-                '🍋 lemons 2',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] button[aria-label="Add cherry"]',
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] dl',
-                '🍒 cherries 13',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] button[aria-label="Add apple"]',
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] dl',
-                '🍏 apples 1',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] button[aria-label="Add banana"]',
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] dl',
-                '🍌 bananas 1',
-            ),
-            text(
-                'cem-demo-element[legend="6. Fruit buttons and a storage watcher"] dl',
-                'Total 17',
-            ),
-        ],
+        checks: localStorageSamples.flatMap((sample) => sample.checks.map(
+            (check) => scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`),
+        )),
     },
     {
         path: '/packages/cem-elements/demo/location-element.html',
@@ -650,7 +864,7 @@ const fixtureSpecs = [
             text('cem-demo-element[legend="3. External URL from href"] ul', 'a = 1'),
             text('cem-demo-element[legend="3. External URL from href"] ul', 'b = 2,3'),
             clickThenText(
-                'cem-demo-element[legend="1. Window location live update"] button[value="history.pushState"]',
+                'cem-demo-element[legend="1. Window location live update"] button:has-text("history.pushState")',
                 'cem-demo-element[legend="1. Window location live update"] dl',
                 '#checked',
             ),
@@ -707,6 +921,9 @@ const fixtureSpecs = [
             ),
             text('cem-module-mapped-fragment', '👍 from embed-relative-file'),
             text('cem-module-mapped-fragment', '🖖'),
+            ...mappedImageFragmentSample.checks.map((check) => scopeCheck(
+                check, `cem-demo-element[legend="${mappedImageFragmentSample.legend}"]`,
+            )),
             attributeContains('cem-local-map-naked-image img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
             shortenedHrefText('cem-local-map-naked-image image-link a', 32),
             attributeContains('cem-local-map-override-wrapper img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
@@ -734,6 +951,9 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/functions/str.html',
         checks: [
+            ...stringMethodSamples.flatMap((sample) => sample.checks.map(
+                (check) => scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`),
+            )),
             normalizedText('cem-str-shorten-matrix tbody tr:first-of-type td:nth-of-type(2)', 'short'),
             normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'abc…hij'),
             normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(3) td:nth-of-type(2)', 'abc…ghij'),
@@ -769,7 +989,7 @@ const fixtureSpecs = [
             attributeEquals('cem-npm-version-propagated', 'value', '0.0.25'),
             text('cem-demo-element[legend="4. Override the label slot"] label', 'Select a release:'),
             clickThenText(
-                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] button[value="0.0.22"]',
+                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] button[aria-label="Set URL to 0.0.22"]',
                 'cem-demo-element[legend="5. Synchronize the selected version with the URL"] article',
                 'Current hash: #version=0.0.22',
             ),
@@ -784,8 +1004,7 @@ const fixtureSpecs = [
                 'cem-demo-element[legend="5. Synchronize the selected version with the URL"] article',
                 'selected-version slice: 0.1.0',
             ),
-            clickThenText(
-                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] button[value="apply"]',
+            text(
                 'cem-demo-element[legend="5. Synchronize the selected version with the URL"] article',
                 'Current hash: #version=0.1.0',
             ),
@@ -947,19 +1166,16 @@ const fixtureSpecs = [
                 'cem-demo-element[legend="1. Set the page hash"] article',
                 'Current hash: #hash-two',
             ),
-            removeElement('cem-demo-element[legend="1. Set the page hash"]'),
             clickThenText(
-                'cem-demo-element[legend="2. Select the URL write method"] button[value="history.pushState"]',
+                'cem-demo-element[legend="2. Select the URL write method"] button:has-text("history.pushState")',
                 'cem-demo-element[legend="2. Select the URL write method"] article',
                 'Selected method: history.pushState',
             ),
-            removeElement('cem-demo-element[legend="2. Select the URL write method"]'),
             clickThenText(
                 'cem-demo-element[legend="3. Conditionally inject a URL writer"] button',
                 'cem-demo-element[legend="3. Conditionally inject a URL writer"] article',
                 'Current hash: #conditional-writer',
             ),
-            removeElement('cem-demo-element[legend="3. Conditionally inject a URL writer"]'),
             fillThenText(
                 'cem-demo-element[legend="4. Set URL from form controls"] input[type="text"]',
                 '#form-verified',
@@ -976,6 +1192,7 @@ const fixtureSpecs = [
 ];
 
 const sourceDocumentSpecs = [
+    { path: '/packages/cem-elements/demo/data-table.html', samples: dataTableSamples },
     {
         path: '/packages/cem-elements/index.html',
         samples: [
@@ -1024,9 +1241,16 @@ const sourceDocumentSpecs = [
                 attributeEquals('#defaults-1', 'p1', 'default_P1'),
                 attributeEquals('#defaults-1', 'p2', 'always_p2'),
                 attributeEquals('#defaults-1', 'p3', 'def_P3'),
+            ]),
+            sampleContract('1a. External attribute changes', [
                 text('#defaults-2 article.demo-card', 'p1: 123'),
-                clickThenText('button[data-attr="p2"]', '#defaults-2 article.demo-card', 'p2: always_p2'),
+                clickThenText('button[aria-label="set p1"]', '#defaults-2', 'p1: changed p1'),
+                clickThenText('button[aria-label="set p3"]', '#defaults-2', 'p3: changed p3'),
+                clickThenText('button[aria-label="remove p3"]', '#defaults-2', 'p3: def_P3'),
+                clickThenText('button[aria-label="set p2"]', '#defaults-2 article.demo-card', 'p2: always_p2'),
                 attributeEquals('#defaults-2', 'p2', 'always_p2'),
+            ]),
+            sampleContract('1b. Container attribute values', [
                 text('#defaults-3 article.demo-card', 'p3: qwe'),
             ]),
             sampleContract('2. attribute from slice', [
@@ -1037,26 +1261,36 @@ const sourceDocumentSpecs = [
             ]),
             sampleContract('3. V attribute matches input value', [
                 text('#value-default article.demo-card', 'v: def'),
-                text('#value-container article.demo-card', 'v: V1'),
                 attributeEquals('#value-default', 'is-changed', 'false'),
                 fillThenText('#value-default input', 'From input', '#value-default article.demo-card', 'v: From input'),
                 attributeEquals('#value-default', 'v', 'From input'),
                 attributeEquals('#value-default', 'is-changed', 'true'),
             ]),
+            sampleContract('3a. Container value before input', [
+                text('#value-container', 'v: V1'),
+                fillThenText('#value-container input', '', '#value-container', 'is-changed: true'),
+                attributeEquals('#value-container', 'v', ''),
+            ]),
             sampleContract('4. attribute defaults, from container, and from slice', [
-                text('#precedence-default article.demo-card', '/datadom/attributes/v: def'),
+                text('#precedence-default article.demo-card', 'datadom.attributes.v: def'),
                 text('#precedence-default article.demo-card', 'effective value: def'),
-                text('#precedence-container article.demo-card', 'effective value: From Container'),
                 attributeEquals('#precedence-default', 'v', 'def'),
                 typeThenText(
                     '#precedence-default input',
                     'qqq',
                     '#precedence-default article.demo-card',
-                    '/datadom/attributes/v: qqq',
+                    'datadom.attributes.v: qqq',
                 ),
                 text('#precedence-default article.demo-card', 'effective value: qqq'),
                 text('#precedence-default article.demo-card', 'has-input: true'),
                 attributeEquals('#precedence-default', 'v', 'qqq'),
+            ]),
+            sampleContract('4a. External changes versus user input', [
+                text('#precedence-container', 'effective value: From Container'),
+                clickThenText('button', '#precedence-container', 'effective value: External update'),
+                fillThenText('#precedence-container input', 'Own value', '#precedence-container', 'effective value: Own value'),
+                clickThenText('button', '#precedence-container', 'effective value: Own value'),
+                attributeEquals('#precedence-container', 'v', 'Own value'),
             ]),
         ],
     },
@@ -1147,10 +1381,11 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/dom-merge.html',
+        checks: wordCountEdgeChecks,
         samples: [
             sampleContract('1. Textarea word count', [
                 text('h2', 'Textarea word count'),
-                fillThenText('textarea', 'one two three', 'form > p strong', '3'),
+                fillBlurThenText('textarea', 'one two three', 'form > p strong', '3'),
             ]),
             sampleContract('2. Input word and character count', [
                 text('h2', 'Input word and character count'),
@@ -1180,8 +1415,13 @@ const sourceDocumentSpecs = [
         allowedPageErrors: ['Failed to load resource: the server responded with a status of 404 (Not Found)'],
         samples: [
             sampleContract('1. reference the template in page DOM', [text('dce-internal:first-of-type', '👋 World!'), text('dce-internal:last-of-type', 'Hello World!')]),
-            sampleContract('2. without TAG, inline instantiation', [countExactly('dce-construction', 2), text('dce-construction', 'construction')]),
-            sampleContract('3. external SVG file', [countAtLeast('dce-external svg', 1), svgUseReferences('dce-external svg', ['#h', '#j']), countAtLeast('dce-external-inline svg', 1), svgUseReferences('dce-external-inline svg', ['#h', '#j']), text('dce-external-missing', 'fallback for missing image')]),
+            sampleContract('2. without TAG, inline instantiation', [
+                countExactly('cem-element[src="#template2"]', 2),
+                text('cem-element[src="#template2"]', 'construction'),
+            ]),
+            sampleContract('3. external SVG file', [countAtLeast('dce-external svg', 1), svgUseReferences('dce-external svg', ['#h', '#j'])]),
+            sampleContract('3a. Anonymous external SVG', [countAtLeast('cem-element[src="confused.svg"] svg', 1), svgUseReferences('cem-element[src="confused.svg"] svg', ['#h', '#j'])]),
+            sampleContract('3b. Missing source fallback', [text('dce-external-missing', 'fallback for missing image')]),
             sampleContract('4. external CEM-ML template file', [
                 text('dce-external-4', 'External CEMT data-island transformation'),
                 text('dce-external-4', 'template[data-cem-island="instance"]'),
@@ -1204,11 +1444,15 @@ const sourceDocumentSpecs = [
                 text('dce-external-4', 'aria-label="Fruit choice"'),
                 text('dce-external-4', 'Every element, attribute, dataset entry, and text node is data.'),
                 countAtLeast('dce-external-4 details', 20),
+            ]),
+            sampleContract('4a. Live HTML payload capture', [
                 text('dce-external-4-inline', 'A second external-CEMT data island'),
                 text('dce-external-4-inline', 'DCE with live payload capture'),
                 text('dce-external-4-inline', 'name="data-smile"'),
                 text('dce-external-4-inline', 'name="data-basket"'),
                 text('dce-external-4-inline', 'data-kind="live-payload"'),
+            ]),
+            sampleContract('4b. CEM-ML source payload', [
                 text('dce-external-4-cem-ml', 'content-type="text/cem-ml"'),
                 text('dce-external-4-cem-ml', 'Banana from CEM-ML payload source'),
             ]),
@@ -1217,13 +1461,17 @@ const sourceDocumentSpecs = [
                 text('dce-external-5', '👌'),
                 countAtLeast('dce-external-5 svg', 1),
                 countAtLeast('dce-external-5 math', 1),
+            ]),
+            sampleContract('5a. Anonymous external HTML', [
                 attributeEquals('#dce-external-5-inline', 'data-cem-anonymous-declaration', ''),
                 text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👋'),
                 text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👌'),
                 countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] svg', 1),
                 countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] math', 1),
             ]),
-            sampleContract('6. HTML, SVG by ID within external file', [text('dce-html-wave', '👋'), countAtLeast('dce-html-logo svg', 1), countAtLeast('dce-html-formula math', 1)]),
+            sampleContract('6. HTML, SVG by ID within external file', [text('dce-html-wave', '👋')]),
+            sampleContract('6a. SVG fragment by ID', [countAtLeast('dce-html-logo svg', 1)]),
+            sampleContract('6b. MathML fragment by ID', [countAtLeast('dce-html-formula math', 1)]),
             sampleContract('7a. external CEM-ML data-island tree template', [
                 text('dce-cemt-tree', 'CEM-ML data island tree'),
                 text('dce-cemt-tree article.demo-card > details > summary > b', 'catalog'),
@@ -1235,8 +1483,11 @@ const sourceDocumentSpecs = [
                 text('dce-xslt-tree article.demo-card > details > summary > b', 'catalog'),
                 text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'),
                 countAtLeast('dce-xslt-tree details', 4),
+            ]),
+            sampleContract('7c. Missing fragment fallback', [
                 text('dce-missing-none', 'element with id=none is missing in template'),
             ]),
+            ...xsltVariantSamples,
             sampleContract('8. external file with embedding of another external DCE', [text('dce-embed-1', '🖖')]),
             sampleContract('9. external file with invoking of relative template as hash by enclosed custom-element', [
                 text('dce-embed-relative-hash', 'from embed-lib-component'),
@@ -1255,12 +1506,12 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/for-each.html',
         samples: [
             sampleContract('1. Simple for-each', [
-                countExactly('cem-loop-simple li', 3),
-                text('cem-loop-simple li', 'Apple'),
+                countExactly('li', 3),
+                text('li', '🍏'),
             ]),
             sampleContract('2. for-each with position()', [
-                text('cem-loop-position', '1 . Red'),
-                text('cem-loop-position', '3 . Blue'),
+                text('article', '1 . Red'),
+                text('article', '3 . Blue'),
             ]),
             sampleContract('3. Conditional for-each', [
                 text('article', 'BEFORE'),
@@ -1276,7 +1527,7 @@ const sourceDocumentSpecs = [
                 text('article', '# 3 Charlie ( viewer )'),
             ]),
             sampleContract('6. Dynamic table with toggle', [
-                clickThenText('cem-loop-dynamic-table input[type="checkbox"]', 'cem-loop-dynamic-table tbody', 'Widget'),
+                clickThenText('input[type="checkbox"]', 'tbody', 'Widget'),
             ]),
             sampleContract('7. for-each over payload data', [
                 text('cem-loop-payload .payload-feed', 'payload-alpha : Payload Alpha'),
@@ -1298,7 +1549,9 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/form.html',
         samples: [
             sampleContract('1. Simple validation', [
-                fillThenText('input[name="username"]', 'long-username', 'form', 'Sign in'),
+                fillThenText('input[name="username"]', 'long-username', 'form', 'Username: long-username'),
+                countExactly('input[name="password"]', 0),
+                clickThenText('button', 'form', '🔑'),
                 fillThenText('input[name="password"]', 'secret', 'form > p:nth-of-type(2) output', 'true'),
             ]),
             sampleContract('2. Form lifecycle', [
@@ -1391,6 +1644,7 @@ const sourceDocumentSpecs = [
                 computedStyleNot('.hex-link', 'filter', 'none'),
                 computedStyle('.hex-label', 'transform', 'matrix(1, 0, 0, 1, 0, 0)'),
             ]),
+            hexRowSample,
         ],
     },
     { path: '/packages/cem-elements/demo/html-template.html', checks: [text('#wave', '👋'), text('#ok', '👌'), countExactly('#dwc-logo', 1), countExactly('#sophomores-dream', 1)] },
@@ -1398,7 +1652,8 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/http-request.html',
         samples: [
             sampleContract('0. URL from text to http-request', [
-                text('article', 'Request state: loaded'),
+                text('article', 'Request state: idle'),
+                clickThenText('article > button', 'article', 'Request state: loaded'),
                 text('li', 'beta : loaded'),
                 clickThenText(
                     '.url-presets button:nth-of-type(2)',
@@ -1406,6 +1661,16 @@ const sourceDocumentSpecs = [
                     'Selected URL: ./http-data-compact.json',
                 ),
                 clickThenText('article > button', 'li', 'solo : compact'),
+                clickThenText('button[aria-label="Invalid JSON response"]', 'article', 'Selected URL: ./http-data-invalid.json'),
+                text('article', 'Request state: loaded'),
+                clickThenText('article > button', 'article', 'Request state: failed'),
+                countExactly('li', 0),
+                clickThenText('button:has-text("All records")', 'article', 'Selected URL: ./http-data.json'),
+                clickThenText('article > button', 'li', 'beta : loaded'),
+                clickThenText('button[aria-label="Empty URL"]', 'article', 'Selected URL:'),
+                attributeAbsent('input[type="text"]', 'value'),
+                clickThenText('article > button', 'article', 'Request state: idle'),
+                countExactly('li', 0),
             ]),
             sampleContract('1. Simplest http-request', [
                 countExactly('.result-buttons button', 6),
@@ -1439,57 +1704,13 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/local-storage.html',
-        samples: [
-            sampleContract('0. Read a live text value', [
-                text('cem-storage-live-text:first-of-type output', 'stored initial'),
-                fillThenText(
-                    'cem-storage-live-text:first-of-type input',
-                    'shared edit',
-                    'cem-storage-live-text:last-of-type output',
-                    'shared edit',
-                ),
-            ]),
-            sampleContract('1. Always override a stored value', [
-                clickThenText('button:first-of-type', 'output', 'ABC'),
-            ]),
-            sampleContract('2. Stored value with a default', [
-                text('output', 'DEF'),
-                fillThenText('input', 'remember me', 'output', 'remember me'),
-            ]),
-            sampleContract('3. Typed localStorage values', [
-                text('dl', 'date 2024-04-20'),
-                text('dl', 'number 123456'),
-                text('dl', 'invalid number null'),
-                text('dl', 'JSON a 1'),
-                text('dl', 'JSON b B'),
-            ]),
-            sampleContract('4. Simplest initial read', [
-                normalizedText('cem-storage-cherries', '12 🍒'),
-            ]),
-            sampleContract('5. Live JSON basket', [
-                text('dl', '🛒 total 13'),
-                fillThenText(
-                    'textarea',
-                    '{"cherries":13,"lemons":2}',
-                    'dl',
-                    '🛒 total 15',
-                ),
-            ]),
-            sampleContract('6. Fruit buttons and a storage watcher', [
-                text('dl', 'Total 13'),
-                clickThenText('button[aria-label="Add lemon"]', 'dl', '🍋 lemons 2'),
-                clickThenText('button[aria-label="Add cherry"]', 'dl', '🍒 cherries 13'),
-                clickThenText('button[aria-label="Add apple"]', 'dl', '🍏 apples 1'),
-                clickThenText('button[aria-label="Add banana"]', 'dl', '🍌 bananas 1'),
-                text('dl', 'Total 17'),
-            ]),
-        ],
+        samples: localStorageSamples,
     },
     {
         path: '/packages/cem-elements/demo/location-element.html',
         samples: [
             sampleContract('1. Window location live update', [
-                clickThenText('button[value="history.pushState"]', 'dl', '#checked'),
+                clickThenText('button:has-text("history.pushState")', 'dl', '#checked'),
                 text('ul', 'mode = history.pushState'),
                 text('ul', 'tag = one,two'),
             ]),
@@ -1536,6 +1757,7 @@ const sourceDocumentSpecs = [
             sampleContract('4c. Mapped fragment with a relative dependency', [
                 text('output', '/packages/cem-elements/demo/lib-dir/embed-lib.html#embed-relative-file'),
             ]),
+            mappedImageFragmentSample,
             sampleContract('5. component-local map: naked', [
                 attributeContains('cem-local-map-naked-image img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
                 shortenedHrefText('cem-local-map-naked-image image-link a', 32),
@@ -1580,6 +1802,7 @@ const sourceDocumentSpecs = [
                 normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(6) td:nth-of-type(2)', 'αβ💠ζη'),
                 normalizedText('cem-str-shorten-matrix tbody tr:last-of-type td:nth-of-type(2)', 'https://example…emantic-card.cem'),
             ]),
+            ...stringMethodSamples,
         ],
     },
     {
@@ -1602,10 +1825,13 @@ const sourceDocumentSpecs = [
                 selectThenText('select', '0.0.21', 'output', '0.0.21'),
             ]),
             sampleContract('5. Synchronize the selected version with the URL', [
-                clickThenText('button[value="0.0.22"]', 'article', 'Current hash: #version=0.0.22'),
+                clickThenText('button[aria-label="Set URL to 0.0.22"]', 'article', 'Current hash: #version=0.0.22'),
                 propertyEquals('select', 'value', '0.0.22'),
                 selectThenText('select', '0.1.0', 'article', 'selected-version slice: 0.1.0'),
-                clickThenText('button[value="apply"]', 'article', 'Current hash: #version=0.1.0'),
+                text('article', 'Current hash: #version=0.1.0'),
+                clickThenText('button[aria-label="Set URL to 0.0.25"]', 'article', 'Current hash: #version=0.0.25'),
+                propertyEquals('select', 'value', '0.0.25'),
+                selectThenText('select', '0.1.0', 'article', 'Current hash: #version=0.1.0'),
             ]),
         ],
     },
@@ -1637,20 +1863,20 @@ const sourceDocumentSpecs = [
         samples: [
             sampleContract('1. Set the page hash', [
                 clickThenText('button[value="#hash-two"]', 'article', 'Current hash: #hash-two'),
-                removeElement(':scope'),
             ]),
             sampleContract('2. Select the URL write method', [
                 countExactly('button', 6),
-                clickThenText('button[value="history.pushState"]', 'article', 'Selected method: history.pushState'),
-                removeElement(':scope'),
+                clickThenText('button:has-text("history.pushState")', 'article', 'Selected method: history.pushState'),
             ]),
             sampleContract('3. Conditionally inject a URL writer', [
                 clickThenText('button', 'article', 'Current hash: #conditional-writer'),
-                removeElement(':scope'),
             ]),
             sampleContract('4. Set URL from form controls', [
                 fillThenText('input[type="text"]', '#form-verified', 'article', 'Pending: history.pushState = #form-verified'),
                 clickThenText('form > button', 'article', 'Current hash: #form-verified'),
+                fillThenText('input[type="text"]', '#next-draft', 'article', 'Pending: history.pushState = #next-draft'),
+                text('article', 'Current hash: #form-verified'),
+                clickThenText('form > button', 'article', 'Current hash: #next-draft'),
             ]),
         ],
     },
@@ -1693,7 +1919,6 @@ const sourceHarnessHtml = `<!doctype html>
         localStorage.setItem('cemDemoTime', '13:30');
         localStorage.setItem('cemDemoLocalDateTime', '1977-04-01T14:00:30');
         localStorage.setItem('cemDemoNumber', '1.23456e+5');
-        localStorage.setItem('cemDemoInvalidNumber', 'ABC');
         localStorage.setItem('cemDemoJson', JSON.stringify({ a: 1, b: 'B' }));
         localStorage.setItem('cemDemoCherries', '12');
         localStorage.setItem('cemDemoBasket', JSON.stringify({ cherries: 12, lemons: 1 }));
@@ -1701,15 +1926,10 @@ const sourceHarnessHtml = `<!doctype html>
         localStorage.setItem('cemDemoFruitCherries', '12');
         localStorage.setItem('cemDemoFruitApples', '0');
         localStorage.setItem('cemDemoFruitBananas', '0');
+        localStorage.setItem('cemDemoSliceEditor', 'shared initial');
         localStorage.removeItem('cemDemoOverride');
         document.addEventListener('click', (event) => {
             const target = event.target instanceof Element ? event.target : null;
-            const attributeButton = target?.closest('[data-set-attr]');
-            if (attributeButton) {
-                const instance = document.querySelector(attributeButton.dataset.target ?? '');
-                const valueSource = document.querySelector(attributeButton.dataset.valueFrom ?? '');
-                instance?.setAttribute(attributeButton.dataset.attr ?? '', valueSource?.value ?? attributeButton.dataset.value ?? '');
-            }
             const selectButton = target?.closest('[data-dispatch-select]');
             selectButton?.dispatchEvent(new CustomEvent('cem-select', { bubbles: true, detail: { id: 'demo' } }));
         });
@@ -1770,7 +1990,8 @@ try {
     await verifySourceDocumentInventory();
     for (const fixture of fixtureSpecs) {
         const pageErrors = [];
-        const page = await browser.newPage();
+        const context = await browser.newContext();
+        const page = await context.newPage();
         page.on('pageerror', (error) => pageErrors.push(error.message));
         page.on('console', (message) => {
             if (message.type() === 'error') {
@@ -1787,6 +2008,16 @@ try {
             for (const check of fixture.checks) {
                 await runCheck(page, check);
             }
+            await verifySymbolicControls(page, fixture.path);
+            if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
+                await verifyHexRowNavigation(page);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/local-storage.html') {
+                await verifyLocalStorageLifecycle(page);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/location-element.html') {
+                await verifyLocationLifecycle(page);
+            }
         } catch (error) {
             const unexpectedErrors = unexpectedPageErrors(fixture, pageErrors);
             const diagnostics =
@@ -1799,7 +2030,7 @@ try {
                 { cause: error },
             );
         } finally {
-            await page.close();
+            await context.close();
         }
 
         const unexpectedErrors = unexpectedPageErrors(fixture, pageErrors);
@@ -1838,6 +2069,10 @@ try {
             for (const check of fixture.checks ?? []) {
                 await runCheck(page, scopeCheck(check, tag));
             }
+            await verifySymbolicControls(page, fixture.path);
+            if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
+                await verifyHexRowNavigation(page);
+            }
         } catch (error) {
             const unexpectedErrors = unexpectedPageErrors(fixture, pageErrors);
             const diagnostics =
@@ -1868,6 +2103,126 @@ try {
 console.log(
     `cem-elements demo fixtures verified (${fixtureSpecs.length} standalone pages, ${sourceDocumentSpecs.length} source-loaded documents).`,
 );
+
+async function verifyLocalStorageLifecycle(page) {
+    const persisted = 'cem-demo-element[legend="2. Stored value with a default"]';
+    const initial = 'cem-demo-element[legend="4. Simplest initial read"]';
+    const live = 'cem-demo-element[legend="0. Read a live text value"]';
+    await poll(page, () => localStorage.getItem('cemDemoOverride') === 'ABC'
+        && localStorage.getItem('cemDemoCherries') === '24');
+    await waitForNormalizedText(page, `${initial} output`, '12');
+    await page.reload({ waitUntil: 'networkidle' });
+    await waitForNormalizedText(page, `${persisted} output`, 'remember me');
+    await waitForNormalizedText(page, `${initial} output`, '24');
+
+    await page.locator(persisted).getByRole('button', { name: 'Empty string', exact: true }).click();
+    await poll(page, () => localStorage.getItem('cemDemoPersistedDefault') === '');
+    await page.reload({ waitUntil: 'networkidle' });
+    await waitForNormalizedText(page, `${persisted} output`, '');
+    await poll(page, () => localStorage.getItem('cemDemoPersistedDefault') === '');
+
+    await page.locator(persisted).getByRole('button', { name: 'Clear key', exact: true }).click();
+    await waitForNormalizedText(page, `${persisted} output`, 'null');
+    await page.reload({ waitUntil: 'networkidle' });
+    await waitForNormalizedText(page, `${persisted} output`, 'DEF');
+
+    const otherTab = await page.context().newPage();
+    const errors = [];
+    otherTab.on('pageerror', (error) => errors.push(error.message));
+    try {
+        await installOfflineRoutes(otherTab);
+        await installTextHelpers(otherTab);
+        await otherTab.goto(page.url(), { waitUntil: 'networkidle' });
+        await waitForNormalizedText(otherTab, `${live} output`, 'text value');
+        await otherTab.locator(live).getByRole('button', { name: 'another value', exact: true }).click();
+        await waitForNormalizedText(otherTab, `${live} output`, 'another value');
+        await waitForNormalizedText(page, `${live} output`, 'another value');
+        await otherTab.locator(live).getByRole('button', { name: 'Clear key', exact: true }).click();
+        await waitForNormalizedText(otherTab, `${live} output`, 'null');
+        await waitForNormalizedText(page, `${live} output`, 'null');
+        if (errors.length > 0) throw new Error(`storage tab errors: ${errors.join(', ')}`);
+    } finally {
+        await otherTab.close();
+    }
+}
+
+async function verifySymbolicControls(page, path) {
+    const controlsByDemo = {
+        'attributes.html': [
+            ['set p1', '→p1'], ['set p2', '→p2'], ['set p3', '→p3'],
+            ['remove p3', '−p3'], ['Set container value', '→v'],
+        ],
+        'data-slices.html': [
+            ['Increase', '+'], ['Decrease', '−'], ['Set nickname to broccoli', '🥦'],
+        ],
+        'form.html': [
+            ['Next', '→'], ['Sign in', '🔑'], ['Submit matching fruit', '✓'],
+            ['Apple', '🍏'], ['Banana', '🍌'], ['Choose fruit', 'Choose fruit'],
+        ],
+        'http-request.html': [['GET', '↓ GET'], ['Empty URL', '∅ URL'], ['Invalid JSON response', '⚠ JSON']],
+        'set-url.html': [['Set', '→']],
+        'location-element.html': [
+            ['Navigate with GET (reloads)', '→ GET ↻'], ['Change hash after initial read', '→#'],
+        ],
+        'npm-versions-demo.html': [
+            ['Set URL to 0.0.22', '→0.0.22'], ['Set URL to 0.0.25', '→0.0.25'], ['Clear URL version', '∅#'],
+        ],
+        'local-storage.html': [
+            ['Store 24 cherries', '24🍒'], ['Store 12 cherries', '12🍒'],
+            ['Add cherry', '+🍒'], ['Add lemon', '+🍋'], ['Reset basket', '↺🛒'],
+            ['Add apple', '+🍏'], ['Add banana', '+🍌'],
+        ],
+    };
+    for (const [name, symbol] of controlsByDemo[path.split('/').at(-1)] ?? []) {
+        const controls = page.getByRole('button', { name, exact: true });
+        await controls.first().waitFor({ state: 'visible', timeout });
+        const actual = await controls.evaluateAll((buttons) => buttons.map((button) => ({
+            text: button.textContent.replace(/\s+/gu, ' ').trim(),
+            title: button.title,
+        })));
+        if (actual.some((button) => button.text !== symbol || button.title !== name)) {
+            throw new Error(`${path}: ${name} must display ${symbol} and retain its tooltip; got ${JSON.stringify(actual)}`);
+        }
+    }
+    if (path.endsWith('/local-storage.html')) {
+        const basket = page.locator('cem-demo-element[legend="5. Live JSON basket"]');
+        const cherry = basket.getByRole('button', { name: 'Add cherry', exact: true });
+        await cherry.focus();
+        await cherry.press('Enter');
+        await waitForText(page, 'cem-demo-element[legend="5. Live JSON basket"] dl', '🛒 14');
+        await cherry.press('Space');
+        await waitForText(page, 'cem-demo-element[legend="5. Live JSON basket"] dl', '🛒 15');
+        await basket.getByRole('button', { name: 'Reset basket', exact: true }).click();
+        await waitForText(page, 'cem-demo-element[legend="5. Live JSON basket"] dl', '🛒 13');
+        const terms = await basket.locator('dt').evaluateAll((elements) => elements.map((element) => ({
+            symbol: element.textContent.trim(), name: element.getAttribute('aria-label'), title: element.title,
+        })));
+        const expected = [
+            { symbol: '🍒', name: 'Cherries', title: 'Cherries' },
+            { symbol: '🍋', name: 'Lemons', title: 'Lemons' },
+            { symbol: '🛒', name: 'Total', title: 'Total' },
+        ];
+        if (JSON.stringify(terms) !== JSON.stringify(expected)) throw new Error('fruit counters lost their accessible labels');
+    }
+}
+
+async function verifyLocationLifecycle(page) {
+    const live = 'cem-demo-element[legend="1. Window location live update"]';
+    const initial = 'cem-demo-element[legend="2. Window location initial read"]';
+    const captured = await page.locator(`${initial} dl`).textContent();
+    await page.locator(initial).getByRole('button', { name: 'Change hash after initial read' }).click();
+    await waitForText(page, `${live} dl`, '#after-initial-read');
+    await page.goBack();
+    await waitForText(page, `${live} dl`, '#checked');
+    await page.goForward();
+    await waitForText(page, `${live} dl`, '#after-initial-read');
+    if (await page.locator(`${initial} dl`).textContent() !== captured) {
+        throw new Error('initial-only location reader changed during history navigation');
+    }
+    await page.locator(live).getByRole('button', { name: 'Navigate with GET (reloads)' }).click();
+    await waitForText(page, `${live} ul`, 'query = hello world');
+    await waitForText(page, `${initial} dl`, '?query=hello+world');
+}
 
 async function verifySourceDocumentInventory() {
     const discovered = await demoHtmlPaths(resolve(repoRoot, 'packages/cem-elements/demo'));
@@ -2017,6 +2372,45 @@ function unexpectedPageErrors(fixture, pageErrors) {
     return pageErrors.filter((error) => !allowed.some((allowedError) => error.includes(allowedError)));
 }
 
+async function verifyHexRowNavigation(page) {
+    const selector = `cem-demo-element[legend="${hexRowSample.legend}"] nav`;
+    await page.waitForFunction((selector) => {
+        const images = Array.from(document.querySelectorAll(`${selector} img`));
+        return images.length === 3 && images.every((image) => image.complete && image.naturalWidth > 0);
+    }, selector, { timeout });
+    const nav = page.locator(selector);
+    const links = nav.locator('a');
+    const geometry = await nav.locator('li').evaluateAll((cells) => cells.map((cell) => {
+        const rect = cell.getBoundingClientRect();
+        return { top: Math.round(rect.top), width: rect.width, margin: getComputedStyle(cell).marginBottom };
+    }));
+    if (new Set(geometry.map((cell) => cell.top)).size !== 1 || geometry.some((cell) => cell.margin !== '0px')) {
+        throw new Error(`hex row must not stagger or overlap: ${JSON.stringify(geometry)}`);
+    }
+    await links.nth(0).focus();
+    await page.keyboard.press('Tab');
+    if (!await links.nth(1).evaluate((link) => link === document.activeElement)) {
+        throw new Error('Tab must reach the current-page link');
+    }
+    await page.keyboard.press('Tab');
+    if (!await links.nth(2).evaluate((link) => link === document.activeElement)) {
+        throw new Error('Tab must reach the next link');
+    }
+    await page.keyboard.press('Shift+Tab');
+    if (!await links.nth(1).evaluate((link) => link === document.activeElement)) {
+        throw new Error('Shift+Tab must return to the current-page link');
+    }
+    if (await nav.locator('a[aria-current="page"]').count() !== 1 ||
+        await links.nth(1).getAttribute('aria-current') !== 'page') {
+        throw new Error('keyboard focus must not move the current-page marker');
+    }
+    await page.keyboard.press('Tab');
+    await Promise.all([
+        page.waitForURL('**/demo/scoped-css.html', { timeout }),
+        page.keyboard.press('Enter'),
+    ]);
+}
+
 async function installOfflineRoutes(page) {
     await page.route('https://unpkg.com/cem-demo-element@*/cem-demo-element.js', (route) =>
         route.fulfill({ contentType: 'text/javascript; charset=utf-8', body: htmlDemoElementModule }),
@@ -2073,6 +2467,10 @@ async function runCheck(page, check) {
                 await waitForExactAttribute(page, check.selector, check.name, check.expected);
                 return;
             case 'propertyEquals':
+                await waitForExactProperty(page, check.selector, check.name, check.expected);
+                return;
+            case 'pressThenProperty':
+                await page.locator(check.actionSelector).press(check.key);
                 await waitForExactProperty(page, check.selector, check.name, check.expected);
                 return;
             case 'removeElement':
@@ -2293,6 +2691,10 @@ function attributeEquals(selector, name, expected) {
 
 function propertyEquals(selector, name, expected) {
     return { kind: 'propertyEquals', selector, name, expected };
+}
+
+function pressThenProperty(actionSelector, key, selector, name, expected) {
+    return { kind: 'pressThenProperty', actionSelector, key, selector, name, expected };
 }
 
 function removeElement(selector) {
@@ -2641,6 +3043,8 @@ function describeCheck(check) {
             return `attributeEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'propertyEquals':
             return `propertyEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
+        case 'pressThenProperty':
+            return `pressThenProperty(${check.actionSelector}, ${check.key}, ${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'removeElement':
             return `removeElement(${check.selector})`;
         case 'shortenedHrefText':

@@ -52,14 +52,14 @@ export const EveryAuthoredSample: Story = {
 
         const simple = sampleByLegend(host, EXPECTED_LEGENDS[0]);
         await waitForCondition(
-            () => textList(simple, 'cem-loop-simple li').join('|') === 'Apple|Banana|Cherry',
+            () => textList(simple, 'li').join('|') === '🍏|🍌|🍒',
             'simple loop renders all fruit',
             300
         );
 
         const positioned = sampleByLegend(host, EXPECTED_LEGENDS[1]);
         await waitForCondition(
-            () => textList(positioned, 'cem-loop-position article > div > div').join('|') ===
+            () => textList(positioned, 'article > div > div').join('|') ===
                 '1. Red|2. Green|3. Blue',
             'positioned loop renders numbered record fields'
         );
@@ -75,6 +75,11 @@ export const EveryAuthoredSample: Story = {
             () => textList(conditional, 'article > div span').join('|') ===
                 '1:First|2:Second|3:Third',
             () => `conditional loop renders after its checkbox changes; checked=${conditionalInput.checked}, spans=${JSON.stringify(textList(conditional, 'span'))}`
+        );
+        conditionalInput.click();
+        await waitForCondition(
+            () => conditional.querySelectorAll('article > div span').length === 0,
+            'unchecking removes the conditional sequence'
         );
 
         const nested = sampleByLegend(host, EXPECTED_LEGENDS[3]);
@@ -95,16 +100,21 @@ export const EveryAuthoredSample: Story = {
 
         const dynamic = sampleByLegend(host, EXPECTED_LEGENDS[5]);
         await waitForCondition(
-            () => dynamic.querySelector('cem-loop-dynamic-table input') !== null,
+            () => dynamic.querySelector('input') !== null,
             'dynamic table control renders'
         );
-        const dynamicInput = requiredElement(dynamic, 'cem-loop-dynamic-table input') as HTMLInputElement;
+        const dynamicInput = requiredElement(dynamic, 'input') as HTMLInputElement;
         dynamicInput.click();
         await waitForCondition(
-            () => textList(dynamic, 'cem-loop-dynamic-table tbody tr').length === 3
-                && normalize(dynamic.querySelector('cem-loop-dynamic-table tbody')?.textContent ?? '')
+            () => textList(dynamic, 'tbody tr').length === 3
+                && normalize(dynamic.querySelector('tbody')?.textContent ?? '')
                     .includes('Widget'),
             'dynamic table loop renders after its checkbox changes'
+        );
+        dynamicInput.click();
+        await waitForCondition(
+            () => dynamic.querySelectorAll('tbody tr').length === 0,
+            'unchecking removes the dynamic table rows'
         );
 
         const payload = sampleByLegend(host, EXPECTED_LEGENDS[6]);

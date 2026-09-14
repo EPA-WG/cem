@@ -15,14 +15,6 @@
     <script type="module">
         import { installCemElementRuntime } from '../dist/index.js';
         installCemElementRuntime(window);
-        window.addEventListener('click', (event) => {
-            const button = event.target.closest('[data-set-attr]');
-            if (!button) return;
-            const target = document.querySelector(button.dataset.target);
-            const name = button.dataset.attr;
-            const value = document.querySelector(button.dataset.valueFrom)?.value ?? button.dataset.value ?? '';
-            target?.setAttribute(name, value);
-        });
     </script>
 </head>
 <body>
@@ -30,126 +22,183 @@
 
 <main>
 
-    <p><code>attribute</code> is used for DCE attributes declaration and track the attributes changes. It also be used by IDE and validation.</p>
-    <p>The attribute can be changed by component itself and used as output to the container.
-        Usual case is when <code>value</code> attribute is updated from inside.</p>
-    <p>Initial value of attribute is available on the <code>attributes</code> node attribute as in <code>/datadom/attributes/@attr1</code></p>
-    <p>The current, i.e. including the changes by component itself, attribute value is a child node of <code>attributes</code> as in <code>/datadom/attributes/attr1</code>.</p>
-    <p>To define the attribute which is modified from within,  the 3 parts are usually used as in <code>//s[//s/event] ?? //attributes/@v ?? 'def' </code>
-    <ol>
-    <li><code>//s[//s/event]</code> the slice <code>s</code> with event gives the slice value which was modified by user event like input</li>
-    <li><code>//attributes/@v</code> the attribute passed by container</li>
-    <li><code>'def' </code> the default value which used when no user input or attribute set by container</li>
-</ol>
-    </p>
+    <section>
+        <h2>Attributes connect a component to its container</h2>
+        <p>Declare an <code>attribute</code> to observe host changes, supply a
+            default, or derive and reflect an output. Read current values from
+            <code>datadom.attributes</code>; a <code>select</code> expression
+            defines the effective value.</p>
+        <p>The plain HTML buttons call <code>setAttribute</code> or
+            <code>removeAttribute</code> outside the DCE. Watch the declaration
+            react. Missing and empty attributes differ: <code>??</code> falls
+            back for a missing value, not an empty string.</p>
+        <h3>See also</h3>
+        <p><a href="./data-slices.html">Slices and event payloads</a></p>
+        <p><a href="./form.html">Form-associated values and validation</a></p>
+    </section>
 
-    <cem-demo-element legend="1. attributes definition">
+    <cem-demo-element legend="1. attributes definition"
+        description="With no container values, declared defaults initialize each attribute; this small declaration is reused by the next two cases">
         <template>
-            <cem-element tag="cem-attr-defaults">
-                <template type="text/cem-ml">
-                    {attribute @name=p1 | default_P1}
-                    {attribute @name=p2 @select='"always_p2"'}
-                    {attribute @name=p3 @select='datadom.attributes.p3 ?? "def_P3"'}
-                    {article @class=demo-card |
-                        {h2 | attributes definition}
-                        {p | p1: {$p1}}
-                        {p | p2: {$p2}}
-                        {p | p3: {$p3}}
-                    }
-                </template>
-            </cem-element>
+<cem-element tag="cem-attr-defaults">
+    <template type="text/cem-ml">
+        {attribute @name=p1 | default_P1}
+        {attribute @name=p2 @select='"always_p2"'}
+        {attribute @name=p3 @select='datadom.attributes.p3 ?? "def_P3"'}
+        {article @class=demo-card |
+            {h2 | attributes definition}
+            {p | p1: {$p1}}
+            {p | p2: {$p2}}
+            {p | p3: {$p3}}
+        }
+    </template>
+</cem-element>
 
-            <cem-attr-defaults id="defaults-1"></cem-attr-defaults>
-            <section class="demo-card">
-                <cem-attr-defaults id="defaults-2" p1="123" p2="override ignored because select is defined"></cem-attr-defaults>
-                <div class="row">
-                    <input id="p1-input" value="changed p1">
-                    <button type="button" data-set-attr data-target="#defaults-2" data-attr="p1" data-value-from="#p1-input">set p1</button>
-                </div>
-                <div class="row">
-                    <input id="p2-input" value="changed p2">
-                    <button type="button" data-set-attr data-target="#defaults-2" data-attr="p2" data-value-from="#p2-input">set p2</button>
-                </div>
-                <div class="row">
-                    <input id="p3-input" value="changed p3">
-                    <button type="button" data-set-attr data-target="#defaults-2" data-attr="p3" data-value-from="#p3-input">set p3</button>
-                </div>
-            </section>
-            <cem-attr-defaults id="defaults-3" p1="123" p3="qwe"></cem-attr-defaults>
+<cem-attr-defaults id="defaults-1"></cem-attr-defaults>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="1a. External attribute changes"
+        description="Set p1 or p3 from outside and watch the result; p2 remains always_p2 because select is authoritative. Remove p3 to restore its default, or set it empty to keep it empty.">
+        <template>
+<section class="demo-card">
+    <cem-attr-defaults id="defaults-2" p1="123"
+        p2="override ignored because select is defined">
+    </cem-attr-defaults>
+    <div class="row">
+        <label for="p1-input">p1</label>
+        <input id="p1-input" value="changed p1">
+        <button type="button" aria-label="set p1" title="set p1" onclick="
+            document.getElementById('defaults-2').setAttribute('p1',
+                document.getElementById('p1-input').value)">
+            →p1</button>
+    </div>
+    <div class="row">
+        <label for="p2-input">p2</label>
+        <input id="p2-input" value="changed p2">
+        <button type="button" aria-label="set p2" title="set p2" onclick="
+            document.getElementById('defaults-2').setAttribute('p2',
+                document.getElementById('p2-input').value)">
+            →p2</button>
+    </div>
+    <div class="row">
+        <label for="p3-input">p3</label>
+        <input id="p3-input" value="changed p3">
+        <button type="button" aria-label="set p3" title="set p3" onclick="
+            document.getElementById('defaults-2').setAttribute('p3',
+                document.getElementById('p3-input').value)">
+            →p3</button>
+    </div>
+    <button type="button" aria-label="remove p3" title="remove p3"
+        onclick="document.getElementById('defaults-2').removeAttribute('p3')">
+        −p3</button>
+</section>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="1b. Container attribute values"
+        description="Container p1 and p3 values override their defaults without affecting p2">
+        <template>
+<cem-attr-defaults id="defaults-3" p1="123" p3="qwe"></cem-attr-defaults>
         </template>
     </cem-demo-element>
 
     <cem-demo-element legend="2. attribute from slice"
-                       description="typing updates the title binding and reflected host title attribute">
+           description="Type to change the reflected host title, then hover over the component to see the browser tooltip; the same title is printed below">
         <template>
-            <cem-element tag="cem-attr-title">
-                <template type="text/cem-ml">
-                    {attribute
-                        @name=title
-                        @select='if datadom.eventPayloads.title { datadom.slices.title } else { datadom.attributes.title ?? "😃" }'}
-                    {slice @name=title}
-                    {article @class=demo-card |
-                        {h2 | attribute from slice}
-                        {p | title attribute: {$title}}
-                        {label | Type to update title
-                            {input @value="{$title}" @slice=title @slice-event=input @slice-value="$target.value"}
-                        }
-                    }
-                </template>
-            </cem-element>
+<cem-element tag="cem-attr-title">
+    <template type="text/cem-ml">
+        {attribute
+            @name=title
+            @select='if datadom.eventPayloads.title {
+                datadom.slices.title
+            } else { datadom.attributes.title ?? "😃" }'}
+        {slice @name=title}
+        {article @class=demo-card |
+            {h2 | attribute from slice}
+            {p | title attribute: {$title}}
+            {label | Type to update title
+                {input @value="{$title}"
+                    @slice=title @slice-event=input}
+            }
+        }
+    </template>
+</cem-element>
 
-            <cem-attr-title id="title-from-slice"></cem-attr-title>
+<cem-attr-title id="title-from-slice"></cem-attr-title>
         </template>
     </cem-demo-element>
 
     <cem-demo-element legend="3. V attribute matches input value"
-                       description="typing updates v and is-changed on the host">
+           description="typing updates v and is-changed on the host">
         <template>
-            <cem-element tag="cem-attr-value">
-                <template type="text/cem-ml">
-                    {attribute @name=is-changed @select='if datadom.eventPayloads.s { true } else { false }'}
-                    {attribute
-                        @name=v
-                        @select='if datadom.eventPayloads.s { datadom.slices.s } else { datadom.attributes.v ?? "def" }'}
-                    {slice @name=s}
-                    {article @class=demo-card |
-                        {h2 | V attribute matches input value}
-                        {p | v: {$v}}
-                        {p | is-changed: {$is-changed}}
-                        {label | Type to update v
-                            {input @value="{$v}" @slice=s @slice-event=input @slice-value="$target.value"}
-                        }
-                    }
-                </template>
-            </cem-element>
+<cem-element tag="cem-attr-value">
+    <template type="text/cem-ml">
+        {attribute @name=is-changed
+            @select='if datadom.eventPayloads.s { true } else { false }'}
+        {attribute
+            @name=v
+            @select='if datadom.eventPayloads.s {
+                datadom.slices.s
+            } else { datadom.attributes.v ?? "def" }'}
+        {slice @name=s}
+        {article @class=demo-card |
+            {h2 | V attribute matches input value}
+            {p | v: {$v}}
+            {p | is-changed: {$is-changed}}
+            {label | Type to update v
+                {input @value="{$v}" @slice=s @slice-event=input}
+            }
+        }
+    </template>
+</cem-element>
 
-            <cem-attr-value id="value-default"></cem-attr-value>
-            <cem-attr-value id="value-container" v="V1"></cem-attr-value>
+<cem-attr-value id="value-default"></cem-attr-value>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="3a. Container value before input"
+        description="This reused declaration starts with V1 from its container; typing, including clearing the field, takes precedence and sets is-changed">
+        <template>
+<cem-attr-value id="value-container" v="V1"></cem-attr-value>
         </template>
     </cem-demo-element>
 
     <cem-demo-element legend="4. attribute defaults, from container, and from slice"
-                       description="attribute defaults can combine with container attributes and slice updates">
+           description="attribute defaults can combine with container attributes and slice updates">
         <template>
-            <cem-element tag="cem-attr-slice">
-                <template type="text/cem-ml">
-                    {attribute
-                        @name=v
-                        @select='if datadom.eventPayloads.s { datadom.slices.s } else { datadom.attributes.v ?? "def" }'}
-                    {slice @name=s}
-                    {cem:variable @name=has-input @select='if datadom.eventPayloads.s { true } else { false }'}
-                    {article @class=demo-card |
-                        {h2 | attribute defaults, container value, and slice value}
-                        {p | /datadom/attributes/v: {$datadom.attributes.v ?? "unset"}}
-                        {p | effective value: {$v}}
-                        {p | has-input: {$has-input}}
-                        {label | Type to update the slice {input @slice=s @slice-event=input}}
-                    }
-                </template>
-            </cem-element>
+<cem-element tag="cem-attr-slice">
+    <template type="text/cem-ml">
+        {attribute
+            @name=v
+            @select='if datadom.eventPayloads.s {
+                datadom.slices.s
+            } else { datadom.attributes.v ?? "def" }'}
+        {slice @name=s}
+        {cem:variable @name=has-input
+            @select='if datadom.eventPayloads.s { true } else { false }'}
+        {article @class=demo-card |
+            {h2 | attribute defaults, container value, and slice value}
+            {p | datadom.attributes.v: {$datadom.attributes.v ?? "unset"}}
+            {p | effective value: {$v}}
+            {p | has-input: {$has-input}}
+            {label | Type to update the slice {input @slice=s @slice-event=input}}
+        }
+    </template>
+</cem-element>
 
-            <cem-attr-slice id="precedence-default"></cem-attr-slice>
-            <cem-attr-slice id="precedence-container" v="From Container"></cem-attr-slice>
+<cem-attr-slice id="precedence-default"></cem-attr-slice>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="4a. External changes versus user input"
+        description="Set the container value before typing, then try again after typing: the event-backed slice has priority, even when the input is empty">
+        <template>
+<button type="button" aria-label="Set container value" title="Set container value"
+    onclick="document.getElementById('precedence-container')
+        .setAttribute('v', 'External update')">
+    →v</button>
+<cem-attr-slice id="precedence-container" v="From Container"></cem-attr-slice>
         </template>
     </cem-demo-element>
 </main>

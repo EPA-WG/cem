@@ -22,10 +22,16 @@
  */
 
 import {
+    compileCemMlTemplate,
     ensureRuntimeReady,
     renderCemMlTemplate,
 } from '../../vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js';
-import { tokenTableRows } from '../../vendor/@epa-wg/cem-elements/dist/lib/data-document.js';
+import { tokenTableProjection } from '../../vendor/@epa-wg/cem-elements/dist/lib/data-document.js';
+import {
+    createBrowserModuleUrlContext,
+    createBrowserModuleUrlRoot,
+    resolveBrowserModuleUrl,
+} from '../../vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/module-url-resolution.js';
 
 /** Parse `data-slices="key=anchor-id key2=anchor-id2"` into ordered `{ key, anchorId }` pairs. */
 function parseSliceConfig(spec) {
@@ -93,15 +99,60 @@ async function runGenerator(template) {
     const tokenDoc = await loadTokenDocument(tokenUrl);
     const slices = {};
     for (const { key, anchorId } of sliceConfig) {
-        slices[key] = tokenTableRows(tokenDoc, anchorId);
+        const projection = tokenTableProjection(tokenDoc, anchorId);
+        slices[key] = projection.rows;
+        for (const diagnostic of projection.diagnostics) {
+            console.error(`[cem-css-generator] ${diagnostic.code}: ${diagnostic.message}`);
+        }
     }
 
     await ensureRuntimeReady();
     const source = templateSource(template);
+    const declaration = await compileCemMlTemplate(source);
+    const policyStamp = 'cem-theme-generator-modules/1';
+    const root = createBrowserModuleUrlRoot(document, policyStamp);
+    const moduleContext = createBrowserModuleUrlContext(
+        root.context,
+        template.id || 'cem-css-generator',
+        document.baseURI,
+        `template:${document.URL}`,
+        policyStamp,
+        declaration.moduleMap
+    );
+    const moduleContexts = new Map([[document.URL, moduleContext]]);
+    for (const message of root.diagnostics) {
+        console.error(`[cem-css-generator] cem-element.module_url_import_map_invalid: ${message}`);
+    }
     const { nodes, diagnostics } = await renderCemMlTemplate(
         source,
         { datadom: { slices } },
-        { renderNodeIdPrefix: template.id || 'cem-css' }
+        {
+            renderNodeIdPrefix: template.id || 'cem-css',
+            moduleLoader: {
+                rootUrl: document.URL,
+                resolverPolicyStamp: moduleContext.resourcePolicyStamp,
+                resolve: async (specifier, referrerUrl, referrerModuleMap) => {
+                    let referrerContext = moduleContexts.get(referrerUrl);
+                    if (!referrerContext) {
+                        referrerContext = createBrowserModuleUrlContext(
+                            moduleContext,
+                            `module:${referrerUrl}`,
+                            referrerUrl,
+                            `template-module:${referrerUrl}`,
+                            policyStamp,
+                            referrerModuleMap
+                        );
+                        moduleContexts.set(referrerUrl, referrerContext);
+                    }
+                    const resolution = await resolveBrowserModuleUrl(
+                        referrerContext,
+                        specifier,
+                        { kind: 'url', value: referrerUrl }
+                    );
+                    return resolution.resolvedUrl;
+                },
+            },
+        }
     );
 
     const errors = (diagnostics ?? []).filter(

@@ -2762,18 +2762,18 @@ fn lower_loaded_markdown_to_html_document(
     input: &EngineInput,
     context: &EngineContext,
 ) {
-    let Some(LoadedInputAstStream::MarkdownDocument(document)) = loaded.ast_stream.take() else {
+    // Keep the native owner in place unless Markdown conversion succeeds.
+    let Some(LoadedInputAstStream::MarkdownDocument(document)) = loaded.ast_stream.as_ref() else {
         return;
     };
     let mut diagnostics = Vec::new();
     let Some(projected) = markdown_document_ast_to_html_dom(
-        &document,
+        document,
         input.identity.as_ref(),
         context,
         &input.uri,
         &mut diagnostics,
     ) else {
-        loaded.ast_stream = Some(LoadedInputAstStream::MarkdownDocument(document));
         loaded.diagnostics.append(&mut diagnostics);
         return;
     };
@@ -13732,6 +13732,180 @@ mod tests {
             }),
             root_scope: Default::default(),
         }
+    }
+
+    // Exercise both the public document loader and allocation identity at the
+    // Markdown-only boundary. Typed AST equality includes source ranges/maps.
+    macro_rules! document_load_preserves_native_ast {
+        ($name:ident, $bytes:expr, $uri:expr, $content_type:expr, $schema:expr, $variant:ident) => {
+            #[test]
+            fn $name() {
+                let input = identified_input($bytes, $uri, $content_type, $schema);
+                let context = ctx();
+                let mut loaded = load_source_input_through_lifecycle(&input, &context);
+                let before = loaded.clone();
+                let Some(LoadedInputAstStream::$variant(original)) = before.ast_stream.as_ref()
+                else {
+                    panic!("expected native AST for {}: {:?}", input.uri, before);
+                };
+                let Some(LoadedInputAstStream::$variant(document)) = loaded.ast_stream.as_ref()
+                else {
+                    unreachable!();
+                };
+                assert_eq!(document.source.uri, input.uri);
+                let source_allocation = document.source.uri.as_ptr();
+                let byte_allocation = loaded.bytes.as_ptr();
+
+                lower_loaded_markdown_to_html_document(&mut loaded, &input, &context);
+
+                let Some(LoadedInputAstStream::$variant(document)) = loaded.ast_stream.as_ref()
+                else {
+                    panic!("Markdown conversion discarded {} AST", input.uri);
+                };
+                assert_eq!(document.source.uri.as_ptr(), source_allocation);
+                assert_eq!(loaded.bytes.as_ptr(), byte_allocation);
+                assert_eq!(document, original);
+                assert_eq!(loaded.bytes, before.bytes);
+                assert_eq!(loaded.from_format, before.from_format);
+                assert_eq!(loaded.adapter_id, before.adapter_id);
+                assert_eq!(loaded.diagnostics, before.diagnostics);
+
+                let public = load_document_input(&input, &context);
+                let Some(LoadedInputAstStream::$variant(document)) = public.ast_stream.as_ref()
+                else {
+                    panic!("public document loader lost {} AST", input.uri);
+                };
+                assert_eq!(document, original);
+                assert_eq!(public.bytes, before.bytes);
+                assert_eq!(public.from_format, before.from_format);
+                assert_eq!(public.adapter_id, before.adapter_id);
+                assert_eq!(public.diagnostics, before.diagnostics);
+            }
+        };
+    }
+
+    document_load_preserves_native_ast!(
+        document_load_preserves_xml_native_ast,
+        br#"<catalog xmlns="urn:catalog"><book id="b">B &amp; C</book></catalog>"#,
+        "memory:catalog.xml",
+        XML_CONTENT_TYPE,
+        XML_SCHEMA_URI,
+        XmlDocument
+    );
+    document_load_preserves_native_ast!(
+        document_load_preserves_json_native_ast,
+        r#"{"z":[null,3],"a":{"label":"🍒"}}"#.as_bytes(),
+        "memory:catalog.json",
+        JSON_CONTENT_TYPE,
+        crate::schema::registry::JSON_VALUE_SCHEMA_URI,
+        JsonDocument
+    );
+    document_load_preserves_native_ast!(
+        document_load_preserves_csv_native_ast,
+        b"id,note\r\nb,\"line 1\nline 2\"\r\na,\"comma, quote \"\"\"\r\n",
+        "memory:catalog.csv",
+        "text/csv; header=present",
+        CSV_SCHEMA_URI,
+        CsvDocument
+    );
+    document_load_preserves_native_ast!(
+        document_load_preserves_yaml_native_ast,
+        b"# retained source comment\nz: [null, 3]\na:\n  label: cherry\n---\n[]\n",
+        "memory:catalog.yaml",
+        YAML_CONTENT_TYPE,
+        YAML_SCHEMA_URI,
+        YamlDocument
+    );
+    document_load_preserves_native_ast!(
+        document_load_preserves_html_native_ast,
+        b"<!doctype html><html><head><title>Catalog</title></head><body><p>A &amp; B</p></body></html>",
+        "memory:catalog.html", HTML_CONTENT_TYPE, HTML_SCHEMA_URI, HtmlDocument
+    );
+
+    #[test]
+    fn document_load_preserves_absent_ast_and_existing_diagnostics() {
+        let input = input(b"{main}", "memory:source.cem");
+        let mut loaded = LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: InputFormat::Cem,
+            ast_stream: None,
+            diagnostics: vec![Diagnostic {
+                uri: Some(input.uri.clone()),
+                code: "test.load_failure".to_owned(),
+                severity: Severity::Error,
+                ..Diagnostic::default()
+            }],
+            adapter_id: None,
+        };
+        let before = loaded.clone();
+        let byte_allocation = loaded.bytes.as_ptr();
+
+        lower_loaded_markdown_to_html_document(&mut loaded, &input, &ctx());
+
+        assert!(loaded.ast_stream.is_none());
+        assert_eq!(loaded.bytes.as_ptr(), byte_allocation);
+        assert_eq!(loaded.bytes, before.bytes);
+        assert_eq!(loaded.from_format, before.from_format);
+        assert_eq!(loaded.adapter_id, before.adapter_id);
+        assert_eq!(loaded.diagnostics, before.diagnostics);
+    }
+
+    #[test]
+    fn document_load_retains_markdown_native_ast_on_conversion_failure() {
+        let input = identified_input(
+            b"# Keep the source\n\nA **document**.\n",
+            "memory:source.md",
+            MARKDOWN_CONTENT_TYPE,
+            MARKDOWN_SCHEMA_URI,
+        );
+        let mut context = ctx();
+        context.converter_registry = ConversionRegistry::new();
+        let mut loaded = load_source_input_through_lifecycle(&input, &context);
+        let before = loaded.clone();
+        let Some(LoadedInputAstStream::MarkdownDocument(document)) = loaded.ast_stream.as_ref()
+        else {
+            panic!("expected Markdown AST: {loaded:?}");
+        };
+        let event_allocation = document.events.as_ptr();
+        let byte_allocation = loaded.bytes.as_ptr();
+
+        lower_loaded_markdown_to_html_document(&mut loaded, &input, &context);
+
+        let Some(LoadedInputAstStream::MarkdownDocument(document)) = loaded.ast_stream.as_ref()
+        else {
+            panic!("failed conversion must retain Markdown AST");
+        };
+        let Some(LoadedInputAstStream::MarkdownDocument(original)) = before.ast_stream.as_ref()
+        else {
+            unreachable!();
+        };
+        assert_eq!(document.events.as_ptr(), event_allocation);
+        assert_eq!(document, original);
+        assert_eq!(loaded.bytes.as_ptr(), byte_allocation);
+        assert_eq!(loaded.bytes, before.bytes);
+        assert_eq!(loaded.from_format, before.from_format);
+        assert_eq!(loaded.adapter_id, before.adapter_id);
+        assert_eq!(
+            &loaded.diagnostics[..before.diagnostics.len()],
+            &before.diagnostics
+        );
+        assert_eq!(loaded.diagnostics.len(), before.diagnostics.len() + 1);
+        let failure = loaded.diagnostics.last().unwrap();
+        assert_eq!(failure.code, "cem.converter.edge_unavailable");
+        assert_eq!(failure.severity, Severity::Fatal);
+        assert_eq!(failure.uri.as_deref(), Some(input.uri.as_str()));
+        assert_eq!(failure.node.as_deref(), Some("load"));
+
+        let public = load_document_input(&input, &context);
+        let Some(LoadedInputAstStream::MarkdownDocument(document)) = public.ast_stream.as_ref()
+        else {
+            panic!("public document loader must retain Markdown after failed conversion");
+        };
+        assert_eq!(document, original);
+        assert_eq!(public.bytes, before.bytes);
+        assert_eq!(public.from_format, before.from_format);
+        assert_eq!(public.adapter_id, before.adapter_id);
+        assert_eq!(public.diagnostics, loaded.diagnostics);
     }
 
     #[test]

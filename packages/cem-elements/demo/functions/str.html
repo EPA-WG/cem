@@ -25,7 +25,17 @@
 
 <main>
     <section>
-        <p>Executable examples for CEM-QL <code>str:</code> functions.</p>
+        <h2>Small string operations, live results</h2>
+        <p>CEM-QL <code>str:</code> helpers transform slice values without
+            JavaScript UI code. Edit the inputs to see each result update.</p>
+        <p><code>split</code> uses a literal separator and preserves empty fields;
+            clear the separator to split into Unicode codepoints. Indices count
+            codepoints, so an emoji such as 🍒 occupies one position. These are
+            CEM functions, not UTF-16 JavaScript methods.</p>
+        <h3>See also</h3>
+        <p><a href="../dom-merge.html">Word count and focus-preserving edits</a></p>
+        <p><a href="../data-slices.html">Event-driven slices</a></p>
+        <p><a href="../module-url.html">Shortened URL labels</a></p>
     </section>
 
     <cem-demo-element
@@ -76,6 +86,192 @@
 </cem-element>
 
 <cem-str-shorten-matrix></cem-str-shorten-matrix>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="str:split"
+        description="Split on a literal separator; quoted fields expose empty strings, and the count includes every field">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | 🍒,🍋,,🍌}
+{slice @name=separator | ,}
+{article @class=demo-card |
+    {label | Text
+        {input @slice=text @slice-event=input
+            @value="{$datadom.slices.text}"}}
+    {label | Separator
+        {input @slice=separator @slice-event=input
+            @value="{$datadom.slices.separator}"}}
+    {p | Parts:
+        {output | {$seq:count(str:split(
+            datadom.slices.text, datadom.slices.separator))}}}
+    {ol |
+        {cem:for-each
+            @select="str:split(
+                datadom.slices.text, datadom.slices.separator)"
+            @as=part |
+            {li | “{$part}”}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="str:trim"
+        description="Remove whitespace at both ends without collapsing spaces between fruit; brackets reveal the retained whitespace">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+```}
+{cem:variable @name=text @select='datadom.slices.text ?? "  🍒  🍋  "'}
+{article @class=demo-card |
+    {label | Text
+        {input @slice=text @slice-event=input @value="{$text}"}}
+    {pre | [{output | {$str:trim(text)}}]}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="str:trim_start"
+        description="Remove only leading whitespace; trailing and internal spaces remain visible inside brackets">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+```}
+{cem:variable @name=text @select='datadom.slices.text ?? "  🍒  🍋  "'}
+{article @class=demo-card |
+    {label | Text
+        {input @slice=text @slice-event=input @value="{$text}"}}
+    {pre | [{output | {$str:trim_start(text)}}]}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="str:trim_end"
+        description="Remove only trailing whitespace; leading and internal spaces remain visible inside brackets">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+```}
+{cem:variable @name=text @select='datadom.slices.text ?? "  🍒  🍋  "'}
+{article @class=demo-card |
+    {label | Text
+        {input @slice=text @slice-event=input @value="{$text}"}}
+    {pre | [{output | {$str:trim_end(text)}}]}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="str:char_at"
+        description="Read one zero-based codepoint; a negative or out-of-range index produces an empty string">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | 🍒🍋🍌}
+{slice @name=index | 1}
+{article @class=demo-card |
+    {label | Text
+        {input @slice=text @slice-event=input
+            @value="{$datadom.slices.text}"}}
+    {label | Index
+        {input @type=number @slice=index @slice-event=input
+            @value="{$datadom.slices.index}"}}
+    {p | [{output | {$str:char_at(
+        datadom.slices.text, datadom.slices.index)}}]}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="str:at"
+        description="Negative indices count from the end; an out-of-range result is an empty sequence, shown here as ∅ through ??">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | 🍒🍋🍌}
+{slice @name=index | -1}
+{article @class=demo-card |
+    {label | Text
+        {input @slice=text @slice-event=input
+            @value="{$datadom.slices.text}"}}
+    {label | Index
+        {input @type=number @slice=index @slice-event=input
+            @value="{$datadom.slices.index}"}}
+    {p | Result:
+        {output | {$str:at(
+            datadom.slices.text, datadom.slices.index) ?? "∅"}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="str:index_of"
+        description="Find the first literal match at or after Position; indices count codepoints, and -1 means no match">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | 🍒🍋🍒}
+{slice @name=search | 🍒}
+{slice @name=position | 0}
+{article @class=demo-card |
+    {label | Text
+        {input @slice=text @slice-event=input
+            @value="{$datadom.slices.text}"}}
+    {label | Find
+        {input @slice=search @slice-event=input
+            @value="{$datadom.slices.search}"}}
+    {label | Position
+        {input @type=number @slice=position @slice-event=input
+            @value="{$datadom.slices.position}"}}
+    {p | Index:
+        {output | {$str:index_of(
+            datadom.slices.text, datadom.slices.search,
+            datadom.slices.position)}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="str:last_index_of"
+        description="Find the last literal match starting at or before Position; try overlapping matches, an empty search, or a missing fruit">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | 🍒🍋🍒}
+{slice @name=search | 🍒}
+{slice @name=position | 3}
+{article @class=demo-card |
+    {label | Text
+        {input @slice=text @slice-event=input
+            @value="{$datadom.slices.text}"}}
+    {label | Find
+        {input @slice=search @slice-event=input
+            @value="{$datadom.slices.search}"}}
+    {label | Position
+        {input @type=number @slice=position @slice-event=input
+            @value="{$datadom.slices.position}"}}
+    {p | Index:
+        {output | {$str:last_index_of(
+            datadom.slices.text, datadom.slices.search,
+            datadom.slices.position)}}}
+}
+    </template>
+</cem-element>
         </template>
     </cem-demo-element>
 </main>

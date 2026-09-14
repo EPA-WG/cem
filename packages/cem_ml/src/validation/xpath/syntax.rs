@@ -288,6 +288,8 @@ pub enum XPathNodeTest {
     Kind {
         kind: XPathKindTest,
         lexical: String,
+        /// Parsed once by the XPath layer; evaluation never reparses the test.
+        processing_instruction_target: Option<String>,
     },
 }
 

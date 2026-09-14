@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { userEvent } from 'storybook/test';
 
 const SOURCE_TAG = 'story-hex-grid-demo-document';
 const DEMO_URL = new URL('../../demo/hex-grid.html', import.meta.url);
@@ -12,6 +13,7 @@ const WRAPPING_LEGEND = '5. Wrapping long label';
 const FALLBACK_LEGEND = '6. Missing-image fallback';
 const WRAPPER_LEGEND = '7. Wrapper DCE theme';
 const IMAGE_BUTTON_LEGEND = '8. Image-button presentation';
+const ROW_LEGEND = '9. Horizontal row with a current page';
 const EXPECTED_LABELS = [
     'DCE',
     'React',
@@ -148,8 +150,70 @@ export const ResponsiveFrameworkLinks: Story = {
             () => `narrow component uses 2–1 staggered rows; rows=${JSON.stringify(rowCounts(sample, '.hex'))}`,
         );
         await assertPresentationModes(host);
+        await assertCurrentPageRow(host);
     },
 };
+
+async function assertCurrentPageRow(host: HTMLElement): Promise<void> {
+    await waitForCondition(
+        () => host.querySelectorAll(`cem-demo-element[legend="${ROW_LEGEND}"] nav a`).length === 3,
+        'current-page row links render from the authored HTML',
+        600,
+    );
+    const sample = requiredElement(host, `cem-demo-element[legend="${ROW_LEGEND}"]`);
+    const nav = requiredElement(sample, 'nav[aria-label="Demo page links"]');
+    const links = Array.from(nav.querySelectorAll<HTMLAnchorElement>('a'));
+    const [previous, current, next] = links;
+    assertDeepEqual(links.map((link) => link.getAttribute('aria-current') ?? ''),
+        ['false', 'page', 'false'], 'only the middle link is current');
+    assertEqual(current.href, DEMO_URL.href, 'current link points to this demo');
+    assertIncludes(current.textContent ?? '', '✓', 'current marker is visible text');
+    assertEqual(current.getAttribute('aria-label'), 'Hex grid', 'current link accessible name');
+    assertEqual(requiredElement(current, '.hex-label [aria-hidden]').textContent?.trim(), '✓', 'checkmark is decorative');
+    await waitForCondition(
+        () => rowCounts(nav, 'li').join('|') === '3' &&
+            labelFitsRaisedInsideLink(requiredElement(current, '.hex-label'), current),
+        () => `row=${rowCounts(nav, 'li')}; current=${rectSummary(current)}; label=${rectSummary(requiredElement(current, '.hex-label'))}; transform=${getComputedStyle(requiredElement(current, '.hex-label')).transform}`,
+    );
+    const list = requiredElement(nav, 'ul');
+    assertEqual(getComputedStyle(list).flexWrap, 'nowrap', 'row never staggers');
+    assertEqual(getComputedStyle(list).overflowX, 'auto', 'overflow stays inside the row');
+    const ordinaryBackground = getComputedStyle(previous).backgroundImage;
+    const currentBackground = getComputedStyle(current).backgroundImage;
+    assertNotEqual(currentBackground, ordinaryBackground, 'current color differs from sibling');
+
+    previous.focus();
+    await userEvent.tab();
+    assertEqual(document.activeElement, current, 'Tab reaches the current link');
+    assertEqual(getComputedStyle(current, '::after').opacity, '1', 'current link also has a focus ring');
+    await userEvent.tab();
+    assertEqual(document.activeElement, next, 'Tab reaches the next link');
+    assertEqual(getComputedStyle(current, '::after').opacity, '0', 'focus ring moves away from current link');
+    assertEqual(getComputedStyle(current).backgroundImage, currentBackground, 'current color survives focus moving away');
+    await userEvent.tab({ shift: true });
+    assertEqual(document.activeElement, current, 'Shift+Tab reverses link order');
+    current.blur();
+
+    const grid = requiredElement(sample, 'cem-hex-grid');
+    grid.style.setProperty('--cem-hex-current-background-start', '#581c87');
+    await waitForCondition(
+        () => getComputedStyle(current).backgroundImage.includes('rgb(88, 28, 135)'),
+        'public current-color hook reaches the nested link',
+    );
+    assertEqual(getComputedStyle(previous).backgroundImage, ordinaryBackground, 'current hook leaves sibling unchanged');
+    assertEqual(host.querySelectorAll('nav a[aria-current="page"]').length, 1, 'current state does not leak into other samples');
+    grid.style.removeProperty('--cem-hex-current-background-start');
+
+    grid.style.inlineSize = '240px';
+    grid.style.maxInlineSize = '100%';
+    await waitForCondition(() => list.scrollWidth > list.clientWidth, 'narrow row scrolls internally');
+    assertDeepEqual(rowCounts(nav, 'li').map(String), ['3'], 'narrow row stays horizontal');
+    previous.focus();
+    await userEvent.tab();
+    await userEvent.tab();
+    assertEqual(document.activeElement, next, 'keyboard reaches the last link in an overflowing row');
+    assertEqual(current.getAttribute('aria-current'), 'page', 'scrolling focus does not change current state');
+}
 
 async function assertPresentationModes(host: HTMLElement): Promise<void> {
     await waitForCondition(

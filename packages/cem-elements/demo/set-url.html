@@ -33,7 +33,10 @@
         <p>
             Render a writer only in response to deliberate state or an event. A
             writer whose target already equals the current URL is inert, preventing
-            repeated renders from producing duplicate history entries.
+            duplicate history entries. An optional <code>trigger</code> token runs a command
+            only when that token changes; an empty token does nothing. These examples
+            use the event slice's <code>revision</code>, so typing a draft or observing
+            someone else's navigation cannot reapply the previous command.
         </p>
         <h3>See also</h3>
         <p><a href="./location-element.html">Read current and explicit URLs</a></p>
@@ -66,6 +69,7 @@
     {cem:if @test=datadom.slices.hashTarget |
         {location-element
             @method=location.hash
+            @trigger="{$datadom.eventPayloads.hashTarget.revision}"
             @src="{$datadom.slices.hashTarget}"}
     }
     {p | Selected target: {output | {$datadom.slices.hashTarget}}}
@@ -105,6 +109,7 @@
     {cem:if @test=datadom.slices.method |
         {location-element
             @method="{$datadom.slices.method}"
+            @trigger="{$datadom.eventPayloads.method.revision}"
             @src="#{$datadom.slices.method}"}
     }
     {p | Selected method: {output | {$datadom.slices.method}}}
@@ -117,7 +122,7 @@
 
     <cem-demo-element
         legend="3. Conditionally inject a URL writer"
-        description="No writer exists initially; clicking Set renders one location-element for the requested URL">
+        description="No writer exists initially; clicking → renders one location-element for the requested URL">
         <template>
 <cem-element>
     <template type="text/cem-ml">
@@ -127,14 +132,16 @@
     {p | The URL remains unchanged until the event creates a target slice.}
     {button
         @type=button
+        @aria-label=Set @title=Set
         @value="#conditional-writer"
         @slice=requestedUrl
         @slice-event=click |
-        Set
+        →
     }
     {cem:if @test=datadom.slices.requestedUrl |
         {location-element
             @method=location.href
+            @trigger="{$datadom.eventPayloads.requestedUrl.revision}"
             @src="{$datadom.slices.requestedUrl}"}
     }
     {p | Current hash: {output | {$datadom.slices.current.hash}}}
@@ -146,7 +153,7 @@
 
     <cem-demo-element
         legend="4. Set URL from form controls"
-        description="Radio and text controls select a method and target before a button conditionally applies both">
+        description="Edit a method and target, then press → to apply them once; further edits stay pending until the next →">
         <template>
 <cem-element>
     <template type="text/cem-ml">
@@ -158,6 +165,21 @@
     {form |
         {fieldset |
             {legend | Method}
+            {label |
+                {input @type=radio @name=method @value=location.href
+                    @slice=method @slice-event=change}
+                location.href
+            }
+            {label |
+                {input @type=radio @name=method @value=location.assign
+                    @slice=method @slice-event=change}
+                location.assign
+            }
+            {label |
+                {input @type=radio @name=method @value=location.replace
+                    @slice=method @slice-event=change}
+                location.replace
+            }
             {label |
                 {input @type=radio @name=method @value=location.hash
                     @slice=method @slice-event=change}
@@ -186,15 +208,17 @@
         }
         {button
             @type=button
+            @aria-label=Set @title=Set
             @value=apply
             @slice=applyUrl
             @slice-event=click |
-            Set
+            →
         }
     }
     {cem:if @test=datadom.slices.applyUrl |
         {location-element
             @method="{$datadom.slices.method}"
+            @trigger="{$datadom.eventPayloads.applyUrl.revision}"
             @src="{$datadom.slices.url}"}
     }
     {p | Pending: {output | {$datadom.slices.method}} = {output | {$datadom.slices.url}}}

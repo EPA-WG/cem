@@ -65,7 +65,7 @@
             This way dependencies could reside on different CDN path or even domains while in the code would be
             referenced
             by symbolic package name.
-            See the CDN example below.</p>
+            See the mapped resource examples below.</p>
         <br/>
         <p>The CEM runtime captures the page import map and resolves it through the
             scope-aware CEM resolver. It does not use the JavaScript module containing
@@ -208,7 +208,10 @@
     <template type="text/cem-ml">
 {cem-module-url @slice=libUrl @src=embed-lib}
 {article @class=demo-card |
-    {p | Mapped document: {output | {$datadom.slices.libUrl}}}
+    {p | Mapped document:
+        {a @href="{$datadom.slices.libUrl}" |
+            {output | {$datadom.slices.libUrl}}}
+    }
     {cem:if @test=datadom.slices.libUrl |
         {cem-element
             @tag=cem-module-mapped-declaration
@@ -254,7 +257,10 @@
     @slice=fragmentUrl
     @src="lib-root/embed-lib.html#embed-relative-file"}
 {article @class=demo-card |
-    {p | Mapped fragment: {output | {$datadom.slices.fragmentUrl}}}
+    {p | Mapped fragment:
+        {a @href="{$datadom.slices.fragmentUrl}" |
+            {output | {$datadom.slices.fragmentUrl}}}
+    }
     {cem:if @test=datadom.slices.fragmentUrl |
         {cem-element
             @tag=cem-module-mapped-fragment
@@ -263,6 +269,33 @@
             failed to load mapped fragment}
     }
 }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="4d. Mapped image and same-library fragment"
+        description="One prefix map resolves both a picture and a template; the template resolves its own picture and nested fragment from its library URL">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem-module-url @slice=fragmentUrl
+    @src="lib-root/embed-lib.html#embed-relative-hash"}
+{cem-module-url @slice=imageUrl @src="lib-root/Smiley.svg"}
+{article @class=demo-card |
+    {p | Both 🙂 images should match.
+         Open the links to inspect their sources.}
+    {cem:if
+        @test='datadom.slices.fragmentUrl && datadom.slices.imageUrl' |
+        {a @href="{$datadom.slices.fragmentUrl}" |
+            {img @src="{$datadom.slices.imageUrl}" @alt="Mapped Smiley"}
+            lib-root/…#embed-relative-hash
+        }
+        {hr}
+        {cem-element @src="{$datadom.slices.fragmentUrl}" |
+            loading same-library fragment}
+}   }
     </template>
 </cem-element>
         </template>
@@ -382,7 +415,6 @@
         legend="image-link"
         description="helper to display image and its url as link">
         <template>
-
 <cem-element tag="expando-link">
     <template type="text/cem-ml">
 {attribute @name=href}

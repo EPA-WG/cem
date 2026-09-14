@@ -49,12 +49,21 @@ export const EveryAuthoredSample: Story = {
         const textarea = requiredElement(textareaSample, 'textarea') as HTMLTextAreaElement;
         textarea.focus();
         setValueAndDispatch(textarea, 'one two three');
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        assertText(textareaSample, 'form > p strong', '2', 'typing alone does not commit the textarea');
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
         await waitForText(textareaSample, 'form > p strong', '3', 'textarea word count updates');
         assert(
             requiredElement(textareaSample, 'textarea') === textarea,
             'DOM merge preserves the edited textarea node'
         );
         assert(document.activeElement === textarea, 'DOM merge preserves textarea focus');
+        setValueAndDispatch(textarea, ' one\tone\n🍒  🍋 ');
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForText(textareaSample, 'form > p strong', '4', 'split counts repeated words and mixed whitespace');
+        setValueAndDispatch(textarea, '\t\n\u00a0\u2003');
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForText(textareaSample, 'form > p strong', '0', 'Unicode whitespace yields no words');
 
         const inputSample = sampleByLegend(host, EXPECTED_LEGENDS[1]);
         const input = requiredElement(inputSample, 'input') as HTMLInputElement;
@@ -65,6 +74,18 @@ export const EveryAuthoredSample: Story = {
         assertText(inputSample, 'form > p:nth-of-type(2) strong', '2', 'word count follows the input slice');
         assert(requiredElement(inputSample, 'input') === input, 'DOM merge preserves the edited input node');
         assert(document.activeElement === input, 'DOM merge preserves input focus');
+        input.setSelectionRange(4, 4);
+        input.setRangeText('short ', 4, 4, 'end');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitForText(inputSample, 'output', 'two short words', 'insertion updates the slice');
+        assert(input.selectionStart === 10 && input.selectionEnd === 10, 'the caret stays at the insertion');
+        setValueAndDispatch(input, '🍒 🍒 🍋');
+        await waitForText(inputSample, 'form > p:first-of-type strong', '5', 'character count uses codepoints');
+        assertText(inputSample, 'form > p:nth-of-type(2) strong', '3', 'repeated fruit words each count');
+        setValueAndDispatch(input, '   ');
+        await waitForText(inputSample, 'form > p:nth-of-type(2) strong', '0', 'whitespace contains no words');
+        setValueAndDispatch(input, '');
+        await waitForText(inputSample, 'form > p:first-of-type strong', '0', 'empty input has zero characters');
     },
 };
 

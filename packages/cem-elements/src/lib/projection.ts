@@ -81,8 +81,8 @@ export interface RenderPlanAttribute {
 }
 
 export type RenderPlanNode =
-    | { kind: 'text'; text: string; sourceMapRef?: SourceMapRef }
-    | { kind: 'comment'; text: string; sourceMapRef?: SourceMapRef }
+    | { kind: 'text'; text: string; renderNodeId?: string; sourceMapRef?: SourceMapRef }
+    | { kind: 'comment'; text: string; renderNodeId?: string; sourceMapRef?: SourceMapRef }
     | {
           kind: 'element';
           namespace: string | null;
@@ -1119,6 +1119,13 @@ export function validateRenderPlanGeneratedIds(plan: RenderPlan): GeneratedRende
 
     const visit = (node: RenderPlanNode, path: string): void => {
         if (node.kind !== 'element') {
+            if (node.renderNodeId) {
+                recordGeneratedRenderPlanId(renderNodeIds, diagnostics, {
+                    kind: 'render-node', id: node.renderNodeId, path,
+                    code: 'cem.render_plan.generated_render_node_id_duplicate',
+                    label: 'render-node ID',
+                });
+            }
             return;
         }
         recordGeneratedRenderPlanId(renderNodeIds, diagnostics, {
@@ -1969,7 +1976,7 @@ export function applyPatchFramesToRange(
     try {
         for (const { operation, target } of resolved) {
             if (operation.op === 'setText') {
-                target.textContent = operation.value;
+                setRenderedText(target, operation.value);
             } else if (operation.op === 'setAttribute') {
                 const element = target as Element;
                 const attributes = renderedAttributeValues.get(element) ?? authoredAttributes(element);
@@ -2064,7 +2071,7 @@ function abortedPatch(message: string): PatchFramesApplyResult {
 
 function deserializePatchNode(node: SerializedNode): RenderPlanNode {
     if (node.kind === 'text' || node.kind === 'comment') {
-        return { kind: node.kind, text: node.text, sourceMapRef: node.sourceMapRef };
+        return { kind: node.kind, text: node.text, renderNodeId: node.renderNodeId, sourceMapRef: node.sourceMapRef };
     }
     return {
         kind: 'element',
@@ -2079,6 +2086,17 @@ function deserializePatchNode(node: SerializedNode): RenderPlanNode {
 
 function materializeSerializedNode(node: SerializedNode, identity: RenderPlanIdentity, document: Document): Node {
     return materializeNode(deserializePatchNode(node), { ...identity, nodes: [] }, document);
+}
+
+/** A changed authored textarea body also controls its dirty live value. */
+function setRenderedText(target: Node, value: string): void {
+    target.textContent = value;
+    const parent = target.nodeType === 1 ? target as Element : target.parentElement;
+    if (parent?.localName === 'textarea' && parent.namespaceURI === XHTML_NAMESPACE) {
+        const textarea = parent as HTMLTextAreaElement;
+        const desired = textarea.textContent ?? '';
+        if (textarea.value !== desired) textarea.value = desired;
+    }
 }
 
 function updateCommittedRenderMetadata(
@@ -2414,8 +2432,9 @@ function mergeRenderPlanNode(
         }
         const value = desired.kind === 'text' ? desired.text : desired.text;
         if (match.first.nodeValue !== value) {
-            match.first.nodeValue = value;
+            setRenderedText(match.first, value);
         }
+        (match.first as Node & { cemRenderNodeId?: string }).cemRenderNodeId = textNodePatchId(desired);
         return;
     }
 
@@ -2459,8 +2478,9 @@ function mergeDynamicRange(
     let current = start.nextSibling as ChildNode | null;
     if (current && current !== end && current.nodeType === desiredType) {
         if (current.nodeValue !== desired.text) {
-            current.nodeValue = desired.text;
+            setRenderedText(current, desired.text);
         }
+        (current as Node & { cemRenderNodeId?: string }).cemRenderNodeId = textNodePatchId(desired);
         current = current.nextSibling as ChildNode | null;
     } else {
         start.parentNode?.insertBefore(createTextLikeNode(desired, context.document), end);
@@ -3090,6 +3110,7 @@ function serializeRenderNode(node: RenderPlanNode): SerializedNode {
 }
 
 function textNodePatchId(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>): string {
+    if (node.renderNodeId) return node.renderNodeId;
     return node.sourceMapRef?.frame ? `text:${node.sourceMapRef.frame}` : `text:${stableTextHash(node.text)}`;
 }
 

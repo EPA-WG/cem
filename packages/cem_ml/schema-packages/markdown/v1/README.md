@@ -41,6 +41,27 @@ The schema describes Markdown resources as a document model:
 Variant-specific parsers can refine this model through converter profiles
 instead of changing the generic Markdown schema identity.
 
+### HTML table data projection
+
+When converted Markdown tables are exposed as CEM-QL data, each body row has a
+portable JSON-compatible record. The first header row supplies named fields by
+lowercasing its text, replacing punctuation and whitespace runs with `_`, and
+trimming leading or trailing `_`. For example, `Forced-colors value` becomes
+`forced_colors_value`.
+
+Every row also contains:
+
+- `cells`, the ordered normalized cell strings;
+- `source_table`, the table anchor or source identity;
+- `source_row`, the one-based body-row position; and
+- `td1`, `td2`, and subsequent positional compatibility aliases.
+
+Named fields never replace those reserved properties. Empty normalized
+headings, duplicate normalized headings, and headings that normalize to
+`cells`, `source_table`, `source_row`, or `tdN` are diagnosed and remain
+available through `cells` and the positional aliases. Browser and native/SSR
+hosts must supply this same record shape at the CEM-QL data boundary.
+
 ## Verification
 
 The package-local `cem_ml_schema_package_markdown_v1:verify` target checks:
@@ -55,6 +76,9 @@ The package-local `cem_ml_schema_package_markdown_v1:verify` target checks:
 - CLI validation behavior for the same Markdown source cases;
 - exact language-tagged Markdown source-fence drift for every example, plus
   absence of Markdown README preview SVG artifacts.
+- the portable table-row projection contract, including normalized fields,
+  ordered cells, source provenance, compatibility aliases, and collision
+  diagnostics.
 
 ## Release Behavior
 

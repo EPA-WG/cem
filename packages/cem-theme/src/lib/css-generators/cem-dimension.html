@@ -17,22 +17,25 @@
 <!--
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
   datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
-  cem_ql WASM boundary; no live browser XSLT. Columns — scale: td1=token td2=value td3=desc;
-  gaps/insets: td1=token td2=value td3=desc; layout: td1=token td2=value td3=desc td4=tier;
-  overrides: td1=token td2=dense td3=sparse. @test uses bare cem-ql names + double-quoted strings.
+  cem_ql WASM boundary; no live browser XSLT. Rows use normalized Markdown heading fields such as
+  token/value/description/tier and token/dense/sparse. @test uses bare cem-ql names and
+  double-quoted strings.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-dimension-template"
           data-token-url="../../../dist/lib/tokens/cem-dimension.xhtml"
           data-slices="scale=cem-dim-scale gaps=cem-dim-gaps insets=cem-dim-insets rreading=cem-dim-rhythm-reading rdata=cem-dim-rhythm-data layout=cem-dim-layout overrides=cem-dim-spacing-overrides">
+{module @version="1.0.0" |
+{import @as=docs @src="./cem-token-docs.cemt"}
+{body |
 {table @id=cem-dim-scale |
     {caption | {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#5-1-primary-dimension-scale-semantic-css" | cem-dim-scale} — dimension scale}
     {thead | {tr | {th | Token}{th | Value}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.scale" @as="row" |
         {tr |
-            {th | {code | {$row.td1}}}
-            {td @style="width:5rem; background-color: var(--cem-palette-comfort, #fff)" | {div @style="height: {$row.td2}; background: currentColor; min-height: 2px; max-height: 8rem;" @title='{str:concat((row.td1, ": ", row.td2))}' | }}
-            {td | {code | {$row.td2}} — {$row.td3}}
+            {th | {code | {$row.token}}}
+            {td @style="width:5rem; background-color: var(--cem-palette-comfort, #fff)" | {div @style="height: {$row.value}; background: currentColor; min-height: 2px; max-height: 8rem;" @title='{str:concat((row.token, ": ", row.value))}' | }}
+            {td | {code | {$row.value}} — {$row.description}}
         }}}
 }
 {hr | }
@@ -40,61 +43,56 @@
     {caption | {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#6-1-relationship-gaps-between-items" | cem-dim-gaps} + {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#6-2-insets-inside-a-surface" | cem-dim-insets} — semantic spacing endpoints}
     {thead | {tr | {th | Token}{th | Value}{th | Swatch}{th | Description}}}
     {tbody | {cem:for-each @select="(datadom.slices.gaps,datadom.slices.insets)" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}{td | {$row.td3}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value}}}{td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.token}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.token}" | }}{td | {$row.description}}}}}
 }
 {hr | }
-{table @id=cem-dim-layout |
-    {caption | {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#7-4-layout-token-table" | cem-dim-layout} — layout rhythm tokens}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.layout" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
-}
+{call @from=docs @template=standard-token-table
+    @with:rows={datadom.slices.layout} @with:id=cem-dim-layout
+    @with:href="../../../dist/lib/tokens/cem-dimension.xhtml#7-4-layout-token-table"
+    @with:link_label=cem-dim-layout @with:caption=" — layout rhythm tokens"}
 {hr | }
 {table @id=cem-dim-spacing-overrides |
     {caption | {a @href="../../../dist/lib/tokens/cem-dimension.xhtml#8-2-concrete-overrides-recommended-default-mapping" | cem-dim-spacing-overrides} — density mode overrides}
     {thead | {tr | {th | Token}{th | dense}{th | sparse}}}
     {tbody | {cem:for-each @select="$datadom.slices.overrides" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.dense}}}{td | {code | {$row.sparse}}}}}}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
-  /* region dimension scale: cem-dim-[size] */```{cem:for-each @select="$datadom.slices.scale" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region dimension scale: cem-dim-[size] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.scale} @with:indent="  "}```
   /* endregion dimension scale */
 
-  /* region relationship gaps: cem-gap-[level] */```{cem:for-each @select="$datadom.slices.gaps" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region relationship gaps: cem-gap-[level] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.gaps} @with:indent="  "}```
   /* endregion gaps */
 
-  /* region insets: cem-inset-[level] */```{cem:for-each @select="$datadom.slices.insets" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region insets: cem-inset-[level] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.insets} @with:indent="  "}```
   /* endregion insets */
 
-  /* region reading rhythm: cem-rhythm-reading-[level] */```{cem:for-each @select="$datadom.slices.rreading" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region reading rhythm: cem-rhythm-reading-[level] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.rreading} @with:indent="  "}```
   /* endregion reading rhythm */
 
-  /* region data rhythm: cem-rhythm-data-[level] */```{cem:for-each @select="$datadom.slices.rdata" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region data rhythm: cem-rhythm-data-[level] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.rdata} @with:indent="  "}```
   /* endregion data rhythm */
 
-  /* region layout tokens: cem-layout-[purpose] (excludes deprecated) */```{cem:for-each @select="$datadom.slices.layout" @as="row" |{cem:if @test='row.td4 != "deprecated"' |```
-  ```{$row.td1}: {$row.td2};}}```
+  /* region layout tokens: cem-layout-[purpose] (excludes deprecated) */```{cem:for-each @select="$datadom.slices.layout" @as="row" |{cem:if @test='row.tier != "deprecated"' |```
+  ```{$row.token}: {$row.value};}}```
   /* endregion layout tokens */
 }
 
 /* region spacing mode: dense */
 :root[data-cem-spacing="dense"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  ```{$row.token}: {$row.dense};}```
 }
 /* endregion spacing mode: dense */
 
 /* region spacing mode: sparse */
 :root[data-cem-spacing="sparse"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.sparse};}```
 }
 /* endregion spacing mode: sparse */
 ```}}
+}
+}
 </template>
 <main></main>
 <cem-css-loader></cem-css-loader>

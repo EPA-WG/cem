@@ -52,6 +52,7 @@ fn evaluate_once(source: &str) -> ItemStream {
     evaluate(
         &compiled,
         &EvaluationContext {
+            native_functions: Default::default(),
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root().with_queue_size(4096),
             diagnostics: Vec::new(),

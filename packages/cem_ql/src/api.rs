@@ -177,6 +177,7 @@ pub fn evaluate_expression(
             policy_bindings: context.policy_bindings(),
             current_item: context.context_item.clone(),
             module_resolution: context.module_resolution.clone(),
+            native_functions: context.native_functions.clone(),
         },
     );
     Ok(ExpressionEvaluation { compiled, result })
@@ -305,6 +306,8 @@ pub struct EvaluationContext {
     pub current_item: Option<Item>,
     /// Host-owned, scope-aware URL resolution capability.
     pub module_resolution: Option<CemModuleUrlResolutionCapability>,
+    /// Explicit runtime-only native query capabilities, absent by default.
+    pub native_functions: crate::native::NativeFunctionRegistry,
 }
 
 impl Default for EvaluationContext {
@@ -316,6 +319,7 @@ impl Default for EvaluationContext {
             policy_bindings: BTreeMap::new(),
             current_item: None,
             module_resolution: None,
+            native_functions: Default::default(),
         }
     }
 }
@@ -353,6 +357,7 @@ pub struct StandaloneExpressionContext {
     pub resolver_policy_stamp: Option<String>,
     pub host_capability_profile: Option<String>,
     pub module_resolution: Option<CemModuleUrlResolutionCapability>,
+    pub native_functions: crate::native::NativeFunctionRegistry,
 }
 
 impl Default for StandaloneExpressionContext {
@@ -370,6 +375,7 @@ impl Default for StandaloneExpressionContext {
             resolver_policy_stamp: None,
             host_capability_profile: None,
             module_resolution: None,
+            native_functions: Default::default(),
         }
     }
 }

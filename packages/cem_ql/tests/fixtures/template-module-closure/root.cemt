@@ -1,0 +1,8 @@
+{module-map | {import @specifier=docs @target="./docs.cemt"}}
+{module |
+    {import @as=docs @src=docs}
+    {body | {table | {call
+        @from=docs @template=token-row
+        @with:token=--cem-gap @with:value=0.5rem
+    }}}
+}

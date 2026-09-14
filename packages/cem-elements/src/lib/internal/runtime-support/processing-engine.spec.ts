@@ -14,6 +14,11 @@ vi.mock('./cem-ql-render.js', () => {
         sourceMapMode,
     })),
     compileCemMlTemplateArtifact: vi.fn(async (source: string) => new TextEncoder().encode(source)),
+    retainCemMlTemplateModuleClosure: vi.fn(async (source: string) => {
+        const artifactId = nextArtifactId++;
+        sources.set(artifactId, source);
+        return { artifactId, diagnostics: [], stylesheets: [{ css: 'p { color: blue; }', scope: null }] };
+    }),
     retainCemMlTemplateSource: vi.fn(async (source: string) => {
         const artifactId = nextArtifactId++;
         sources.set(artifactId, source);
@@ -140,6 +145,31 @@ import {
 import { createCemProcessingTextSource } from './processing-host.js';
 
 describe('Phase 3A retained processing engine', () => {
+    it('keys dependency closures separately and returns imported styles without source-only binary export', async () => {
+        const engine = new CemProcessingEngine();
+        const input = {
+            language: 'cem-ml' as const, producedTag: 'cem-imported',
+            templateArtifactId: 'imported-1', registrationIdentity: 'registration-imported',
+            source: createCemProcessingTextSource('{module | {import @as=base @src="./base.cemt"}}'),
+            sourceRef: { kind: 'url' as const, value: 'https://example.test/root.cemt' },
+            resolverIdentity: 'test', scopePolicyStamp: 'test', sourceMapMode: 'dev' as const,
+            exportCompiledArtifact: true as const,
+            moduleClosure: {
+                rootUri: 'https://example.test/root.cemt', rootContentHash: 'root',
+                resolverPolicyStamp: 'test', entrypoint: 'body', parameterContract: [],
+                cemMlVersion: '0.1.0', cemQlVersion: '0.1.0',
+                modules: [{ alias: 'base', uri: 'https://example.test/base.cemt', contentHash: 'one', source: '{p | one}' }],
+            },
+        };
+        const first = await engine.compile(input);
+        expect(first.stylesheets).toEqual([{ css: 'p { color: blue; }', scope: null }]);
+        expect(first.compiledArtifact).toBeUndefined();
+        const changed = { ...input, moduleClosure: { ...input.moduleClosure,
+            modules: [{ ...input.moduleClosure.modules[0], contentHash: 'two', source: '{p | two}' }] } };
+        await expect(engine.compile(changed)).rejects.toThrow('another identity');
+        const second = await engine.compile({ ...changed, templateArtifactId: 'imported-2' });
+        expect(second.artifact.cacheKey).not.toBe(first.artifact.cacheKey);
+    });
     it('compiles and diffs the same canonical CEM-ML semantics for worker and fallback hosts', async () => {
         const workerEngine = new CemProcessingEngine();
         const fallbackEngine = new CemProcessingEngine();

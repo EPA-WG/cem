@@ -1,0 +1,152 @@
+{module @version="1.0.0" |
+    {template @name=standard-token-table @visibility=public |
+        {param @name=rows}{param @name=id}{param @name=href}
+        {param @name=link_label}{param @name=caption}
+        {body |
+            {call @template=token-table
+                @with:rows={rows} @with:id="{$id}" @with:href="{$href}"
+                @with:link_label="{$link_label}" @with:caption="{$caption}"
+                @with:value_label=Value @with:tier_label=Tier
+                @with:preview_label="" @with:preview_kind=none
+                @with:description_label=Description}
+        }
+    }
+
+    {template @name=width-token-table @visibility=public |
+        {param @name=rows}{param @name=id}{param @name=href}
+        {param @name=link_label}{param @name=caption}
+        {body |
+            {call @template=token-table
+                @with:rows={rows} @with:id="{$id}" @with:href="{$href}"
+                @with:link_label="{$link_label}" @with:caption="{$caption}"
+                @with:value_label=Value @with:tier_label=Tier
+                @with:preview_label=Swatch @with:preview_kind=width
+                @with:description_label=Description}
+        }
+    }
+
+    {template @name=preview-token-table @visibility=public |
+        {param @name=rows}{param @name=id}{param @name=href}
+        {param @name=link_label}{param @name=caption}
+        {param @name=preview_label}{param @name=preview_kind}
+        {body |
+            {call @template=token-table
+                @with:rows={rows} @with:id="{$id}" @with:href="{$href}"
+                @with:link_label="{$link_label}" @with:caption="{$caption}"
+                @with:value_label=Value @with:tier_label=Tier
+                @with:preview_label="{$preview_label}" @with:preview_kind="{$preview_kind}"
+                @with:description_label=Description}
+        }
+    }
+
+    {template @name=token-table @visibility=public |
+        {param @name=rows}
+        {param @name=id}
+        {param @name=href}
+        {param @name=link_label}
+        {param @name=caption}
+        {param @name=value_label}
+        {param @name=tier_label}
+        {param @name=preview_label}
+        {param @name=preview_kind}
+        {param @name=description_label}
+        {body |
+            {table @id="{$id}" |
+                {caption | {a @href="{$href}" | {$link_label}}{$caption}}
+                {thead | {tr |
+                    {th | Token}
+                    {th | {$value_label}}
+                    {cem:if @test='tier_label != ""' | {th | {$tier_label}}}
+                    {cem:if @test='preview_label != ""' | {th | {$preview_label}}}
+                    {cem:if @test='description_label != ""' | {th | {$description_label}}}
+                }}
+                {tbody |
+                    {cem:for-each @select=rows @as=row |
+                        {call
+                            @template=token-row
+                            @with:row={row}
+                            @with:tier_label="{$tier_label}"
+                            @with:preview_label="{$preview_label}"
+                            @with:preview_kind="{$preview_kind}"
+                            @with:description_label="{$description_label}"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    {template @name=token-row @visibility=private |
+        {param @name=row}
+        {param @name=tier_label}
+        {param @name=preview_label}
+        {param @name=preview_kind}
+        {param @name=description_label}
+        {body |
+            {tr |
+                {th | {code | {$row.token}}}
+                {td | {code | {$row.value}}}
+                {cem:if @test='tier_label != ""' | {td | {$row.tier}}}
+                {cem:if @test='preview_label != ""' |
+                    {td @style='{if preview_kind == "stroke" || preview_kind == "shadow" { "width:6rem;" } else { if preview_kind == "duration" || preview_kind == "easing" { "" } else { "width:5rem;" } }}' |
+                        {cem:choose |
+                            {cem:when @test='preview_kind == "width"' |
+                                {div
+                                    @style="height:1rem; width: var({$row.token}); background: currentColor; min-width: 2px; max-width: 8rem;"
+                                    @title="{$row.token}" |
+                                }
+                            }
+                            {cem:when @test='preview_kind == "height"' |
+                                {div
+                                    @style="height: var({$row.token}); width:1rem; background: currentColor; min-height: 2px; max-height: 8rem;"
+                                    @title="{$row.token}" |
+                                }
+                            }
+                            {cem:when @test='preview_kind == "stroke"' |
+                                {div
+                                    @style="height:1.25rem; width:5rem; border-block-end: var({$row.token}) solid currentColor;"
+                                    @title="{$row.token}" |
+                                }
+                            }
+                            {cem:when @test='preview_kind == "radius"' |
+                                {div
+                                    @style="height:2rem; width:3rem; background: currentColor; border-radius: var({$row.token});"
+                                    @title="{$row.token}" |
+                                }
+                            }
+                            {cem:when @test='preview_kind == "shadow"' |
+                                {div
+                                    @style="height:2rem; width:5rem; background: Canvas; box-shadow: var({$row.token}); border-radius: 0.25rem;"
+                                    @title="{$row.token}" |
+                                }
+                            }
+                            {cem:when @test='preview_kind == "duration"' |
+                                {div
+                                    @style="width:2rem; height:2rem; background:currentColor; transition: transform var({$row.token}) var(--cem-easing-smooth,ease-in-out);"
+                                    @onmouseenter="this.style.transform='scale(1.5)'"
+                                    @onmouseleave="this.style.transform=''" |
+                                }
+                            }
+                            {cem:when @test='preview_kind == "easing"' |
+                                {div
+                                    @style="width:2rem; height:2rem; background:currentColor; transition: transform var(--cem-duration-noticeable,250ms) var({$row.token});"
+                                    @onmouseenter="this.style.transform='scale(1.5)'"
+                                    @onmouseleave="this.style.transform=''" |
+                                }
+                            }
+                        }
+                    }
+                }
+                {cem:if @test='description_label != ""' | {td | {$row.description}}}
+            }
+        }
+    }
+
+    {template @name=css-properties @visibility=public |
+        {param @name=rows}
+        {param @name=indent}
+        {body |
+            {cem:for-each @select=rows @as=row | {$indent}{$row.token}: {$row.value};{$ "\n"}}
+        }
+    }
+}

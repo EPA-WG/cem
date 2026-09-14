@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+import { scopeCssText } from './projection.js';
 
 const DEMO_URL = new URL('../../demo/hex-grid.html', import.meta.url);
 const DEMO_SOURCE = readFileSync(fileURLToPath(DEMO_URL), 'utf8');
@@ -13,6 +14,7 @@ const WRAPPING_LEGEND = '5. Wrapping long label';
 const FALLBACK_LEGEND = '6. Missing-image fallback';
 const WRAPPER_LEGEND = '7. Wrapper DCE theme';
 const IMAGE_BUTTON_LEGEND = '8. Image-button presentation';
+const ROW_LEGEND = '9. Horizontal row with a current page';
 const LOCAL_LOGOS = [
     'wc-square',
     'angular',
@@ -77,6 +79,7 @@ describe('hex-grid demo source contract', () => {
             FALLBACK_LEGEND,
             WRAPPER_LEGEND,
             IMAGE_BUTTON_LEGEND,
+            ROW_LEGEND,
         ]);
         expect(DEMO_SOURCE).toContain('<template>\n<cem-element tag="cem-hex-image-link">');
         expect(DEMO_SOURCE).toContain('<cem-element tag="cem-hex-grid">');
@@ -90,10 +93,10 @@ describe('hex-grid demo source contract', () => {
         expect(DEMO_SOURCE).toContain('@select="$link.children"');
         expect(DEMO_SOURCE).toContain('@href="{$link.attributes.href}"');
         expect(DEMO_SOURCE).toContain('@src="{$image.attributes.src}"');
-        expect(DEMO_SOURCE).toContain('@class=hex-grid');
+        expect(DEMO_SOURCE).toContain('@class="hex-grid hex-grid-{$layout}"');
         expect(DEMO_SOURCE).toContain('{li @class="hex hex-{$alternate}"');
         expect(DEMO_SOURCE).toContain('{a  @class=hex-link');
-        expect(DEMO_SOURCE.match(/<a href="[^"]+">\s*<img[\s\S]*?alt="[^"]+">\s*<\/a>/gu)).toHaveLength(35);
+        expect(DEMO_SOURCE.match(/<a href="[^"]+"(?: aria-current="page")?>\s*<img[\s\S]*?alt="[^"]+">\s*<\/a>/gu)).toHaveLength(38);
         expect(DEMO_SOURCE).toContain(
             '<a href="./module-url.html"><img src="./framework-logos/wc-square.svg" alt="DCE"></a>',
         );
@@ -111,6 +114,32 @@ describe('hex-grid demo source contract', () => {
         expect(DEMO_SOURCE).toContain('<cem-hex-grid size="65%">');
         expect(DEMO_SOURCE).toContain('<cem-hex-grid size="35rem">');
         expect(DEMO_SOURCE.match(/<cem-hex-grid[^>]+size=/gu)).toHaveLength(6);
+    });
+
+    it('reuses the grid for a scrollable row with semantic current-page state', () => {
+        expect(DEMO_SOURCE).toContain('<cem-hex-grid layout="row" label="Demo page links">');
+        expect(DEMO_SOURCE).toContain('{attribute @name=layout | honeycomb}');
+        expect(DEMO_SOURCE).toContain('@current=\'{link.attributes.aria-current ?? "false"}\'');
+        expect(DEMO_SOURCE).toContain('@aria-current="{$current}"');
+        expect(DEMO_SOURCE).toContain('{span @aria-hidden=true | ✓ }');
+        expect(DEMO_SOURCE).toContain('href="./hex-grid.html" aria-current="page"');
+        expect(DEMO_SOURCE).toContain('.hex-grid-row > .hex');
+        expect(DEMO_SOURCE).toContain('flex-wrap: nowrap');
+        expect(DEMO_SOURCE).toContain('overflow-x: auto');
+        expect(DEMO_SOURCE).toContain('--cem-hex-row-cell-width');
+        expect(DEMO_SOURCE).toContain('--cem-hex-current-background-start');
+        expect(DEMO_SOURCE).toContain('--cem-hex-current-label-color');
+        expect(DEMO_SOURCE).toContain('Tab moves focus without moving the current-page marker');
+        expect(DEMO_SOURCE).not.toContain('button:has([selected])');
+    });
+
+    it('keeps all helper styles within the CEM scoped-CSS policy', () => {
+        const styles = Array.from(DEMO_SOURCE.matchAll(/\{style\s+\|```([\s\S]*?)```\}/gu));
+        expect(styles).toHaveLength(4);
+        for (const [, css] of styles) {
+            const result = scopeCssText(css, 'hex-demo', { scopeRootSelector: 'cem-hex-grid' });
+            expect(result.diagnostics).toEqual([]);
+        }
     });
 
     it('keeps backgrounds uniform by default and makes alternation opt-in', () => {

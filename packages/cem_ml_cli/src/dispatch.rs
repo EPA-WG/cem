@@ -5818,7 +5818,11 @@ fn render_transform_graph_report_cem(
     out.push_str(" |\n");
     let manifest = &transform_graph.module_asset_manifest;
     cem_element_start(out, indent + 1, "module-asset-manifest");
-    cem_attr_u64(out, "contract-version", u64::from(manifest.contract_version));
+    cem_attr_u64(
+        out,
+        "contract-version",
+        u64::from(manifest.contract_version),
+    );
     cem_attr(out, "hash-scheme", &manifest.hash_scheme);
     cem_attr(out, "hash", &manifest.hash);
     cem_attr_u64(out, "asset-count", manifest.asset_count);
@@ -5948,10 +5952,7 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
         let manifest = &transform_graph.module_asset_manifest;
         out.push_str(&format!(
             "- module assets: {} [contract v{}, {}:{}]\n",
-            manifest.asset_count,
-            manifest.contract_version,
-            manifest.hash_scheme,
-            manifest.hash
+            manifest.asset_count, manifest.contract_version, manifest.hash_scheme, manifest.hash
         ));
         for asset in &manifest.assets {
             out.push_str(&format!(
@@ -9199,7 +9200,10 @@ mod tests {
             &["transform", "--config", config.to_str().unwrap()],
         );
 
-        assert_eq!(outcome.exit_code, EXIT_OK, "stdout={stdout}\nstderr={stderr}");
+        assert_eq!(
+            outcome.exit_code, EXIT_OK,
+            "stdout={stdout}\nstderr={stderr}"
+        );
         let html = std::fs::read_to_string(root.join("dist/index.html")).unwrap();
         let normalized = html.split_whitespace().collect::<Vec<_>>().join(" ");
         assert!(html.contains("<title>CEM Site</title>"), "{html}");
@@ -10206,9 +10210,7 @@ mod tests {
         assert!(markdown.contains("- main <- html -> out/page.html"));
         assert!(markdown.contains("[collectionItems: 1]"));
         assert!(markdown.contains("  - html <- primary -> out/page.html (text/html)"));
-        assert!(cem.contains(
-            "{module-asset-manifest @contract-version=1 @hash-scheme=\"sha256\""
-        ));
+        assert!(cem.contains("{module-asset-manifest @contract-version=1 @hash-scheme=\"sha256\""));
         assert!(cem.contains("{module-asset @specifier=\"@pkg/runtime\""));
 
         let value = serde_json::to_value(report).unwrap();

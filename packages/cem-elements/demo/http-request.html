@@ -51,23 +51,24 @@
 
     <cem-demo-element
         legend="0. URL from text to http-request"
-        description="Choose or edit a URL, then copy it into the request slice with GET">
+        description="Choose or edit a URL, then press GET; try an empty URL or an invalid JSON response, then recover with a valid preset">
         <template>
 <cem-element>
     <template type="text/cem-ml">
-{style |
+{style |```
     article { max-inline-size: 30rem; }
     .url-presets { display: flex; flex-wrap: wrap; gap: .5rem; }
     label, input { display: block; inline-size: 100%; }
-}
+```}
 {slice @name=selectedUrl | ./http-data.json}
-{slice @name=requestUrl | ./http-data.json}
-{http-request
-    @slice=selectedResult
-    @url="{$datadom.slices.requestUrl}"
-    @method=GET
-    @header-accept="application/json"
-    @content-type="application/json"
+{slice @name=requestUrl}
+{cem:if @test=datadom.slices.requestUrl |
+    {http-request
+        @slice=selectedResult
+        @url="{$datadom.slices.requestUrl}"
+        @method=GET
+        @header-accept="application/json"
+        @content-type="application/json"}
 }
 {article @class=demo-card |
     {h2 | 0. URL selected at runtime}
@@ -81,6 +82,13 @@
                 @slice=selectedUrl
                 @slice-event=click
                 @slice-value="'./http-data-compact.json'" | Compact records}
+        {button @type=button @aria-label="Empty URL" @title="Empty URL"
+                @slice=selectedUrl @slice-event=click
+                @slice-value="''" | ∅ URL}
+        {button @type=button
+                @aria-label="Invalid JSON response" @title="Invalid JSON response"
+                @slice=selectedUrl @slice-event=click
+                @slice-value="'./http-data-invalid.json'" | ⚠ JSON}
     }
     {label |
         Request URL
@@ -90,14 +98,22 @@
                @slice-event=input
                @slice-value="$target.value"}
     }
-    {button @type=button
+    {button @type=button @aria-label=GET @title=GET
+            @value="{$datadom.slices.selectedUrl}"
             @slice=requestUrl
-            @slice-event=click
-            @slice-value="$selectedUrl" | GET}
+            @slice-event=click | ↓ GET}
     {p | Selected URL: {output | {$datadom.slices.selectedUrl}}}
     {p | Requested URL: {output | {$datadom.slices.requestUrl}}}
-    {p | Request state: {output | {$datadom.slices.selectedResult.state}}}
-    {cem:if @test='datadom.slices.selectedResult.state == "loaded"' |
+    {p | Request state:
+        {output | {$if datadom.slices.requestUrl
+            { datadom.slices.selectedResult.state ?? "scheduled" }
+            else { "idle" }}}
+    }
+    {cem:if @test='datadom.slices.requestUrl && (datadom.slices.selectedResult.state ?? "") == "failed"' |
+        {p | This URL did not provide an accepted JSON response.
+             Choose All records or Compact records and press GET to recover.}
+    }
+    {cem:if @test='datadom.slices.requestUrl && (datadom.slices.selectedResult.state ?? "") == "loaded"' |
         {ul |
             {cem:for-each
                 @select="datadom.slices.selectedResult.data.results"
@@ -115,12 +131,12 @@
         <template>
 <cem-element>
     <template type="text/cem-ml">
-{style |
+{style |```
     article { max-inline-size: 30rem; }
     .result-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
     .result-buttons button { display: grid; justify-items: center; }
     .result-buttons img { block-size: 4rem; inline-size: 4rem; }
-}
+```}
 {http-request
     @slice=catalog
     @url="./http-pokemon.json"
@@ -134,7 +150,7 @@
     {h2 | Pokemon buttons from API}
     {p | The result should be six Pokémon SVG buttons.}
     {p | Request state: {output | {$datadom.slices.catalog.state}}}
-    {cem:if @test='datadom.slices.catalog.state == "loaded"' |
+    {cem:if @test='(datadom.slices.catalog.state ?? "") == "loaded"' |
         {div @class=result-buttons |
             {cem:for-each
                 @select="datadom.slices.catalog.data.results"
@@ -156,12 +172,12 @@
         <template>
 <cem-element>
     <template type="text/cem-ml">
-{style |
+{style |```
     article { max-inline-size: 30rem; }
     dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .5rem; }
     dt { font-weight: bold; }
     dd { margin: 0; overflow-wrap: anywhere; }
-}
+```}
 {http-request
     @slice=inspection
     @url="./http-data.json"

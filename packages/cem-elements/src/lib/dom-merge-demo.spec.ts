@@ -16,7 +16,7 @@ const DEMO_SOURCE = readFileSync(
 const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     {
         legend: '1. Textarea word count',
-        includes: ['{textarea', '@slice-event=input', 'Word count:'],
+        includes: ['{textarea', '@slice-event=change', 'Word count:', 'seq:where('],
     },
     {
         legend: '2. Input word and character count',
@@ -50,6 +50,10 @@ describe('DOM merge demo source contracts', () => {
         expect(source).toMatch(/<template>\n<cem-element>/u);
         expect(source.match(/<cem-element(?:\s|>)/gu)).toHaveLength(1);
         expect(source).not.toMatch(/<cem-element\s+[^>]*\btag=/u);
+        expect(normalizedSource).toContain('seq:count(seq:where(');
+        expect(normalizedSource).toContain('str:split(str:normalize_space(datadom.slices.text), " ")');
+        expect(normalizedSource).toContain('fn(word) => word != ""');
+        expect(source).not.toContain('str:translate');
 
         for (const required of includes) {
             expect(normalizedSource, `${legend} must include ${required}`).toContain(

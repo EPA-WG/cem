@@ -57,9 +57,19 @@ export const EveryAuthoredSample: Story = {
 };
 
 async function verifySimpleValidation(sample: HTMLElement): Promise<void> {
+    const username = requiredControl(sample, 'input[name="username"]');
+    click(requiredElement(sample, 'button'));
+    if (username.validity.valid || !username.validationMessage) throw new Error('empty Next must expose native validation');
+    setValueAndDispatch(username, 'short');
+    await waitForCondition(() => normalize(sample.textContent ?? '').includes('short'), 'short username is captured');
+    click(requiredElement(sample, 'button'));
     setValueAndDispatch(requiredControl(sample, 'input[name="username"]'), 'long-username');
+    await waitForCondition(() => normalize(sample.textContent ?? '').includes('long-username'), 'username is captured');
+    if (sample.querySelector('input[name="password"]')) throw new Error('typing alone must not advance the step');
+    await waitForText(sample, 'form > p:nth-of-type(2) output', 'false', 'a missing password keeps Next from submitting');
+    click(requiredElement(sample, 'button'));
     await waitForCondition(
-        () => sample.querySelector('input[name="password"]') !== null && buttonText(sample).includes('Sign in'),
+        () => sample.querySelector('input[name="password"]') !== null && buttonNames(sample).includes('Sign in'),
         'a long username reveals the password step'
     );
 
@@ -146,9 +156,11 @@ function chooseFruit(sample: ParentNode, index: number, label: string): void {
     const choice = choices.item(index);
     if (!choice) throw new Error(`expected fruit choice ${index + 1}`);
     const button = Array.from(choice.querySelectorAll<HTMLButtonElement>('button')).find(
-        (candidate) => normalize(candidate.textContent ?? '') === label
+        (candidate) => candidate.getAttribute('aria-label') === label
     );
     if (!button) throw new Error(`expected ${label} option in fruit choice ${index + 1}`);
+    assertEqual(normalize(button.textContent ?? ''), label === 'Apple' ? '🍏' : '🍌', `${label} uses its fruit symbol`);
+    assertEqual(button.title, label, `${label} retains its tooltip`);
     click(button);
 }
 
@@ -176,8 +188,8 @@ function click(element: HTMLElement): void {
     element.click();
 }
 
-function buttonText(root: ParentNode): string[] {
-    return Array.from(root.querySelectorAll('button'), (button) => normalize(button.textContent ?? ''));
+function buttonNames(root: ParentNode): string[] {
+    return Array.from(root.querySelectorAll('button'), (button) => normalize(button.getAttribute('aria-label') ?? button.textContent ?? ''));
 }
 
 function requiredElement(root: ParentNode, selector: string): HTMLElement {

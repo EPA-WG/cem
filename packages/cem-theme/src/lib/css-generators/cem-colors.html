@@ -19,14 +19,14 @@
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
   datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
   cem_ql WASM boundary; no live browser XSLT. The full color logic runs in cem-ql:
-   - hue-variant: td1=token td4=value.
-   - emotion-shift: td1=token td3=Light td4=dark td5=NativeLight td6=NativeDark. The cem-theme
+   - hue-variant uses token and value.
+   - emotion-shift uses token, light, dark, nativelight, and nativedark. The cem-theme
      palette resolves each short name to var(--cem-color-<name>) when that token exists in the
-     hue-variant table (cross-table join: datadom.slices.hue.td1 = str:concat(("--cem-color-",name)))
-     else var(--cem-palette-<name>); native uses td5/td6 format heuristics.
-   - action cross-product: intent (td1=intent td2=emotion) × state (td1=state td2=bg td3=text);
+     hue-variant table (cross-table join: datadom.slices.hue.token = str:concat(("--cem-color-",name)))
+     else var(--cem-palette-<name>); native uses the named native-mode fields and format heuristics.
+   - action cross-product: action_intent/emotional_palette × state/background_formula_palette_level/text_token;
      the [emotion] placeholder is filled with str:replace.
-   - zebra-mode-mapping: td1=mode td3=focus td4=target td5=selected; var()-wrapped when the value
+   - zebra-mode-mapping uses theme_mode and the named zebra state fields; var()-wrapped when a value
      starts with `--`, else used raw (system colors).
   @test uses bare cem-ql names + double-quoted string literals (so attributes are single-quoted).
 -->
@@ -39,14 +39,14 @@
     {thead | {tr | {th | Token}{th | Hue}{th | Swatch}{th | Label}{th | Value}}}
     {tbody | {cem:for-each @select="$datadom.slices.hue" @as="row" |
         {tr |
-            {th | {$row.td1}}
-            {td | {$row.td2}}
+            {th | {$row.token}}
+            {td | {$row.hue}}
             {td
-                @style='{str:concat(("background-color: var(", row.td1, "); min-width: 3rem;"))}'
-                @title='{str:concat((row.td1, " \n ", row.td6))}'
-                @data-cem-value='{str:concat((row.td1, ": ", row.td4))}' | }
-            {td | {$row.td5}}
-            {td | {code | {$row.td4}}}
+                @style="background-color: var({$row.token}); min-width: 3rem;"
+                @title='{str:concat((row.token, " \n ", row.intended_use))}'
+                @data-cem-value='{str:concat((row.token, ": ", row.value))}' | }
+            {td | {$row.label}}
+            {td | {code | {$row.value}}}
         }}
     }
 }
@@ -55,16 +55,16 @@
     {thead | {tr | {th | Color}{th | Light}{th | Dark}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.native" @as="row" |
         {tr |
-            {th | {code | {$row.td1}}}
+            {th | {code | {$row.color}}}
             {td
-                @style='{str:concat(("background-color: ", row.td1, "; color: ", row.td2, "; color-scheme: light; min-width: 6rem;"))}'
-                @title="{$row.td1}"
-                @data-cem-value="{$row.td1}" | {$row.td1}}
+                @style="background-color: {$row.color}; color: {$row.text_pair}; color-scheme: light; min-width: 6rem;"
+                @title="{$row.color}"
+                @data-cem-value="{$row.color}" | {$row.color}}
             {td
-                @style='{str:concat(("background-color: ", row.td1, "; color: ", row.td2, "; color-scheme: dark; min-width: 6rem;"))}'
-                @title="{$row.td1}"
-                @data-cem-value="{$row.td1}" | {$row.td1}}
-            {td | {$row.td3}}
+                @style="background-color: {$row.color}; color: {$row.text_pair}; color-scheme: dark; min-width: 6rem;"
+                @title="{$row.color}"
+                @data-cem-value="{$row.color}" | {$row.color}}
+            {td | {$row.description}}
         }}
     }
 }
@@ -73,38 +73,38 @@
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-palette-emotion-shift" | cem-palette-emotion-shift} Emotional palette}
     {thead | {tr | {th | emotion token}{th | light}{th | dark}{th | native light}{th | native dark}}}
     {tbody | {cem:for-each @select="$datadom.slices.shift" @as="row" |
-        {cem:if @test='!str:contains(row.td1, "-text") && !str:contains(row.td1, "-x")' |
+        {cem:if @test='!str:contains(row.token, "-text") && !str:contains(row.token, "-x")' |
             {tr |
-                {th | {$row.td1}}
+                {th | {$row.token}}
                 {td
-                    @style='{str:concat(("background-color: var(", row.td1, "); color: var(", row.td1, "-text); color-scheme: light"))}'
-                    @title='{str:concat((row.td1, " \n background-color: var(", row.td1, "); color: var(", row.td1, "-text); color-scheme: light"))}' | light ⬤ {$row.td8}}
+                    @style='{str:concat(("background-color: var(", row.token, "); color: var(", row.token, "-text); color-scheme: light"))}'
+                    @title='{str:concat((row.token, " \n background-color: var(", row.token, "); color: var(", row.token, "-text); color-scheme: light"))}' | light ⬤ {$row.emotion}}
                 {td
-                    @style='{str:concat(("background-color: var(", row.td1, "); color: var(", row.td1, "-text); color-scheme: dark"))}'
-                    @title='{str:concat((row.td1, " \n background-color: var(", row.td1, "); color: var(", row.td1, "-text); color-scheme: dark"))}' | dark ⬤ {$row.td8}}
+                    @style='{str:concat(("background-color: var(", row.token, "); color: var(", row.token, "-text); color-scheme: dark"))}'
+                    @title='{str:concat((row.token, " \n background-color: var(", row.token, "); color: var(", row.token, "-text); color-scheme: dark"))}' | dark ⬤ {$row.emotion}}
                 {td @class=cem-theme-native
-                    @style='{str:concat(("background-color: var(", row.td1, "); color: var(", row.td1, "-text); color-scheme: light"))}'
-                    @title='{str:concat((row.td1, " \n background-color: var(", row.td1, "); color: var(", row.td1, "-text); color-scheme: light"))}'
-                    @data-selected-token='{str:concat((".cem-theme-native,[data-theme=\"cem-theme-native\"]", "{}"))}' | native light ⬤ {$row.td8}}
+                    @style='{str:concat(("background-color: var(", row.token, "); color: var(", row.token, "-text); color-scheme: light"))}'
+                    @title='{str:concat((row.token, " \n background-color: var(", row.token, "); color: var(", row.token, "-text); color-scheme: light"))}'
+                    @data-selected-token='{str:concat((".cem-theme-native,[data-theme=\"cem-theme-native\"]", "{}"))}' | native light ⬤ {$row.emotion}}
                 {td @class=cem-theme-native
-                    @style='{str:concat(("background-color: var(", row.td1, "); color: var(", row.td1, "-text); color-scheme: dark"))}'
-                    @title='{str:concat((row.td1, " \n background-color: var(", row.td1, "); color: var(", row.td1, "-text); color-scheme: dark"))}'
-                    @data-selected-token='{str:concat((".cem-theme-native,[data-theme=\"cem-theme-native\"]", "{}"))}' | native dark ⬤ {$row.td8}}
+                    @style='{str:concat(("background-color: var(", row.token, "); color: var(", row.token, "-text); color-scheme: dark"))}'
+                    @title='{str:concat((row.token, " \n background-color: var(", row.token, "); color: var(", row.token, "-text); color-scheme: dark"))}'
+                    @data-selected-token='{str:concat((".cem-theme-native,[data-theme=\"cem-theme-native\"]", "{}"))}' | native dark ⬤ {$row.emotion}}
             }
             {tr |
-                {th | {$row.td1}-x}
+                {th | {$row.token}-x}
                 {td
-                    @style='{str:concat(("background-color: var(", row.td1, "-x); color: var(", row.td1, "-text-x); color-scheme: light"))}'
-                    @title='{str:concat((row.td1, "-x \n background-color: var(", row.td1, "-x); color: var(", row.td1, "-text-x); color-scheme: light"))}' | light ⬤ {$row.td8}-x}
+                    @style='{str:concat(("background-color: var(", row.token, "-x); color: var(", row.token, "-text-x); color-scheme: light"))}'
+                    @title='{str:concat((row.token, "-x \n background-color: var(", row.token, "-x); color: var(", row.token, "-text-x); color-scheme: light"))}' | light ⬤ {$row.emotion}-x}
                 {td
-                    @style='{str:concat(("background-color: var(", row.td1, "-x); color: var(", row.td1, "-text-x); color-scheme: dark"))}'
-                    @title='{str:concat((row.td1, "-x \n background-color: var(", row.td1, "-x); color: var(", row.td1, "-text-x); color-scheme: dark"))}' | dark ⬤ {$row.td8}-x}
+                    @style='{str:concat(("background-color: var(", row.token, "-x); color: var(", row.token, "-text-x); color-scheme: dark"))}'
+                    @title='{str:concat((row.token, "-x \n background-color: var(", row.token, "-x); color: var(", row.token, "-text-x); color-scheme: dark"))}' | dark ⬤ {$row.emotion}-x}
                 {td @class=cem-theme-native
-                    @style='{str:concat(("background-color: var(", row.td1, "-x); color: var(", row.td1, "-text-x); color-scheme: light"))}'
-                    @title='{str:concat((row.td1, "-x \n background-color: var(", row.td1, "-x); color: var(", row.td1, "-text-x); color-scheme: light"))}' | native light ⬤ {$row.td8}-x}
+                    @style='{str:concat(("background-color: var(", row.token, "-x); color: var(", row.token, "-text-x); color-scheme: light"))}'
+                    @title='{str:concat((row.token, "-x \n background-color: var(", row.token, "-x); color: var(", row.token, "-text-x); color-scheme: light"))}' | native light ⬤ {$row.emotion}-x}
                 {td @class=cem-theme-native
-                    @style='{str:concat(("background-color: var(", row.td1, "-x); color: var(", row.td1, "-text-x); color-scheme: dark"))}'
-                    @title='{str:concat((row.td1, "-x \n background-color: var(", row.td1, "-x); color: var(", row.td1, "-text-x); color-scheme: dark"))}' | native dark ⬤ {$row.td8}-x}
+                    @style='{str:concat(("background-color: var(", row.token, "-x); color: var(", row.token, "-text-x); color-scheme: dark"))}'
+                    @title='{str:concat((row.token, "-x \n background-color: var(", row.token, "-x); color: var(", row.token, "-text-x); color-scheme: dark"))}' | native dark ⬤ {$row.emotion}-x}
             }
         }
     }}
@@ -113,22 +113,22 @@
 {h1 | Action colors {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-action-state-color" | cem-action-state-color} intent × state}
 {section |
     {cem:for-each @select="$datadom.slices.mode" @as="mode" |
-        {section @class="cem-theme-{$mode.td1}" |
+        {section @class="cem-theme-{$mode.mode}" |
             {table @id=cem-action-state-color
                 @data-selected-token='{str:concat(("[data-theme*=\"cem-theme-\"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark ", "{}"))}' |
-                {caption | {b @title="{$mode.td3}" | {$mode.td1}} {sub | {$mode.td3}}}
+                {caption | {b @title="{$mode.description}" | {$mode.mode}} {sub | {$mode.description}}}
                 {thead | {tr |
                     {th | {sub | State} \ {sup | intent:}}
-                    {cem:for-each @select="$datadom.slices.intent" @as="intent" | {th | {$intent.td1}}}
+                    {cem:for-each @select="$datadom.slices.intent" @as="intent" | {th | {$intent.action_intent}}}
                 }}
                 {tbody | {cem:for-each @select="$datadom.slices.state" @as="state" |
                     {tr |
-                        {th | {$state.td1}}
+                        {th | {$state.state}}
                         {cem:for-each @select="$datadom.slices.intent" @as="intent" |
                             {td
-                                @style='{str:concat(("background-color: var(--cem-action-", intent.td1, "-", state.td1, "-background); color: var(--cem-action-", intent.td1, "-", state.td1, "-text); min-width: 4rem;"))}'
-                                @title='{str:concat(("--cem-action-", intent.td1, "-", state.td1, "-background \n --cem-action-", intent.td1, "-", state.td1, "-text"))}'
-                                @data-cem-value='{str:concat(("--cem-action-", intent.td1, "-", state.td1, "-background: ", str:replace(state.td2, "[emotion]", intent.td2), "; --cem-action-", intent.td1, "-", state.td1, "-text: ", str:replace(state.td3, "[emotion]", intent.td2)))}' | Aa}
+                                @style='{str:concat(("background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
+                                @title='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background \n --cem-action-", intent.action_intent, "-", state.state, "-text"))}'
+                                @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette), "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", str:replace(state.text_token, "[emotion]", intent.emotional_palette)))}' | Aa}
                         }
                     }
                 }}
@@ -141,60 +141,60 @@
 {section |
     {cem:for-each @select="$datadom.slices.mode" @as="mode" |
         {cem:for-each @select="$datadom.slices.zmap" @as="z" |
-            {cem:if @test='z.td1 == mode.td1' |
-                {section @class="cem-theme-{$mode.td1}" |
+            {cem:if @test='z.theme_mode == mode.mode' |
+                {section @class="cem-theme-{$mode.mode}" |
                     {table
-                        @data-selected-token='{if mode.td1 == "native" { str:concat((".cem-theme-native,[data-theme=\"cem-theme-native\"]", "{}")) } else { if mode.td1 == "light" { str:concat((".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]", "{}")) } else { if mode.td1 == "dark" { str:concat((".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]", "{}")) } else { "" } } }}'
+                        @data-selected-token='{if mode.mode == "native" { str:concat((".cem-theme-native,[data-theme=\"cem-theme-native\"]", "{}")) } else { if mode.mode == "light" { str:concat((".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]", "{}")) } else { if mode.mode == "dark" { str:concat((".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]", "{}")) } else { "" } } }}'
                         @style="background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text)" |
-                        {caption | {b @title="{$mode.td3}" | {$mode.td1}} {sub | {$mode.td3}}}
+                        {caption | {b @title="{$mode.description}" | {$mode.mode}} {sub | {$mode.description}}}
                         {thead | {tr | {th | State}{th | color-0}{th | color-1}{th | color-2}{th | color-3}{th | Ring}}}
                         {tbody |
                             {tr |
                                 {th | none}
-                                {td @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title=--cem-zebra-color-1 @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title=--cem-zebra-color-2 @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title=--cem-zebra-color-3 @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
+                                {td @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title=--cem-zebra-color-1 @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title=--cem-zebra-color-2 @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title=--cem-zebra-color-3 @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
                                 {td @style="background-color:var(--cem-palette-comfort)" | {div @style="width:2rem; height:2rem; margin:0.5rem auto; background-color:var(--cem-action-explicit-default-background); box-shadow:0 0 0 calc(1*var(--cem-zebra-strip-size)) var(--cem-zebra-color-0),0 0 0 calc(2*var(--cem-zebra-strip-size)) var(--cem-zebra-color-1),0 0 0 calc(3*var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),0 0 0 calc(4*var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);" | }}
                             }
-                            {tr @data-selected-token='{str:concat((if mode.td1 == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.td1 == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.td1 == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[focus],*:focus, *:focus-visible, *:focus-within, .focus", "{}"))}' |
+                            {tr @data-selected-token='{str:concat((if mode.mode == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.mode == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.mode == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[focus],*:focus, *:focus-visible, *:focus-within, .focus", "{}"))}' |
                                 {th | focus}
-                                {td @class=focus @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class=focus @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title="--cem-zebra-color-1 (focus)" @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.td3, "--") { str:concat(("var(", z.td3, ")")) } else { z.td3 }))}' | }
-                                {td @class=focus @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title=--cem-zebra-color-2 @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class=focus @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title=--cem-zebra-color-3 @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
+                                {td @class=focus @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class=focus @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title="--cem-zebra-color-1 (focus)" @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.cem_zebra_color_1_focus, "--") { str:concat(("var(", z.cem_zebra_color_1_focus, ")")) } else { z.cem_zebra_color_1_focus }))}' | }
+                                {td @class=focus @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title=--cem-zebra-color-2 @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class=focus @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title=--cem-zebra-color-3 @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
                                 {td @class=focus @style="background-color:var(--cem-palette-comfort)" | {div @style="width:2rem; height:2rem; margin:0.5rem auto; background-color:var(--cem-action-explicit-default-background); box-shadow:0 0 0 calc(1*var(--cem-zebra-strip-size)) var(--cem-zebra-color-0),0 0 0 calc(2*var(--cem-zebra-strip-size)) var(--cem-zebra-color-1),0 0 0 calc(3*var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),0 0 0 calc(4*var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);" | }}
                             }
-                            {tr @data-selected-token='{str:concat((if mode.td1 == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.td1 == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.td1 == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[selected],.selected", "{}"))}' |
+                            {tr @data-selected-token='{str:concat((if mode.mode == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.mode == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.mode == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[selected],.selected", "{}"))}' |
                                 {th | selected}
-                                {td @class=selected @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class=selected @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title=--cem-zebra-color-1 @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class=selected @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title=--cem-zebra-color-2 @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class=selected @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title="--cem-zebra-color-3 (selected)" @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.td5, "--") { str:concat(("var(", z.td5, ")")) } else { z.td5 }))}' | }
+                                {td @class=selected @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class=selected @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title=--cem-zebra-color-1 @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class=selected @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title=--cem-zebra-color-2 @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class=selected @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title="--cem-zebra-color-3 (selected)" @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.cem_zebra_color_3_selected, "--") { str:concat(("var(", z.cem_zebra_color_3_selected, ")")) } else { z.cem_zebra_color_3_selected }))}' | }
                                 {td @class=selected @style="background-color:var(--cem-palette-comfort)" | {div @style="width:2rem; height:2rem; margin:0.5rem auto; background-color:var(--cem-action-explicit-default-background); box-shadow:0 0 0 calc(1*var(--cem-zebra-strip-size)) var(--cem-zebra-color-0),0 0 0 calc(2*var(--cem-zebra-strip-size)) var(--cem-zebra-color-1),0 0 0 calc(3*var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),0 0 0 calc(4*var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);" | }}
                             }
-                            {tr @data-selected-token='{str:concat((if mode.td1 == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.td1 == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.td1 == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[target], *:target, .target", "{}"))}' |
+                            {tr @data-selected-token='{str:concat((if mode.mode == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.mode == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.mode == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[target], *:target, .target", "{}"))}' |
                                 {th | target}
-                                {td @class=target @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class=target @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title=--cem-zebra-color-1 @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class=target @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title="--cem-zebra-color-2 (target)" @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.td4, "--") { str:concat(("var(", z.td4, ")")) } else { z.td4 }))}' | }
-                                {td @class=target @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title=--cem-zebra-color-3 @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
+                                {td @class=target @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class=target @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title=--cem-zebra-color-1 @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class=target @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title="--cem-zebra-color-2 (target)" @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.cem_zebra_color_2_target, "--") { str:concat(("var(", z.cem_zebra_color_2_target, ")")) } else { z.cem_zebra_color_2_target }))}' | }
+                                {td @class=target @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title=--cem-zebra-color-3 @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
                                 {td @class=target @style="background-color:var(--cem-palette-comfort)" | {div @style="width:2rem; height:2rem; margin:0.5rem auto; background-color:var(--cem-action-explicit-default-background); box-shadow:0 0 0 calc(1*var(--cem-zebra-strip-size)) var(--cem-zebra-color-0),0 0 0 calc(2*var(--cem-zebra-strip-size)) var(--cem-zebra-color-1),0 0 0 calc(3*var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),0 0 0 calc(4*var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);" | }}
                             }
-                            {tr @data-selected-token='{str:concat((if mode.td1 == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.td1 == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.td1 == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[focus],*:focus, *:focus-visible, *:focus-within, .focus", "{}", "[selected],.selected", "{}"))}' |
+                            {tr @data-selected-token='{str:concat((if mode.mode == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.mode == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.mode == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[focus],*:focus, *:focus-visible, *:focus-within, .focus", "{}", "[selected],.selected", "{}"))}' |
                                 {th | focus+selected}
-                                {td @class="focus selected" @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class="focus selected" @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title="--cem-zebra-color-1 (focus)" @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.td3, "--") { str:concat(("var(", z.td3, ")")) } else { z.td3 }))}' | }
-                                {td @class="focus selected" @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title=--cem-zebra-color-2 @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class="focus selected" @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title="--cem-zebra-color-3 (selected)" @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.td5, "--") { str:concat(("var(", z.td5, ")")) } else { z.td5 }))}' | }
+                                {td @class="focus selected" @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class="focus selected" @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title="--cem-zebra-color-1 (focus)" @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.cem_zebra_color_1_focus, "--") { str:concat(("var(", z.cem_zebra_color_1_focus, ")")) } else { z.cem_zebra_color_1_focus }))}' | }
+                                {td @class="focus selected" @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title=--cem-zebra-color-2 @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class="focus selected" @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title="--cem-zebra-color-3 (selected)" @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.cem_zebra_color_3_selected, "--") { str:concat(("var(", z.cem_zebra_color_3_selected, ")")) } else { z.cem_zebra_color_3_selected }))}' | }
                                 {td @class="focus selected" @style="background-color:var(--cem-palette-comfort)" | {div @style="width:2rem; height:2rem; margin:0.5rem auto; background-color:var(--cem-action-explicit-default-background); box-shadow:0 0 0 calc(1*var(--cem-zebra-strip-size)) var(--cem-zebra-color-0),0 0 0 calc(2*var(--cem-zebra-strip-size)) var(--cem-zebra-color-1),0 0 0 calc(3*var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),0 0 0 calc(4*var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);" | }}
                             }
-                            {tr @data-selected-token='{str:concat((if mode.td1 == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.td1 == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.td1 == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[focus],*:focus, *:focus-visible, *:focus-within, .focus", "{}", "[selected],.selected", "{}", "[target], *:target, .target", "{}"))}' |
+                            {tr @data-selected-token='{str:concat((if mode.mode == "native" { ".cem-theme-native,[data-theme=\"cem-theme-native\"]" } else { if mode.mode == "light" { ".cem-theme-light, [data-theme=\"cem-theme-light\"], .cem-theme-contrast-light, [data-theme=\"cem-theme-contrast-light\"]" } else { if mode.mode == "dark" { ".cem-theme-dark, [data-theme=\"cem-theme-dark\"], .cem-theme-contrast-dark, [data-theme=\"cem-theme-contrast-dark\"]" } else { "" } } }, "[focus],*:focus, *:focus-visible, *:focus-within, .focus", "{}", "[selected],.selected", "{}", "[target], *:target, .target", "{}"))}' |
                                 {th | focus+selected+target}
-                                {td @class="focus selected target" @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.td2, "--") { str:concat(("var(", z.td2, ")")) } else { z.td2 }))}' | }
-                                {td @class="focus selected target" @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title="--cem-zebra-color-1 (focus)" @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.td3, "--") { str:concat(("var(", z.td3, ")")) } else { z.td3 }))}' | }
-                                {td @class="focus selected target" @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title="--cem-zebra-color-2 (target)" @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.td4, "--") { str:concat(("var(", z.td4, ")")) } else { z.td4 }))}' | }
-                                {td @class="focus selected target" @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title="--cem-zebra-color-3 (selected)" @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.td5, "--") { str:concat(("var(", z.td5, ")")) } else { z.td5 }))}' | }
+                                {td @class="focus selected target" @style="background-color:var(--cem-zebra-color-0);min-width:2rem" @title=--cem-zebra-color-0 @data-cem-value='{str:concat(("--cem-zebra-color-0: ", if str:starts_with(z.cem_zebra_color_0_base, "--") { str:concat(("var(", z.cem_zebra_color_0_base, ")")) } else { z.cem_zebra_color_0_base }))}' | }
+                                {td @class="focus selected target" @style="background-color:var(--cem-zebra-color-1);min-width:2rem" @title="--cem-zebra-color-1 (focus)" @data-cem-value='{str:concat(("--cem-zebra-color-1: ", if str:starts_with(z.cem_zebra_color_1_focus, "--") { str:concat(("var(", z.cem_zebra_color_1_focus, ")")) } else { z.cem_zebra_color_1_focus }))}' | }
+                                {td @class="focus selected target" @style="background-color:var(--cem-zebra-color-2);min-width:2rem" @title="--cem-zebra-color-2 (target)" @data-cem-value='{str:concat(("--cem-zebra-color-2: ", if str:starts_with(z.cem_zebra_color_2_target, "--") { str:concat(("var(", z.cem_zebra_color_2_target, ")")) } else { z.cem_zebra_color_2_target }))}' | }
+                                {td @class="focus selected target" @style="background-color:var(--cem-zebra-color-3);min-width:2rem" @title="--cem-zebra-color-3 (selected)" @data-cem-value='{str:concat(("--cem-zebra-color-3: ", if str:starts_with(z.cem_zebra_color_3_selected, "--") { str:concat(("var(", z.cem_zebra_color_3_selected, ")")) } else { z.cem_zebra_color_3_selected }))}' | }
                                 {td @class="focus selected target" @style="background-color:var(--cem-palette-comfort)" | {div @style="width:2rem; height:2rem; margin:0.5rem auto; background-color:var(--cem-action-explicit-default-background); box-shadow:0 0 0 calc(1*var(--cem-zebra-strip-size)) var(--cem-zebra-color-0),0 0 0 calc(2*var(--cem-zebra-strip-size)) var(--cem-zebra-color-1),0 0 0 calc(3*var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),0 0 0 calc(4*var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);" | }}
                             }
                         }
@@ -209,129 +209,129 @@
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-input-indicator-colors" | cem-input-indicator-colors} — input indicator stripe colors}
     {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Tier}{th | Notes}}}
     {tbody | {cem:for-each @select="$datadom.slices.input" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}{td | {$row.td5}}{td | {$row.td4}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
 {table @id=cem-select-state-colors |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-select-state-colors" | cem-select-state-colors} — select popup and option state colors}
     {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Tier}{th | Notes}}}
     {tbody | {cem:for-each @select="$datadom.slices.select" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}{td | {$row.td5}}{td | {$row.td4}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
 {table @id=cem-navigation-item-state-colors |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-navigation-item-state-colors" | cem-navigation-item-state-colors} — navigation item state colors}
     {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Tier}{th | Notes}}}
     {tbody | {cem:for-each @select="$datadom.slices.navigation" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}{td | {$row.td5}}{td | {$row.td4}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
 {table @id=cem-content-interaction-state-colors |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-content-interaction-state-colors" | cem-content-interaction-state-colors} — interactive content state colors}
     {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Tier}{th | Notes}}}
     {tbody | {cem:for-each @select="$datadom.slices.content" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}{td | {$row.td5}}{td | {$row.td4}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
 {table @id=cem-separator-colors |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-separator-colors" | cem-separator-colors} — sibling-separation color}
     {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Forced colors}{th | Tier}{th | Notes}}}
     {tbody | {cem:for-each @select="$datadom.slices.separator" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}{td | {code | {$row.td4}}}{td | {$row.td6}}{td | {$row.td5}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {code | {$row.forced_colors}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
 {table @id=cem-progress-indicator-colors |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-progress-indicator-colors" | cem-progress-indicator-colors} — progress track and indicator colors}
     {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Forced colors}{th | Tier}{th | Notes}}}
     {tbody | {cem:for-each @select="$datadom.slices.progress" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}{td | {code | {$row.td4}}}{td | {$row.td6}}{td | {$row.td5}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {code | {$row.forced_colors}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
 {table @id=cem-workflow-step-colors |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-workflow-step-colors" | cem-workflow-step-colors} — workflow status and connector colors}
     {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Forced colors}{th | Tier}{th | Notes}}}
     {tbody | {cem:for-each @select="$datadom.slices.workflow" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}{td | {code | {$row.td4}}}{td | {$row.td6}}{td | {$row.td5}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {code | {$row.forced_colors}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
 {table @id=cem-slider-colors |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-slider-colors" | cem-slider-colors} — slider track, thumb, and tick colors}
     {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Forced colors}{th | Tier}{th | Notes}}}
     {tbody | {cem:for-each @select="$datadom.slices.slider" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {code | {$row.td3}}}{td | {code | {$row.td4}}}{td | {$row.td6}}{td | {$row.td5}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {code | {$row.forced_colors}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
   /* region branded colors: cem-color-[hue]-[variant] */```{cem:for-each @select="$datadom.slices.hue" @as="row" |```
-  ```{$row.td1}: {$row.td4};}```
+  ```{$row.token}: {$row.value};}```
   /* endregion branded colors */
 
   /* region emotion palette: cem-palette-[emotion]-[shift] (light/dark) */```{cem:for-each @select="$datadom.slices.shift" @as="emo" |```
-  ```{$emo.td1}: {cem:choose |{cem:when @test='emo.td4 != ""' |light-dark({cem:choose |{cem:when @test='datadom.slices.hue.td1 & (str:concat(("--cem-color-", emo.td3)))' |var(--cem-color-{$emo.td3})}{cem:otherwise |var(--cem-palette-{$emo.td3})}}, {cem:choose |{cem:when @test='datadom.slices.hue.td1 & (str:concat(("--cem-color-", emo.td4)))' |var(--cem-color-{$emo.td4})}{cem:otherwise |var(--cem-palette-{$emo.td4})}})}{cem:otherwise |{cem:choose |{cem:when @test='datadom.slices.hue.td1 & (str:concat(("--cem-color-", emo.td3)))' |var(--cem-color-{$emo.td3})}{cem:otherwise |var(--cem-palette-{$emo.td3})}}}};}```
+  ```{$emo.token}: {cem:choose |{cem:when @test='emo.dark != ""' |light-dark({cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.light)))' |var(--cem-color-{$emo.light})}{cem:otherwise |var(--cem-palette-{$emo.light})}}, {cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.dark)))' |var(--cem-color-{$emo.dark})}{cem:otherwise |var(--cem-palette-{$emo.dark})}})}{cem:otherwise |{cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.light)))' |var(--cem-color-{$emo.light})}{cem:otherwise |var(--cem-palette-{$emo.light})}}}};}```
   /* endregion emotion palette */
 
   /* region zebra base: anchor all stripes to surface (§8.2) */
 ```{cem:for-each @select="$datadom.slices.zebra" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion zebra base */
 
   /* region input indicator stripe colors */```{cem:for-each @select="$datadom.slices.input" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion input indicator stripe colors */
 
   /* region select popup and option state colors */```{cem:for-each @select="$datadom.slices.select" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion select popup and option state colors */
 
   /* region navigation item state colors */```{cem:for-each @select="$datadom.slices.navigation" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion navigation item state colors */
 
   /* region interactive content state colors */```{cem:for-each @select="$datadom.slices.content" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion interactive content state colors */
 
   /* region separator colors */```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion separator colors */
 
   /* region progress indicator colors */```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion progress indicator colors */
 
   /* region workflow step colors */```{cem:for-each @select="$datadom.slices.workflow" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion workflow step colors */
 
   /* region slider input colors */```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.default_formula};}```
   /* endregion slider input colors */
 
   /* region common for cem themes */
   [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {
     /* action intent tokens: cem-action-[intent]-[state]-[background|text] */```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
-    ```--cem-action-{$intent.td1}-{$state.td1}-background: {$str:replace(state.td2, "[emotion]", intent.td2)};
-    --cem-action-{$intent.td1}-{$state.td1}-text: {$str:replace(state.td3, "[emotion]", intent.td2)};}}```
+    ```--cem-action-{$intent.action_intent}-{$state.state}-background: {$str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette)};
+    --cem-action-{$intent.action_intent}-{$state.state}-text: {$str:replace(state.text_token, "[emotion]", intent.emotional_palette)};}}```
     --cem-zebra-color-0: var(--cem-palette-comfort);
     --cem-zebra-color-1: var(--cem-palette-comfort);
     --cem-zebra-color-2: var(--cem-palette-comfort);
     --cem-zebra-color-3: var(--cem-palette-comfort);
     /* input indicator colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.input" @as="row" |```
-    ```{$row.td1}: {$row.td3};}```
+    ```{$row.token}: {$row.default_formula};}```
     /* select popup and option state colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.select" @as="row" |```
-    ```{$row.td1}: {$row.td3};}```
+    ```{$row.token}: {$row.default_formula};}```
     /* navigation item state colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.navigation" @as="row" |```
-    ```{$row.td1}: {$row.td3};}```
+    ```{$row.token}: {$row.default_formula};}```
     /* interactive content state colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.content" @as="row" |```
-    ```{$row.td1}: {$row.td3};}```
+    ```{$row.token}: {$row.default_formula};}```
     /* separator colors resolve against the active theme surface text */```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
-    ```{$row.td1}: {$row.td3};}```
+    ```{$row.token}: {$row.default_formula};}```
     /* progress colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
-    ```{$row.td1}: {$row.td3};}```
+    ```{$row.token}: {$row.default_formula};}```
     /* workflow colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.workflow" @as="row" |```
-    ```{$row.td1}: {$row.td3};}```
+    ```{$row.token}: {$row.default_formula};}```
     /* slider colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
-    ```{$row.td1}: {$row.td3};}```
+    ```{$row.token}: {$row.default_formula};}```
     background-color: var(--cem-palette-comfort);
     color: var(--cem-palette-comfort-text);
   }
@@ -341,24 +341,24 @@
   .cem-theme-dark, [data-theme="cem-theme-dark"], .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"] { color-scheme: dark; }
 
   /* region zebra state per theme mode (§8.2 cem-zebra-mode-mapping) */```{cem:for-each @select="$datadom.slices.zmap" @as="z" |```
-  .cem-theme-```{$z.td1}```, [data-theme="cem-theme-```{$z.td1}```"] {
-    [focus], :focus, :focus-visible, :focus-within, .focus { --cem-zebra-color-1: ```{cem:choose |{cem:when @test='str:starts_with(z.td3, "--")' |var({$z.td3})}{cem:otherwise |{$z.td3}}}```; }
-    [target], :target, .target { --cem-zebra-color-2: ```{cem:choose |{cem:when @test='str:starts_with(z.td4, "--")' |var({$z.td4})}{cem:otherwise |{$z.td4}}}```; }
-    [selected], .selected { --cem-zebra-color-3: ```{cem:choose |{cem:when @test='str:starts_with(z.td5, "--")' |var({$z.td5})}{cem:otherwise |{$z.td5}}}```; }
+  .cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"] {
+    [focus], :focus, :focus-visible, :focus-within, .focus { --cem-zebra-color-1: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_1_focus, "--")' |var({$z.cem_zebra_color_1_focus})}{cem:otherwise |{$z.cem_zebra_color_1_focus}}}```; }
+    [target], :target, .target { --cem-zebra-color-2: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_2_target, "--")' |var({$z.cem_zebra_color_2_target})}{cem:otherwise |{$z.cem_zebra_color_2_target}}}```; }
+    [selected], .selected { --cem-zebra-color-3: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_3_selected, "--")' |var({$z.cem_zebra_color_3_selected})}{cem:otherwise |{$z.cem_zebra_color_3_selected}}}```; }
   }```}```
   /* endregion zebra state */
 
   /* region native theme overrides */
   .cem-theme-native, [data-theme="cem-theme-native"] {```{cem:for-each @select="$datadom.slices.shift" @as="emo" |```
-    ```{$emo.td1}: {cem:choose |{cem:when @test='emo.td6 != ""' |light-dark({cem:choose |{cem:when @test='str:starts_with(emo.td5, "--")' |var({$emo.td5})}{cem:when @test='str:contains(emo.td5, "-") && !str:contains(emo.td5, "(")' |var(--cem-color-{$emo.td5})}{cem:otherwise |{$emo.td5}}}, {cem:choose |{cem:when @test='str:starts_with(emo.td6, "--")' |var({$emo.td6})}{cem:when @test='str:contains(emo.td6, "-") && !str:contains(emo.td6, "(")' |var(--cem-color-{$emo.td6})}{cem:otherwise |{$emo.td6}}})}{cem:otherwise |{$emo.td5}}};}```
+    ```{$emo.token}: {cem:choose |{cem:when @test='emo.native_dark != ""' |light-dark({cem:choose |{cem:when @test='str:starts_with(emo.native_light, "--")' |var({$emo.native_light})}{cem:when @test='str:contains(emo.native_light, "-") && !str:contains(emo.native_light, "(")' |var(--cem-color-{$emo.native_light})}{cem:otherwise |{$emo.native_light}}}, {cem:choose |{cem:when @test='str:starts_with(emo.native_dark, "--")' |var({$emo.native_dark})}{cem:when @test='str:contains(emo.native_dark, "-") && !str:contains(emo.native_dark, "(")' |var(--cem-color-{$emo.native_dark})}{cem:otherwise |{$emo.native_dark}}})}{cem:otherwise |{$emo.native_light}}};}```
     ```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
-    ```{$row.td1}: {$row.td4};}```
+    ```{$row.token}: {$row.forced_colors};}```
     ```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
-    ```{$row.td1}: {$row.td4};}```
+    ```{$row.token}: {$row.forced_colors};}```
     ```{cem:for-each @select="$datadom.slices.workflow" @as="row" |```
-    ```{$row.td1}: {$row.td4};}```
+    ```{$row.token}: {$row.forced_colors};}```
     ```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
-    ```{$row.td1}: {$row.td4};}```
+    ```{$row.token}: {$row.forced_colors};}```
     [focus], :focus, :focus-visible, :focus-within, .focus { --cem-zebra-color-1: CanvasText; }
     [target], :target, .target { --cem-zebra-color-2: Mark; }
     [selected], .selected { --cem-zebra-color-3: SelectedItem; }
@@ -367,13 +367,13 @@
 
   @media (forced-colors: active) {
     &, [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
-      ```{$row.td1}: {$row.td4};}```
+      ```{$row.token}: {$row.forced_colors};}```
       ```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
-      ```{$row.td1}: {$row.td4};}```
+      ```{$row.token}: {$row.forced_colors};}```
       ```{cem:for-each @select="$datadom.slices.workflow" @as="row" |```
-      ```{$row.td1}: {$row.td4};}```
+      ```{$row.token}: {$row.forced_colors};}```
       ```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
-      ```{$row.td1}: {$row.td4};}```
+      ```{$row.token}: {$row.forced_colors};}```
     }
   }
 

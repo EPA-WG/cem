@@ -29,13 +29,13 @@ export const EveryAuthoredSample: Story = {
             assertDeepEqual(sampleLegends(host), [...EXPECTED_LEGENDS], 'location sample inventory');
 
             const live = sampleByLegend(host, EXPECTED_LEGENDS[0]);
+            const initial = sampleByLegend(host, EXPECTED_LEGENDS[1]);
             await waitForCondition(
-                () => Array.from(live.querySelectorAll('button')).some(
-                    (button) => normalize(button.textContent ?? '') === 'history.pushState'
-                ),
-                'the live location sample finishes rendering'
+                () => live.querySelector('dd') !== null && initial.querySelectorAll('dd').length === 5,
+                'both location readers finish rendering'
             );
-            buttonByText(live, 'history.pushState').click();
+            const initialValues = normalize(initial.querySelector('dl')?.textContent ?? '');
+            buttonByName(live, 'history.pushState').click();
             await waitForCondition(
                 () => definitionValue(live, 'hash') === '#checked'
                     && normalize(live.querySelector('ul')?.textContent ?? '').includes('mode = history.pushState')
@@ -43,12 +43,21 @@ export const EveryAuthoredSample: Story = {
                 'the live reader observes the history write and repeated parameters'
             );
 
-            const initial = sampleByLegend(host, EXPECTED_LEGENDS[1]);
             await waitForCondition(
                 () => definitionValue(initial, 'source') === 'window'
                     && definitionValue(initial, 'origin') === location.origin,
                 'the initial reader publishes current URL fields'
             );
+            buttonByName(live, 'history.replaceState').click();
+            await waitForCondition(
+                () => normalize(live.querySelector('ul')?.textContent ?? '').includes('mode = history.replaceState'),
+                'replaceState is observed independently'
+            );
+            buttonByName(initial, 'Change hash after initial read').click();
+            await waitForCondition(() => definitionValue(live, 'hash') === '#after-initial-read', 'native hash change reaches the live reader');
+            if (normalize(initial.querySelector('dl')?.textContent ?? '') !== initialValues) {
+                throw new Error('the initial-only reader changed after navigation');
+            }
 
             const external = sampleByLegend(host, EXPECTED_LEGENDS[2]);
             await waitForCondition(
@@ -90,9 +99,9 @@ function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
     return sample;
 }
 
-function buttonByText(root: ParentNode, expected: string): HTMLButtonElement {
+function buttonByName(root: ParentNode, expected: string): HTMLButtonElement {
     const button = Array.from(root.querySelectorAll('button')).find(
-        (candidate) => normalize(candidate.textContent ?? '') === expected
+        (candidate) => normalize(candidate.getAttribute('aria-label') ?? candidate.textContent ?? '') === expected
     );
     if (!button) throw new Error(`expected ${expected} button`);
     return button;

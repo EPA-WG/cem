@@ -18,7 +18,14 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     {
         legend: '1. Simple validation',
         declarationCount: 1,
-        includes: ['@slice=signin', '{cem:choose', 'Sign in', 'Form valid:'],
+        includes: [
+            '@slice=signin', '{cem:choose', 'Sign in', 'Form valid:',
+            'str:length(datadom.slices.next ?? "") &gt; 10',
+            '@type=submit @aria-label=Next @title=Next',
+            '@slice=next @slice-event=click',
+            "{slice @slice=password @value=\"''\"}",
+            'str:length(datadom.slices.password) &gt; 3',
+        ],
     },
     {
         legend: '2. Form lifecycle',
@@ -40,7 +47,10 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
         declarationCount: 2,
         includes: [
             '<cem-element tag="cem-form-fruit-choice" capability="choice-select">',
+            'button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }',
             '@data-option-index="{$option.index}"',
+            '@aria-label="{$option.label}" @title="{$option.label}"',
+            '{$if option.value { option.value } else { option.label }}',
             '@slice=fruitForm',
             '{cem-form-fruit-choice @name=firstFruit',
             '{cem-form-fruit-choice @name=secondFruit',

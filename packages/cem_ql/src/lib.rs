@@ -16,6 +16,7 @@ pub mod embedded;
 pub mod eval;
 pub mod ir;
 pub mod lexer;
+pub mod native;
 pub mod parser;
 pub mod render;
 pub mod resolve;

@@ -1,4 +1,5 @@
 import type { DataIslandSnapshot, SourceMapMode } from '../../cem-elements.js';
+import type { CemMlTemplateModuleClosure, CemQlStylesheetArtifact } from './cem-ql-render.js';
 import {
     assertProcessingBoundaryValue,
     type PatchFrame,
@@ -112,6 +113,8 @@ export interface CemProcessingCompileInput {
     scopePolicyStamp: string;
     sourceMapMode: SourceMapMode;
     hostBindings?: string[];
+    /** Resolved and content-hashed source modules; no DOM or executable callbacks. */
+    moduleClosure?: CemMlTemplateModuleClosure;
     precompiledArtifact?: CemProcessingArtifactBinaryTransfer;
     /** Request binary write-through after a registry miss. Omitted on the normal source path. */
     exportCompiledArtifact?: true;
@@ -143,6 +146,7 @@ export interface CemProcessingCompileResult {
     observedAttributes: string[];
     invalidationScopes: string[];
     diagnostics: CemProcessingDiagnostic[];
+    stylesheets?: CemQlStylesheetArtifact[];
     /** Present only after source compilation so a host registry can write through. */
     compiledArtifact?: CemProcessingArtifactBinaryTransfer;
 }

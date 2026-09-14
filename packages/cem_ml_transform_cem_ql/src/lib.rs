@@ -76,26 +76,21 @@ use cem_ml::transform_template::{
     TransformTemplateOutputColorSelection, TransformTemplateOutputProducedKind,
     TransformTemplateParameterArena, TransformTemplateRenderRequest,
     TransformTemplateRenderResponse, TransformTemplateRuntimeContext,
-    TransformTemplateSourceMapPolicy,
-    CEM_NATIVE_TEMPLATE_SCHEMA_URI, DEFAULT_FORMATTER_TAB_SIZE,
+    TransformTemplateSourceMapPolicy, CEM_NATIVE_TEMPLATE_SCHEMA_URI, DEFAULT_FORMATTER_TAB_SIZE,
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
+#[cfg(test)]
+use cem_ml::validation::html::{html_document_ast_from_source_bytes, HtmlSourceValidationRequest};
+use cem_ml::validation::html::{HtmlAttributeAst, HtmlDocumentAst, HtmlEventAst, HtmlEventKind};
 use cem_ml::validation::json::{
     json_document_ast_from_source_bytes, JsonNumberKind, JsonSourceValidationRequest, JsonValueAst,
 };
-use cem_ml::validation::html::{
-    HtmlAttributeAst, HtmlDocumentAst, HtmlEventAst, HtmlEventKind,
-};
-#[cfg(test)]
-use cem_ml::validation::html::{
-    html_document_ast_from_source_bytes, HtmlSourceValidationRequest,
-};
 use cem_ml::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst};
 use cem_ql::api::{
-    compile, compile_expression, evaluate, evaluate_with_control,
-    CompileContext, CompiledExpression, EvaluationContext, ParseResult,
-    StandaloneExpressionBinding, StandaloneExpressionContext,
+    compile, compile_expression, evaluate, evaluate_with_control, CompileContext,
+    CompiledExpression, EvaluationContext, ParseResult, StandaloneExpressionBinding,
+    StandaloneExpressionContext,
 };
 use cem_ql::eval::{
     AtomValue, BudgetAxis, EvalError, Item, ItemStream, QueryContextScope, QueryItemView,
@@ -104,11 +99,11 @@ use cem_ql::eval::{
 use cem_ql::lexer::{CookedTokenPayload, Lexer, Token, TokenKind};
 use cem_ql::parser::SurfaceNode;
 use cem_ql::render::{
-    compile_template, render_compiled_template, render_compiled_template_with_control,
-    render_plan_to_html_with_control, render_plan_to_html_with_source_map,
-    render_plan_to_xml_with_control, render_plan_to_xml_with_source_map, CompileTemplateOptions,
-    RenderPlan, RenderPlanAttribute, RenderPlanNode, TemplateArtifact, TemplateAttributeValue,
-    TemplateData, TemplateNode,
+    compile_template, render_compiled_template_with_calls, render_plan_to_html_with_control,
+    render_plan_to_html_with_source_map, render_plan_to_xml_with_control,
+    render_plan_to_xml_with_source_map, CompileTemplateOptions, RenderPlan, RenderPlanAttribute,
+    RenderPlanNode, TemplateArtifact, TemplateAttributeValue, TemplateCallHandler,
+    TemplateCallResult, TemplateData, TemplateFailure, TemplateNode,
 };
 use cem_ql::template::{
     compile_embedding, extract_embeddings, DefaultAttributeClassifier, EmbeddedExpression,
@@ -522,6 +517,7 @@ fn evaluate_cem_ql_behavior_query(
             policy_bindings: bindings,
             current_item: None,
             module_resolution: None,
+            native_functions: Default::default(),
         },
     );
     if let Some(error) = stream.error.as_ref() {
@@ -3612,15 +3608,14 @@ fn render_cem_ql_payload_internal(
                 message,
             )
         })?;
-    let plan = render_payload_template(payload, request.compiled.parameters(), &data, runtime).map_err(
-        |message| {
+    let plan = render_payload_template(payload, request.compiled.parameters(), &data, runtime)
+        .map_err(|message| {
             TransformTemplateAdapterError::failed(
                 adapter_id,
                 TransformTemplateAdapterExecutionPhase::Render,
                 message,
             )
-        },
-    )?;
+        })?;
     if target_is_cem_tree(request.target) {
         let tree = match runtime {
             Some(runtime) => render_plan_to_cem_tree_nodes_with_control(
@@ -3648,7 +3643,10 @@ fn render_cem_ql_payload_internal(
             diagnostics: plan.diagnostics,
         });
     }
-    let rendered = match (runtime, target_content_type_is(request.target, "application/xml")) {
+    let rendered = match (
+        runtime,
+        target_content_type_is(request.target, "application/xml"),
+    ) {
         (Some(runtime), true) => render_plan_to_xml_with_control(
             &plan,
             runtime.operation_control,
@@ -3730,13 +3728,14 @@ fn render_cem_ql_expression_payload_internal(
             },
         )?;
     let evaluation_context = EvaluationContext {
-            scope: QueryContextScope(0),
-            scope_policy: ScopePolicy::host_root(),
-            diagnostics: Vec::new(),
-            policy_bindings,
-            current_item: None,
-            module_resolution: None,
-        };
+        scope: QueryContextScope(0),
+        scope_policy: ScopePolicy::host_root(),
+        diagnostics: Vec::new(),
+        policy_bindings,
+        current_item: None,
+        module_resolution: None,
+        native_functions: Default::default(),
+    };
     let result = match runtime {
         Some(runtime) => evaluate_with_control(
             &payload.compiled.query,
@@ -3746,9 +3745,11 @@ fn render_cem_ql_expression_payload_internal(
         ),
         None => evaluate(&payload.compiled.query, &evaluation_context),
     };
-    if let Some(error) = result.error.as_ref().filter(|error| {
-        matches!(error, EvalError::Cancelled | EvalError::Control(_))
-    }) {
+    if let Some(error) = result
+        .error
+        .as_ref()
+        .filter(|error| matches!(error, EvalError::Cancelled | EvalError::Control(_)))
+    {
         let (code, message) = match error {
             EvalError::Cancelled => (
                 "cancelled",
@@ -3825,8 +3826,7 @@ fn render_plan_to_cem_tree_nodes_with_control(
     control: &cem_ml::operation_control::OperationControl,
     scope: cem_ml::operation_control::ExecutionScopeId,
 ) -> Result<CemTreeAstStream, cem_ml::operation_control::ControlError> {
-    let mut safe_points =
-        cem_ml::operation_control::SafePointPoller::new(control.clone(), scope);
+    let mut safe_points = cem_ml::operation_control::SafePointPoller::new(control.clone(), scope);
     safe_points.force()?;
     let mut nodes = Vec::new();
     for node in &plan.nodes {
@@ -3859,8 +3859,7 @@ fn render_plan_node_to_cem_tree_with_control(
             }
             let mut converted_children = Vec::with_capacity(children.len());
             for child in children {
-                if let Some(child) =
-                    render_plan_node_to_cem_tree_with_control(child, safe_points)?
+                if let Some(child) = render_plan_node_to_cem_tree_with_control(child, safe_points)?
                 {
                     converted_children.push(child);
                 }
@@ -4279,37 +4278,22 @@ fn render_payload_template(
     runtime: Option<TransformTemplateRuntimeContext<'_>>,
 ) -> Result<RenderPlan, String> {
     let data = root_template_data_with_params(payload, params, data)?;
-    let mut plan = match runtime {
-        Some(runtime) => render_compiled_template_with_control(
-            &payload.artifact,
-            &data,
-            runtime.operation_control,
-            runtime.execution_scope,
-        ),
-        None => render_compiled_template(&payload.artifact, &data),
-    };
-    fill_diagnostic_uri(&mut plan.diagnostics, payload.template_uri.as_str());
-    let mut safe_points = runtime.map(|runtime| {
-        cem_ml::operation_control::SafePointPoller::new(
-            runtime.operation_control.clone(),
-            runtime.execution_scope,
-        )
-    });
-    let nodes = expand_call_nodes(
-        &plan.nodes,
+    let calls = TransformCalls {
         payload,
-        None,
-        &data,
-        0,
+        current_module: None,
+        depth: 0,
         runtime,
-        &mut safe_points,
-        &mut plan.diagnostics,
-    );
-    Ok(RenderPlan {
-        nodes,
-        host_attribute_updates: plan.host_attribute_updates,
-        diagnostics: plan.diagnostics,
-    })
+    };
+    let mut plan = render_compiled_template_with_calls(
+        &payload.artifact,
+        &data,
+        runtime.map(|r| (r.operation_control, r.execution_scope)),
+        &calls,
+        false,
+    )
+    .plan;
+    fill_diagnostic_uri(&mut plan.diagnostics, payload.template_uri.as_str());
+    Ok(plan)
 }
 
 fn root_template_data_with_params(
@@ -4334,95 +4318,59 @@ fn root_template_data_with_params(
     Ok(data)
 }
 
-fn expand_call_nodes(
-    nodes: &[RenderPlanNode],
-    payload: &CemQlCompiledTemplatePayload,
-    current_module: Option<&CemQlCompiledTemplateModulePayload>,
-    data: &TemplateData,
+struct TransformCalls<'a> {
+    payload: &'a CemQlCompiledTemplatePayload,
+    current_module: Option<&'a CemQlCompiledTemplateModulePayload>,
     depth: u32,
-    runtime: Option<TransformTemplateRuntimeContext<'_>>,
-    safe_points: &mut Option<cem_ml::operation_control::SafePointPoller>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<RenderPlanNode> {
-    let mut expanded = Vec::new();
-    for node in nodes {
-        if let Some(error) = safe_points
-            .as_mut()
-            .and_then(|poller| poller.poll_one().err())
-        {
-            diagnostics.push(module_render_diagnostic(
-                "cem.transform_template.control_failure",
-                format!("{}: {error}", error.code()),
-                current_template_uri(payload, current_module),
-                render_plan_node_source_map(node).clone(),
-            ));
-            break;
-        }
-        expanded.extend(expand_call_node(
-            node,
-            payload,
-            current_module,
-            data,
-            depth,
-            runtime,
-            safe_points,
-            diagnostics,
-        ));
-    }
-    expanded
+    runtime: Option<TransformTemplateRuntimeContext<'a>>,
 }
 
-fn expand_call_node(
-    node: &RenderPlanNode,
-    payload: &CemQlCompiledTemplatePayload,
-    current_module: Option<&CemQlCompiledTemplateModulePayload>,
-    data: &TemplateData,
-    depth: u32,
-    runtime: Option<TransformTemplateRuntimeContext<'_>>,
-    safe_points: &mut Option<cem_ml::operation_control::SafePointPoller>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<RenderPlanNode> {
-    let RenderPlanNode::Element {
-        tag,
-        namespace,
-        attributes,
-        children,
-        source_map,
-    } = node
-    else {
-        return vec![node.clone()];
-    };
-
-    if local_name(tag) == "call" || tag == TRANSFORM_CALL_NODE {
-        return render_call_node(
-            attributes,
-            payload,
-            current_module,
-            data,
-            depth,
-            runtime,
-            safe_points,
-            diagnostics,
-            source_map,
-        );
+impl TemplateCallHandler for TransformCalls<'_> {
+    fn handles(&self, tag: &str) -> bool {
+        tag == TRANSFORM_CALL_NODE
     }
 
-    vec![RenderPlanNode::Element {
-        tag: tag.clone(),
-        namespace: namespace.clone(),
-        attributes: attributes.clone(),
-        children: expand_call_nodes(
-            children,
-            payload,
-            current_module,
+    fn call(
+        &self,
+        attributes: &[RenderPlanAttribute],
+        source_map: &SourceMapStack,
+        data: &TemplateData,
+        protected: bool,
+    ) -> TemplateCallResult {
+        render_call_node(
+            attributes,
+            self.payload,
+            self.current_module,
             data,
-            depth,
-            runtime,
-            safe_points,
+            self.depth,
+            self.runtime,
+            protected,
+            source_map,
+        )
+    }
+}
+
+fn failed_template_call(diagnostics: Vec<Diagnostic>, protected: bool) -> TemplateCallResult {
+    let failure = if protected {
+        diagnostics.last().cloned().map(|diagnostic| {
+            let error = if diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE {
+                EvalError::Unsupported("template recursion limit exceeded")
+            } else {
+                EvalError::TypeError("template call failed")
+            };
+            TemplateFailure { error, diagnostic }
+        })
+    } else {
+        None
+    };
+    TemplateCallResult {
+        plan: RenderPlan {
+            nodes: Vec::new(),
+            host_attribute_updates: Vec::new(),
             diagnostics,
-        ),
-        source_map: source_map.clone(),
-    }]
+        },
+        failure,
+    }
 }
 
 fn render_call_node(
@@ -4432,10 +4380,10 @@ fn render_call_node(
     data: &TemplateData,
     depth: u32,
     runtime: Option<TransformTemplateRuntimeContext<'_>>,
-    safe_points: &mut Option<cem_ml::operation_control::SafePointPoller>,
-    diagnostics: &mut Vec<Diagnostic>,
+    protected: bool,
     source_map: &cem_ml::source_map::SourceMapStack,
-) -> Vec<RenderPlanNode> {
+) -> TemplateCallResult {
+    let mut diagnostics = Vec::new();
     let call_site_uri = current_template_uri(payload, current_module);
     if depth >= payload.max_recursion_depth {
         diagnostics.push(module_render_diagnostic(
@@ -4447,7 +4395,7 @@ fn render_call_node(
             call_site_uri,
             source_map.clone(),
         ));
-        return Vec::new();
+        return failed_template_call(diagnostics, protected);
     }
 
     let Some(template) = render_attr(attributes, "template") else {
@@ -4457,7 +4405,7 @@ fn render_call_node(
             call_site_uri,
             source_map.clone(),
         ));
-        return Vec::new();
+        return failed_template_call(diagnostics, protected);
     };
     let from = render_attr(attributes, "from");
 
@@ -4497,7 +4445,7 @@ fn render_call_node(
             call_site_uri,
             source_map.clone(),
         ));
-        return Vec::new();
+        return failed_template_call(diagnostics, protected);
     };
 
     let mut call_data = call_data_with_bindings(data, attributes);
@@ -4507,46 +4455,35 @@ fn render_call_node(
         &call_data,
         param_declarations,
         Some(template.as_str()),
-        diagnostics,
+        &mut diagnostics,
         call_site_uri,
         source_map,
     ) {
-        return Vec::new();
+        return failed_template_call(diagnostics, protected);
     }
-    let mut plan = match runtime {
-        Some(runtime) => render_compiled_template_with_control(
-            target,
-            &call_data,
-            runtime.operation_control,
-            runtime.execution_scope,
-        ),
-        None => render_compiled_template(target, &call_data),
+    let calls = TransformCalls {
+        payload,
+        current_module: target_module,
+        depth: depth + 1,
+        runtime,
     };
+    let mut result = render_compiled_template_with_calls(
+        target,
+        &call_data,
+        runtime.map(|r| (r.operation_control, r.execution_scope)),
+        &calls,
+        protected,
+    );
     fill_diagnostic_uri(
-        &mut plan.diagnostics,
+        &mut result.plan.diagnostics,
         current_template_uri(payload, target_module),
     );
-    diagnostics.append(&mut plan.diagnostics);
-    expand_call_nodes(
-        &plan.nodes,
-        payload,
-        target_module,
-        &call_data,
-        depth + 1,
-        runtime,
-        safe_points,
-        diagnostics,
-    )
-}
-
-fn render_plan_node_source_map(node: &RenderPlanNode) -> &SourceMapStack {
-    match node {
-        RenderPlanNode::Element { source_map, .. }
-        | RenderPlanNode::Text { source_map, .. }
-        | RenderPlanNode::Comment { source_map, .. }
-        | RenderPlanNode::Cdata { source_map, .. }
-        | RenderPlanNode::ProcessingInstruction { source_map, .. } => source_map,
+    if let Some(failure) = &mut result.failure {
+        if failure.diagnostic.uri.is_none() {
+            failure.diagnostic.uri = Some(current_template_uri(payload, target_module).into());
+        }
     }
+    result
 }
 
 fn current_template_uri<'a>(
@@ -5077,15 +5014,18 @@ impl HtmlDomNodeQueryView {
         let Some(parent) = self.event() else {
             return Vec::new();
         };
-        if parent.kind != HtmlEventKind::StartElement
-            || parent.self_closing
-            || parent.void_element
+        if parent.kind != HtmlEventKind::StartElement || parent.self_closing || parent.void_element
         {
             return Vec::new();
         }
         let child_depth = parent.depth.saturating_add(1);
         let mut children = Vec::new();
-        for event in self.document.events.iter().skip(self.index.saturating_add(1)) {
+        for event in self
+            .document
+            .events
+            .iter()
+            .skip(self.index.saturating_add(1))
+        {
             if event.kind == HtmlEventKind::EndElement && event.depth <= parent.depth {
                 break;
             }
@@ -5140,7 +5080,11 @@ impl QueryItemView for HtmlDomNodeQueryView {
     }
 
     fn identity(&self) -> String {
-        format!("{:p}:html-dom-node:{}", Arc::as_ptr(&self.document), self.index)
+        format!(
+            "{:p}:html-dom-node:{}",
+            Arc::as_ptr(&self.document),
+            self.index
+        )
     }
 
     fn kind(&self) -> QueryItemViewKind {
@@ -5163,9 +5107,7 @@ impl QueryItemView for HtmlDomNodeQueryView {
             (HtmlEventKind::StartElement, "name") => {
                 optional_atom_items(event.local_name.as_deref())
             }
-            (HtmlEventKind::StartElement, "namespace") => {
-                atom_items(event.namespace_uri.clone())
-            }
+            (HtmlEventKind::StartElement, "namespace") => atom_items(event.namespace_uri.clone()),
             (HtmlEventKind::StartElement, "attributes") => {
                 vec![Item::Array(self.attribute_items())]
             }
@@ -5256,7 +5198,8 @@ impl QueryItemView for HtmlDomAttributeQueryView {
     }
 
     fn source_map(&self) -> Option<SourceMapStack> {
-        self.attribute().map(|attribute| attribute.source_range.source_map())
+        self.attribute()
+            .map(|attribute| attribute.source_range.source_map())
     }
 }
 
@@ -6083,11 +6026,11 @@ fn artifact_query_stream(artifact: &TransformTemplateDataArtifact) -> Result<Ite
             .root()
             .map(|_| ItemStream::once(CemDocumentQueryView::item(Arc::clone(document), 0)))
             .ok_or_else(|| "native CEM transform artifact has no document root".to_owned()),
-        TransformArtifactBody::HtmlDomProjection(document) => Ok(ItemStream::once(Item::native(
-            HtmlDomDocumentQueryView {
+        TransformArtifactBody::HtmlDomProjection(document) => {
+            Ok(ItemStream::once(Item::native(HtmlDomDocumentQueryView {
                 document: Arc::clone(document),
-            },
-        ))),
+            })))
+        }
         TransformArtifactBody::Lifecycle(owner) => lifecycle_query_stream(Arc::clone(owner)),
         TransformArtifactBody::Collection(collection) => Ok(ItemStream::once(Item::native(
             TransformCollectionQueryView {
@@ -6441,6 +6384,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 policy_bindings: BTreeMap::from([("input".to_owned(), input.stream().clone())]),
                 current_item: None,
                 module_resolution: None,
+                native_functions: Default::default(),
             },
             request.operation_control,
             request.execution_scope,
@@ -6998,6 +6942,9 @@ fn double_json(value: f64) -> Value {
 
 fn eval_error_json(error: &EvalError) -> Value {
     match error {
+        EvalError::Raised { code, message } => json!({
+            "kind": "eval", "type": "raised", "code": code, "message": message,
+        }),
         EvalError::Cancelled => json!({
             "kind": "eval",
             "type": "cancelled",
@@ -7685,17 +7632,18 @@ count + 1"#,
 
     #[test]
     fn cql_html_dom_projection_retains_ast_identity_and_hierarchical_children() {
-        let (document, diagnostics) = html_document_ast_from_source_bytes(
-            HtmlSourceValidationRequest {
+        let (document, diagnostics) =
+            html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
                 bytes: b"<h1>CEM <strong>Site</strong></h1>",
                 source_uri: "fragment.html",
                 content_type: Some(HTML_CONTENT_TYPE),
-            },
+            });
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}"
         );
-        assert!(diagnostics
-            .iter()
-            .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
-            "{diagnostics:?}");
         let document = Arc::new(document.expect("HTML document"));
         let artifact = TransformTemplateDataArtifact::new(
             "dom",

@@ -133,9 +133,9 @@ async function rewriteUrl(url, context) {
     outputTargetPath = sourceTargetPath;
   } else if (sourceTargetPath.startsWith(srcDir + path.sep)) {
     outputTargetPath = distPathForSourceFile(sourceTargetPath);
-    if (outputTargetPath && path.extname(sourceTargetPath) === '.js') {
+    if (outputTargetPath && ['.js', '.cemt'].includes(path.extname(sourceTargetPath))) {
       if (!existsSync(sourceTargetPath)) {
-        throw new Error(`Referenced local JS file not found: ${sourceTargetPath}`);
+        throw new Error(`Referenced local runtime file not found: ${sourceTargetPath}`);
       }
       await copyOnce(context.copiedFiles, sourceTargetPath, outputTargetPath);
     }

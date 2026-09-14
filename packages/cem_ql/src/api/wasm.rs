@@ -11,8 +11,9 @@ use wasm_bindgen::prelude::*;
 
 use super::json_boundary::{diagnostics_json, evaluate_query_source_json, json_value_to_stream};
 use crate::render::{
-    compile_template, render_compiled_template, CompileTemplateOptions, RenderPlan, RenderPlanNode,
-    TemplateArtifact, TemplateData,
+    compile_template, compile_template_module_closure, render_compiled_template,
+    CompileTemplateOptions, RenderPlan, RenderPlanNode, TemplateArtifact, TemplateData,
+    TemplateModuleClosure,
 };
 use crate::template_artifact::{
     compile_template_artifact, CompiledTemplateArtifact, TemplateArtifactLoadContext,
@@ -60,6 +61,92 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
         "stylesheets": stylesheets,
         "moduleMap": module_map,
         "diagnostics": diagnostics
+    })
+    .to_string()
+}
+
+/// Inspect static CEMT imports without resolving or loading them. The host uses this to construct
+/// the immutable module closure through its scope-aware URL resolver.
+#[wasm_bindgen(js_name = "templateModuleImports")]
+pub fn wasm_template_module_imports(source: &str, uri: &str) -> String {
+    let parsed = cem_ml::transform_template::parse_cem_native_template_module_options(
+        cem_ml::transform_template::TransformTemplateModuleParseRequest {
+            template: cem_ml::engine::TemplateInput {
+                uri: uri.to_owned(),
+                bytes: source.as_bytes().to_vec(),
+                identity: None,
+                root_scope: cem_ml::run_config::ScopeConfig::default(),
+            },
+        },
+    );
+    let artifact = compile_template(
+        source,
+        &CompileTemplateOptions {
+            skip_cemt_function_bodies: true,
+            ..CompileTemplateOptions::default()
+        },
+    );
+    json!({
+        "moduleDeclared": parsed.module_declared,
+        "imports": parsed.module_options.imports,
+        "maxImportDepth": parsed.module_options.limits.max_import_depth,
+        "moduleMap": module_map_json(&artifact),
+        "diagnostics": diagnostics_json(&parsed.diagnostics),
+    })
+    .to_string()
+}
+
+/// Compile a resolver-preflighted template-module closure and retain it behind the ordinary
+/// compile-once/render-many artifact handle.
+#[wasm_bindgen(js_name = "compileTemplateModuleClosure")]
+pub fn wasm_compile_template_module_closure(
+    source: &str,
+    closure_json: &str,
+    host_bindings_json: &str,
+) -> String {
+    let host_bindings = match parse_host_bindings(host_bindings_json) {
+        Ok(bindings) => bindings,
+        Err(message) => return error_json("cem.ql.wasm.invalid_host_bindings", message),
+    };
+    let closure = match serde_json::from_str::<TemplateModuleClosure>(closure_json) {
+        Ok(closure) => closure,
+        Err(error) => {
+            return error_json(
+                "cem.ql.wasm.invalid_module_closure",
+                format!("template module closure is invalid: {error}"),
+            )
+        }
+    };
+    let artifact = compile_template_module_closure(
+        source,
+        &closure,
+        &CompileTemplateOptions {
+            host_bindings,
+            ..CompileTemplateOptions::default()
+        },
+    );
+    let diagnostics = diagnostics_json(&artifact.diagnostics);
+    let stylesheets = stylesheets_json(&artifact);
+    let module_map = module_map_json(&artifact);
+    let artifact_id = retain_artifact(artifact);
+    json!({
+        "artifactId": artifact_id,
+        "rootUri": &closure.root_uri,
+        "rootContentHash": &closure.root_content_hash,
+        "resolverPolicyStamp": &closure.resolver_policy_stamp,
+        "entrypoint": &closure.entrypoint,
+        "parameterContract": &closure.parameter_contract,
+        "cemMlVersion": cem_ml::VERSION,
+        "cemQlVersion": crate::VERSION,
+        "modules": closure.modules.iter().map(|module| json!({
+            "alias": &module.alias,
+            "parentUri": &module.parent_uri,
+            "uri": &module.uri,
+            "contentHash": &module.content_hash,
+        })).collect::<Vec<_>>(),
+        "stylesheets": stylesheets,
+        "moduleMap": module_map,
+        "diagnostics": diagnostics,
     })
     .to_string()
 }

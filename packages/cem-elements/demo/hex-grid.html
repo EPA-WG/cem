@@ -74,6 +74,17 @@
             <code>--cem-hex-link-hover-filter</code>.
         </p>
         <p>
+            Use <code>layout="row"</code> for a single horizontal strip. Its
+            <code>--cem-hex-row-cell-width</code> defaults to <code>6rem</code>;
+            narrow cards scroll inside the row instead of staggering the cells.
+            Put <code>aria-current="page"</code> on the payload link for this
+            page: it keeps a visible ✓ label and its own colors through
+            <code>--cem-hex-current-background-*</code> and
+            <code>--cem-hex-current-label-*</code>. Tab moves focus without moving the current-page marker;
+            Enter follows the focused link. These are navigation links, not
+            selectable buttons or tabs.
+        </p>
+        <p>
             The layout adapts the responsive list sizing and alternate-row
             indentation from
             <a href="https://web-tiki.github.io/responsive-grid-of-hexagons/">Web Tiki's hexagon grid</a>.
@@ -125,6 +136,15 @@
         filter: var(--cem-hex-link-hover-filter,
                     saturate(1.2) brightness(0.96));
         transform: scale(0.94);
+    }
+    .hex-link[aria-current="page"] {
+        --hex-start: var(--cem-hex-current-background-start, #2d4554);
+        --hex-end: var(--cem-hex-current-background-end, #0f766e);
+        --label-shift: 0%;
+    }
+    .hex-link:where([aria-current="page"]) .hex-label {
+        color: var(--cem-hex-current-label-color, #fef08a);
+        background: var(--cem-hex-current-label-background, #2d4554);
     }
     .hex-link:focus-visible {
         outline: none;
@@ -216,6 +236,7 @@
 {attribute @name=href}
 {attribute @name=src}
 {attribute @name=alt}
+{attribute @name=current | false}
 {slice @name=imageState | loading}
 {cem-module-url @slice=linkUrl @src="{$href}"}
 {cem-module-url @slice=imageUrl @src="{$src}"}
@@ -224,6 +245,7 @@
     {a  @class=hex-link
         @href="{$datadom.slices.linkUrl}"
         @aria-label="{$alt}"
+        @aria-current="{$current}"
         @title="{$alt}" |
         {span
             @class="image-fallback image-fallback-{$datadom.slices.imageState}"
@@ -235,7 +257,10 @@
             @slice=imageState
             @slice-event="load error"
             @slice-value="$event.type"}
-        {span @class=hex-label | {$alt}}
+        {span @class=hex-label |
+            {cem:if @test='current == "page"' |
+                {span @aria-hidden=true | ✓ }
+            }{$alt}}
 }   }
     </template>
 </cem-element>
@@ -294,12 +319,25 @@
         .hex:nth-child(n) { margin-left: 0; }
         .hex:nth-child(3n + 3) { margin-left: 25%; }
     }
+    .hex-grid-row {
+        flex-wrap: nowrap;
+        gap: 0.25rem;
+        padding: 1rem;
+        overflow-x: auto;
+    }
+    .hex-grid-row > .hex {
+        flex: 0 0 var(--cem-hex-row-cell-width, 6rem);
+        width: var(--cem-hex-row-cell-width, 6rem);
+        margin: 0;
+    }
 ```}
 {attribute @name=alternate | false}
 {attribute @name=size | 72rem}
-{nav @aria-label="JavaScript framework links" |
+{attribute @name=layout | honeycomb}
+{attribute @name=label | JavaScript framework links}
+{nav @aria-label="{$label}" |
     {ul
-        @class=hex-grid
+        @class="hex-grid hex-grid-{$layout}"
         @style="--cem-hex-grid-width: {$size}" |
         {cem:for-each
             @select=datadom.payload.nodes
@@ -310,6 +348,7 @@
                     @as=image |
                     {cem-hex-image-link
                         @href="{$link.attributes.href}"
+                        @current='{link.attributes.aria-current ?? "false"}'
                         @src="{$image.attributes.src}"
                         @alt="{$image.attributes.alt}"}
 }   }   }   }   }
@@ -486,6 +525,20 @@
 </cem-hex-grid>
     </template>
 </cem-image-button-grid>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element
+        legend="9. Horizontal row with a current page"
+        description="A single row reuses the image-link helper. ✓ marks this page; Tab reveals neighboring labels without changing that marker. Enter follows a link, and narrow cards scroll within the row.">
+        <template>
+<cem-hex-grid layout="row" label="Demo page links">
+    <template>
+<a href="./for-each.html"><img src="./framework-logos/lit.svg" alt="Loops"></a>
+<a href="./hex-grid.html" aria-current="page"><img src="./framework-logos/wc-square.svg" alt="Hex grid"></a>
+<a href="./scoped-css.html"><img src="./framework-logos/open-wc.svg" alt="CSS"></a>
+    </template>
+</cem-hex-grid>
         </template>
     </cem-demo-element>
 </main>

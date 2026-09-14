@@ -376,6 +376,38 @@ impl IrLowerer {
                     transform,
                 )
             }
+            Expression::TryCatch {
+                body,
+                code,
+                message,
+                handler,
+                range,
+            } => {
+                let body = self.lower_expr(body);
+                self.push_scope();
+                let code = self.declare_variable_with_type(
+                    QNameKey::from_qname(code),
+                    Type::atom(AtomType::String),
+                );
+                let message = self.declare_variable_with_type(
+                    QNameKey::from_qname(message),
+                    Type::atom(AtomType::String),
+                );
+                let handler = self.lower_expr(handler);
+                self.pop_scope();
+                self.push_node(
+                    IrNode::TryCatch {
+                        body,
+                        code,
+                        message,
+                        handler,
+                    },
+                    Type::Any,
+                    *range,
+                    None,
+                    transform,
+                )
+            }
             Expression::If {
                 cond,
                 then_branch,
@@ -1302,6 +1334,8 @@ fn stdlib_aliases() -> HashMap<String, ModuleUri> {
         ("state", "cem:stdlib/state"),
         ("tpl", "cem:stdlib/template"),
         ("cemml", "cem:stdlib/cemml"),
+        ("data", "cem:stdlib/data"),
+        ("native", "cem:stdlib/native"),
         ("ct", "cem:stdlib/content-types"),
         ("user", "cem:stdlib/user"),
     ]

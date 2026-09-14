@@ -14,8 +14,9 @@
 <template id="embed-relative-hash" type="text/cem-ml">
     👌 from embed-relative-hash invoking
     {module-url @slice=full-url @src="./lib-dir/embed-lib.html"}
+    {module-url @slice=smiley-url @src="./lib-dir/Smiley.svg"}
     {a @href="{$datadom.slices.full-url}#embed-lib-component" |
-        {img @src="{$datadom.slices.full-url}/../Smiley.svg"}
+        {img @src="{$datadom.slices.smiley-url}"}
         #embed-lib-component
     }:
     {cem-element @tag=dce-embed-lib-component @src="./lib-dir/embed-lib.html#embed-lib-component"}

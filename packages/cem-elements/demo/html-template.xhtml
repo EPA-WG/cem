@@ -52,5 +52,32 @@
         }
     }
   </template>
+  <!-- The older embedded-xsl ID above is retained for compatibility; it is CEM-ML.
+       This separate fragment contains real XSLT and opts into bounded lowering. -->
+  <template id="embedded-xslt" lang="custom-element-v0">
+<xsl:stylesheet
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:cem-island="https://cem.dev/ns/runtime/data-island"
+    xmlns:cem-payload="https://cem.dev/ns/runtime/instance-payload"
+    version="1.0">
+    <xsl:template match="/">
+        <article class="demo-card">
+            <h2>Embedded XSLT fruit tree</h2>
+            <xsl:for-each select="/cem-island:context-root/cem-payload:payload/*">
+                <details open="open">
+                    <summary><xsl:value-of select="name()"/></summary>
+                    <ul>
+                        <xsl:for-each select="*">
+                            <li><xsl:for-each select="text()">
+                                <xsl:value-of select="."/>
+                            </xsl:for-each></li>
+                        </xsl:for-each>
+                    </ul>
+                </details>
+            </xsl:for-each>
+        </article>
+    </xsl:template>
+</xsl:stylesheet>
+  </template>
 </body>
 </html>

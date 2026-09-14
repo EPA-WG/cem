@@ -28,3 +28,15 @@ cem-demo-element h3
     letter-spacing: 0.1rem;
 }
 *[slot="demo"]{ display: flex; gap: 1rem; flex-wrap: wrap; }
+
+/* Keep documentation above a compact, wrapping source/output gallery. */
+body > nav, body > main { flex-basis: 100%; min-width: 0; }
+main > section { flex-basis: 100%; min-width: 0; }
+main > cem-demo-element { flex: 1 1 32rem; min-width: 0; max-width: 100%; }
+cem-demo-element [slot="demo"] > * { min-width: 0; max-width: 100%; }
+cem-demo-element input, cem-demo-element textarea, cem-demo-element select {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+main p, main li { overflow-wrap: anywhere; }
+main section code { white-space: normal; }

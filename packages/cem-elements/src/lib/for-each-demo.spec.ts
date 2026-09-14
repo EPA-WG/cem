@@ -17,12 +17,10 @@ const DEMO_SOURCE = readFileSync(
 const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     {
         legend: '1. Simple for-each',
-        tag: 'cem-loop-simple',
         includes: ['@as=fruit', '{$fruit}'],
     },
     {
         legend: '2. for-each with position()',
-        tag: 'cem-loop-position',
         includes: ['@as=color', '{$position}. {$color.label}'],
     },
     {
@@ -39,7 +37,6 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     },
     {
         legend: '6. Dynamic table with toggle',
-        tag: 'cem-loop-dynamic-table',
         includes: ['@slice=show-products', '@as=product', '{$product.name}'],
     },
     {

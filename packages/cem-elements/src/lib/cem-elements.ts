@@ -27,6 +27,8 @@ import {
     compileCemMlTemplate,
     convertLegacyTemplate,
     processCemMlTemplate,
+    preflightCemMlTemplateModules,
+    type CemMlTemplateModuleClosure,
     type CemQlStylesheetArtifact,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
@@ -94,6 +96,7 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_CHOICE_SELECT_CAPABILITY } from './choice-select-capability.js';
+import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
 
 export * from './edge-ssr-host.js';
 
@@ -266,6 +269,8 @@ export interface SerializedEventTarget {
 }
 
 export interface SerializedEventPayload {
+    /** Monotonically increasing per slice, including repeated equal-value events. */
+    revision?: number;
     type: string;
     bubbles: boolean;
     cancelable: boolean;
@@ -511,7 +516,7 @@ export interface CemElementRuntimeOptions {
      */
     loadSrcDocument?: (specifier: string, baseDocument: Document) => Promise<string | CemSrcDocumentLoadResult>;
     /**
-     * Scope-aware resolver for canonical `cem-module-url` controls. The runtime
+     * Scope-aware resolver for canonical `cem-module-url` controls and CEMT imports. The runtime
      * converts scalar/Node author input to a typed URL/context referrer and
      * exposes immutable context metadata without leaking its frame registry.
      * Returning a structured result preserves host match provenance.
@@ -712,6 +717,7 @@ interface CompiledDeclaration {
     resolverIdentity: string;
     resourceBaseUrl: string;
     moduleMap: CemBrowserModuleUrlMap | null;
+    moduleClosureReady?: boolean;
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
     mode: 'dom' | 'cem-ml' | 'legacy-xslt';
@@ -886,6 +892,7 @@ interface LocationElementDeclaration {
     live: boolean;
     method?: string;
     src?: string;
+    trigger?: string;
 }
 
 type LocationReadDeclaration = LocationElementDeclaration & { sliceName: string };
@@ -1531,6 +1538,7 @@ export class CemElementRuntime {
     private readonly hydrationSnapshots = new WeakMap<HTMLElement, DataIslandSnapshot>();
     private readonly instanceIds = new WeakMap<HTMLElement, string>();
     private readonly dataRevisions = new WeakMap<HTMLElement, number>();
+    private readonly locationWriteTriggers = new WeakMap<HTMLElement, Map<number, string>>();
     private readonly renderBounds = new WeakMap<HTMLElement, RenderBounds>();
     private readonly committedRenderPlans = new WeakMap<HTMLElement, RenderPlan>();
     private readonly instanceStates = new WeakMap<HTMLElement, InstanceState>();
@@ -2123,7 +2131,7 @@ export class CemElementRuntime {
     ): Promise<void> {
         try {
             const result = await compileCemMlTemplate(compiled.cemMlSource ?? '');
-            compiled.stylesheets = result.stylesheets;
+            if (!compiled.moduleClosureReady) compiled.stylesheets = result.stylesheets;
             compiled.moduleMap = result.moduleMap;
             compiled.stylesheetsReady = true;
             this.installDeclarationStylesheets(compiled);
@@ -2544,9 +2552,11 @@ export class CemElementRuntime {
             }
             const source = compiled.cemMlSource ?? '';
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
+            const moduleClosure = await this.preflightDeclarationModules(compiled, Object.keys(data));
             const result = await processCemMlTemplate({
                 source,
                 data,
+                ...(moduleClosure === undefined ? {} : { moduleClosure }),
                 payload: snapshot.payload,
                 identity: {
                     producedTag: compiled.producedTag,
@@ -2566,6 +2576,12 @@ export class CemElementRuntime {
                     instance,
                     result.diagnostics.map((diagnostic) => runtimeSupportDiagnostic(diagnostic, compiled.producedTag)),
                 );
+            }
+            if (moduleClosure && result.stylesheets && !compiled.moduleClosureReady) {
+                compiled.stylesheets = result.stylesheets;
+                compiled.stylesheetsReady = true;
+                compiled.moduleClosureReady = true;
+                this.installDeclarationStylesheets(compiled);
             }
             this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
             const scoped = scopeRenderPlan(result.renderPlan, this.currentScopeUid(instance, compiled), {
@@ -2637,9 +2653,10 @@ export class CemElementRuntime {
             ...compiled.declaredSlices.map((slice) => slice.name),
             ...renderBindings,
         ];
+        const moduleClosure = await this.preflightDeclarationModules(compiled, hostBindings);
         const payloadKey = await cemMlTemplateArtifactPayloadKey(source, sourceMapMode);
         let precompiledArtifact: CemProcessingArtifactBinaryTransfer | undefined;
-        if (this.artifactRegistry?.getArtifact) {
+        if (!moduleClosure && this.artifactRegistry?.getArtifact) {
             try {
                 const loaded = await this.artifactRegistry.getArtifact(CEM_TEMPLATE_ARTIFACT_NAMESPACE, payloadKey);
                 precompiledArtifact = loaded === undefined ? undefined : { ...loaded, bytes: loaded.bytes.slice(0) };
@@ -2667,9 +2684,16 @@ export class CemElementRuntime {
             scopePolicyStamp: this.scopePolicyStamp,
             sourceMapMode,
             hostBindings,
+            ...(moduleClosure === undefined ? {} : { moduleClosure }),
             ...(precompiledArtifact === undefined ? {} : { precompiledArtifact }),
-            ...(this.artifactRegistry?.putArtifact === undefined ? {} : { exportCompiledArtifact: true as const }),
+            ...(moduleClosure || this.artifactRegistry?.putArtifact === undefined ? {} : { exportCompiledArtifact: true as const }),
         }).result;
+        if (moduleClosure && !result.diagnostics.some((diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'fatal')) {
+            compiled.stylesheets = result.stylesheets ?? [];
+            compiled.stylesheetsReady = true;
+            compiled.moduleClosureReady = true;
+            this.installDeclarationStylesheets(compiled);
+        }
         if (result.diagnostics.length > 0) {
             this.recordDiagnostics(
                 compiled.declarationElement,
@@ -2698,6 +2722,44 @@ export class CemElementRuntime {
             }
         }
         return result;
+    }
+
+    private async preflightDeclarationModules(
+        compiled: CompiledDeclaration, hostBindings: readonly string[],
+    ): Promise<CemMlTemplateModuleClosure | undefined> {
+        const source = compiled.cemMlSource ?? '';
+        if (!hasStaticTemplateImport(source)) return undefined;
+        const declaration = compiled.declarationElement;
+        const parent = this.ensureModuleUrlContext(declaration, compiled);
+        const contexts = new Map<string, CemBrowserModuleUrlContext>();
+        return preflightCemMlTemplateModules(source, {
+            rootUrl: compiled.resourceBaseUrl,
+            resolverPolicyStamp: `${compiled.resolverIdentity}:${this.scopePolicyStamp}`,
+            resolve: async (specifier, referrerUrl, moduleMap) => {
+                const context = createBrowserModuleUrlContext(
+                    contexts.get(referrerUrl) ?? parent,
+                    `${compiled.artifactId}:import:${referrerUrl}`, referrerUrl,
+                    compiled.resolverIdentity, this.scopePolicyStamp, moduleMap,
+                );
+                const request: CemModuleUrlResolutionRequest = {
+                    purpose: 'template-import', authoredSpecifier: specifier,
+                    currentContext: this.moduleUrlContextView(context),
+                    referrer: { kind: 'url', value: referrerUrl },
+                };
+                const resolved = this.resolveScopedModuleUrlOption
+                    ? await this.resolveScopedModuleUrlOption(request)
+                    : this.resolveModuleUrlOption
+                      ? await this.resolveModuleUrlOption(specifier, declaration.ownerDocument, referrerUrl, referrerUrl)
+                      : await resolveBrowserModuleUrl(context, specifier);
+                const url = resolvedModuleUrlString(typeof resolved === 'string' ? resolved : resolved.resolvedUrl);
+                contexts.set(url, context);
+                return url;
+            },
+            load: async (url) => {
+                const loaded = await this.loadSrcDocument(url, declaration.ownerDocument);
+                return typeof loaded === 'string' ? loaded : readTextStream(loaded.body);
+            },
+        }, hostBindings);
     }
 
     private async renderViaProcessingHost(
@@ -3651,6 +3713,7 @@ export class CemElementRuntime {
         const resourcesSettled: Promise<void>[] = [];
         const repositoryQueries = new Set<string>();
         const storageStatuses = new Set<string>();
+        let locationWriter = 0;
         for (const element of resourceElements) {
             const localName = element.localName;
             const sliceName = element.getAttribute('slice')?.trim() ?? '';
@@ -3707,7 +3770,8 @@ export class CemElementRuntime {
                 continue;
             }
             if (locationElement) {
-                this.bindLocationResource(instance, compiled, locationElement);
+                this.bindLocationResource(instance, compiled, locationElement, locationWriter);
+                if (locationElement.method) locationWriter += 1;
             }
         }
         this.disposeMissingRepositoryResources(instance, repositoryQueries, storageStatuses);
@@ -4697,6 +4761,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         declaration: LocationElementDeclaration,
+        writer: number,
     ): void {
         const window = instance.ownerDocument.defaultView;
         if (!window) {
@@ -4711,8 +4776,17 @@ export class CemElementRuntime {
             return;
         }
 
-        const writeDiagnostics = writeLocationTarget(window, instance.ownerDocument, declaration, compiled.producedTag);
-        this.recordDiagnostics(instance, writeDiagnostics);
+        if (declaration.method) {
+            let consumed = this.locationWriteTriggers.get(instance);
+            if (!consumed) {
+                consumed = new Map();
+                this.locationWriteTriggers.set(instance, consumed);
+            }
+            if (consumeLocationWriteTrigger(consumed, writer, declaration.trigger)) {
+                const writeDiagnostics = writeLocationTarget(window, instance.ownerDocument, declaration, compiled.producedTag);
+                this.recordDiagnostics(instance, writeDiagnostics);
+            }
+        }
         if (!declaration.sliceName) {
             return;
         }
@@ -5114,6 +5188,8 @@ export class CemElementRuntime {
         let changed = false;
         for (const sliceName of sliceNames) {
             const eventPayload = serializeEventPayload(event, sliceValue);
+            const previousRevision = (state.eventPayloads[sliceName] as { revision?: number } | undefined)?.revision;
+            eventPayload.revision = (typeof previousRevision === 'number' ? previousRevision : 0) + 1;
             if (JSON.stringify(state.eventPayloads[sliceName]) !== JSON.stringify(eventPayload)) {
                 state.eventPayloads[sliceName] = eventPayload;
                 changed = true;
@@ -5188,6 +5264,7 @@ export class CemElementRuntime {
     }
 
     private installDeclarationStylesheets(compiled: CompiledDeclaration): void {
+        if (hasStaticTemplateImport(compiled.cemMlSource ?? '') && !compiled.moduleClosureReady) return;
         if (!compiled.stylesheetsReady) {
             return;
         }
@@ -6016,6 +6093,11 @@ function parseSrcReference(src: string): SrcReference {
     return { local: path === '', path, id: src.slice(hashIndex + 1) };
 }
 
+/** Fast-path hint only: native preflight parses and validates the actual import graph. */
+function hasStaticTemplateImport(source: string): boolean {
+    return /\{\s*import(?:\s|@|\|)/u.test(source);
+}
+
 function resolveNestedDeclarationSrc(path: string, resourceBaseUrl: string): string {
     if (path.startsWith('@')) {
         return path;
@@ -6355,6 +6437,7 @@ function readLocationElementDeclaration(element: Element): LocationElementDeclar
         live: booleanAttribute(element, 'live'),
         ...(method && method.length > 0 ? { method } : {}),
         ...(src && src.length > 0 ? { src } : {}),
+        trigger: element.hasAttribute('trigger') ? element.getAttribute('trigger') ?? '' : undefined,
     };
 }
 

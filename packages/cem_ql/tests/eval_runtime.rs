@@ -25,6 +25,7 @@ fn eval_with_bindings(
     evaluate(
         &query,
         &EvaluationContext {
+            native_functions: Default::default(),
             scope: QueryContextScope(0),
             scope_policy: policy,
             diagnostics: Vec::new(),
@@ -47,6 +48,7 @@ fn controlled_for_loop_preserves_success_and_discards_cancelled_values() {
     )
     .expect("controlled loop compiles");
     let context = EvaluationContext {
+        native_functions: Default::default(),
         scope: QueryContextScope(0),
         scope_policy: default_policy(),
         diagnostics: Vec::new(),
@@ -56,22 +58,12 @@ fn controlled_for_loop_preserves_success_and_discards_cancelled_values() {
     };
     let ordinary = evaluate(&query, &context);
     let control = OperationControl::default();
-    let controlled = evaluate_with_control(
-        &query,
-        &context,
-        &control,
-        ROOT_EXECUTION_SCOPE_ID,
-    );
+    let controlled = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
     assert_eq!(ordinary.items, controlled.items);
     assert_eq!(ordinary.error, controlled.error);
 
     control.cancel_root(None, None).unwrap();
-    let cancelled = evaluate_with_control(
-        &query,
-        &context,
-        &control,
-        ROOT_EXECUTION_SCOPE_ID,
-    );
+    let cancelled = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
     assert!(cancelled.items.is_empty());
     assert_eq!(cancelled.error, Some(EvalError::Cancelled));
 }

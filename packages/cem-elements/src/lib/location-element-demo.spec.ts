@@ -13,9 +13,9 @@ const SAMPLE_CONTRACTS = [
         legend: '1. Window location live update',
         includes: [
             '{location-element @slice=current @live=true}',
-            '@value=history.pushState',
-            '@value=history.replaceState',
-            '?mode={$datadom.slices.method}&amp;tag=one&amp;tag=two#checked',
+            "onclick=\"history.pushState({}, '', '?mode=history.pushState&amp;tag=one&amp;tag=two#checked')\"",
+            "onclick=\"history.replaceState({}, '', '?mode=history.replaceState&amp;tag=one&amp;tag=two#checked')\"",
+            '<form method="get">',
             'datadom.slices.current.paramEntries',
         ],
     },
@@ -58,7 +58,7 @@ describe('location-element demo source contracts', () => {
         expect(samples.map(({ legend }) => legend)).toEqual(SAMPLE_CONTRACTS.map(({ legend }) => legend));
         expect(DEMO_SOURCE).not.toContain('data-role=');
         expect(DEMO_SOURCE).not.toContain('data-testid=');
-        expect(DEMO_SOURCE).not.toContain('onclick=');
+        expect(DEMO_SOURCE).not.toContain('@method=');
     });
 
     it.each(SAMPLE_CONTRACTS)('$legend owns one anonymous, flush-left declaration', ({ legend, includes }) => {
@@ -66,7 +66,7 @@ describe('location-element demo source contracts', () => {
         expect(sample, `missing authored sample ${legend}`).toBeDefined();
         const source = sample?.source ?? '';
         const normalized = source.replace(/\s+/gu, ' ');
-        expect(source).toMatch(/<template>\n<cem-element>/u);
+        expect(source).toMatch(/<template>\n</u);
         expect(source.match(/<cem-element(?:\s|>)/gu)).toHaveLength(1);
         expect(source).not.toMatch(/<cem-element\s+[^>]*\btag=/u);
         for (const required of includes) {

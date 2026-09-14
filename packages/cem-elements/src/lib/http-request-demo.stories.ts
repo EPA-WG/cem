@@ -54,19 +54,25 @@ export const EveryAuthoredSample: Story = {
 
 async function verifyRuntimeUrlSelection(sample: HTMLElement): Promise<void> {
     await waitForCondition(
+        () => normalize(sample.querySelector('article')?.textContent ?? '').includes('Request state: idle'),
+        'no request runs until GET'
+    );
+    if (sample.querySelector('li')) throw new Error('idle request must not render response data');
+    click(buttonByName(sample, 'GET'));
+    await waitForCondition(
         () => textList(sample, 'li').join('|') === 'alpha: ready|beta: loaded',
         'the initial selected URL loads the full response',
         300
     );
 
-    click(buttonByText(sample, 'Compact records'));
+    click(buttonByName(sample, 'Compact records'));
     await waitForCondition(
         () => requiredInput(sample).value === './http-data-compact.json',
         'the compact preset updates the editable URL'
     );
     assertText(sample, 'article', 'Selected URL: ./http-data-compact.json', 'the selected URL is visible', true);
 
-    click(buttonByText(sample, 'GET'));
+    click(buttonByName(sample, 'GET'));
     await waitForCondition(
         () => textList(sample, 'li').join('|') === 'solo: compact',
         'GET replaces the resource with the compact response',
@@ -74,6 +80,27 @@ async function verifyRuntimeUrlSelection(sample: HTMLElement): Promise<void> {
     );
     assertText(sample, 'article', 'Requested URL: ./http-data-compact.json', 'the requested URL is visible', true);
     assertText(sample, 'article', 'Request state: loaded', 'the selected request reaches loaded state', true);
+    click(buttonByName(sample, 'Invalid JSON response'));
+    await waitForCondition(() => requiredInput(sample).value === './http-data-invalid.json', 'invalid JSON preset');
+    assertText(sample, 'article', 'Request state: loaded', 'a draft change does not fetch', true);
+    click(buttonByName(sample, 'GET'));
+    await waitForCondition(
+        () => normalize(sample.querySelector('article')?.textContent ?? '').includes('Request state: failed'),
+        'a malformed response visibly fails', 300
+    );
+    assertEqual(sample.querySelectorAll('li').length, 0, 'failed requests hide stale response rows');
+    click(buttonByName(sample, 'All records'));
+    await waitForCondition(() => requiredInput(sample).value === './http-data.json', 'recovery preset');
+    click(buttonByName(sample, 'GET'));
+    await waitForCondition(() => textList(sample, 'li').join('|') === 'alpha: ready|beta: loaded', 'recovery loads records', 300);
+    click(buttonByName(sample, 'Empty URL'));
+    await waitForCondition(() => requiredInput(sample).value === '', 'empty preset');
+    click(buttonByName(sample, 'GET'));
+    await waitForCondition(
+        () => normalize(sample.querySelector('article')?.textContent ?? '').includes('Request state: idle')
+            && sample.querySelector('li') === null,
+        'empty URL returns to idle without stale records'
+    );
 }
 
 async function verifySimplestRequest(sample: HTMLElement): Promise<void> {
@@ -147,9 +174,9 @@ function requiredInput(root: ParentNode): HTMLInputElement {
     return input;
 }
 
-function buttonByText(root: ParentNode, expected: string): HTMLButtonElement {
+function buttonByName(root: ParentNode, expected: string): HTMLButtonElement {
     const button = Array.from(root.querySelectorAll('button')).find(
-        (candidate) => normalize(candidate.textContent ?? '') === expected
+        (candidate) => normalize(candidate.getAttribute('aria-label') ?? candidate.textContent ?? '') === expected
     );
     if (!button) throw new Error(`expected ${expected} button`);
     return button;

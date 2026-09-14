@@ -6,9 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
-use cem_ml::module_resolution::{
-    CemModuleUrlResolutionCapability, CemResolutionContextHandle,
-};
+use cem_ml::module_resolution::{CemModuleUrlResolutionCapability, CemResolutionContextHandle};
 use cem_ml::operation_control::{
     ControlError, ControlFailure, ControlTerminalClass, ExecutionScopeId, OperationControl,
     SafePointPoller, ROOT_EXECUTION_SCOPE_ID,
@@ -25,6 +23,7 @@ use crate::parser::{BinaryOp, QuantifierKind, SetOp, UnaryOp};
 use crate::resolve::BindingId;
 use crate::types::Type;
 
+mod data;
 pub mod pipeline;
 pub mod set_ops;
 pub mod types_runtime;
@@ -59,6 +58,48 @@ pub trait QueryItemView: fmt::Debug + Send + Sync {
     }
     fn source_map(&self) -> Option<SourceMapStack> {
         None
+    }
+}
+
+/// A caught diagnostic remains a native, source-mapped value, not serialized AST.
+#[derive(Debug)]
+struct DiagnosticView(Diagnostic);
+
+pub(crate) fn diagnostic_item(diagnostic: Diagnostic) -> Item {
+    Item::native(DiagnosticView(diagnostic))
+}
+
+impl QueryItemView for DiagnosticView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.diagnostic"
+    }
+    fn identity(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            ["code", "message"]
+                .into_iter()
+                .map(|key| (key.into(), self.field(key).unwrap_or_default()))
+                .collect(),
+        )
+    }
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let value = match name {
+            "code" => &self.0.code,
+            "message" => &self.0.message,
+            _ => return None,
+        };
+        Some(vec![Item::Atomic(AtomValue::String(value.clone()))])
+    }
+    fn source_map(&self) -> Option<SourceMapStack> {
+        self.0.source_map.clone()
     }
 }
 
@@ -326,6 +367,15 @@ pub enum EvalError {
     BudgetExceeded(BudgetAxis),
     Unsupported(&'static str),
     TypeError(&'static str),
+    Raised { code: Box<str>, message: Box<str> },
+}
+
+impl EvalError {
+    /// Host controls, budgets and unsupported engine capabilities are not
+    /// ordinary data failures and cannot be suppressed by a catch handler.
+    pub fn is_recoverable(&self) -> bool {
+        matches!(self, Self::TypeError(_) | Self::Raised { .. })
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -352,7 +402,29 @@ impl Evaluator {
         control: &OperationControl,
         scope: ExecutionScopeId,
     ) -> ItemStream {
+        Self::evaluate_internal(query, context, control, scope, false)
+    }
+
+    /// Evaluate a call within an enclosing recovery region. Stop at the first
+    /// dynamic failure, even when the catch lives outside this query artifact.
+    pub fn evaluate_protected(
+        query: &CompiledQuery,
+        context: &EvaluationContext,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
+    ) -> ItemStream {
+        Self::evaluate_internal(query, context, control, scope, true)
+    }
+
+    fn evaluate_internal(
+        query: &CompiledQuery,
+        context: &EvaluationContext,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
+        protected: bool,
+    ) -> ItemStream {
         let mut ctx = EvalCtx::new(query, context, control, scope);
+        ctx.recovery_depth = usize::from(protected);
         let mut stream = match ctx.force_safe_point(query.tree.root) {
             Ok(()) => ctx.eval_id(query.tree.root),
             Err(controlled) => controlled,
@@ -379,7 +451,11 @@ pub(crate) struct EvalCtx<'a> {
     call_depth: u64,
     diagnostics: Vec<Diagnostic>,
     error: Option<EvalError>,
+    recovery_depth: usize,
     module_resolution: Option<CemModuleUrlResolutionCapability>,
+    native_functions: crate::native::NativeFunctionRegistry,
+    control: OperationControl,
+    query_scope: QueryContextScope,
 }
 
 impl<'a> EvalCtx<'a> {
@@ -401,7 +477,11 @@ impl<'a> EvalCtx<'a> {
             call_depth: 0,
             diagnostics: context.diagnostics.clone(),
             error: None,
+            recovery_depth: 0,
             module_resolution: context.module_resolution.clone(),
+            native_functions: context.native_functions.clone(),
+            control: control.clone(),
+            query_scope: context.scope,
         };
         ctx.index_bindings();
         ctx.bind_policy_bindings(context);
@@ -440,10 +520,41 @@ impl<'a> EvalCtx<'a> {
         if let Err(cancelled) = self.ensure_active(id) {
             return cancelled;
         }
+        if (self.recovery_depth > 0 || matches!(self.error, Some(EvalError::Raised { .. })))
+            && self.error.is_some()
+        {
+            return self.pending_failure();
+        }
+        let mut result = self.eval_node(id);
+        if self.recovery_depth > 0 || matches!(self.error, Some(EvalError::Raised { .. })) {
+            if self.error.is_none() {
+                self.error = result.error.clone();
+            }
+            if self.error.is_some() {
+                result.items.clear();
+                result.error = self.error.clone();
+            }
+        }
+        result
+    }
+
+    fn pending_failure(&self) -> ItemStream {
+        let mut stream = ItemStream::empty();
+        stream.error = self.error.clone();
+        stream
+    }
+
+    fn eval_node(&mut self, id: IrId) -> ItemStream {
         let Some(node) = self.query.tree.node(id).cloned() else {
             return self.unsupported(id, "missing IR node");
         };
         match node {
+            IrNode::TryCatch {
+                body,
+                code,
+                message,
+                handler,
+            } => self.eval_try(body, code, message, handler),
             IrNode::LitString(value) => ItemStream::once(Item::Atomic(AtomValue::String(value))),
             IrNode::LitInt(value) => ItemStream::once(Item::Atomic(AtomValue::Integer(value))),
             IrNode::LitDecimal(value) => ItemStream::once(Item::Atomic(AtomValue::Decimal(value))),
@@ -520,7 +631,11 @@ impl<'a> EvalCtx<'a> {
                 .unwrap_or_else(|| self.unsupported(id, "`.` has no current item")),
             IrNode::Call { callee, args } => self.eval_call(id, callee, &args),
             IrNode::StdlibCall { module, name, args } => {
-                pipeline::apply_stdlib_call(&module, &name, &args, self)
+                if module.0 == crate::stdlib::native::MODULE_URI && name.local == "call" {
+                    self.eval_native_call(id, &args)
+                } else {
+                    pipeline::apply_stdlib_call(&module, &name, &args, self)
+                }
             }
             IrNode::BinaryOp { op, lhs, rhs } => self.eval_binary(id, op, lhs, rhs),
             IrNode::UnaryOp { op, operand } => self.eval_unary(id, op, operand),
@@ -611,6 +726,69 @@ impl<'a> EvalCtx<'a> {
         }
     }
 
+    fn eval_try(
+        &mut self,
+        body: IrId,
+        code: BindingId,
+        message: BindingId,
+        handler: IrId,
+    ) -> ItemStream {
+        // Never catch an error from an earlier sibling outside this region.
+        if self.error.is_some() {
+            return self.pending_failure();
+        }
+        let diagnostic_start = self.diagnostics.len();
+        self.recovery_depth += 1;
+        let result = self.eval_id(body);
+        self.recovery_depth -= 1;
+        let Some(error) = result.error.as_ref().or(self.error.as_ref()) else {
+            return result;
+        };
+        if !error.is_recoverable() {
+            return result;
+        }
+        let failure = self.diagnostics[diagnostic_start..]
+            .iter()
+            .rev()
+            .find(|d| d.severity.is_hard_violation())
+            .or_else(|| {
+                result
+                    .diagnostics
+                    .iter()
+                    .rev()
+                    .find(|d| d.severity.is_hard_violation())
+            })
+            .cloned();
+        let Some(failure) = failure else {
+            return result;
+        };
+        // Consume only this failure's diagnostics; independent report emissions
+        // are still delivered. Source maps remain on uncaught/rethrown errors.
+        let emitted = self.diagnostics.split_off(diagnostic_start);
+        self.diagnostics.extend(emitted.into_iter().filter(|d| {
+            d.code != failure.code
+                || d.message != failure.message
+                || d.source_map != failure.source_map
+        }));
+        self.error = None;
+        self.push_scope();
+        self.bind(
+            code,
+            ItemStream::once(Item::Atomic(AtomValue::String(failure.code))),
+        );
+        self.bind(
+            message,
+            ItemStream::once(Item::Atomic(AtomValue::String(failure.message))),
+        );
+        // The handler is outside its own protected region, but failures in it
+        // must still short-circuit and may be caught by an enclosing try.
+        self.recovery_depth += 1;
+        let handled = self.eval_id(handler);
+        self.recovery_depth -= 1;
+        self.pop_scope();
+        handled
+    }
+
     pub(crate) fn invoke_lambda(&mut self, lambda: IrId, args: Vec<ItemStream>) -> ItemStream {
         let Some(IrNode::Lambda { params, body, .. }) = self.query.tree.node(lambda).cloned()
         else {
@@ -686,7 +864,8 @@ impl<'a> EvalCtx<'a> {
         let (error, code, message, severity) = match control_error {
             ControlError::Triggered(mut failure) => {
                 if failure.source_map.is_none() {
-                    failure.source_map = self.query.tree.source_maps.get(source.0 as usize).cloned();
+                    failure.source_map =
+                        self.query.tree.source_maps.get(source.0 as usize).cloned();
                 }
                 if failure.terminal_class() == ControlTerminalClass::Cancelled {
                     (
@@ -723,6 +902,9 @@ impl<'a> EvalCtx<'a> {
     }
 
     pub(crate) fn type_error(&mut self, source: IrId, message: &'static str) -> ItemStream {
+        if self.recovery_depth > 0 && self.error.is_some() {
+            return self.pending_failure();
+        }
         let diagnostic = self.diagnostic(source, TYPE_ERROR, message, Severity::Error);
         let error = EvalError::TypeError(message);
         self.diagnostics.push(diagnostic.clone());
@@ -758,6 +940,20 @@ impl<'a> EvalCtx<'a> {
         let mut out = ItemStream::empty();
         out.diagnostics.push(diagnostic);
         out
+    }
+
+    pub(crate) fn raise(&mut self, source: IrId, code: String, message: String) -> ItemStream {
+        if self.error.is_some() {
+            return self.pending_failure();
+        }
+        let diagnostic = self.diagnostic(source, code.clone(), message.clone(), Severity::Error);
+        let error = EvalError::Raised {
+            code: code.into_boxed_str(),
+            message: message.into_boxed_str(),
+        };
+        self.diagnostics.push(diagnostic.clone());
+        self.error = Some(error.clone());
+        ItemStream::failed(error, diagnostic)
     }
 
     pub(crate) fn fail_diagnostic(
@@ -813,6 +1009,128 @@ impl<'a> EvalCtx<'a> {
         let mut out = self.invoke_lambda(lambda, args);
         out.extend_diagnostics(callee_stream);
         out
+    }
+
+    fn eval_native_call(&mut self, source: IrId, args: &[IrId]) -> ItemStream {
+        if args.is_empty() || args.len() > u8::MAX as usize {
+            return self.type_error(
+                source,
+                "native:call requires an identifier and at most 254 arguments",
+            );
+        }
+        // Short-circuit arguments here even outside an explicit catch region.
+        // Native callbacks must not run after a failed earlier argument.
+        let mut inputs = Vec::with_capacity(args.len());
+        for arg in args {
+            let mut value = self.eval_id(*arg);
+            // Reports belong to the invoking evaluator, not to argument
+            // values. In particular an identity callback must not duplicate
+            // a report by returning its argument stream verbatim.
+            for diagnostic in value.diagnostics.drain(..) {
+                if !self.diagnostics.contains(&diagnostic) {
+                    self.diagnostics.push(diagnostic);
+                }
+            }
+            if value.error.is_some() {
+                return value;
+            }
+            inputs.push(value);
+        }
+        let [identifier] = inputs[0].items.as_slice() else {
+            return self.type_error(
+                source,
+                "native:call requires one non-empty identifier string",
+            );
+        };
+        let Some(AtomValue::String(name)) = identifier.atom() else {
+            return self.type_error(
+                source,
+                "native:call requires one non-empty identifier string",
+            );
+        };
+        if name.trim().is_empty() {
+            return self.type_error(
+                source,
+                "native:call requires one non-empty identifier string",
+            );
+        }
+        let Some(function) = self.native_functions.get(&name, inputs.len() - 1) else {
+            let diagnostic = self.diagnostic(
+                source,
+                "cem.ql.native_function_unavailable",
+                format!(
+                    "native function `{name}#{}` was not supplied by this host",
+                    inputs.len() - 1
+                ),
+                Severity::Error,
+            );
+            return ItemStream::failed(
+                EvalError::Unsupported("native function capability unavailable"),
+                diagnostic,
+            );
+        };
+        if let Err(error) = self.enter_call(source) {
+            return error;
+        }
+        let source_map = self.source_map(source);
+        let max_result_items = self
+            .limits
+            .get(&BudgetAxis::ItemsPerStage)
+            .copied()
+            .unwrap_or(u64::MAX)
+            .saturating_sub(
+                self.counters
+                    .get(&BudgetAxis::ItemsPerStage)
+                    .copied()
+                    .unwrap_or(0),
+            );
+        let mut result = function.call(crate::native::NativeQueryRequest {
+            arguments: &inputs[1..],
+            current_item: self.current_items.last(),
+            query_scope: self.query_scope,
+            source_map: &source_map,
+            control: &self.control,
+            scope: self.safe_points.scope(),
+            max_result_items,
+            module_resolution: self.module_resolution.as_ref(),
+        });
+        self.exit_call();
+        // Acceptance is outside domain code and outside recoverable errors.
+        if let Err(controlled) = self.force_safe_point(source) {
+            return controlled;
+        }
+        if let Some(error) = &result.error {
+            result.items.clear();
+            if !result
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation())
+            {
+                let (code, message) = match error {
+                    EvalError::Raised { code, message } => (code.as_ref(), message.to_string()),
+                    error => (
+                        "cem.ql.native_function_failed",
+                        format!("native function `{name}` failed: {error:?}"),
+                    ),
+                };
+                result
+                    .diagnostics
+                    .push(self.diagnostic(source, code, message, Severity::Error));
+            }
+            self.error = Some(error.clone());
+        } else if let Err(exceeded) = self.charge_items(result.items.len() as u64, source) {
+            return exceeded;
+        }
+        for diagnostic in &mut result.diagnostics {
+            if diagnostic
+                .source_map
+                .as_ref()
+                .is_none_or(|map| map.frames.is_empty())
+            {
+                diagnostic.source_map = Some(source_map.clone());
+            }
+        }
+        result
     }
 
     fn eval_record_key(

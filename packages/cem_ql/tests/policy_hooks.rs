@@ -50,6 +50,7 @@ fn contexts() -> (CompileContext, EvaluationContext) {
             ..CompileContext::default()
         },
         EvaluationContext {
+            native_functions: Default::default(),
             scope: QueryContextScope(9),
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),

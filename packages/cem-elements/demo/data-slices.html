@@ -21,14 +21,32 @@
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Data slices and events</h1></nav>
 
 <main>
+    <section>
+        <h2>Events update slices; templates display the result</h2>
+        <p>A slice belongs to one instance's data island. Bind a control's event
+            with <code>slice</code>, choose its value with <code>slice-value</code>,
+            and render it through <code>datadom.slices</code>. Event metadata lives
+            alongside it in <code>datadom.eventPayloads</code>.</p>
+        <p>Try typing and leaving a field, clearing its value, moving the pointer,
+            and checking or unchecking a box. The chosen event determines when
+            the displayed slice changes; declaring a default and displaying an
+            input fallback are separate choices.</p>
+        <h3>See also</h3>
+        <p><a href="./attributes.html">Container attributes and reflected outputs</a></p>
+        <p><a href="./dom-merge.html">Live updates with focus preservation</a></p>
+        <p><a href="./form.html">Named form data and validation</a></p>
+        <p><a href="./for-each.html">Conditional lists and tables</a></p>
+    </section>
     <cem-demo-element legend="A1. inline slice initialization, change on event"
                        description="initial value should be 0; + and - should change the number in input field">
         <template>
 <cem-element tag="cem-slice-counter-input-default">
     <template type="text/cem-ml">
 {article @class=demo-card |
-    {button @slice=clickcount @slice-event=click @slice-value="//clickcount + 1" | +}
-    {button @slice=clickcount @slice-event=click @slice-value="//clickcount - 1" | -}
+    {button @aria-label=Increase @title=Increase
+        @slice=clickcount @slice-event=click @slice-value="//clickcount + 1" | +}
+    {button @aria-label=Decrease @title=Decrease
+        @slice=clickcount @slice-event=click @slice-value="//clickcount - 1" | −}
     {input @slice=clickcount @type=number @value="{datadom.slices.clickcount ?? 0}"}
     {$datadom.slices.clickcount ?? 0}
 }
@@ -44,10 +62,12 @@
     <template type="text/cem-ml">
         {slice @name=clickcount | 0}
         {article @class=demo-card |
-            {button @slice=clickcount @slice-event="click tap"
+            {button @aria-label=Increase @title=Increase
+                    @slice=clickcount @slice-event="click tap"
                     @slice-value="//clickcount + 1" | +}
-            {button @slice=clickcount @slice-event=click
-                    @slice-value="//clickcount - 1" | -}
+            {button @aria-label=Decrease @title=Decrease
+                    @slice=clickcount @slice-event=click
+                    @slice-value="//clickcount - 1" | −}
             {input @type=number @slice=clickcount @value="{$clickcount}"}
             {output | {$clickcount}}
         }
@@ -177,7 +197,8 @@
         {slice @name=nickname | anonymous}
         {article @class=demo-card |
             {input @slice=nickname @value="{$nickname}"}
-            {button @slice=nickname
+            {button @aria-label="Set nickname to broccoli"
+                @title="Set nickname to broccoli" @slice=nickname
                 @slice-value='"broccoli"'
                 @slice-event=click | 🥦}
             {output | {$nickname}}

@@ -28,9 +28,9 @@ const SAMPLE_CONTRACTS = [
     {
         legend: '5. Synchronize the selected version with the URL',
         includes: [
-            '@value=0.0.22',
-            '{slice @name=targetVersion}',
-            '@slice-value="$selectedVersion"',
+            "onclick=\"location.hash = 'version=0.0.22'\"",
+            'str:substring(datadom.slices.current.hash, 10)',
+            '@trigger="{$datadom.eventPayloads.selectedVersion.revision}"',
             '{location-element @slice=current @live=true}',
             '@method=location.hash',
         ],
@@ -61,14 +61,14 @@ describe('npm versions demo source contracts', () => {
         expect(DEMO_SOURCE).toContain('{slot @name=label |');
         expect(DEMO_SOURCE).toContain("@test='version.version == initialversion'");
         expect(DEMO_SOURCE).toContain("@test='showdate == \"true\"'");
-        expect(DEMO_SOURCE).toContain('@src="#version={$datadom.slices.targetVersion}"');
+        expect(DEMO_SOURCE).toContain('@src="#version={$datadom.slices.selectedVersion}"');
     });
 
     it('ports all five legacy use cases and avoids test-only demo markup', () => {
         expect(samples.map(({ legend }) => legend)).toEqual(SAMPLE_CONTRACTS.map(({ legend }) => legend));
         expect(DEMO_SOURCE).not.toContain('data-role=');
         expect(DEMO_SOURCE).not.toContain('data-testid=');
-        expect(DEMO_SOURCE).not.toContain('onclick=');
+        expect(DEMO_SOURCE).not.toContain('Apply selection to URL');
     });
 
     it.each(SAMPLE_CONTRACTS)('$legend is flush-left and self-declares its picker', ({ legend, includes }) => {
@@ -76,7 +76,7 @@ describe('npm versions demo source contracts', () => {
         expect(sample, `missing authored sample ${legend}`).toBeDefined();
         const source = sample?.source ?? '';
         const normalized = source.replace(/\s+/gu, ' ');
-        expect(source).toMatch(/<template>\n<cem-element/u);
+        expect(source).toMatch(/<template>\n</u);
         expect(source).toContain('src="#npm-version"');
         for (const required of includes) {
             expect(normalized, `${legend} must include ${required}`).toContain(required.replace(/\s+/gu, ' '));

@@ -18,89 +18,70 @@
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). The legacy @epa-wg/custom-element XSLT/XPath
   runtime is gone: cem-css-generator.js shapes the token tables into datadom.slices via the
   cem-elements DOM→datadom bridge and renders this template through the cem_ql WASM boundary.
-  Token table columns — geometry/progress/slider: td1=token td2=value td3=description td4=tier;
-  overrides: td1=token td2=forgiving td3=compact.
+  Token rows use normalized Markdown heading fields: token/value/description/tier for standard
+  tables and token/forgiving/compact for mode overrides.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-controls-template"
           data-token-url="../../../dist/lib/tokens/cem-controls.xhtml"
           data-slices="geometry=cem-controls-geometry progress=cem-progress-geometry slider=cem-slider-geometry overrides=cem-controls-geometry-overrides">
-{table @id=cem-controls-geometry |
-    {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-1-baseline-balanced-mode" | cem-controls-geometry} — visual control geometry (balanced baseline)}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.geometry" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{module @version="1.0.0" |
+{import @as=docs @src="./cem-token-docs.cemt"}
+{body |
+{call @from=docs @template=width-token-table
+    @with:rows={datadom.slices.geometry} @with:id=cem-controls-geometry
+    @with:href="../../../dist/lib/tokens/cem-controls.xhtml#3-1-baseline-balanced-mode"
+    @with:link_label=cem-controls-geometry
+    @with:caption=" — visual control geometry (balanced baseline)"}
 {hr | }
-{table @id=cem-progress-geometry |
-    {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#cem-progress-geometry" | cem-progress-geometry} — non-interactive progress graphic geometry}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.progress" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{call @from=docs @template=width-token-table
+    @with:rows={datadom.slices.progress} @with:id=cem-progress-geometry
+    @with:href="../../../dist/lib/tokens/cem-controls.xhtml#cem-progress-geometry"
+    @with:link_label=cem-progress-geometry
+    @with:caption=" — non-interactive progress graphic geometry"}
 {hr | }
-{table @id=cem-slider-geometry |
-    {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#cem-slider-geometry" | cem-slider-geometry} — slider visual geometry}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.slider" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{call @from=docs @template=width-token-table
+    @with:rows={datadom.slices.slider} @with:id=cem-slider-geometry
+    @with:href="../../../dist/lib/tokens/cem-controls.xhtml#cem-slider-geometry"
+    @with:link_label=cem-slider-geometry
+    @with:caption=" — slider visual geometry"}
 {hr | }
 {table @id=cem-controls-geometry-overrides |
     {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-4-coupling-mode-overrides-visual-geometry-only" | cem-controls-geometry-overrides} — coupling mode overrides (visual geometry only)}
     {thead | {tr | {th | Token}{th | forgiving}{th | compact}}}
     {tbody | {cem:for-each @select="$datadom.slices.overrides" @as="row" |
         {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {code | {$row.td3}}}
+            {th | {code | {$row.token}}}
+            {td | {code | {$row.forgiving}}}
+            {td | {code | {$row.compact}}}
         }}}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
-  /* region control geometry — balanced (default) baseline */```{cem:for-each @select="$datadom.slices.geometry" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region control geometry — balanced (default) baseline */```{call @from=docs @template=css-properties @with:rows={datadom.slices.geometry} @with:indent="  "}```
   /* endregion control geometry */
 
-  /* region progress graphic geometry */```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region progress graphic geometry */```{call @from=docs @template=css-properties @with:rows={datadom.slices.progress} @with:indent="  "}```
   /* endregion progress graphic geometry */
 
-  /* region slider visual geometry */```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region slider visual geometry */```{call @from=docs @template=css-properties @with:rows={datadom.slices.slider} @with:indent="  "}```
   /* endregion slider visual geometry */
 }
 
 /* region coupling mode: forgiving — larger visual geometry */
 :root[data-cem-coupling="forgiving"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  ```{$row.token}: {$row.forgiving};}```
 }
 /* endregion coupling mode: forgiving */
 
 /* region coupling mode: compact — smaller visual geometry */
 :root[data-cem-coupling="compact"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.compact};}```
 }
 /* endregion coupling mode: compact */
 ```}}
+}
+}
 </template>
 <main></main>
 <cem-css-loader></cem-css-loader>

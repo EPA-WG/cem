@@ -18,55 +18,52 @@
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). The legacy @epa-wg/custom-element XSLT/XPath
   runtime is gone: cem-css-generator.js shapes the token tables into datadom.slices via the
   cem-elements DOM→datadom bridge and renders this template through the cem_ql WASM boundary.
-  Token table columns — minimums: td1=token td2=value td3=description td4=tier;
-  overrides: td1=token td2=forgiving td3=compact.
+  Token rows use normalized Markdown heading fields: token/value/description/tier for minimums and
+  token/forgiving/compact for mode overrides.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-coupling-template"
           data-token-url="../../../dist/lib/tokens/cem-coupling.xhtml"
           data-slices="minimums=cem-coupling-minimums overrides=cem-coupling-halo-overrides">
-{table @id=cem-coupling-minimums |
-    {caption | {a @href="../../../dist/lib/tokens/cem-coupling.xhtml#4-1-hard-safety-minimums-policy-anchors" | cem-coupling-minimums} — hard safety minimums (mode-invariant)}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.minimums" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{module @version="1.0.0" |
+{import @as=docs @src="./cem-token-docs.cemt"}
+{body |
+{call @from=docs @template=width-token-table
+    @with:rows={datadom.slices.minimums} @with:id=cem-coupling-minimums
+    @with:href="../../../dist/lib/tokens/cem-coupling.xhtml#4-1-hard-safety-minimums-policy-anchors"
+    @with:link_label=cem-coupling-minimums
+    @with:caption=" — hard safety minimums (mode-invariant)"}
 {hr | }
 {table @id=cem-coupling-halo-overrides |
     {caption | {a @href="../../../dist/lib/tokens/cem-coupling.xhtml#5-2-mode-switch-halo-policy" | cem-coupling-halo-overrides} — coupling mode halo overrides (visuals owned by D2c Controls)}
     {thead | {tr | {th | Token}{th | forgiving}{th | compact}}}
     {tbody | {cem:for-each @select="$datadom.slices.overrides" @as="row" |
         {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {code | {$row.td3}}}
+            {th | {code | {$row.token}}}
+            {td | {code | {$row.forgiving}}}
+            {td | {code | {$row.compact}}}
         }}}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
-  /* region coupling minimums — mode-invariant safety anchors */```{cem:for-each @select="$datadom.slices.minimums" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region coupling minimums — mode-invariant safety anchors */```{call @from=docs @template=css-properties @with:rows={datadom.slices.minimums} @with:indent="  "}```
   /* endregion coupling minimums */
 }
 
 /* region coupling mode: forgiving — halo policy only (visuals owned by D2c Controls) */
 :root[data-cem-coupling="forgiving"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  ```{$row.token}: {$row.forgiving};}```
 }
 /* endregion coupling mode: forgiving */
 
 /* region coupling mode: compact — halo policy only (visuals owned by D2c Controls) */
 :root[data-cem-coupling="compact"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
-  ```{$row.td1}: {$row.td3};}```
+  ```{$row.token}: {$row.compact};}```
 }
 /* endregion coupling mode: compact */
 ```}}
+}
+}
 </template>
 <main></main>
 <cem-css-loader></cem-css-loader>

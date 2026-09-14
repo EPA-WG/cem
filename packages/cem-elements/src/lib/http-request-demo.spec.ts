@@ -19,7 +19,9 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
         includes: [
             '@slice=selectedUrl',
             '@slice=requestUrl',
-            '@slice-value="$selectedUrl"',
+            '@value="{$datadom.slices.selectedUrl}"',
+            'Empty URL',
+            'Invalid JSON response',
             './http-data-compact.json',
         ],
     },

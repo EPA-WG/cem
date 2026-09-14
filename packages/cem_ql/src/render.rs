@@ -6,7 +6,7 @@
 //! serializable-style render plan. A convenience HTML renderer remains for
 //! Rust tests and CLI-style callers.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::interpreter::{OutputSpan, OutputTarget, TransformOutput};
@@ -21,7 +21,7 @@ use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
 
 use crate::api::{compile, evaluate, evaluate_with_control, CompileContext, EvaluationContext};
-use crate::eval::{effective_boolean, AtomValue, Item, ItemStream, QueryContextScope};
+use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
 /// Binding name under which the `/datadom` data document is exposed to expressions.
@@ -43,6 +43,8 @@ const MAX_TEMPLATE_CALL_DEPTH: usize = 32;
 #[derive(Debug, Clone, Default)]
 pub struct TemplateData {
     pub bindings: BTreeMap<String, ItemStream>,
+    /// Host capabilities are not data bindings and never enter the data DOM.
+    pub native_functions: crate::native::NativeFunctionRegistry,
 }
 
 impl TemplateData {
@@ -64,6 +66,39 @@ pub struct TemplateArtifact {
     pub stylesheets: Vec<TemplateStylesheetArtifact>,
     pub module_map: Option<TemplateModuleMapArtifact>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+/// One resolver-preflighted CEMT dependency. Hosts resolve and load modules; the render engine
+/// validates their hashes and compiles the immutable closure without performing I/O.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateModuleSource {
+    pub alias: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_uri: Option<String>,
+    pub uri: String,
+    pub content_hash: String,
+    pub source: String,
+}
+
+/// Portable identity and resolved dependency graph supplied by browser, CLI, or SSR hosts.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateModuleClosure {
+    pub root_uri: String,
+    pub root_content_hash: String,
+    #[serde(default)]
+    pub resolver_policy_stamp: String,
+    #[serde(default)]
+    pub entrypoint: String,
+    #[serde(default)]
+    pub parameter_contract: Vec<String>,
+    #[serde(default)]
+    pub cem_ml_version: String,
+    #[serde(default)]
+    pub cem_ql_version: String,
+    #[serde(default)]
+    pub modules: Vec<TemplateModuleSource>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -267,6 +302,8 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     // selection (e.g. `datadom.attributes.label`), so declare it at compile time.
     declared_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), ItemStream::empty());
     declared_bindings.insert(PRIMARY_INPUT_BINDING.to_owned(), ItemStream::empty());
+    // Implicit subject of generic match-template dispatch (saved/restored per call).
+    declared_bindings.insert("node".to_owned(), ItemStream::empty());
     // `{attribute @name=X}` / `{slice @name=X}` declarations introduce named bindings, so
     // declare them too. The render engine owns declaration metadata, so the host runtime
     // no longer needs to scan the template to make `{$ X}` compile.
@@ -302,6 +339,218 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         module_map,
         diagnostics: compiler.diagnostics,
     }
+}
+
+/// Compile a root template plus an already-resolved CEMT dependency closure into one renderable
+/// artifact. Imported named templates are namespaced by resolved module URI, while their original
+/// source maps remain attached to the compiled nodes. Resolution and loading deliberately stay in
+/// the host so browser and SSR can apply the same scoped import-map policy.
+pub fn compile_template_module_closure(
+    source: &str,
+    closure: &TemplateModuleClosure,
+    options: &CompileTemplateOptions,
+) -> TemplateArtifact {
+    let expected_root_hash =
+        cem_ml::content_cache::ContentHash::from_blake3(source.as_bytes()).header_value();
+    let mut root = compile_template(source, options);
+    if closure.root_content_hash != expected_root_hash {
+        root.diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_hash_mismatch",
+            format!(
+                "root template `{}` content hash `{}` does not match `{expected_root_hash}`",
+                closure.root_uri, closure.root_content_hash
+            ),
+            0,
+            SourceMapStack::default(),
+        ));
+        return root;
+    }
+    if !closure.entrypoint.is_empty() && closure.entrypoint != "body" {
+        root.diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_entrypoint_unsupported",
+            format!(
+                "module closure entrypoint `{}` is unsupported; use the root `body` entrypoint",
+                closure.entrypoint
+            ),
+            0,
+            SourceMapStack::default(),
+        ));
+        return root;
+    }
+    let mut expected_parameters = options.host_bindings.clone();
+    expected_parameters.sort();
+    expected_parameters.dedup();
+    if !closure.parameter_contract.is_empty() && closure.parameter_contract != expected_parameters {
+        root.diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_parameter_contract_mismatch",
+            format!(
+                "module closure parameter contract {:?} does not match host bindings {:?}",
+                closure.parameter_contract, expected_parameters
+            ),
+            0,
+            SourceMapStack::default(),
+        ));
+        return root;
+    }
+    if !closure.cem_ml_version.is_empty() && closure.cem_ml_version != cem_ml::VERSION {
+        root.diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_version_mismatch",
+            format!(
+                "module closure CEM-ML version `{}` does not match runtime `{}`",
+                closure.cem_ml_version,
+                cem_ml::VERSION
+            ),
+            0,
+            SourceMapStack::default(),
+        ));
+        return root;
+    }
+    if !closure.cem_ql_version.is_empty() && closure.cem_ql_version != crate::VERSION {
+        root.diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_version_mismatch",
+            format!(
+                "module closure CEM-QL version `{}` does not match runtime `{}`",
+                closure.cem_ql_version,
+                crate::VERSION
+            ),
+            0,
+            SourceMapStack::default(),
+        ));
+        return root;
+    }
+
+    let mut imports = BTreeMap::new();
+    for module in &closure.modules {
+        let key = (module.parent_uri.clone(), module.alias.clone());
+        if imports.insert(key.clone(), module.uri.clone()).is_some() {
+            root.diagnostics.push(render_diagnostic(
+                "cem.ql.template.module_alias_duplicate",
+                format!(
+                    "template module alias `{}` is duplicated for `{}`",
+                    module.alias,
+                    module.parent_uri.as_deref().unwrap_or("<root>")
+                ),
+                0,
+                SourceMapStack::default(),
+            ));
+        }
+    }
+    let mut imported_templates = Vec::new();
+    let mut seen_uris = BTreeMap::<String, String>::new();
+    let mut public_templates = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut compiled_modules = Vec::new();
+
+    for module in &closure.modules {
+        let actual_hash = cem_ml::content_cache::ContentHash::from_blake3(module.source.as_bytes())
+            .header_value();
+        if module.content_hash != actual_hash {
+            root.diagnostics.push(render_diagnostic(
+                "cem.ql.template.module_hash_mismatch",
+                format!(
+                    "template module `{}` content hash `{}` does not match `{actual_hash}`",
+                    module.uri, module.content_hash
+                ),
+                0,
+                SourceMapStack::default(),
+            ));
+            continue;
+        }
+        if let Some(existing_hash) = seen_uris.get(&module.uri) {
+            if existing_hash != &actual_hash {
+                root.diagnostics.push(render_diagnostic(
+                    "cem.ql.template.module_identity_conflict",
+                    format!(
+                        "template module `{}` has conflicting content hashes in one closure",
+                        module.uri
+                    ),
+                    0,
+                    SourceMapStack::default(),
+                ));
+            }
+            continue;
+        }
+        seen_uris.insert(module.uri.clone(), actual_hash);
+
+        let parsed = cem_ml::transform_template::parse_cem_native_template_module_options(
+            cem_ml::transform_template::TransformTemplateModuleParseRequest {
+                template: cem_ml::engine::TemplateInput {
+                    uri: module.uri.clone(),
+                    bytes: module.source.as_bytes().to_vec(),
+                    identity: None,
+                    root_scope: cem_ml::run_config::ScopeConfig::default(),
+                },
+            },
+        );
+        root.diagnostics.extend(parsed.diagnostics);
+        public_templates.insert(
+            module.uri.clone(),
+            parsed
+                .module_options
+                .entrypoints
+                .into_iter()
+                .filter(|entrypoint| {
+                    entrypoint.visibility
+                        == cem_ml::transform_template::TransformTemplateModuleVisibility::Public
+                })
+                .map(|entrypoint| entrypoint.name)
+                .collect(),
+        );
+
+        let mut artifact = compile_template(&module.source, options);
+        for diagnostic in &mut artifact.diagnostics {
+            if diagnostic.uri.is_none() {
+                diagnostic.uri = Some(module.uri.clone());
+            }
+        }
+        compiled_modules.push((module.uri.as_str(), artifact));
+    }
+
+    rewrite_module_calls(
+        &mut root.nodes,
+        None,
+        &imports,
+        &public_templates,
+        &mut root.diagnostics,
+    );
+
+    for (module_uri, mut artifact) in compiled_modules {
+        rewrite_module_calls(
+            &mut artifact.nodes,
+            Some(module_uri),
+            &imports,
+            &public_templates,
+            &mut artifact.diagnostics,
+        );
+        root.diagnostics.extend(artifact.diagnostics);
+        root.stylesheets.extend(artifact.stylesheets);
+        for (index, mut declaration) in collect_template_declarations(&artifact.nodes)
+            .into_iter()
+            .enumerate()
+        {
+            if let TemplateNode::Element {
+                attributes,
+                source_map,
+                ..
+            } = &mut declaration
+            {
+                let name = declaration_name(attributes)
+                    .unwrap_or_else(|| format!("anonymous-match-{index}"));
+                let name = module_template_name(module_uri, &name);
+                if let Some(attribute) = attributes.iter_mut().find(|a| a.name == "name") {
+                    attribute.value = Some(TemplateAttributeValue::Literal(name));
+                } else {
+                    attributes.push(TemplateAttribute {
+                        name: "name".into(),
+                        value: Some(TemplateAttributeValue::Literal(name)),
+                        source_map: source_map.clone(),
+                    });
+                }
+            }
+            imported_templates.push(declaration);
+        }
+    }
+    root.nodes.extend(imported_templates);
+    root
 }
 
 fn extract_static_module_map(
@@ -569,12 +818,7 @@ fn extract_static_stylesheets(
                 }
             }
             TemplateNode::Element { children, .. } => {
-                extract_static_stylesheets(
-                    children,
-                    dynamic_ancestor,
-                    stylesheets,
-                    diagnostics,
-                );
+                extract_static_stylesheets(children, dynamic_ancestor, stylesheets, diagnostics);
                 retained.push(node);
             }
             TemplateNode::If { children, .. } | TemplateNode::ForEach { children, .. } => {
@@ -599,7 +843,10 @@ fn extract_static_stylesheets(
 }
 
 fn static_stylesheet_scope(attributes: &[TemplateAttribute]) -> Result<Option<String>, ()> {
-    let Some(attribute) = attributes.iter().find(|attribute| attribute.name == "scope") else {
+    let Some(attribute) = attributes
+        .iter()
+        .find(|attribute| attribute.name == "scope")
+    else {
         return Ok(None);
     };
     match &attribute.value {
@@ -626,7 +873,7 @@ fn static_stylesheet_text(children: &[TemplateNode]) -> Option<String> {
 }
 
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
-    render_compiled_template_internal(artifact, data, None)
+    render_compiled_template_internal(artifact, data, None, None, false).plan
 }
 
 pub fn render_compiled_template_with_control(
@@ -635,20 +882,58 @@ pub fn render_compiled_template_with_control(
     control: &OperationControl,
     scope: ExecutionScopeId,
 ) -> RenderPlan {
-    render_compiled_template_internal(artifact, data, Some((control, scope)))
+    render_compiled_template_internal(artifact, data, Some((control, scope)), None, false).plan
+}
+
+/// A native adapter can resolve module calls inside the active rendering scope,
+/// so a caller's recovery boundary also protects failures in the callee.
+pub trait TemplateCallHandler {
+    fn handles(&self, tag: &str) -> bool;
+    fn call(
+        &self,
+        attributes: &[RenderPlanAttribute],
+        source_map: &SourceMapStack,
+        data: &TemplateData,
+        protected: bool,
+    ) -> TemplateCallResult;
+}
+
+#[derive(Debug, Clone)]
+pub struct TemplateFailure {
+    pub error: EvalError,
+    pub diagnostic: Diagnostic,
+}
+
+#[derive(Debug, Clone)]
+pub struct TemplateCallResult {
+    pub plan: RenderPlan,
+    pub failure: Option<TemplateFailure>,
+}
+
+pub fn render_compiled_template_with_calls(
+    artifact: &TemplateArtifact,
+    data: &TemplateData,
+    control: Option<(&OperationControl, ExecutionScopeId)>,
+    calls: &dyn TemplateCallHandler,
+    protected: bool,
+) -> TemplateCallResult {
+    render_compiled_template_internal(artifact, data, control, Some(calls), protected)
 }
 
 fn render_compiled_template_internal(
     artifact: &TemplateArtifact,
     data: &TemplateData,
     control: Option<(&OperationControl, ExecutionScopeId)>,
-) -> RenderPlan {
+    calls: Option<&dyn TemplateCallHandler>,
+    protected: bool,
+) -> TemplateCallResult {
     let mut policy_bindings = data.bindings.clone();
     let datadom = data_document_with_host_bindings(&data.bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
     let mut host_attribute_updates =
         seed_declaration_defaults(&artifact.nodes, &mut policy_bindings);
     let templates = collect_named_templates(&artifact.nodes);
+    let match_rules = collect_match_rules(&artifact.nodes);
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
             scope: QueryContextScope(0),
@@ -657,14 +942,19 @@ fn render_compiled_template_internal(
             policy_bindings,
             current_item: None,
             module_resolution: None,
+            native_functions: data.native_functions.clone(),
         },
         diagnostics: artifact.diagnostics.clone(),
         templates,
+        match_rules,
         call_depth: 0,
         max_call_depth: MAX_TEMPLATE_CALL_DEPTH,
         safe_points: control.map(|(control, scope)| SafePointPoller::new(control.clone(), scope)),
         control: control.map(|(control, scope)| (control.clone(), scope)),
         control_failed: false,
+        recovery_depth: usize::from(protected),
+        failure: None,
+        calls,
     };
     let mut nodes = Vec::new();
     renderer.apply_attribute_declaration_selects(&artifact.nodes, &mut host_attribute_updates);
@@ -684,13 +974,24 @@ fn render_compiled_template_internal(
         }
         renderer.force_render(&boundary_source);
     }
-    if renderer.control_failed {
+    if renderer.control_failed || renderer.failure.is_some() {
         nodes.clear();
     }
-    RenderPlan {
-        nodes,
-        host_attribute_updates,
-        diagnostics: renderer.diagnostics,
+    if renderer.control_failed && renderer.failure.is_none() {
+        if let Some(diagnostic) = renderer.diagnostics.last().cloned() {
+            renderer.failure = Some(TemplateFailure {
+                error: EvalError::Unsupported("template execution control failed"),
+                diagnostic,
+            });
+        }
+    }
+    TemplateCallResult {
+        failure: renderer.failure,
+        plan: RenderPlan {
+            nodes,
+            host_attribute_updates,
+            diagnostics: renderer.diagnostics,
+        },
     }
 }
 
@@ -1354,6 +1655,12 @@ impl TemplateCompiler<'_> {
                 Some(TemplateNode::Expression(self.compile_expression_node()))
             }
             SchemaTokenKind::NodeStart { name } if is_if_name(name) => Some(self.compile_if()),
+            SchemaTokenKind::NodeStart { name } if local_template_name(name) == "try" => {
+                Some(self.compile_try())
+            }
+            SchemaTokenKind::NodeStart { name } if local_template_name(name) == "catch" => {
+                Some(self.compile_catch())
+            }
             SchemaTokenKind::NodeStart { name } if is_choose_name(name) => {
                 Some(self.compile_choose())
             }
@@ -1365,6 +1672,11 @@ impl TemplateCompiler<'_> {
             }
             SchemaTokenKind::NodeStart { name } if is_variable_name(name) => {
                 Some(self.compile_variable())
+            }
+            SchemaTokenKind::NodeStart { name }
+                if name == "cem-data" || name == "cem:read-data" =>
+            {
+                Some(self.compile_data_reader())
             }
             SchemaTokenKind::NodeStart { .. } => Some(self.compile_element()),
             SchemaTokenKind::Text(text) | SchemaTokenKind::Trivia(text) => {
@@ -1434,7 +1746,10 @@ impl TemplateCompiler<'_> {
                 SchemaTokenKind::Attribute { name, value, .. } => {
                     let token = self.tokens[self.index].clone();
                     let compiled_value = value.as_ref().map(|value| {
-                        if local_template_name(tag) == "attribute" && name == "select" {
+                        if (local_template_name(tag) == "attribute" && name == "select")
+                            || (local_template_name(tag) == "template" && name == "match")
+                            || (local_template_name(tag) == "apply-templates" && name == "select")
+                        {
                             TemplateAttributeValue::Expression(
                                 self.compile_expression(value, &token),
                             )
@@ -1456,6 +1771,157 @@ impl TemplateCompiler<'_> {
         attributes
     }
 
+    fn compile_try(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        let attributes = self.parse_attributes(&tag);
+        let outer = self.compile_context.policy_bindings.clone();
+        let mut children = Vec::new();
+        let mut saw_catch = false;
+        self.element_stack.push(tag.clone());
+        while self.index < self.tokens.len() {
+            if matches!(
+                self.tokens[self.index].kind,
+                SchemaTokenKind::NodeEnd { .. }
+            ) {
+                self.index += 1;
+                break;
+            }
+            let is_catch = matches!(&self.tokens[self.index].kind, SchemaTokenKind::NodeStart { name } if local_template_name(name) == "catch");
+            if is_catch {
+                saw_catch = true;
+                self.compile_context.policy_bindings = outer.clone();
+            } else if saw_catch
+                && !matches!(
+                    &self.tokens[self.index].kind,
+                    SchemaTokenKind::Trivia(_) | SchemaTokenKind::Comment(_)
+                )
+            {
+                self.diagnostics.push(render_diagnostic(
+                    "cem.ql.render.try_invalid_child",
+                    "only catch handlers may follow the first catch".into(),
+                    start.byte_range.start,
+                    frame_for(&start),
+                ));
+            }
+            if let Some(child) = self.compile_node() {
+                children.push(child);
+            }
+        }
+        self.element_stack.pop();
+        self.compile_context.policy_bindings = outer;
+        if !saw_catch || !attributes.is_empty() {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.try_invalid",
+                "try requires at least one catch and does not accept attributes".into(),
+                start.byte_range.start,
+                frame_for(&start),
+            ));
+        }
+        TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            source_map: frame_for(&start),
+        }
+    }
+
+    fn compile_catch(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        if self
+            .element_stack
+            .last()
+            .is_none_or(|p| local_template_name(p) != "try")
+        {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.catch_outside_try",
+                "catch must be a direct child of try".into(),
+                start.byte_range.start,
+                frame_for(&start),
+            ));
+        }
+        let mut raw = Vec::new();
+        while self.index < self.tokens.len() {
+            let token = self.tokens[self.index].clone();
+            match &token.kind {
+                SchemaTokenKind::Attribute { name, value, .. } => {
+                    raw.push((name.clone(), value.clone().unwrap_or_default(), token))
+                }
+                SchemaTokenKind::Trivia(_) => {}
+                _ => break,
+            }
+            self.index += 1;
+        }
+        let name = raw
+            .iter()
+            .find(|(n, _, _)| n == "as")
+            .map(|(_, v, _)| v.clone())
+            .unwrap_or_else(|| "error".into());
+        let tokens = crate::lexer::Lexer::new(&name).scan_all();
+        if !matches!(
+            tokens.as_slice(),
+            [
+                crate::lexer::Token {
+                    kind: crate::lexer::TokenKind::Ident,
+                    ..
+                },
+                crate::lexer::Token {
+                    kind: crate::lexer::TokenKind::EndOfInput,
+                    ..
+                }
+            ]
+        ) {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.catch_invalid_binding",
+                "catch @as requires a static query identifier".into(),
+                start.byte_range.start,
+                frame_for(&start),
+            ));
+        }
+        let outer = self.compile_context.policy_bindings.clone();
+        self.compile_context
+            .policy_bindings
+            .insert(name.clone(), ItemStream::empty());
+        let mut attributes = vec![TemplateAttribute {
+            name: "as".into(),
+            value: Some(TemplateAttributeValue::Literal(name)),
+            source_map: frame_for(&start),
+        }];
+        let mut seen = BTreeSet::new();
+        for (key, value, token) in raw {
+            if !seen.insert(key.clone()) || !matches!(key.as_str(), "as" | "test") {
+                self.diagnostics.push(render_diagnostic(
+                    "cem.ql.render.catch_invalid_attribute",
+                    "catch accepts only one static @as and one query @test".into(),
+                    token.byte_range.start,
+                    frame_for(&token),
+                ));
+            }
+            if key == "test" {
+                attributes.push(TemplateAttribute {
+                    name: key,
+                    value: Some(TemplateAttributeValue::Expression(
+                        self.compile_expression(&value, &token),
+                    )),
+                    source_map: frame_for(&token),
+                });
+            }
+        }
+        self.element_stack.push(tag.clone());
+        let children = self.parse_children(&tag);
+        self.element_stack.pop();
+        self.compile_context.policy_bindings = outer;
+        TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            source_map: frame_for(&start),
+        }
+    }
+
     fn compile_element(&mut self) -> TemplateNode {
         let start = self.tokens[self.index].clone();
         let SchemaTokenKind::NodeStart { name } = &start.kind else {
@@ -1464,6 +1930,39 @@ impl TemplateCompiler<'_> {
         let tag = name.clone();
         self.index += 1;
         let attributes = self.parse_attributes(&tag);
+        if local_template_name(&tag) == "template"
+            && attributes.iter().any(|attribute| attribute.name == "match")
+        {
+            for attribute in &attributes {
+                let valid = match attribute.name.as_str() {
+                    "match" => attribute.value.is_some(),
+                    "mode" => matches!(attribute.value, Some(TemplateAttributeValue::Literal(_))),
+                    "priority" => {
+                        matches!(&attribute.value, Some(TemplateAttributeValue::Literal(value)) if value.parse::<i64>().is_ok())
+                    }
+                    _ => true,
+                };
+                if !valid {
+                    self.diagnostics.push(render_diagnostic(
+                        "cem.ql.render.match_rule_invalid",
+                        "match rules require a predicate, a static mode and a signed integer priority".into(),
+                        source_map_start(&attribute.source_map), attribute.source_map.clone(),
+                    ));
+                }
+            }
+        }
+        if local_template_name(&tag) == "apply-templates"
+            && !attributes
+                .iter()
+                .any(|attribute| attribute.name == "select" && attribute.value.is_some())
+        {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.match_select_missing",
+                "apply-templates requires an explicit select expression".into(),
+                source_map_start(&frame_for(&start)),
+                frame_for(&start),
+            ));
+        }
         let children = if self.should_skip_cemt_function_body(&tag) {
             self.skip_children(&tag);
             Vec::new()
@@ -1672,6 +2171,83 @@ impl TemplateCompiler<'_> {
             ));
         }
         TemplateNode::ProjectPayload {
+            select,
+            source_map: frame_for(&start),
+        }
+    }
+
+    /// A declarative reader is a scoped native binding, not a browser AST transport.
+    fn compile_data_reader(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        let mut name = String::new();
+        let mut selected = None;
+        let mut content_type = None;
+        let mut projection = None;
+        while self.index < self.tokens.len() {
+            match &self.tokens[self.index].kind {
+                SchemaTokenKind::Attribute {
+                    name: key, value, ..
+                } => {
+                    let raw = value.clone().unwrap_or_default();
+                    match key.as_str() {
+                        "name" => name = raw.trim().to_owned(),
+                        "select" => selected = Some(raw),
+                        "type" => content_type = Some(raw),
+                        "projection" => projection = Some(raw),
+                        _ => {}
+                    }
+                    self.index += 1;
+                }
+                SchemaTokenKind::Trivia(_) => self.index += 1,
+                _ => break,
+            }
+        }
+        let children = self.parse_children(&tag);
+        let valid = valid_variable_name(&name)
+            && selected.is_some()
+            && content_type.is_some()
+            && children
+                .iter()
+                .all(|n| matches!(n, TemplateNode::Text { text, .. } if text.trim().is_empty()));
+        let select = if valid {
+            let content_type = content_type.unwrap();
+            let type_expression = whole_avt_expression(&content_type)
+                .map(normalize_host_expression)
+                .map(str::to_owned)
+                .unwrap_or_else(|| serde_json::to_string(&content_type).expect("string literal"));
+            let projection_argument = projection
+                .map(|projection| {
+                    let expression = whole_avt_expression(&projection)
+                        .map(normalize_host_expression)
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| {
+                            serde_json::to_string(&projection).expect("string literal")
+                        });
+                    format!(", {expression}")
+                })
+                .unwrap_or_default();
+            Some(self.compile_expression(
+                &format!(
+                    "data:read({}, {type_expression}{projection_argument})",
+                    selected.unwrap()
+                ),
+                &start,
+            ))
+        } else {
+            self.diagnostics.push(render_diagnostic("cem.ql.render.data_reader_invalid",
+                "`cem-data` requires an identifier `name`, a source `select` expression and a `type`; it has no content".into(),
+                start.byte_range.start, frame_for(&start)));
+            None
+        };
+        if valid {
+            self.compile_context
+                .policy_bindings
+                .insert(name.clone(), ItemStream::empty());
+        }
+        TemplateNode::Variable {
+            name,
             select,
             source_map: frame_for(&start),
         }
@@ -1920,7 +2496,15 @@ impl TemplateCompiler<'_> {
     ) -> CompiledTemplateExpression {
         let source = normalize_host_expression(source).to_owned();
         let query = match compile(&source, &self.compile_context) {
-            Ok(query) => Some(query),
+            Ok(mut query) => {
+                // Keep the enclosing template slot before the query-local frames
+                // so caught native diagnostics still identify their source host.
+                let host_frames = frame_for(host).frames;
+                for source_map in &mut query.tree.source_maps {
+                    source_map.frames.splice(0..0, host_frames.iter().cloned());
+                }
+                Some(query)
+            }
             Err(error) => {
                 self.diagnostics.push(render_diagnostic(
                     "cem.ql.render.compile_failed",
@@ -1940,18 +2524,35 @@ impl TemplateCompiler<'_> {
     }
 }
 
-struct PlanRenderer {
+struct PlanRenderer<'a> {
     evaluation_context: EvaluationContext,
     diagnostics: Vec<Diagnostic>,
     templates: BTreeMap<String, Vec<TemplateNode>>,
+    match_rules: Vec<MatchRule>,
     call_depth: usize,
     max_call_depth: usize,
     safe_points: Option<SafePointPoller>,
     control: Option<(OperationControl, ExecutionScopeId)>,
     control_failed: bool,
+    recovery_depth: usize,
+    failure: Option<TemplateFailure>,
+    calls: Option<&'a dyn TemplateCallHandler>,
 }
 
-impl PlanRenderer {
+impl PlanRenderer<'_> {
+    fn template_failure(&mut self, diagnostic: Diagnostic) {
+        if self.recovery_depth > 0 {
+            if self.failure.is_some() || self.control_failed {
+                return;
+            }
+            self.failure = Some(TemplateFailure {
+                error: EvalError::TypeError("template operation failed"),
+                diagnostic: diagnostic.clone(),
+            });
+        }
+        self.diagnostics.push(diagnostic);
+    }
+
     fn apply_attribute_declaration_selects(
         &mut self,
         nodes: &[TemplateNode],
@@ -2038,7 +2639,7 @@ impl PlanRenderer {
     }
 
     fn poll_render(&mut self, source_map: &SourceMapStack) -> bool {
-        if self.control_failed {
+        if self.control_failed || self.failure.is_some() {
             return false;
         }
         let result = self
@@ -2101,8 +2702,45 @@ impl PlanRenderer {
                 children,
                 source_map,
             } => {
+                if let Some(calls) = self.calls.filter(|calls| calls.handles(tag)) {
+                    let attributes = attributes
+                        .iter()
+                        .filter_map(|a| self.render_attribute(a))
+                        .collect::<Vec<_>>();
+                    if self.failure.is_some() || self.control_failed {
+                        return;
+                    }
+                    let result = calls.call(
+                        &attributes,
+                        source_map,
+                        &TemplateData {
+                            bindings: self.evaluation_context.policy_bindings.clone(),
+                            native_functions: self.evaluation_context.native_functions.clone(),
+                        },
+                        self.recovery_depth > 0,
+                    );
+                    self.diagnostics.extend(result.plan.diagnostics);
+                    if let Some(failure) = result.failure {
+                        self.control_failed |= !failure.error.is_recoverable();
+                        self.failure = Some(failure);
+                    } else {
+                        out.extend(result.plan.nodes);
+                    }
+                    return;
+                }
+                if local_template_name(tag) == "try" {
+                    self.render_try(children, out, parent_attributes);
+                    return;
+                }
+                if local_template_name(tag) == "catch" {
+                    return;
+                }
                 if local_template_name(tag) == "call" {
                     self.render_call_into(attributes, source_map, out, parent_attributes);
+                    return;
+                }
+                if local_template_name(tag) == "apply-templates" {
+                    self.render_matching_templates(attributes, source_map, out, parent_attributes);
                     return;
                 }
                 if local_template_name(tag) == "body" {
@@ -2271,7 +2909,7 @@ impl PlanRenderer {
                     }
                     match payload_item_to_render_node(&item, source_map) {
                         Some(node) => out.push(node),
-                        None => self.diagnostics.push(render_diagnostic(
+                        None => self.template_failure(render_diagnostic(
                             "cem.ql.render.project_payload_invalid_node",
                             "`cem:project-payload` selected a value that is not a serialized payload node"
                                 .to_owned(),
@@ -2280,6 +2918,92 @@ impl PlanRenderer {
                         )),
                     }
                 }
+            }
+        }
+    }
+
+    fn render_matching_templates(
+        &mut self,
+        attributes: &[TemplateAttribute],
+        source_map: &SourceMapStack,
+        out: &mut Vec<RenderPlanNode>,
+        parent_attributes: &mut Vec<RenderPlanAttribute>,
+    ) {
+        if !self.force_render(source_map) {
+            return;
+        }
+        if self.call_depth >= self.max_call_depth {
+            if self.recovery_depth > 0 {
+                self.control_failed = true;
+            }
+            self.diagnostics.push(render_diagnostic(
+                "cem.transform_template.recursion_limit",
+                "native template match recursion limit exceeded".into(),
+                source_map_start(source_map),
+                source_map.clone(),
+            ));
+            return;
+        }
+        // A selected native AST node has no implicit string serialization. Keep the
+        // query stream directly; HTML's empty-attribute omission is not applicable.
+        let selected = attributes
+            .iter()
+            .find(|a| a.name == "select")
+            .map(|a| self.render_attribute_value(a).1)
+            .unwrap_or_default();
+        let attributes: Vec<_> = attributes
+            .iter()
+            .filter(|a| a.name != "select")
+            .filter_map(|a| self.render_attribute(a))
+            .collect();
+        let mode = attributes
+            .iter()
+            .find(|a| a.name == "mode")
+            .map(|a| a.value.as_str())
+            .unwrap_or("");
+        let mut previous = BTreeMap::new();
+        for attribute in attributes
+            .iter()
+            .filter(|a| a.name.starts_with("with:") && a.name != "with:node")
+        {
+            let name = attribute.name.trim_start_matches("with:").to_owned();
+            previous.insert(
+                name.clone(),
+                self.evaluation_context
+                    .policy_bindings
+                    .insert(name, attribute.value_stream.clone()),
+            );
+        }
+        previous.insert(
+            "node".into(),
+            self.evaluation_context.policy_bindings.get("node").cloned(),
+        );
+        let rules = self.match_rules.clone();
+        for item in selected
+            .items
+            .into_iter()
+            .flat_map(|item| item.members().unwrap_or_else(|| vec![item]))
+        {
+            if !self.poll_render(source_map) {
+                break;
+            }
+            self.evaluation_context
+                .policy_bindings
+                .insert("node".into(), ItemStream::once(item));
+            for rule in rules.iter().filter(|rule| rule.mode == mode) {
+                if self.test_is_truthy(Some(&rule.test)) {
+                    self.call_depth += 1;
+                    self.render_nodes_scoped(&rule.body, out, parent_attributes);
+                    self.call_depth -= 1;
+                    break;
+                }
+            }
+        }
+        for (name, value) in previous {
+            if let Some(value) = value {
+                self.evaluation_context.policy_bindings.insert(name, value);
+            } else {
+                self.evaluation_context.policy_bindings.remove(&name);
             }
         }
     }
@@ -2295,6 +3019,9 @@ impl PlanRenderer {
             return;
         }
         if self.call_depth >= self.max_call_depth {
+            if self.recovery_depth > 0 {
+                self.control_failed = true;
+            }
             self.diagnostics.push(render_diagnostic(
                 "cem.transform_template.recursion_limit",
                 format!(
@@ -2317,7 +3044,7 @@ impl PlanRenderer {
             .map(|attribute| attribute.value.clone())
             .filter(|value| !value.is_empty())
         else {
-            self.diagnostics.push(render_diagnostic(
+            self.template_failure(render_diagnostic(
                 "cem.transform_template.call_unknown",
                 "native template call is missing a `template` target".to_owned(),
                 source_map_start(source_map),
@@ -2326,7 +3053,7 @@ impl PlanRenderer {
             return;
         };
         let Some(template_nodes) = self.templates.get(&template_name).cloned() else {
-            self.diagnostics.push(render_diagnostic(
+            self.template_failure(render_diagnostic(
                 "cem.transform_template.call_unknown",
                 format!("native template call target `{template_name}` was not compiled"),
                 source_map_start(source_map),
@@ -2430,10 +3157,7 @@ impl PlanRenderer {
             Some(TemplateAttributeValue::Template(_))
             | Some(TemplateAttributeValue::Expression(_)) => false,
         };
-        if value.is_empty()
-            && !preserves_empty_value
-            && (!attribute.name.starts_with("with:") || value_stream.items.is_empty())
-        {
+        if value.is_empty() && !preserves_empty_value && !attribute.name.starts_with("with:") {
             return None;
         }
         Some(RenderPlanAttribute {
@@ -2594,7 +3318,7 @@ impl PlanRenderer {
                 );
             }
         }
-        self.diagnostics.push(render_diagnostic(
+        self.template_failure(render_diagnostic(
             "cem.ql.render.dynamic_name_missing",
             format!(
                 "`{construct}` constructor requires one of `{}`",
@@ -2621,7 +3345,7 @@ impl PlanRenderer {
             .iter()
             .find(|attribute| attribute.name == attribute_name)
         else {
-            self.diagnostics.push(render_diagnostic(
+            self.template_failure(render_diagnostic(
                 "cem.ql.render.dynamic_name_missing",
                 format!("`{construct}` constructor requires `@{attribute_name}`"),
                 source_map_start(source_map),
@@ -2631,7 +3355,7 @@ impl PlanRenderer {
         };
         let (value, _) = self.render_attribute_value(attribute);
         let Some(name) = normalize_constructed_name(&value) else {
-            self.diagnostics.push(render_diagnostic(
+            self.template_failure(render_diagnostic(
                 "cem.ql.render.dynamic_name_invalid",
                 format!("`{construct}` constructor name `{value}` is not a valid output name"),
                 source_map_start(&attribute.source_map),
@@ -2667,13 +3391,150 @@ impl PlanRenderer {
         stream
     }
 
-    fn evaluate_query(&self, query: &CompiledQuery) -> ItemStream {
-        match &self.control {
-            Some((control, scope)) => {
-                evaluate_with_control(query, &self.evaluation_context, control, *scope)
-            }
-            None => evaluate(query, &self.evaluation_context),
+    fn evaluate_query(&mut self, query: &CompiledQuery) -> ItemStream {
+        if self.failure.is_some() || self.control_failed {
+            return ItemStream::empty();
         }
+        let stream = if self.recovery_depth > 0 {
+            let (control, scope) = self.control.clone().unwrap_or_else(|| {
+                (
+                    OperationControl::default(),
+                    cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+                )
+            });
+            crate::eval::Evaluator::evaluate_protected(
+                query,
+                &self.evaluation_context,
+                &control,
+                scope,
+            )
+        } else {
+            match &self.control {
+                Some((control, scope)) => {
+                    evaluate_with_control(query, &self.evaluation_context, control, *scope)
+                }
+                None => evaluate(query, &self.evaluation_context),
+            }
+        };
+        if self.recovery_depth > 0 {
+            if let Some(error) = &stream.error {
+                if let Some(diagnostic) = stream
+                    .diagnostics
+                    .iter()
+                    .rev()
+                    .find(|d| d.severity.is_hard_violation())
+                    .cloned()
+                {
+                    self.failure = Some(TemplateFailure {
+                        error: error.clone(),
+                        diagnostic,
+                    });
+                }
+                if !error.is_recoverable() {
+                    self.control_failed = true;
+                }
+            }
+        }
+        stream
+    }
+
+    fn render_try(
+        &mut self,
+        children: &[TemplateNode],
+        out: &mut Vec<RenderPlanNode>,
+        parent_attributes: &mut Vec<RenderPlanAttribute>,
+    ) {
+        let first_catch = children.iter().position(|n| matches!(n, TemplateNode::Element { tag, .. } if local_template_name(tag) == "catch")).unwrap_or(children.len());
+        let saved_bindings = self.evaluation_context.policy_bindings.clone();
+        let diagnostic_start = self.diagnostics.len();
+        let mut buffered = Vec::new();
+        let mut attributes = parent_attributes.clone();
+        self.recovery_depth += 1;
+        self.render_nodes_scoped(&children[..first_catch], &mut buffered, &mut attributes);
+        self.recovery_depth -= 1;
+        self.evaluation_context.policy_bindings = saved_bindings.clone();
+        if self.control_failed {
+            return;
+        }
+        let Some(failure) = self.failure.take() else {
+            out.extend(buffered);
+            *parent_attributes = attributes;
+            return;
+        };
+        if !failure.error.is_recoverable() {
+            self.failure = Some(failure);
+            return;
+        }
+        let protected_end = self.diagnostics.len();
+        for child in &children[first_catch..] {
+            let TemplateNode::Element {
+                tag,
+                attributes,
+                children,
+                ..
+            } = child
+            else {
+                continue;
+            };
+            if local_template_name(tag) != "catch" {
+                continue;
+            }
+            let name = attributes
+                .iter()
+                .find_map(|a| match (&*a.name, &a.value) {
+                    ("as", Some(TemplateAttributeValue::Literal(name))) => Some(name.clone()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| "error".into());
+            self.evaluation_context.policy_bindings.insert(
+                name,
+                ItemStream::once(crate::eval::diagnostic_item(failure.diagnostic.clone())),
+            );
+            let test = attributes.iter().find_map(|a| match (&*a.name, &a.value) {
+                ("test", Some(TemplateAttributeValue::Expression(test))) => Some(test),
+                _ => None,
+            });
+            self.recovery_depth += 1;
+            let matched = test
+                .map(|test| self.test_is_truthy(Some(test)))
+                .unwrap_or(true);
+            self.recovery_depth -= 1;
+            if matched || self.failure.is_some() || self.control_failed {
+                // Remove the handled failure and its render wrappers, retaining
+                // independent diagnostics emitted by the protected computation.
+                let tail = self.diagnostics.split_off(protected_end);
+                let protected = self.diagnostics.split_off(diagnostic_start);
+                self.diagnostics.extend(protected.into_iter().filter(|d| {
+                    let is_caught_failure = d.code == failure.diagnostic.code
+                        && d.message == failure.diagnostic.message
+                        && d.source_map == failure.diagnostic.source_map;
+                    let is_wrapper = matches!(
+                        d.code.as_str(),
+                        "cem.ql.render.eval_failed"
+                            | "cem.ql.render.for_each_failed"
+                            | "cem.ql.render.test_failed"
+                    );
+                    !(is_caught_failure || is_wrapper)
+                }));
+                self.diagnostics.extend(tail);
+                if self.failure.is_none() && !self.control_failed {
+                    let mut recovered = Vec::new();
+                    let mut recovered_attributes = parent_attributes.clone();
+                    self.recovery_depth += 1;
+                    self.render_nodes_scoped(children, &mut recovered, &mut recovered_attributes);
+                    self.recovery_depth -= 1;
+                    if self.failure.is_none() && !self.control_failed {
+                        out.extend(recovered);
+                        *parent_attributes = recovered_attributes;
+                    }
+                }
+                self.evaluation_context.policy_bindings = saved_bindings;
+                return;
+            }
+            self.evaluation_context.policy_bindings = saved_bindings.clone();
+        }
+        self.evaluation_context.policy_bindings = saved_bindings;
+        self.failure = Some(failure);
     }
 }
 
@@ -2809,7 +3670,10 @@ fn is_top_level_declaration(node: &TemplateNode) -> bool {
             tag, attributes, ..
         } => match local_template_name(tag) {
             "attribute" | "slice" | "param" => true,
-            "template" => declaration_name(attributes).is_some(),
+            "template" => {
+                declaration_name(attributes).is_some()
+                    || attributes.iter().any(|a| a.name == "match")
+            }
             _ => false,
         },
         _ => false,
@@ -2823,7 +3687,7 @@ fn is_named_template_declaration(node: &TemplateNode) -> bool {
             tag,
             attributes,
             ..
-        } if local_template_name(tag) == "template" && declaration_name(attributes).is_some()
+        } if local_template_name(tag) == "template" && (declaration_name(attributes).is_some() || attributes.iter().any(|a| a.name == "match"))
     )
 }
 
@@ -2966,6 +3830,56 @@ fn module_body_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
     Vec::new()
 }
 
+#[derive(Debug, Clone)]
+struct MatchRule {
+    test: CompiledTemplateExpression,
+    mode: String,
+    priority: i64,
+    local: bool,
+    order: usize,
+    body: Vec<TemplateNode>,
+}
+
+fn collect_match_rules(nodes: &[TemplateNode]) -> Vec<MatchRule> {
+    fn visit(nodes: &[TemplateNode], rules: &mut Vec<MatchRule>) {
+        for node in nodes {
+            let TemplateNode::Element {
+                tag,
+                attributes,
+                children,
+                ..
+            } = node
+            else {
+                continue;
+            };
+            if local_template_name(tag) == "template" {
+                if let Some(TemplateAttributeValue::Expression(test)) = attributes
+                    .iter()
+                    .find(|a| a.name == "match")
+                    .and_then(|a| a.value.as_ref())
+                {
+                    rules.push(MatchRule {
+                        test: test.clone(),
+                        mode: literal_template_attribute(attributes, "mode").unwrap_or_default(),
+                        priority: literal_template_attribute(attributes, "priority")
+                            .and_then(|s| s.parse().ok())
+                            .unwrap_or(0),
+                        local: !declaration_name(attributes)
+                            .is_some_and(|name| name.starts_with("__cem_module:")),
+                        order: rules.len(),
+                        body: template_body_nodes(children),
+                    });
+                }
+            }
+            visit(children, rules);
+        }
+    }
+    let mut rules = Vec::new();
+    visit(nodes, &mut rules);
+    rules.sort_by_key(|rule| std::cmp::Reverse((rule.priority, rule.local, rule.order)));
+    rules
+}
+
 fn collect_named_templates(nodes: &[TemplateNode]) -> BTreeMap<String, Vec<TemplateNode>> {
     let mut templates = BTreeMap::new();
     collect_named_templates_into(nodes, &mut templates);
@@ -2993,6 +3907,167 @@ fn collect_named_templates_into(
         }
         collect_named_templates_into(children, templates);
     }
+}
+
+fn module_template_name(uri: &str, name: &str) -> String {
+    format!("__cem_module:{uri}#{name}")
+}
+
+fn collect_template_declarations(nodes: &[TemplateNode]) -> Vec<TemplateNode> {
+    let mut declarations = Vec::new();
+    for node in nodes {
+        if is_named_template_declaration(node) {
+            declarations.push(node.clone());
+        }
+        if let TemplateNode::Element { children, .. } = node {
+            declarations.extend(collect_template_declarations(children));
+        }
+    }
+    declarations
+}
+
+fn rewrite_module_calls(
+    nodes: &mut [TemplateNode],
+    current_module_uri: Option<&str>,
+    imports: &BTreeMap<(Option<String>, String), String>,
+    public_templates: &BTreeMap<String, BTreeSet<String>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for node in nodes {
+        match node {
+            TemplateNode::Element {
+                tag,
+                attributes,
+                children,
+                source_map,
+            } => {
+                if local_template_name(tag) == "call" {
+                    rewrite_module_call(
+                        attributes,
+                        current_module_uri,
+                        imports,
+                        public_templates,
+                        diagnostics,
+                        source_map,
+                    );
+                }
+                rewrite_module_calls(
+                    children,
+                    current_module_uri,
+                    imports,
+                    public_templates,
+                    diagnostics,
+                );
+            }
+            TemplateNode::If { children, .. } | TemplateNode::ForEach { children, .. } => {
+                rewrite_module_calls(
+                    children,
+                    current_module_uri,
+                    imports,
+                    public_templates,
+                    diagnostics,
+                );
+            }
+            TemplateNode::Choose { branches, .. } => {
+                for branch in branches {
+                    rewrite_module_calls(
+                        &mut branch.children,
+                        current_module_uri,
+                        imports,
+                        public_templates,
+                        diagnostics,
+                    );
+                }
+            }
+            TemplateNode::Text { .. }
+            | TemplateNode::Comment { .. }
+            | TemplateNode::ProjectPayload { .. }
+            | TemplateNode::Variable { .. }
+            | TemplateNode::Expression(_) => {}
+        }
+    }
+}
+
+fn rewrite_module_call(
+    attributes: &mut Vec<TemplateAttribute>,
+    current_module_uri: Option<&str>,
+    imports: &BTreeMap<(Option<String>, String), String>,
+    public_templates: &BTreeMap<String, BTreeSet<String>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    source_map: &SourceMapStack,
+) {
+    let template = literal_template_attribute(attributes, "template");
+    let from = literal_template_attribute(attributes, "from");
+    if attributes.iter().any(|attribute| attribute.name == "from") && from.is_none() {
+        diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_call_dynamic",
+            "a cross-module template call requires a static `from` alias".to_owned(),
+            source_map_start(source_map),
+            source_map.clone(),
+        ));
+        return;
+    }
+    let Some(template) = template else {
+        return;
+    };
+    let is_cross_module = from.is_some();
+    let target_uri = match from {
+        Some(alias) => {
+            let key = (current_module_uri.map(str::to_owned), alias.clone());
+            let Some(uri) = imports.get(&key) else {
+                diagnostics.push(render_diagnostic(
+                    "cem.ql.template.module_import_unresolved",
+                    format!(
+                        "template module alias `{alias}` from `{}` is absent from the preflighted closure",
+                        current_module_uri.unwrap_or("<root>")
+                    ),
+                    source_map_start(source_map),
+                    source_map.clone(),
+                ));
+                return;
+            };
+            uri.clone()
+        }
+        None => {
+            let Some(uri) = current_module_uri else {
+                return;
+            };
+            uri.to_owned()
+        }
+    };
+    if is_cross_module
+        && !public_templates
+            .get(&target_uri)
+            .is_some_and(|templates| templates.contains(&template))
+    {
+        diagnostics.push(render_diagnostic(
+            "cem.ql.template.module_template_not_public",
+            format!("template `{template}` is not a public entrypoint of module `{target_uri}`"),
+            source_map_start(source_map),
+            source_map.clone(),
+        ));
+        return;
+    }
+    if let Some(attribute) = attributes
+        .iter_mut()
+        .find(|attribute| attribute.name == "template")
+    {
+        attribute.value = Some(TemplateAttributeValue::Literal(module_template_name(
+            &target_uri,
+            &template,
+        )));
+    }
+    attributes.retain(|attribute| attribute.name != "from");
+}
+
+fn literal_template_attribute(attributes: &[TemplateAttribute], name: &str) -> Option<String> {
+    attributes
+        .iter()
+        .find(|attribute| attribute.name == name)
+        .and_then(|attribute| match &attribute.value {
+            Some(TemplateAttributeValue::Literal(value)) => Some(value.clone()),
+            _ => None,
+        })
 }
 
 fn template_body_nodes(children: &[TemplateNode]) -> Vec<TemplateNode> {
@@ -3562,9 +4637,13 @@ mod tests {
 
         assert_eq!(artifact.stylesheets.len(), 2);
         assert_eq!(artifact.stylesheets[0].scope, None);
-        assert!(artifact.stylesheets[0].css.contains(":host { display: block; }"));
+        assert!(artifact.stylesheets[0]
+            .css
+            .contains(":host { display: block; }"));
         assert_eq!(artifact.stylesheets[1].scope.as_deref(), Some("abc-lib"));
-        assert!(artifact.stylesheets[1].css.contains(".shared { color: green; }"));
+        assert!(artifact.stylesheets[1]
+            .css
+            .contains(".shared { color: green; }"));
 
         let plan = render_compiled_template(&artifact, &TemplateData::default());
         assert!(!render_plan_to_html(&plan).contains("<style"));
@@ -3595,7 +4674,8 @@ mod tests {
             artifact
                 .diagnostics
                 .iter()
-                .filter(|diagnostic| diagnostic.code == "cem.ql.template.stylesheet_dynamic_unsupported")
+                .filter(|diagnostic| diagnostic.code
+                    == "cem.ql.template.stylesheet_dynamic_unsupported")
                 .count(),
             2,
         );
@@ -3933,5 +5013,152 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| { diagnostic.code == "cem.transform_template.recursion_limit" }));
+    }
+
+    #[test]
+    fn preflighted_module_closure_renders_imported_and_nested_templates() {
+        let root_uri = "https://example.test/generator.cemt";
+        let docs_uri = "https://example.test/lib/docs.cemt";
+        let cells_uri = "https://example.test/lib/cells.cemt";
+        let source = r#"{module |
+            {import @as="docs" @src="./lib/docs.cemt"}
+            {body | {call @from="docs" @template="token-table" @with:label="Geometry"}}
+        }"#;
+        let docs = r#"{module |
+            {import @as="cells" @src="./cells.cemt"}
+            {template @name="token-table" @visibility="public" |
+                {param @name="label"}
+                {body | {table | {caption | {$label}}{call @from="cells" @template="value"}}}
+            }
+        }"#;
+        let cells = r#"{module |
+            {template @name="value" @visibility="public" | {body | {td | shared}}}
+        }"#;
+        let hash = |value: &str| {
+            cem_ml::content_cache::ContentHash::from_blake3(value.as_bytes()).header_value()
+        };
+        let closure = TemplateModuleClosure {
+            root_uri: root_uri.to_owned(),
+            root_content_hash: hash(source),
+            resolver_policy_stamp: "fixture-policy".to_owned(),
+            modules: vec![
+                TemplateModuleSource {
+                    alias: "docs".to_owned(),
+                    parent_uri: None,
+                    uri: docs_uri.to_owned(),
+                    content_hash: hash(docs),
+                    source: docs.to_owned(),
+                },
+                TemplateModuleSource {
+                    alias: "cells".to_owned(),
+                    parent_uri: Some(docs_uri.to_owned()),
+                    uri: cells_uri.to_owned(),
+                    content_hash: hash(cells),
+                    source: cells.to_owned(),
+                },
+            ],
+            ..TemplateModuleClosure::default()
+        };
+
+        let artifact =
+            compile_template_module_closure(source, &closure, &CompileTemplateOptions::default());
+        let plan = render_compiled_template(&artifact, &TemplateData::default());
+
+        assert_eq!(
+            render_plan_to_html(&plan).trim(),
+            "<table><caption>Geometry</caption><td>shared</td></table>"
+        );
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    }
+
+    #[test]
+    fn preflighted_module_closure_renders_shared_browser_native_fixture() {
+        let source = include_str!("../tests/fixtures/template-module-closure/root.cemt");
+        let module_source = include_str!("../tests/fixtures/template-module-closure/docs.cemt");
+        let hash = |value: &str| {
+            cem_ml::content_cache::ContentHash::from_blake3(value.as_bytes()).header_value()
+        };
+        let artifact = compile_template_module_closure(
+            source,
+            &TemplateModuleClosure {
+                root_uri: "https://example.test/fixtures/root.cemt".to_owned(),
+                root_content_hash: hash(source),
+                resolver_policy_stamp: "fixture-import-map/1".to_owned(),
+                entrypoint: "body".to_owned(),
+                parameter_contract: Vec::new(),
+                cem_ml_version: cem_ml::VERSION.to_owned(),
+                cem_ql_version: crate::VERSION.to_owned(),
+                modules: vec![TemplateModuleSource {
+                    alias: "docs".to_owned(),
+                    parent_uri: None,
+                    uri: "https://example.test/fixtures/docs.cemt".to_owned(),
+                    content_hash: hash(module_source),
+                    source: module_source.to_owned(),
+                }],
+            },
+            &CompileTemplateOptions::default(),
+        );
+        let plan = render_compiled_template(&artifact, &TemplateData::default());
+
+        assert_eq!(
+            render_plan_to_html(&plan).trim(),
+            "<table><tr><th>--cem-gap</th><td>0.5rem</td></tr></table>"
+        );
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    }
+
+    #[test]
+    fn preflighted_module_closure_rejects_hash_drift() {
+        let source = "{module | {body | ok}}";
+        let artifact = compile_template_module_closure(
+            source,
+            &TemplateModuleClosure {
+                root_uri: "https://example.test/root.cemt".to_owned(),
+                root_content_hash: "cem-bin/1+blake3:stale".to_owned(),
+                ..TemplateModuleClosure::default()
+            },
+            &CompileTemplateOptions::default(),
+        );
+
+        assert!(artifact
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == "cem.ql.template.module_hash_mismatch" }));
+    }
+
+    #[test]
+    fn preflighted_module_closure_rejects_private_entrypoint_calls() {
+        let source = r#"{module |
+            {import @as="docs" @src="./docs.cemt"}
+            {body | {call @from="docs" @template="helper"}}
+        }"#;
+        let module_source = r#"{module |
+            {template @name="helper" @visibility="private" | {body | private}}
+        }"#;
+        let hash = |value: &str| {
+            cem_ml::content_cache::ContentHash::from_blake3(value.as_bytes()).header_value()
+        };
+        let artifact = compile_template_module_closure(
+            source,
+            &TemplateModuleClosure {
+                root_uri: "https://example.test/root.cemt".to_owned(),
+                root_content_hash: hash(source),
+                resolver_policy_stamp: "fixture-policy".to_owned(),
+                modules: vec![TemplateModuleSource {
+                    alias: "docs".to_owned(),
+                    parent_uri: None,
+                    uri: "https://example.test/docs.cemt".to_owned(),
+                    content_hash: hash(module_source),
+                    source: module_source.to_owned(),
+                }],
+                ..TemplateModuleClosure::default()
+            },
+            &CompileTemplateOptions::default(),
+        );
+
+        assert!(artifact
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == "cem.ql.template.module_template_not_public" }));
     }
 }

@@ -398,9 +398,26 @@ function inventory that makes those obligations executable.
   `str:shorten`,
   `str:starts_with`, `str:ends_with`, `str:normalize_space`,
   `str:replace`, `str:translate`, `str:substring`,
-  `str:substring_before`, and `str:substring_after`. Binary string
+  `str:substring_before`, `str:substring_after`, `str:split`,
+  `str:trim`, `str:trim_start`, `str:trim_end`, `str:char_at`, `str:at`,
+  `str:index_of`, and `str:last_index_of`. Binary string
   concatenation uses `lhs + rhs`; `str:concat(stream, separator?)` remains
   the stream-joining helper, including joins with a separator.
+  `str:split(value, separator)` is literal, not regex-based, and returns an
+  ordered string sequence with empty fields preserved. An empty separator
+  emits Unicode codepoints (no boundary empty fields); an empty input split
+  by a nonempty separator emits one empty string. String indices count
+  Unicode codepoints, not JavaScript UTF-16 code units. `char_at(value, index)`
+  returns `""` for an out-of-range or negative index; `at(value, index)` counts
+  negative indices from the end and returns the empty sequence out of range.
+  `index_of(value, search, position?)` and `last_index_of(...)` return a
+  zero-based index or `-1`. Positions clamp to `[0, length]`, defaulting to
+  zero or length respectively; the backward position bounds the match's
+  start, including overlapping matches. An empty search returns that clamped
+  position. The trim variants remove ECMAScript WhiteSpace/LineTerminator
+  characters only at the requested edges and preserve internal whitespace.
+  Existing `slice(value, start, length?)`, one-based `substring`, all-occurrence
+  literal `replace`, and Unicode `normalize_space` semantics remain unchanged.
 - **Tier A number helpers:** `num:double`, `num:decimal`, `num:integer`,
   `num:string`, `num:abs`, `num:floor`, `num:ceil`, `num:round`, and
   `num:format`.
@@ -419,7 +436,8 @@ function inventory that makes those obligations executable.
   `partition`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`,
   `fold`, `scan`, `none`, `min`, `max`, `sum`, and `avg`.
 - **Tier B string and content-type helpers:** `str:nfc`, `str:nfd`,
-  `str:matches`, `str:split`, `ct:read`, `ct:html`, `ct:xml`, `ct:svg`,
+  `str:matches`, regex-based splitting (distinct from literal `str:split`),
+  `ct:read`, `ct:html`, `ct:xml`, `ct:svg`,
   `ct:mathml`, `ct:css`, `ct:scss`, `ct:json`, `ct:yaml`, `ct:csv`,
   `ct:js`, `ct:ts`, `ct:cemml`, `ct:floor`, and `ct:default_accepts`.
 - **Verification rule:** every Tier A function in this inventory MUST have

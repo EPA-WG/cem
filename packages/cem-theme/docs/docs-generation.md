@@ -91,7 +91,8 @@ packages/cem-theme/
 
 3. **CSS Generation** - Each token file has a matching HTML generator in `dist/lib/css-generators/`. Its
    `template[type="cem-ml; version=0.0"]` declares the source tables in `data-slices`; the browser bootstrap projects
-   those XHTML tables into `datadom.slices` and renders the preview and CSS through CEM-ML/CEM-QL. For example:
+   those XHTML tables into `datadom.slices` and renders the preview and CSS through CEM-ML/CEM-QL. Repeated table and
+   property emission comes from the resolver-loaded `cem-token-docs.cemt` module. For example:
     - `cem-colors.md` → `cem-colors.html` generator
     - `cem-breakpoints.md` → `cem-breakpoints.html` generator
     - `cem-coupling.md` → `cem-coupling.html` generator
@@ -113,8 +114,15 @@ cem-controls.html → dist/lib/css-generators/cem-controls.html → dist/lib/css
 ```
 
 The dist generator HTML files load the transpiled XHTML token definitions using dist-relative URLs. The browser DOM
-locates each stable heading and following table, preserves its column order as `td1`, `td2`, and so on, and passes those
-records to CEM-ML/CEM-QL. Generator pages do not use live XPath/XSLT.
+locates each stable heading and following table and projects its rows to the portable Markdown table contract: normalized
+header-derived fields, ordered `cells`, `source_table`/`source_row` provenance, and temporary `tdN` compatibility aliases.
+Generators read the named fields. Generator pages do not use live XPath/XSLT.
+
+Static CEMT imports are preflighted through the same scope-aware URL/import-map resolver as `cem-module-url`. The host
+loads an immutable module closure identified by the root and imported content hashes, resolver policy, root-body
+entrypoint, parameter contract, and CEM-ML/CEM-QL versions. The WASM compiler validates the content and runtime fields
+before rendering and preserves the resolver-policy stamp in the artifact identity. The native renderer consumes the
+same closure format, and imported calls may target only public entrypoints.
 
 ## CSS Generator Contract
 
@@ -204,7 +212,8 @@ Each generator HTML mirrors the existing `cem-colors.html` pattern:
 
 1. Declare the compiled source spec with `data-token-url` and stable `data-slices` mappings.
 2. Let `cem-css-generator.js` fetch the spec and project h6-plus-table rows into `datadom.slices`.
-3. Render preview tables and exactly one `<code data-generated-css>` block through CEM-ML/CEM-QL.
+3. Resolve static CEMT imports through the page/template scope and render preview tables plus exactly one
+   `<code data-generated-css>` block through CEM-ML/CEM-QL.
 4. Reuse `cem-css-loader.js` to apply the generated CSS to the live previews.
 5. Emit only tokens declared by the canonical token spec manifest.
 

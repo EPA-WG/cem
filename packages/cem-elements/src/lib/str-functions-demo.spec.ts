@@ -7,6 +7,7 @@ const DEMO_SOURCE = readFileSync(
     fileURLToPath(new URL('../../demo/functions/str.html', import.meta.url)),
     'utf8'
 );
+const METHODS = ['split', 'trim', 'trim_start', 'trim_end', 'char_at', 'at', 'index_of', 'last_index_of'] as const;
 
 describe('CEM-QL string-functions demo source contract', () => {
     it('owns the moved str:shorten query/result matrix', () => {
@@ -30,5 +31,24 @@ describe('CEM-QL string-functions demo source contract', () => {
         expect(DEMO_SOURCE).toContain('href="../demo.css"');
         expect(DEMO_SOURCE).toContain("from '../../dist/index.js'");
         expect(DEMO_SOURCE).toContain('href="../../index.html"');
+        expect(DEMO_SOURCE).toContain('href="../dom-merge.html"');
+        expect(DEMO_SOURCE).toContain('literal separator');
+        expect(DEMO_SOURCE).toContain('codepoints');
+    });
+
+    it('lists every independently authored string-function case', () => {
+        expect(Array.from(DEMO_SOURCE.matchAll(/legend="([^"]+)"/gu), (match) => match[1])).toEqual([
+            'str:shorten query/result matrix', ...METHODS.map((method) => `str:${method}`),
+        ]);
+    });
+
+    it.each(METHODS)('str:%s has an anonymous, flush-left, interactive example', (method) => {
+        const sample = DEMO_SOURCE.split(`<cem-demo-element legend="str:${method}"`)[1]?.split('</cem-demo-element>')[0] ?? '';
+        expect(sample).toMatch(/<template>\n<cem-element>/u);
+        expect(sample).toContain('description=');
+        expect(sample).toContain('@slice-event=input');
+        expect(sample).toContain(`str:${method}(`);
+        expect(sample).not.toContain('tag=');
+        expect(sample).not.toContain('onclick=');
     });
 });

@@ -484,6 +484,28 @@ impl NameResolver {
                 self.resolve_expression(rhs, sites);
             }
             Expression::UnaryOp { operand, .. } => self.resolve_expression(operand, sites),
+            Expression::TryCatch {
+                body,
+                code,
+                message,
+                handler,
+                ..
+            } => {
+                self.resolve_expression(body, sites);
+                let mut local = BindingSet::new(self.allocate_scope_id());
+                for name in [code, message] {
+                    self.declare_binding(
+                        &mut local,
+                        BindingKind::Variable,
+                        QNameKey::from_qname(name),
+                        None,
+                        Some(name.range),
+                    );
+                }
+                let mut handler_sites = vec![local];
+                handler_sites.extend_from_slice(sites);
+                self.resolve_expression(handler, &handler_sites);
+            }
             Expression::If {
                 cond,
                 then_branch,

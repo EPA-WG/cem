@@ -37,6 +37,7 @@ pub(crate) fn evaluate_query_source_json(source: &str, bindings_json: &str) -> S
             policy_bindings,
             current_item: None,
             module_resolution: None,
+            native_functions: Default::default(),
         },
     );
     query_result_json(&stream).to_string()
@@ -387,6 +388,9 @@ fn double_json(value: f64) -> Value {
 
 fn eval_error_json(error: &EvalError) -> Value {
     match error {
+        EvalError::Raised { code, message } => json!({
+            "kind": "eval", "type": "raised", "code": code, "message": message,
+        }),
         EvalError::Cancelled => json!({
             "kind": "eval",
             "type": "cancelled",

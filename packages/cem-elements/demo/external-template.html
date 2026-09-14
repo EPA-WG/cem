@@ -3,7 +3,8 @@
 <head>
     <meta name="copyright" content="Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>http-request Declarative Custom Element implementation demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>External declaration templates</title>
     <link rel="icon" href="./wc-square.svg"/>
 
     <script type="importmap">
@@ -77,226 +78,289 @@
     <a href="../index.html"><h3><code>cem-element</code> demo</h3></a>
     <h3>Loading DCE template by SRC attribute</h3>
 </nav>
+<main>
+<section>
+    <h2>Load declarations from reusable sources</h2>
+    <p>A <code>cem-element src</code> can select a template in this document,
+        load a whole external document, or select its <code>#fragment</code>.
+        Relative dependencies resolve from the source file, not its consumer.</p>
+    <p>A named declaration is reusable; omitting <code>tag</code> renders an
+        anonymous instance in place. Payload remains the fallback when a source
+        or fragment is missing. Imported document scripts are not executed.</p>
+    <p>CEM-ML is the preferred template format. The XSLT examples demonstrate
+        the bounded compatibility path: whole stylesheets use their XSLT media
+        type; embedded stylesheets use an explicit
+        <code>template lang="custom-element-v0"</code> wrapper. Selecting an ID
+        alone does not opt unannotated markup into XSLT execution.</p>
+        <h3>See also</h3>
+        <p><a href="./data-table.html">Editable XML, CSV, YAML and JSON tables</a></p>
+    <p><a href="./module-url.html">Mapped sources and relative URLs</a></p>
+    <p><a href="./scoped-css.html">External template styles</a></p>
+    <p><a href="./hex-grid.html">Reusable payload-driven grid</a></p>
+</section>
 
 <cem-demo-element legend="1. reference the template in page DOM"
-                   description="should render hand wave with '👋 World!' and 'Hello World!'">
+           description="should render hand wave with '👋 World!' and 'Hello World!'">
     <template>
-        <template id="template1" type="text/cem-ml">
-            {slot | Hello}
-            World!
-        </template>
+<template id="template1" type="text/cem-ml">
+    {slot | Hello}
+    World!
+</template>
 
-        <cem-element tag="dce-internal" src="#template1"></cem-element>
-        <!-- no need for loading fallback as the template exists -->
+<cem-element tag="dce-internal" src="#template1"></cem-element>
+<!-- no need for loading fallback as the template exists -->
 
-        <dce-internal>👋</dce-internal>
-        <dce-internal></dce-internal>
+<dce-internal>👋</dce-internal>
+<dce-internal></dce-internal>
     </template>
 </cem-demo-element>
 
 
 <cem-demo-element legend="2. without TAG, inline instantiation"
-                   description="hash value in SRC references template by ID. Should output 'construction' 2 times">
+           description="hash value in SRC references template by ID. Should output 'construction' 2 times">
     <template>
-        <template id="template2" type="text/cem-ml">
-            🏗️ construction
-        </template>
+<template id="template2" type="text/cem-ml">
+    🏗️ construction
+</template>
 
-        <cem-element tag="dce-construction" src="#template2"></cem-element>
-        <dce-construction></dce-construction>
-        <dce-construction></dce-construction>
+<cem-element src="#template2"></cem-element>
+<cem-element src="#template2"></cem-element>
     </template>
 </cem-demo-element>
 
-<cem-demo-element legend="3. external SVG file">
+<cem-demo-element legend="3. external SVG file"
+    description="A named declaration loads SVG with its internal references preserved">
     <template>
-        <cem-element tag="dce-external" src="confused.svg"></cem-element>
-        <dce-external>
-            <i>loading from SVG ...</i>
-        </dce-external>
-        <cem-element tag="dce-external-inline" src="confused.svg"></cem-element>
-        <dce-external-inline>
-            <i>inline DCE loading from SVG ...</i>
-        </dce-external-inline>
-        <cem-element tag="dce-external-missing" src="no.svg"></cem-element>
-        <dce-external-missing>
-            <i>fallback for missing image</i>
-        </dce-external-missing>
+<cem-element tag="dce-external" src="confused.svg"></cem-element>
+<dce-external>
+    <i>loading from SVG ...</i>
+</dce-external>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="3a. Anonymous external SVG"
+    description="Omit tag to load and render SVG directly in place">
+    <template>
+<cem-element src="confused.svg">
+    <i>inline DCE loading from SVG ...</i>
+</cem-element>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="3b. Missing source fallback"
+    description="The missing SVG keeps its supplied fallback visible">
+    <template>
+<cem-element tag="dce-external-missing" src="no.svg"></cem-element>
+<dce-external-missing>
+    <i>fallback for missing image</i>
+</dce-external-missing>
     </template>
 </cem-demo-element>
 
 <cem-demo-element legend="4. external CEM-ML template file"
-                   description="The external CEMT transforms the complete namespace-aware island: attributes, dataset, payload/slots, slices, resources, forms, validation, events, and hydration data"
+           description="The external CEMT transforms the complete namespace-aware island: attributes, dataset, payload/slots, slices, resources, forms, validation, events, and hydration data"
 >
     <a href="tree.cemt">tree.cemt</a>
     <template>
-        <cem-element tag="dce-external-4" src="tree.cemt"></cem-element>
-        <dce-external-4 title="DCE with complete external CEMT island" data-fruit="🍌" data-demo="wrapped-payload">
-            <template>
-                <!-- Payload comment: explicit inert envelope follows -->
-                <strong slot="heading" title="Named slot heading" data-kind="heading">Fruit inventory</strong>
-                <section slot="" title="Default slot payload" data-fruit="🍌" data-status="ripe">
-                    <h3 data-level="1">Produce</h3>
-                    <p data-note="unfiltered text">Every element, attribute, dataset entry, and text node is data.</p>
-                    <data value="banana" data-origin="island">Banana</data>
-                    <select aria-label="Fruit choice" data-control="choice">
-                        <option value="banana" data-color="yellow">Banana</option>
-                        <option value="pear" data-color="green">Pear</option>
-                    </select>
-                </section>
-            </template>
-        </dce-external-4>
-        <cem-element tag="dce-external-4-inline" src="tree.cemt"></cem-element>
-        <dce-external-4-inline title="DCE with live payload capture" data-smile="👼" data-basket="🍒">
-            <i slot="" title="Secondary island payload" data-kind="live-payload">
-                A second external-CEMT data island
-            </i>
-        </dce-external-4-inline>
-        <cem-element tag="dce-external-4-cem-ml" src="tree.cemt"></cem-element>
-        <dce-external-4-cem-ml title="DCE with CEM-ML source payload" data-payload-language="cem-ml">
-            <template type="cem-ml" data-cem-schema="https://cem.dev/ns/cem-ml/1">
-                {payload:item @name=fruit @slot=default | Banana from CEM-ML payload source}
-            </template>
-        </dce-external-4-cem-ml>
-    </template>
-</cem-demo-element>
-
-<cem-demo-element legend="5. external HTML template" description="A named instance and an anonymous src declaration should each render 👋👌, svg, and formula">
+<cem-element tag="dce-external-4" src="tree.cemt"></cem-element>
+<dce-external-4 title="DCE with complete external CEMT island" data-fruit="🍌" data-demo="wrapped-payload">
     <template>
-        <cem-element tag="dce-external-5" src="html-template.html"></cem-element>
-        <dce-external-5>Hi</dce-external-5>
-        <cem-element
-            id="dce-external-5-inline"
-            src="html-template.html"
-        >
-            <i>inline DCE loading from HTML file ...</i>
-        </cem-element>
+<!-- Payload comment: explicit inert envelope follows -->
+        <strong slot="heading" title="Named slot heading" data-kind="heading">Fruit inventory</strong>
+        <section slot="" title="Default slot payload" data-fruit="🍌" data-status="ripe">
+            <h3 data-level="1">Produce</h3>
+            <p data-note="unfiltered text">Every element, attribute, dataset entry, and text node is data.</p>
+            <data value="banana" data-origin="island">Banana</data>
+            <select aria-label="Fruit choice" data-control="choice">
+                <option value="banana" data-color="yellow">Banana</option>
+                <option value="pear" data-color="green">Pear</option>
+            </select>
+        </section>
+    </template>
+</dce-external-4>
     </template>
 </cem-demo-element>
 
-<cem-demo-element legend="6. HTML, SVG by ID within external file" description="Should render 👋, svg, formula">
+<cem-demo-element legend="4a. Live HTML payload capture"
+    description="The same tree template captures ordinary child markup into its own data island">
+    <template>
+<cem-element tag="dce-external-4-inline" src="tree.cemt"></cem-element>
+<dce-external-4-inline title="DCE with live payload capture" data-smile="👼" data-basket="🍒">
+    <i slot="" title="Secondary island payload" data-kind="live-payload">
+        A second external-CEMT data island
+    </i>
+</dce-external-4-inline>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="4b. CEM-ML source payload"
+    description="An inert CEM-ML payload remains typed source in the complete data-island tree">
+    <template>
+<cem-element tag="dce-external-4-cem-ml" src="tree.cemt"></cem-element>
+<dce-external-4-cem-ml title="DCE with CEM-ML source payload" data-payload-language="cem-ml">
+    <template type="cem-ml" data-cem-schema="https://cem.dev/ns/cem-ml/1">
+        {payload:item @name=fruit @slot=default | Banana from CEM-ML payload source}
+    </template>
+</dce-external-4-cem-ml>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="5. external HTML template" description="A named instance renders the whole HTML document, including SVG and MathML; its script must not run">
+    <template>
+<cem-element tag="dce-external-5" src="html-template.html"></cem-element>
+<dce-external-5>Hi</dce-external-5>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="5a. Anonymous external HTML"
+    description="Omit tag to render the external HTML, SVG, and MathML in place; imported scripts remain inert">
+    <template>
+<cem-element
+    id="dce-external-5-inline"
+    src="html-template.html"
+>
+    <i>inline DCE loading from HTML file ...</i>
+</cem-element>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="6. HTML, SVG by ID within external file" description="Select just the hand-wave element by its ID from an external HTML document">
     <a href="html-template.html">html-template.html</a>
     <template>
-        <cem-element tag="dce-html-wave" src="./html-template.html#wave"></cem-element>
-        <dce-html-wave>
-            <i>loading HTML from templates file ...</i>
-        </dce-html-wave>
-        <cem-element tag="dce-html-logo" src="./html-template.html#dwc-logo"></cem-element>
-        <dce-html-logo>
-            <i>loading SVG from templates file ...</i>
-        </dce-html-logo>
-        <cem-element tag="dce-html-formula" src="./html-template.html#sophomores-dream"></cem-element>
-        <dce-html-formula>
-            <i>loading MathML from HTML file ...</i>
-        </dce-html-formula>
+<cem-element tag="dce-html-wave" src="./html-template.html#wave"></cem-element>
+<dce-html-wave>
+    <i>loading HTML from templates file ...</i>
+</dce-html-wave>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="6a. SVG fragment by ID"
+    description="Select just the SVG element from an external HTML document">
+    <template>
+<cem-element tag="dce-html-logo" src="./html-template.html#dwc-logo"></cem-element>
+<dce-html-logo>
+    <i>loading SVG from templates file ...</i>
+</dce-html-logo>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="6b. MathML fragment by ID"
+    description="Select just the formula and preserve its MathML namespace">
+    <template>
+<cem-element tag="dce-html-formula" src="./html-template.html#sophomores-dream"></cem-element>
+<dce-html-formula>
+    <i>loading MathML from HTML file ...</i>
+</dce-html-formula>
     </template>
 </cem-demo-element>
 <cem-demo-element legend="7a. external CEM-ML data-island tree template" description="Should render tree">
     <a href="data-island-tree.cemt">data-island-tree.cemt</a>
     <template>
-        <cem-element tag="dce-cemt-tree" src="data-island-tree.cemt"></cem-element>
-        <dce-cemt-tree>
-            <catalog data-root="cem-elements">
-                <section data-level="1" name="alpha">
-                    <item data-level="2" code="a1">
-                        <leaf data-level="3">Leaf text from cem-elements data island</leaf>
-                    </item>
-                </section>
-            </catalog>
-        </dce-cemt-tree>
+<cem-element tag="dce-cemt-tree" src="data-island-tree.cemt"></cem-element>
+<dce-cemt-tree>
+    <catalog data-root="cem-elements">
+        <section data-level="1" name="alpha">
+            <item data-level="2" code="a1">
+                <leaf data-level="3">Leaf text from cem-elements data island</leaf>
+            </item>
+        </section>
+    </catalog>
+</dce-cemt-tree>
     </template>
 </cem-demo-element>
 
-<cem-demo-element legend="7b. external XSLT data-island tree template" description="Should render tree, and fallback">
+<cem-demo-element legend="7b. external XSLT data-island tree template" description="The compatibility XSLT template projects the supplied payload as an expandable tree">
     <a href="data-island-tree.xsl">data-island-tree.xsl</a>
     <template>
-        <cem-element tag="dce-xslt-tree" src="data-island-tree.xsl"></cem-element>
-        <dce-xslt-tree>
-            <catalog data-root="cem-elements-xslt">
-                <section data-level="1" name="beta">
-                    <item data-level="2" code="b1">
-                        <leaf data-level="3">Leaf text from cem-elements XSLT data island</leaf>
-                    </item>
-                </section>
-            </catalog>
-        </dce-xslt-tree>
-        <cem-element tag="dce-missing-none" src="html-template.html#none"></cem-element>
-        <dce-missing-none><i>element with id=none is missing in template</i></dce-missing-none>
+<cem-element tag="dce-xslt-tree" src="data-island-tree.xsl"></cem-element>
+<dce-xslt-tree>
+    <catalog data-root="cem-elements-xslt">
+        <section data-level="1" name="beta">
+            <item data-level="2" code="b1">
+                <leaf data-level="3">Leaf text from cem-elements XSLT data island</leaf>
+            </item>
+        </section>
+    </catalog>
+</dce-xslt-tree>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="7c. Missing fragment fallback"
+    description="The document exists but the requested ID does not; the instance keeps its fallback">
+    <template>
+<cem-element tag="dce-missing-none" src="html-template.html#none"></cem-element>
+<dce-missing-none><i>element with id=none is missing in template</i></dce-missing-none>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="7d. Anonymous external XSLT"
+    description="Omit tag to render a whole stylesheet in place; its tree comes from this declaration's payload. Collapse and reopen a branch">
+    <template>
+<cem-element src="data-island-tree.xsl">
+    <catalog data-root="anonymous-xslt">
+        <section data-level="1" name="fruit">
+            <item data-level="2" code="cherry">
+                <leaf data-level="3">🍒 from anonymous XSLT</leaf>
+            </item>
+        </section>
+    </catalog>
+</cem-element>
+    </template>
+</cem-demo-element>
+
+<cem-demo-element legend="7e. Embedded XSLT fragment"
+    description="Select genuine XSLT inside an explicitly annotated template by file#id. Only that fragment transforms the supplied fruit; toggle the basket">
+    <p><a href="html-template.xhtml#embedded-xslt">Inspect the fragment library</a></p>
+    <template>
+<cem-element src="html-template.xhtml#embedded-xslt">
+    <basket>
+        <fruit>🍒</fruit>
+        <fruit>🍋</fruit>
+    </basket>
+</cem-element>
     </template>
 </cem-demo-element>
 
 <cem-demo-element legend="8. external file with embedding of another external DCE"
-                   description="Should render Vulcan Salute 🖖"
+           description="Should render Vulcan Salute 🖖"
 >
     <template>
-        <cem-element tag="dce-embed-1" src="embed-1.html"></cem-element>
-        <dce-embed-1>
-            loading from embed-1.html ...
-        </dce-embed-1>
+<cem-element tag="dce-embed-1" src="embed-1.html"></cem-element>
+<dce-embed-1>
+    loading from embed-1.html ...
+</dce-embed-1>
     </template>
 </cem-demo-element>
 
 
 <cem-demo-element legend="9. external file with invoking of relative template as hash by enclosed custom-element"
-                   description="Should render 👌, Smiley.svg, 👋"
+           description="Should render 👌, Smiley.svg, 👋"
 >
     <template>
-        <cem-element tag="dce-embed-relative-hash" src="./lib-dir/embed-lib.html#embed-relative-hash"></cem-element>
-        <dce-embed-relative-hash>
-            loading from embed-1.html ...
-        </dce-embed-relative-hash>
+<cem-element tag="dce-embed-relative-hash" src="./lib-dir/embed-lib.html#embed-relative-hash"></cem-element>
+<dce-embed-relative-hash>
+    loading from embed-1.html ...
+</dce-embed-relative-hash>
     </template>
 </cem-demo-element>
 
 <cem-demo-element
-        legend="10. external file with invoking of template in another relative path file by enclosed custom-element"
-        description="Should render 👍, Vulcan Salute 🖖"
+legend="10. external file with invoking of template in another relative path file by enclosed custom-element"
+description="Should render 👍, Vulcan Salute 🖖"
 >
     <template>
-        <cem-element tag="dce-embed-relative-file" src="./lib-dir/embed-lib.html#embed-relative-file"></cem-element>
-        <dce-embed-relative-file>
-            loading from ./lib-dir/embed-lib.html ...
-        </dce-embed-relative-file>
+<cem-element tag="dce-embed-relative-file" src="./lib-dir/embed-lib.html#embed-relative-file"></cem-element>
+<dce-embed-relative-file>
+    loading from ./lib-dir/embed-lib.html ...
+</dce-embed-relative-file>
     </template>
 </cem-demo-element>
 
 
-<cem-demo-element legend="embed-1.html external file" src="embed-1.html"></cem-demo-element>
-<cem-demo-element legend="embed-lib.html with multiple templates" src="embed-lib.html"></cem-demo-element>
-<!--
-<cem-demo-element legend="9. deep external files, complex rendering" >
-    <template>
-            <cem-element src="../index.html#shared-template" hidden>
-                loading by hash from ../index.html#shared-template ...
-            </cem-element>
-    </template>
-</cem-demo-element>
+<cem-demo-element legend="embed-1.html external file" description="Inspect the nested declaration source used above" src="embed-1.html"></cem-demo-element>
+<cem-demo-element legend="embed-lib.html with multiple templates" description="Inspect the reusable fragment library used above" src="embed-lib.html"></cem-demo-element>
 
-<cem-demo-element legend="9. own import maps" >
-    <template>
-            <cem-element  src="../index.html#shared-template" hidden>
-                loading by hash from ../index.html#shared-template ...
-            </cem-element>
-    </template>
-</cem-demo-element>
-
-<cem-demo-element legend="10. deep external files with own import maps" >
-    <template>
-            <cem-element src="../index.html#shared-template" hidden>
-                loading by hash from ../index.html#shared-template ...
-            </cem-element>
-    </template>
-</cem-demo-element>
-
-<cem-demo-element legend="11. local template as a 'loading...' or fallback for remote, error handling" >
-    <template>
-            <cem-element src="../index.html#shared-template" hidden>
-                loading by hash from ../index.html#shared-template ...
-            </cem-element>
-    </template>
-</cem-demo-element>
-
--->
+</main>
 <script type="module" src="../../cem-demo-element/dist/index.js"></script>
 
 </body>

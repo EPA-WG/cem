@@ -190,8 +190,14 @@
 
     <cem-demo-element
         legend="5. Synchronize the selected version with the URL"
-        description="A live URL read preselects #version=0.0.22; Apply selection writes a later picker value back to the hash">
+        description="Change the hash with plain HTML controls, then select a release: URL observation and event-triggered writes work in both directions">
         <template>
+<button type="button" aria-label="Set URL to 0.0.22" title="Set URL to 0.0.22"
+    onclick="location.hash = 'version=0.0.22'">→0.0.22</button>
+<button type="button" aria-label="Set URL to 0.0.25" title="Set URL to 0.0.25"
+    onclick="location.hash = 'version=0.0.25'">→0.0.25</button>
+<button type="button" aria-label="Clear URL version" title="Clear URL version"
+    onclick="location.hash = ''">∅#</button>
 <cem-element
     tag="cem-npm-version-url"
     src="#npm-version"
@@ -199,51 +205,23 @@
 
 <cem-element>
     <template type="text/cem-ml">
-{slice @name=targetVersion}
 {location-element @slice=current @live=true}
 {article @class=demo-card |
-    {p | Set a URL version first, then choose another version.}
-    {button
-        @type=button
-        @value=0.0.22
-        @slice=targetVersion
-        @slice-event=click |
-        Set URL to 0.0.22
+    {p | External hash changes and Back/Forward update the picker.
+         Selecting a release writes its version back to the hash.}
+    {cem-npm-version-url
+        @package="@epa-wg/cem-elements"
+        @showdate=true
+        @initialversion="{str:substring(datadom.slices.current.hash, 10)}"
+        @slice=selectedVersion
+        @slice-event=change
+        @slice-value="$target.value"
     }
-    {cem:if @test=datadom.slices.targetVersion |
+    {cem:if @test=datadom.eventPayloads.selectedVersion |
         {location-element
             @method=location.hash
-            @src="#version={$datadom.slices.targetVersion}"}
-    }
-    {cem:choose |
-        {cem:when @test=datadom.slices.selectedVersion |
-            {cem-npm-version-url
-                @package="@epa-wg/cem-elements"
-                @showdate=true
-                @initialversion="{$datadom.slices.selectedVersion}"
-                @slice=selectedVersion
-                @slice-event=change
-                @slice-value="$target.value"
-            }
-        }
-        {cem:otherwise |
-            {cem-npm-version-url
-                @package="@epa-wg/cem-elements"
-                @showdate=true
-                @initialversion="{$datadom.slices.targetVersion}"
-                @slice=selectedVersion
-                @slice-event=change
-                @slice-value="$target.value"
-            }
-        }
-    }
-    {button
-        @type=button
-        @value=apply
-        @slice=targetVersion
-        @slice-event=click
-        @slice-value="$selectedVersion" |
-        Apply selection to URL
+            @trigger="{$datadom.eventPayloads.selectedVersion.revision}"
+            @src="#version={$datadom.slices.selectedVersion}"}
     }
     {p | Current hash: {output | {$datadom.slices.current.hash}}}
     {p | selected-version slice:

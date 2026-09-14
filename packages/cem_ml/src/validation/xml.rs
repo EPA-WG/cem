@@ -1414,7 +1414,7 @@ fn xml_entity_decode_attribute_value(
             let reference_end = lexical_value[source_offset + 1..].find(';')? + source_offset + 2;
             let reference = &lexical_value[source_offset + 1..reference_end - 1];
             (
-                xml_decode_attribute_entity_reference(reference)?,
+                xml_decode_entity_reference(reference)?,
                 reference_end,
             )
         } else {
@@ -1462,7 +1462,9 @@ fn xml_entity_decode_attribute_value(
     ))
 }
 
-fn xml_decode_attribute_entity_reference(reference: &str) -> Option<char> {
+/// Decode one predefined or numeric XML reference (without `&` / `;`).
+/// No DTD, external lookup or user-defined expansion is performed.
+pub fn xml_decode_entity_reference(reference: &str) -> Option<char> {
     match reference {
         "amp" => Some('&'),
         "lt" => Some('<'),

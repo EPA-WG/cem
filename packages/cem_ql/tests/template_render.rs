@@ -24,6 +24,54 @@ fn record(fields: impl IntoIterator<Item = (&'static str, Vec<Item>)>) -> Item {
 }
 
 #[test]
+fn hex_row_projects_current_page_metadata_without_selecting_sibling_links() {
+    let links = vec![
+        record([("attributes", vec![record([])])]),
+        record([(
+            "attributes",
+            vec![record([(
+                "aria-current",
+                vec![Item::Atomic(AtomValue::String("page".into()))],
+            )])],
+        )]),
+        record([("attributes", vec![record([])])]),
+    ];
+    let rendered = render_template(
+        r#"{cem:for-each @select=links @as=link |
+            {cem-hex-image-link @current='{link.attributes.aria-current ?? "false"}'}
+        }"#,
+        &TemplateData::default().with_binding("links", ItemStream::from_items(links)),
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+    assert_eq!(rendered.rendered.matches("current=\"page\"").count(), 1);
+    assert_eq!(rendered.rendered.matches("current=\"false\"").count(), 2);
+
+    for (current, marker_count) in [("page", 1), ("false", 0)] {
+        let rendered = render_template(
+            r#"{a @aria-current="{$current}" |
+                {span | {cem:if @test='current == "page"' |
+                    {span @aria-hidden=true | ✓ }
+                }Hex grid}
+            }"#,
+            &TemplateData::default().with_binding("current", string_value(current)),
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+        assert!(rendered
+            .rendered
+            .contains(&format!("aria-current=\"{current}\"")));
+        assert_eq!(rendered.rendered.matches('✓').count(), marker_count);
+    }
+}
+
+#[test]
 fn render_template_binds_content_expression_from_host_data() {
     let data = TemplateData::default().with_binding("label", string_value("Email"));
 
@@ -483,8 +531,7 @@ fn attribute_declarations_return_default_and_selected_host_updates() {
 
     let defaults = render_template(template, &TemplateData::default());
     assert_eq!(
-        defaults.rendered,
-        "<p>default_P1|always_p2|def_P3|default_P1|always_p2|def_P3</p>",
+        defaults.rendered, "<p>default_P1|always_p2|def_P3|default_P1|always_p2|def_P3</p>",
         "{:?}",
         defaults.diagnostics
     );
@@ -568,10 +615,7 @@ fn selected_attributes_derive_boolean_and_slice_event_values() {
             .with_binding("datadom", ItemStream::once(datadom)),
     );
 
-    assert_eq!(
-        rendered.rendered,
-        "<p>From Slice|From Slice|true|true</p>"
-    );
+    assert_eq!(rendered.rendered, "<p>From Slice|From Slice|true|true</p>");
     assert_eq!(
         rendered.host_attribute_updates,
         vec![

@@ -44,6 +44,7 @@ pub mod generic_data;
 pub mod html;
 pub mod json;
 pub mod json_schema;
+pub mod json_xml;
 pub mod markdown;
 pub mod mathml;
 pub mod relax_ng;

@@ -73,8 +73,7 @@ fn precompiled_template_preserves_static_declaration_stylesheets() {
     }"#;
     let options = compile_options();
     let source_driven = compile_template(source, &options);
-    let compiled =
-        compile_template_artifact(source, &options, TemplateArtifactSourceMapMode::Dev);
+    let compiled = compile_template_artifact(source, &options, TemplateArtifactSourceMapMode::Dev);
     let reloaded = CompiledTemplateArtifact::from_bytes(compiled.bytes)
         .expect("stylesheet artifact envelope reloads")
         .reload(&load_context(source))
@@ -97,8 +96,7 @@ fn precompiled_template_preserves_static_module_map_metadata() {
     {cem-module-url @slice=imageUrl @src="demo-image"}"#;
     let options = compile_options();
     let source_driven = compile_template(source, &options);
-    let compiled =
-        compile_template_artifact(source, &options, TemplateArtifactSourceMapMode::Dev);
+    let compiled = compile_template_artifact(source, &options, TemplateArtifactSourceMapMode::Dev);
     let reloaded = CompiledTemplateArtifact::from_bytes(compiled.bytes)
         .expect("module-map artifact envelope reloads")
         .reload(&load_context(source))
@@ -223,6 +221,7 @@ fn load_context(source: &str) -> TemplateArtifactLoadContext {
 
 fn template_data() -> TemplateData {
     TemplateData {
+        native_functions: Default::default(),
         bindings: BTreeMap::from([
             (
                 "visible".to_owned(),

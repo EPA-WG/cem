@@ -667,6 +667,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
                         node_test: XPathNodeTest::Kind {
                             kind: XPathKindTest::AnyNode,
                             lexical: "node()".to_owned(),
+                            processing_instruction_target: None,
                         },
                         predicates: Vec::new(),
                     },
@@ -710,6 +711,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
                     node_test: XPathNodeTest::Kind {
                         kind: XPathKindTest::AnyNode,
                         lexical: "node()".to_owned(),
+                        processing_instruction_target: None,
                     },
                     predicates,
                 },
@@ -777,11 +779,36 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         if let Some(kind) = self.peek_kind_test() {
             let (_, start) = self.next().expect("peeked kind test");
             self.expect("(")?;
-            self.consume_balanced_until(")")?;
+            let processing_instruction_target = if kind == XPathKindTest::ProcessingInstruction {
+                if self.peek().is_some_and(|(_, token)| token.lexeme == ")") {
+                    None
+                } else {
+                    let (index, token) = self
+                        .next()
+                        .ok_or_else(|| self.syntax_error(&[")", "PI target"]))?;
+                    let target = if token.kind == XPathLexicalTokenKind::StringLiteral {
+                        string_literal_value(token.lexeme)
+                            .split([' ', '\t', '\r', '\n'])
+                            .filter(|part| !part.is_empty())
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    } else {
+                        if !super::lexer::is_ncname(token.lexeme) {
+                            return Err(self.syntax_error_at(index, token, &["PI target NCName"]));
+                        }
+                        token.lexeme.to_owned()
+                    };
+                    Some(target)
+                }
+            } else {
+                self.consume_balanced_until(")")?;
+                None
+            };
             let (_, end) = self.expect(")")?;
             return Ok(XPathNodeTest::Kind {
                 kind,
                 lexical: format!("{}", self.lexical_between(start.start, end.end)),
+                processing_instruction_target,
             });
         }
 

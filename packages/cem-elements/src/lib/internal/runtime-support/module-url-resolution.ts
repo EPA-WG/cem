@@ -12,7 +12,7 @@ export type CemModuleUrlResolutionReferrer =
     | { readonly kind: 'context'; readonly context: CemModuleUrlResolutionContext };
 
 export interface CemModuleUrlResolutionRequest {
-    readonly purpose: 'template-slice';
+    readonly purpose: 'template-slice' | 'template-import';
     readonly authoredSpecifier: string;
     readonly currentContext: CemModuleUrlResolutionContext;
     readonly referrer?: CemModuleUrlResolutionReferrer;

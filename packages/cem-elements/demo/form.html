@@ -49,20 +49,24 @@
 
     <cem-demo-element
         legend="1. Simple validation"
-        description="Username length reveals the password step; form validity then requires both values">
+        description="Enter a long username, then click → (Next) to reveal the password step; typing alone does not advance the form">
         <template>
 <cem-element>
     <template type="text/cem-ml">
 {slice @name=username}
 {slice @name=password}
+{slice @name=next}
 {article @class=demo-card |
+    {slice @slice=password @value="''"}
     {h2 | 1. Simple validation}
-    {p | Enter more than 10 username characters to reveal the password step.}
+    {p | Click → while empty to see the native validation warning.
+         Enter more than 10 username characters, then click → again.
+         Use sample values only: a valid 🔑 (Sign in) performs native GET navigation.}
     {form
         @slice=signin
         @custom-validity='
             str:length(datadom.formData.signin.username) &gt; 10
-            and str:length(datadom.formData.signin.password) &gt; 3
+            and str:length(datadom.slices.password) &gt; 3
             ?? "Enter a long username and password"' |
         {label |
             Username
@@ -76,8 +80,14 @@
                 @slice-value="$target.value"
             }
         }
+        {p | Username: {output | {$datadom.formData.signin.username}}}
+        {p | Form valid: {output | {$datadom.validationState.signin.valid}}}
+        {p | Form message:
+            {output | {$datadom.validationState.signin.validationMessage}}}
         {cem:choose |
-            {cem:when @test="str:length(datadom.slices.username) &gt; 10" |
+            {cem:when @test='
+                str:length(datadom.slices.next ?? "") &gt; 10
+                && str:length(datadom.slices.username ?? "") &gt; 10' |
                 {label |
                     Password
                     {input
@@ -92,16 +102,14 @@
                         @slice-value="$target.value"
                     }
                 }
-                {button @type=submit | Sign in}
+                {button @type=submit @aria-label="Sign in" @title="Sign in" | 🔑}
             }
             {cem:otherwise |
-                {button @type=submit | Next}
+                {button @type=submit @aria-label=Next @title=Next
+                    @slice=next @slice-event=click @slice-value="$username" | →}
             }
         }
-        {p | Username: {output | {$datadom.formData.signin.username}}}
-        {p | Form valid: {output | {$datadom.validationState.signin.valid}}}
-        {p | Form message: {output | {$datadom.validationState.signin.validationMessage}}
-}   }   }
+}   }
     </template>
 </cem-element>
         </template>
@@ -182,7 +190,7 @@
                 {p | Select a confirmation method.}
             }
         }
-        {button @type=submit | Sign in}
+        {button @type=submit @aria-label="Sign in" @title="Sign in" | 🔑}
         {p | Username: {output | {$datadom.formData.lifecycle.username}}}
         {p | Confirm by: {output | {$datadom.formData.lifecycle.confirmBy}}}
         {p | Form valid: {output | {$datadom.validationState.lifecycle.valid}}}
@@ -226,7 +234,7 @@
             {output |
                 {$datadom.validationState.nativeMessage.controls.email.validationMessage}}
         }
-        {button @type=submit | Next
+        {button @type=submit @aria-label=Next @title=Next | →
 }   }   }
     </template>
 </cem-element>
@@ -259,7 +267,7 @@
                 @slice-value="$target.value"
             }
         }
-        {button @type=submit | Next}
+        {button @type=submit @aria-label=Next @title=Next | →}
         {p | Current slice: {output | {$datadom.slices.email}}}
         {p | Current length: {output | {$str:length(datadom.slices.email)}}}
         {p | Form valid: {output | {$datadom.validationState.customMessage.valid}}}
@@ -280,7 +288,7 @@
     <template type="text/cem-ml">
 {style |```
     fieldset { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-    button[aria-pressed="true"] { font-weight: bold; }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }
 ```}
 {attribute @name=label | Fruit}
 {slice @name=groups}
@@ -292,8 +300,9 @@
             {button
                 @type=button
                 @data-option-index="{$option.index}"
+                @aria-label="{$option.label}" @title="{$option.label}"
                 @aria-pressed="{$option.selected}" |
-                {$option.label}
+                {$if option.value { option.value } else { option.label }}
 }   }   }
     {p | Selected: {output | {$datadom.slices.value}}}
 }
@@ -325,7 +334,8 @@
             {cem-option @value="🍏" | Apple}
             {cem-option @value="🍌" | Banana}
         }
-        {button @type=submit | Submit matching fruit}
+        {button @type=submit
+            @aria-label="Submit matching fruit" @title="Submit matching fruit" | ✓}
         {p |
             Picked:
             {output | {$datadom.formData.fruitForm.firstFruit}}

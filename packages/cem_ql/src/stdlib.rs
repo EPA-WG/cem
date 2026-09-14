@@ -2,10 +2,12 @@
 
 pub mod cemml;
 pub mod content_types;
+pub mod data;
 pub mod datetime;
 pub mod dom;
 pub mod items;
 pub mod modules;
+pub mod native;
 pub mod numbers;
 pub mod records;
 pub mod report;
@@ -201,6 +203,10 @@ pub fn tier_a_functions() -> Vec<StdlibFunction> {
 pub fn all_known_functions() -> Vec<StdlibFunction> {
     let mut functions = tier_a_functions();
     functions.extend_from_slice(content_types::FUNCTIONS);
+    functions.extend_from_slice(data::FUNCTIONS);
+    functions.extend_from_slice(native::FUNCTIONS);
+    functions.extend_from_slice(sequence::TIER_B_FUNCTIONS);
+    functions.extend_from_slice(report::TIER_B_FUNCTIONS);
     functions.extend_from_slice(user::FUNCTIONS);
     functions
 }

@@ -17,90 +17,74 @@
 <!--
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
   datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
-  cem_ql WASM boundary; no live browser XSLT. Columns — basis/semantic/zebra/rings/appearance: td1=token
-  td2=value td3=desc td4=tier; forced: td1=token td2=value.
+  cem_ql WASM boundary; no live browser XSLT. Rows use normalized Markdown heading fields such as
+  token/value/description/tier and forced_colors_value.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-stroke-template"
           data-token-url="../../../dist/lib/tokens/cem-stroke.xhtml"
           data-slices="basis=cem-stroke-basis semantic=cem-stroke-semantic zebra=cem-stroke-zebra-pattern rings=cem-stroke-rings forced=cem-stroke-rings-forced appearance=cem-stroke-indicator-appearance">
-{table @id=cem-stroke-basis |
-    {caption | {a @href="../../../dist/lib/tokens/cem-stroke.xhtml#3-1-stroke-basis-tokens" | cem-stroke-basis} — stroke basis}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.basis" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:6rem;" | {div @style="height:1.25rem; width:5rem; border-block-end: var({$row.td1}) solid currentColor;" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{module @version="1.0.0" |
+{import @as=docs @src="./cem-token-docs.cemt"}
+{body |
+{call @from=docs @template=preview-token-table
+    @with:rows={datadom.slices.basis} @with:id=cem-stroke-basis
+    @with:href="../../../dist/lib/tokens/cem-stroke.xhtml#3-1-stroke-basis-tokens"
+    @with:link_label=cem-stroke-basis @with:caption=" — stroke basis"
+    @with:preview_label=Sample @with:preview_kind=stroke}
 {hr | }
-{table @id=cem-stroke-indicator-appearance |
-    {caption | {a @href="../../../dist/lib/tokens/cem-stroke.xhtml#cem-stroke-indicator-appearance" | cem-stroke-indicator-appearance} — outline/underline geometry selectors}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.appearance" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
-}
+{call @from=docs @template=standard-token-table
+    @with:rows={datadom.slices.appearance} @with:id=cem-stroke-indicator-appearance
+    @with:href="../../../dist/lib/tokens/cem-stroke.xhtml#cem-stroke-indicator-appearance"
+    @with:link_label=cem-stroke-indicator-appearance
+    @with:caption=" — outline/underline geometry selectors"}
 {hr | }
-{table @id=cem-stroke-semantic |
-    {caption | {a @href="../../../dist/lib/tokens/cem-stroke.xhtml#4-1-endpoints" | cem-stroke-semantic} — semantic stroke endpoints}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.semantic" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:6rem;" | {div @style="height:1.25rem; width:5rem; border-block-end: var({$row.td1}) solid currentColor;" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{call @from=docs @template=preview-token-table
+    @with:rows={datadom.slices.semantic} @with:id=cem-stroke-semantic
+    @with:href="../../../dist/lib/tokens/cem-stroke.xhtml#4-1-endpoints"
+    @with:link_label=cem-stroke-semantic @with:caption=" — semantic stroke endpoints"
+    @with:preview_label=Sample @with:preview_kind=stroke}
 {hr | }
 {table @id=cem-stroke-zebra-rings |
     {caption | {a @href="../../../dist/lib/tokens/cem-stroke.xhtml#5-2-canonical-zebra-tokens-d5-contract" | cem-stroke-zebra-pattern} + {a @href="../../../dist/lib/tokens/cem-stroke.xhtml#5-3-recommended-indicator-composition-box-shadow-ring" | cem-stroke-rings} — zebra-pattern geometry and ring recipes}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
     {tbody | {cem:for-each @select="(datadom.slices.zebra,datadom.slices.rings)" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value}}}{td | {$row.tier}}{td | {$row.description}}}}}
 }
 {hr | }
 {table @id=cem-stroke-rings-forced |
     {caption | {a @href="../../../dist/lib/tokens/cem-stroke.xhtml#8-2-forced-colors-high-contrast" | cem-stroke-rings-forced} — forced-colors fallback}
     {thead | {tr | {th | Token}{th | Forced-colors value}}}
     {tbody | {cem:for-each @select="$datadom.slices.forced" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value}}}}}}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
-  /* region stroke basis — none / hair / standard / strong */```{cem:for-each @select="$datadom.slices.basis" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region stroke basis — none / hair / standard / strong */```{call @from=docs @template=css-properties @with:rows={datadom.slices.basis} @with:indent="  "}```
   /* endregion stroke basis */
 
-  /* region semantic endpoints — boundary / divider / focus / selected / target / indicator-offset */```{cem:for-each @select="$datadom.slices.semantic" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region semantic endpoints — boundary / divider / focus / selected / target / indicator-offset */```{call @from=docs @template=css-properties @with:rows={datadom.slices.semantic} @with:indent="  "}```
   /* endregion semantic endpoints */
 
-  /* region zebra pattern geometry — angle only (strip-size and colors owned by D0) */```{cem:for-each @select="$datadom.slices.zebra" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region zebra pattern geometry — angle only (strip-size and colors owned by D0) */```{call @from=docs @template=css-properties @with:rows={datadom.slices.zebra} @with:indent="  "}```
   /* endregion zebra pattern geometry */
 
-  /* region indicator appearance selectors — outline=0 / underline=1 */```{cem:for-each @select="$datadom.slices.appearance" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region indicator appearance selectors — outline=0 / underline=1 */```{call @from=docs @template=css-properties @with:rows={datadom.slices.appearance} @with:indent="  "}```
   /* endregion indicator appearance selectors */
 
-  /* region ring recipes — box-shadow composition referencing D0 zebra tokens */```{cem:for-each @select="$datadom.slices.rings" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region ring recipes — box-shadow composition referencing D0 zebra tokens */```{call @from=docs @template=css-properties @with:rows={datadom.slices.rings} @with:indent="  "}```
   /* endregion ring recipes */
 }
 
 /* region forced-colors fallback — collapse rings to a single Highlight outline (Principle P4) */
 @media (forced-colors: active) {
-  :root {```{cem:for-each @select="$datadom.slices.forced" @as="row" |```
-    ```{$row.td1}: {$row.td2};}```
+  :root {```{call @from=docs @template=css-properties @with:rows={datadom.slices.forced} @with:indent="    "}```
   }
 }
 /* endregion forced-colors fallback */
 ```}}
+}
+}
 </template>
 <main></main>
 <cem-css-loader></cem-css-loader>

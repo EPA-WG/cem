@@ -16,6 +16,8 @@ import {
     processRetainedCemMlTemplate,
     retainCemMlTemplateArtifact,
     retainCemMlTemplateSource,
+    retainCemMlTemplateModuleClosure,
+    type CemQlStylesheetArtifact,
     type RetainedCemMlTemplate,
 } from './cem-ql-render.js';
 import type {
@@ -39,12 +41,14 @@ interface RetainedTemplateArtifact {
     diagnostics: CemProcessingDiagnostic[];
     wasmArtifactId: number;
     compiledArtifact?: CemProcessingArtifactBinaryTransfer;
+    stylesheets?: CemQlStylesheetArtifact[];
 }
 
 interface CachedTemplateCompilation {
     diagnostics: CemProcessingDiagnostic[];
     wasmArtifactId: number;
     compiledArtifact?: CemProcessingArtifactBinaryTransfer;
+    stylesheets?: CemQlStylesheetArtifact[];
 }
 
 export interface CemProcessingEngineOptions {
@@ -95,6 +99,7 @@ export class CemProcessingEngine {
                 scopePolicyStamp: input.scopePolicyStamp,
                 sourceMapMode: input.sourceMapMode,
                 hostBindings: [...new Set(input.hostBindings ?? [])].sort(),
+                moduleClosure: input.moduleClosure ?? null,
             }).key,
             registrationIdentity: input.registrationIdentity,
             scopePolicyStamp: input.scopePolicyStamp,
@@ -114,6 +119,7 @@ export class CemProcessingEngine {
             diagnostics: compilation.diagnostics,
             wasmArtifactId: compilation.wasmArtifactId,
             compiledArtifact: compilation.compiledArtifact,
+            stylesheets: compilation.stylesheets,
         };
         this.artifacts.set(artifactKey, artifact);
         return compileResult(artifact);
@@ -203,6 +209,16 @@ export class CemProcessingEngine {
         source: string
     ): Promise<CachedTemplateCompilation> {
         const hostBindings = input.hostBindings ?? [];
+        if (input.moduleClosure) {
+            // A source-only binary is not a dependency-closure artifact. Keep the
+            // closure content/version/resolver contract in the native compilation.
+            const retained = await retainCemMlTemplateModuleClosure(source, input.moduleClosure, hostBindings);
+            return {
+                wasmArtifactId: retained.artifactId,
+                diagnostics: retained.diagnostics,
+                stylesheets: retained.stylesheets,
+            };
+        }
         const payloadKey = await cemMlTemplateArtifactPayloadKey(source, input.sourceMapMode);
         let rejectionDiagnostic: CemProcessingDiagnostic | undefined;
         if (input.precompiledArtifact) {
@@ -277,6 +293,7 @@ function compileResult(artifact: RetainedTemplateArtifact): CemProcessingCompile
         observedAttributes: [],
         invalidationScopes: ['host-attributes', 'payload', 'slices', 'forms', 'events'],
         diagnostics: artifact.diagnostics,
+        ...(artifact.stylesheets === undefined ? {} : { stylesheets: artifact.stylesheets }),
         ...(artifact.compiledArtifact === undefined
             ? {}
             : { compiledArtifact: cloneArtifactTransfer(artifact.compiledArtifact) }),
@@ -288,6 +305,7 @@ function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessi
         && left.scopePolicyStamp === right.scopePolicyStamp
         && left.sourceMapMode === right.sourceMapMode
         && left.exportCompiledArtifact === right.exportCompiledArtifact
+        && JSON.stringify(left.moduleClosure ?? null) === JSON.stringify(right.moduleClosure ?? null)
         && sameStrings(left.hostBindings ?? [], right.hostBindings ?? [])
         && processingSourceText(left) === processingSourceText(right)
         && left.sourceRef.kind === right.sourceRef.kind

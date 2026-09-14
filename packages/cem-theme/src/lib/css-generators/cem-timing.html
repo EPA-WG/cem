@@ -17,64 +17,53 @@
 <!--
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
   datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
-  cem_ql WASM boundary; no live browser XSLT. Columns — durations/easings: td1=token td2=value
-  td3=desc td4=tier; reduced-motion: td1=token td2=value td3=desc.
+  cem_ql WASM boundary; no live browser XSLT. Rows use normalized Markdown heading fields such as
+  token/value/description/tier and reduced_motion_value.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-timing-template"
           data-token-url="../../../dist/lib/tokens/cem-timing.xhtml"
           data-slices="durations=cem-timing-durations easings=cem-timing-easings reduced=cem-timing-reduced-motion">
-{table @id=cem-timing-durations |
-    {caption | {a @href="../../../dist/lib/tokens/cem-timing.xhtml#4-1-duration-tokens-required" | cem-timing-durations} — duration scale}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Demo}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.durations" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td | {div @style="width:2rem; height:2rem; background:currentColor; transition: transform var({$row.td1}) var(--cem-easing-smooth,ease-in-out);" @onmouseenter="this.style.transform='scale(1.5)'" @onmouseleave="this.style.transform=''" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{module @version="1.0.0" |
+{import @as=docs @src="./cem-token-docs.cemt"}
+{body |
+{call @from=docs @template=preview-token-table
+    @with:rows={datadom.slices.durations} @with:id=cem-timing-durations
+    @with:href="../../../dist/lib/tokens/cem-timing.xhtml#4-1-duration-tokens-required"
+    @with:link_label=cem-timing-durations @with:caption=" — duration scale"
+    @with:preview_label=Demo @with:preview_kind=duration}
 {hr | }
-{table @id=cem-timing-easings |
-    {caption | {a @href="../../../dist/lib/tokens/cem-timing.xhtml#4-2-easing-tokens-required" | cem-timing-easings} — easing curves}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Demo}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.easings" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td | {div @style="width:2rem; height:2rem; background:currentColor; transition: transform var(--cem-duration-noticeable,250ms) var({$row.td1});" @onmouseenter="this.style.transform='scale(1.5)'" @onmouseleave="this.style.transform=''" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{call @from=docs @template=preview-token-table
+    @with:rows={datadom.slices.easings} @with:id=cem-timing-easings
+    @with:href="../../../dist/lib/tokens/cem-timing.xhtml#4-2-easing-tokens-required"
+    @with:link_label=cem-timing-easings @with:caption=" — easing curves"
+    @with:preview_label=Demo @with:preview_kind=easing}
 {hr | }
 {table @id=cem-timing-reduced-motion |
     {caption | {a @href="../../../dist/lib/tokens/cem-timing.xhtml#4-4-reduced-motion-overrides" | cem-timing-reduced-motion} — prefers-reduced-motion overrides}
     {thead | {tr | {th | Token}{th | Reduced value}{th | Description}}}
     {tbody | {cem:for-each @select="$datadom.slices.reduced" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td3}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.reduced_motion_value}}}{td | {$row.description}}}}}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
-  /* region durations: cem-duration-[bucket] */```{cem:for-each @select="$datadom.slices.durations" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region durations: cem-duration-[bucket] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.durations} @with:indent="  "}```
   /* endregion durations */
 
-  /* region easings: cem-easing-[intent] */```{cem:for-each @select="$datadom.slices.easings" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region easings: cem-easing-[intent] */```{call @from=docs @template=css-properties @with:rows={datadom.slices.easings} @with:indent="  "}```
   /* endregion easings */
 }
 
 /* region prefers-reduced-motion: shorten durations, preserve ordering */
 @media (prefers-reduced-motion: reduce) {
   :root {```{cem:for-each @select="$datadom.slices.reduced" @as="row" |```
-    ```{$row.td1}: {$row.td2};}```
+    ```{$row.token}: {$row.reduced_motion_value};}```
   }
 }
 /* endregion prefers-reduced-motion */
 ```}}
+}
+}
 </template>
 <main></main>
 <cem-css-loader></cem-css-loader>

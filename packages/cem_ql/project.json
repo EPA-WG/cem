@@ -16,6 +16,14 @@
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",
+            "inputs": [
+                "default",
+                "^default",
+                "{workspaceRoot}/packages/cem-elements/demo/data-island-tree.xsl",
+                "{workspaceRoot}/packages/cem-elements/demo/html-template.xhtml",
+                "{workspaceRoot}/packages/cem-elements/demo/data-table-view.cemt",
+                "{workspaceRoot}/packages/cem-elements/demo/data-table-aspects.cemt"
+            ],
             "outputs": ["{options.target-dir}"],
             "options": {
                 "package": "cem-ql",

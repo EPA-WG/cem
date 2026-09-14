@@ -24,11 +24,13 @@
     <section>
         <h2>Live editing without replacing controls</h2>
         <p>
-            These examples bind each control's <code>input</code> event to a slice in
-            the component data island. Rendering derives new counts from that slice,
+            The textarea commits its slice on <code>change</code> (leave the field);
+            the text input updates on every <code>input</code> event. Rendering derives new counts from that slice,
             while DOM merge updates the dependent text without replacing the control
             being edited.
         </p>
+        <p>Word count normalizes whitespace, splits on a space, removes empty
+            fields, and counts the remaining words—including repeated words.</p>
         <h3>See also</h3>
         <p><a href="./data-slices.html">Slice declarations and event bindings</a></p>
         <p><a href="./functions/str.html">CEM-QL string functions</a></p>
@@ -36,20 +38,20 @@
 
     <cem-demo-element
         legend="1. Textarea word count"
-        description="Typing updates one slice and its derived word count">
+        description="Type, then leave the textarea: change commits the slice and word count; empty or whitespace-only text counts as zero">
         <template>
 <cem-element>
     <template type="text/cem-ml">
 {slice @name=text | Hello world!}
 {article @class=demo-card |
     {h2 | 1. Textarea word count}
-    {p | The count is recalculated from the slice after every input event.}
+    {p | Type several words, then Tab out to commit the count.}
     {form |
         {label |
             Text
             {textarea
                 @slice=text
-                @slice-event=input
+                @slice-event=change
                 @slice-value="$target.value"
                 | {$datadom.slices.text}
             }
@@ -57,17 +59,10 @@
         {p |
             Word count:
             {strong |
-                {$(
-                    str:length(str:normalize_space(datadom.slices.text))
-                    - str:length(
-                        str:translate(
-                            str:normalize_space(datadom.slices.text)
-                            , " "
-                            , ""
-                        )
-                    )
-                    + 1
-                )}
+                {$seq:count(seq:where(
+                    str:split(str:normalize_space(datadom.slices.text), " "),
+                    fn(word) => word != ""
+                ))}
 }   }   }   }
     </template>
 </cem-element>
@@ -83,7 +78,7 @@
 {slice @name=text | Type to update}
 {article @class=demo-card |
     {h2 | 2. Input word and character count}
-    {p | Several rendered values update from the same edited slice.}
+    {p | Edit in the middle: counts update while focus and the caret stay put.}
     {form |
         {label |
             Text
@@ -99,17 +94,10 @@
         {p |
             Word count:
             {strong |
-                {$(
-                    str:length(str:normalize_space(datadom.slices.text))
-                    - str:length(
-                        str:translate(
-                            str:normalize_space(datadom.slices.text)
-                            , " "
-                            , ""
-                        )
-                    )
-                    + 1
-                )}
+                {$seq:count(seq:where(
+                    str:split(str:normalize_space(datadom.slices.text), " "),
+                    fn(word) => word != ""
+                ))}
             }
         }
         {p | Current slice: {output | {$datadom.slices.text}}}

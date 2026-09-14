@@ -25,6 +25,19 @@ resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resourc
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements
 binding for resource role, acquisition policy, metadata, and expected content-type context.
 
+The [demo teaching-point audit](docs/demo-teaching-points.md) records the lessons
+preserved from the local prototype and the standalone/source-loaded checks.
+
+For event-driven browser navigation, `location-element` accepts an optional
+`trigger` token. An empty token does not write; a new nonempty token is consumed
+before navigation, once per writer position in an instance. Rerendering a live
+reader or editing a pending target with the same token does not reapply that
+command. Slice event payloads expose a per-slice `revision` that advances even
+for repeated equal-value events; use it as the token. Keep writer positions
+stable, or isolate independent conditional writers in separate instances.
+Omitting `trigger` preserves continuous/authoritative writer behavior. See the
+[URL writer demo](demo/set-url.html) and [two-way version picker](demo/npm-versions-demo.html).
+
 URI-backed canonical CEM-ML declarations and inline canonical declarations use the same
 retained worker/fallback processing host. A host `loadSrcDocument` hook may keep returning
 a complete string, or return `{ body, resolvedUrl, resolverIdentity }`, where `body` is an

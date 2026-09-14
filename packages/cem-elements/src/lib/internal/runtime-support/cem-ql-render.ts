@@ -21,6 +21,7 @@ import initCemQlWasm, {
     cemQlVersion,
     compileTemplate,
     compileTemplateArtifact,
+    compileTemplateModuleClosure,
     convertLegacyCustomElementTemplate,
     disposeTemplate,
     importTemplateArtifact,
@@ -28,6 +29,7 @@ import initCemQlWasm, {
     renderTemplateSource,
     resolveModuleUrl as resolveModuleUrlWasm,
     templateArtifactPayloadKey,
+    templateModuleImports,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 import {
     assertProcessingBoundaryValue,
@@ -74,6 +76,42 @@ export interface CemMlTemplateCompileResult {
 export interface CemQlRenderOptions {
     /** Prefix for deterministic, pre-order render-node ids (typically the produced tag). */
     renderNodeIdPrefix?: string;
+    /** Resolver/loader for static CEMT imports. Omit when the source has no module imports. */
+    moduleLoader?: CemMlTemplateModuleLoader;
+}
+
+export interface CemMlTemplateModuleLoader {
+    /** Absolute URL of the root inline or external template; relative imports resolve from it. */
+    rootUrl: string;
+    /** Stable identity of the active scope/import-map policy. */
+    resolverPolicyStamp: string;
+    /** Resolve one authored import through the host's scope-aware module URL service. */
+    resolve(
+        specifier: string,
+        referrerUrl: string,
+        referrerModuleMap: CemBrowserModuleUrlMap | null
+    ): string | Promise<string>;
+    /** Load one resolved module URL. Defaults to an HTTP `fetch()` when omitted. */
+    load?(resolvedUrl: string): string | Promise<string>;
+}
+
+export interface CemMlTemplateModuleSource {
+    alias: string;
+    parentUri?: string;
+    uri: string;
+    contentHash: string;
+    source: string;
+}
+
+export interface CemMlTemplateModuleClosure {
+    rootUri: string;
+    rootContentHash: string;
+    resolverPolicyStamp: string;
+    entrypoint: 'body';
+    parameterContract: string[];
+    cemMlVersion: string;
+    cemQlVersion: string;
+    modules: CemMlTemplateModuleSource[];
 }
 
 export interface CemMlTemplateProcessingIdentity {
@@ -94,6 +132,7 @@ export interface CemMlTemplateProcessingInput {
     previousRenderPlan?: RenderPlan | null;
     patchOptions?: EdgePatchOptions;
     renderNodeIdPrefix?: string;
+    moduleClosure?: CemMlTemplateModuleClosure;
 }
 
 export interface CemMlTemplateArtifactPayloadKey {
@@ -118,6 +157,7 @@ export interface CemMlTemplateProcessingResult {
     hostAttributeUpdates: CemQlHostAttributeUpdate[];
     diagnostics: RuntimeSupportDiagnostic[];
     patchFrames?: PatchFrame[];
+    stylesheets?: CemQlStylesheetArtifact[];
 }
 
 let initPromise: Promise<void> | undefined;
@@ -242,6 +282,123 @@ export async function retainCemMlTemplateSource(
     };
 }
 
+/**
+ * Resolve, load, hash, and inspect the complete static CEMT import graph. I/O and URL policy stay
+ * in the host; the returned immutable closure is the same JSON boundary consumed by WASM and SSR.
+ */
+export async function preflightCemMlTemplateModules(
+    source: string,
+    loader: CemMlTemplateModuleLoader,
+    hostBindings: readonly string[] = []
+): Promise<CemMlTemplateModuleClosure> {
+    await ensureRuntimeReady();
+    const rootUri = absoluteModuleUrl(loader.rootUrl, 'root template');
+    const rootIdentity = await cemMlTemplateArtifactPayloadKey(source, 'dev');
+    const modules: CemMlTemplateModuleSource[] = [];
+    const loaded = new Map<string, { source: string; contentHash: string }>();
+    const expanded = new Set<string>();
+    const active = new Set<string>();
+
+    const visit = async (moduleSource: string, moduleUri: string, depth: number): Promise<void> => {
+        const inspected = JSON.parse(templateModuleImports(moduleSource, moduleUri)) as {
+            imports?: Array<{ alias?: string; uri?: string }>;
+            maxImportDepth?: number;
+            moduleMap?: CemBrowserModuleUrlMap | null;
+            diagnostics?: WasmDiagnostic[];
+        };
+        const fatal = (inspected.diagnostics ?? []).find(
+            (diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'fatal'
+        );
+        if (fatal) {
+            throw new Error(`${fatal.code ?? 'cem.transform_template.module_invalid'}: ${fatal.message ?? ''}`);
+        }
+        const maxDepth = inspected.maxImportDepth ?? 32;
+        if (depth > maxDepth) {
+            throw new Error(
+                `cem.transform_template.import_depth: module import depth ${depth} exceeds ${maxDepth} at ${moduleUri}`
+            );
+        }
+        for (const imported of inspected.imports ?? []) {
+            const alias = imported.alias?.trim() ?? '';
+            const specifier = imported.uri?.trim() ?? '';
+            if (!alias || !specifier) {
+                throw new Error(`cem.transform_template.import_invalid: ${moduleUri} has an invalid static import`);
+            }
+            const resolvedUrl = absoluteModuleUrl(
+                await loader.resolve(specifier, moduleUri, inspected.moduleMap ?? null),
+                `resolved module ${specifier}`
+            );
+            if (active.has(resolvedUrl)) {
+                throw new Error(
+                    `cem.transform_template.import_cycle: ${moduleUri} imports active module ${resolvedUrl}`
+                );
+            }
+            let loadedModule = loaded.get(resolvedUrl);
+            if (!loadedModule) {
+                const importedSource = loader.load
+                    ? await loader.load(resolvedUrl)
+                    : await fetchModuleSource(resolvedUrl);
+                const contentHash = (await cemMlTemplateArtifactPayloadKey(importedSource, 'dev')).sourceHash;
+                loadedModule = { source: importedSource, contentHash };
+                loaded.set(resolvedUrl, loadedModule);
+            }
+            modules.push({
+                alias,
+                ...(moduleUri === rootUri ? {} : { parentUri: moduleUri }),
+                uri: resolvedUrl,
+                contentHash: loadedModule.contentHash,
+                source: loadedModule.source,
+            });
+            if (!expanded.has(resolvedUrl)) {
+                active.add(resolvedUrl);
+                await visit(loadedModule.source, resolvedUrl, depth + 1);
+                active.delete(resolvedUrl);
+                expanded.add(resolvedUrl);
+            }
+        }
+    };
+
+    active.add(rootUri);
+    await visit(source, rootUri, 0);
+    active.delete(rootUri);
+    return {
+        rootUri,
+        rootContentHash: rootIdentity.sourceHash,
+        resolverPolicyStamp: loader.resolverPolicyStamp,
+        entrypoint: 'body',
+        parameterContract: [...new Set(hostBindings)].sort(),
+        cemMlVersion: rootIdentity.cemMlVersion,
+        cemQlVersion: rootIdentity.cemQlVersion,
+        modules,
+    };
+}
+
+/** Compile and retain a resolver-preflighted CEMT module closure. */
+export async function retainCemMlTemplateModuleClosure(
+    source: string,
+    closure: CemMlTemplateModuleClosure,
+    hostBindings: readonly string[] = []
+): Promise<RetainedCemMlTemplate> {
+    await ensureRuntimeReady();
+    const result = JSON.parse(
+        compileTemplateModuleClosure(source, JSON.stringify(closure), JSON.stringify([...hostBindings]))
+    ) as {
+        artifactId?: number;
+        stylesheets?: WasmStylesheetArtifact[];
+        moduleMap?: CemBrowserModuleUrlMap | null;
+        diagnostics?: WasmDiagnostic[];
+    };
+    if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
+        throw new Error(result.diagnostics?.[0]?.message ?? 'CEM template module closure did not retain an artifact');
+    }
+    return {
+        artifactId: result.artifactId as number,
+        stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
+        moduleMap: result.moduleMap ?? null,
+        diagnostics: (result.diagnostics ?? []).map(mapDiagnostic),
+    };
+}
+
 /** Validate binary identity against the active source/context and retain it. */
 export async function retainCemMlTemplateArtifact(
     bytes: ArrayBuffer,
@@ -326,8 +483,41 @@ export async function renderCemMlTemplate(
 ): Promise<CemQlRenderResult> {
     assertProcessingBoundaryValue(data, 'CEM-ML render data');
     await ensureRuntimeReady();
+    if (options.moduleLoader) {
+        const hostBindings = Object.keys(data ?? {});
+        const closure = await preflightCemMlTemplateModules(source, options.moduleLoader, hostBindings);
+        const retained = await retainCemMlTemplateModuleClosure(source, closure, hostBindings);
+        try {
+            const rendered = mapWasmRenderPlan(
+                renderTemplate(retained.artifactId, JSON.stringify(data ?? {})),
+                options
+            );
+            return {
+                ...rendered,
+                diagnostics: [...retained.diagnostics, ...rendered.diagnostics],
+            };
+        } finally {
+            disposeTemplate(retained.artifactId);
+        }
+    }
     const planJson = renderTemplateSource(source, JSON.stringify(data ?? {}));
     return mapWasmRenderPlan(planJson, options);
+}
+
+function absoluteModuleUrl(value: string, label: string): string {
+    try {
+        return new URL(value).href;
+    } catch (error) {
+        throw new TypeError(`${label} URL \`${value}\` is not absolute`, { cause: error });
+    }
+}
+
+async function fetchModuleSource(resolvedUrl: string): Promise<string> {
+    const response = await fetch(resolvedUrl);
+    if (!response.ok) {
+        throw new Error(`template module fetch failed (${response.status}) for ${resolvedUrl}`);
+    }
+    return response.text();
 }
 
 /** Render already-compiled template IR without parsing source again. */
@@ -352,7 +542,7 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
     };
 
     return {
-        nodes: (plan.nodes ?? []).map((node) => mapNode(node, nextRenderNodeId)),
+        nodes: (plan.nodes ?? []).map((node, index) => mapNode(node, nextRenderNodeId, `${prefix}:root:${index}`)),
         hostAttributeUpdates: (plan.hostAttributeUpdates ?? []).map((update) => ({
             name: update.name,
             value: update.value,
@@ -369,6 +559,15 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
 export async function processCemMlTemplate(
     input: CemMlTemplateProcessingInput
 ): Promise<CemMlTemplateProcessingResult> {
+    if (input.moduleClosure) {
+        const retained = await retainCemMlTemplateModuleClosure(input.source, input.moduleClosure, Object.keys(input.data));
+        try {
+            const result = await processRetainedCemMlTemplate(retained.artifactId, input);
+            return { ...result, diagnostics: [...retained.diagnostics, ...result.diagnostics], stylesheets: retained.stylesheets };
+        } finally {
+            disposeRetainedCemMlTemplate(retained.artifactId);
+        }
+    }
     assertProcessingBoundaryValue(input.data, 'CEM-ML processing data');
     assertProcessingBoundaryValue(input.identity, 'CEM-ML processing identity');
     if (input.payload !== undefined) {
@@ -480,12 +679,12 @@ function mapStylesheet(stylesheet: WasmStylesheetArtifact): CemQlStylesheetArtif
     };
 }
 
-function mapNode(node: WasmRenderNode, nextRenderNodeId: () => string): RenderPlanNode {
+function mapNode(node: WasmRenderNode, nextRenderNodeId: () => string, occurrence: string): RenderPlanNode {
     if (node.kind === 'text') {
-        return { kind: 'text', text: node.text, sourceMapRef: frameFrom(node.byteOffset) };
+        return { kind: 'text', text: node.text, renderNodeId: `text:${occurrence}`, sourceMapRef: frameFrom(node.byteOffset) };
     }
     if (node.kind === 'comment') {
-        return { kind: 'comment', text: node.text, sourceMapRef: frameFrom(node.byteOffset) };
+        return { kind: 'comment', text: node.text, renderNodeId: `comment:${occurrence}`, sourceMapRef: frameFrom(node.byteOffset) };
     }
     // Assign the render-node id before recursing so ids follow a deterministic
     // pre-order sequence, matching the DOM/projection path.
@@ -499,7 +698,7 @@ function mapNode(node: WasmRenderNode, nextRenderNodeId: () => string): RenderPl
             value: attribute.value,
         })),
         renderNodeId,
-        children: (node.children ?? []).map((child) => mapNode(child, nextRenderNodeId)),
+        children: (node.children ?? []).map((child, index) => mapNode(child, nextRenderNodeId, `${renderNodeId}:child:${index}`)),
         sourceMapRef: frameFrom(node.byteOffset),
     };
 }

@@ -17,62 +17,57 @@
 <!--
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
   datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
-  cem_ql WASM boundary; no live browser XSLT. Columns — rungs: td1=token td2=value td3=desc td4=tier;
-  semantic/optional: td1=token td2=value td3=desc td4=tier; forced: td1=token td2=value.
+  cem_ql WASM boundary; no live browser XSLT. Rows use normalized Markdown heading fields such as
+  token/value/description/tier and forced_colors_value.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-layering-template"
           data-token-url="../../../dist/lib/tokens/cem-layering.xhtml"
           data-slices="rungs=cem-layering-rungs semantic=cem-layering-semantic optional=cem-layering-semantic-optional forced=cem-layering-rungs-forced">
-{table @id=cem-layering-rungs |
-    {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#7-1-required-rung-tokens" | cem-layering-rungs} — signed-depth ladder (box-shadow recipes)}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
-    {tbody | {cem:for-each @select="$datadom.slices.rungs" @as="row" |
-        {tr |
-            {th | {code | {$row.td1}}}
-            {td | {code | {$row.td2}}}
-            {td | {$row.td4}}
-            {td @style="width:6rem;" | {div @style="height:2rem; width:5rem; background: Canvas; box-shadow: var({$row.td1}); border-radius: 0.25rem;" @title="{$row.td1}" | }}
-            {td | {$row.td3}}
-        }}}
-}
+{module @version="1.0.0" |
+{import @as=docs @src="./cem-token-docs.cemt"}
+{body |
+{call @from=docs @template=preview-token-table
+    @with:rows={datadom.slices.rungs} @with:id=cem-layering-rungs
+    @with:href="../../../dist/lib/tokens/cem-layering.xhtml#7-1-required-rung-tokens"
+    @with:link_label=cem-layering-rungs
+    @with:caption=" — signed-depth ladder (box-shadow recipes)"
+    @with:preview_label=Sample @with:preview_kind=shadow}
 {hr | }
-{table @id=cem-layering-semantic-table |
-    {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#8-1-canonical-endpoints" | cem-layering-semantic} — required semantic endpoints}
-    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="(datadom.slices.semantic,datadom.slices.optional)" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
-}
+{call @from=docs @template=standard-token-table
+    @with:rows="{(datadom.slices.semantic,datadom.slices.optional)}"
+    @with:id=cem-layering-semantic-table
+    @with:href="../../../dist/lib/tokens/cem-layering.xhtml#8-1-canonical-endpoints"
+    @with:link_label=cem-layering-semantic @with:caption=" — required semantic endpoints"}
 {hr | }
 {table @id=cem-layering-rungs-forced |
     {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#13-2-forced-colors" | cem-layering-rungs-forced} — forced-colors fallback}
     {thead | {tr | {th | Token}{th | Forced-colors value}}}
     {tbody | {cem:for-each @select="$datadom.slices.forced" @as="row" |
-        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}}}}
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.forced_colors_value}}}}}}
 }
 {hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
-  /* region basis rungs — signed depth ladder as box-shadow recipes (NOT z-index) */```{cem:for-each @select="$datadom.slices.rungs" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region basis rungs — signed depth ladder as box-shadow recipes (NOT z-index) */```{call @from=docs @template=css-properties @with:rows={datadom.slices.rungs} @with:indent="  "}```
   /* endregion basis rungs */
 
-  /* region semantic endpoints — required product-facing contract */```{cem:for-each @select="$datadom.slices.semantic" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region semantic endpoints — required product-facing contract */```{call @from=docs @template=css-properties @with:rows={datadom.slices.semantic} @with:indent="  "}```
   /* endregion semantic endpoints */
 
-  /* region optional semantic endpoints — back-deep / work-floating */```{cem:for-each @select="$datadom.slices.optional" @as="row" |```
-  ```{$row.td1}: {$row.td2};}```
+  /* region optional semantic endpoints — back-deep / work-floating */```{call @from=docs @template=css-properties @with:rows={datadom.slices.optional} @with:indent="  "}```
   /* endregion optional semantic endpoints */
 }
 
 /* region forced-colors fallback — collapse rungs; tier signal carried by D5 contour and spatial isolation */
 @media (forced-colors: active) {
   :root {```{cem:for-each @select="$datadom.slices.forced" @as="row" |```
-    ```{$row.td1}: {$row.td2};}```
+    ```{$row.token}: {$row.forced_colors_value};}```
   }
 }
 /* endregion forced-colors fallback */
 ```}}
+}
+}
 </template>
 <main></main>
 <cem-css-loader></cem-css-loader>

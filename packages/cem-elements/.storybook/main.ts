@@ -17,6 +17,20 @@ const config = defineMain({
         disableTelemetry: true,
     },
     viteFinal: async (config) => mergeConfig(config, {
+        plugins: [{
+            name: 'cem-demo-missing-resource',
+            configureServer(server) {
+                // The external-template demo deliberately requests no.svg.
+                // Preserve static-server 404 behavior, including fallback
+                // resolution from the host URL, instead of serving SPA HTML.
+                server.middlewares.use((request, response, next) => {
+                    const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+                    if (!pathname.endsWith('/no.svg')) return next();
+                    response.statusCode = 404;
+                    response.end('Not found');
+                });
+            },
+        }],
         resolve: {
             // Source-loaded demo documents are rebased from Storybook's
             // project root. Their standalone import remains local while

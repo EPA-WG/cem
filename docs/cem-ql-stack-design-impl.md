@@ -909,6 +909,11 @@ public-API floor):
 | `str:codepoints`  | `(string) -> stream<integer>` | A |
 | `str:lower`       | `(string) -> string` | A |
 | `str:upper`       | `(string) -> string` | A |
+| `str:split`       | `(string, string) -> stream<string>` | A |
+| `str:trim` `str:trim_start` `str:trim_end` | `(string) -> string` | A |
+| `str:char_at`     | `(string, integer) -> string` | A |
+| `str:at`          | `(string, integer) -> string?` | A |
+| `str:index_of` `str:last_index_of` | `(string, string, integer?) -> integer` | A |
 | `str:slice`       | `(string, integer, integer?) -> string` | A |
 | `str:shorten`     | `(string, integer, string?) -> string` | A |
 | `str:concat`      | `(stream<string>, string?) -> string` | A |
@@ -917,7 +922,27 @@ public-API floor):
 | `str:replace` | `(string, string, string) -> string` | A |
 | `str:translate` | `(string, string, string) -> string` | A |
 | `str:substring` `str:substring_before` `str:substring_after` | substring helpers | A |
-| `str:nfc` `str:nfd` `str:matches` `str:split` | regex / normalization | B |
+| `str:nfc` `str:nfd` `str:matches` | regex / normalization (regex splitting remains deferred) | B |
+
+The simple helpers are inspired by [JavaScript String methods](https://tc39.es/ecma262/multipage/text-processing.html#sec-properties-of-the-string-prototype-object),
+but keep CEM's Unicode-codepoint indexing, snake_case names, and sequence
+results. `split` requires a literal separator and retains adjacent, leading,
+and trailing empty fields; `split("", ",")` yields one empty string, while
+`split("", "")` is empty. Splitting on `""` emits codepoints, not surrogate halves
+or grapheme clusters. `char_at` returns `""` out of bounds and rejects negative
+indices by returning `""`; `at` supports indices from the end and yields an
+empty sequence out of bounds (so `??` works). Search methods return `-1` when
+absent; their optional inclusive start position clamps to `[0, length]`, with
+defaults `0` for `index_of` and `length` for `last_index_of`. Empty searches
+return the clamped position, and backward searches include overlapping matches.
+
+Trim helpers use ECMAScript whitespace, including BOM/U+FEFF and nonbreaking
+space but excluding U+0085 and zero-width space. Unlike `normalize_space`,
+they do not collapse internal whitespace. Existing `slice` still takes a
+zero-based start and optional **length**, `substring` remains one-based, and
+`replace` still replaces all literal occurrences (an empty needle is inert).
+Regexes, replacement callbacks, locale-sensitive methods, and UTF-16 indexing
+are not introduced by these additions.
 
 `str:shorten` returns its input unchanged when it fits. Otherwise it replaces
 the middle with the complete optional marker (default `…`), counts all lengths
@@ -958,7 +983,24 @@ empty marker is valid.
 | Function | Signature | Tier |
 |----------|-----------|------|
 | `report:emit`      | `(string, string, severity?) -> ()` | A — emits a diagnostic with the given code and message |
+| `report:raise`     | `(string, string) -> failure` | B — raises a recoverable code/message error; code must be nonempty |
 | `report:severity_floor` | `(severity) -> ()` | A — scope-local severity floor |
+
+Implemented Tier B recovery uses `try { expression } catch (code, message) {
+expression }`. Catch names are lexically scoped; successful native values retain
+identity. The protected evaluator short-circuits on the first runtime type or
+explicitly raised error, discards partial values and consumes that failure's
+diagnostics when handled. Handler failures propagate outward. Host controls,
+budgets, static errors and unsupported engine/policy capabilities are not
+recoverable. Diagnostic-only emission is unchanged.
+
+CEMT `try`/`catch @as=error @test='predicate'` buffers protected output and
+constructed attributes and restores bindings on recovery. The caught native
+diagnostic record retains its query and enclosing template source frames.
+The first matching catch runs; later catches do not catch handler failures.
+Native module call handlers execute inside the protected rendering boundary,
+including CLI imported calls. See the package README for the complete current
+surface and limits; this does not implement XSLT syntax or error-code mapping.
 
 ### 11.7 `cem:stdlib/state`
 
@@ -1002,6 +1044,42 @@ empty marker is valid.
 | `ct:default_accepts` | `() -> array<string>` | B — the AC-QA-1.1 floor list |
 
 ---
+
+### 11.11 `cem:stdlib/data` and generic collection/match operations
+
+Tier B `data:read(source, format, projection?)` imports XML/CSV/YAML/JSON through
+existing native parsers into a typed CEM AST. The report exposes `error` and `root`;
+query nodes retain source owners, expanded names, ordered children,
+attributes, source maps and content-versioned identity. The declarative
+`cem-data @name @select @type @projection?` control binds this native query view;
+there is no implicit JSON serialization or emitted reader DOM element.
+
+Projection defaults to `cem`. For JSON, explicit `json-to-xml` delegates to the
+`cem-ml` native JSON AST projection, using the standard W3C map/array/keyed-value
+node structure without serialization. The retained JSON owner and node source
+maps survive projection, and the profile participates in node identity. The
+default data shape and CEM array semantics are unchanged. Native projection
+options and standard-function compatibility limits are documented in the public
+contract below; this selector does not itself implement an XSLT function.
+
+`seq:group_by(items, keyFn)` groups by zero-or-one atomic keys in first-key
+order. `seq:sorted(items, keyFn, direction?, mode?)` preserves original items
+and stable ties; defaults are ascending/text, with descending/number options.
+Missing or invalid numeric keys remain last. Both use evaluator budgets.
+
+CEMT match dispatch binds `node`, selects a rule by mode and predicate, and
+restores parameter scopes. Precedence is descending integer priority, local
+over imported, then later declaration. Unmatched values emit nothing and
+recursive calls share the existing template depth limit.
+
+Table-specific discovery, column unions, cells and presentation belong only
+to authored CEMT. The native library has no table-view operation.
+See the [public contracts](../packages/cem_ql/README.md#native-data-import-and-presentation-dispatch)
+for fields, bounds and format restrictions. Native evidence:
+`data_import.rs`, `sequence_collections.rs`, `template_matching.rs` and
+`data_view_templates.rs` under `packages/cem_ql/tests/`. Browser evidence:
+`packages/cem-elements/demo/data-table.html`, including imported tree/form
+presentation aspects.
 
 ## 12. Compiled Artifact (`cem_ql::artifact`)
 
@@ -1073,7 +1151,7 @@ Tier A:
     cem_ql:bench
 
 Tier B:
-  - try/catch surface keyword (AC-QE-2)
+  - try/catch surface and report:raise (AC-QE-2): implemented for runtime type/raised errors
   - Rust-style filtering/sorting/window composition with FLWOR-equivalent behavior (AC-QX-4)
   - Rust-shaped comprehension sugar (AC-QO-7)
   - AC-QO-6 collection helper family
