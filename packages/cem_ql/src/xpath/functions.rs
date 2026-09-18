@@ -34,10 +34,10 @@ const MAX_FUNCTIONS: usize = 64;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Parameter {
-    name: String,
-    kind: ParamType,
-    nullable: bool,
+pub(crate) struct Parameter {
+    pub(crate) name: String,
+    pub(crate) kind: ParamType,
+    pub(crate) nullable: bool,
 }
 
 /// Immutable local function library. It does not install capabilities by itself.
@@ -276,7 +276,7 @@ impl CemtXPathFunctions {
     }
 }
 
-fn supported_type(kind: ParamType) -> bool {
+pub(crate) fn supported_type(kind: ParamType) -> bool {
     matches!(
         kind,
         ParamType::Any
@@ -361,54 +361,7 @@ impl NativeQueryFunction for InstalledFunction {
             },
         );
         match result {
-            Err(diagnostics) => {
-                let mut failed =
-                    request.raise("cem.ql.xpath_function_failed", "XPath function failed");
-                // Resource/capability failures must not become catchable data errors.
-                if diagnostics
-                    .iter()
-                    .any(|d| d.code == "cem.xpath.sequence_item_limit_exceeded")
-                {
-                    failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::ItemsPerStage));
-                } else if diagnostics
-                    .iter()
-                    .any(|d| d.code == "cem.xpath.function_depth_exceeded")
-                {
-                    failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::CallDepth));
-                } else if diagnostics
-                    .iter()
-                    .any(|d| d.code == "cem.xpath.text_byte_limit_exceeded")
-                {
-                    failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::XPathTextBytes));
-                } else if diagnostics
-                    .iter()
-                    .any(|d| matches!(d.code.as_str(),
-                        "cem.xpath.work_limit_exceeded" | "cem.xpath.regex_limit_exceeded"))
-                {
-                    failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::XPathWorkUnits));
-                } else if diagnostics.iter().any(|d| {
-                    matches!(
-                        d.code.as_str(),
-                        "cem.xpath.evaluation_unsupported"
-                            | "cem.xpath.regex_unsupported"
-                            | "cem.xpath.control_failure"
-                            | "cem.xpath.node_order_cross_owner_unsupported"
-                            | "cem.xpath.module_url_unavailable"
-                            | "cem.xpath.module_url_referrer_unavailable"
-                    )
-                }) {
-                    failed.error = Some(EvalError::Unsupported(
-                        "XPath capability or operation control unavailable",
-                    ));
-                } else if let Some(first) = diagnostics.first() {
-                    failed.error = Some(EvalError::Raised {
-                        code: first.code.clone().into_boxed_str(),
-                        message: first.message.clone().into_boxed_str(),
-                    });
-                }
-                failed.diagnostics = diagnostics;
-                failed
-            }
+            Err(diagnostics) => invocation_failure(&request, diagnostics),
             Ok(result) => {
                 let items = result.sequence.items;
                 if !function.result_contract.accepts(&items)
@@ -434,7 +387,7 @@ fn limit_failure(request: &NativeQueryRequest<'_>, message: &str) -> ItemStream 
     failed
 }
 
-fn bind_argument(
+pub(crate) fn bind_argument(
     parameter: &Parameter,
     argument: &ItemStream,
     request: &NativeQueryRequest<'_>,
@@ -530,7 +483,7 @@ fn valid_decimal(value: &str) -> bool {
     }) && digits > 0
 }
 
-fn item_has_type(item: &XPathResultItem, kind: ParamType) -> bool {
+pub(crate) fn item_has_type(item: &XPathResultItem, kind: ParamType) -> bool {
     if kind == ParamType::Any {
         return match item {
             XPathResultItem::Node { .. } => item.native_node().is_some(),
@@ -631,4 +584,56 @@ impl ResultContract {
             }
         })
     }
+}
+
+pub(crate) fn invocation_failure(
+    request: &NativeQueryRequest<'_>,
+    diagnostics: Vec<Diagnostic>,
+) -> ItemStream {
+    let mut failed = request.raise("cem.ql.xpath_function_failed", "XPath function failed");
+    // Resource/capability failures must not become catchable data errors.
+    if diagnostics
+        .iter()
+        .any(|d| d.code == "cem.xpath.sequence_item_limit_exceeded")
+    {
+        failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::ItemsPerStage));
+    } else if diagnostics
+        .iter()
+        .any(|d| d.code == "cem.xpath.function_depth_exceeded")
+    {
+        failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::CallDepth));
+    } else if diagnostics
+        .iter()
+        .any(|d| d.code == "cem.xpath.text_byte_limit_exceeded")
+    {
+        failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::XPathTextBytes));
+    } else if diagnostics.iter().any(|d| {
+        matches!(
+            d.code.as_str(),
+            "cem.xpath.work_limit_exceeded" | "cem.xpath.regex_limit_exceeded"
+        )
+    }) {
+        failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::XPathWorkUnits));
+    } else if diagnostics.iter().any(|d| {
+        matches!(
+            d.code.as_str(),
+            "cem.xpath.evaluation_unsupported"
+                | "cem.xpath.regex_unsupported"
+                | "cem.xpath.control_failure"
+                | "cem.xpath.node_order_cross_owner_unsupported"
+                | "cem.xpath.module_url_unavailable"
+                | "cem.xpath.module_url_referrer_unavailable"
+        )
+    }) {
+        failed.error = Some(EvalError::Unsupported(
+            "XPath capability or operation control unavailable",
+        ));
+    } else if let Some(first) = diagnostics.first() {
+        failed.error = Some(EvalError::Raised {
+            code: first.code.clone().into_boxed_str(),
+            message: first.message.clone().into_boxed_str(),
+        });
+    }
+    failed.diagnostics = diagnostics;
+    failed
 }

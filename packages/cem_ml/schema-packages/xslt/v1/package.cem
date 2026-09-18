@@ -9,6 +9,7 @@
     }
 
     {content-type @value="application/xslt+xml" @primary=true}
+    {content-type @value="application/vnd.cem.xslt-bundle+cem-bin" @alias=true}
     {content-type @value="text/xsl" @alias=true}
     {content-type @value="custom-element-xslt" @alias=true}
     {content-type @value="text/custom-element-xslt" @alias=true}

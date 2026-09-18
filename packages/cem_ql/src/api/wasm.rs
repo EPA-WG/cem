@@ -21,6 +21,7 @@ use crate::template_artifact::{
 };
 
 mod xpath_functions;
+mod xslt_bundle;
 
 struct RetainedTemplate {
     artifact: TemplateArtifact,

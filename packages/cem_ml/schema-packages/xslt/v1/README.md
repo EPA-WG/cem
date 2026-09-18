@@ -8,6 +8,7 @@ compatibility boundary.
 
 - Schema URI: `https://cem.dev/ns/transform/xslt/1`
 - Primary media type: `application/xslt+xml`
+- Compiled bundle: `application/vnd.cem.xslt-bundle+cem-bin`
 - Standard alias: `text/xsl`
 - Document namespace: `http://www.w3.org/1999/XSL/Transform`
 - Compatibility aliases: `custom-element-xslt`,
@@ -19,6 +20,29 @@ dedicated `xslt` lifecycle adapter. Only the four compatibility aliases select
 `custom-element-xslt-compat`; that adapter accepts legacy fragments and lowers
 its bounded dialect to CEM. Standard XSLT is never silently reinterpreted as a
 legacy fragment.
+
+## Compiled bundles
+
+The explicit `cem_ql::xslt` integration packages generated, linked CEMT with
+independently encoded XPath programs and an ordered stylesheet import/include
+closure. `cem-xslt-bundle/1` preserves member hashes, original XPath source
+ownership, generated CEMT maps and declared focus/variable bindings. Its
+callbacks belong only to the loaded bundle; ordinary template data cannot
+install them. Runtime XML, JSON, YAML and CSV documents all enter through
+the shared retained CEM import boundary.
+
+WASM exposes `importXsltBundle`, `renderXsltBundle` and `disposeXsltBundle`.
+This binary type requires that explicit loader; source lifecycle adapters do
+not decode executable bundles. See the [bundle contract](../../../../../docs/xslt-bundle.md)
+for framing, limits, ownership and the scalar/document-handle API. Verify
+native-produced bytes in WASM with:
+
+```sh
+yarn nx run cem_ml_schema_package_xslt_v1:verify:compiled-bundles
+```
+
+Bundle delivery is implemented. Standard stylesheet runtime lowering and the
+XSLT-authored data-table viewer remain open in the repository checklist.
 
 ## Resource Model
 

@@ -125,6 +125,22 @@
             "outputs": [
                 "{projectRoot}/dist/cem-ml.report.json"
             ]
+        },
+        "verify:compiled-bundles": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem_ql"
+                    ],
+                    "target": "build:wasm"
+                }
+            ],
+            "options": {
+                "command": "node tools/scripts/verify-xslt-bundles.mjs",
+                "cwd": "{workspaceRoot}"
+            }
         }
     },
     "tags": [

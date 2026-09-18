@@ -88,6 +88,7 @@ pub const XPATH_CONTENT_TYPE: &str = "application/vnd.cem.xpath";
 pub const XPATH_ARTIFACT_CONTENT_TYPE: &str = "application/vnd.cem.xpath-artifact+cem-bin";
 pub const XPATH_RESULT_CONTENT_TYPE: &str = "application/vnd.cem.xpath-result+json";
 pub const XSLT_CONTENT_TYPE: &str = "application/xslt+xml";
+pub const XSLT_BUNDLE_CONTENT_TYPE: &str = "application/vnd.cem.xslt-bundle+cem-bin";
 pub const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
 pub const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";
 pub const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";

@@ -20,7 +20,7 @@ impl XPathQueryItem {
         &self.value
     }
 
-    pub(super) fn wrap(value: XPathResultItem) -> Item {
+    pub(crate) fn wrap(value: XPathResultItem) -> Item {
         Item::native(Self {
             value: Arc::new(value),
         })

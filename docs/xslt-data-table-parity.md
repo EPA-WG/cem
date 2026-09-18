@@ -6,10 +6,10 @@ normalization are implemented and verified. The user also approved the generic
 native query-function hook; its runtime integration is implemented and verified
 below. The compiled-bundle/browser-host delivery path is approved, with
 independently identified XPath programs. The XPath artifact foundation is
-implemented; XSLT bundle composition and runtime lowering remain open in
-[todo.md](todo.md). Explicit host position and sequence size are now supported
-by the shared XPath API. No equivalent XSLT stylesheet or browser sample is available
-yet.
+implemented; XSLT bundle delivery is implemented and runtime lowering remains
+open in [todo.md](todo.md). Explicit host position and sequence size are now
+supported by the shared XPath API. No equivalent XSLT stylesheet or browser
+sample is available yet.
 
 ## Scope
 
@@ -499,10 +499,36 @@ function-companion checks pass; native lint passes with existing warnings.
 
 Focus is runtime invocation state and does not enter compiled-program bytes.
 The native hook, focus extension and compiled-bundle delivery are approved;
-do not request these decisions again. Next is bundle version/hash/import/
-source-map/lifetime validation and explicit WASM binding. The native invocation
-contract does not itself expose a JavaScript focus API, lower stylesheet loops,
-or provide a deployable XSLT viewer.
+do not request these decisions again. The bundle implementation below binds
+that focus explicitly. Stylesheet loop lowering and the deployable XSLT viewer
+remain subsequent work.
+
+### Compiled bundle implementation (2026-09-18)
+
+[`cem_ql::xslt`](../packages/cem_ql/src/xslt.rs) implements the
+[versioned bundle contract](xslt-bundle.md): generated CEMT plus independently
+hashed XPath programs, an ordered import/include closure, original stylesheet
+ownership, scoped source-map validation, and explicit focus/variable arguments.
+Loading uses the member codecs directly and creates a local capability
+registry. It never parses source or fetches imports. Bundle and member hashes,
+runtime versions, ownership and bounds must pass before a handle is retained.
+
+The shared WASM module exposes explicit import/render/dispose operations.
+Rendering accepts declared scalar parameters and retained CEM document handles.
+The same program consumes XML, JSON, YAML and CSV after shared import; no
+runtime format branches or JavaScript document records are involved. Stale
+handles and ordinary-data attempts to install callbacks are rejected.
+
+Verification: nine native bundle cases and 42 native/WASM checks pass through
+`cem_ml_schema_package_xslt_v1:verify:compiled-bundles` and the native unit
+tests. The contract covers all three focus modes, namespace-qualified
+variables, original diagnostics, retention, shared cancellation and budgets.
+
+This completes delivery infrastructure using a manually composed generated
+CEMT fixture. The next fixture is XSLT-VIEW-LOWER: preserve stylesheet
+instructions as reusable runtime CEMT and connect their typed XPath slots to
+the bundle. Import precedence, grouping, sorting, viewer output and the gallery
+case remain tracked separately.
 
 ## Acceptance and implementation order
 

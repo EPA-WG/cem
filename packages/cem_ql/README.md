@@ -17,6 +17,14 @@ The public expression identity is
 is integrated through the separate
 [`cem-ml-transform-cem-ql`](../cem_ml_transform_cem_ql/README.md) adapter crate.
 
+The explicit `cem_ql::xslt` host integrates XSLT-owned deployment bundles:
+generated CEMT, independently encoded XPath programs, and their stylesheet
+closure. Bundles have local capabilities and bounded retained handles, with
+WASM `importXsltBundle`, `renderXsltBundle` and `disposeXsltBundle` entry
+points. The [bundle contract](../../docs/xslt-bundle.md) defines source
+ownership, focus/variable arguments and retained CEM document bindings.
+Stylesheet runtime lowering remains a separate pending implementation step.
+
 ## String helpers
 
 Tier A `str:` functions include literal `split(value, separator)`,

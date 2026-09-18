@@ -27,6 +27,7 @@ pub mod template_artifact;
 pub mod transport;
 pub mod types;
 pub mod xpath;
+pub mod xslt;
 
 #[cfg(test)]
 mod tests {

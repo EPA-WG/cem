@@ -1017,12 +1017,30 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       adapter tests pass; shared WASM rebuild, 17 artifact and 125 companion
       checks pass. Native lint passes with existing warnings. Artifact bytes
       and versions stay unchanged; bundle/WASM focus binding remains below.
-- [ ] Fixture XSLT-COMPILED-BUNDLE: compose generated CEMT with independently
+- [x] Fixture XSLT-COMPILED-BUNDLE: compose generated CEMT with independently
       identified XPath programs and stylesheet imports. Validate versions,
       hashes, source maps, capability ownership and disposal; explicitly bind
       capabilities in the browser/WASM host. Ordinary JSON data must remain
       unable to install native callbacks. Verify cross-process loading before
       claiming a deployable XSLT-authored viewer.
+    - [x] Fixture XSLT-BUNDLE-NATIVE: define the bundle identity, ordered
+          stylesheet closure, independently hashed CEMT/XPath members, source
+          ownership, explicit focus/variable ABI and bounded native retention.
+          Verify deterministic source-free reload, changed imported inputs,
+          invalid closures/members, isolation, controls and disposal.
+    - [x] Fixture XSLT-BUNDLE-WASM: expose explicit import/render/dispose
+          entry points over the native bundle host. Verify native-produced
+          bytes in a separate WASM process, retained CEM document binding,
+          stylesheet diagnostics, capability isolation and stale handles.
+      Implemented [the versioned bundle contract](xslt-bundle.md) and explicit
+      WASM loader. Nine native cases and 42 native/WASM checks pass, including
+      identical XPath over XML/JSON/YAML/CSV imports, original stylesheet
+      coordinates, typed variables, shared cancellation/budgets and disposal.
+      All 361 CEM-QL tests, 13 schema-package checks and the existing 17 XPath
+      artifact / 125 companion WASM checks pass; native lint has existing
+      warnings only.
+      The fixture composes generated CEMT explicitly; stylesheet lowering and
+      the executable viewer remain open below.
 - [ ] Fixture XSLT-VIEW-LOWER: preserve XSLT instructions as runtime CEMT;
       translate the needed XPath paths, predicates, variables, context,
       sequences, conditionals and map/array operations with standard semantics.
