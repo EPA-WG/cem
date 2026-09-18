@@ -1097,6 +1097,19 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
 - [ ] Fixture XSLT-VIEW-GROUP: lower for-each-group, current-group and
       current-grouping-key to existing generic queries. Derive repeated rows
       and first-seen union headings in the stylesheet, never in Rust.
+    - [x] Fixture XSLT-GROUP-PREREQUISITES: verify native grouping-key
+          comparisons, first-seen keys and retained node identity/axes through
+          XPath arrays. Two native tests pass; CEM identity and XPath map
+          same-key must not substitute for XSLT grouping equality.
+    - [ ] Fixture XSLT-GROUP-CONTEXT: resolve the
+          [shared XPath group-context decision](xslt-runtime-lowering.md#grouping-capability-decision-pending),
+          then enable the four native acceptance tests for repeated-row/heading
+          derivation, population/group focus, nested/called-template group scope,
+          multiple/empty keys, duplicate population positions and lazy absent-group
+          errors. Tests were run red and are explicitly ignored pending that
+          decision and grouping lowering; GROUP is not complete.
+          Verification: 384 CEM-QL tests pass, four grouping acceptance tests
+          are explicitly ignored, and Nx lint passes with existing warnings.
 - [ ] Fixture XSLT-VIEW-SORT: lower dynamic stable multi-key sorting with
       standard semantics. Author explicit missing/invalid-last keys in XSLT;
       do not equate the legacy invalid-number-as-zero behavior with parity.

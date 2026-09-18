@@ -78,6 +78,60 @@ the current shared XPath kind-test model does not retain their typed arguments.
 implemented. `xml:space` and other unlisted instruction attributes are also
 rejected rather than silently ignored.
 
+## Grouping capability decision (pending)
+
+XSLT-VIEW-GROUP has reached the shared-capability boundary in the
+[approved scope](xslt-data-table-parity.md). The proposed shared XPath extension
+has not been authorized or implemented. The native fixture
+[`xslt_grouping.rs`](../packages/cem_ql/tests/xslt_grouping.rs) records two passing
+prerequisite tests and four acceptance tests run red, then explicitly ignored
+pending the decision and implementation.
+
+The existing XPath operations can compare supported atomic grouping keys:
+untyped atomic values compare as strings, NaN compares equal to NaN, unlike
+types stay distinct, and numeric promotion can be non-transitive. The fixture
+checks these cases with pairwise `distinct-values`, plus first-seen string keys
+and original node identity/parent axes through native arrays. This proves
+prerequisites, not a complete grouping algorithm. CEM-QL `seq:group_by` uses
+item identity, and XPath maps use transitive `op:same-key`; neither is a direct
+implementation of XSLT grouping equality. The future lowering must also obey
+the sequential group-assignment rules for non-transitive numeric equality.
+These requirements come from [XSLT 3.0 §14.1 and §14.5](https://www.w3.org/TR/xslt-30/#grouping).
+
+The unresolved capability is the XPath **dynamic group context**.
+`current-group()` and `current-grouping-key()` inherit the active group through
+non-streaming template calls and remain independent of ordinary XPath focus.
+Nested groups restore the outer state. Initially, and inside invoked function
+bodies, group state is absent; evaluating these functions then raises
+`XTDE1061` or `XTDE1071`. An unevaluated branch raises nothing. Replacing calls
+with lexical variables would incorrectly capture group state in inline-function
+closures. An eager CEMT guard would incorrectly reject an unevaluated XPath
+branch. The shared evaluator currently has neither group-context fields nor
+these functions, and it has no `fn:error` capability for a pure XPath error
+lowering. See [XSLT 3.0 §14.2](https://www.w3.org/TR/xslt-30/#func-current-group).
+
+The proposed extension, requiring approval, is:
+
+1. Add optional native group and grouping-key values to the shared XPath host
+   context for XSLT invocation. Preserve absent versus present-empty values,
+   native owners, source frames, operation control and existing resource limits.
+2. Evaluate the two XSLT context functions at their actual call sites, preserving
+   laziness and standard error codes. Keep them scoped to the XSLT host. Clear
+   group state in invoked function bodies; do not capture it in closures. Reject
+   their use in match patterns with the specified static diagnostics.
+3. Carry explicit group bindings through the XSLT bundle adapter and generated
+   template calls, restoring outer groups. Keep group construction in XSLT-owned
+   lowering over generic query operations. Repeated-row detection and heading
+   selection remain authored stylesheet expressions.
+4. Enable and extend the native acceptance tests, then verify portable bundles
+   in WASM. No importer, browser data binding, or document serialization changes
+   are proposed. Named function references, streaming and unimplemented grouping
+   forms remain outside the documented bounded profile.
+
+An alternative is to defer GROUP. Do not substitute empty values or lexical
+capture, silently narrow standard behavior, or mark the viewer grouping fixture
+complete. After grouping passes, the next checklist task is XSLT-VIEW-SORT.
+
 ## Native ownership and loading
 
 Only stylesheet **authoring** source is parsed by this compiler. Runtime XML,
