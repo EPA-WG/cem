@@ -1,0 +1,141 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@ns j = "http://www.w3.org/2005/xpath-functions"
+@default t
+{module |
+    {function @name=import.valid @visibility=public @returns=boolean |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="xs:boolean" |
+            {expression | exists(/j:map)}
+    }   }   }
+    {function @name=import.pack @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="map(*)" |
+            {expression |```
+map { 'members': array { /j:map/* }, 'note': /j:map/*[@key='note'] }
+```}
+    }   }   }
+    {function @name=import.summary @visibility=public @returns=string |
+        {param @name=packed @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=packed @local-name=packed}
+            {expression |```
+array:size($packed?members) || ' members; numeric total ' ||
+                sum($packed?members?*[self::j:number] ! xs:double(.))
+```}
+    }   }   }
+    {function @name=import.note @visibility=public @returns=string |
+        {param @name=packed @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=packed @local-name=packed}
+            {expression |```
+if (empty($packed?note)) then 'Absent member'
+                else if (exists($packed?note/self::j:null)) then 'Null value'
+                else if (string($packed?note[1]) = '') then 'Empty string'
+                else string($packed?note[1])
+```}
+    }   }   }
+    {function @name=filter.make @visibility=public @returns=any |
+        {param @name=address @type=string @required=true}
+        {param @name=action @type=string @required=true}
+        {param @name=note @type=string @required=true}
+        {body | {xpath @sequence-type="map(*)" |
+            {variable @binding=address @local-name=address}
+            {variable @binding=action @local-name=action}
+            {variable @binding=note @local-name=note}
+            {expression |```
+if ($note = 'absent') then map { 'address': $address, 'action': $action }
+                else map { 'address': $address, 'action': $action,
+                    'note': if ($note = 'empty') then () else 'Local preview' }
+```}
+    }   }   }
+    {function @name=filter.summary @visibility=public @returns=string |
+        {param @name=filter @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=filter @local-name=filter}
+            {expression |```
+$filter?action || ': ' || $filter?address
+```}
+    }   }   }
+    {function @name=filter.note @visibility=public @returns=string |
+        {param @name=filter @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=filter @local-name=filter}
+            {expression |```
+if (not(map:contains($filter, 'note'))) then 'Absent entry'
+                else if (empty(map:get($filter, 'note'))) then 'Present, empty sequence'
+                else string(map:get($filter, 'note'))
+```}
+    }   }   }
+    {function @name=filter.count @visibility=public @returns=integer |
+        {param @name=filter @type=any @required=true}
+        {body | {xpath @sequence-type="xs:integer" |
+            {variable @binding=filter @local-name=filter}
+            {expression |```
+count(map:keys($filter))
+```}
+    }   }   }
+    {function @name=basket.valid @visibility=public @returns=boolean |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @sequence-type="xs:boolean" |
+            {variable @binding=document @local-name=document}
+            {expression |```
+exists($document/basket)
+```}
+    }   }   }
+    {function @name=basket.pack @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @sequence-type="map(*)" |
+            {variable @binding=document @local-name=document}
+            {expression |```
+map { 'fruits': array { $document/basket/child::* },
+                'note': [ $document/basket/@note ] }
+```}
+    }   }   }
+    {function @name=basket.fruits @visibility=public @returns=any |
+        {param @name=basket @type=any @required=true}
+        {body | {xpath @sequence-type="array(*)" |
+            {variable @binding=basket @local-name=basket}
+            {expression |```
+$basket?fruits
+```}
+    }   }   }
+    {function @name=basket.size @visibility=public @returns=integer |
+        {param @name=basket @type=any @required=true}
+        {body | {xpath @sequence-type="xs:integer" |
+            {variable @binding=basket @local-name=basket}
+            {expression |```
+array:size($basket?fruits)
+```}
+    }   }   }
+    {function @name=basket.pick @visibility=public @returns=any |
+        {param @name=basket @type=any @required=true}
+        {param @name=position @type=string @required=true}
+        {body | {xpath @sequence-type="node()*" |
+            {variable @binding=basket @local-name=basket}
+            {variable @binding=position @local-name=position}
+            {expression |```
+if ($position castable as xs:integer) then
+                (if (xs:integer($position) ge 1 and xs:integer($position) le array:size($basket?fruits))
+                 then array:get($basket?fruits, xs:integer($position)) else ()) else ()
+```}
+    }   }   }
+    {function @name=basket.label @visibility=public @returns=string |
+        {param @name=fruit @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=fruit @local-name=fruit}
+            {expression |```
+if (empty($fruit)) then 'No member at this position'
+                else local-name($fruit) || ': ' || string($fruit)
+```}
+    }   }   }
+    {function @name=basket.note @visibility=public @returns=string |
+        {param @name=basket @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=basket @local-name=basket}
+            {expression |```
+if (empty($basket?note?1)) then 'Empty member (array size 1)'
+                else 'Note: ' || string($basket?note?1)
+```}
+    }   }   }
+}

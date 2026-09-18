@@ -47,7 +47,7 @@ const expectedEvidenceStateCounts = {
     'package-adapter:verified': 29,
     'rejected-bridge:rejected': 1,
 };
-const expectedInventoryDigest = 'b52a098e5fbfb39023b117240d500a005575c15a6be2d6b8e7bf7696504a1805';
+const expectedInventoryDigest = 'ee640ba99c5d6ff029b4fb2f5e78dab4e626e651ac4eb7c8de87bdbba32afbbd';
 const projectConfigPaths = {
     '@epa-wg/custom-element': 'packages/custom-element/project.json',
     'cem-elements': 'packages/cem-elements/project.json',

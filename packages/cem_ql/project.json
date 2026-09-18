@@ -20,6 +20,7 @@
                 "default",
                 "^default",
                 "{workspaceRoot}/packages/cem-elements/demo/data-island-tree.xsl",
+                "{workspaceRoot}/packages/cem-elements/demo/http-data.cemt",
                 "{workspaceRoot}/packages/cem-elements/demo/html-template.xhtml",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-view.cemt",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-aspects.cemt"

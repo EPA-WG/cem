@@ -1,0 +1,26 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module |
+    {function @name=demo.label @visibility=public @returns=string |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=text @local-name=text}
+            {expression | $text || ' 🍒'}
+    }   }   }
+    {function @name=demo.accept @visibility=public @returns=boolean |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:boolean" |
+            {variable @binding=text @local-name=text}
+            {expression | $text = 'cherry'}
+    }   }   }
+    {function @name=demo.items @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="node()*" |
+            {expression | /r/item}
+    }   }   }
+    {function @name=demo.stocked @visibility=public @returns=boolean |
+        {param @name=candidate @type=any @required=true}
+        {body | {xpath @context=candidate @sequence-type="xs:boolean" |
+            {expression | exists(@qty[. >= 2])}
+}   }   }   }

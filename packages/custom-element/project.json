@@ -68,13 +68,16 @@
             },
             "cache": true,
             "inputs": [
+                { "dependentTasksOutputFiles": "**/*", "transitive": false },
                 "{projectRoot}/dist/**/*",
                 "{projectRoot}/scripts/inventory-xslt-compat.mjs",
                 "{projectRoot}/scripts/verify-package-baseline.mjs",
                 "{projectRoot}/scripts/verify-theme-vendor-runtime.mjs",
                 "{projectRoot}/scripts/verify-browser-fixtures.mjs",
+                "{projectRoot}/scripts/verify-loader-examples.mjs",
                 "{workspaceRoot}/packages/cem-theme/dist/**/*.html",
                 "{workspaceRoot}/packages/cem-theme/dist/vendor/@epa-wg/custom-element/*.js",
+                "{workspaceRoot}/packages/cem-theme/dist/lib/css-generators/*.js",
                 "{projectRoot}/test-fixtures/**/*.json",
                 "{projectRoot}/test-fixtures/**/*",
                 "{projectRoot}/demo/**/*",
@@ -101,6 +104,8 @@
                 "{projectRoot}/test-fixtures/browser-smoke.js",
                 "{workspaceRoot}/packages/cem-elements/project.json",
                 "{workspaceRoot}/packages/cem-elements/src/lib/cem-elements.stories.ts",
+                "{workspaceRoot}/packages/cem-elements/src/lib/http-request-demo.stories.ts",
+                "{projectRoot}/demo/http-request.html",
                 "{workspaceRoot}/packages/cem-elements/src/lib/legacy-xslt-parity.stories.ts",
                 "{workspaceRoot}/packages/cem-elements/src/lib/material-parity.stories.ts",
                 "{workspaceRoot}/packages/cem-elements/src/lib/processing-boundary.spec.ts",
@@ -118,10 +123,12 @@
                 "cwd": "packages/custom-element"
             },
             "inputs": [
+                { "dependentTasksOutputFiles": "**/*", "transitive": false },
                 "{projectRoot}/dist/**/*",
                 "{projectRoot}/package.json",
                 "{projectRoot}/package-archive.json",
                 "{projectRoot}/scripts/verify-packed-archive.mjs",
+                "{projectRoot}/scripts/verify-loader-examples.mjs",
                 "{workspaceRoot}/package.json",
                 "{workspaceRoot}/yarn.lock"
             ],

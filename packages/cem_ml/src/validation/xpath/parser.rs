@@ -2,11 +2,11 @@ use super::lexer::{XPathLexicalToken, XPathLexicalTokenKind};
 use super::{
     XPathArrayConstructor, XPathAttachment, XPathAxis, XPathBinaryOperator, XPathExpression,
     XPathExpressionNode, XPathExpressionSequence, XPathKindTest, XPathLiteral, XPathLiteralKind,
-    XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest, XPathOccurrenceIndicator,
-    XPathPathExpression, XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression,
-    XPathQuantifier, XPathSequenceItemType, XPathSequenceType, XPathSingleType, XPathSourceRange,
-    XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst, XPathUnaryOperator,
-    CEM_QL_XPATH_FUNCTION_NAMESPACE,
+    XPathLookupKey, XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest,
+    XPathOccurrenceIndicator, XPathPathExpression, XPathPathRoot, XPathPostfixExpression,
+    XPathPrimaryExpression, XPathQuantifier, XPathSequenceItemType, XPathSequenceType,
+    XPathSingleType, XPathSourceRange, XPathSourceRangeResolver, XPathStep, XPathStepNode,
+    XPathSyntaxAst, XPathUnaryOperator, CEM_QL_XPATH_FUNCTION_NAMESPACE,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -939,12 +939,9 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
                     production: "named-function-reference".to_owned(),
                 })
             }
-            _ if token.lexeme == "?" => {
-                self.parse_lookup_key()?;
-                Ok(XPathPrimaryExpression::Unsupported {
-                    production: "unary-lookup".to_owned(),
-                })
-            }
+            _ if token.lexeme == "?" => Ok(XPathPrimaryExpression::UnaryLookup(
+                self.parse_lookup_key()?,
+            )),
             _ => Err(self.syntax_error_at(token_index, token, &["primary expression"])),
         }
     }
@@ -990,7 +987,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             }
             if self.consume_if("?").is_some() {
                 postfixes.push(XPathPostfixExpression::Lookup {
-                    lexical: self.parse_lookup_key()?,
+                    key: self.parse_lookup_key()?,
                 });
                 continue;
             }
@@ -1016,27 +1013,24 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         Ok(arguments)
     }
 
-    fn parse_lookup_key(&mut self) -> Result<String, XPathParseError> {
-        if let Some((_, open)) = self.consume_if("(") {
-            let start = open.end;
+    fn parse_lookup_key(&mut self) -> Result<XPathLookupKey, XPathParseError> {
+        if self.consume_if("(").is_some() {
+            if self.consume_if(")").is_some() {
+                return Ok(XPathLookupKey::Expression(None));
+            }
             let expression = self.parse_expression_sequence()?;
-            let end = self.node_end(
-                expression
-                    .expressions
-                    .last()
-                    .expect("non-empty lookup expression"),
-            );
             self.expect(")")?;
-            return Ok(self.lexical_between(start, end));
+            return Ok(XPathLookupKey::Expression(Some(Box::new(expression))));
         }
         let (token_index, token) = self
             .next()
             .ok_or_else(|| self.syntax_error(&["lookup key"]))?;
-        if is_name_token(token)
-            || token.kind == XPathLexicalTokenKind::IntegerLiteral
-            || token.lexeme == "*"
-        {
-            Ok(token.lexeme.to_owned())
+        if token.lexeme == "*" {
+            Ok(XPathLookupKey::Wildcard)
+        } else if token.kind == XPathLexicalTokenKind::IntegerLiteral {
+            Ok(XPathLookupKey::Integer(token.lexeme.to_owned()))
+        } else if super::lexer::is_ncname(token.lexeme) {
+            Ok(XPathLookupKey::Name(token.lexeme.to_owned()))
         } else {
             Err(self.syntax_error_at(token_index, token, &["lookup key"]))
         }

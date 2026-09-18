@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XPath function libraries</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        { "imports": { "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js" } }
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>XPath function libraries</h1></nav>
+<main>
+    <section>
+        <h2>Share a query across templates</h2>
+        <p>A template's <code>xpath-functions</code> reference loads a separate
+            <a href="./xpath-functions.cemt">named function library</a>.
+            CEM-QL passes declared scalars or explicitly selected XML nodes to XPath;
+            ordinary slice bindings and CEMT rules keep the page reactive. Edit an example to see the result change.</p>
+        <p>The templates share the compiled library. Its URL resolves from the declaration
+            document, and each input keeps its own state and focus. Libraries are limited to
+            32 KiB and 64 functions; library imports are not supported yet.
+            Each call also bounds text to 1 MiB per intermediate or final value
+            and shares a finite work budget across its nested expressions.</p>
+        <p>For XML, <code>cem-data @projection=xpath</code> exposes the native document
+            to the library. The reader reuses unchanged XML across renders, retains up to
+            16 documents per compiled template, and reports invalid input without a partial result.
+            Each XML source is limited to 32 KiB, 64 levels and 4096 events.</p>
+        <h3>See also</h3>
+        <p><a href="./xpath-nodes.html">XPath XML tables and trees</a> ·
+            <a href="./dom-merge.html">DOM merge and live slices</a> ·
+            <a href="./functions/str.html">CEM-QL string functions</a></p>
+    </section>
+    <cem-demo-element legend="1. Named XPath function"
+        description="Edit a string slice: the shared XPath function appends a cherry without replacing the input">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-functions.cemt">
+{slice @name=text | Hello}
+{article @class=demo-card |
+    {label | Text
+        {input @value="{$datadom.slices.text}"
+            @slice=text @slice-event=input @slice-value="$target.value"}
+    }
+    {p | {output | {$native:call("demo.label", datadom.slices.text)}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. Shared XPath predicate"
+        description="Type cherry: a boolean XPath predicate selects a CEMT presentation rule; any other text selects the fallback">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-functions.cemt">
+{slice @name=text | cherry}
+{module |
+    {template @mode=fruit @match='native:call("demo.accept", node)' |
+        {body | {output | {$native:call("demo.label", node)}}}}
+    {template @mode=fruit @match=true @priority=-10 |
+        {body | {output | Try cherry}}}
+    {body |
+        {article @class=demo-card |
+            {label | Fruit
+                {input @value="{$datadom.slices.text}"
+                    @slice=text @slice-event=input @slice-value="$target.value"}
+            }
+            {p | {apply-templates @mode=fruit @select=datadom.slices.text}}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="3. XML nodes and matching"
+        description="Edit XML: XPath selects items and CEMT marks quantities of two or more as stocked; malformed XML shows a reader error">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-functions.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 6rem; }
+```}
+{slice @name=source | &lt;r&gt;&lt;item qty="2"&gt;Cherry&lt;/item&gt;&lt;/r&gt;}
+{module |
+    {template @mode=stock @match='native:call("demo.stocked", node)' |
+        {body | {li | {$node}: stocked}}}
+    {template @mode=stock @match=true @priority=-10 |
+        {body | {li | {$node}: low stock}}}
+    {body |
+        {cem-data @name=document @select=datadom.slices.source
+            @type=xml @projection=xpath}
+        {article @class=demo-card |
+            {label | XML source
+                {textarea @spellcheck=false @slice=source
+                    @slice-event=input @slice-value="$target.value"
+                    | {$datadom.slices.source}}}
+            {cem:choose |
+                {cem:when @test='document.error != ""' |
+                    {p @role=alert | {$document.error}}}
+                {cem:otherwise | {ul |
+                    {apply-templates @mode=stock
+                        @select='native:call("demo.items", document.root)'}
+}   }   }   }   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

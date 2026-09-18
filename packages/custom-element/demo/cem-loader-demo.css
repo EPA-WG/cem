@@ -1,0 +1,13 @@
+* { box-sizing: border-box; }
+body { margin: 0; padding: 1.5rem; font: 1rem/1.5 system-ui, sans-serif; color: #243044; background: #f4f6f9; }
+nav { display: flex; align-items: baseline; gap: 2rem; max-width: 78rem; margin: auto; }
+main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; max-width: 78rem; margin: auto; }
+main > p, main > section:not(.loader-example) { grid-column: 1 / -1; }
+.loader-example { min-width: 0; padding: 1.25rem; background: white; border: 1px solid #ccd3de; border-radius: .5rem; }
+.loader-example > h2 { font-size: 1.2rem; }
+.loader-example > p { color: #4b596b; }
+a { color: #174f9b; }
+button, input, select { font: inherit; }
+code { overflow-wrap: anywhere; }
+dd { overflow-wrap: anywhere; }
+@media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }

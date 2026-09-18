@@ -69,6 +69,10 @@ use crate::worker_control::{
 };
 
 mod command_service;
+mod xpath_artifact;
+pub use xpath_artifact::retained_xpath_artifact;
+mod documents;
+pub use documents::retained_cem_document;
 #[cfg(feature = "debug-control")]
 use crate::worker_control::{
     WorkerAddress, WorkerGeneration, WorkerStopDisposition, WorkerStopGeneration,

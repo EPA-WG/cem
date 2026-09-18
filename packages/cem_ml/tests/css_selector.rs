@@ -244,6 +244,7 @@ fn manifest_examples_prove_source_maps_namespace_matching_and_relational_budget_
         QueryExecutionLimits {
             max_result_items: Some(10),
             max_work_units: Some(1),
+            ..Default::default()
         },
     ) {
         Ok(_) => panic!("manifest relational selector must consume an explicit work budget"),
@@ -391,6 +392,7 @@ fn evaluator_supports_budgeted_relational_and_logical_pseudo_classes() {
         QueryExecutionLimits {
             max_result_items: Some(10),
             max_work_units: Some(100),
+            ..Default::default()
         },
     )
     .expect("relational selector evaluation");
@@ -429,6 +431,7 @@ fn evaluator_supports_budgeted_relational_and_logical_pseudo_classes() {
         QueryExecutionLimits {
             max_result_items: Some(10),
             max_work_units: Some(1),
+            ..Default::default()
         },
     ) {
         Ok(_) => panic!("relational traversal must consume work budget"),

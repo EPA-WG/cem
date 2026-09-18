@@ -222,6 +222,7 @@ fn load_context(source: &str) -> TemplateArtifactLoadContext {
 fn template_data() -> TemplateData {
     TemplateData {
         native_functions: Default::default(),
+        data_readers: Default::default(),
         bindings: BTreeMap::from([
             (
                 "visible".to_owned(),

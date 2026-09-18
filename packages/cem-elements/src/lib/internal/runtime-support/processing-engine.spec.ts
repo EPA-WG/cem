@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const libraryMocks = vi.hoisted(() => ({ acquire: vi.fn(), dispose: vi.fn() }));
+vi.mock('./xpath-function-library.js', () => ({
+    CemXPathFunctionLibraries: class {
+        acquire = libraryMocks.acquire;
+        dispose = libraryMocks.dispose;
+    },
+}));
+
 import type { DataIslandSnapshot } from '../../cem-elements.js';
 
 vi.mock('./cem-ql-render.js', () => {
@@ -35,6 +43,8 @@ vi.mock('./cem-ql-render.js', () => {
             diagnostics: [],
         };
     }),
+    retainLoadedCemDocument: vi.fn(async () => 101),
+    disposeLoadedCemDocument: vi.fn(),
     disposeRetainedCemMlTemplate: vi.fn(() => true),
     processRetainedCemMlTemplate: vi.fn(async (artifactId: number, input: {
         source: string;
@@ -138,9 +148,13 @@ vi.mock('./cem-ql-render.js', () => {
 
 import { CemProcessingEngine } from './processing-engine.js';
 import {
+    retainLoadedCemDocument,
+    disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
     retainCemMlTemplateArtifact,
     retainCemMlTemplateSource,
+    disposeRetainedCemMlTemplate,
+    processRetainedCemMlTemplate,
 } from './cem-ql-render.js';
 import { createCemProcessingTextSource } from './processing-host.js';
 
@@ -700,3 +714,130 @@ function snapshotFixture(
         eventPayloads: {},
     };
 }
+
+
+describe('XPath companion processing lifecycle', () => {
+    const input = () => ({
+        language: 'cem-ml' as const, producedTag: 'cem-xpath', templateArtifactId: 'xpath-1',
+        registrationIdentity: 'xpath-registration', source: createCemProcessingTextSource('{output | hello}'),
+        sourceRef: { kind: 'url' as const, value: 'https://example.test/template.cemt' },
+        resolverIdentity: 'test', scopePolicyStamp: 'test', sourceMapMode: 'dev' as const,
+        xpathFunctionLibrary: { kind: 'cemt-xpath-function-library' as const, uri: 'https://example.test/library.cemt',
+            source: 'library', sourceHash: 'hash', resolverPolicyStamp: 'test', cemMlVersion: '1', cemQlVersion: '1' },
+    });
+    it('keeps dependency identity in cache reuse and releases evicted and disposed consumers', async () => {
+        const release = vi.fn();
+        libraryMocks.acquire.mockResolvedValue({ companionId: 41, release });
+        const engine = new CemProcessingEngine({ maxArtifactEntries: 1 });
+        const firstInput = input();
+        const first = await engine.compile(firstInput);
+        const same = await engine.compile(firstInput);
+        expect(same.artifact.cacheKey).toBe(first.artifact.cacheKey);
+        const changed = { ...firstInput, xpathFunctionLibrary: { ...firstInput.xpathFunctionLibrary, sourceHash: 'changed', source: 'changed' } };
+        await expect(engine.compile(changed)).rejects.toThrow('another identity');
+        const second = await engine.compile({ ...changed, templateArtifactId: 'xpath-2' });
+        expect(second.artifact.cacheKey).not.toBe(first.artifact.cacheKey);
+        expect(release).toHaveBeenCalledTimes(1);
+        engine.dispose({});
+        expect(release).toHaveBeenCalledTimes(2);
+        expect(libraryMocks.dispose).toHaveBeenCalled();
+    });
+    it('releases duplicate work from concurrent compiles of one template', async () => {
+        const release = vi.fn();
+        libraryMocks.acquire.mockResolvedValue({ companionId: 44, release });
+        const engine = new CemProcessingEngine({ maxArtifactEntries: 1 });
+        const [first, second] = await Promise.all([engine.compile(input()), engine.compile(input())]);
+        expect(second).toEqual(first);
+        expect(release).toHaveBeenCalledTimes(1);
+        await engine.compile({ ...input(), templateArtifactId: 'replacement', source: createCemProcessingTextSource('{p | changed}') });
+        expect(release).toHaveBeenCalledTimes(2);
+        engine.dispose({});
+        expect(release).toHaveBeenCalledTimes(3);
+    });
+    it('selects the retained companion independently of render data', async () => {
+        const release = vi.fn();
+        libraryMocks.acquire.mockResolvedValue({ companionId: 43, release });
+        const engine = new CemProcessingEngine();
+        const compileInput = { ...input(), scopePolicyStamp: 'scope-policy-v1' };
+        const compiled = await engine.compile(compileInput);
+        for (const value of ['first', 'changed']) {
+            const snapshot = snapshotFixture(value, compileInput.templateArtifactId, compileInput.producedTag);
+            await engine.renderDiff({ artifact: compiled.artifact, snapshot, revision: revision(snapshot),
+                data: { label: value, xpathCompanionId: 999 }, scopeUid: 'scope', previousRenderPlan: null });
+            expect(processRetainedCemMlTemplate).toHaveBeenLastCalledWith(expect.any(Number),
+                expect.objectContaining({ xpathCompanionId: 43, data: { label: value, xpathCompanionId: 999 } }));
+        }
+        engine.dispose({});
+        expect(release).toHaveBeenCalledTimes(1);
+    });
+    it('releases the dependency on template failure and on disposal during compilation', async () => {
+        const release = vi.fn();
+        libraryMocks.acquire.mockResolvedValue({ companionId: 42, release });
+        const engine = new CemProcessingEngine();
+        vi.mocked(retainCemMlTemplateSource).mockRejectedValueOnce(new Error('template failure'));
+        await expect(engine.compile(input())).rejects.toThrow('template failure');
+        expect(release).toHaveBeenCalledTimes(1);
+        let resume!: (value: Awaited<ReturnType<typeof retainCemMlTemplateSource>>) => void;
+        vi.mocked(retainCemMlTemplateSource).mockImplementationOnce(() => new Promise((resolve) => { resume = resolve; }));
+        const pending = engine.compile(input());
+        await vi.waitFor(() => expect(resume).toBeTypeOf('function'));
+        engine.dispose({});
+        resume({ artifactId: 9001, diagnostics: [], stylesheets: [], moduleMap: null });
+        await expect(pending).rejects.toThrow('disposed');
+        expect(disposeRetainedCemMlTemplate).toHaveBeenCalledWith(9001);
+        expect(release).toHaveBeenCalledTimes(2);
+    });
+});
+
+
+describe('retained CEM document ownership', () => {
+    const handle = { documentKey: 'document-one', instanceId: 'one', scopePolicyStamp: 'policy-one' };
+    const input = { action: 'retain' as const, handle, contentType: 'application/json',
+        sourceUri: 'https://example.test/data', bytes: new TextEncoder().encode('{"qty":3}').buffer };
+
+    it('retains one native owner, rejects handle reuse and releases on disposal', async () => {
+        const engine = new CemProcessingEngine();
+        vi.mocked(retainLoadedCemDocument).mockClear();
+        vi.mocked(disposeLoadedCemDocument).mockClear();
+        expect((await engine.document(input)).retained).toBe(true);
+        await engine.document(input);
+        expect(retainLoadedCemDocument).toHaveBeenCalledTimes(1);
+        await expect(engine.document({ ...input, bytes: new TextEncoder().encode('{}').buffer })).rejects.toThrow('reused');
+        await engine.document({ action: 'release', handle });
+        expect(disposeLoadedCemDocument).toHaveBeenCalledTimes(1);
+        await engine.document(input);
+        engine.dispose({ reason: 'scope-disposed' });
+        expect(disposeLoadedCemDocument).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects a document binding from a different instance or policy scope', async () => {
+        const engine = new CemProcessingEngine();
+        const compiled = await engine.compile({ language: 'cem-ml', producedTag: 'cem-document',
+            templateArtifactId: 'document-template', registrationIdentity: 'registration:document',
+            source: createCemProcessingTextSource('{output | document}'),
+            sourceRef: { kind: 'inline', value: 'document' }, resolverIdentity: 'fixture',
+            scopePolicyStamp: 'scope-policy-v1', sourceMapMode: 'dev' });
+        const snapshot = snapshotFixture('1', 'document-template', 'cem-document');
+        for (const foreign of [
+            { documentKey: 'foreign', instanceId: 'other', scopePolicyStamp: snapshot.scopePolicyStamp },
+            { documentKey: 'foreign', instanceId: snapshot.instanceId, scopePolicyStamp: 'other' },
+        ]) {
+            await expect(engine.renderDiff({ artifact: compiled.artifact, revision: revision(snapshot), snapshot,
+                data: {}, scopeUid: 'scope', documents: [{ slice: 'response', handle: foreign }] }))
+                .rejects.toThrow('another instance or scope');
+        }
+        engine.dispose({});
+    });
+
+    it('releases an import that completes after disconnect or replacement', async () => {
+        const engine = new CemProcessingEngine();
+        let finish!: (id: number) => void;
+        vi.mocked(retainLoadedCemDocument).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+        const pending = engine.document(input);
+        await engine.document({ action: 'release', handle });
+        finish(202);
+        await expect(pending).rejects.toThrow('superseded or released');
+        expect(disposeLoadedCemDocument).toHaveBeenCalledWith(202);
+        engine.dispose({ reason: 'scope-disposed' });
+    });
+});

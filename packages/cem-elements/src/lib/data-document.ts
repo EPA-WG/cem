@@ -1,17 +1,8 @@
 /**
- * Browser-side DOM → cem-ql data-document bridge (BR-PH-1; slice 3 of the cem-theme CSS-generator
- * conversion). The generators run in the browser, so the token document is already a parsed DOM
- * (`http-request.js` feeds `DOMParser` output — BR-PH-3). This shapes that DOM into plain records
- * the CEM-ML template navigates functionally — Record field access + `cem:for-each` +
- * `str:normalize_space` — replacing the legacy XSLT
- * `*[@id='…']/following-sibling::table[1]/tbody/tr` + `normalize-space(td[n])`. No XHTML parser is
- * involved: native DOM queries do the navigation, which is why cem-ql's deliberately-unwired XPath
- * axes are a non-issue.
- *
- * The produced rows are portable records keyed by normalized table headings, plus ordered `cells`,
- * source provenance, and compatible `td1`, `td2`, … aliases. A converted generator feeds them
- * through the substrate `datadom.slices.<name>` surface and reads them with, e.g.,
- * `{cem:for-each @select="$datadom.slices.minimums" @as="row" | {$row.token}: {$row.value};}`.
+ * Explicit projections of an existing live browser DOM for inspection and table
+ * utilities. These are host values, not external document imports. HTTP and other
+ * external bytes must enter through cem-ml import and remain retained CEM nodes;
+ * never use this projection as a document binding or parser substitute.
  */
 
 /** XSLT / `str:normalize_space` parity: trim and collapse internal whitespace runs to single spaces. */

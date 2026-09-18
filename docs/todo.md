@@ -18,6 +18,639 @@ and the protected `0.1.0-rc.2` release, remote-byte verification, lane isolation
 and same-run recovery evidence are recorded in
 [`cem-ml-release-rehearsal-0.1.0-rc.2.md`](cem-ml-release-rehearsal-0.1.0-rc.2.md).
 
+## Immediate: XPath 3.1 Features for Existing CEM-QL Demos
+
+User-directed findings and continuation, 2026-09-14. Improve the existing
+samples' teaching points with explicitly owned XPath queries; retain CEM-QL
+reactive bindings and CEMT/XSLT presentation. This is a staged subset, not a
+claim of full XPath 3.1 conformance. The XSLT bundle remains separately approved
+and tracked below; do not ask again for that bundle or the native-call hook.
+
+Use the [XPath 3.1 language](https://www.w3.org/TR/xpath-31/) and
+[Functions and Operators 3.1](https://www.w3.org/TR/xpath-functions-31/) contracts.
+Keep XPath artifact identity separate from CEM-QL and preserve the standard
+`fn:`, `map:` and `array:` namespaces within XPath. Do not silently reinterpret
+existing `str:`/`seq:` calls, serialize runtime ASTs, change default importers,
+or put table-specific logic in Rust. Keep each demo's original feature visible.
+
+- [x] XPATH-DEMO-FINDINGS: map useful features to current sample sources and
+      distinguish executable native support from syntax-only representation
+      and missing browser integration. Paths/predicates, focus, control flow,
+      arithmetic/ranges, primitive casts, string/data/number accessors and
+      several numeric/formatting functions already execute natively. Most
+      text/aggregate functions below are absent; map/array constructors and
+      lookup plus dynamic function items remain non-executable. Artifact
+      import alone does not bind an executable capability to a demo.
+- [x] XPATH-DEMO-HOST-GATE: verify the existing authored CEMT XPath body,
+      programmatic CEM-QL XPath slot, explicit native binding arena and browser
+      artifact lifecycle before adding a new demo authoring surface. Reuse
+      existing ownership checks and reject missing bindings; do not add an
+      implicit CEM-QL ItemStream/JSON-to-XDM bridge. Record any authoring scope
+      decision before implementation, independently of the approved XSLT route.
+      Gate result 2026-09-14: all five CEM-QL XPath host-invocation tests and
+      five CEMT XPath body/dispatch tests pass. The existing authored
+      `{function ... {body {xpath ...}}}` form consumes a native binding arena;
+      the CEM-QL slot is programmatic. Their schema contracts explicitly reject
+      generic CEMT/CEM-QL/JSON value bridges. Ordinary browser rendering uses
+      callback-free TemplateData, and the new XPath artifact registry neither
+      installs callbacks nor supplies slice bindings. The current XSLT/native
+      hook fixture supplies its own native node wrapper and registry; it is
+      not direct demo authoring support. Stop at XPATH-DEMO-AUTHORING-DECISION
+      below before changing this public integration contract. No runtime code
+      or demo behavior changed for this gate.
+- [x] XPATH-DEMO-AUTHORING-DECISION: decide whether ordinary CEMT/CEM-QL demos
+      may declare and invoke reusable XPath-backed functions directly, using
+      the existing CEMT XPath body as the starting point, or whether XPath
+      remains accessible only through the approved XSLT bundle in this scope.
+      Direct use needs an explicit scalar/native-owner binding and result
+      contract plus companion-program loading; it is not supplied by the
+      current CEM-QL slot API or by importing an XPath artifact. Keep default
+      callback registries, generic CEMT artifacts and JSON bindings unchanged.
+      Recommended: support explicit named XPath-backed functions for the
+      existing CEM-QL/CEMT demos, reusing the authored CEMT XPath body and a
+      separately validated companion program. Specify declared scalar/native
+      bindings without an implicit generic-value/JSON-to-XDM conversion. The
+      alternative is to keep this continuation on the approved XSLT-only
+      delivery path and defer direct demo function invocation.
+      Approved 2026-09-14: user selected direct named XPath-backed functions
+      (option 1), and requested consideration of matching in CEM-QL. Reuse the
+      existing authored body and keep scalar/native bindings explicit. Do not
+      ask again for this authoring choice or the previously approved loaders.
+- [x] Fixture XPATH-DEMO-NAMED-NATIVE: compile the existing authored XPath
+      function declarations into explicitly installed CEM-QL native functions.
+      Accept only declared scalar types or retained native XPath items; reject
+      record/array/JSON shape inference, undeclared bindings and unsupported
+      defaults/types. Test named invocation from CEM-QL and CEMT, changed
+      arguments/owners, exact result types, source maps, limits and isolation.
+      Keep this native fixture separate from pending browser companion loading
+      and direct QName-call authoring; native:call is the existing explicit
+      invocation boundary, not a claim that that later sugar is implemented.
+      Completed 2026-09-14: `CemtXPathFunctions` compiles public authored bodies,
+      reloads XPath-owned binary programs without source text/tokens, and
+      installs named functions atomically into an explicit registry. The eight
+      native fixtures in `packages/cem_ql/tests/xpath_named_functions.rs` pass,
+      alongside all 11 native-hook and five existing XPath host-slot tests.
+      They cover scalar/nullable/exact-decimal bindings, changed native owners,
+      filtering/CEMT rules, result/cardinality rejection, source maps, private
+      exports, import/declaration rejection, conflicts, IR reload, unsupported
+      capabilities, cancellation and item budgets. Default importers/registries
+      and low-level native-XDM adapters are unchanged. See the CEM-QL README
+      for the deliberately closed host type contract and remaining limitations.
+      Verification: all 316 CEM-QL tests pass through the uncached Nx test
+      target, plus five existing CEMT XPath-dispatch tests. Sequential uncached
+      Nx lint (existing warnings) and WASM build pass; `git diff --check` passes.
+      Browser execution remains unimplemented and is not claimed by this gate.
+- [x] XPATH-DEMO-MATCHING-DESIGN: expose reusable boolean XPath predicates to
+      CEM-QL filtering and CEMT match conditions through the same named function
+      contract. Require an actual singleton xs:boolean, not CEM-QL truthiness
+      of a result sequence. Assess reuse without moving priorities, modes,
+      imports or rendering into the query layer. XSLT match patterns select a
+      candidate by pattern semantics, not boolean evaluation of an arbitrary
+      path at that candidate; regex fn:matches is a separate text operation.
+      The user requested this assessment, not an implicit full pattern engine.
+      Assessment 2026-09-14: reuse named predicates through `native:call` in
+      `seq:where` and CEMT `@match`; no new generic matching DSL is needed for
+      this case. The native fixture proves the same predicate serves both.
+      If authored XSLT patterns are later exposed to queries, compile them in
+      the XSLT layer and expose candidate-to-boolean evaluation through this
+      same explicit capability boundary; never evaluate an arbitrary relative
+      path as though it were a candidate match. Rule selection/priority/mode
+      resolution remains presentation-layer work, not a query-side registry.
+- [x] Fixture XPATH-DEMO-COMPANION: persist the named-function binding contract
+      with opaque XPath-owned program artifacts in a versioned CEMT companion.
+      Validate hashes, source/host identities, binding names/types, source maps,
+      counts and byte limits before retaining anything. Prove deterministic
+      native reload and changed-input query/CEMT matching without source parsing
+      or runtime AST serialization; keep generic CEMT artifacts unchanged.
+      Completed 2026-09-14: `to_companion_bytes` / `from_companion_bytes` use
+      `application/vnd.cem.cemt-xpath-functions+cem-bin`, version
+      `cemt-xpath-functions/1`, with a bounded explicit JSON control manifest
+      and opaque, independently identified XPath binaries. No XPath program or
+      runtime data AST is converted to JSON. Five native integration fixtures
+      cover deterministic reload, preserved namespaces/native XML owners,
+      altered metadata, hashes, limits, explicit registration and stale handles;
+      a host unit fixture covers retained-byte and handle-exhaustion limits.
+- [x] Fixture XPATH-DEMO-COMPANION-WASM: add explicit compile/import/dispose
+      companion entrypoints and a render call that selects its companion handle
+      separately from data. Test native/WASM byte parity, compile-once/render-many,
+      missing/stale handles, bounds and default/JSON capability isolation.
+      Do not claim component demo wiring from a WASM API-only fixture.
+      Completed 2026-09-14: `compileCemtXPathFunctions`,
+      `retainCemtXPathFunctions`, `importCemtXPathFunctions`,
+      `disposeCemtXPathFunctions` and `renderTemplateWithXPathFunctions` keep
+      companion handles separate from template handles and data. Source-loaded
+      retention returns compiler-generated hashes without putting programs in
+      JSON. All 22 checks in `tools/scripts/verify-xpath-function-companions.mjs`
+      pass, including source/binary loading, native/WASM byte equality, changed
+      scalar input and shared predicates after portable-template reload.
+      All 322 CEM-QL tests and sequential uncached Nx lint (existing warnings)
+      and WASM build pass. The component loader, DOM demo and browser native-node
+      binding path are not implemented by this API-only slice.
+- [x] XPATH-DEMO-BROWSER-ATTACHMENT-DECISION: choose how a component template
+      declares its companion dependency before changing browser source loading,
+      module-closure cache keys, worker transport and disposal.
+      Approved 2026-09-16: the user selected a separately referenced XPath
+      function library with its own dependency lifecycle. Implement an explicit
+      `xpath-functions` reference on the CEM-ML template, resolved through the
+      declaration's module URL context. Keep library identity and retention
+      separate from template artifacts and data; do not auto-enable functions
+      declared in the template itself. Do not ask again for this layout choice,
+      the direct-function contract, the native hook, or the XSLT bundle.
+      Continuation review: the existing 13 named-function/companion Rust tests
+      and 22 native/WASM companion checks pass. The library compiler rejects
+      imports; resolved companion closures remain separate work. Current WASM
+      rendering accepts declared scalars through JSON data only; browser native-
+      owner transport is still needed for the full INVOKE fixture below.
+- [x] Fixture XPATH-DEMO-LIBRARY-BROWSER: implement the approved external
+      function-library reference, scoped resolution, bounded loading, independent
+      source/hash/cache identity, worker/fallback retention and disposal. Prove
+      shared reuse, changed scalar slices, failed loads/compiles, stale handles
+      and capability isolation using native tests first, then a standalone and
+      source-loaded interactive demo, source guards, inventory, lint/typecheck.
+      Keep browser native-owner transport tracked in XPATH-DEMO-INVOKE.
+      Include the existing data-table source-viewer card in the source-contract
+      and browser inventories; its previously omitted legend blocks these gates.
+      Check both gallery layouts; source-loaded document hosts must shrink
+      within the demo page's flex container rather than overflow the viewport.
+      Completed 2026-09-16: `xpath-functions="./library.cemt"` resolves an
+      independent library snapshot through the scoped loader. Its worker/fallback
+      companion cache validates source/URI/policy/compiler identity, shares
+      references across templates, and releases on eviction, compile failure and
+      scope disposal, including concurrent/pending work. Ordinary data cannot
+      select the handle. Packaged hosts share one WASM instance for retention
+      and rendering. The new `xpath-functions.html` demo covers changed string
+      slices, focus/caret preservation and boolean CEMT matching.
+      Verification: 14 native tests, 22 native/WASM checks, 360 component unit
+      tests, all 157 Storybook tests, and the 19-page/25-document standalone/
+      source-loaded inventory pass. Nx build, typecheck and lint pass; both
+      1440px gallery layouts fit two cards without horizontal overflow.
+      Library imports and browser native-node transport remain unsupported;
+      the full INVOKE fixture is deliberately still open.
+- [x] XPATH-DEMO-NODE-BINDING-REVIEW: inspect the reader, named-function
+      boundary and browser transport before implementing native-node inputs.
+      Reviewed 2026-09-16: all 14 named-function/companion Rust tests pass,
+      including explicit rejection of `data:read("<r/>", "xml").root` as an
+      XPath argument. The reader retains its parsed XML beside a CEM-tree view,
+      but that view is not an `XPathQueryItem`; each read parses its source.
+      Browser rendering supplies JSON data and a separate function companion,
+      with no retained-document binding channel. No runtime behavior changed.
+- [x] XPATH-DEMO-NODE-BINDING-DECISION: choose the public XML input route
+      before implementing XPATH-DEMO-INVOKE. Either add an explicit native
+      XPath view to `cem-data` / `data:read`, preserving the default CEM-tree
+      view, or introduce separately retained XML documents with explicit host
+      bindings and their own loading/replacement/disposal lifecycle.
+      Recommended: separate retained documents, so unchanged inputs can keep
+      their owner across renders. A reader-based choice must also specify
+      retention for that reuse. Neither route permits generic JSON/record
+      inference or DOM serialization as an AST handoff. This decision concerns
+      node inputs only; the approved separate function library remains settled.
+      Approved 2026-09-16: user selected the explicit XPath view on `cem-data`.
+      Implement `@projection=xpath` / `data:read(source, "xml", "xpath")`,
+      retaining the XML owner inside Rust and preserving the default CEM view.
+      Use bounded reader retention across renders, released with the retained
+      template; do not introduce separately authored document dependencies.
+- [x] Fixture XPATH-DEMO-READER-VIEW: test and implement the explicit XML
+      XPath reader view, unchanged-source owner reuse, changed-source isolation,
+      source maps, namespace selection, malformed/non-XML/oversize rejection,
+      bounded retention and disposal. Prove native CEMT rendering first, then
+      WASM artifact reload and worker/fallback rendering. Add one interactive
+      XML demo with matching, edit/error recovery and focus preservation, and
+      update source guards, both inventories and reader documentation.
+      Completed 2026-09-16: `projection=xpath` exposes a native XPath document
+      through the existing reader report. `DataReaderCache` retains up to 16
+      successful bounded XML reads by exact source/format; evaluation/render
+      contexts share it explicitly. WASM retains it with the template, including
+      imported artifacts, and releases it on template disposal. XML owners stay
+      in Rust; neither JSON records nor default CEM views become XPath nodes.
+      Six native reader fixtures prove namespaces/source maps, rejection/limits,
+      unchanged and changed owners, cross-render reuse, eviction/clear/disposal
+      and CEMT matching. The XML demo covers worker/fallback host isolation,
+      malformed-input recovery, focus/caret and source-loaded execution.
+      Verification: full CEM-QL suite and native adapter regression pass;
+      all 37 native/WASM companion checks, 360 component unit tests, 157 browser
+      tests and the 19-page/25-document fixture inventory pass. Nx builds,
+      typecheck and lint pass (existing Rust warnings); both 1440px gallery
+      layouts fit two cards without horizontal overflow. `git diff --check`
+      passes. Library imports and non-XML XPath reader views remain unsupported.
+- [x] Fixture XPATH-DEMO-INVOKE: finish the native-owner browser route after
+      the verified external-library/scalar route above. Use an already
+      executable XPath expression and explicit retained-owner transport.
+      Prove compile-once/render-many across changed slices/native owners,
+      correct host/namespace selection, result types and source maps, bounded
+      work, missing-capability rejection, import/disposal and no source reparse.
+      Verify native execution first, then WASM and a standalone/source-loaded
+      demo. Do not wait for new functions to discover binding-contract gaps.
+      Completed 2026-09-16 through the separate function library and explicit
+      XML reader view above. The browser supplies source to the authored reader;
+      native owners remain retained inside Rust. Existing node selection and
+      boolean predicates now execute across changed slices and XML inputs.
+      Compiled programs and cached XML are reused without source reparse;
+      portable import, missing capabilities and disposal are verified separately
+      from render data. No additional node transport or JSON-to-XDM bridge is
+      required for the selected reader route.
+- [x] XPATH-DEMO-TEXT-LIMIT-REVIEW: review standard signatures, native
+      string conversion and runtime limits before the text-function fixture.
+      Reviewed 2026-09-17: XPath 3.1 defines XML-whitespace normalization and
+      one-argument tokenization, codepoint string length, and ordered joining
+      of atomized values. The four functions are not yet in native dispatch.
+      `XPathEvaluationLimits` currently bounds sequence items only; safe-point
+      polling checks operation control, not a cumulative text-work counter.
+      Existing node string values, atomization and concatenation do not charge
+      text bytes. The shared operation controller has explicit memory permits,
+      but XPath string construction does not use them. A one-item string result
+      is therefore not byte-bounded by `xpathItems`. This limitation is already
+      documented in the CEM-QL named-function contract.
+      Verification: 38 native XPath tests, the controlled-range cancellation
+      test and the named-function uncatchable-limit test pass. No runtime or
+      demo behavior changed. Standard contracts:
+      https://www.w3.org/TR/xpath-functions-31/#func-string-join and the adjacent
+      string-length/normalize-space and tokenize sections.
+- [x] XPATH-DEMO-TEXT-LIMIT-DECISION: choose the scope of the text-work and
+      output-byte limits required by XPATH-DEMO-TEXT before implementation.
+      Recommended: shared XPath evaluator limits, covering new functions and
+      existing string-producing paths such as node atomization, `fn:string`,
+      concatenation, casts and formatting, with host propagation, policy
+      identity and uncatchable limit diagnostics. Alternatively, bound only
+      the four new text functions and document that existing string operations
+      keep their current resource contract. The latter is a narrower feature,
+      not an evaluator-wide byte limit. Do not reinterpret sequence-item counts
+      as byte counts or change CEM-QL Unicode whitespace semantics.
+      Approved 2026-09-17: user selected shared evaluator limits (option 1),
+      including existing string-producing paths and native node atomization.
+- [x] Fixture XPATH-DEMO-TEXT-BUDGET: add native and WASM regressions for shared
+      text-byte/work bounds, nested calls and intermediate results, original
+      source ranges, cancellation, host propagation and uncatchable failures.
+      Cover literals/bindings, node atomization, concatenation, casts and
+      numeric formatting before adding the four new text functions.
+      Completed 2026-09-17: shared `XPathEvaluationLimits` default to 1 MiB
+      of UTF-8 atomic lexical bytes per materialized value/sequence and
+      16,777,216 work units per invocation. Nested expressions use one counter;
+      native XML string extraction walks the retained event owner under the
+      same bounds. Item counts remain independent. Standalone/query scope
+      budgets and `install_with_limits` propagate host-owned limits; result
+      stamps record them. Castable expressions and CEM-QL try/catch cannot
+      consume resource failures as data. This bounds lexical text and counted
+      work, not total heap allocation or elapsed CPU time.
+      Verification: seven dedicated native text/budget tests, 86 XPath unit
+      tests, eleven XML-view tests, nine CSS query regressions, normalized
+      run-config coverage, the full CEM-QL suite and 43 native/WASM companion
+      checks pass. The latter includes default byte/work failures through
+      retained libraries and CEM-QL try/catch. Rust lint passes with existing
+      warnings.
+- [x] Fixture XPATH-DEMO-TEXT: implement `fn:normalize-space`,
+      `fn:string-length`, `fn:string-join` and one-argument `fn:tokenize` with
+      typed arguments, exact source-located diagnostics and work/output limits.
+      Then add XPath comparison cases to `dom-merge.html` and related string
+      samples: repeated words, tabs/newlines, blank input, emoji/codepoints and
+      focus-preserving updates. `count(tokenize($text))` is the word-count
+      candidate. Preserve the distinction between XML whitespace and the
+      existing CEM-QL Unicode-whitespace normalizer; do not change its behavior.
+      Unsupported regex tokenize arities must fail explicitly until supported.
+      Completed 2026-09-17: all four functions execute natively with the
+      standard supported arities, XML-whitespace/codepoint rules, atomic
+      joining, argument-range errors and shared limits. `xpath-text.cemt`
+      supplies the separately loaded library for one additional DOM-merge
+      counter card and two string-function comparison cards. Original CEM-QL
+      behavior is preserved; an incidental visible closing brace in the input
+      demo was removed. Source contracts, ordered fixture inventories, standard
+      function documentation and the conformance gap description are updated;
+      existing Nx `demo/*.cemt` inputs cover the new library.
+      Verification: native and 43 native/WASM checks above, 363 component unit
+      tests, 157 Storybook tests, all 19 standalone/25 source-loaded fixture
+      documents, Nx builds, lint and typecheck pass. Native CEMT/XSLT hook
+      regression also passes. Both updated galleries at 1440px fit two 704px
+      cards in a row without horizontal overflow, standalone and source-loaded.
+- [x] XPATH-DEMO-NODES-HTTP-REVIEW: inspect the next node fixture's input
+      boundary before adding XPath over HTTP resources.
+      Reviewed 2026-09-17: local XML already has the approved explicit
+      `cem-data @projection=xpath` view. The browser HTTP path still buffers
+      response bytes, uses DOMParser for XML, and publishes JavaScript records
+      (`parseHttpResourceData` / `parseXmlHttpResourceData` in
+      `cem-elements.ts`). It does not retain or expose an XPath XML owner.
+      Those records cannot be passed as native XPath nodes, and rebuilding XML
+      from them would violate the existing ownership boundary. No HTTP runtime
+      behavior changed during this review.
+- [x] XPATH-DEMO-NODES-HTTP-DECISION: choose the sequencing of the next node
+      fixture. Recommended: complete native node accessors and local XML
+      table/tree comparisons first, with HTTP integration explicitly deferred
+      to its native resource-owner work. Alternatively, implement the native
+      HTTP XML input/worker ownership and disposal path now before completing
+      the combined node fixture. This is an HTTP resource lifecycle scope
+      decision, not a reconsideration of the approved external function
+      library or explicit XPath reader view. Approved 2026-09-17: option 1,
+      complete the local XML table/tree slice first and defer HTTP integration.
+      Subsequent direction is recorded under CEM-LOADER-DIRECTION below.
+- [x] Fixture XPATH-DEMO-NODES: add missing `fn:local-name` and
+      `fn:namespace-uri`; reuse native paths, predicates, `fn:string` and
+      `fn:data` in local XML table/tree cases. Cover equal local names
+      in different namespaces, attributes, mixed text/CDATA, parent/sibling
+      navigation and selected-node identity after sorting. Add `fn:node-name`
+      only with the required QName value/comparison contract. Non-XML owner
+      support is a separate explicit view/binding task, not shape inference.
+      Completed 2026-09-17: both accessors support zero/one arguments with
+      native node-only typing, `xs:string`/`xs:anyURI` results, argument source
+      ranges and shared text/work limits. Names come directly from retained
+      XML metadata; detached handles and non-node values fail explicitly.
+      `fn:node-name` and QName values/comparisons remain unsupported.
+      `xpath-nodes.html` adds two anonymous table/tree cases using the separate
+      `xpath-nodes.cemt` library. Rust verifies exact native owner/handle identity
+      after CEM-QL sorting; the table selects unique authored IDs and preserves
+      source parent/sibling navigation when reordered. The tree covers
+      namespaces, attributes and coalesced text/CDATA. Browser checks cover
+      live edits, focus/caret, instance isolation and reader error recovery.
+      Updated related links, documentation, Nx inputs and fixture inventories.
+      Verification: four accessor tests, 86 XPath unit regressions, seven text
+      and 11 XML-view tests, full CEM-QL tests, 47 native/WASM checks, 365
+      component unit tests, 158 Storybook tests, all 20 standalone/26
+      source-loaded fixture documents, Nx builds, lint and typecheck pass.
+      Both gallery modes fit two 704px cards at 1440px without overflow.
+- [x] Fixture XPATH-DEMO-SEQUENCES: add the viewer-needed subset of
+      `fn:distinct-values`, `fn:head`, `fn:tail`, `fn:subsequence` and
+      `fn:reverse`, with empty/duplicate/type/source-map/budget cases. Derive
+      table headings and cell values declaratively. Preserve first-seen heading
+      order explicitly: standard distinct-values ordering is implementation-
+      dependent, and map iteration must not silently define display order.
+      Completed 2026-09-17: native head/tail/reverse/subsequence preserve
+      original items, source maps and retained node owners, including opaque
+      array/map/function items. Subsequence uses typed double bounds and
+      standard one-based rounding/NaN/infinity behavior. Distinct-values
+      atomizes nodes/arrays, supports the existing atomic comparison matrix,
+      collapses NaNs and uses only the Unicode codepoint collation; duplicate
+      scans share the work budget. Unsupported types/collations fail explicitly.
+      `xpath-sequences.html` and its separate function library demonstrate
+      editable word windows and XML columns derived in explicit first-seen
+      order, including later attributes, namespaces, repeated/empty/missing
+      cells, invalid XML recovery and focus/caret retention. Updated links,
+      source guards, fixture inventories, Nx inputs and conformance notes.
+      Verification: six sequence tests, 86 XPath unit regressions, four
+      accessor/seven text/11 XML-view tests, full CEM-QL tests, 53 native/WASM
+      checks, 367 component unit tests, 159 Storybook tests, all 21 standalone
+      and 27 source-loaded fixture documents, builds, lint and typecheck pass.
+      Both gallery modes fit two 704px cards at 1440px without page overflow.
+- [x] Fixture XPATH-DEMO-AGGREGATES: implement the needed numeric slices of
+      `fn:sum`, `fn:min`, `fn:max` and `fn:avg`; test empty input, exact decimal
+      values, untyped conversion, mixed/invalid values and limits. Add a live
+      basket/table case where a newly introduced fruit contributes to the
+      total without a new hard-coded field expression. Do not turn invalid
+      data into zero implicitly or hide unsupported standard argument types.
+      Completed 2026-09-17: sum/avg/min/max atomize native nodes/arrays and
+      promote the complete numeric sequence before reduction. Integer/decimal
+      sums remain exact; averages reuse terminating-exact and repeating
+      18-significant-digit half-even division. Empty sums honor the optional
+      atomic/empty fallback; empty extrema/averages remain empty. Invalid
+      untyped values and incompatible types fail explicitly, including after
+      NaN; nonnumeric extrema and duration arithmetic remain unsupported.
+      Added input, promotion, intermediate/result and reduction/division work
+      checks. Fixed the shared decimal magnitude comparison against zero,
+      which incorrectly ordered positive fractions below zero.
+      `xpath-aggregates.html` and its separate library demonstrate decimal-list
+      statistics and a native XML basket that includes newly added fruits.
+      Authored XPath validates before casting; invalid/missing amounts display
+      errors. Tests cover empty recovery, exact totals, focus/caret, isolation,
+      retained native row owners and compiled/reloaded companion programs.
+      Updated related links, source guards, inventories, Nx inputs and docs.
+      Verification: six aggregate tests, 86 XPath unit regressions, 28 related
+      sequence/accessor/text/XML-view tests, full CEM-QL tests, 69 native/WASM
+      checks, 369 component unit tests, 160 Storybook tests, all 22 standalone
+      and 28 source-loaded fixture documents, builds, lint and typecheck pass.
+      Both gallery modes fit two 704px cards at 1440px without page overflow.
+- [x] XPATH-DEMO-MAPS-ARRAYS-INPUT-REVIEW: inspect the JSON input boundary
+      before the maps/arrays fixture. Reviewed 2026-09-17: native XPath map
+      and array values already have opaque CEM-QL wrappers; constructors can
+      be implemented using declared scalars and retained XML nodes. The existing
+      `json-to-xml` reader projection retains the JSON owner and produces a
+      CEM-tree view; that view is not an XPath item. `projection=xpath` accepts
+      XML only, and XPath native node handles address XML owners only. The
+      JSON/IP-filter examples therefore cannot pass their current reader roots
+      directly into XPath. No runtime behavior changed. The approved HTTP
+      native-owner deferral remains in force. Verification: all six native
+      reader tests and sixteen named-function tests pass.
+- [x] XPATH-DEMO-MAPS-ARRAYS-INPUT-DECISION: choose the sequencing of JSON
+      integration before implementing the combined fixture below. Recommended:
+      implement constructors, lookup and the listed map/array functions first
+      with explicit scalar inputs and retained XML basket nodes; demonstrate
+      empty-valued versus absent map entries without claiming JSON parsing,
+      and track native JSON integration separately. Alternatively, add a native
+      XPath view of the existing standard JSON-to-XML projection in this slice,
+      retaining its JSON owner and source maps without serialization/reparse;
+      specify that reader/view contract before implementation. Neither choice
+      changes the existing CEM-tree projection or reopens deferred HTTP work.
+      Approved 2026-09-17: option 1, complete maps/arrays using explicit scalar
+      inputs and retained XML nodes first; defer native JSON integration.
+- [x] Fixture XPATH-DEMO-MAPS-ARRAYS: implement constructors and lookup, then
+      the required `map:contains`, `map:get`, `map:keys`, `array:size` and
+      `array:get` operations. Cover nested/empty members, one-based array
+      access, duplicates, key typing, absent versus empty-valued entries and
+      native-owner retention. Use scalar IP-filter inputs and XML basket nodes;
+      map:contains must distinguish an absent entry from an empty-valued entry.
+      Do not flatten array members through CEM-QL sequences. JSON input/null
+      mapping and HTTP examples were deferred at this stage; subsequent delivery
+      and loader migration are tracked in the shared-tree and CEM-LOADER items below.
+      Include native regressions for CEMT XPath expressions inside the existing
+      rich-content fences: braces must stay literal and source ranges must
+      point into the fence body, including after compiled-program reload.
+      Completed 2026-09-17: native constructors, unary/postfix/wildcard lookup,
+      single-key container calls and all five functions execute with exact
+      supported atomic key equality, duplicate-key errors, preserved empty and
+      nested members, source maps and retained XML owners. Empty member visits,
+      container copies and key comparisons charge shared work/text limits.
+      Typed lookup keys use program format v2; v1 programs require recompilation.
+      Fixed CEMT rich-content fence ranges so constructor braces remain literal
+      and diagnostics retain original body coordinates after artifact reload.
+      Named functions accept opaque map/array results without CEM-QL flattening.
+      Added separate IP-filter scalar-map and XML basket-array demos, with source
+      guards, interactions, inventories, related links, Nx inputs and docs.
+      Verification: seven new native groups, 40 related native fixtures, 86 XPath
+      unit tests, five CEMT hook tests, full CEM-QL tests (19 named-function cases),
+      85 native/WASM companion checks, 15 artifact checks including typed-lookup
+      byte parity, 371 component unit tests, 161 Storybook tests, all 23 standalone
+      and 29 source-loaded documents, builds, lint and typecheck pass. Both gallery
+      modes fit two 704px cards at 1440px without page overflow. JSON and HTTP
+      integration remain explicitly deferred below.
+- [x] XPATH-CEM-TREE-DIRECTION: reconsider the JSON deferral as a shared
+      CEM-tree capability. User direction 2026-09-17: consume the tree after
+      import with the same XPath machinery as XML; confine JSON-specific code
+      to import, using an XML-shaped mapping if needed. Review confirms both
+      imports already produce `CemDocument`; the current XPath view instead
+      addresses XML parser events. The existing standard JSON-to-XML importer
+      builds CEM nodes directly, so no serialization/reparse or native JSON
+      map bridge is needed. Recorded the design and parity risks in
+      [cem-tree-xpath-view.md](cem-tree-xpath-view.md). Runtime is unchanged.
+      This direction supersedes the JSON-specific reader/view decision below;
+      keep existing import vocabularies and the separate HTTP lifecycle task.
+- [x] Fixture XPATH-CEM-TREE-PARITY: before resuming the demo feature sequence,
+      add native tests for one retained typed-CEM-tree XPath entry point used
+      by XML and both existing JSON import projections. Assert paths, predicates,
+      values, source provenance, stable identity, retained owners and unchanged
+      default CEM views. Audit XML semantic values before text/reference merging;
+      cover text/CDATA/entity runs, literal versus referenced CR, attributes,
+      namespaces, declarations and PIs. Cover JSON null/absent/empty members,
+      arbitrary/duplicate keys, array order and escaping within import. Stop
+      for a concrete unresolved semantic/API decision, not to reapprove the
+      shared-tree direction. Use the design note's parity cases as the baseline.
+      Completed 2026-09-17: nine shared-tree fixtures cover XML, both JSON
+      mappings, YAML and CSV, semantic/source parity, lifecycle coordinates,
+      retained owners, limits, malformed graphs and parser-error rejection.
+      All 11 existing XML-view fixtures pass; source-oriented CEM fields remain
+      unchanged. The full 345-test CEM-QL suite includes five shared-tree binding,
+      compiled-reload, cache/owner and authored-demo cases.
+- [x] CEM-IMPORT-BOUNDARY: enforce the user's 2026-09-17 format-wide rule:
+      external data formats resolve only in CEM AST import. Audit XML, JSON,
+      YAML, CSV and browser external-data paths; move parser/decoding branches
+      out of query/evaluation code into shared import. Document the rule in
+      CLAUDE.md and a normative principle document. Add cross-format native
+      fixtures and a boundary guard covering downstream query code; distinguish
+      explicit API/control serialization from imported document data. Record
+      existing public-binding migrations and the accepted replacement contract.
+      Implemented 2026-09-17 for the data reader and XPath: shared `cem_ml::import`
+      owns all four formats and semantic decoding, with one downstream node
+      view and a passing source-boundary guard. The rule is normative in
+      [cem-data-import-principle.md](cem-data-import-principle.md) and CLAUDE.md.
+      The broader HTTP and lifecycle-query binding gaps are now migrated under
+      CEM-LOADER and CEM-IMPORT-LEGACY-VIEWS below. Legacy standalone HTTP and
+      its unused theme copy are retired; explicit control/export protocols remain
+      separately named boundaries. Native guards reject format parsing in consumers.
+- [x] XPATH-CEM-TREE-VIEW: implement the shared retained CEM-tree capability
+      and XPath node view in `cem-ml`, then accept native imported CEM nodes at
+      the named-function boundary. Keep JSON mapping entirely in import and
+      move XML entry points onto the same view after parity passes. Preserve
+      source-oriented trees through import-supplied semantic metadata where
+      needed; keep navigation, atomization, ordering, identity and bounded
+      traversal format-independent. Reuse the existing cache/owner lifecycle
+      without record inference or per-invocation reconstruction of documents.
+      Completed 2026-09-17: `RetainedCemTree` preserves source CEM nodes and
+      decoded semantic metadata; ordinary imported roots bind directly to
+      named XPath functions. XML compatibility constructors and XPath lifecycle
+      owners delegate to the same import/view. The 16-entry reader cache now
+      covers all formats by exact source, format and projection. Rust callers
+      use `owner()` for the retained CEM tree and `source_owner()` for an optional
+      original lifecycle owner; native CEM producers need no external owner.
+- [x] Fixture XPATH-CEM-TREE-INTEGRATION: after native parity, verify compiled
+      function reload, retained nodes inside maps/arrays, source maps, limits,
+      cache replacement/eviction/disposal, WASM and browser wiring. Add an
+      imported-JSON XPath comparison to the maps/arrays or IP-filter demo using
+      ordinary imported CEM roots and the existing explicit mapping. Keep
+      current XML demos working through the same query view; document the new
+      capability without claiming standard JSON parsing functions are complete.
+      Completed 2026-09-17: the third maps/arrays demo imports JSON directly
+      into CEM and passes retained nodes through the existing XPath library;
+      the XML basket now uses the ordinary CEM projection. Native fixtures
+      cover both JSON mappings, YAML and CSV through the same reloaded function.
+      Verification: 345 CEM-QL tests, 86 XPath unit tests, focused native tree,
+      XML, text, node, sequence, aggregate and container regressions, five CEMT
+      tests and the native adapter check pass. The final WASM build passes;
+      97 companion and 15 artifact checks verify native/WASM parity and reload.
+      All 371 browser unit and 161 Storybook tests pass, as do the 23 standalone
+      and 29 source-loaded demo fixtures, lint (existing Rust warnings) and
+      TypeScript typecheck. The boundary guard and its cross-package Nx cache
+      inputs pass verification. Both loading modes fit two cards in a desktop
+      row without page overflow. `git diff --check` passes. Legacy HTTP and
+      lifecycle query bindings remain the separately recorded migration below.
+- [x] CEM-LOADER-DIRECTION: user clarified the replacement on 2026-09-17.
+      A loader custom element uses the `cem-ml` library to load XML and JSON
+      requests into a retained CEM-ML document/AST tree. Request lifecycle
+      behavior follows legacy `http-request`; loaded data is a CEM tree.
+      Runtime code, samples, fixture adapters and worker messages must not
+      materialize loaded documents as JavaScript JSON objects. This resolves
+      the earlier keep-records/defer-versus-migrate decision. The accepted
+      implementation plan is [cem-data-loader-plan.md](cem-data-loader-plan.md).
+      Both HTTP binding/lifecycle and lifecycle-query migrations were explicitly
+      authorized later on 2026-09-17; implementation and verification follow below.
+- [x] Fixture CEM-LOADER-NATIVE: reuse CEM-ML resource loading, lifecycle and
+      CEM AST import for XML/JSON. Add failing native fixtures first for loaded
+      trees, equivalent queries, source ranges/identity, limits and parse errors.
+      Define the loader tag, request attributes, lifecycle notifications and
+      native document binding before browser wiring. Extend library capability
+      where missing; never add browser format parsers or object projections.
+- [x] Fixture CEM-LOADER-BROWSER: wire the loader custom element to the native
+      library/WASM capability. Preserve request/response metadata, lifecycle
+      updates, reload, abort on replacement/disconnect, stale-result rejection
+      and instance isolation. Retain native tree owners through worker/fallback
+      render paths and release references on replacement/disposal. First delivery
+      publishes a complete materialized tree; byte delivery is not AST streaming.
+      Completed: protocol v2 retains native documents and explicit render bindings.
+      Worker/fallback, cancellation, shared-root disposal, instance isolation,
+      disconnect/reconnect and versioned serialized hydration have executable coverage.
+- [x] Fixture CEM-LOADER-SAMPLES: migrate HTTP, `for-each` and legacy companion
+      examples, their consumers and fixture adapters to loaded CEM tree queries.
+      Remove JS record bindings and browser JSON/XML document parsing from these
+      paths; any retained legacy element spelling delegates to the same loader.
+      Cover XML/JSON, metadata, error/recovery, changed URLs, cancellation and
+      independent instances. Update inventories and source-loaded/standalone tests.
+      Completed: HTTP, loop and version-picker examples use native CEM nodes and
+      a separate XPath library. All 161 Chromium stories and the 23-page/29-document
+      demo gate pass; HTTP/version-picker layouts fit two desktop cards without overflow.
+- [x] CEM-IMPORT-LEGACY-VIEWS: migrate
+      `cem_ml_transform_cem_ql::lifecycle_query_stream`, its JSON-member/XML-event
+      views and encoded-document inputs to common CEM import and node capabilities.
+      Update native queries/fixtures rather than preserving a second record/event
+      data model. Keep explicit source inspection and export boundaries named.
+      Native migration implemented: all four formats share retained CEM node
+      views; encoded inputs delegate byte parsing to import. Native adapter
+      consumers and DOM converter fixtures now query/pass CEM nodes. Native
+      byte-owner, XPath equivalence, explicit binding and release tests pass.
+- [x] Fixture CEM-LOADER-RETIREMENT: retire the standalone legacy HTTP module,
+      exports, IDE declarations and unused theme copy. Migrate its examples to
+      native `cem-elements`, verify source and packed examples, and retain the
+      historical HTTP corpus with evidence from the shared loader tests.
+      Completed: all 88 historical browser and three unit cases remain inventoried.
+      The 167-file packed archive passes clean-consumer JavaScript/type/browser
+      checks. Source/dist examples and incremental theme-output retirement pass.
+      Package verification caches now include dependency output files.
+- [x] Fixture CEM-LOADER-VERIFY: verify native/WASM parity, worker/fallback
+      lifecycle and ownership, CEM-QL/XPath access, standalone/source-loaded samples,
+      layout, source guards, lint and typecheck. Extend the import-boundary guard
+      and Nx inputs to migrated loader/query modules. Audit remaining document-
+      object bypasses before closing CEM-IMPORT-BOUNDARY.
+      Completed: 347 CEM-QL tests, 95 adapter tests and 25 focused CEM-ML tests;
+      378 unit/WASM tests and all 161 Chromium stories; 23 standalone pages and
+      29 source-loaded documents. Native/TypeScript lint, typecheck, package
+      gates, import-boundary guards and layout checks pass. Streaming stays in
+      the explicitly recorded later phase below.
+- [x] CEM-LOADER-STREAMING-RECORDED: persist the accepted later phase for
+      progressive CEM-ML AST stream consumption in
+      [the loader plan](cem-data-loader-plan.md#later-cem-ml-ast-streaming) and
+      [wishlist.md](wishlist.md#cem-ml-runtime). Typed chunks/events, backpressure,
+      bounded retention, partial errors, cancellation, stable identity and query
+      streamability require their own fixtures after materialized-loader parity.
+- [ ] Fixture XPATH-DEMO-SORT: implement the required function-item/inline-
+      function slice before keyed `fn:sort`; verify stable multi-key ordering,
+      typed comparisons, supported collations and retained source selection.
+      Explicitly author missing/invalid-last keys in the viewer; standard sort
+      is not an alias for the existing `seq:sorted` policy. Keep XSLT grouping,
+      xsl:sort options and presentation dispatch in their owning layer.
+- [ ] Fixture XPATH-DEMO-VALIDATION: add bounded XPath regex `fn:matches` and
+      regex tokenize/replace when needed, preserving standard pattern/flag/
+      replacement and error semantics rather than inheriting literal CEM-QL
+      split/replace behavior. Reuse `some`/`every` and supported `castable as`
+      in form and IP-filter preview cases, including numeric ranges and invalid
+      input; regex alone must not be presented as complete address validation.
+      Date/time types and formatters remain a later separately bounded slice.
+- [x] XPATH-DEMO-CONFORMANCE-DOCS: reconcile the XPath conformance matrix and
+      README with the implemented arithmetic/range and accessor/numeric
+      function dispatch before marking new slices complete. Distinguish native
+      evaluation, host wiring, compiled representation and actual demo coverage.
+      Completed 2026-09-17 alongside the sequence slice: corrected stale
+      arithmetic/range and promotion gaps, listed existing accessor/numeric
+      dispatch signatures and described implemented text/node/sequence slices.
+      Native execution, artifact representation, host ownership and per-slice
+      demo coverage remain separate; full standard-library/QT3 coverage is
+      still incomplete. Keep these notes current as later slices land.
+- [ ] XPATH-DEMO-VERIFY: for each completed slice run focused native fixtures,
+      then shared WASM and browser integration, source guards, fixture inventory,
+      lint/typecheck and compact standalone/source-loaded layout checks. Keep
+      original CEM-QL cases and their event/reset/focus/instance teaching points.
+- [x] XPATH-DEMO-JSON-NATIVE-REPLAN: replaced the deferred JSON-specific
+      reader/view decision on 2026-09-17 with XPATH-CEM-TREE-PARITY, VIEW and
+      INTEGRATION above, following the user's common-tree direction. This
+      closes only the obsolete planning item; runtime delivery is recorded in
+      the shared capability and integration items above.
+- [x] XPATH-DEMO-HTTP-NATIVE-REPLAN: the earlier HTTP deferral and pending
+      CEM-IMPORT-LEGACY-BINDINGS choice are superseded by CEM-LOADER-DIRECTION.
+      Track implementation under CEM-LOADER and CEM-IMPORT-LEGACY-VIEWS above.
+      Progressive AST streaming remains a later phase; loaded document
+      objects are not a compatibility target. This closes planning, not runtime work.
+
 ## Immediate: XSLT-Authored Data-Table Viewer
 
 Feature list and scope gate:
@@ -216,6 +849,68 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       read failure cleared on retry; no cache or configuration edits were needed.
       The fixture exercises the runtime connection, not production stylesheet
       lowering. Keep XSLT-VIEW-LOWER and the viewer/sample work open below.
+- [x] XSLT-VIEW-DELIVERY-GATE: inspect how generated CEMT retains the typed
+      XPath programs when it leaves the compiler process and enters the demo.
+      Result 2026-09-14: the native hook is callable, but its registry and
+      XSLT-owned expression ASTs are deliberately absent from portable CEMT
+      artifacts. The browser WASM host retains only `TemplateArtifact` and
+      creates callback-free `TemplateData` from JSON. Its module closure carries
+      CEMT source, not native executable capabilities. Existing artifact-reload
+      and native XPath fixtures establish these separate contracts; neither
+      provides an XSLT-aware browser loader. Do not emit unresolved callback IDs
+      as a supposedly standalone, usable viewer.
+      Verification 2026-09-14: the focused CEMT binary-reload test and the
+      XSLT-owned native XPath integration test both pass; `git diff --check`
+      passes. This gate changes documentation only.
+- [x] XSLT-VIEW-DELIVERY-DECISION: approve an XSLT-owned compiled-program bundle
+      and explicit browser/WASM host loading/rebinding, or require standalone
+      CEMT on the unchanged host. Recommended: allow the XSLT-owned bundle and
+      scoped loader; keep generic CEMT artifacts, default callback registration,
+      core ASTs/importers and JSON data bindings unchanged. Define version/hash,
+      import ownership, source maps and lifetime validation before implementing
+      the bundle. This is a delivery/host decision, not a repeat request for the
+      already-approved native hook. Approved 2026-09-14, with the user's
+      requirement that XPath own its namespace and content type, as CEM-QL does.
+- [x] Fixture XPATH-COMPILED-ARTIFACT: preserve XPath's existing namespace and
+      source content type; introduce a separately identified binary compiled
+      program under the XPath package, not a CEM-QL or XSLT expression format.
+      Test deterministic bytes, typed syntax/static-context/host provenance,
+      source-free reload and changed native inputs, unsupported/truncated/
+      corrupted artifacts, identity mismatch and bounded decoding. Do not add
+      serialization dependencies to the source syntax AST or serialize runtime
+      data nodes, callback closures, or query bindings. Keep default imports
+      and generic CEMT artifacts unchanged.
+      Completed 2026-09-14: XPath owns
+      `application/vnd.cem.xpath-artifact+cem-bin`, with versioned/hash-checked
+      typed-program encoding, source-free reload and strict decoding limits.
+      Six integration tests and two adversarial codec tests pass, alongside
+      all 86 existing XPath unit tests and 11 XPath XML-view tests. The source
+      syntax AST remains serde-free; the binary type uses explicit artifact
+      APIs, not automatic source/lifecycle importer dispatch. Arbitrary XML
+      attachments cannot imply an executable language host. The uncached
+      `cem_ml_schema_package_xpath_v1:verify` target also passes, including
+      schema registration, source/lifecycle compatibility and CLI examples.
+- [x] Fixture XPATH-WASM-ARTIFACT: expose explicitly named XPath artifact
+      compile/import/dispose entry points in the shared WASM host. Preserve its
+      own media type and schema, validate externally supplied hashes and host
+      identity, bound retained programs and reject stale handles. Test a native
+      XSLT-owned binary in WASM as well as standalone XPath compilation, without
+      enabling callbacks through JSON data or changing generic CEMT handles.
+      Completed 2026-09-14: `compileXPathArtifact`, `importXPathArtifact` and
+      `disposeXPathArtifact` preserve XPath identity and enforce content/source
+      hashes, host compatibility, size/count limits and non-reused handles.
+      The uncached `cem_ml_schema_package_xpath_v1:verify:compiled-artifacts`
+      Nx target passes all 13 native/WASM checks after rebuilding the shared
+      WASM host. Native/WASM standalone compilation produces identical bytes;
+      loading XSLT-owned programs does not install CEMT native callbacks.
+      Uncached CEM-QL lint passes with warnings. XSLT bundle composition and
+      explicit capability binding remain open below.
+- [ ] Fixture XSLT-COMPILED-BUNDLE: compose generated CEMT with independently
+      identified XPath programs and stylesheet imports. Validate versions,
+      hashes, source maps, capability ownership and disposal; explicitly bind
+      capabilities in the browser/WASM host. Ordinary JSON data must remain
+      unable to install native callbacks. Verify cross-process loading before
+      claiming a deployable XSLT-authored viewer.
 - [ ] Fixture XSLT-VIEW-LOWER: preserve XSLT instructions as runtime CEMT;
       translate the needed XPath paths, predicates, variables, context,
       sequences, conditionals and map/array operations with standard semantics.
@@ -1449,6 +2144,11 @@ registration identities may reuse an inherited or existing definition.
       evidence is the Rust-native resource-envelope test, TypeScript unit 113/113,
       Storybook Chromium 97/97, all 15 executable demo pages, typecheck/lint, and
       the 53-file clean-consumer package probe.
+
+      Audit correction, 2026-09-17: that delivery streams transport bytes but
+      still parses HTTP bodies into JavaScript JSON/XML records. It does not
+      complete the native CEM-tree or progressive AST-stream contract. The
+      accepted CEM-LOADER migration above replaces that document-data path.
 
 - [x] Complete Phase 3A/3B/3C substrate parity.
     - [x] Wire superseded processing-host render jobs to the locked `cancel`

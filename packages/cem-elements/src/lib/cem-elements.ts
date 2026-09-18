@@ -1,3 +1,4 @@
+import { identifyXPathFunctionLibrary, XPATH_LIBRARY_MAX_SOURCE_BYTES, type CemXPathFunctionLibrarySource } from './internal/runtime-support/xpath-function-library.js';
 import {
     DATA_CEM_RENDER_SCOPE_ATTR,
     applyPatchFramesToRange,
@@ -53,6 +54,7 @@ import {
     type CemProcessingArtifactBinaryTransfer,
     type CemProcessingSourceRef,
     type CemProcessingCompileResult,
+    type CemProcessingDocumentHandle,
     type CemProcessingHost,
     type CemProcessingRenderDiffInput,
     type CemProcessingRenderDiffResult,
@@ -76,6 +78,7 @@ import {
     bindCemDeclarationScopeRegistration,
     getDefaultCemDeclarationScope,
     lookupCemDeclarationScopeRegistration,
+    onCemDeclarationScopeDispose,
     unbindCemDeclarationScopeRegistration,
     type CemDeclarationScope,
 } from './declaration-scope.js';
@@ -467,7 +470,8 @@ export interface CemHttpResourceEnvelope {
     };
     response?: CemHttpResponseHead;
     sourceId?: CemHttpResourceSourceId;
-    data: unknown;
+    /** Serializable lifecycle metadata only. Templates receive a native CEM document here. */
+    data: null;
     diagnostics: CemElementDiagnostic[];
 }
 
@@ -718,6 +722,7 @@ interface CompiledDeclaration {
     resourceBaseUrl: string;
     moduleMap: CemBrowserModuleUrlMap | null;
     moduleClosureReady?: boolean;
+    xpathFunctionsRef: string | null;
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
     mode: 'dom' | 'cem-ml' | 'legacy-xslt';
@@ -898,6 +903,8 @@ interface LocationElementDeclaration {
 type LocationReadDeclaration = LocationElementDeclaration & { sliceName: string };
 
 interface ActiveHttpResource {
+    document?: CemProcessingDocumentHandle;
+    host?: CemProcessingHost;
     key: string;
     revision: number;
     controller: AbortController;
@@ -1570,6 +1577,7 @@ export class CemElementRuntime {
         CemModuleUrlResolutionContext
     >();
     private readonly moduleUrlRootOption?: CemElementRuntimeOptions['moduleUrlRoot'];
+    private readonly xpathLibrarySources = new WeakMap<CemDeclarationScope, Map<string, Promise<CemXPathFunctionLibrarySource>>>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
@@ -2324,6 +2332,13 @@ export class CemElementRuntime {
                 hydrationSnapshot?.declarationTag === compiled.declarationTag &&
                 hydrationSnapshot.templateArtifactId === compiled.artifactId
             ) {
+                if (Object.values(state.slices).some((value) => isPlainRecord(value) && value.kind === 'http-request')) {
+                    // Serialized metadata has no native document owners. Render the
+                    // request declarations again so hydration reacquires their trees.
+                    this.hydratedServerRenders.delete(instance);
+                    this.renderInstance(instance, compiled);
+                    return;
+                }
                 this.renderSettled.set(instance, Promise.resolve());
                 compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
                 return;
@@ -2349,9 +2364,9 @@ export class CemElementRuntime {
         const state = this.instanceStates.get(instance);
         state?.observer?.disconnect();
         if (state) {
-            for (const active of Object.values(state.httpResources)) {
-                active.controller.abort();
-            }
+            for (const active of Object.values(state.httpResources)) this.releaseHttpResource(active);
+            state.httpResources = {};
+            resetUnretainedHttpEnvelopes(state.slices);
             for (const active of Object.values(state.repositoryQueryResources)) {
                 active.controller.abort();
                 active.unsubscribe?.();
@@ -2550,6 +2565,9 @@ export class CemElementRuntime {
             if (this.renderTokens.get(instance) !== token) {
                 return; // a newer render superseded this one mid-flight
             }
+            if (compiled.xpathFunctionsRef !== null) {
+                throw new Error('XPath function libraries require the retained CEM-ML processing host');
+            }
             const source = compiled.cemMlSource ?? '';
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
             const moduleClosure = await this.preflightDeclarationModules(compiled, Object.keys(data));
@@ -2635,7 +2653,10 @@ export class CemElementRuntime {
             if (!registrationIdentity) {
                 return Promise.reject(new Error('a canonical CEM-ML declaration requires a registration identity'));
             }
-            pending = this.compileProcessingArtifact(compiled, registrationIdentity, renderBindings);
+            pending = this.compileProcessingArtifact(compiled, registrationIdentity, renderBindings).catch((error: unknown) => {
+                this.processingArtifacts.delete(compiled);
+                throw error;
+            });
             this.processingArtifacts.set(compiled, pending);
         }
         return pending;
@@ -2654,6 +2675,7 @@ export class CemElementRuntime {
             ...renderBindings,
         ];
         const moduleClosure = await this.preflightDeclarationModules(compiled, hostBindings);
+        const xpathFunctionLibrary = await this.preflightXPathFunctionLibrary(compiled);
         const payloadKey = await cemMlTemplateArtifactPayloadKey(source, sourceMapMode);
         let precompiledArtifact: CemProcessingArtifactBinaryTransfer | undefined;
         if (!moduleClosure && this.artifactRegistry?.getArtifact) {
@@ -2685,6 +2707,7 @@ export class CemElementRuntime {
             sourceMapMode,
             hostBindings,
             ...(moduleClosure === undefined ? {} : { moduleClosure }),
+            ...(xpathFunctionLibrary === undefined ? {} : { xpathFunctionLibrary }),
             ...(precompiledArtifact === undefined ? {} : { precompiledArtifact }),
             ...(moduleClosure || this.artifactRegistry?.putArtifact === undefined ? {} : { exportCompiledArtifact: true as const }),
         }).result;
@@ -2722,6 +2745,58 @@ export class CemElementRuntime {
             }
         }
         return result;
+    }
+
+    private async preflightXPathFunctionLibrary(
+        compiled: CompiledDeclaration,
+    ): Promise<CemXPathFunctionLibrarySource | undefined> {
+        const specifier = compiled.xpathFunctionsRef;
+        if (specifier === null) return undefined;
+        if (!specifier || compiled.mode !== 'cem-ml') {
+            throw new Error('xpath-functions requires a nonempty reference on a CEM-ML template');
+        }
+        const declaration = compiled.declarationElement;
+        const context = this.ensureModuleUrlContext(declaration, compiled);
+        const request: CemModuleUrlResolutionRequest = {
+            purpose: 'template-import', authoredSpecifier: specifier,
+            currentContext: this.moduleUrlContextView(context),
+            referrer: { kind: 'url', value: compiled.resourceBaseUrl },
+        };
+        const resolved = this.resolveScopedModuleUrlOption
+            ? await this.resolveScopedModuleUrlOption(request)
+            : this.resolveModuleUrlOption
+              ? await this.resolveModuleUrlOption(specifier, declaration.ownerDocument, compiled.resourceBaseUrl, compiled.resourceBaseUrl)
+              : await resolveBrowserModuleUrl(context, specifier);
+        const uri = resolvedModuleUrlString(typeof resolved === 'string' ? resolved : resolved.resolvedUrl);
+        const resolverPolicyStamp = `${compiled.resolverIdentity}:${this.scopePolicyStamp}`;
+        assertCemDeclarationScopeActive(compiled.declarationScope);
+        let sources = this.xpathLibrarySources.get(compiled.declarationScope);
+        if (!sources) {
+            sources = new Map();
+            this.xpathLibrarySources.set(compiled.declarationScope, sources);
+            const scopedSources = sources;
+            onCemDeclarationScopeDispose(compiled.declarationScope, () => scopedSources.clear());
+        }
+        const key = JSON.stringify([uri, resolverPolicyStamp]);
+        let pending = sources.get(key);
+        if (!pending) {
+            if (sources.size >= 64) throw new Error('XPath function library count exceeds limit');
+            pending = (async () => {
+                const loaded = await this.loadSrcDocument(uri, declaration.ownerDocument);
+                const source = typeof loaded === 'string' ? loaded
+                    : await readTextStream(loaded.body, XPATH_LIBRARY_MAX_SOURCE_BYTES);
+                assertCemDeclarationScopeActive(compiled.declarationScope);
+                const sourceUri = typeof loaded === 'string' ? uri : new URL(loaded.resolvedUrl, uri).href;
+                const sourcePolicy = typeof loaded === 'string' ? resolverPolicyStamp
+                    : JSON.stringify([resolverPolicyStamp, loaded.resolverIdentity]);
+                return identifyXPathFunctionLibrary(source, sourceUri, sourcePolicy);
+            })().catch((error: unknown) => {
+                sources.delete(key);
+                throw error;
+            });
+            sources.set(key, pending);
+        }
+        return pending;
     }
 
     private async preflightDeclarationModules(
@@ -2788,6 +2863,7 @@ export class CemElementRuntime {
                 revision,
                 snapshot,
                 data,
+                documents: this.httpDocumentBindings(instance, snapshot),
                 scopeUid: this.currentScopeUid(instance, compiled),
                 previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,
             });
@@ -2829,6 +2905,7 @@ export class CemElementRuntime {
                     revision: committedRevision,
                     snapshot: recoverySnapshot,
                     data: wasmTemplateData(recoverySnapshot, compiled.declaredAttributes),
+                    documents: this.httpDocumentBindings(instance, recoverySnapshot),
                     scopeUid: this.currentScopeUid(instance, compiled),
                     previousRenderPlan: null,
                 });
@@ -2958,6 +3035,7 @@ export class CemElementRuntime {
         token: number,
     ): Promise<void> {
         const settled: Promise<void>[] = [];
+        const httpRequests = new Set<string>();
         const repositoryQueries = new Set<string>();
         const storageStatuses = new Set<string>();
         for (const control of controls) {
@@ -2975,6 +3053,7 @@ export class CemElementRuntime {
                 );
             }
             if (control.kind === 'http-request') {
+                httpRequests.add(control.sliceName);
                 settled.push(
                     this.startHttpRequestResource(instance, compiled, {
                         sliceName: control.sliceName,
@@ -3013,6 +3092,15 @@ export class CemElementRuntime {
                         sourceMapRef: control.sourceMapRef,
                     }),
                 );
+            }
+        }
+        const state = this.instanceStates.get(instance);
+        for (const [slice, active] of Object.entries(state?.httpResources ?? {})) {
+            if (!httpRequests.has(slice) && state) {
+                this.releaseHttpResource(active);
+                delete state.httpResources[slice];
+                delete state.slices[slice];
+                delete state.eventPayloads[slice];
             }
         }
         this.disposeMissingRepositoryResources(instance, repositoryQueries, storageStatuses);
@@ -3426,6 +3514,7 @@ export class CemElementRuntime {
             locationResources: {},
             resourceRevisions: resourceRevisionsFromSnapshot(hydrationSnapshot),
         };
+        resetUnretainedHttpEnvelopes(state.slices);
         const observer = island.ownerDocument.defaultView?.MutationObserver;
         if (observer) {
             // Observation targets are attached in `observeInstance` (on connect), so the
@@ -4901,6 +4990,22 @@ export class CemElementRuntime {
         };
     }
 
+    private releaseHttpResource(active: ActiveHttpResource): void {
+        active.controller.abort();
+        if (active.document && active.host) {
+            void active.host.document({ action: 'release', handle: active.document }).result.catch(() => undefined);
+            active.document = undefined;
+        }
+    }
+
+    private httpDocumentBindings(instance: HTMLElement, snapshot: DataIslandSnapshot) {
+        return Object.entries(this.instanceStates.get(instance)?.httpResources ?? {}).flatMap(([slice, active]) => {
+            const envelope = snapshot.slices[slice] as CemHttpResourceEnvelope | undefined;
+            return active.document && envelope?.state === 'loaded' && envelope.resourceRevision === active.revision
+                ? [{ slice, handle: active.document }] : [];
+        });
+    }
+
     private startHttpRequestResource(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
@@ -4918,9 +5023,7 @@ export class CemElementRuntime {
         if (active?.key === key) {
             return active.settled;
         }
-        if (active) {
-            active.controller.abort();
-        }
+        if (active) this.releaseHttpResource(active);
 
         const revision = (state.resourceRevisions[declaration.sliceName] ?? 0) + 1;
         state.resourceRevisions[declaration.sliceName] = revision;
@@ -5033,27 +5136,48 @@ export class CemElementRuntime {
                 data: null,
                 diagnostics: [],
             });
-            const parse = await parseHttpResourceData(
-                request,
-                loaded.response,
-                loaded.body,
-                request.expectedContentType,
-                request.policy.maxResponseBytes,
-                request.signal,
-                compiled.producedTag,
-            );
-            if (!this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) {
+            const bytes = await readByteStream(loaded.body, request.policy.maxResponseBytes, request.signal);
+            const sourceId = httpResourceSourceId(request, loaded.response,
+                loaded.response.contentType ?? request.expectedContentType ?? null, bytes);
+            const host = this.processingHost(compiled);
+            const handle: CemProcessingDocumentHandle = {
+                documentKey: crypto.randomUUID(),
+                instanceId: this.instanceId(instance),
+                scopePolicyStamp: this.scopePolicyStamp,
+            };
+            if (method !== 'HEAD') {
+                try {
+                    await host.document({ action: 'retain', handle,
+                        bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+                        contentType: loaded.response.contentType ?? request.expectedContentType ?? '',
+                        sourceUri: loaded.response.url || request.resolvedUrl,
+                    }).result;
+                } catch (error) {
+                    if (!this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) return;
+                    this.updateHttpResourceAndRerender(instance, compiled, declaration.sliceName, revision, {
+                        declaration, revision, state: 'failed', request: requestMetadata,
+                        response: loaded.response, sourceId, data: null,
+                        diagnostics: [resourceDiagnostic('cem-element.http_request_parse_failed',
+                            String(error instanceof Error ? error.message : error), compiled.producedTag,
+                            'error', httpSourceMapRef(sourceId))],
+                    });
+                    return;
+                }
+            }
+            if (request.signal.aborted || !this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) {
+                if (method !== 'HEAD') void host.document({ action: 'release', handle }).result.catch(() => undefined);
+                if (request.signal.aborted) throw new Error('HTTP document import was aborted');
                 return;
             }
+            const active = this.instanceStates.get(instance)?.httpResources[declaration.sliceName];
+            if (!active) {
+                if (method !== 'HEAD') void host.document({ action: 'release', handle }).result.catch(() => undefined);
+                return;
+            }
+            if (method !== 'HEAD') { active.document = handle; active.host = host; }
             this.updateHttpResourceAndRerender(instance, compiled, declaration.sliceName, revision, {
-                declaration,
-                revision,
-                state: parse.ok ? 'loaded' : 'failed',
-                request: requestMetadata,
-                response: loaded.response,
-                sourceId: parse.sourceId,
-                data: parse.data,
-                diagnostics: parse.diagnostics,
+                declaration, revision, state: 'loaded', request: requestMetadata,
+                response: loaded.response, sourceId, data: null, diagnostics: [],
             });
         } catch (error) {
             if (!this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) {
@@ -5102,7 +5226,7 @@ export class CemElementRuntime {
         request: CemHttpResourceEnvelope['request'];
         response?: CemHttpResponseHead;
         sourceId?: CemHttpResourceSourceId;
-        data: unknown;
+        data: null;
         diagnostics: CemElementDiagnostic[];
     }): CemHttpResourceEnvelope {
         return {
@@ -5731,6 +5855,13 @@ function compileInlineDeclaration(
     const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt';
     const occurrencePath = declarationOccurrencePath(declarationElement);
     const sourceText = sourceTextForUidSeed(template, mode, cemMlSource, legacySource);
+    const xpathFunctionsRef = template.getAttribute('xpath-functions')?.trim() ?? null;
+    if (xpathFunctionsRef !== null && (!xpathFunctionsRef || mode !== 'cem-ml')) {
+        diagnostics.push(declarationDiagnostic('cem-element.xpath_functions_invalid',
+            'xpath-functions requires a nonempty reference on a CEM-ML template', producedTag));
+    }
+    const registrationSource = xpathFunctionsRef === null ? sourceText
+        : JSON.stringify([sourceText, xpathFunctionsRef, options.source.resourceBaseUrl, options.source.resolverIdentity]);
     const sourceHash = sourceHashSeedDigest({
         declarationTag: options.declarationTag,
         producedTag,
@@ -5740,7 +5871,7 @@ function compileInlineDeclaration(
     const registration = analyzeDeclarationRegistrationIdentity({
         tag: producedTag,
         declarationVersion: options.declarationVersion,
-        resolvedTemplateSource: sourceText,
+        resolvedTemplateSource: registrationSource,
         templateLanguage: mode,
         hasBehavior: options.behavior !== undefined,
         behaviorIdentity: options.behaviorIdentity,
@@ -5778,6 +5909,7 @@ function compileInlineDeclaration(
         resolverIdentity: options.source.resolverIdentity,
         resourceBaseUrl: options.source.resourceBaseUrl,
         moduleMap: null,
+        xpathFunctionsRef,
         template,
         templateSource,
         mode,
@@ -6206,10 +6338,13 @@ function validateStandaloneXsltDocument(document: Document, specifier: string): 
     }
 }
 
-async function readTextStream(body: AsyncIterable<Uint8Array>): Promise<string> {
+async function readTextStream(body: AsyncIterable<Uint8Array>, maxBytes = Number.MAX_SAFE_INTEGER): Promise<string> {
+    let byteCount = 0;
     const decoder = new TextDecoder('utf-8');
     let text = '';
     for await (const chunk of body) {
+        byteCount += chunk.byteLength;
+        if (byteCount > maxBytes) throw new Error('source stream exceeds byte limit');
         text += decoder.decode(chunk, { stream: true });
     }
     return text + decoder.decode();
@@ -6907,181 +7042,41 @@ async function* responseBody(response: Response): AsyncIterable<Uint8Array> {
     yield new Uint8Array(await response.arrayBuffer());
 }
 
-async function parseHttpResourceData(
-    request: CemHttpRequest,
-    response: CemHttpResponseHead,
-    body: AsyncIterable<Uint8Array>,
-    expectedContentType: string | undefined,
-    maxResponseBytes: number,
-    signal: AbortSignal,
-    tag: string,
-): Promise<{ ok: boolean; data: unknown; diagnostics: CemElementDiagnostic[]; sourceId: CemHttpResourceSourceId }> {
-    const contentType = recognizedContentType(response.contentType, expectedContentType);
-    const fallbackSourceId = httpResourceSourceId(request, response, contentType.ok ? contentType.contentType : null);
-    if (!contentType.ok) {
-        return {
-            ok: false,
-            data: null,
-            sourceId: fallbackSourceId,
-            diagnostics: [
-                resourceDiagnostic(
-                    'cem-element.http_request_unsupported_content_type',
-                    contentType.message,
-                    tag,
-                    'error',
-                    httpSourceMapRef(fallbackSourceId),
-                ),
-            ],
-        };
-    }
-    const bytes = await readByteStream(body, maxResponseBytes, signal);
-    const text = new TextDecoder('utf-8').decode(bytes);
-    const sourceId = httpResourceSourceId(request, response, contentType.contentType, text);
-    if (contentType.kind === 'json') {
-        try {
-            return { ok: true, data: JSON.parse(text) as unknown, diagnostics: [], sourceId };
-        } catch (error) {
-            return {
-                ok: false,
-                data: null,
-                sourceId,
-                diagnostics: [
-                    resourceDiagnostic(
-                        'cem-element.http_request_parse_failed',
-                        `JSON response could not be parsed: ${error instanceof Error ? error.message : String(error)}`,
-                        tag,
-                        'error',
-                        httpSourceMapRef(sourceId),
-                    ),
-                ],
-            };
-        }
-    }
-    if (contentType.kind === 'xml') {
-        return parseXmlHttpResourceData(text, contentType.contentType, sourceId, tag);
-    }
-    return { ok: true, data: { text }, diagnostics: [], sourceId };
-}
-
-function recognizedContentType(
-    responseContentType: string | null,
-    expectedContentType: string | undefined,
-): { ok: true; kind: 'json' | 'xml' | 'text'; contentType: string } | { ok: false; message: string } {
-    const contentType = mediaType(responseContentType) ?? mediaType(expectedContentType);
-    if (!contentType) {
-        return { ok: false, message: 'http-request response did not provide a Content-Type' };
-    }
-    if (contentType === 'application/json' || contentType === 'text/json' || contentType.endsWith('+json')) {
-        return { ok: true, kind: 'json', contentType };
-    }
-    if (
-        contentType === 'application/xml' ||
-        contentType === 'text/xml' ||
-        contentType === 'application/xhtml+xml' ||
-        contentType.endsWith('+xml')
-    ) {
-        return { ok: true, kind: 'xml', contentType };
-    }
-    if (contentType === 'text/plain') {
-        return { ok: true, kind: 'text', contentType };
-    }
-    return { ok: false, message: `unsupported http-request content type \`${contentType}\`` };
-}
-
 function mediaType(contentType: string | null | undefined): string | null {
     const trimmed = contentType?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
     return trimmed.length > 0 ? trimmed : null;
 }
 
-function parseXmlHttpResourceData(
-    text: string,
-    contentType: string,
-    sourceId: CemHttpResourceSourceId,
-    tag: string,
-): { ok: boolean; data: unknown; diagnostics: CemElementDiagnostic[]; sourceId: CemHttpResourceSourceId } {
-    const parser = new DOMParser();
-    const parsed = parser.parseFromString(text, xmlDomParserContentType(contentType));
-    const parserError = parsed.getElementsByTagName('parsererror')[0];
-    if (parserError) {
-        return {
-            ok: false,
-            data: null,
-            sourceId,
-            diagnostics: [
-                resourceDiagnostic(
-                    'cem-element.http_request_parse_failed',
-                    normalizeTextContent(parserError.textContent ?? 'XML response could not be parsed'),
-                    tag,
-                    'error',
-                    httpSourceMapRef(sourceId),
-                ),
-            ],
-        };
+function resetUnretainedHttpEnvelopes(slices: Record<string, unknown>): void {
+    for (const [name, value] of Object.entries(slices)) {
+        if (isPlainRecord(value) && value.kind === 'http-request') {
+            // Ephemeral native owners cannot be restored from serialized metadata.
+            slices[name] = { ...value, state: 'scheduled', data: null };
+        }
     }
-    if (!parsed.documentElement) {
-        return {
-            ok: false,
-            data: null,
-            sourceId,
-            diagnostics: [
-                resourceDiagnostic(
-                    'cem-element.http_request_parse_failed',
-                    'XML response did not contain a document element',
-                    tag,
-                    'error',
-                    httpSourceMapRef(sourceId),
-                ),
-            ],
-        };
-    }
-    return { ok: true, data: xmlElementToRecord(parsed.documentElement), diagnostics: [], sourceId };
 }
 
-function xmlDomParserContentType(contentType: string): DOMParserSupportedType {
-    return contentType === 'application/xhtml+xml' ? 'application/xhtml+xml' : 'application/xml';
-}
-
-function xmlElementToRecord(element: Element): {
-    tag: string;
-    namespace: string | null;
-    attributes: Record<string, string>;
-    text: string;
-    children: ReturnType<typeof xmlElementToRecord>[];
-} {
-    const attributes: Record<string, string> = {};
-    for (const attribute of Array.from(element.attributes)) {
-        attributes[attribute.name] = attribute.value;
-    }
-    return {
-        tag: element.localName,
-        namespace: element.namespaceURI,
-        attributes,
-        text: normalizeTextContent(element.textContent ?? ''),
-        children: Array.from(element.children).map(xmlElementToRecord),
-    };
-}
-
-function normalizeTextContent(value: string): string {
-    return value
-        .split(/\s+/)
-        .filter((part) => part.length > 0)
-        .join(' ');
+// Transport-byte fingerprint only; no text decoding or document parsing.
+function hashResponseBytes(bytes: Uint8Array): string {
+    let hash = 2166136261;
+    for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619);
+    return `${bytes.byteLength}:${(hash >>> 0).toString(16)}`;
 }
 
 function httpResourceSourceId(
     request: CemHttpRequest,
     response: CemHttpResponseHead,
     contentType: string | null,
-    bodyText?: string,
+    bodyBytes?: Uint8Array,
 ): CemHttpResourceSourceId {
     const responseIdentityHash =
-        bodyText === undefined
+        bodyBytes === undefined
             ? undefined
             : edgeContentAddress('sanitized-snapshot', {
                   url: response.url,
                   status: response.status,
                   contentType,
-                  bodyText,
+                  bodyHash: hashResponseBytes(bodyBytes),
               }).digest;
     const id = edgeContentAddress('sanitized-snapshot', {
         authoredUrl: request.authoredUrl,

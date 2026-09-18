@@ -54,12 +54,12 @@ describe('npm versions demo source contracts', () => {
     });
 
     it('defines one shared source fragment with HTTP, selection, reflection, and slot behavior', () => {
-        expect(DEMO_SOURCE).toContain('<template id="npm-version" type="text/cem-ml">');
+        expect(DEMO_SOURCE).toContain('<template id="npm-version" type="text/cem-ml" xpath-functions="./http-data.cemt">');
         expect(DEMO_SOURCE).toContain('@url="./npm-versions.json"');
         expect(DEMO_SOURCE).toContain('@name=value');
         expect(DEMO_SOURCE).toContain('datadom.eventPayloads.selectedVersion');
         expect(DEMO_SOURCE).toContain('{slot @name=label |');
-        expect(DEMO_SOURCE).toContain("@test='version.version == initialversion'");
+        expect(DEMO_SOURCE).toContain("@test='releaseVersion == initialversion'");
         expect(DEMO_SOURCE).toContain("@test='showdate == \"true\"'");
         expect(DEMO_SOURCE).toContain('@src="#version={$datadom.slices.selectedVersion}"');
     });

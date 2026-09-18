@@ -214,6 +214,28 @@ yarn nx run cem-elements:verify
 yarn nx run @epa-wg/custom-element:verify
 ```
 
+## External data import boundary
+
+The normative rule is [docs/cem-data-import-principle.md](docs/cem-data-import-principle.md).
+All external document formats, including XML, JSON, YAML and CSV, resolve only
+at the CEM AST import boundary. Put format-specific parsing, semantic decoding,
+mapping and source retention in the shared `cem-ml` import layer. Downstream
+CEM-QL, XPath, transformations and rendering consume retained typed CEM trees;
+never add format-specific evaluation branches, parser-AST traversal or
+DOM/JSON-record substitutes. New formats extend import and the common test
+matrix. Explicit API/control serialization and requested exports are separate
+named boundaries, not a runtime AST handoff. The browser HTTP binding and CEM-QL lifecycle views use this shared import
+path. The standalone legacy HTTP companion is retired; its examples use the
+shared `cem-elements` loader. Do not reintroduce document-object bindings.
+
+The accepted loader plan is [docs/cem-data-loader-plan.md](docs/cem-data-loader-plan.md).
+The loader custom element uses `cem-ml` to load XML/JSON into a retained CEM-ML
+document/AST tree and exposes the request lifecycle modeled on legacy
+`http-request`. Loaded documents must not become JavaScript objects in code,
+samples, fixture adapters or worker messages; migrate those bindings to CEM
+trees. Deliver the materialized tree first. Progressive CEM-ML AST streaming is
+an accepted later phase recorded in the plan and docs/wishlist.md.
+
 ## CEM-ML presentation boundary
 
 Human-facing structural projections—AST, DOM, events, and every `inspect`

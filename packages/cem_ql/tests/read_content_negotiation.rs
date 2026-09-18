@@ -14,6 +14,7 @@ fn eval(source: &str) -> ItemStream {
         &query,
         &EvaluationContext {
             native_functions: Default::default(),
+            data_readers: Default::default(),
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),

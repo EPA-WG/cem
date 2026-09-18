@@ -16,6 +16,8 @@ vi.mock('./cem-ql-render.js', () => ({
         formatVersion: 'cem-template-artifact/1',
         diagnostics: [],
     })),
+    retainLoadedCemDocument: vi.fn(async () => 201),
+    disposeLoadedCemDocument: vi.fn(),
     disposeRetainedCemMlTemplate: vi.fn(() => true),
     processRetainedCemMlTemplate: vi.fn(async () => ({
         diagnostics: [],
@@ -31,7 +33,10 @@ vi.mock('./cem-ql-render.js', () => ({
     })),
 }));
 
+import { retainLoadedCemDocument, disposeLoadedCemDocument, processRetainedCemMlTemplate } from './cem-ql-render.js';
+import type { DataIslandSnapshot } from '../../cem-elements.js';
 import { createCemDeclarationScope } from '../../declaration-scope.js';
+import { CemProcessingEngine } from './processing-engine.js';
 import { cemProcessingHostForScope } from './processing-host-runtime.js';
 import {
     createCemProcessingReadyEnvelope,
@@ -205,6 +210,15 @@ class ControlledProcessingWorker {
         queueMicrotask(() => this.emit('message', response));
     }
 
+    respondDocument(): void {
+        const index = this.pending.findIndex((request) => request.operation === 'document');
+        const request = index >= 0 ? this.pending.splice(index, 1)[0] : undefined;
+        if (!request || request.operation !== 'document') throw new Error('expected document request');
+        queueMicrotask(() => this.emit('message', createCemProcessingSuccessEnvelope(request, {
+            handle: request.payload.handle, retained: request.payload.action === 'retain',
+        })));
+    }
+
     respondCancel(accepted: boolean): void {
         const index = this.pending.findIndex((request) => request.operation === 'cancel');
         const request = index >= 0 ? this.pending.splice(index, 1)[0] : undefined;
@@ -221,7 +235,7 @@ class ControlledProcessingWorker {
         this.terminated = true;
     }
 
-    private emit(type: string, data: CemProcessingResponseEnvelope | ReturnType<typeof createCemProcessingReadyEnvelope>): void {
+    protected emit(type: string, data: CemProcessingResponseEnvelope | ReturnType<typeof createCemProcessingReadyEnvelope>): void {
         for (const listener of this.listeners.get(type) ?? []) {
             listener({ data } as MessageEvent<unknown>);
         }
@@ -253,3 +267,91 @@ async function flushMicrotasks(): Promise<void> {
     await Promise.resolve();
     await Promise.resolve();
 }
+
+
+class DocumentFallbackWorker extends ControlledProcessingWorker {
+    private readonly engine = new CemProcessingEngine();
+    override terminate(): void { this.engine.dispose({}); super.terminate(); }
+    override postMessage(request: CemProcessingRequestEnvelope): void {
+        if (request.operation === 'render-diff') throw new Error('worker failed after document import');
+        if (request.operation === 'compile') {
+            this.requests.push(request);
+            void this.engine.compile(request.payload).then((result) =>
+                this.emit('message', createCemProcessingSuccessEnvelope(request, result)));
+            return;
+        }
+        super.postMessage(request);
+        if (request.operation === 'document') this.respondDocument();
+    }
+}
+
+it('replays retained response bytes through native import after worker loss and releases them', async () => {
+    const worker = new DocumentFallbackWorker();
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, {
+        workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker,
+    });
+    const { artifact } = await host.compile(compileInput('fixture')).result;
+    const handle = { documentKey: 'retained-response', instanceId: 'fixture', scopePolicyStamp: 'scope-policy-v1' };
+    const bytes = new TextEncoder().encode('{"qty":3}').buffer;
+    await host.document({ action: 'retain', handle, bytes, contentType: 'application/json', sourceUri: 'https://example.test/data' }).result;
+    vi.mocked(retainLoadedCemDocument).mockClear();
+    const revision = { instanceId: 'fixture', dataRevision: '1', templateArtifactId: 'fixture',
+        scopePolicyStamp: 'scope-policy-v1', outputTarget: 'light-dom' as const };
+    await host.renderDiff({ artifact, revision, data: {}, snapshot: { ...revision } as DataIslandSnapshot,
+        documents: [{ slice: 'response', handle }], scopeUid: 'scope-one' }).result;
+    expect(host.mode).toBe('main-thread');
+    expect(retainLoadedCemDocument).toHaveBeenCalledWith(bytes, 'application/json', 'https://example.test/data');
+    expect(processRetainedCemMlTemplate).toHaveBeenLastCalledWith(expect.any(Number), expect.objectContaining({
+        documents: [{ slice: 'response', documentId: 201 }],
+    }));
+    await host.document({ action: 'release', handle }).result;
+    expect(disposeLoadedCemDocument).toHaveBeenCalledWith(201);
+    await expect(host.renderDiff({ artifact, revision, data: {}, snapshot: { ...revision } as DataIslandSnapshot,
+        documents: [{ slice: 'response', handle }], scopeUid: 'scope-one' }).result).rejects.toThrow('missing the retained document bytes');
+    await host.dispose({ reason: 'scope-disposed' }).result;
+});
+
+it('releases a native import cancelled while the main-thread fallback is awaiting it', async () => {
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, {
+        workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => { throw new Error('worker unavailable'); },
+    });
+    let finish!: (id: number) => void;
+    vi.mocked(retainLoadedCemDocument).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const handle = { documentKey: 'cancelled-import', instanceId: 'fixture', scopePolicyStamp: 'scope-policy-v1' };
+    const job = host.document({ action: 'retain', handle, bytes: new TextEncoder().encode('<p/>').buffer,
+        contentType: 'application/xml', sourceUri: 'https://example.test/data' });
+    const rejected = expect(job.result).rejects.toThrow('cancelled');
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    await host.cancel({ targetJobId: job.jobId }).result;
+    finish(207);
+    await rejected;
+    expect(disposeLoadedCemDocument).toHaveBeenCalledWith(207);
+    await host.dispose({}).result;
+});
+
+it('releases only the disposed root documents when roots share one worker', async () => {
+    const worker = new DocumentFallbackWorker();
+    const document = {} as Document;
+    const firstRoot = createCemDeclarationScope({ document });
+    const secondRoot = createCemDeclarationScope({ document });
+    const options = { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker, poolPolicy: { workerCount: 1, maxWorkers: 1 } };
+    const first = cemProcessingHostForScope(firstRoot, options);
+    const second = cemProcessingHostForScope(secondRoot, options);
+    const firstHandle = { documentKey: 'first-root', instanceId: 'one', scopePolicyStamp: 'scope-policy-v1' };
+    const secondHandle = { ...firstHandle, documentKey: 'second-root' };
+    const source = { bytes: new TextEncoder().encode('<p/>').buffer,
+        contentType: 'application/xml', sourceUri: 'https://example.test/data' };
+    await first.document({ action: 'retain', handle: firstHandle, ...source }).result;
+    await second.document({ action: 'retain', handle: secondHandle, ...source }).result;
+    await first.dispose({ reason: 'scope-disposed' }).result;
+    expect(worker.terminated).toBe(false);
+    expect(worker.requests.filter((request) => request.operation === 'document' && request.payload.action === 'release')
+        .map((request) => request.payload)).toEqual([{ action: 'release', handle: firstHandle }]);
+    await second.dispose({ reason: 'scope-disposed' }).result;
+    expect(worker.terminated).toBe(true);
+});

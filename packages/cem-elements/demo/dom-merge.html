@@ -31,7 +31,13 @@
         </p>
         <p>Word count normalizes whitespace, splits on a space, removes empty
             fields, and counts the remaining words—including repeated words.</p>
+        <p>The XPath comparison uses <code>count(tokenize($text))</code> from
+            <a href="./xpath-text.cemt">a separate text-function library</a>.
+            XPath splits only on XML spaces, tabs, CR and LF; CEM-QL also
+            recognizes Unicode whitespace such as a non-breaking space.
+            Both character counters count Unicode codepoints, including emoji.</p>
         <h3>See also</h3>
+        <p><a href="./xpath-functions.html">Shared XPath function libraries</a></p>
         <p><a href="./data-slices.html">Slice declarations and event bindings</a></p>
         <p><a href="./functions/str.html">CEM-QL string functions</a></p>
     </section>
@@ -101,7 +107,28 @@
             }
         }
         {p | Current slice: {output | {$datadom.slices.text}}}
-}   }   }
+}   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element
+        legend="3. XPath word and character count"
+        description="XPath counts repeated words and Unicode codepoints on each edit; blank XML whitespace has no words, and the textarea keeps focus">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-text.cemt">
+{slice @name=text | 🍒 🍒 🍋}
+{article @class=demo-card |
+    {h2 | 3. XPath word and character count}
+    {label | Text
+        {textarea @slice=text @slice-event=input
+            @slice-value="$target.value" | {$datadom.slices.text}}}
+    {p | Character count:
+        {strong | {$native:call("text.length", datadom.slices.text)}}}
+    {p | Word count:
+        {strong | {$native:call("text.words", datadom.slices.text)}}}
+}
     </template>
 </cem-element>
         </template>

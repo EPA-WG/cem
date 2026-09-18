@@ -45,12 +45,35 @@ pub struct TemplateData {
     pub bindings: BTreeMap<String, ItemStream>,
     /// Host capabilities are not data bindings and never enter the data DOM.
     pub native_functions: crate::native::NativeFunctionRegistry,
+    /// Reuse this runtime-only cache across renders to retain XPath XML owners.
+    pub data_readers: crate::eval::DataReaderCache,
 }
 
 impl TemplateData {
     pub fn with_binding(mut self, name: impl Into<String>, value: ItemStream) -> Self {
         self.bindings.insert(name.into(), value);
         self
+    }
+
+    /// Explicit native binding channel for a loaded resource. JSON control data
+    /// cannot manufacture a document by imitating its shape or handle.
+    pub fn bind_cem_document(
+        &mut self,
+        slice: &str,
+        tree: std::sync::Arc<cem_ml::parser::tree::RetainedCemTree>,
+    ) -> Result<(), String> {
+        fn record(items: &mut [Item]) -> Option<&mut BTreeMap<String, Vec<Item>>> {
+            match items { [Item::Record(fields)] => Some(fields), _ => None }
+        }
+        let envelope = self.bindings.get_mut("datadom")
+            .and_then(|stream| record(&mut stream.items))
+            .and_then(|fields| fields.get_mut("slices"))
+            .and_then(|items| record(items))
+            .and_then(|fields| fields.get_mut(slice))
+            .and_then(|items| record(items))
+            .ok_or_else(|| format!("CEM document binding `{slice}` has no resource envelope."))?;
+        envelope.insert("data".into(), vec![crate::eval::imported_cem_tree(tree)]);
+        Ok(())
     }
 }
 
@@ -943,6 +966,7 @@ fn render_compiled_template_internal(
             current_item: None,
             module_resolution: None,
             native_functions: data.native_functions.clone(),
+            data_readers: data.data_readers.clone(),
         },
         diagnostics: artifact.diagnostics.clone(),
         templates,
@@ -2716,6 +2740,7 @@ impl PlanRenderer<'_> {
                         &TemplateData {
                             bindings: self.evaluation_context.policy_bindings.clone(),
                             native_functions: self.evaluation_context.native_functions.clone(),
+                            data_readers: self.evaluation_context.data_readers.clone(),
                         },
                         self.recovery_depth > 0,
                     );

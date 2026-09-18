@@ -1,0 +1,35 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@ns d = "cem:generic-data"
+@default t
+{module |
+    {function @name=http.rows @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="node()*" |
+            {expression |```
+/d:object/d:property[@name='results']/d:array/d:object | /catalog/*
+```}
+    }   }   }
+    {function @name=http.versions @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="node()*" |
+            {expression |```
+/d:object/d:property[@name='versions']/d:array/d:object
+```}
+    }   }   }
+    {function @name=http.field @visibility=public @returns=string |
+        {param @name=node @type=any @required=true}
+        {param @name=name @type=string @required=true}
+        {body | {xpath @context=node @sequence-type="xs:string" |
+            {variable @binding=name @local-name=name}
+            {expression |```
+string((d:property[@name=$name]/*, @*[local-name(.)=$name])[1])
+```}
+    }   }   }
+    {function @name=http.text @visibility=public @returns=string |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:string" |
+            {expression |```
+string(.)
+```}
+}   }   }   }

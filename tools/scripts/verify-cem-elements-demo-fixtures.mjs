@@ -26,6 +26,99 @@ class HtmlDemoElement extends HTMLElement {
 customElements.define('cem-demo-element', HtmlDemoElement);
 `;
 
+const xpathMapArraySamples = [
+    sampleContract('1. An IP-filter map with an optional note', [
+        normalizedText('article p:first-of-type output', 'allow: 192.0.2.0/24'),
+        normalizedText('article p:nth-of-type(2) output', 'Absent entry'),
+        selectThenText('article select[aria-label="Note entry"]', 'empty', 'article p:nth-of-type(2) output', 'Present, empty sequence'),
+        normalizedText('article p:nth-of-type(3) output', '3'),
+        selectThenText('article select[aria-label="Note entry"]', 'value', 'article p:nth-of-type(2) output', 'Local preview'),
+        fillThenText('article input', '198.51.100.0/24', 'article p:first-of-type output', 'allow: 198.51.100.0/24'),
+        selectThenText('article select[aria-label="Action"]', 'deny', 'article p:first-of-type output', 'deny: 198.51.100.0/24'),
+    ]),
+    sampleContract('2. Select a retained fruit by array position', [
+        normalizedText('article p:nth-of-type(2) output', 'apple: 2'),
+        fillThenText('article input', '2', 'article p:nth-of-type(2) output', 'pear: 3'),
+        fillThenText('article input', '0', 'article p:nth-of-type(2) output', 'No member at this position'),
+        fillThenText('article textarea', '<basket note="Fresh"><plum>4</plum></basket>', 'article p:nth-of-type(3) output', 'Note: Fresh'),
+        fillThenText('article input', '1', 'article p:nth-of-type(2) output', 'plum: 4'),
+        fillThenText('article textarea', '<other/>', 'article [role="alert"]', 'Use a basket root'),
+        fillThenText('article textarea', '<basket/>', 'article p:first-of-type output', '0'),
+        normalizedText('article p:nth-of-type(3) output', 'Empty member (array size 1)'),
+    ]),
+];
+
+xpathMapArraySamples.push(sampleContract('3. Query an imported JSON tree', [
+    normalizedText('article p:first-of-type output', '3 members; numeric total 5'),
+    normalizedText('article p:nth-of-type(2) output', 'Null value'),
+    fillThenText('article textarea', '{"cherry":4,"note":""}', 'article p:nth-of-type(2) output', 'Empty string'),
+    fillThenText('article textarea', '{"plum":1e2}', 'article p:first-of-type output', '1 members; numeric total 100'),
+    normalizedText('article p:nth-of-type(2) output', 'Absent member'),
+    fillThenText('article textarea', '[]', 'article [role="alert"]', 'Use a JSON object'),
+    fillThenText('article textarea', '{"note":null}', 'article p:nth-of-type(2) output', 'Null value'),
+]));
+
+const xpathAggregateSamples = [
+    sampleContract('1. Decimal sequence statistics', [
+        normalizedText('article p:first-of-type output', '0.3'),
+        normalizedText('article p:last-of-type output', '0.15'),
+        fillThenText('article textarea', '-2 1 4', 'article p:first-of-type output', '3'),
+        normalizedText('article p:nth-of-type(2) output', '-2'),
+        fillThenText('article textarea', 'bad', 'article [role="alert"]', 'Enter decimal'),
+        fillThenText('article textarea', '', 'article p:first-of-type output', '0'),
+        normalizedText('article p:last-of-type output', '∅'),
+    ]),
+    sampleContract('2. A basket that accepts new fruits', [
+        normalizedText('article p:first-of-type output', '3.75'),
+        fillThenText('article textarea', '<basket><apple>0.1</apple><cherry>0.2</cherry><pear>0.6</pear></basket>', 'article p:first-of-type output', '0.9'),
+        normalizedText('article tbody tr:last-child th', 'pear'),
+        normalizedText('article p:last-of-type output', '0.3'),
+        fillThenText('article textarea', '<basket><pear>bad</pear></basket>', 'article [role="alert"]', 'non-negative decimal'),
+        fillThenText('article textarea', '<basket/>', 'article p:first-of-type output', '0'),
+        normalizedText('article p:last-of-type output', '∅'),
+        countExactly('article tbody tr', 0),
+    ]),
+];
+
+const xpathSequenceSamples = [
+    sampleContract('1. A window into a word sequence', [
+        normalizedText('article p:nth-of-type(2) output', '3'),
+        normalizedText('article p:nth-of-type(3) output', 'apple | cherry'),
+        checkThenText('article input[type="checkbox"]', 'article p:nth-of-type(3) output', 'cherry | apple'),
+        fillThenText('article textarea', 'a b c d', 'article p:nth-of-type(3) output', 'c | b'),
+        normalizedText('article p:nth-of-type(4) output', 'c'),
+        normalizedText('article p:nth-of-type(5) output', 'b'),
+        fillThenText('article textarea', '', 'article p:nth-of-type(2) output', '0'),
+    ]),
+    sampleContract('2. First-seen XML columns', [
+        ...['@id', 'fruit', '@qty', 'note'].map((value, index) =>
+            normalizedText(`article th:nth-child(${index + 1})`, value)),
+        ...['2', 'Apple', '∅', '∅'].map((value, index) =>
+            normalizedText(`article tbody tr:first-child td:nth-child(${index + 1})`, value)),
+        normalizedText('article tbody tr:nth-child(2) td:last-child', '""'),
+        fillThenText('article textarea', '<r><row><fruit>A</fruit></row><row new="yes"><fruit>B</fruit></row></r>', 'article th:nth-child(2)', '@new'),
+        normalizedText('article th:first-child', 'fruit'),
+        normalizedText('article tbody tr:nth-child(2) td:last-child', 'yes'),
+        fillThenText('article textarea', '<r/>', 'article thead', ''),
+        countExactly('article th', 0),
+        countExactly('article td', 0),
+    ]),
+];
+
+const xpathNodeSamples = [
+    sampleContract('1. XML table with native navigation', [
+        normalizedText('tbody tr:first-child td:nth-child(3)', 'Apple'),
+        normalizedText('tbody tr:first-child small', 'urn:b'),
+        clickThenText('button[aria-label="Select row 1"]', 'output:last-child', 'Zest'),
+        fillThenText('textarea', '<basket><item id="1" qty="4">Cherry</item></basket>', 'tbody td:nth-child(3)', 'Cherry'),
+    ]),
+    sampleContract('2. XML tree with attributes and mixed text', [
+        normalizedText('article code', 'bright'),
+        normalizedText('article li:nth-child(2) > code', 'Hello & welcome'),
+        fillThenText('textarea', '<r>Recovered</r>', 'article code', 'Recovered'),
+    ]),
+];
+
 const localStorageSamples = [
     sampleContract('0. Read a live text value', [
         normalizedText('output', 'stored initial'),
@@ -121,6 +214,16 @@ function splitPartChecks(...values) {
     ];
 }
 
+const xpathWordSample = sampleContract('3. XPath word and character count', [
+    normalizedText('p:first-of-type strong', '5'),
+    normalizedText('p:nth-of-type(2) strong', '3'),
+    fillThenText('textarea', ' one\tone\n🍒  🍋 ', 'p:nth-of-type(2) strong', '4'),
+    fillThenText('textarea', '\t\n\u00a0\u2003', 'p:nth-of-type(2) strong', '1'),
+    fillThenText('textarea', '🍒e\u0301', 'p:first-of-type strong', '3'),
+    fillThenText('textarea', ' \t\n', 'p:nth-of-type(2) strong', '0'),
+    fillThenText('textarea', '', 'p:first-of-type strong', '0'),
+]);
+
 const stringMethodSamples = [
     sampleContract('str:split', [
         normalizedText('output', '4'),
@@ -168,6 +271,21 @@ const stringMethodSamples = [
         fillThenText('input[type="number"]', '1', 'output', '1'),
         normalizedText('output', '1'),
     ])),
+    sampleContract('XPath normalize-space', [
+        propertyEquals('output', 'textContent', '🍒 🍋'),
+        fillThenText('textarea', ' a\ta\n🍒  ', 'output', 'a a 🍒'),
+        fillThenText('textarea', ' a\u00a0\u2003b ', 'output', 'a b'),
+        propertyEquals('output', 'textContent', 'a\u00a0\u2003b'),
+        fillThenText('textarea', ' \t\n', 'output', ''),
+    ]),
+    sampleContract('XPath tokenize and string-join', [
+        propertyEquals('output', 'textContent', '🍒/🍒/🍋'),
+        fillThenText('textarea', 'a\ta\nb', 'output', 'a/a/b'),
+        fillThenText('input', '🍒', 'output', 'a🍒a🍒b'),
+        fillThenText('textarea', 'a\u00a0b', 'output', 'a b'),
+        propertyEquals('output', 'textContent', 'a\u00a0b'),
+        fillThenText('textarea', '', 'output', ''),
+    ]),
 ];
 
 const wordCountEdgeChecks = [
@@ -226,6 +344,10 @@ const dataTableSamples = [
         text('form output', 'deny'),
         countExactly('table[aria-label="notes"]', 0),
         countExactly('table[aria-label="visits"]', 1),
+    ]),
+    sampleContract('./data-table-view.cemt', [
+        attributeEquals(':scope', 'src', './data-table-view.cemt'),
+        attributeEquals(':scope', 'type', 'text/cem-ml'),
     ]),
 ];
 
@@ -477,6 +599,47 @@ const fixtureSpecs = [
         ],
     },
     {
+        path: '/packages/cem-elements/demo/xpath-maps-arrays.html',
+        checks: xpathMapArraySamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-aggregates.html',
+        checks: xpathAggregateSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-sequences.html',
+        checks: xpathSequenceSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-nodes.html',
+        checks: xpathNodeSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-functions.html',
+        checks: [
+            sampleContract('1. Named XPath function', [
+                normalizedText('output', 'Hello 🍒'),
+                fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
+                fillThenText('input', '', 'output', '🍒'),
+            ]),
+            sampleContract('2. Shared XPath predicate', [
+                normalizedText('output', 'cherry 🍒'),
+                fillThenText('input', 'lemon', 'output', 'Try cherry'),
+                fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
+            ]),
+            sampleContract('3. XML nodes and matching', [
+                normalizedText('li', 'Cherry : stocked'),
+                fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
+                fillThenText('textarea', '<r><item qty="3">Grape</item></r>', 'li', 'Grape : stocked'),
+            ]),
+        ].flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
+    {
         path: '/packages/cem-elements/demo/dom-merge.html',
         checks: [
             text('cem-demo-element[legend="1. Textarea word count"] h2', 'Textarea word count'),
@@ -501,6 +664,7 @@ const fixtureSpecs = [
                 '2',
             ),
             ...wordCountEdgeChecks,
+            ...xpathWordSample.checks.map((check) => scopeCheck(check, `cem-demo-element[legend="${xpathWordSample.legend}"]`)),
         ],
     },
     {
@@ -1380,6 +1544,42 @@ const sourceDocumentSpecs = [
         ],
     },
     {
+        path: '/packages/cem-elements/demo/xpath-nodes.html',
+        samples: xpathNodeSamples,
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-sequences.html',
+        samples: xpathSequenceSamples,
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-maps-arrays.html',
+        samples: xpathMapArraySamples,
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-aggregates.html',
+        samples: xpathAggregateSamples,
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-functions.html',
+        samples: [
+            sampleContract('1. Named XPath function', [
+                normalizedText('output', 'Hello 🍒'),
+                fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
+                fillThenText('input', '', 'output', '🍒'),
+            ]),
+            sampleContract('2. Shared XPath predicate', [
+                normalizedText('output', 'cherry 🍒'),
+                fillThenText('input', 'lemon', 'output', 'Try cherry'),
+                fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
+            ]),
+            sampleContract('3. XML nodes and matching', [
+                normalizedText('li', 'Cherry : stocked'),
+                fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
+                fillThenText('textarea', '<r><item qty="3">Grape</item></r>', 'li', 'Grape : stocked'),
+            ]),
+        ],
+    },
+    {
         path: '/packages/cem-elements/demo/dom-merge.html',
         checks: wordCountEdgeChecks,
         samples: [
@@ -1393,6 +1593,7 @@ const sourceDocumentSpecs = [
                 text('form > p:first-of-type strong', '9'),
                 text('form > p:nth-of-type(2) strong', '2'),
             ]),
+            xpathWordSample,
         ],
     },
     { path: '/packages/cem-elements/demo/embed-1.html', checks: [text('h4', 'embed-1.html'), text(':scope', '🖖')] },

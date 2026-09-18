@@ -272,23 +272,16 @@ External subtree selected by id:
 <cem-external-subtree-card>Loaded from an external subtree.</cem-external-subtree-card>
 ```
 
-HTTP response AST stream:
+HTTP document loading follows the accepted
+[loader plan](cem-data-loader-plan.md). A loader custom element delegates XML/JSON
+loading and import to the CEM-ML library. The resource's document binding retains
+a native CEM-ML document/AST tree; templates query its nodes through CEM-QL or a
+separately declared XPath function library. Migrate object-field samples such as
+`.data.results` instead of retaining a JavaScript record projection.
 
-```html
-<cem-element tag="pokemon-list">
-    <template type="text/cem-ml">
-        {http-request @slice=page @url="./pokemon.json" @method=GET @content-type="application/json"}
-        {cem:for-each @select="$datadom.slices.page.data.results" @as=pokemon |
-            {button @type=button | {$pokemon.name}}
-        }
-    </template>
-</cem-element>
-<pokemon-list></pokemon-list>
-```
-
-The `datadom.slices.page.data` path addresses the queryable projection exposed by the resource slot. It is a
-stream-derived CEM view over the AST stream/chunk contract, not a host JavaScript object, JSON serialization step, or
-fully materialized AST payload.
+The first delivery publishes a complete materialized tree through a native
+capability. Progressive CEM-ML AST stream consumption is a later phase. Neither
+phase passes a JavaScript document object or JSON-serialized AST between runtimes.
 
 ## Related Documents
 

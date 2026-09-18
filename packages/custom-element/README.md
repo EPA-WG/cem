@@ -7,7 +7,7 @@ Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 discussion. **NO-JS** The functionality of DCE and its data access does not require programming using JavaScript.
 
 It allows to define custom HTML tag with template filled from slots, attributes and data `slice` as of now from
-[local-storage][local-storage-demo],  [http-request][http-request-demo], [location][location-demo].
+[local-storage][local-storage-demo] and [location][location-demo].
 UI is re-rendered on each data slice change triggered by initialization or DOM event.
 
 [![git][github-image] GitHub][git-url]
@@ -21,6 +21,27 @@ UI is re-rendered on each data slice change triggered by initialization or DOM e
 [![Published on webcomponents.org][webcomponents-img]][webcomponents-url]
 
 
+
+## HTTP companion retirement
+
+The standalone `http-request.js` module and `HttpRequestElement` export are
+retired. Remove that script/import and migrate HTTP templates to `cem-elements`
+with `type="text/cem-ml"`. Declare `{http-request @slice=response @url="…"}` in
+the template; request lifecycle and metadata remain under `datadom.slices.response`.
+Its `.data` is a native CEM document during rendering. Query it through CEM-QL
+nodes or a separate `xpath-functions` library, replacing JavaScript paths such as
+`.data.items`. JavaScript snapshots contain metadata and `data: null`.
+
+The [HTTP examples](demo/http-request.html) and [version-picker examples](demo/npm-versions-demo.html)
+install the shared runtime and ship the required fixtures and function library.
+The reusable [version picker](demo/npm-versions.html#npm-version) uses `package`,
+`initialversion`, `showdate`, `value` and the `label` slot; migrate legacy
+`package-name` to `package`, `current-version` to `initialversion`, and
+`show-date` to `showdate`. The old `npm-version-to-url` fragment is replaced by
+the documented URL synchronization composition in the version-picker examples.
+The shared runtime is included in the package.
+See the [loader contract](../../docs/cem-data-loader-plan.md) for ownership,
+error/reload behavior and the later AST streaming phase.
 
 ## What is DCE?
 
@@ -179,7 +200,7 @@ allows to refer either external template or template within external library by 
 
 The compatibility adapter follows the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) through the
 [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md), covering `src="#id"`,
-`src="url"`, `src="url#id"`, and `http-request url` binding, module-map policy, security context, and expected
+`src="url"`, `src="url#id"`, module-map policy, security context, and expected
 content-type context passed to CEM-ML.
 
 See [demo](https://unpkg.com/@epa-wg/custom-element@0.0/demo/external-template.html) with various samples.

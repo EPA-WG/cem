@@ -1,5 +1,9 @@
 # `@epa-wg/custom-element` Migration Scope
 
+> HTTP update (2026-09-17): standalone `http-request.js` is retired and its
+> examples use `cem-elements`. Historical package inventories below preserve
+> their original snapshot. See the [current loader plan](cem-data-loader-plan.md).
+
 > Historical scope: this June 2026 branch sketch predates the discovery that the
 > snapshot-based adapter already exists on the active monorepo line. The accepted,
 > rehearsed history topology and package boundary are now defined by

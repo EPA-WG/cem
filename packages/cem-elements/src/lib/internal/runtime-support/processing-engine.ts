@@ -1,3 +1,4 @@
+import { CemXPathFunctionLibraries, type CemXPathFunctionLibraryLease } from './xpath-function-library.js';
 import {
     RENDER_ENGINE_VERSION,
     diffRenderPlansToPatchFrames,
@@ -10,6 +11,8 @@ import {
     type RenderPlanNode,
 } from '../../projection.js';
 import {
+    retainLoadedCemDocument,
+    disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
     cemMlTemplateArtifactPayloadKey,
     disposeRetainedCemMlTemplate,
@@ -25,6 +28,8 @@ import type {
     CemProcessingArtifactHandle,
     CemProcessingCompileInput,
     CemProcessingCompileResult,
+    CemProcessingDocumentInput,
+    CemProcessingDocumentResult,
     CemProcessingDiagnostic,
     CemProcessingDisposeInput,
     CemProcessingDisposeResult,
@@ -36,6 +41,7 @@ import type {
 import { CemProcessingLruCache } from './processing-cache.js';
 
 interface RetainedTemplateArtifact {
+    compilation: CachedTemplateCompilation;
     input: CemProcessingCompileInput;
     handle: CemProcessingArtifactHandle;
     diagnostics: CemProcessingDiagnostic[];
@@ -45,6 +51,7 @@ interface RetainedTemplateArtifact {
 }
 
 interface CachedTemplateCompilation {
+    xpathLibrary?: CemXPathFunctionLibraryLease;
     diagnostics: CemProcessingDiagnostic[];
     wasmArtifactId: number;
     compiledArtifact?: CemProcessingArtifactBinaryTransfer;
@@ -64,7 +71,10 @@ export class CemProcessingEngine {
     private readonly artifacts: CemProcessingLruCache<string, RetainedTemplateArtifact>;
     private readonly compiledArtifacts: CemProcessingLruCache<string, CachedTemplateCompilation>;
     private readonly renderPlans: CemProcessingLruCache<string, RenderPlan>;
-    private readonly wasmArtifactIds = new Set<number>();
+    private readonly compilations = new Map<CachedTemplateCompilation, number>();
+    private readonly xpathLibraries = new CemXPathFunctionLibraries();
+    private readonly documents = new Map<string, { input: Extract<CemProcessingDocumentInput, { action: 'retain' }>; id: number }>();
+    private readonly documentOperations = new Map<string, object>();
     private disposed = false;
 
     constructor(options: CemProcessingEngineOptions = {}) {
@@ -74,6 +84,42 @@ export class CemProcessingEngine {
         this.renderPlans = new CemProcessingLruCache(
             options.maxRenderPlanEntries ?? DEFAULT_RENDER_PLAN_CACHE_ENTRIES
         );
+    }
+
+    async document(input: CemProcessingDocumentInput): Promise<CemProcessingDocumentResult> {
+        this.assertActive();
+        const key = JSON.stringify(input.handle);
+        if (input.action === 'release') {
+            this.documentOperations.delete(key);
+            const retained = this.documents.get(key);
+            if (retained) disposeLoadedCemDocument(retained.id);
+            this.documents.delete(key);
+            return { handle: input.handle, retained: false };
+        }
+        const existing = this.documents.get(key);
+        if (existing) {
+            if (existing.input.contentType !== input.contentType || existing.input.sourceUri !== input.sourceUri
+                || !sameDocumentBytes(existing.input.bytes, input.bytes)) {
+                throw new Error('CEM document handle was reused with different source bytes or metadata');
+            }
+            return { handle: input.handle, retained: true };
+        }
+        const operation = {};
+        this.documentOperations.set(key, operation);
+        let id: number;
+        try {
+            id = await retainLoadedCemDocument(input.bytes, input.contentType, input.sourceUri);
+        } catch (error) {
+            if (this.documentOperations.get(key) === operation) this.documentOperations.delete(key);
+            throw error;
+        }
+        if (this.disposed || this.documentOperations.get(key) !== operation) {
+            disposeLoadedCemDocument(id);
+            throw new Error('CEM document import was superseded or released');
+        }
+        this.documentOperations.delete(key);
+        this.documents.set(key, { input, id });
+        return { handle: input.handle, retained: true };
     }
 
     async compile(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
@@ -100,6 +146,7 @@ export class CemProcessingEngine {
                 sourceMapMode: input.sourceMapMode,
                 hostBindings: [...new Set(input.hostBindings ?? [])].sort(),
                 moduleClosure: input.moduleClosure ?? null,
+                xpathFunctionLibrary: input.xpathFunctionLibrary ?? null,
             }).key,
             registrationIdentity: input.registrationIdentity,
             scopePolicyStamp: input.scopePolicyStamp,
@@ -107,13 +154,41 @@ export class CemProcessingEngine {
         };
         let compilation = this.compiledArtifacts.get(handle.cacheKey);
         if (!compilation) {
-            const loaded = await this.compileOrImportTemplate(input, source);
-            this.assertActive();
-            compilation = loaded;
-            this.wasmArtifactIds.add(loaded.wasmArtifactId);
-            this.compiledArtifacts.set(handle.cacheKey, compilation);
+            const xpathLibrary = input.xpathFunctionLibrary
+                ? await this.xpathLibraries.acquire(input.xpathFunctionLibrary) : undefined;
+            let loaded: CachedTemplateCompilation | undefined;
+            try {
+                this.assertActive();
+                loaded = await this.compileOrImportTemplate(input, source);
+                this.assertActive();
+                // A concurrent compile may have retained the same identity while
+                // this request awaited WASM. Reuse it and release the extra lease.
+                compilation = this.compiledArtifacts.get(handle.cacheKey);
+                if (compilation) {
+                    disposeRetainedCemMlTemplate(loaded.wasmArtifactId);
+                    xpathLibrary?.release();
+                } else {
+                    compilation = { ...loaded, xpathLibrary };
+                    this.compilations.set(compilation, 1);
+                    const evicted = this.compiledArtifacts.set(handle.cacheKey, compilation);
+                    if (evicted) this.releaseCompilation(evicted.value);
+                }
+            } catch (error) {
+                if (loaded) disposeRetainedCemMlTemplate(loaded.wasmArtifactId);
+                xpathLibrary?.release();
+                throw error;
+            }
         }
+        const concurrentlyRetained = this.artifacts.get(artifactKey);
+        if (concurrentlyRetained) {
+            if (!sameCompileIdentity(concurrentlyRetained.input, input)) {
+                throw new Error(`template artifact \`${input.templateArtifactId}\` was already retained with another identity`);
+            }
+            return compileResult(concurrentlyRetained);
+        }
+        this.compilations.set(compilation, (this.compilations.get(compilation) ?? 0) + 1);
         const artifact = {
+            compilation,
             input,
             handle,
             diagnostics: compilation.diagnostics,
@@ -121,7 +196,8 @@ export class CemProcessingEngine {
             compiledArtifact: compilation.compiledArtifact,
             stylesheets: compilation.stylesheets,
         };
-        this.artifacts.set(artifactKey, artifact);
+        const evicted = this.artifacts.set(artifactKey, artifact);
+        if (evicted) this.releaseCompilation(evicted.value.compilation);
         return compileResult(artifact);
     }
 
@@ -136,6 +212,15 @@ export class CemProcessingEngine {
         assertRenderRevision(input);
         const previous = retainedPreviousPlan(this.renderPlans, input.previousRenderPlan, input.artifact);
         const processed = await processRetainedCemMlTemplate(artifact.wasmArtifactId, {
+            xpathCompanionId: artifact.compilation.xpathLibrary?.companionId,
+            documents: (input.documents ?? []).map(({ slice, handle }) => {
+                if (handle.instanceId !== input.revision.instanceId || handle.scopePolicyStamp !== input.revision.scopePolicyStamp) {
+                    throw new Error('CEM document binding belongs to another instance or scope');
+                }
+                const document = this.documents.get(JSON.stringify(handle));
+                if (!document) throw new Error('CEM document is not retained by this processing host');
+                return { slice, documentId: document.id };
+            }),
             source: processingSourceText(artifact.input),
             data: input.data,
             payload: input.snapshot.payload,
@@ -187,15 +272,31 @@ export class CemProcessingEngine {
     }
 
     dispose(_input: CemProcessingDisposeInput): CemProcessingDisposeResult {
-        for (const artifactId of this.wasmArtifactIds) {
-            disposeRetainedCemMlTemplate(artifactId);
+        for (const document of this.documents.values()) disposeLoadedCemDocument(document.id);
+        this.documents.clear();
+        this.documentOperations.clear();
+        for (const compilation of this.compilations.keys()) {
+            disposeRetainedCemMlTemplate(compilation.wasmArtifactId);
+            compilation.xpathLibrary?.release();
         }
-        this.wasmArtifactIds.clear();
+        this.compilations.clear();
+        this.xpathLibraries.dispose();
         this.artifacts.clear();
         this.compiledArtifacts.clear();
         this.renderPlans.clear();
         this.disposed = true;
         return { disposed: true };
+    }
+
+    private releaseCompilation(compilation: CachedTemplateCompilation): void {
+        const references = (this.compilations.get(compilation) ?? 0) - 1;
+        if (references > 0) {
+            this.compilations.set(compilation, references);
+        } else {
+            this.compilations.delete(compilation);
+            disposeRetainedCemMlTemplate(compilation.wasmArtifactId);
+            compilation.xpathLibrary?.release();
+        }
     }
 
     private assertActive(): void {
@@ -306,6 +407,7 @@ function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessi
         && left.sourceMapMode === right.sourceMapMode
         && left.exportCompiledArtifact === right.exportCompiledArtifact
         && JSON.stringify(left.moduleClosure ?? null) === JSON.stringify(right.moduleClosure ?? null)
+        && JSON.stringify(left.xpathFunctionLibrary ?? null) === JSON.stringify(right.xpathFunctionLibrary ?? null)
         && sameStrings(left.hostBindings ?? [], right.hostBindings ?? [])
         && processingSourceText(left) === processingSourceText(right)
         && left.sourceRef.kind === right.sourceRef.kind
@@ -583,4 +685,9 @@ function assertRenderRevision(input: CemProcessingRenderDiffInput): void {
     ) {
         throw new Error('the CEM processing render revision does not match its snapshot and artifact');
     }
+}
+
+function sameDocumentBytes(left: ArrayBuffer, right: ArrayBuffer): boolean {
+    const a = new Uint8Array(left), b = new Uint8Array(right);
+    return a.length === b.length && a.every((byte, index) => byte === b[index]);
 }

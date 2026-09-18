@@ -346,7 +346,9 @@ pub(crate) fn apply_stdlib_call(
                     .and_then(item_string)
                     .unwrap_or_else(|| default.to_owned())
             };
-            let result = super::data::read(&input, &argument(1, ""), &argument(2, "cem"));
+            let result = ctx
+                .data_readers
+                .read(&input, &argument(1, ""), &argument(2, "cem"));
             if let Err(error) = ctx.force_safe_point(source) {
                 return error;
             }

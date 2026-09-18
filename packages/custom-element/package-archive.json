@@ -9,7 +9,6 @@
         "datasource.md",
         "demo",
         "docs",
-        "http-request.js",
         "ide",
         "index.html",
         "index.js",
@@ -28,7 +27,6 @@
         "datasource.md",
         "demo",
         "docs",
-        "http-request.js",
         "ide",
         "index.html",
         "index.js",
@@ -40,14 +38,13 @@
         "vendor"
     ],
     "archive": {
-        "fileCount": 143,
-        "pathDigestSha256": "46d67f2471ca803a70f132c7807e3286ea6a83e98b278ae4e76487d42b71f43a",
+        "fileCount": 167,
+        "pathDigestSha256": "798516a0388b7fb7e3774c124028736568bd79327389c2c69289c1012b268829",
         "requiredFiles": [
             "LICENSE",
             "README.md",
             "custom-element.d.ts",
             "custom-element.js",
-            "http-request.js",
             "ide/web-types-dce.json",
             "ide/web-types-xsl.json",
             "index.js",
@@ -63,7 +60,17 @@
             "vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js",
             "vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
             "vendor/@epa-wg/cem_ql/dist/wasm/cem_ql.js",
-            "vendor/@epa-wg/cem_ql/dist/wasm/cem_ql_bg.wasm"
+            "vendor/@epa-wg/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "demo/http-request.html",
+            "demo/http-data.cemt",
+            "demo/http-data.json",
+            "demo/http-data-compact.json",
+            "demo/http-data-invalid.json",
+            "demo/http-pokemon.json",
+            "demo/npm-versions-demo.html",
+            "demo/npm-versions.html",
+            "demo/npm-versions.json",
+            "demo/cem-loader-demo.css"
         ]
     }
 }

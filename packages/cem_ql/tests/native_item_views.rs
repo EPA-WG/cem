@@ -141,6 +141,7 @@ fn native_item_view_projects_fields_members_atoms_identity_and_source_maps() {
         &query,
         &EvaluationContext {
             native_functions: Default::default(),
+            data_readers: Default::default(),
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root(),
             diagnostics: Vec::new(),
@@ -191,6 +192,7 @@ fn evaluator_polls_host_cancellation_after_native_view_work() {
         &query,
         &EvaluationContext {
             native_functions: Default::default(),
+            data_readers: Default::default(),
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root(),
             diagnostics: Vec::new(),

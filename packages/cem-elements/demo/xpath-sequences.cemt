@@ -1,0 +1,100 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module |
+    {function @name=sequence.window @visibility=public @returns=any |
+        {param @name=text @type=string @required=true}
+        {param @name=start @type=string @required=true}
+        {param @name=length @type=string @required=true}
+        {param @name=descending @type=boolean @required=true}
+        {body | {xpath @sequence-type="xs:string*" |
+            {variable @binding=text @local-name=text}
+            {variable @binding=start @local-name=start}
+            {variable @binding=length @local-name=length}
+            {variable @binding=descending @local-name=descending}
+            {expression |
+                let $items := subsequence(tokenize($text), xs:double($start), xs:double($length)) return if ($descending) then reverse($items) else $items
+            }
+    }   }   }
+    {function @name=sequence.valid @visibility=public @returns=boolean |
+        {param @name=start @type=string @required=true}
+        {param @name=length @type=string @required=true}
+        {body | {xpath @sequence-type="xs:boolean" |
+            {variable @binding=start @local-name=start}
+            {variable @binding=length @local-name=length}
+            {expression |
+                $start castable as xs:double and $length castable as xs:double
+            }
+    }   }   }
+    {function @name=sequence.unique @visibility=public @returns=integer |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:integer" |
+            {variable @binding=text @local-name=text}
+            {expression |
+                count(distinct-values(tokenize($text)))
+            }
+    }   }   }
+    {function @name=sequence.head @visibility=public @returns=string |
+        {param @name=items @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=items @local-name=items}
+            {expression |
+                string(head($items))
+            }
+    }   }   }
+    {function @name=sequence.tail @visibility=public @returns=string |
+        {param @name=items @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=items @local-name=items}
+            {expression |
+                string-join(tail($items), ' | ')
+            }
+    }   }   }
+    {function @name=table.rows @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="node()*" |
+            {expression |
+                child::*/child::*
+            }
+    }   }   }
+    {function @name=table.columns @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="node()*" |
+            {expression |
+                let $cells := (for $row in child::*/child::* return ($row/@*, $row/child::*))
+                return for $i in 1 to count($cells)
+                return let $cell := $cells[$i]
+                return if (some $earlier in subsequence($cells, 1, $i - 1) satisfies
+                    (local-name($earlier) = local-name($cell)
+                     and namespace-uri($earlier) = namespace-uri($cell)
+                     and exists($earlier/self::attribute()) = exists($cell/self::attribute())))
+                then () else $cell
+            }
+    }   }   }
+    {function @name=table.heading @visibility=public @returns=string |
+        {param @name=column @type=any @required=true}
+        {body | {xpath @context=column @sequence-type="xs:string" |
+            {expression |
+                (if (self::attribute()) then '@' else '') || local-name() || (if (namespace-uri() = '') then '' else ' [' || namespace-uri() || ']')
+            }
+    }   }   }
+    {function @name=table.cells @visibility=public @returns=any |
+        {param @name=row @type=any @required=true}
+        {param @name=column @type=any @required=true}
+        {body | {xpath @context=row @sequence-type="node()*" |
+            {variable @binding=column @local-name=column}
+            {expression |
+                (@*, *)[local-name() = local-name($column)
+                    and namespace-uri() = namespace-uri($column)
+                    and exists(self::attribute()) = exists($column/self::attribute())]
+            }
+    }   }   }
+    {function @name=table.value @visibility=public @returns=string |
+        {param @name=cells @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=cells @local-name=cells}
+            {expression |
+                if (empty($cells)) then '∅' else if (string-join(data($cells), ' / ') = '') then '""' else string-join(data($cells), ' / ')
+            }
+    }   }   }
+}

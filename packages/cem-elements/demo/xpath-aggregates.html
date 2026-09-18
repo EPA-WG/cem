@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XPath numeric aggregates</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>XPath numeric aggregates</h1></nav>
+<main>
+    <section>
+        <h2>Calculate over every value</h2>
+        <p>The <a href="./xpath-aggregates.cemt">separate XPath library</a> computes
+            <code>sum</code>, <code>min</code>, <code>max</code> and <code>avg</code>
+            over a sequence. Edit the decimal list or add a fruit element to the
+            XML basket: every value contributes without a new field expression.</p>
+        <p>These examples validate values and cast explicitly to <code>xs:decimal</code>,
+            so 0.1 + 0.2 is exactly 0.3. Invalid values display an error instead of
+            silently becoming zero. Blank lists and empty baskets have sum 0;
+            their minimum, maximum and average are absent, shown as ∅.</p>
+        <p>Terminating decimal averages remain exact; repeating averages use
+            18 significant digits with half-even rounding. The native aggregate
+            slice also supports integers, floats and doubles; untyped XML values
+            convert to double unless explicitly cast. Nonnumeric minimum/maximum
+            and duration aggregates remain unsupported. Shared XPath item, text
+            and work limits apply; the XML reader allows 32 KiB, 64 levels and
+            4096 events.</p>
+        <h3>See also</h3>
+        <p><a href="./xpath-maps-arrays.html">XPath maps and arrays</a> ·
+            <a href="./xpath-sequences.html">XPath sequences and columns</a> ·
+            <a href="./xpath-nodes.html">XPath XML tables and trees</a> ·
+            <a href="./data-table.html">Multi-format data tables</a></p>
+    </section>
+    <cem-demo-element legend="1. Decimal sequence statistics"
+        description="Enter XML-whitespace-separated decimals, including negative values; all four statistics update together">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-aggregates.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 4rem; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=text | 0.1 0.2}
+{article @class=demo-card |
+    {label | Decimal values
+        {textarea @slice=text @slice-event=input @slice-value="$target.value"
+            | {$datadom.slices.text}}}
+    {cem:choose |
+        {cem:when @test='native:call("numbers.valid", datadom.slices.text)' |
+            {cem:variable @name=values @select='native:call("numbers.values", datadom.slices.text)'}
+            {p | Sum: {output | {$native:call("aggregate.sum", values)}}}
+            {p | Minimum: {output | {$native:call("aggregate.min", values)}}}
+            {p | Maximum: {output | {$native:call("aggregate.max", values)}}}
+            {p | Average: {output | {$native:call("aggregate.avg", values)}}}}
+        {cem:otherwise | {p @role=alert | Enter decimal values separated by spaces, tabs or line breaks.}}
+}   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. A basket that accepts new fruits"
+        description="Each child element names a fruit and contains its non-negative decimal amount; add another element to include it in the table and totals">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-aggregates.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 5rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: .3rem; border-bottom: 1px solid #888; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=source | &lt;basket&gt;&lt;apple&gt;1.25&lt;/apple&gt;&lt;cherry&gt;2.5&lt;/cherry&gt;&lt;/basket&gt;}
+{cem-data @name=document @select=datadom.slices.source @type=xml @projection=xpath}
+{article @class=demo-card |
+    {label | XML basket
+        {textarea @spellcheck=false @slice=source @slice-event=input
+            @slice-value="$target.value" | {$datadom.slices.source}}}
+    {cem:choose |
+        {cem:when @test='document.error != ""' | {p @role=alert | {$document.error}}}
+        {cem:when @test='native:call("basket.valid", document.root)' |
+            {cem:variable @name=values @select='native:call("basket.values", document.root)'}
+            {table |
+                {caption | Fruit amounts}
+                {thead | {tr | {th @scope=col | Fruit}{th @scope=col | Amount}}}
+                {tbody |
+                    {cem:for-each @as=fruit @select='native:call("basket.rows", document.root)' |
+                        {tr | {th @scope=row | {$native:call("basket.name", fruit)}}
+                            {td | {$native:call("basket.amount", fruit)}}}
+            }   }   }
+            {p | Total: {output | {$native:call("aggregate.sum", values)}}}
+            {p | Minimum: {output | {$native:call("aggregate.min", values)}}}
+            {p | Maximum: {output | {$native:call("aggregate.max", values)}}}
+            {p | Average: {output | {$native:call("aggregate.avg", values)}}}}
+        {cem:otherwise | {p @role=alert | Use a basket root with a non-negative decimal amount in each fruit element.}}
+}   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

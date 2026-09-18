@@ -1,5 +1,8 @@
 # `@epa-wg/custom-element` Companion Modules And Resource Primitives
 
+Updated 2026-09-17: standalone HTTP is retired under the accepted
+[CEM loader plan](cem-data-loader-plan.md).
+
 This records the Phase 3.6 policy for the browser modules that ship with
 `@epa-wg/custom-element` beside `custom-element.js`.
 
@@ -12,28 +15,27 @@ bridge policy in
 
 ## Decision
 
-Preserve the published companion module files and import-time custom-element
-registrations for the next major, but do not treat every companion element as a
-substrate render primitive.
+Preserve the remaining companion module files and registrations. HTTP is the
+explicit exception: remove its standalone module and root export, and migrate
+consumers to the `cem-elements` CEM document loader.
 
-Only `module-url` is in the first substrate-backed resource path. The other
-companion modules remain documented browser shims until a resource primitive is
-designed with host policy, privacy/export behavior, and fixtures.
+The HTTP resource primitive now has host policy, lifecycle, native import, owner
+retention and executable fixtures. Remaining standalone companion shims keep
+their existing compatibility contracts.
 
 ## Module Policy
 
 | Module | Next-major status | Runtime policy |
 | --- | --- | --- |
 | `module-url.js` | Keep as shipped browser file and side-effect registration. | Substrate-backed when rendered inside declarations: inert `<module-url slice src>` helpers are removed from light-DOM output, resolved through `CemElementRuntimeOptions.resolveModuleUrl`, and exposed under `datadom.slices.<slice>`. The standalone `module-url` custom element remains a compatibility shim. |
-| `http-request.js` | Keep as published companion shim. | Do not make implicit HTTP resource slices part of the adapter bridge. Templates that need it during migration must use explicit slice wiring, for example `slice-event="change"` and a `slice-value` that reads the element's `value`. The future substrate primitive is designed in [`cem-elements-http-request-design.md`](./cem-elements-http-request-design.md) and must own fetch policy, aborts, cache identity, CORS, privacy/export rules, and response serialization. |
+| `http-request.js` | Retired. | Remove standalone imports and `HttpRequestElement`. Migrate templates/examples to `cem-elements` with CEM-ML declarations and explicit XPath libraries. HTTP response bytes become retained CEM nodes; JavaScript snapshots contain metadata with `data: null`. See the [loader contract](cem-data-loader-plan.md). |
 | `local-storage.js` | Keep as published companion shim. | Do not promote the current global `localStorage` monkeypatch into the render substrate. Migration templates may wire the element's `change` event explicitly. A future primitive must define same-tab/cross-tab update policy, value coercion, storage-denied behavior, and edge/SSR non-availability diagnostics. |
 | `location-element.js` | Keep as published companion shim. | Do not promote the current `history`/`location` monkeypatch into the render substrate. Migration templates may wire the element's `change` event explicitly. A future primitive must define host-window policy, navigation mutation permissions, live update sources, and non-browser behavior. |
 | Demo-only resource helpers | Migrate or drop per fixture need. | Demo resources are examples, not package API. Keep only those needed for package-local verification or migration documentation. |
 
-`index.js` should keep the published re-export shape from the baseline:
+`index.js` keeps the following re-exports after HTTP retirement:
 
 - re-export `custom-element.js`;
-- re-export `http-request.js`;
 - re-export `local-storage.js`;
 - re-export `location-element.js`;
 - do not add `module-url.js` to the root barrel unless the publish-readiness pass
@@ -43,7 +45,6 @@ designed with host policy, privacy/export behavior, and fixtures.
 
 The next-major package should preserve side-effect definitions:
 
-- importing `http-request.js` defines `http-request`;
 - importing `local-storage.js` defines `local-storage`;
 - importing `location-element.js` defines `location-element`;
 - importing `module-url.js` defines `module-url`.
@@ -76,7 +77,7 @@ answered in docs and fixtures:
 
 - `module-url` templates should prefer the substrate resource form already covered
   by material parity fixtures.
-- Existing `http-request`, `local-storage`, and `location-element` demos should be
+- Existing `local-storage` and `location-element` demos should be
   rewritten as migration examples with explicit slice-event wiring before they are
   used as package-local adapter fixtures.
 - Legacy demos that depend on XSLT `for-each`, broad XPath, or implicit
@@ -91,9 +92,9 @@ answered in docs and fixtures:
   each companion file.
 - Add one `module-url` adapter fixture that proves rendered helpers use
   `resolveModuleUrl` and do not remain in output.
-- Add explicit-event migration fixtures for `http-request`, `local-storage`, and
+- Add explicit-event migration fixtures for `local-storage` and
   `location-element` only after the adapter fixture harness exists.
 - Add diagnostics for unsupported implicit resource-slice patterns if legacy demos
   are loaded through the next-major adapter.
-- Revisit root-barrel exports during publish readiness; preserve the baseline by
-  default.
+- Keep the HTTP retirement guard and migrated source/dist/packed examples in the
+  package verification gate.

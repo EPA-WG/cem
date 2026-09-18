@@ -31,9 +31,9 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
             '@slice=catalog',
             '@url="./http-pokemon.json"',
             'Pokemon buttons from API',
-            'datadom.slices.catalog.data.results',
-            '@aria-label="{$item.name}"',
-            '@src="{$spriteUrl}/{$item.id}.svg"',
+            'native:call("http.rows", datadom.slices.catalog.data)',
+            'native:call("http.field", item, "name")',
+            'native:call("http.field", item, "id")',
         ],
     },
     {
@@ -87,27 +87,9 @@ describe('http-request demo source contracts', () => {
         }
     });
 
-    it('keeps the Pokémon and compact responses in explicit local fixtures', () => {
-        const pokemon = JSON.parse(readFileSync(
-            fileURLToPath(new URL('../../demo/http-pokemon.json', import.meta.url)),
-            'utf8'
-        )) as { results: Array<{ id?: number; name?: string }> };
-        const compact = JSON.parse(readFileSync(
-            fileURLToPath(new URL('../../demo/http-data-compact.json', import.meta.url)),
-            'utf8'
-        )) as { results: Array<{ name?: string; status?: string }> };
-
-        expect(pokemon.results.map(({ name }) => name)).toEqual([
-            'bulbasaur',
-            'ivysaur',
-            'venusaur',
-            'charmander',
-            'charmeleon',
-            'charizard',
-        ]);
-        expect(pokemon.results.map(({ id }) => id)).toEqual([1, 2, 3, 4, 5, 6]);
-        expect(compact.results).toEqual([
-            expect.objectContaining({ name: 'solo', status: 'compact' }),
-        ]);
+    it('keeps external fixture bodies as source text, consumed by the native loader', () => {
+        expect(DEMO_SOURCE).toContain('xpath-functions="./http-data.cemt"');
+        expect(DEMO_SOURCE).not.toContain('.data.results');
+        expect(DEMO_SOURCE).not.toContain('JSON.parse');
     });
 });

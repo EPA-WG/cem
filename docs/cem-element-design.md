@@ -777,7 +777,7 @@ pointer-only record would duplicate large values and discard their reusable iden
 #### Phase 3.5 external host envelope decision
 
 Edge and SSR hosts use a host-only profile of the existing
-`cem-processing-host-v1` structured-clone envelope. The profile reuses its positive,
+`cem-processing-host-v2` structured-clone envelope. The profile reuses its positive,
 monotonic host-assigned `jobId`, request/response correlation, diagnostics, and terminal
 failure lifecycle. It does not add Edge/SSR operations to the browser worker's advertised
 capabilities. Edge/SSR endpoints accept exactly `render-initial` and `render-update` and
@@ -1119,9 +1119,15 @@ MUST share the same observable behavior.
 The package-private Phase 3A host contract lives in
 `packages/cem-elements/src/lib/internal/runtime-support/processing-host.ts`. It is
 not exported from the package entry point. The worker primary and main-thread WASM
-fallback implement the same `compile`, `renderDiff`, `cancel`, and `dispose`
+fallback implement the same `document`, `compile`, `renderDiff`, `cancel`, and `dispose`
 interface, and both return the same artifact handles, render-plan handles,
 diagnostics, revisions, and patch frames.
+
+The `cem-processing-host-v2` document operation imports raw response bytes through
+CEM-ML and retains a native tree under an instance/scope-bound handle. Render
+requests name these bindings separately from serializable lifecycle metadata.
+Fallback re-imports retained bytes; replacement, disconnect and root disposal
+release owners. Imported documents never become JavaScript records.
 
 One processing host is owned by each logical **root** `CemDeclarationScope`. An
 explicit child scope resolves its nearest declarations as specified in §3, but shares
@@ -1168,7 +1174,7 @@ cancel, fallback, and overflow decisions. Events carry only a monotonic sequence
 logical owner, policy stamp, worker slot, job ID, and operation—never wall-clock time.
 Observer failures are ignored and cannot perturb scheduling or rendering.
 
-Every control message uses the `cem-processing-host-v1` structured-clone envelope.
+Every control message uses the `cem-processing-host-v2` structured-clone envelope.
 Requests carry a positive, monotonically increasing, host-assigned `jobId`; responses
 echo that ID. The ID is correlation and duplicate-suppression state, not render order.
 A retry always receives a new job ID. Render requests and successful responses carry

@@ -1,6 +1,6 @@
 # XPath Schema Package
 
-Status: package, lossless XPath 3.1 syntax, lifecycle loading, and typed evaluation contracts
+Status: package, lossless XPath 3.1 syntax, lifecycle loading, typed evaluation contracts, and portable compiled programs
 
 This package owns standalone and embedded XPath expression syntax. Host
 languages declare expression slots and static context, then associate the
@@ -11,8 +11,10 @@ an XSLT, XML, CEMT, or CEM-QL transformation stream.
 ## Owned Identities
 
 - Schema URI: `https://cem.dev/ns/query/xpath/1`
+- Namespace prefix: `xpath`
 - Primary content type: `application/vnd.cem.xpath`
 - Interoperability alias: `text/xpath`
+- Compiled program content type: `application/vnd.cem.xpath-artifact+cem-bin`
 - Result artifact content type: `application/vnd.cem.xpath-result+json`
 - Preferred extension: `.xpath`
 - Syntax baseline: [XPath 3.1](https://www.w3.org/TR/xpath-31/)
@@ -113,6 +115,56 @@ context. Their single parse views the generic XML AST's decoded
 scalar-to-source map, so entity-decoded tokens and diagnostics retain original
 XML coordinates without a serializer, replacement tree, or range rewrite.
 
+## Compiled Programs
+
+XPath owns its executable artifact independently of CEM-QL and XSLT. The
+`validation::xpath::artifact` API compiles an already parsed
+`XPathExpressionAst` to `XPathCompiledArtifact`, checks externally supplied
+content hashes when loading bytes, and reloads the typed program against an
+expected owning-source hash and invocation host. For an embedded expression,
+the source hash identifies the original host stylesheet bytes, not a
+reconstructed attribute string. The expected hashes must come from trusted
+compiler output or a manifest; a digest checks integrity, not publisher
+authenticity.
+
+The binary format is `cem-xpath-artifact/1`, with typed program format
+`cem-xpath-program-v2`. The v2 program retains typed lookup keys and unary
+lookups; earlier v1 programs are rejected and must be recompiled. Its envelope identifies the XPath schema, content type,
+grammar/compiler versions and source hash. It preserves typed syntax, source
+ranges, namespace/static context and host attachment. Reload derives syntax
+events without retaining or reparsing source text/tokens. The private codec
+does not add serialization dependencies to the public source syntax model.
+Runtime data ASTs, result sequences, callbacks and dynamic bindings are never
+encoded. Round-tripping a syntax construct does not make an unfinished XPath
+evaluation slice executable.
+
+The explicit WASM control-plane entry points are:
+
+- `compileXPathArtifact(source, sourceUri)`: returns standalone XPath artifact
+  bytes.
+- `importXPathArtifact(bytes, expectedContentHash, expectedSourceHash,
+  invocationHost)`: validates and retains a program, returning JSON handle and
+  identity metadata, not a serialized expression or data AST.
+- `disposeXPathArtifact(artifactId)`: releases the registry's program owner;
+  unknown or disposed handles return false and handles are never reused.
+
+Invocation hosts are `query`, `standalone-transform`, `xslt`, `cemt` and
+`cem-ql`; they must match the program's source attachment. An arbitrary XML
+association does not imply a language host and is rejected for executable
+reload. Rust host integration may retain the typed program through
+`api::wasm::retained_xpath_artifact`.
+Importing a program does not register a callback or enable a CEMT capability.
+Ordinary JSON data cannot install capabilities. An XSLT-owned bundle and its
+explicit host bindings remain separate, incomplete work.
+
+The registered binary content type is consumed through these explicit artifact
+APIs, not automatically through the source/lifecycle importer. Existing XPath
+source identities, default importers and generic CEMT artifacts are unchanged.
+Artifacts are limited to 2 MiB, 128 codec nesting levels, 65,536 encoded/decoded
+values and 4,096 entries per collection. WASM retains at most 64 programs and
+accounts for at most 16 MiB of their encoded sizes. Invalid tags, lengths,
+UTF-8, source-range arithmetic, identities and trailing bytes fail closed.
+
 ## Transformation Boundary
 
 XPath is a transformation language peer to CEM-QL, CEMT, and XSLT. The package
@@ -169,6 +221,17 @@ original source map. A set result that would span owners is rejected until that
 same stable multi-document order exists; cross-owner intersection or difference
 still succeeds when its result is empty or belongs to one owner. The optional,
 deprecated namespace axis remains an explicit host-language omission.
+
+Native unary `+`/`-` and binary `+`, `-`, `*`, `div`, `idiv`, and `mod`
+execute for the supported numeric types, with direct atomization, untyped
+conversion, numeric promotion, empty-operand propagation and typed errors.
+Integer/decimal operations use the exact coefficient/scale kernel; decimal
+division uses its fixed precision policy. Integer `to` ranges also execute,
+including empty/reversed bounds, and require an explicit `xpathItems` limit
+before materialization. String concatenation `||` executes with the shared
+atomization, conversion and text/work limits. These are native evaluation
+capabilities, not merely parsed or serialized AST forms.
+
 Typed simple-map expressions execute each mapping path once per item from the
 previous stage with that stage's item, position, and size focus. Stage results
 are concatenated left to right without the node-only checks, identity
@@ -188,8 +251,147 @@ and `fn:false()` as focus-independent typed constants with full-call source
 maps. Named arrow expressions execute through the dispatcher after canonical
 lowering, including left-to-right chains and normal operator precedence; an
 arrow into a zero-argument constant fails arity resolution before its inserted
-operand runs. Dynamic arrow specifiers retain their typed postfix-call shape but
-remain fail-closed until native function items are executable.
+operand runs. Dynamic arrow specifiers use the typed postfix-call path: maps and arrays
+accept one key argument, while general function-item calls remain unsupported.
+
+The existing accessor/numeric dispatcher also executes these signatures:
+
+| Functions | Arities | Native scope |
+| --- | --- | --- |
+| `fn:string`, `fn:data`, `fn:number` | 0, 1 | Context/default arguments, retained-node access and the supported atomic conversions |
+| `fn:abs`, `fn:ceiling`, `fn:floor` | 1 | Optional numeric arguments with typed results |
+| `fn:round`, `fn:round-half-to-even` | 1, 2 | Numeric rounding with optional integer precision |
+| `fn:format-integer`, `fn:format-number` | 2, 3 | Existing CEM numbering policy and typed static-context decimal formats |
+
+Their native regression coverage does not imply a browser demo for every
+signature or every formatting policy. Demo coverage is recorded per slice in
+`docs/todo.md`; compiled artifact support and host bindings are documented
+separately below. Other atomic families and broader standard-library/QT3
+coverage remain incomplete.
+
+The non-regex text slice implements `fn:normalize-space` and `fn:string-length`
+with zero or one argument, `fn:string-join` with one or two arguments, and
+one-argument `fn:tokenize`. Normalization/tokenization recognize only XML
+whitespace (space, tab, CR, LF); non-breaking and other Unicode spaces remain
+text. Length counts Unicode codepoints. Joining preserves order, duplicates,
+and empty members, atomizes native nodes, and uses canonical supported atomic
+string conversions. Optional empty input yields an empty string, zero length,
+or no tokens; zero-argument calls use the context item's string value.
+Incorrect argument types/cardinality retain the argument range. Regex tokenize
+arities remain explicitly unsupported. These contracts follow
+[Functions and Operators 3.1](https://www.w3.org/TR/xpath-functions-31/).
+
+The native XML node slice implements `fn:local-name` and `fn:namespace-uri`
+at arities zero/one, following [F&O 3.1 node functions](https://www.w3.org/TR/xpath-functions-31/#func-local-name).
+Their optional argument is a node, without atomization; omitted arguments use
+the context node. Results are `xs:string` and `xs:anyURI`, respectively, with
+empty values for absent names/namespaces. Names come directly from retained
+XML metadata, including attributes and processing-instruction targets. Argument
+type/cardinality errors retain the argument range; missing context and shared
+text/work limits remain errors. `fn:node-name` and QName values/comparisons
+are not implemented by this slice. Local table/tree demos use CEM-QL sorting
+on the original native nodes; standard `fn:sort` and HTTP XML ownership are
+separate work.
+
+The sequence slice implements `fn:head`, `fn:tail`, `fn:reverse`, and
+two/three-argument `fn:subsequence`. Selection preserves original items,
+source maps and retained node owners; arrays, maps and function handles remain
+opaque items. Subsequence bounds use `xs:double` function conversion (numeric
+promotion or untyped casting), one-based positions, and rounding with ties
+toward positive infinity. NaN and infinities follow the standard position
+inequalities, including empty results for indeterminate bounds. These semantics
+follow [F&O 3.1 sequence functions](https://www.w3.org/TR/xpath-functions-31/#func-subsequence).
+
+`fn:distinct-values` atomizes nodes/arrays and supports the existing string,
+untyped, URI, boolean, integer, decimal, float and double comparison matrix.
+Untyped values compare as strings; numerics use existing exact comparison and
+promotion, NaNs collapse, and signed zeros compare equal. Incomparable supported
+types remain distinct. The optional second argument accepts only
+`http://www.w3.org/2005/xpath-functions/collation/codepoint`; other collations
+fail with `FOCH0002`, and unsupported atomic families remain explicit errors.
+The implementation retains first encountered representatives, but the standard
+does not guarantee order or representative choice. The XML table demo therefore
+authors first-seen heading order explicitly in XPath, comparing node kind,
+local name and namespace URI against earlier cells. Duplicate scans and their
+text comparisons share the invocation work budget, bounding quadratic cases.
+
+The numeric aggregate slice implements `fn:sum` at arities one/two, `fn:avg`
+at arity one, and numeric `fn:min`/`fn:max` at arities one/two, following
+[F&O aggregate functions](https://www.w3.org/TR/xpath-functions-31/#func-sum).
+It atomizes native nodes/arrays, casts untyped values to double, and promotes
+the complete numeric sequence before reduction. Integer/decimal sums remain
+exact; averages preserve terminating decimal quotients and round repeating
+quotients to 18 significant digits using the existing half-even division
+policy. Minimum/maximum preserve the selected integer/decimal type unless
+float/double promotion is required. NaNs propagate after argument validation;
+equal extrema keep the first representative, including its zero sign.
+
+Empty input returns integer zero for `sum`, or its optional atomic/empty
+`$zero` argument unchanged; `avg`, `min` and `max` return empty. The explicit
+zero does not affect nonempty sums. Numeric extrema ignore the optional
+collation as required, after validating its string argument contract.
+Nonnumeric extrema and duration arithmetic remain explicitly unsupported;
+incompatible numeric/nonnumeric mixtures fail with `FORG0006`, invalid untyped
+casts with `FORG0001`. Input, converted sequences, intermediate sums, results,
+and reduction/division work share the existing limits. Decimal comparison also
+handles zero separately from scale padding, preserving fractional ordering.
+The aggregate demos validate and explicitly cast decimal lists and native XML
+basket amounts before computing results; adding a fruit needs no new field
+expression. Invalid data remains visible as an error, and ∅ denotes an absent
+minimum, maximum or average.
+
+Map constructors and square/curly array constructors execute natively. Square
+arrays retain each member sequence, including empty and nested members; curly
+arrays produce one member per item of their input sequence. Unary and postfix
+lookup accept names, integers, parenthesized key expressions and wildcards.
+Parenthesized keys use the outer focus. Array positions start at one; invalid
+positions raise `FOAY0001`. Map/array function-call syntax takes one key argument.
+The same dispatcher implements `map:contains`, `map:get`, `map:keys`, `array:size`
+and `array:get`. Absent entries and empty-valued entries both return the empty
+sequence on lookup, while `map:contains` distinguishes them. Constructor duplicate
+keys raise `XQDY0137`. Key matching follows [op:same-key](https://www.w3.org/TR/xpath-functions-31/#func-same-key)
+for the supported atomic matrix: strings/untyped/URIs compare by codepoint,
+booleans by value, and numeric keys by exact mathematical value without lossy
+promotion, with NaN, infinities and signed zero handled explicitly. Map keys are
+returned in insertion order here; authors must not depend on that order portably.
+Other atomic families, broader map/array functions and higher-order type matching
+remain unsupported. Nested values retain native XML owners and item origins.
+Container traversal, copies, comparisons and empty member visits share the work
+counter; atomic text inside containers shares the byte bound. `xpathItems` still
+counts each materialized sequence, not container membership as a flattened list.
+
+CEMT XPath bodies may use the existing triple-backtick rich-content fence to
+protect constructor braces. The compiler parses the original fence-body bytes
+and retains their physical source coordinates; compiled lookup execution does
+not reparse key expressions. Named-function results can retain opaque maps and
+arrays across CEM-QL calls. Scalar IP-filter and native XML basket demos exercise
+this route. Imported CEM trees from XML, JSON, YAML and CSV now share the same
+native node view, including the explicit standard JSON-to-XML mapping. Native
+HTTP ownership remains deferred; standard JSON parsing functions remain separate.
+
+`XPathEvaluationLimits` separates item, text, and work bounds. Defaults allow
+1 MiB of UTF-8 atomic lexical bytes per materialized sequence/string and
+16,777,216 work units per evaluator invocation. Intermediate values, bindings,
+node atomization, string conversion/concatenation, casts, and numeric formatting
+share these bounds with the new text functions. The work counter charges
+expression steps and text visits/copies, including bounded formatting passes;
+it is deterministic accounting, not elapsed CPU time. Nested expressions share
+one counter. Native XML owners are retained without charging their document
+size as output text; extracting their string/typed values is bounded while
+traversing the original events. The byte limit is neither total heap accounting
+nor a cumulative allocation counter. Operation control still supplies
+cancellation/deadline checks.
+
+Standalone scopes accept `xpathTextBytes` and `xpathWorkUnits` alongside
+`xpathItems`; query execution accepts the same names (`queryWork` remains a
+work alias). Rust hosts can set all three limits directly; `None` explicitly
+opts out on the low-level evaluator. Host adapters use bounded defaults for
+omitted text/work fields. Result safety stamps include each enabled bound.
+Failures use `cem.xpath.text_byte_limit_exceeded` and
+`cem.xpath.work_limit_exceeded` with the expression's original source map.
+They publish no partial result and cannot become `castable=false` or a caught
+CEM-QL data error. CEM-QL libraries can receive host-owned per-call limits via
+`install_with_limits`; portable libraries do not grant themselves larger limits.
 
 Typed `instance of` and `treat as` expressions follow their grammar precedence
 between arrow expressions and set operators. Their CEM-owned sequence types
@@ -320,7 +522,13 @@ short-circuit semantics,
 standalone transform routing,
 mixed result artifacts and evaluator capability rejection, verifies embedded
 catalog identity, and checks that README examples use fenced XPath source with
-no SVG fallback.
+no SVG fallback. It also checks deterministic compiled programs, typed
+source-free reload against changed native owners, malformed binary input and
+bounded decoding.
+`yarn nx run cem_ml_schema_package_xpath_v1:verify:compiled-artifacts` rebuilds
+the shared WASM host and checks native/WASM byte equality, XSLT-owned program
+loading, identity/hash rejection, retention limits, disposal and capability
+isolation.
 `yarn nx run cem_ml:build:wasm` verifies that the CEM-owned scanner and parser
 remain compatible with the browser WASM target.
 `yarn nx run cem_ql:test` verifies that CEM-QL XPath slots compile once, retain
@@ -500,3 +708,22 @@ doc("catalog.xml")/catalog
 ```xpath
 /catalog/book[1
 ```
+
+## Imported CEM trees
+
+`XPathNativeNode::cem_document` and `cem_node` accept an
+`Arc<RetainedCemTree>` from `cem_ml::import` or a native CEM producer. All node
+navigation, values, comparisons and bounded text traversal use the common
+semantic tree. The XML compatibility constructors delegate to import.
+`owner()` now returns the retained CEM tree; `source_owner()` exposes a retained
+lifecycle parser owner when available. Native CEM producers need no external
+format owner. The lifecycle query entrypoint also imports XML/JSON/YAML/CSV
+through the shared boundary before invoking XPath.
+
+Source-oriented CEM fields stay available alongside import-supplied semantic
+values. XML import normalizes literal line endings and attribute whitespace
+before decoding/merging references; decoded JSON/YAML/CSV values are not subjected
+to XML lexical rules. The source-format boundary is enforced by the
+[import principle](../../../../../docs/cem-data-import-principle.md) and native
+cross-format fixtures. Standard `fn:parse-json`/`fn:json-to-xml` functions are
+separate API work; importing a tree does not implement them.

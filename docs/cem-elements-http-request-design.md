@@ -1,9 +1,10 @@
 # CEM Elements HTTP Request Resource Design
 
-**Status:** Design accepted for staged implementation. Phase 1 is the
-implementation-ready contract; later phases remain roadmap items.
-**Primary use case:** substrate-backed `<http-request>` resource slices for
-`<cem-element>` templates.
+**Status:** Accepted lifecycle/transport design, updated 2026-09-17 by the
+[loader plan](cem-data-loader-plan.md). Initial delivery publishes a materialized
+CEM-ML document/AST tree; progressive AST streaming is a later phase.
+**Primary use case:** a loader custom element using CEM-ML library loading and
+import, with lifecycle behavior modeled on legacy `<http-request>`.
 **Related docs:** [`cem-element` design](./cem-element-design.md),
 [`cem-element` WASM proposal](./cem-element-wasm-proposal.md),
 [`CEM-ML resource lifecycle`](./cem-ml-resource-lifecycle.md),
@@ -19,9 +20,17 @@ layer that classifies `http-request` resources, acquires them, and passes expect
 CEM-ML. This document only narrows that binding for HTTP request policy, resolver/loader hooks, request/response metadata,
 cache identity, and verification fixtures.
 
-## 1. Problem
+The accepted [loader plan](cem-data-loader-plan.md#materialized-loader-contract)
+defines the implemented materialized binding: `<http-request>` keeps its request
+surface while CEM-ML imports response bytes into a retained CEM document. Native
+templates receive that document at `.data`; JavaScript snapshots retain lifecycle
+metadata with `data: null`. The worker protocol supplies native bindings separately
+and re-imports source bytes on fallback. The historical standalone companion
+described below is retired; its examples use this shared loader.
 
-The legacy `http-request.js` companion custom element performs a browser fetch,
+## 1. Historical problem
+
+The retired legacy `http-request.js` companion custom element performs a browser fetch,
 buffers the response through convenience APIs such as `response.json()` or
 `response.text()`, and then writes a JavaScript object or `DOMParser` document into
 an element `value`. Legacy templates then query that value through DCE/XSLT-like
@@ -110,8 +119,9 @@ Initial attributes:
 | `cache` | Optional cache policy hint: `default`, `reload`, `no-store`, `force-cache`; exact host support is policy-controlled. |
 | `credentials` | Optional credentials hint. Browser hosts still obey Fetch/CORS rules; SSR hosts must apply explicit policy. |
 
-The resource may also be surfaced as a future canonical `cem:resource` form, but
-`http-request` stays the compatibility-friendly primitive name for this work.
+The loader's canonical public spelling is an implementation-contract task in
+the accepted loader plan. Any retained `http-request` alias uses the same
+CEM-ML library loading and native tree binding.
 
 ### 3.1 URL Resolution And Module Maps
 
@@ -239,23 +249,25 @@ to policy limits and a diagnostic when the host cannot provide a true stream.
 
 The resource slot envelope is required in Phase 1. The host binding owns request and
 response metadata plus lifecycle state. The `data` field is produced by CEM-ML as a
-CEM-QL-navigable AST stream handle or stream-derived projection, not as a live
-browser object.
+retained CEM-ML document/AST tree capability. A later phase adds progressive AST
+stream consumption through the same library boundary.
 
 Initial CEM-ML projection expectations for fixtures:
 
-- JSON objects expose object keys as fields; arrays expose ordered items; scalars
-  expose their scalar value and type.
-- XML and XHTML expose element name, attributes, text children, and child elements
-  through the same AST/query surface used by parsed template/data documents.
-- Text exposes a text document node with chunk/range metadata.
+- JSON is imported into the explicitly selected CEM tree vocabulary; member names,
+  ordered values and null semantics are supplied by import. Do not infer a
+  JavaScript object/array binding from the response format.
+- XML exposes CEM element, attribute and logical text nodes through the same tree
+  capability and XPath view used by ordinary data imports.
+- Initial loader parity covers XML and JSON. Additional formats use registered
+  library importers and the same document binding.
 - Response metadata is plain serializable host metadata; no `Response`, `Headers`,
   `Document`, DOM node, or host object is stored in slices.
 
-Phase 1 CEM-ML examples should use explicit resource paths such as
-`$datadom.slices.page.data.results`. Broad legacy XPath rewrites such as `//results`
-are compatibility follow-up work unless the existing CEM-QL implementation can
-support them directly without a separate conversion pass.
+Phase 1 examples pass the native document binding to CEM-QL/XPath and query the
+chosen import vocabulary. Remove `.data.results` record assumptions from samples
+and fixture code. XPath function libraries retain their separate declared
+dependency lifecycle; HTTP loading supplies their native document input.
 
 ### 4.3 Policy Defaults
 
@@ -282,9 +294,9 @@ Required Phase 1 behavior:
 1. Initial render records a `declared`, `scheduled`, or `waiting` resource slot.
 2. The host resolves the URL, authorizes the request, and opens it when scheduled.
 3. Header metadata may update the slice while the resource is `in-progress`.
-4. The host passes response bytes and metadata to CEM-ML; CEM-ML moves the resource
-   through `streaming` when validated AST events are available and writes the AST
-   stream handle or stream-derived projection.
+4. The host passes response bytes and metadata to CEM-ML; the library imports and
+   retains a complete CEM tree for the first delivery. The later AST-stream phase
+   may expose validated events and the `streaming` state before completion.
 5. Terminal success moves the resource to `loaded`; terminal failure moves it to
    `failed` with diagnostics.
 6. The declaration rerenders against lifecycle or content revisions.
@@ -316,79 +328,43 @@ regression.
 
 ## 5. Resource Slot Shape
 
-The resource slot is an envelope with lifecycle state, revision identity, request
-metadata, response metadata, diagnostics, and the AST stream handle or stream-derived
-projection produced by CEM-ML.
+The resource slot carries lifecycle/control metadata and a retained native
+document capability produced by CEM-ML. Its logical fields are:
 
-Logical shape:
+| Field | Contract |
+| --- | --- |
+| `kind` | Resource/loader identity. |
+| `revision`, `state` | Active resource revision and portable lifecycle state. |
+| `contextIdentity`, `resourcePolicyStamp` | Resolution scope and host policy identity. |
+| `expectedContentTypes` | Declared content-type context passed to CEM-ML. |
+| `request` | Authored/resolved URL, resolver identity, method and request headers. |
+| `response` | Response URL, status, headers and content type. |
+| `data` | Retained CEM-ML document/AST tree in the first delivery; progressive AST access is a later phase. |
+| `diagnostics` | Library/resource diagnostics with source identity. |
 
-```json
-{
-  "datadom": {
-    "slices": {
-      "page": {
-        "kind": "http-request",
-        "revision": "resource-revision-id",
-        "state": "declared | scheduled | waiting | in-progress | streaming | loaded | failed",
-        "contextIdentity": "context:...",
-        "resourcePolicyStamp": "policy:...",
-        "expectedContentTypes": ["application/json"],
-        "request": {
-          "authoredUrl": "@scope/data/pokemon.json",
-          "url": "...",
-          "resolvedUrl": "https://cdn.example.test/data/pokemon.json",
-          "resolverIdentity": "resolver:...",
-          "method": "GET",
-          "headers": { "accept": "application/json" }
-        },
-        "response": {
-          "url": "...",
-          "status": 200,
-          "statusText": "OK",
-          "ok": true,
-          "redirected": false,
-          "headers": { "content-type": "application/json" },
-          "contentType": "application/json"
-        },
-        "data": "<AST stream handle or stream-derived projection>",
-        "diagnostics": []
-      }
-    }
-  }
-}
-```
+`data` retains native nodes and their source owner. The document must not be
+converted to a JavaScript object, JSON AST dump or browser DOM record graph.
+Control metadata serialization cannot substitute for the native document binding.
 
-`data` is not a JavaScript object in the engine contract. It is a CEM AST stream
-handle or stream-derived projection produced by CEM-ML. Browser adapter debug views
-may project a small JSON summary, but templates and transforms consume the AST stream
-surface.
-
-Legacy-style selection such as `//results` must be implemented by querying the
-resource AST. CEM-ML templates should prefer explicit data-document paths:
-
-```cem
-{cem:for-each @select="$datadom.slices.page.data.results" @as=pokemon |
-  {button |
-    {$pokemon.name}
-  }
-}
-```
-
-Compatibility conversion may rewrite legacy DCE/XSLT selectors into equivalent
-CEM-QL expressions over `datadom.slices.<slice>.data`.
+Templates pass that document capability to declared XPath functions or shared
+CEM node queries and iterate the selected nodes. Query expressions use the
+explicitly chosen import vocabulary. Migrate old `.data.results` and
+`pokemon.name` record assumptions; a compatibility element alias must expose
+the same CEM tree instead of keeping an object data path.
 
 ## 6. HTTP Binding Pipeline
 
 The host binding pipeline is:
 
 ```text
-http-request declaration
+loader declaration (or migrated http-request alias)
   -> scoped URL/module-map resolution
   -> host request policy
   -> HTTP transport stream
   -> response metadata and byte stream
   -> CEM-ML resource handoff
-  -> CEM-ML lifecycle, content-type negotiation, parser/plugin dispatch, and AST stream
+  -> CEM-ML lifecycle, content-type negotiation, parser/plugin dispatch, and CEM AST import
+  -> retained CEM document tree (progressive AST stream in a later phase)
   -> resource slot revision
   -> template render/query engine
   -> render-plan patches
@@ -416,13 +392,13 @@ process_resource_stream(
   byte_stream,
   source_map_mode,
   host_policy_identity
-) -> AstEventStream
+) -> RetainedCemDocument
 ```
 
-CEM-ML owns parser selection, decoding, AST event production, stream-derived
-projections, and materialization decisions. The HTTP binding only supplies the
-stream, metadata, source identity, expected content-type context, and policy
-identity.
+CEM-ML owns parser selection, decoding, CEM AST production and materialization.
+The later streaming phase adds a typed AST event/chunk capability at this same
+boundary. The HTTP binding supplies the stream, metadata, source identity,
+expected content-type context and policy identity.
 
 ## 7. HTTP Content-Type Metadata
 
@@ -439,12 +415,13 @@ Host binding rules:
 5. Pass all metadata to CEM-ML with source identity and policy identity.
 
 Eligible response formats are exactly those accepted by the active CEM-ML context and
-registered parser/content-type set. Initial useful fixture coverage:
+registered parser/content-type set. Initial loader parity requires XML and JSON;
+other families below are staged library extensions, not browser parser branches:
 
 | Content type | AST surface |
 | --- | --- |
-| `application/json`, `text/json`, `*/*+json` | JSON object/array/scalar AST with key/value source ranges. |
-| `application/xml`, `text/xml`, `*/*+xml` | XML AST with element/attribute/text source ranges. |
+| `application/json`, `text/json`, `*/*+json` | Imported CEM tree using the selected JSON mapping, with key/value source ranges. |
+| `application/xml`, `text/xml`, `*/*+xml` | Imported CEM tree with element/attribute/text source ranges. |
 | `text/html` | HTML AST through the existing HTML tokenizer/lowering path. |
 | `application/xhtml+xml` | XML/XHTML AST. |
 | `text/cem-ml` | CEM-ML AST. |
@@ -455,6 +432,9 @@ the unsupported-content-type or mismatch diagnostic and moves the resource revis
 `failed`.
 
 ## 8. Streaming Query And Rendering Semantics
+
+This section describes the accepted later AST-stream phase. The first loader
+publishes a materialized CEM tree after import completes.
 
 Not every query can produce stable UI before the whole response is available.
 
@@ -650,29 +630,36 @@ New behavior:
 - Unsupported legacy XPath constructs emit diagnostics instead of falling back to
   browser DOMParser objects.
 
-The old standalone `http-request.js` companion element can remain published as a
-browser shim. It is not the substrate path for CEM Elements templates.
+The standalone `http-request.js` companion is retired. Its examples use the shared
+`cem-elements` loader and CEM-node queries. The declaration spelling
+`<http-request>` lowers to this native binding; it has no standalone registration
+or JavaScript document representation.
 
 ## 15. Implementation Roadmap
 
-### Phase 1: Loaded-response AST stream resource
+### Phase 1: Loader custom element with a retained CEM tree
 
+- Follow the accepted [loader plan](cem-data-loader-plan.md) and its native-first
+  verification sequence in `todo.md`.
 - Implement the contract in [4. Phase 1 Implementation Contract](#4-phase-1-implementation-contract).
-- Add resource declaration parsing for `http-request`.
-- Add scoped URL/module-map resolution for `http-request @url`, including
+- Add the loader custom-element contract and migrate any retained `http-request` alias.
+- Reuse scoped URL/module-map resolution for loader requests, including
   diagnostics for unresolved bare specifiers.
 - Add host policy, resource resolver, and request loader hooks.
 - Stream bytes through the loader boundary when possible.
-- Materialize the loaded AST stream projection in CEM/WASM/runtime memory before
-  rendering when the CEM-ML parser/query path is not streaming-capable yet.
-- Expose request/response metadata and loaded `data` AST stream projection to CEM-QL.
+- Materialize the imported CEM tree in library-owned native/WASM memory before
+  publishing loaded data in the first delivery.
+- Expose request/response metadata and the retained document capability to CEM-QL/XPath.
 - Add JSON and XML fixtures with diagnostic/source-id coverage.
 
-This phase already removes JS object/DOMParser handoff and establishes the correct
-contract, even if UI rendering waits for completion.
+This phase is complete only when runtime code, samples and fixture adapters use
+the retained tree without JS document objects or browser DOMParser handoffs.
+The materialized CEM-tree path implements the initial data contract; progressive AST streaming remains deferred.
 
 ### Phase 2: Progressive AST stream consumption
 
+- Deferred until Phase 1 passes; persist this phase in
+  [wishlist.md](wishlist.md#cem-ml-runtime).
 - Replace Phase 1 buffering internals with CEM-ML-owned AST event streams where
   supported.
 - Classify streaming-safe CEM-QL consumers.
@@ -698,8 +685,7 @@ contract, even if UI rendering waits for completion.
 
 Required gates before Phase 1 is considered implemented:
 
-- JSON response renders a `cem:for-each` list from the resource AST stream
-  projection.
+- JSON response renders a `cem:for-each` list from selected imported CEM nodes.
 - XML response renders equivalent content through the same resource slot contract.
 - Module-map URL resolution fixture proves `@scope/data/file.json` resolves in the
   owning `<http-request>` scope and that imported-template relative URLs use the
@@ -710,15 +696,15 @@ Required gates before Phase 1 is considered implemented:
 - Abort on URL change drops stale response frames.
 - Resource-settled tests use runtime hooks instead of sleeps.
 - Source-id and CEM-ML diagnostics are preserved internally for response data.
-- Existing standalone `http-request.js` companion export/registration smoke tests
-  continue to pass.
+- Any retained `http-request` alias export/registration tests pass with the new
+  CEM document data binding. No sample/test adapter materializes JS JSON documents.
 
 Required gates before the full design is considered implemented:
 
-- Forward-only streamed resource records can render incrementally.
+- Forward-only consumers of typed CEM AST nodes/events can render incrementally.
 - Browser and SSR fixture with identical static response produce identical output.
 - Debug mode can map rendered text/attribute output to both template source and
   response data source ranges.
 - Production mode can omit or redact response source-map details by policy.
-- Existing standalone `http-request.js` companion export/registration smoke tests
-  continue to pass.
+- Any retained `http-request` alias continues to use the common CEM document or
+  AST-stream capability.

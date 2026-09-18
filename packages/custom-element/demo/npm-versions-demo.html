@@ -1,119 +1,224 @@
-<!DOCTYPE html>
-<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<!doctype html>
+<html lang="en">
 <head>
-    <meta name="copyright" content="Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>DOM merge - Declarative Custom Element implementation demo</title>
-    <link rel="icon" href="./wc-square.svg"/>
-    <script type="importmap">
-        {
-          "imports": {
-            "@epa-wg/custom-element/": "../",
-            "@epa-wg/custom-element-dist/": "../"
-          }
-        }
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element npm versions demo</title>
+    <link rel="stylesheet" href="./cem-loader-demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../../cem-elements/dist/index.js';
+        installCemElementRuntime(window);
     </script>
-    <script type="module" src="../http-request.js"></script>
-    <script type="module" src="../location-element.js"></script>
-    <script type="module" src="../custom-element.js"></script>
-    <style>
-        @import "./demo.css";
-        dt{ font-weight: bold}
-        dd{ padding: 0;}
-        h1,h3{ margin: 0;}
-        nav{ gap:0; }
-    </style>
 </head>
 <body>
+<nav class="page-nav"><a href="../index.html">Custom-element examples</a><h1>NPM versions</h1></nav>
 
-<nav>
-    <a href="../index.html"><h3><code>custom-element</code> demo</h3></a>
-    <h1><code>npm-version</code> Declarative Custom Element</h1>
+<main>
+<p>These examples use the <code>cem-elements</code> CEM document loader. The standalone legacy HTTP companion has been retired.</p>
+    <section>
+        <h2>Choose a package version from registry data</h2>
+        <p>
+            The reusable template loads package metadata with <code>http-request</code>
+            and queries the imported CEM nodes to populate a native select. It supports a current
+            version, optional publication dates, a projected label, value propagation,
+            and synchronization with the page hash.
+        </p>
+        <p>
+            This demo uses a small same-origin registry fixture so every case remains
+            deterministic and works offline. It is a compact version/date list; a live
+            registry endpoint also needs XPath functions for its response vocabulary
+            and host authorization for that origin.
+        </p>
+        <dl>
+            <dt>package</dt><dd>Package name shown by the picker.</dd>
+            <dt>initialversion</dt><dd>Version selected after the records load.</dd>
+            <dt>showdate</dt><dd>Set to <code>true</code> to append publication dates.</dd>
+            <dt>value</dt><dd>Reflects the latest user selection.</dd>
+            <dt>label slot</dt><dd>Overrides the default package label.</dd>
+        </dl>
+        <h3>See also</h3>
+        <p><a href="./http-request.html">Load structured response data</a></p>
+        <p><a href="./location-element.html">Read the page URL</a></p>
+        <p><a href="./set-url.html">Write the page URL</a></p>
+    </section>
 
-    <dl>
-        <dt>Attributes</dt>
-        <dd><code>package-name</code> NPM package name</dd>
-        <dd><code>current-version</code> version to be initially selected </dd>
-        <dd><code>value</code> user selection </dd>
-
-        <dt>Events</dt>
-        <dd><code>change</code> triggered when <code>value</code> attribute changed</dd>
-
-        <dt>Slots</dt>
-        <dd><code>label</code> defaults to <code>{$package-name} version:</code> </dd>
-    </dl>
-
-</nav>
-
-
-<html-demo-element legend="1. NPM package version picker"
-                   description="defaults, last version should be preselected">
-    <template>
-        <custom-element src="./npm-versions.html#npm-version"
-                        package-name="@epa-wg/custom-element-dist"></custom-element>
+    <template id="npm-version" type="text/cem-ml" xpath-functions="./http-data.cemt">
+{style |```
+    label { display: grid; gap: 0.35rem; }
+    select { min-inline-size: 14rem; }
+```}
+{attribute @name=package}
+{attribute @name=initialversion}
+{attribute @name=showdate}
+{attribute
+    @name=value
+    @select='if datadom.eventPayloads.selectedVersion
+             { datadom.slices.selectedVersion }
+             else { "" }'}
+{http-request
+    @slice=registry
+    @url="./npm-versions.json"
+    @method=GET
+    @header-accept="application/json"
+    @content-type="application/json"
+}
+{label |
+    {span | {slot @name=label |
+        {code | {$package}} version:
+    }}
+    {cem:if @test='datadom.slices.registry.state == "loaded"' |
+        {select
+            @name=version
+            @autocomplete=off
+            @slice=selectedVersion
+            @slice-event=change
+            @slice-value="$target.value" |
+            {cem:for-each
+                @select='native:call("http.versions", datadom.slices.registry.data)'
+                @as=version |
+                {cem:variable @name=releaseVersion @select='native:call("http.field", version, "version")'}
+                {cem:variable @name=releaseDate @select='native:call("http.field", version, "date")'}
+                {cem:choose |
+                    {cem:when
+                        @test='releaseVersion == initialversion' |
+                        {option @value="{$releaseVersion}" @selected=true |
+                            {$releaseVersion}
+                            {cem:if @test='showdate == "true"' |
+                                - {$releaseDate}}
+                        }
+                    }
+                    {cem:otherwise |
+                        {option @value="{$releaseVersion}" |
+                            {$releaseVersion}
+                            {cem:if @test='showdate == "true"' |
+                                - {$releaseDate}}
+                        }
+                    }
+}   }   }   }
+}
     </template>
-</html-demo-element>
 
-<html-demo-element legend="2. preselected NPM package version picker"
-                   description="version 22 should be selected and date shown">
-    <template>
-        <custom-element tag="custom-element-version" src="./npm-versions.html#npm-version"></custom-element>
-        <custom-element-version
-                package-name="@epa-wg/custom-element"
-                current-version="0.0.22"
-                show-date="true"
-        ></custom-element-version>
+    <section class="loader-example">
+<h2>1. Default to the latest version</h2>
+<p>Without initialversion, the native select keeps the first and latest fixture record selected</p>
+<cem-element
+    tag="cem-npm-version-default"
+    src="#npm-version"
+></cem-element>
+
+<cem-npm-version-default
+    package="@epa-wg/cem-elements"
+></cem-npm-version-default>
+</section>
+
+    <section class="loader-example">
+<h2>2. Preselect a version and show dates</h2>
+<p>initialversion selects 0.0.22 and showdate appends each publication date</p>
+<cem-element
+    tag="cem-npm-version-preselected"
+    src="#npm-version"
+></cem-element>
+
+<cem-npm-version-preselected
+    package="@epa-wg/cem-elements"
+    initialversion="0.0.22"
+    showdate="true"
+></cem-npm-version-preselected>
+</section>
+
+    <section class="loader-example">
+<h2>3. Propagate the selected value</h2>
+<p>The picker change bubbles to its wrapper, updates selected-version, and reflects value on the picker host</p>
+<cem-element
+    tag="cem-npm-version-propagated"
+    src="#npm-version"
+></cem-element>
+
+<cem-element>
+    <template type="text/cem-ml">
+{article @class=demo-card |
+    {cem-npm-version-propagated
+        @package="@epa-wg/cem-elements"
+        @slice=selectedVersion
+        @slice-event=change
+        @slice-value="$target.value"
+    }
+    {p | selected-version slice:
+        {output | {$datadom.slices.selectedVersion}}
+    }
+}
     </template>
-</html-demo-element>
+</cem-element>
+</section>
 
+    <section class="loader-example">
+<h2>4. Override the label slot</h2>
+<p>Projected label content replaces the reusable template's package fallback</p>
+<cem-element
+    tag="cem-npm-version-label"
+    src="#npm-version"
+></cem-element>
 
-<html-demo-element legend="3. value attribute changed and propagated to slice"
-                   description="upon selection change the version should be shown as 'selected-version' slice value">
-    <template>
-        <custom-element tag="npm-version" src="./npm-versions.html#npm-version"></custom-element>
-
-        <custom-element >
-            <template>
-                <npm-version slice="selected-version" package-name="@epa-wg/custom-element"></npm-version>
-                <p><code>selected-version</code> slice: {//selected-version/@value}</p>
-            </template>
-        </custom-element>
-
+<cem-element>
+    <template type="text/cem-ml">
+{article @class=demo-card |
+    {cem-npm-version-label
+        @package="@epa-wg/cem-elements"
+        @slice=selectedVersion
+        @slice-event=change
+        @slice-value="$target.value" |
+        {i @slot=label | Select a release:}
+    }
+    {p | selected-version slice:
+        {output | {$datadom.slices.selectedVersion}}
+    }
+}
     </template>
-</html-demo-element>
+</cem-element>
+</section>
 
+    <section class="loader-example">
+<h2>5. Synchronize the selected version with the URL</h2>
+<p>Change the hash with plain HTML controls, then select a release: URL observation and event-triggered writes work in both directions</p>
+<button type="button" aria-label="Set URL to 0.0.22" title="Set URL to 0.0.22"
+    onclick="location.hash = 'version=0.0.22'">→0.0.22</button>
+<button type="button" aria-label="Set URL to 0.0.25" title="Set URL to 0.0.25"
+    onclick="location.hash = 'version=0.0.25'">→0.0.25</button>
+<button type="button" aria-label="Clear URL version" title="Clear URL version"
+    onclick="location.hash = ''">∅#</button>
+<cem-element
+    tag="cem-npm-version-url"
+    src="#npm-version"
+></cem-element>
 
-<html-demo-element legend="4. label slot override"
-                   description="upon selection change the version should be shown as 'selected-version' slice value">
-    <template>
-        <custom-element tag="npm-version-1" src="./npm-versions.html#npm-version"></custom-element>
-
-        <custom-element >
-            <template>
-                <npm-version-1 slice="selected" package-name="@epa-wg/custom-element">
-                    <i slot="label">select:</i>
-                </npm-version-1>
-                <p><code>selected-version</code> slice: {//selected}</p>
-            </template>
-        </custom-element>
-
+<cem-element>
+    <template type="text/cem-ml">
+{location-element @slice=current @live=true}
+{article @class=demo-card |
+    {p | External hash changes and Back/Forward update the picker.
+         Selecting a release writes its version back to the hash.}
+    {cem-npm-version-url
+        @package="@epa-wg/cem-elements"
+        @showdate=true
+        @initialversion="{str:substring(datadom.slices.current.hash, 10)}"
+        @slice=selectedVersion
+        @slice-event=change
+        @slice-value="$target.value"
+    }
+    {cem:if @test=datadom.eventPayloads.selectedVersion |
+        {location-element
+            @method=location.hash
+            @trigger="{$datadom.eventPayloads.selectedVersion.revision}"
+            @src="#version={$datadom.slices.selectedVersion}"}
+    }
+    {p | Current hash: {output | {$datadom.slices.current.hash}}}
+    {p | selected-version slice:
+        {output | {$datadom.slices.selectedVersion}}
+    }
+}
     </template>
-</html-demo-element>
-
-
-<html-demo-element legend="5. control version in URL"
-                   description="">
-    1. <button onclick="window.location.hash = `#@epa-wg/custom-element-dist@0.0.25/storybook-static/index.html`">set in page URL to version 0.0.25</button><br/>
-    2. switch the package version in select and observe the URL change.
-    <template>
-        <custom-element src="@epa-wg/custom-element-dist/demo/npm-versions.html#npm-version-to-url"
-                package-name="@epa-wg/custom-element-dist"
-                ></custom-element>
-    </template>
-</html-demo-element>
-
-
-<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js" hidden></script>
-
+</cem-element>
+</section>
+</main>
 </body>
 </html>

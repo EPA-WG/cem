@@ -14,6 +14,7 @@ describe('multi-format data table demo', () => {
             '3. YAML table: nested collections',
             '4. JSON table: empty and missing',
             '5. Presentation aspects: tree and IP-filter form',
+            './data-table-view.cemt',
         ]);
         for (const format of ['xml', 'csv', 'yaml', 'json']) {
             expect(source).toContain(`<template>\n<cem-data-table format="${format}">`);

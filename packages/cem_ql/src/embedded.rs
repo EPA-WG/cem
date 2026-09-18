@@ -663,6 +663,7 @@ pub fn validate_embedded_functional_fixture(
             current_item: None,
             module_resolution: None,
             native_functions: Default::default(),
+            data_readers: Default::default(),
         },
     ));
     report

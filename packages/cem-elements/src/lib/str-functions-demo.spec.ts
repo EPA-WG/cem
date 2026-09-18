@@ -39,7 +39,16 @@ describe('CEM-QL string-functions demo source contract', () => {
     it('lists every independently authored string-function case', () => {
         expect(Array.from(DEMO_SOURCE.matchAll(/legend="([^"]+)"/gu), (match) => match[1])).toEqual([
             'str:shorten query/result matrix', ...METHODS.map((method) => `str:${method}`),
+            'XPath normalize-space', 'XPath tokenize and string-join',
         ]);
+    });
+
+    it.each(['XPath normalize-space', 'XPath tokenize and string-join'])('%s loads its text library relative to the nested demo', (legend) => {
+        const sample = DEMO_SOURCE.split(`<cem-demo-element legend="${legend}"`)[1]?.split('</cem-demo-element>')[0] ?? '';
+        expect(sample).toMatch(/<template>\n<cem-element>/u);
+        expect(sample).toContain('xpath-functions="../xpath-text.cemt"');
+        expect(sample).toContain('@slice-event=input');
+        expect(sample).not.toContain('tag=');
     });
 
     it.each(METHODS)('str:%s has an anonymous, flush-left, interactive example', (method) => {

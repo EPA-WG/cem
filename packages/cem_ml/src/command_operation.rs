@@ -924,6 +924,8 @@ fn append_normalized_budgets(
     insert_budget(budgets, "stackDepth", normalized.stack_depth);
     insert_budget(budgets, "timeoutMs", normalized.timeout_ms);
     insert_budget(budgets, "xpathItems", normalized.xpath_items);
+    insert_budget(budgets, "xpathTextBytes", normalized.xpath_text_bytes);
+    insert_budget(budgets, "xpathWorkUnits", normalized.xpath_work_units);
     budgets.extend(
         normalized
             .unknown

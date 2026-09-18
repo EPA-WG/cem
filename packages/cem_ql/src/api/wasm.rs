@@ -20,8 +20,15 @@ use crate::template_artifact::{
     TemplateArtifactSourceMapMode, CEM_TEMPLATE_ARTIFACT_VERSION,
 };
 
+mod xpath_functions;
+
+struct RetainedTemplate {
+    artifact: TemplateArtifact,
+    data_readers: crate::eval::DataReaderCache,
+}
+
 thread_local! {
-    static ARTIFACTS: RefCell<Vec<Option<TemplateArtifact>>> = const { RefCell::new(Vec::new()) };
+    static ARTIFACTS: RefCell<Vec<Option<RetainedTemplate>>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Returns the `cem_ql` Cargo version embedded in this combined WASM module.
@@ -248,7 +255,7 @@ pub fn wasm_import_template_artifact(
 
 #[wasm_bindgen(js_name = "renderTemplate")]
 pub fn wasm_render_template(artifact_id: u32, data_json: &str) -> String {
-    let data = match parse_template_data(data_json) {
+    let mut data = match parse_template_data(data_json) {
         Ok(data) => data,
         Err(message) => return error_json("cem.ql.wasm.invalid_data", message),
     };
@@ -263,7 +270,8 @@ pub fn wasm_render_template(artifact_id: u32, data_json: &str) -> String {
                 format!("template artifact `{artifact_id}` is not registered"),
             );
         };
-        plan_json(&render_compiled_template(artifact, &data)).to_string()
+        data.data_readers = artifact.data_readers.clone();
+        plan_json(&render_compiled_template(&artifact.artifact, &data)).to_string()
     })
 }
 
@@ -335,7 +343,10 @@ fn parse_source_map_mode(input: &str) -> Result<TemplateArtifactSourceMapMode, S
 fn retain_artifact(artifact: TemplateArtifact) -> u32 {
     ARTIFACTS.with(|cell| {
         let mut artifacts = cell.borrow_mut();
-        artifacts.push(Some(artifact));
+        artifacts.push(Some(RetainedTemplate {
+            artifact,
+            data_readers: Default::default(),
+        }));
         artifacts.len() as u32
     })
 }

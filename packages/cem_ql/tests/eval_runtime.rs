@@ -26,6 +26,7 @@ fn eval_with_bindings(
         &query,
         &EvaluationContext {
             native_functions: Default::default(),
+            data_readers: Default::default(),
             scope: QueryContextScope(0),
             scope_policy: policy,
             diagnostics: Vec::new(),
@@ -49,6 +50,7 @@ fn controlled_for_loop_preserves_success_and_discards_cancelled_values() {
     .expect("controlled loop compiles");
     let context = EvaluationContext {
         native_functions: Default::default(),
+        data_readers: Default::default(),
         scope: QueryContextScope(0),
         scope_policy: default_policy(),
         diagnostics: Vec::new(),

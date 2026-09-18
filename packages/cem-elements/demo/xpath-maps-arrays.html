@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XPath maps and arrays</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>XPath maps and arrays</h1></nav>
+<main>
+    <section>
+        <h2>Keep structured values between queries</h2>
+        <p>The <a href="./xpath-maps-arrays.cemt">separate XPath library</a> builds
+            maps and arrays, passes them between named functions, and explicitly
+            selects their contents. These native values stay opaque to CEM-QL;
+            an array remains one item until an XPath lookup selects its members.</p>
+        <p>A map can contain an entry whose value is the empty sequence.
+            <code>map:contains</code> distinguishes it from an absent entry even
+            though <code>map:get</code> returns nothing for either one.
+            <code>map:keys</code> supplies the keys; their order is not portable.
+            Duplicate keys in a map constructor are errors, and numeric 1 is a
+            different key from string "1".</p>
+        <p>Array positions start at 1. Square constructors preserve each member
+            sequence, including empty members; <code>array { … }</code> creates
+            one member per item. Nested arrays keep their structure.
+            These examples use scalar inputs and CEM trees imported from XML and JSON.
+            The JSON-to-XML mapping creates ordinary tree nodes; XPath explicitly
+            puts selected nodes into an array. JSON null mapping preserves a null
+            element, distinct from an absent member or an empty string.
+            Native HTTP inputs remain deferred. Shared XPath item, text and work
+            limits apply; imports are limited to 32 KiB, 64 levels and 4096
+            source events or values.</p>
+        <h3>See also</h3>
+        <p><a href="./xpath-sequences.html">XPath sequences and columns</a> ·
+            <a href="./xpath-aggregates.html">XPath numeric aggregates</a> ·
+            <a href="./data-table.html">Data tables and IP-filter aspects</a></p>
+    </section>
+    <cem-demo-element legend="1. An IP-filter map with an optional note"
+        description="Edit scalar fields and distinguish an absent note from an empty-valued map entry; this is a local preview only">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-maps-arrays.cemt">
+{style |```
+    label { display: block; margin-block: .5rem; }
+    input { box-sizing: border-box; max-width: 100%; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=address | 192.0.2.0/24}
+{slice @name=action | allow}
+{slice @name=note | absent}
+{cem:variable @name=filter @select='native:call("filter.make",
+    datadom.slices.address, datadom.slices.action, datadom.slices.note)'}
+{article @class=demo-card |
+    {label | Address / CIDR
+        {input @aria-label="Address / CIDR" @value="{$datadom.slices.address}"
+            @slice=address @slice-event=input @slice-value="$target.value"}}
+    {label | Action
+        {select @aria-label=Action @value="{$datadom.slices.action}"
+            @slice=action @slice-event=change |
+            {option @value=allow | Allow}{option @value=deny | Deny}}}
+    {label | Note entry
+        {select @aria-label="Note entry" @value="{$datadom.slices.note}"
+            @slice=note @slice-event=change |
+            {option @value=absent | Absent}{option @value=empty | Empty sequence}
+            {option @value=value | Text value}}}
+    {p | Preview: {output | {$native:call("filter.summary", filter)}}}
+    {p | Note: {output | {$native:call("filter.note", filter)}}}
+    {p | Map entries: {output | {$native:call("filter.count", filter)}}}
+    {p | Preview only; no address validation, firewall changes or source write-back.}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. Select a retained fruit by array position"
+        description="Each fruit element becomes an array member; a separate one-member note array keeps its empty slot when the attribute is absent">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-maps-arrays.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 5rem; }
+    label { display: block; margin-block: .5rem; }
+    input { width: 5rem; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=source | &lt;basket&gt;&lt;apple&gt;2&lt;/apple&gt;&lt;pear&gt;3&lt;/pear&gt;&lt;/basket&gt;}
+{slice @name=position | 1}
+{cem-data @name=document @select=datadom.slices.source @type=xml}
+{article @class=demo-card |
+    {label | XML basket
+        {textarea @spellcheck=false @slice=source @slice-event=input
+            @slice-value="$target.value" | {$datadom.slices.source}}}
+    {label | Array position
+        {input @aria-label="Array position" @inputmode=numeric
+            @value="{$datadom.slices.position}" @slice=position
+            @slice-event=input @slice-value="$target.value"}}
+    {cem:choose |
+        {cem:when @test='document.error != ""' | {p @role=alert | {$document.error}}}
+        {cem:when @test='native:call("basket.valid", document.root)' |
+            {cem:variable @name=basket @select='native:call("basket.pack", document.root)'}
+            {cem:variable @name=fruit @select='native:call("basket.pick", basket, datadom.slices.position)'}
+            {p | Fruit members: {output | {$native:call("basket.size", basket)}}}
+            {p | Selected: {output | {$native:call("basket.label", fruit)}}}
+            {p | Note array: {output | {$native:call("basket.note", basket)}}}}
+        {cem:otherwise | {p @role=alert | Use a basket root with fruit elements.}}
+}   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="3. Query an imported JSON tree"
+        description="JSON import creates CEM nodes; the shared XPath view retains them in an array and distinguishes null, empty and absent notes">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-maps-arrays.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 5rem; }
+    label { display: block; margin-block: .5rem; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=source |```
+{"apple":2,"pear":3,"note":null}
+```}
+{cem-data @name=document @select=datadom.slices.source
+    @type=json @projection=json-to-xml}
+{article @class=demo-card |
+    {label | JSON object
+        {textarea @spellcheck=false @slice=source @slice-event=input
+            @slice-value="$target.value" | {$datadom.slices.source}}}
+    {cem:choose |
+        {cem:when @test='document.error != ""' | {p @role=alert | {$document.error}}}
+        {cem:when @test='native:call("import.valid", document.root)' |
+            {cem:variable @name=packed @select='native:call("import.pack", document.root)'}
+            {p | {output | {$native:call("import.summary", packed)}}}
+            {p | Note: {output | {$native:call("import.note", packed)}}}}
+        {cem:otherwise | {p @role=alert | Use a JSON object with numeric members.}}}
+    {p | Edit numeric members and try a null, empty or absent note.
+        The map element produced by import is a tree node.}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

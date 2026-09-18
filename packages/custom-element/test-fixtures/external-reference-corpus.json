@@ -195,6 +195,17 @@
             "nxTargets": ["cem-elements:test"],
             "summary": "Opt-in legacy conditionals and iteration lower to canonical CEM-ML and execute on the shared CEM-QL engine."
         },
+        "accepted-native-http-loader": {
+            "disposition": "accepted",
+            "state": "verified",
+            "paths": [
+                "packages/cem-elements/src/lib/cem-elements.stories.ts",
+                "packages/cem-elements/src/lib/http-request-demo.stories.ts",
+                "packages/custom-element/demo/http-request.html"
+            ],
+            "nxTargets": ["cem-elements:test", "@epa-wg/custom-element:verify-packed-archive"],
+            "summary": "The standalone companion is retired. The shared CEM loader covers HTTP lifecycle, headers, errors and replacement while retaining imported document nodes."
+        },
         "accepted-import-map-resolution": {
             "disposition": "accepted",
             "state": "verified",
@@ -281,11 +292,11 @@
             "source": "src/stories/http-request.stories.ts",
             "sourceKind": "storybook",
             "cases": [
-                { "symbol": "Demo", "evidence": "accepted-companion-resources" },
-                { "symbol": "UrlChange", "evidence": "accepted-companion-resources" },
-                { "symbol": "Http404", "evidence": "accepted-companion-resources" },
-                { "symbol": "LifecycleInitialized", "evidence": "accepted-companion-resources" },
-                { "symbol": "RequestResponseHeaders", "evidence": "accepted-companion-resources" }
+                { "symbol": "Demo", "evidence": "accepted-native-http-loader" },
+                { "symbol": "UrlChange", "evidence": "accepted-native-http-loader" },
+                { "symbol": "Http404", "evidence": "accepted-native-http-loader" },
+                { "symbol": "LifecycleInitialized", "evidence": "accepted-native-http-loader" },
+                { "symbol": "RequestResponseHeaders", "evidence": "accepted-native-http-loader" }
             ]
         },
         {

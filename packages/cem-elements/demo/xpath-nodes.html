@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XPath XML tables and trees</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>XPath XML tables and trees</h1></nav>
+<main>
+    <section>
+        <h2>Query the same nodes in different views</h2>
+        <p>Edit local XML to explore its names, values and relationships. The
+            <a href="./xpath-nodes.cemt">separate XPath library</a> reads native XML
+            through <code>cem-data @projection=xpath</code>. CEMT presents the results
+            as a table or a recursive tree. <code>fn:local-name()</code> and
+            <code>fn:namespace-uri()</code> distinguish equal names in different namespaces.</p>
+        <p>The table sorts with CEM-QL <code>seq:sorted</code>. XPath still navigates
+            each original node: its previous sibling is unchanged by the display order.
+            Select a row by its unique authored <code>@id</code>, then change the order.
+            The tree exposes attributes and coalesces adjacent text and CDATA into one text node.</p>
+        <p>These small XML views complement the generic multi-format viewer.
+            HTTP XML integration and standard XPath <code>fn:sort</code> remain later work.
+            XML inputs are limited to 32 KiB, 64 levels and 4096 events; XPath text and
+            work limits also apply. Invalid XML replaces the view with a reader error.</p>
+        <h3>See also</h3>
+        <p><a href="./xpath-aggregates.html">XPath numeric aggregates</a></p>
+        <p><a href="./xpath-sequences.html">XPath sequences and columns</a> ·
+            <a href="./xpath-functions.html">XPath function libraries</a> ·
+            <a href="./data-table.html">Multi-format data tables</a></p>
+    </section>
+    <cem-demo-element legend="1. XML table with native navigation"
+        description="Sort and select rows; their namespace and previous XML sibling remain attached to the original node">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-nodes.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 7rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: .3rem; border-bottom: 1px solid #888; }
+    small { display: block; overflow-wrap: anywhere; }
+    tr[aria-selected=true] { outline: 2px solid currentColor; }
+```}
+{slice @name=source | &lt;basket xmlns:a="urn:a" xmlns:b="urn:b"&gt;&lt;a:item id="2" qty="10"&gt;Z&lt;![CDATA[est]]&gt;&lt;/a:item&gt;&lt;b:item id="1" qty="2"&gt;Apple&lt;/b:item&gt;&lt;/basket&gt;}
+{slice @name=direction | ascending}
+{slice @name=selected | }
+{cem-data @name=document @select=datadom.slices.source @type=xml @projection=xpath}
+{article @class=demo-card |
+    {label | XML source
+        {textarea @spellcheck=false @slice=source @slice-event=input
+            @slice-value="$target.value" | {$datadom.slices.source}}}
+    {label | Display order
+        {select @slice=direction @slice-event=change |
+            {option @value=ascending | A–Z}
+            {option @value=descending | Z–A}}}
+    {cem:choose |
+        {cem:when @test='document.error != ""' | {p @role=alert | {$document.error}}}
+        {cem:otherwise |
+            {cem:variable @name=rows @select='native:call("node.rows", document.root)'}
+            {table |
+                {caption | Basket nodes}
+                {thead | {tr | {th @scope=col | Select}{th @scope=col | Node}{th @scope=col | Value}{th @scope=col | Qty}}}
+                {tbody |
+                    {cem:for-each @as=row @select='
+                        seq:sorted(rows, fn(row) => native:call("node.value", row),
+                            datadom.slices.direction, "text")' |
+                        {cem:variable @name=id @select='native:call("node.id", row)'}
+                        {tr @aria-selected="{datadom.slices.selected == id}" |
+                            {td | {button @type=button @slice=selected @slice-event=click
+                                @value="{$id}" @aria-label="Select row {$id}"
+                                @aria-pressed="{datadom.slices.selected == id}" | {$id}}}
+                            {td | {$native:call("node.local", row)}
+                                {small | {$native:call("node.namespace", row)}}}
+                            {td | {$native:call("node.value", row)}}
+                            {td | {$native:call("node.quantity", row)}}
+            }   }   }   }
+            {cem:for-each @as=row @select='
+                seq:where(rows, fn(row) => native:call("node.id", row) == datadom.slices.selected)' |
+                {p | Parent: {output | {$native:call("node.parent", row)}};
+                    previous XML sibling: {output | {$native:call("node.previous", row)}}}}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. XML tree with attributes and mixed text"
+        description="Expand the native XML hierarchy: namespace-qualified names, attributes and text/CDATA keep their own meaning">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-nodes.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 7rem; }
+    ul { padding-left: 1.2rem; }
+    code, small { overflow-wrap: anywhere; }
+```}
+{slice @name=source | &lt;note xmlns="urn:notes" mood="bright"&gt;Hello &lt;![CDATA[&amp; welcome]]&gt;&lt;em xmlns="urn:marks"&gt;friend&lt;/em&gt;!&lt;/note&gt;}
+{module |
+    {template @mode=tree @match='native:call("node.element", node)' |
+        {body | {li | {details @open=open |
+            {summary | {strong | {$native:call("node.local", node)}}
+                {small | [{$native:call("node.namespace", node)}]}}
+            {ul |
+                {cem:for-each @as=attribute @select='native:call("node.attributes", node)' |
+                    {li | @{$native:call("node.local", attribute)}
+                        [{$native:call("node.namespace", attribute)}]
+                        = {code | {$native:call("node.value", attribute)}}}}
+                {apply-templates @mode=tree @select='native:call("node.children", node)'}
+    }   }   }   }   }
+    {template @mode=tree @match=true @priority=-10 |
+        {body | {li | {$native:call("node.kind", node)}:
+            {code | {$native:call("node.value", node)}}}}}
+    {body |
+        {cem-data @name=document @select=datadom.slices.source @type=xml @projection=xpath}
+        {article @class=demo-card |
+            {label | XML source
+                {textarea @spellcheck=false @slice=source @slice-event=input
+                    @slice-value="$target.value" | {$datadom.slices.source}}}
+            {cem:choose |
+                {cem:when @test='document.error != ""' | {p @role=alert | {$document.error}}}
+                {cem:otherwise | {ul |
+                    {apply-templates @mode=tree @select='native:call("node.children", document.root)'}
+}   }   }   }   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

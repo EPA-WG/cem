@@ -19,8 +19,8 @@ This keeps existing generator HTML source working while making local
 - Root IDE `web-types` paths point at `packages/custom-element/ide/...` instead of
   the external package install.
 - `packages/cem-theme:build:html` cache inputs track
-  `packages/custom-element/custom-element.js` and
-  `packages/custom-element/http-request.js`.
+  `packages/custom-element/custom-element.js`. The standalone HTTP module and
+  its theme import were retired on 2026-09-17.
 - Source HTML imports under `packages/cem-theme/src/` still use
   `node_modules/@epa-wg/custom-element/...` so the dev-server path remains
   stable.
@@ -35,8 +35,7 @@ This keeps existing generator HTML source working while making local
 - Package-local adapter fixtures now verify that the workspace source and vendored
   `cem-theme` runtime files agree. `@epa-wg/custom-element:test` depends on
   `@epa-wg/cem-theme:build:html`, then runs
-  `scripts/verify-theme-vendor-runtime.mjs` to compare `custom-element.js` and
-  `http-request.js` with `packages/cem-theme/dist/vendor/@epa-wg/custom-element/`
+  `scripts/verify-theme-vendor-runtime.mjs` to compare `custom-element.js` with `packages/cem-theme/dist/vendor/@epa-wg/custom-element/`
   and reject emitted theme HTML that still points at `node_modules`.
 - Publish readiness decision is closed: `@epa-wg/custom-element` joins the fixed
   Nx `cem` release group for the next-major adoption release.

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { glob } from 'glob';
@@ -10,13 +10,18 @@ const vendorRoot = join(themeDistRoot, 'vendor/@epa-wg/custom-element');
 
 const runtimeFiles = [
     'custom-element.js',
-    'http-request.js',
 ];
 
 for (const file of runtimeFiles) {
     const source = await readFile(join(projectRoot, file), 'utf8');
     const vendored = await readFile(join(vendorRoot, file), 'utf8');
     assertEqual(vendored, source, `${file} vendored into cem-theme`);
+}
+
+for (const retired of [join(vendorRoot, 'http-request.js'), join(themeDistRoot, 'lib/css-generators/cem-http-request.js')]) {
+    if (await access(retired).then(() => true, () => false)) {
+        throw new Error(`retired HTTP implementation remains in the theme distribution: ${retired}`);
+    }
 }
 
 const htmlFiles = await glob('**/*.html', { cwd: themeDistRoot });

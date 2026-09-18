@@ -1,0 +1,9 @@
+{
+    "package": "@epa-wg/cem-elements",
+    "versions": [
+        { "version": "0.1.0", "date": "2026-08-01" },
+        { "version": "0.0.25", "date": "2024-05-18" },
+        { "version": "0.0.22", "date": "2024-04-20" },
+        { "version": "0.0.21", "date": "2024-03-09" }
+    ]
+}

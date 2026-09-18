@@ -26,7 +26,7 @@ for (const file of runtimeFiles) {
     copyFileSync(resolve(wasmSourceRoot, file), resolve(vendorRoot, file));
 }
 
-for (const file of ['cem-ql-query.js', 'cem-ql-render.js']) {
+for (const file of ['cem-ql-query.js', 'cem-ql-render.js', 'xpath-function-library.js']) {
     const outputPath = resolve(runtimeSupportRoot, file);
     const output = readFileSync(outputPath, 'utf8');
     const packaged = output.replaceAll(workspaceImport, packageImport);

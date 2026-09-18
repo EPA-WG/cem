@@ -134,9 +134,20 @@ impl ScopeConfig {
     }
 
     pub fn xpath_items_budget(&self) -> Result<Option<u64>, String> {
+        self.xpath_budget("xpathitems")
+    }
+
+    pub fn xpath_text_bytes_budget(&self) -> Result<Option<u64>, String> {
+        self.xpath_budget("xpathtextbytes")
+    }
+    pub fn xpath_work_units_budget(&self) -> Result<Option<u64>, String> {
+        self.xpath_budget("xpathworkunits")
+    }
+
+    fn xpath_budget(&self, name: &str) -> Result<Option<u64>, String> {
         let mut budget = None;
         for (field, value) in &self.budgets {
-            if normalize_key(field) == "xpathitems" {
+            if normalize_key(field) == name {
                 budget = Some(parse_u64_budget_value(field, value)?);
             }
         }
@@ -538,6 +549,10 @@ pub struct NormalizedBudgets {
     pub timeout_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xpath_items: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xpath_text_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xpath_work_units: Option<u64>,
     #[serde(default)]
     pub unknown: Vec<NormalizedBudgetEntry>,
     #[serde(default)]
@@ -1197,8 +1212,12 @@ fn normalized_policy_and_budgets(
                     )),
                 }
             },
-            "xpathitems" => match parse_u64_budget_value(field, value) {
-                Ok(value) => budgets.xpath_items = Some(value),
+            "xpathitems" | "xpathtextbytes" | "xpathworkunits" => match parse_u64_budget_value(field, value) {
+                Ok(value) => match normalize_key(field).as_str() {
+                    "xpathitems" => budgets.xpath_items = Some(value),
+                    "xpathtextbytes" => budgets.xpath_text_bytes = Some(value),
+                    _ => budgets.xpath_work_units = Some(value),
+                },
                 Err(message) => diagnostics.push(budget_invalid_diagnostic(
                     message,
                     base_uri,
@@ -3710,6 +3729,8 @@ mod tests {
                                 "timeoutMs": "40",
                                 "pluginMs": "20",
                                 "xpathItems": "8",
+                                "xpathTextBytes": "512",
+                                "xpathWorkUnits": "2048",
                                 "overflow": "spill-to-parent",
                                 "parseMs": "5",
                                 "validateTimeBudgetMs": "7",
@@ -3741,6 +3762,8 @@ mod tests {
         assert_eq!(scope.budgets.timeout_ms, Some(40));
         assert_eq!(scope.budgets.plugin_ms, Some(20));
         assert_eq!(scope.budgets.xpath_items, Some(8));
+        assert_eq!(scope.budgets.xpath_text_bytes, Some(512));
+        assert_eq!(scope.budgets.xpath_work_units, Some(2048));
         assert_eq!(scope.budgets.unknown.len(), 1);
         assert!(has_field_path(
             &plan.diagnostics,

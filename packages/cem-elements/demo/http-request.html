@@ -33,9 +33,9 @@
         <h2>HTTP responses as declarative data</h2>
         <p>
             <code>http-request</code> resolves a URL in its declaration scope, performs
-            an authorized <code>GET</code> or <code>HEAD</code>, and publishes a serializable
+            an authorized <code>GET</code> or <code>HEAD</code>, and publishes a lifecycle
             resource envelope under <code>datadom.slices.&lt;slice&gt;</code>. Templates can render
-            its lifecycle, request and response metadata, and parsed response data without
+            its lifecycle, request and response metadata, and a retained CEM document without
             receiving live <code>Request</code> or <code>Response</code> objects.
         </p>
         <p>
@@ -44,7 +44,7 @@
             requests require explicit host authorization.
         </p>
         <h3>See also</h3>
-        <p><a href="./for-each.html">Rendering JSON and XML response records with for-each</a></p>
+        <p><a href="./for-each.html">Rendering imported CEM nodes with for-each</a></p>
         <p><a href="./module-url.html">Scoped URL and module-map resolution</a></p>
         <p><a href="../../../docs/cem-elements-http-request-design.md">HTTP request resource design</a></p>
     </section>
@@ -54,7 +54,7 @@
         description="Choose or edit a URL, then press GET; try an empty URL or an invalid JSON response, then recover with a valid preset">
         <template>
 <cem-element>
-    <template type="text/cem-ml">
+    <template type="text/cem-ml" xpath-functions="./http-data.cemt">
 {style |```
     article { max-inline-size: 30rem; }
     .url-presets { display: flex; flex-wrap: wrap; gap: .5rem; }
@@ -116,9 +116,9 @@
     {cem:if @test='datadom.slices.requestUrl && (datadom.slices.selectedResult.state ?? "") == "loaded"' |
         {ul |
             {cem:for-each
-                @select="datadom.slices.selectedResult.data.results"
+                @select='native:call("http.rows", datadom.slices.selectedResult.data)'
                 @as=item |
-                {li | {$item.name}: {$item.status}}
+                {li | {$native:call("http.field", item, "name")}: {$native:call("http.field", item, "status")}}
 }   }   }   }
     </template>
 </cem-element>
@@ -130,7 +130,7 @@
         description="Load the list of pokemons from a local JSON response">
         <template>
 <cem-element>
-    <template type="text/cem-ml">
+    <template type="text/cem-ml" xpath-functions="./http-data.cemt">
 {style |```
     article { max-inline-size: 30rem; }
     .result-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
@@ -153,13 +153,15 @@
     {cem:if @test='(datadom.slices.catalog.state ?? "") == "loaded"' |
         {div @class=result-buttons |
             {cem:for-each
-                @select="datadom.slices.catalog.data.results"
+                @select='native:call("http.rows", datadom.slices.catalog.data)'
                 @as=item |
+                {cem:variable @name=name @select='native:call("http.field", item, "name")'}
+                {cem:variable @name=id @select='native:call("http.field", item, "id")'}
                 {button @type=button
-                        @aria-label="{$item.name}"
-                        @title="{$item.name}" |
-                    {img @src="{$spriteUrl}/{$item.id}.svg"
-                         @alt="{$item.name}"}
+                        @aria-label="{$name}"
+                        @title="{$name}" |
+                    {img @src="{$spriteUrl}/{$id}.svg"
+                         @alt="{$name}"}
 }   }   }   }   }
     </template>
 </cem-element>
@@ -171,7 +173,7 @@
         description="The resource envelope exposes request headers and response metadata to CEM-QL">
         <template>
 <cem-element>
-    <template type="text/cem-ml">
+    <template type="text/cem-ml" xpath-functions="./http-data.cemt">
 {style |```
     article { max-inline-size: 30rem; }
     dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .5rem; }
@@ -189,7 +191,7 @@
 {article @class=demo-card |
     {h2 | 2. Request and response metadata}
     {p |
-        The slice keeps metadata beside parsed data, so rendering never needs a live
+        The slice keeps metadata beside the native CEM document, so rendering never needs a live
         browser Request or Response object.
     }
     {dl |

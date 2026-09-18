@@ -6,13 +6,13 @@
  * It is authored as if it will be extracted to `@epa-wg/cem-runtime-support`: it
  * knows nothing about `customElements`, declaration discovery, produced-element
  * lifecycle, or that its caller is `<cem-element>`. It only turns a canonical
- * CEM-ML source string plus serializable host/data bindings into a serializable
+ * CEM-ML source string plus host metadata and explicit native document bindings into a serializable
  * {@link RenderPlanNode} list, by calling the `cem_ql` WASM render boundary
  * (C2.2 exports) and mapping its JSON plan into the projection-layer shape so the
  * existing `materializeRenderPlan` can commit it unchanged.
  *
  * Topology: the Phase 3A processing engine calls this boundary inside one dedicated
- * module worker per logical root. The same module is instantiated on the main thread
+ * pooled module worker selected for each logical root. The same module is instantiated on the main thread
  * only after the processing host selects its deterministic fallback (design §4.3).
  */
 
@@ -26,6 +26,9 @@ import initCemQlWasm, {
     disposeTemplate,
     importTemplateArtifact,
     renderTemplate,
+    renderTemplateWithCemDocuments,
+    retainCemDocument,
+    disposeCemDocument,
     renderTemplateSource,
     resolveModuleUrl as resolveModuleUrlWasm,
     templateArtifactPayloadKey,
@@ -524,11 +527,15 @@ async function fetchModuleSource(resolvedUrl: string): Promise<string> {
 export async function renderRetainedCemMlTemplate(
     artifactId: number,
     data: Record<string, unknown>,
-    options: CemQlRenderOptions = {}
+    // A host-local capability belongs only to the explicit retained render path.
+    options: CemQlRenderOptions & { xpathCompanionId?: number; documents?: { slice: string; documentId: number }[] } = {}
 ): Promise<CemQlRenderResult> {
     assertProcessingBoundaryValue(data, 'CEM-ML render data');
     await ensureRuntimeReady();
-    return mapWasmRenderPlan(renderTemplate(artifactId, JSON.stringify(data ?? {})), options);
+    return mapWasmRenderPlan(options.xpathCompanionId === undefined && !options.documents?.length
+        ? renderTemplate(artifactId, JSON.stringify(data ?? {}))
+        : renderTemplateWithCemDocuments(artifactId, options.xpathCompanionId ?? 0,
+            JSON.stringify(data ?? {}), JSON.stringify(options.documents ?? [])), options);
 }
 
 function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQlRenderResult {
@@ -604,7 +611,7 @@ export async function processCemMlTemplate(
 /** Processing path for a validated, retained component-template artifact. */
 export async function processRetainedCemMlTemplate(
     artifactId: number,
-    input: CemMlTemplateProcessingInput
+    input: CemMlTemplateProcessingInput & { xpathCompanionId?: number; documents?: { slice: string; documentId: number }[] }
 ): Promise<CemMlTemplateProcessingResult> {
     assertProcessingBoundaryValue(input.data, 'CEM-ML processing data');
     assertProcessingBoundaryValue(input.identity, 'CEM-ML processing identity');
@@ -616,6 +623,8 @@ export async function processRetainedCemMlTemplate(
     }
 
     const rendered = await renderRetainedCemMlTemplate(artifactId, input.data, {
+        xpathCompanionId: input.xpathCompanionId,
+        documents: input.documents,
         renderNodeIdPrefix: input.renderNodeIdPrefix ?? input.identity.producedTag,
     });
     const renderPlan = projectSlotsInRenderPlan(
@@ -731,4 +740,13 @@ function coerceSeverity(severity: string | undefined): RuntimeSupportDiagnostic[
         default:
             return 'error';
     }
+}
+
+/** Byte ingress into cem-ml. The response document never enters JavaScript. */
+export async function retainLoadedCemDocument(bytes: ArrayBuffer, contentType: string, uri: string): Promise<number> {
+    await ensureRuntimeReady();
+    return retainCemDocument(new Uint8Array(bytes), contentType, uri);
+}
+export function disposeLoadedCemDocument(id: number): void {
+    disposeCemDocument(id);
 }

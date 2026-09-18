@@ -42,6 +42,16 @@ async function handleMessage(message: unknown): Promise<void> {
             return;
         }
         jobs.start(request.jobId);
+        if (request.operation === 'document') {
+            const result = await engine.document(request.payload);
+            if (jobs.isCancelled(request.jobId) && request.payload.action === 'retain') {
+                await engine.document({ action: 'release', handle: request.payload.handle });
+                workerScope.postMessage(createCemProcessingFailureEnvelope(request, 'cancelled', [cancelledDiagnostic()]));
+            } else {
+                workerScope.postMessage(createCemProcessingSuccessEnvelope(request, result));
+            }
+            return;
+        }
         if (request.operation === 'compile') {
             const result = await engine.compile(request.payload);
             if (jobs.isCancelled(request.jobId)) {

@@ -1,3 +1,4 @@
+import httpDataLibrary from '../../demo/http-data.cemt?raw';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- This executable fixture intentionally exercises the canonical workspace example as raw source.
 import canonicalLoginFixture from '../../../../examples/cem-ml/login.cem?raw';
@@ -2552,7 +2553,7 @@ export const UriAndModuleResolutionPolicy: Story = {
                 const source = path.includes('http-card.html')
                     ? [
                           '{http-request @slice=page @url=./data.json @content-type="application/json"}',
-                          '{output @class=imported-resource | {$datadom.slices.page.data.label}}',
+                          '{output @class=imported-resource | {$datadom.slices.page.data.children.children.children.children.value}}',
                       ].join('\n')
                     : `{span @class=source | ${href}}`;
                 return {
@@ -2580,7 +2581,7 @@ export const UriAndModuleResolutionPolicy: Story = {
                     headers: { 'content-type': 'application/json' },
                     contentType: 'application/json',
                 },
-                body: utf8Body(JSON.stringify({ label: 'Imported resource' })),
+                body: utf8Body('{"label":"Imported resource"}'),
             }),
         });
         const firstFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/alpha/');
@@ -2794,6 +2795,7 @@ export const HttpRequestResourceLifecycle: Story = {
         const aborted: string[] = [];
         const streamedChunks: Record<string, number> = {};
         const runtime = new CemElementRuntime({
+            loadSrcDocument: async () => httpDataLibrary,
             declarationTag: 'cem-element-story-http-resource',
             resolveResourceUrl: (request) => ({
                 authoredUrl: request.authoredUrl,
@@ -2823,13 +2825,7 @@ export const HttpRequestResourceLifecycle: Story = {
                             ? 'opaque bytes'
                             : xml
                               ? '<catalog><entry status="ready">XML one</entry><entry status="waiting">XML two</entry></catalog>'
-                              : JSON.stringify({
-                                  name,
-                                  results: [
-                                      { name, status: 'ready' },
-                                      { name: `${name}-next`, status: 'waiting' },
-                                  ],
-                              });
+                              : `{"name":"${name}","results":[{"name":"${name}","status":"ready"},{"name":"${name}-next","status":"waiting"}]}`;
                         resolve({
                             response: {
                                 url: request.resolvedUrl,
@@ -2860,23 +2856,26 @@ export const HttpRequestResourceLifecycle: Story = {
                 '  {p @class=state | {$datadom.slices.page.state}}',
                 '  {p @class=revision | {$datadom.slices.page.resourceRevision}}',
                 '  {cem:if @test=\'datadom.slices.page.state == "loaded"\' |',
-                '    {output @class=name | {$datadom.slices.page.data.name}}',
+                '    {output @class=name | {$native:call("http.field", datadom.slices.page.data.children, "name")}}',
                 '    {ul @class=json-results |',
-                '      {cem:for-each @select="datadom.slices.page.data.results" @as=result |',
-                '        {li @data-status="{$result.status}" | {$result.name}}',
+                `      {cem:for-each @select='native:call("http.rows", datadom.slices.page.data)' @as=result |`,
+                `        {li @data-status='{$native:call("http.field", result, "status")}' | {$native:call("http.field", result, "name")}}`,
                 '      }',
                 '    }',
                 '  }',
                 '  {cem:if @test=\'datadom.slices.xml.state == "loaded"\' |',
                 '    {ol @class=xml-results |',
-                '      {cem:for-each @select="datadom.slices.xml.data.children" @as=entry |',
-                '        {li @data-status="{$entry.attributes.status}" | {$entry.text}}',
+                `      {cem:for-each @select='native:call("http.rows", datadom.slices.xml.data)' @as=entry |`,
+                `        {cem:variable @name=status @select='native:call("http.field", entry, "status")'}`,
+                `        {li @data-status="{$status}" | {$native:call("http.text", entry)}}`,
                 '      }',
                 '    }',
                 '  }',
                 '}',
             ].join('\n')
         );
+        requiredElement(declaration, 'template').setAttribute('xpath-functions', new URL('../../demo/http-data.cemt', import.meta.url).href);
+        declaration.setAttribute('version', '1.0.0');
         root.appendChild(declaration);
         assert(runtime.registerDeclaration(declaration), 'http-request declaration registers');
         await runtime.whenDeclarationSettled(declaration);
@@ -2902,12 +2901,12 @@ export const HttpRequestResourceLifecycle: Story = {
         assertEqual(
             Array.from(instance.querySelectorAll('.json-results li')).map((element) => element.textContent?.trim()).join('|'),
             'second|second-next',
-            'JSON response projection drives worker CEM-QL for-each output'
+            'Imported JSON CEM nodes drive worker CEM-QL for-each output'
         );
         assertEqual(
             Array.from(instance.querySelectorAll('.xml-results li')).map((element) => element.textContent?.trim()).join('|'),
             'XML one|XML two',
-            'XML response projection drives the same worker CEM-QL for-each flow'
+            'Imported XML CEM nodes drive the same worker CEM-QL for-each flow'
         );
         assert((streamedChunks.second ?? 0) > 1, 'JSON response is consumed through multiple loader chunks');
         assert((streamedChunks.xml ?? 0) > 1, 'XML response is consumed through multiple loader chunks');
@@ -2918,7 +2917,7 @@ export const HttpRequestResourceLifecycle: Story = {
         );
         assertDiagnostic(
             runtime.diagnosticsFor(instance),
-            'cem-element.http_request_unsupported_content_type'
+            'cem-element.http_request_parse_failed'
         );
 
         const snapshot = runtime.snapshotInstance(instance);
@@ -2933,7 +2932,7 @@ export const HttpRequestResourceLifecycle: Story = {
                 finalUrl?: string;
                 responseIdentityHash?: string;
             };
-            data?: { name?: string };
+            data?: null;
         };
         assertEqual(page.state, 'loaded', 'snapshot stores loaded http-request state');
         assertEqual(page.resourceRevision, 2, 'resource revision increments after URL change');
@@ -2943,8 +2942,49 @@ export const HttpRequestResourceLifecycle: Story = {
         assertEqual(page.sourceId?.finalUrl, 'https://resources.example.test/second.json', 'source-id records response URL');
         assert(page.sourceId?.id?.startsWith('http-source-'), 'source-id uses an opaque public id');
         assert(page.sourceId?.responseIdentityHash, 'source-id records a response identity hash');
-        assertEqual(page.data?.name, 'second', 'snapshot stores serializable response data');
+        assertEqual(page.data, null, 'snapshot stores lifecycle metadata without response document objects');
         JSON.stringify(page);
+        assertEqual(instance.querySelector('.xml-results li')?.getAttribute('data-status'), 'ready',
+            'native XPath field values bind into XML row attributes');
+
+        const independent = document.createElement('story-http-resource-panel');
+        independent.setAttribute('url', 'independent');
+        root.appendChild(independent);
+        await waitForCondition(() => pending.has('independent'), 'another instance opens its own request');
+        pending.get('independent')?.('independent');
+        pending.get('xml')?.('xml');
+        pending.get('unsupported')?.('unsupported');
+        await waitForCondition(() => independent.querySelector('.name')?.textContent?.trim() === 'independent',
+            'another instance queries its own native document');
+        assertEqual(instance.querySelector('.name')?.textContent?.trim(), 'second', 'instance documents stay isolated');
+
+        const completed = pending.get('second');
+        instance.remove();
+        assertEqual((runtime.snapshotInstance(instance).slices.page as { state: string }).state, 'scheduled',
+            'disconnect invalidates loaded metadata whose native owner was released');
+        root.appendChild(instance);
+        await waitForCondition(() => pending.get('second') !== completed, 'reconnect reloads the released document');
+        pending.get('second')?.('reconnected');
+        pending.get('xml')?.('xml');
+        pending.get('unsupported')?.('unsupported');
+        await waitForCondition(() => instance.querySelector('.name')?.textContent?.trim() === 'reconnected',
+            'reconnect binds a newly imported native document');
+        assertEqual(independent.querySelector('.name')?.textContent?.trim(), 'independent',
+            'disconnect does not release another instance document');
+        const serialized = instance.outerHTML;
+        const lastRequest = pending.get('second');
+        instance.remove();
+        const resumedContent = document.createElement('template');
+        resumedContent.innerHTML = serialized;
+        const resumed = resumedContent.content.firstElementChild as HTMLElement;
+        root.appendChild(resumed);
+        await waitForCondition(() => pending.get('second') !== lastRequest,
+            'serialized resume reacquires ephemeral HTTP document owners');
+        pending.get('second')?.('resumed');
+        pending.get('xml')?.('xml');
+        pending.get('unsupported')?.('unsupported');
+        await waitForCondition(() => resumed.querySelector('.name')?.textContent?.trim() === 'resumed',
+            'serialized metadata cannot substitute for a newly imported CEM document');
     },
 };
 

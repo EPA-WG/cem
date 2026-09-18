@@ -30,12 +30,12 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend]').length === 9,
+            () => host.querySelectorAll('cem-demo-element[legend]').length === 11,
             'all string-functions samples render from the HTML source'
         );
         assertDeepEqual(
             Array.from(host.querySelectorAll('cem-demo-element'), (sample) => sample.getAttribute('legend') ?? ''),
-            [MATRIX_LEGEND, ...METHODS.map((method) => `str:${method}`)],
+            [MATRIX_LEGEND, ...METHODS.map((method) => `str:${method}`), 'XPath normalize-space', 'XPath tokenize and string-join'],
             'string-function sample inventory'
         );
 
@@ -68,6 +68,24 @@ export const EveryAuthoredSample: Story = {
             'str:shorten result matrix'
         );
         await verifySimpleMethods(host);
+        const normalized = requiredElement(host, 'cem-demo-element[legend="XPath normalize-space"]');
+        await waitForOutput(normalized, '🍒 🍋');
+        await edit(normalized, 'Text', ' a\ta\n🍒  ');
+        await waitForOutput(normalized, 'a a 🍒');
+        await edit(normalized, 'Text', ' a\u00a0\u2003b ');
+        await waitForOutput(normalized, 'a\u00a0\u2003b');
+        await edit(normalized, 'Text', ' \t\n');
+        await waitForOutput(normalized, '');
+        const joined = requiredElement(host, 'cem-demo-element[legend="XPath tokenize and string-join"]');
+        await waitForOutput(joined, '🍒/🍒/🍋');
+        await edit(joined, 'Text', 'a\ta\nb');
+        await waitForOutput(joined, 'a/a/b');
+        await edit(joined, 'Separator', '🍒');
+        await waitForOutput(joined, 'a🍒a🍒b');
+        await edit(joined, 'Text', 'a\u00a0b');
+        await waitForOutput(joined, 'a\u00a0b');
+        await edit(joined, 'Text', '');
+        await waitForOutput(joined, '');
     },
 };
 
@@ -138,13 +156,13 @@ function parts(root: HTMLElement): string[] {
 }
 
 async function edit(root: HTMLElement, label: string, value: string): Promise<void> {
-    const field = Array.from(root.querySelectorAll('label')).find((element) => normalize(element.textContent ?? '') === label);
-    const input = field?.querySelector('input');
+    const field = Array.from(root.querySelectorAll('label')).find((element) => normalize(element.firstChild?.textContent ?? '') === label);
+    const input = field?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input, textarea');
     if (!input) throw new Error(`expected input labelled ${label}`);
     input.value = value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     await waitForCondition(
-        () => (input.getAttribute('value') ?? '') === value,
+        () => (input instanceof HTMLTextAreaElement ? input.textContent : input.getAttribute('value') ?? '') === value,
         `${label} should commit its new value before the next edit`
     );
 }

@@ -32,6 +32,16 @@ in [`todo.md`](todo.md).
 
 ## CEM-ML Runtime
 
+- [ ] **Progressive document loading over CEM-ML AST streams (accepted later phase).**
+      User direction, 2026-09-17: after the materialized
+      [loader custom element](cem-data-loader-plan.md) and migrated samples are
+      verified, support progressive typed CEM-ML AST chunks/events through the
+      same resource lifecycle. Define backpressure, bounded retention, node/source
+      identity across chunks, partial-input errors, cancellation/disposal and
+      transactional updates for the active revision. Identify incremental consumers
+      and explicitly materialize for queries requiring the whole tree. Cover native,
+      WASM and browser parity. HTTP byte streaming alone does not satisfy this item;
+      no JavaScript JSON-object document representation is permitted.
 - [ ] **macOS ARM64 CEM-ML CLI and Homebrew distribution.** Keep the existing dormant
       `native-macos-arm64` projection outside the active roadmap and release matrix. Reconsider it only with an
       Apple-supported build and native execution environment, a pinned macOS SDK/Xcode/Rust toolchain, Developer ID

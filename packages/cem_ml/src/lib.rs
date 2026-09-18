@@ -32,6 +32,7 @@ pub mod content_cache;
 pub mod events;
 pub mod formatter;
 pub mod handoff;
+pub mod import;
 pub mod interpreter;
 pub mod legacy_custom_element;
 pub mod lifecycle;

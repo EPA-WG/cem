@@ -42,12 +42,15 @@ publish-readiness pass explicitly lists the break:
 - declaration tag: `<custom-element>`;
 - `custom-element.js` default export and named `CustomElement` export;
 - `index.js` default export of `CustomElement`;
-- `index.js` re-exports for `custom-element.js`, `http-request.js`,
+- `index.js` re-exports for `custom-element.js`,
   `local-storage.js`, and `location-element.js`;
 - import-time `customElements.define(...)` side effects for published browser
   modules;
 - package metadata and entrypoints captured in the package baseline, including
   `browser`, `module`, `types`, `web-types`, and `exports`.
+
+The explicit 2026-09-17 exception retires `http-request.js` and its named export.
+Its consumers use the [shared CEM loader](cem-data-loader-plan.md).
 
 `module-url.js` remains a shipped browser file and side-effect registration for
 now, but it is not added to `index.js` in this boundary decision because the

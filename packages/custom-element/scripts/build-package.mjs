@@ -44,6 +44,16 @@ await writeFile(
     ),
 );
 
+// Migrated examples use the same vendored CEM runtime as the public adapter.
+for (const name of ['http-request.html', 'npm-versions-demo.html']) {
+    const path = join(distRoot, 'demo', name);
+    const source = await readFile(path, 'utf8');
+    await writeFile(path, source.replace(
+        "from '../../cem-elements/dist/index.js'",
+        "from '../vendor/@epa-wg/cem-elements/dist/index.js'",
+    ));
+}
+
 const packageJsonPath = join(distRoot, 'package.json');
 const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
 if (JSON.stringify(packageJson.files) !== JSON.stringify(archiveManifest.packageFiles)) {

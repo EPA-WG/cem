@@ -9,6 +9,7 @@
     }
 
     {content-type @value="application/vnd.cem.xpath" @primary=true}
+    {content-type @value="application/vnd.cem.xpath-artifact+cem-bin" @alias=true}
     {content-type @value="text/xpath" @alias=true}
     {content-type @value="application/vnd.cem.xpath-result+json" @alias=true}
 

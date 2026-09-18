@@ -697,6 +697,12 @@ impl XmlSchemaContractCatalog {
     fn binding_for_fact(&self, kind: XmlParseFactKind) -> Option<&XmlDiagnosticBinding> {
         self.fact_bindings.get(kind.as_str())
     }
+
+    pub(crate) fn severity_for_fact(&self, kind: XmlParseFactKind) -> Severity {
+        self.binding_for_fact(kind)
+            .map(|binding| binding.severity)
+            .unwrap_or_else(|| xml_fact_fallback_severity(kind))
+    }
 }
 
 pub fn validate_xml_source_bytes(request: XmlSourceValidationRequest<'_>) -> Vec<Diagnostic> {
@@ -1169,9 +1175,7 @@ fn xml_diagnostic_from_fact(
     contracts: &XmlSchemaContractCatalog,
 ) -> Diagnostic {
     let binding = contracts.binding_for_fact(fact.kind);
-    let severity = binding
-        .map(|binding| binding.severity)
-        .unwrap_or_else(|| xml_fact_fallback_severity(fact.kind));
+    let severity = contracts.severity_for_fact(fact.kind);
     let code = binding
         .map(|binding| binding.diagnostic_code.clone())
         .unwrap_or_else(|| format!("cem.xml.unbound_fact.{}", fact.kind.as_str()));

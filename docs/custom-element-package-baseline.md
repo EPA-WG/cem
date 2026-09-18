@@ -1,5 +1,9 @@
 # `@epa-wg/custom-element` Package Baseline
 
+> HTTP update (2026-09-17): standalone `http-request.js` is retired and its
+> examples use `cem-elements`. Historical package inventories below preserve
+> their original snapshot. See the [current loader plan](cem-data-loader-plan.md).
+
 > Historical baseline: this document records the June 2026 snapshot-import
 > starting point. The active Phase 3.6 inventory was refreshed against current
 > Git refs, npm bytes, the behavioral-reference repository, and the already

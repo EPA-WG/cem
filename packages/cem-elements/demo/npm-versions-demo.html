@@ -25,14 +25,15 @@
         <h2>Choose a package version from registry data</h2>
         <p>
             The reusable template loads package metadata with <code>http-request</code>
-            and turns the version records into a native select. It supports a current
+            and queries the imported CEM nodes to populate a native select. It supports a current
             version, optional publication dates, a projected label, value propagation,
             and synchronization with the page hash.
         </p>
         <p>
             This demo uses a small same-origin registry fixture so every case remains
-            deterministic and works offline. Replace its request URL with an allowed
-            NPM registry endpoint in an application that permits that origin.
+            deterministic and works offline. It is a compact version/date list; a live
+            registry endpoint also needs XPath functions for its response vocabulary
+            and host authorization for that origin.
         </p>
         <dl>
             <dt>package</dt><dd>Package name shown by the picker.</dd>
@@ -47,7 +48,7 @@
         <p><a href="./set-url.html">Write the page URL</a></p>
     </section>
 
-    <template id="npm-version" type="text/cem-ml">
+    <template id="npm-version" type="text/cem-ml" xpath-functions="./http-data.cemt">
 {style |```
     label { display: grid; gap: 0.35rem; }
     select { min-inline-size: 14rem; }
@@ -79,22 +80,24 @@
             @slice-event=change
             @slice-value="$target.value" |
             {cem:for-each
-                @select="datadom.slices.registry.data.versions"
+                @select='native:call("http.versions", datadom.slices.registry.data)'
                 @as=version |
+                {cem:variable @name=releaseVersion @select='native:call("http.field", version, "version")'}
+                {cem:variable @name=releaseDate @select='native:call("http.field", version, "date")'}
                 {cem:choose |
                     {cem:when
-                        @test='version.version == initialversion' |
-                        {option @value="{$version.version}" @selected=true |
-                            {$version.version}
+                        @test='releaseVersion == initialversion' |
+                        {option @value="{$releaseVersion}" @selected=true |
+                            {$releaseVersion}
                             {cem:if @test='showdate == "true"' |
-                                - {$version.date}}
+                                - {$releaseDate}}
                         }
                     }
                     {cem:otherwise |
-                        {option @value="{$version.version}" |
-                            {$version.version}
+                        {option @value="{$releaseVersion}" |
+                            {$releaseVersion}
                             {cem:if @test='showdate == "true"' |
-                                - {$version.date}}
+                                - {$releaseDate}}
                         }
                     }
 }   }   }   }

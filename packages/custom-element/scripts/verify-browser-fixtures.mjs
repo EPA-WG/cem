@@ -1,3 +1,4 @@
+import { verifyLoaderExamples } from './verify-loader-examples.mjs';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -73,6 +74,9 @@ try {
         if (errors.length > 0) {
             throw new Error(`${fixturePath} failed:\n${errors.map((error) => `- ${error}`).join('\n')}`);
         }
+    }
+    for (const base of ['/packages/custom-element', '/packages/custom-element/dist']) {
+        await verifyLoaderExamples(browser, `http://127.0.0.1:${port}`, base);
     }
 } finally {
     await browser.close();

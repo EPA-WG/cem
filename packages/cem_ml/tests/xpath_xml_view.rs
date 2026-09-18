@@ -1,4 +1,4 @@
-//! XSLT-VIEW-XML-NODE-PROJECTION: XDM normalization stays in the XPath view.
+//! XSLT-VIEW-XML-NODE-PROJECTION: import supplies XML values to the shared CEM view.
 use cem_ml::diagnostics::Diagnostic;
 use cem_ml::lifecycle::LoadedInputAstStream;
 use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
@@ -61,6 +61,7 @@ fn run(
         resolver_policy: &policy,
         evaluation_limits: XPathEvaluationLimits {
             max_sequence_items: limit,
+            ..Default::default()
         },
         safety_policy_stamp: "xpath-normalized-view-tests",
         module_resolution: None,
@@ -104,7 +105,7 @@ fn text_runs_coalesce_with_decoded_entities_and_canonical_identity() {
     let items = eval(&owner, "/r/text()");
     assert_eq!(values(&items), ["abc&🍒"]);
     let node = items[0].native_node().unwrap();
-    assert!(Arc::ptr_eq(node.owner(), &owner));
+    assert!(Arc::ptr_eq(node.source_owner().as_ref().unwrap(), &owner));
     let events = original
         .events
         .iter()
@@ -269,7 +270,7 @@ fn namespace_declarations_are_not_attributes_and_shadowed_names_stay_expanded() 
 }
 
 #[test]
-fn processing_instruction_targets_and_declaration_filtering_are_xpath_owned() {
+fn processing_instruction_targets_and_declarations_use_imported_semantics() {
     let owner = owner(r#"<?xml version="1.0"?><r><?keep first?><?other second?><?keep?></r>"#);
     assert_eq!(eval(&owner, "/node()").len(), 1);
     let items = eval(&owner, "/r/processing-instruction()");
@@ -331,6 +332,7 @@ fn xslt_owned_xpath_reuses_normalized_native_nodes() {
                 resolver_policy: &policy,
                 evaluation_limits: XPathEvaluationLimits {
                     max_sequence_items: Some(1),
+                    ..Default::default()
                 },
                 safety_policy_stamp: "xslt-normalized-view-test",
                 module_resolution: None,
@@ -338,7 +340,12 @@ fn xslt_owned_xpath_reuses_normalized_native_nodes() {
             .unwrap();
         assert_eq!(result.sequence.items, eval(&owner, "/r/text()"));
         assert!(Arc::ptr_eq(
-            result.sequence.items[0].native_node().unwrap().owner(),
+            result.sequence.items[0]
+                .native_node()
+                .unwrap()
+                .source_owner()
+                .as_ref()
+                .unwrap(),
             &owner
         ));
     }

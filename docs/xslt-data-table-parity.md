@@ -4,9 +4,11 @@ Status: native JSON projection, reusable query/template recovery, the
 separately approved native-owner loader repair and XPath-owned XML node
 normalization are implemented and verified. The user also approved the generic
 native query-function hook; its runtime integration is implemented and verified
-below. The
-runtime XSLT-to-CEMT compiler remains the next open work item; see
-[todo.md](todo.md). No equivalent XSLT stylesheet or browser sample is available yet.
+below. The compiled-bundle/browser-host delivery path is approved, with
+independently identified XPath programs. The XPath artifact foundation is
+implemented; XSLT bundle composition and runtime lowering remain open in
+[todo.md](todo.md). No equivalent XSLT stylesheet or browser sample is available
+yet.
 
 ## Scope
 
@@ -23,7 +25,9 @@ The separate native-owner loader repair was also approved on that date.
 The user subsequently directed XML normalization into the existing XPath/XDM
 layer, reused by XSLT, without changing core XML/CEM AST or default imports.
 The user also approved the reusable native query-function invocation hook on
-2026-09-13. Other shared capability expansions still require approval.
+2026-09-13 and the XSLT-owned compiled bundle with explicit browser/WASM host
+loading on 2026-09-14. XPath must retain its own namespace and content types,
+as CEM-QL does. Other shared capability expansions still require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
 or browser runtime behavior, stop and ask before implementing it. No table-
 specific Rust rendering, demo-local JavaScript, browser XSLTProcessor, or opaque
@@ -371,6 +375,70 @@ boundaries and unchanged XML/CSV/YAML/JSON reader projections.
 Runtime lowering, the equivalent `data-table-view.xslt`, and the additional
 browser sample remain open. The generic hook decision is resolved; do not ask
 for it again, and do not equate these integration fixtures with viewer parity.
+
+## Compiled-program delivery decision (approved 2026-09-14)
+
+The in-memory native hook alone does not define how a CLI-produced template
+reaches the browser with its executable XPath programs. Inspection established
+the following delivery boundary:
+
+- `XsltParityTransformTemplateAdapter` lives above both `cem_ml` and `cem_ql`.
+  Its current compiler still uses the legacy converter. It can retain a native
+  payload in a CLI process, but that is not a browser-loadable artifact.
+- The portable CEMT artifact carries CEMT/query IR. It intentionally excludes
+  the callback registry and any typed XPath AST retained by a callback.
+  `cemt_binary_reload_requires_explicit_capabilities_and_preserves_recovery`
+  already verifies that loading such an artifact without explicit capabilities
+  cannot execute its calls.
+- `cem_ql::api::wasm` retains only `TemplateArtifact`; its JSON render input
+  constructs callback-free `TemplateData`. Browser runtime support calls this
+  boundary. Neither source loading nor CEMT module-closure loading supplies the
+  missing XSLT programs or rebinds their capabilities.
+
+**Approved:** deliver an XSLT-owned compiled bundle
+containing the generated CEMT and its compiled XPath programs/imports, with an
+explicit browser/WASM host path that validates and retains the bundle and
+rebinds only its declared capabilities. Define executable artifact versioning,
+hashes, source maps, import ownership and disposal before implementation.
+This is a deployment artifact boundary, not serialization/reparsing of runtime
+data ASTs or XPath source on every render. Keep presentation in the stylesheet,
+default generic CEMT artifacts/callback registries unchanged, and ordinary JSON
+bindings unable to install capabilities.
+
+The user additionally requires XPath to own its namespace and content type,
+like CEM-QL. Do not relabel compiled XPath as CEM-QL, substitute legacy token
+rewriting, bake output from one input, or publish unresolved callback IDs.
+
+### XPath-owned artifact foundation
+
+The existing XPath namespace `https://cem.dev/ns/query/xpath/1` and source type
+`application/vnd.cem.xpath` remain unchanged. Its new compiled program type is
+`application/vnd.cem.xpath-artifact+cem-bin`, distinct from both CEM-QL artifacts
+and XPath result metadata. The XPath package owns the versioned binary codec,
+identity/hash validation and bounded typed-program reload. Reload preserves
+source ranges, host ownership and static namespaces without reparsing XPath or
+serializing runtime data. The source syntax model gains no serde dependency.
+
+Explicit WASM `compileXPathArtifact`, `importXPathArtifact` and
+`disposeXPathArtifact` entry points expose this control-plane boundary. Native
+XSLT-owned programs can be retained by the WASM host, independently of CEMT
+handles. Loading does not install native callbacks; JSON render data cannot
+bind them. Expected content/source hashes, host identity, versions, binary
+limits, retained-program limits and non-reused handles are checked. See the
+[XPath package contract](../packages/cem_ml/schema-packages/xpath/v1/README.md#compiled-programs)
+for API details and the explicit-import limitation.
+
+Verification: six native artifact tests, two malformed-codec tests and 13
+native/WASM checks pass. The uncached XPath package verification target also
+passes schema registration, source/lifecycle compatibility, CLI examples and
+README checks. The shared WASM host builds successfully; native CEM-QL lint
+passes with warnings.
+
+This completes the independently identified program foundation, not the XSLT
+bundle or an executable viewer. The approved next work is bundle composition,
+explicit capability binding, typed stylesheet lowering, equivalent stylesheet
+and browser parity. Keep those checklist items open; the delivery decision
+itself is resolved and does not need to be requested again.
 
 ## Acceptance and implementation order
 

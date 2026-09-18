@@ -1,3 +1,4 @@
+import type { CemXPathFunctionLibrarySource } from './xpath-function-library.js';
 import type { DataIslandSnapshot, SourceMapMode } from '../../cem-elements.js';
 import type { CemMlTemplateModuleClosure, CemQlStylesheetArtifact } from './cem-ql-render.js';
 import {
@@ -12,11 +13,12 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v1' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v2' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
     'render-diff',
+    'document',
     'cancel',
     'dispose',
 ] as const;
@@ -115,6 +117,8 @@ export interface CemProcessingCompileInput {
     hostBindings?: string[];
     /** Resolved and content-hashed source modules; no DOM or executable callbacks. */
     moduleClosure?: CemMlTemplateModuleClosure;
+    /** Separately resolved executable dependency; never accepted through render data. */
+    xpathFunctionLibrary?: CemXPathFunctionLibrarySource;
     precompiledArtifact?: CemProcessingArtifactBinaryTransfer;
     /** Request binary write-through after a registry miss. Omitted on the normal source path. */
     exportCompiledArtifact?: true;
@@ -151,7 +155,26 @@ export interface CemProcessingCompileResult {
     compiledArtifact?: CemProcessingArtifactBinaryTransfer;
 }
 
+/** Native document ownership is separate from serializable data-island metadata. */
+export interface CemProcessingDocumentHandle {
+    documentKey: string;
+    instanceId: string;
+    scopePolicyStamp: string;
+}
+export type CemProcessingDocumentInput =
+    | { action: 'retain'; handle: CemProcessingDocumentHandle; bytes: ArrayBuffer; contentType: string; sourceUri: string }
+    | { action: 'release'; handle: CemProcessingDocumentHandle };
+export interface CemProcessingDocumentResult {
+    handle: CemProcessingDocumentHandle;
+    retained: boolean;
+}
+export interface CemProcessingDocumentBinding {
+    slice: string;
+    handle: CemProcessingDocumentHandle;
+}
+
 export interface CemProcessingRenderDiffInput {
+    documents?: CemProcessingDocumentBinding[];
     artifact: CemProcessingArtifactHandle;
     revision: RenderRevision;
     snapshot: DataIslandSnapshot;
@@ -252,6 +275,7 @@ export interface CemProcessingDisposeResult {
 }
 
 interface CemProcessingRequestPayloads {
+    document: CemProcessingDocumentInput;
     compile: CemProcessingCompileInput;
     'render-diff': CemProcessingRenderDiffInput;
     cancel: CemProcessingCancelInput;
@@ -259,6 +283,7 @@ interface CemProcessingRequestPayloads {
 }
 
 interface CemProcessingSuccessResults {
+    document: CemProcessingDocumentResult;
     compile: CemProcessingCompileResult;
     'render-diff': CemProcessingRenderDiffResult;
     cancel: CemProcessingCancelResult;
@@ -480,6 +505,7 @@ export interface CemProcessingHost {
     readonly mode: CemProcessingHostMode;
     readonly ownerScope: CemDeclarationScope;
     readonly ready: Promise<CemProcessingReadyEnvelope>;
+    document(input: CemProcessingDocumentInput): CemProcessingJob<CemProcessingDocumentResult>;
     compile(input: CemProcessingCompileInput): CemProcessingJob<CemProcessingCompileResult>;
     renderDiff(input: CemProcessingRenderDiffInput): CemProcessingJob<CemProcessingRenderDiffResult>;
     cancel(input: CemProcessingCancelInput): CemProcessingJob<CemProcessingCancelResult>;
@@ -518,7 +544,7 @@ export type CemProcessingWorkerFailure =
           transactionState: CemProcessingPatchTransactionState;
           revision: RenderRevision;
       })
-    | (CemProcessingWorkerFailureBase & { operation: 'cancel' | 'dispose' });
+    | (CemProcessingWorkerFailureBase & { operation: 'document' | 'cancel' | 'dispose' });
 
 export type CemProcessingWorkerFailureDecision =
     | {
@@ -578,7 +604,7 @@ export function decideCemProcessingWorkerFailure(
     }
 
     const diagnostic = workerFallbackDiagnostic(failure.phase);
-    if (failure.operation === 'compile') {
+    if (failure.operation === 'compile' || failure.operation === 'document') {
         return {
             action: 'retry-main-thread',
             nextMode: 'main-thread',

@@ -32,7 +32,16 @@
             clear the separator to split into Unicode codepoints. Indices count
             codepoints, so an emoji such as 🍒 occupies one position. These are
             CEM functions, not UTF-16 JavaScript methods.</p>
+        <p>The XPath comparisons load
+            <a href="../xpath-text.cemt">a separate text-function library</a>.
+            <code>normalize-space</code> and one-argument <code>tokenize</code>
+            recognize only XML spaces, tabs, CR and LF. Non-breaking spaces
+            remain text, unlike CEM-QL's Unicode-whitespace normalizer.
+            <code>string-join</code> inserts a literal separator between tokens;
+            repeated words remain, and blank input yields an empty string.</p>
         <h3>See also</h3>
+        <p><a href="../xpath-functions.html">Shared XPath function libraries</a></p>
+        <p><a href="../xpath-sequences.html">XPath sequence windows and distinct words</a></p>
         <p><a href="../dom-merge.html">Word count and focus-preserving edits</a></p>
         <p><a href="../data-slices.html">Event-driven slices</a></p>
         <p><a href="../module-url.html">Shortened URL labels</a></p>
@@ -269,6 +278,45 @@
         {output | {$str:last_index_of(
             datadom.slices.text, datadom.slices.search,
             datadom.slices.position)}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="XPath normalize-space"
+        description="Collapse XML whitespace and trim its edges; non-breaking spaces remain visible inside the brackets">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="../xpath-text.cemt">
+{style |```
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+```}
+{cem:variable @name=text @select='datadom.slices.text ?? "  🍒  🍋  "'}
+{article @class=demo-card |
+    {label | Text
+        {textarea @slice=text @slice-event=input | {$text}}}
+    {pre | [{output | {$native:call("text.normalize", text)}}]}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+
+    <cem-demo-element legend="XPath tokenize and string-join"
+        description="Split words on XML whitespace, then join with the chosen separator; duplicates stay in their original order">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="../xpath-text.cemt">
+{slice @name=text | 🍒 🍒 🍋}
+{slice @name=separator | /}
+{article @class=demo-card |
+    {label | Text
+        {textarea @slice=text @slice-event=input | {$datadom.slices.text}}}
+    {label | Separator
+        {input @slice=separator @slice-event=input
+            @value="{$datadom.slices.separator}"}}
+    {p | [{output | {$native:call("text.join",
+        datadom.slices.text, datadom.slices.separator)}}]}
 }
     </template>
 </cem-element>

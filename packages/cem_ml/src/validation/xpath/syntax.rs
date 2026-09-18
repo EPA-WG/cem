@@ -216,6 +216,7 @@ pub enum XPathPrimaryExpression {
         entries: Vec<XPathMapConstructorEntry>,
     },
     ArrayConstructor(XPathArrayConstructor),
+    UnaryLookup(XPathLookupKey),
     Unsupported {
         production: String,
     },
@@ -238,7 +239,15 @@ pub enum XPathArrayConstructor {
 pub enum XPathPostfixExpression {
     Predicate(XPathExpressionSequence),
     ArgumentList(Vec<XPathExpressionNode>),
-    Lookup { lexical: String },
+    Lookup { key: XPathLookupKey },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum XPathLookupKey {
+    Name(String),
+    Integer(String),
+    Expression(Option<Box<XPathExpressionSequence>>),
+    Wildcard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -662,6 +671,7 @@ impl XPathPrimaryExpression {
             Self::FunctionCall { .. } => XPathSyntaxNodeKind::FunctionCall,
             Self::MapConstructor { .. } => XPathSyntaxNodeKind::MapConstructor,
             Self::ArrayConstructor(_) => XPathSyntaxNodeKind::ArrayConstructor,
+            Self::UnaryLookup(_) => XPathSyntaxNodeKind::Lookup,
             Self::Unsupported { .. } => XPathSyntaxNodeKind::UnsupportedPrimary,
         };
         emit_node(
@@ -671,6 +681,9 @@ impl XPathPrimaryExpression {
             events,
             |depth, events| match self {
                 Self::Parenthesized(Some(expression)) => expression.emit_events(depth, events),
+                Self::UnaryLookup(XPathLookupKey::Expression(Some(expression))) => {
+                    expression.emit_events(depth, events)
+                }
                 Self::FunctionCall { arguments, .. } => {
                     for argument in arguments {
                         argument.emit_events(depth, events);
@@ -728,9 +741,17 @@ impl XPathPostfixExpression {
                     }
                 },
             ),
-            Self::Lookup { .. } => {
-                emit_leaf(XPathSyntaxNodeKind::Lookup, source_range, depth, events)
-            }
+            Self::Lookup { key } => emit_node(
+                XPathSyntaxNodeKind::Lookup,
+                source_range,
+                depth,
+                events,
+                |depth, events| {
+                    if let XPathLookupKey::Expression(Some(expression)) = key {
+                        expression.emit_events(depth, events);
+                    }
+                },
+            ),
         }
     }
 }

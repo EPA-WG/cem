@@ -1,0 +1,393 @@
+//! Retained, format-independent semantic view of a typed CEM document.
+//! Import supplies decoded values; this layer never interprets source syntax.
+use super::{document::CemDocument, AstNodeId, CemAstNode, ExpandedName};
+use crate::source_map::{FrameSpan, SourceMapStack};
+use std::{
+    any::Any,
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemTreeNodeKind {
+    Document,
+    Element,
+    Attribute,
+    Text,
+    Comment,
+    ProcessingInstruction,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CemTreeRange {
+    pub line: u32,
+    pub column: u32,
+    pub offset: u64,
+    pub length: u64,
+}
+
+/// Import-only overrides preserve the public source-oriented AST fields.
+#[derive(Debug, Default)]
+pub struct CemTreeSemantics {
+    pub sources: BTreeMap<AstNodeId, SourceMapStack>,
+    pub values: BTreeMap<AstNodeId, String>,
+    pub names: BTreeMap<AstNodeId, ExpandedName>,
+    pub omitted: BTreeSet<AstNodeId>,
+    pub ranges: BTreeMap<AstNodeId, CemTreeRange>,
+}
+
+#[derive(Debug)]
+pub struct CemTreeNode {
+    pub kind: CemTreeNodeKind,
+    pub name: Option<ExpandedName>,
+    pub value: String,
+    pub parent: Option<AstNodeId>,
+    pub children: Vec<AstNodeId>,
+    pub attributes: Vec<AstNodeId>,
+    pub source: SourceMapStack,
+    pub range: CemTreeRange,
+    pub order: usize,
+}
+
+pub struct RetainedCemTree {
+    ast: CemDocument,
+    source_uri: String,
+    native_owner: Option<Arc<dyn Any + Send + Sync>>,
+    nodes: Vec<CemTreeNode>,
+    canonical: Vec<Option<AstNodeId>>,
+}
+
+impl std::fmt::Debug for RetainedCemTree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RetainedCemTree")
+            .field("source_uri", &self.source_uri)
+            .field("nodes", &self.nodes.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl RetainedCemTree {
+    pub fn new(
+        ast: CemDocument,
+        source_uri: impl Into<String>,
+        source_text: &str,
+        semantics: CemTreeSemantics,
+        native_owner: Option<Arc<dyn Any + Send + Sync>>,
+    ) -> Result<Arc<Self>, String> {
+        if !matches!(ast.root(), Some(CemAstNode::Document { node_id: 0, .. })) {
+            return Err("A retained CEM tree requires a document root at node 0.".into());
+        }
+        let line_index = crate::source::line_index::LineIndex::from_utf8(source_text);
+        let mut nodes = Vec::with_capacity(ast.nodes.len());
+        for (id, node) in ast.nodes.iter().enumerate() {
+            use CemAstNode::*;
+            let (node_id, kind, name, value, children, attributes, source) = match node {
+                Document {
+                    node_id,
+                    root_children,
+                    source,
+                } => (
+                    *node_id,
+                    CemTreeNodeKind::Document,
+                    None,
+                    "",
+                    root_children.clone(),
+                    vec![],
+                    source,
+                ),
+                Element {
+                    node_id,
+                    expanded_name,
+                    children,
+                    attributes,
+                    source,
+                    ..
+                } => (
+                    *node_id,
+                    CemTreeNodeKind::Element,
+                    Some(expanded_name.clone()),
+                    "",
+                    children.clone(),
+                    attributes.clone(),
+                    source,
+                ),
+                Attribute {
+                    node_id,
+                    expanded_name,
+                    value,
+                    source,
+                } => (
+                    *node_id,
+                    CemTreeNodeKind::Attribute,
+                    Some(expanded_name.clone()),
+                    value.as_deref().unwrap_or(""),
+                    vec![],
+                    vec![],
+                    source,
+                ),
+                Text {
+                    node_id,
+                    data,
+                    source,
+                }
+                | Whitespace {
+                    node_id,
+                    data,
+                    source,
+                }
+                | Cdata {
+                    node_id,
+                    data,
+                    source,
+                }
+                | RawText {
+                    node_id,
+                    data,
+                    source,
+                } => (
+                    *node_id,
+                    CemTreeNodeKind::Text,
+                    None,
+                    data.as_str(),
+                    vec![],
+                    vec![],
+                    source,
+                ),
+                Comment {
+                    node_id,
+                    data,
+                    source,
+                } => (
+                    *node_id,
+                    CemTreeNodeKind::Comment,
+                    None,
+                    data.as_str(),
+                    vec![],
+                    vec![],
+                    source,
+                ),
+                ProcessingInstruction {
+                    node_id,
+                    target,
+                    data,
+                    source,
+                } => (
+                    *node_id,
+                    CemTreeNodeKind::ProcessingInstruction,
+                    Some(ExpandedName {
+                        namespace_uri: String::new(),
+                        local_name: target.clone(),
+                        schema_id: None,
+                    }),
+                    data.as_str(),
+                    vec![],
+                    vec![],
+                    source,
+                ),
+                Error { .. } => {
+                    return Err("A CEM error node cannot enter the semantic tree.".into())
+                }
+            };
+            if node_id as usize != id {
+                return Err("CEM node IDs must match arena positions.".into());
+            }
+            let range = semantics
+                .ranges
+                .get(&node_id)
+                .copied()
+                .unwrap_or_else(|| source_range(source, &line_index));
+            nodes.push(CemTreeNode {
+                kind,
+                name: semantics.names.get(&node_id).cloned().or(name),
+                value: semantics
+                    .values
+                    .get(&node_id)
+                    .cloned()
+                    .unwrap_or_else(|| value.into()),
+                parent: None,
+                children,
+                attributes,
+                source: semantics
+                    .sources
+                    .get(&node_id)
+                    .cloned()
+                    .unwrap_or_else(|| source.clone()),
+                range,
+                order: 0,
+            });
+        }
+        // Validate the entire source graph, including omitted nodes, before normalization.
+        let mut seen = vec![false; nodes.len()];
+        let mut pending = vec![(0, None, false)];
+        let mut order = 0;
+        while let Some((id, parent, attribute)) = pending.pop() {
+            let Some(node) = nodes.get_mut(id as usize) else {
+                return Err("Dangling CEM node reference.".into());
+            };
+            if seen[id as usize] {
+                return Err("CEM trees cannot contain cycles or shared child nodes.".into());
+            }
+            if (node.kind == CemTreeNodeKind::Attribute) != attribute
+                || (id != 0 && node.kind == CemTreeNodeKind::Document)
+            {
+                return Err("Invalid CEM child/attribute node kind.".into());
+            }
+            seen[id as usize] = true;
+            node.parent = parent;
+            node.order = order;
+            order += 1;
+            pending.extend(
+                node.children
+                    .iter()
+                    .rev()
+                    .map(|&child| (child, Some(id), false)),
+            );
+            pending.extend(
+                node.attributes
+                    .iter()
+                    .rev()
+                    .map(|&attr| (attr, Some(id), true)),
+            );
+        }
+        if seen.iter().any(|seen| !seen) {
+            return Err("Unreachable nodes in CEM tree.".into());
+        }
+        if semantics.omitted.contains(&0) {
+            return Err("The CEM document root cannot be omitted.".into());
+        }
+        let mut canonical: Vec<_> = (0..nodes.len())
+            .map(|id| (!semantics.omitted.contains(&(id as u32))).then_some(id as u32))
+            .collect();
+        let mut omitted: Vec<_> = semantics.omitted.iter().copied().collect();
+        while let Some(id) = omitted.pop() {
+            let Some(node) = nodes.get(id as usize) else {
+                return Err("Omitted CEM node does not exist.".into());
+            };
+            canonical[id as usize] = None;
+            omitted.extend(node.children.iter().chain(&node.attributes).copied());
+        }
+        for parent in 0..nodes.len() {
+            if canonical[parent].is_none()
+                || !matches!(
+                    nodes[parent].kind,
+                    CemTreeNodeKind::Document | CemTreeNodeKind::Element
+                )
+            {
+                continue;
+            }
+            let mut children: Vec<AstNodeId> = Vec::new();
+            for child in std::mem::take(&mut nodes[parent].children) {
+                if canonical[child as usize].is_none() {
+                    continue;
+                }
+                if let Some(&previous) = children.last().filter(|&&id| {
+                    nodes[id as usize].kind == CemTreeNodeKind::Text
+                        && nodes[child as usize].kind == CemTreeNodeKind::Text
+                }) {
+                    let value = nodes[child as usize].value.clone();
+                    let source = nodes[child as usize].source.clone();
+                    let end = nodes[child as usize]
+                        .range
+                        .offset
+                        .saturating_add(nodes[child as usize].range.length);
+                    let prior = &mut nodes[previous as usize];
+                    prior.value.push_str(&value);
+                    merge_source(&mut prior.source, &source);
+                    prior.range.length = end
+                        .saturating_sub(prior.range.offset)
+                        .max(prior.range.length);
+                    canonical[child as usize] = Some(previous);
+                } else {
+                    children.push(child);
+                }
+            }
+            children.retain(|&id| {
+                nodes[id as usize].kind != CemTreeNodeKind::Text
+                    || !nodes[id as usize].value.is_empty()
+            });
+            nodes[parent].children = children;
+            nodes[parent]
+                .attributes
+                .retain(|&id| canonical[id as usize].is_some());
+        }
+        for canonical_id in &mut canonical {
+            if canonical_id.is_some_and(|id| {
+                nodes[id as usize].kind == CemTreeNodeKind::Text
+                    && nodes[id as usize].value.is_empty()
+            }) {
+                *canonical_id = None;
+            }
+        }
+        Ok(Arc::new(Self {
+            ast,
+            source_uri: source_uri.into(),
+            native_owner,
+            nodes,
+            canonical,
+        }))
+    }
+
+    pub fn ast(&self) -> &CemDocument {
+        &self.ast
+    }
+    pub fn source_uri(&self) -> &str {
+        &self.source_uri
+    }
+    pub fn native_owner(&self) -> Option<&Arc<dyn Any + Send + Sync>> {
+        self.native_owner.as_ref()
+    }
+    pub fn canonical_id(&self, id: AstNodeId) -> Option<AstNodeId> {
+        self.canonical.get(id as usize).copied().flatten()
+    }
+    pub fn node(&self, id: AstNodeId) -> Option<&CemTreeNode> {
+        self.nodes.get(self.canonical_id(id)? as usize)
+    }
+}
+
+fn source_range(
+    source: &SourceMapStack,
+    lines: &crate::source::line_index::LineIndex,
+) -> CemTreeRange {
+    let Some(frame) = source.origin() else {
+        return CemTreeRange {
+            line: 1,
+            column: 1,
+            ..Default::default()
+        };
+    };
+    let spans = match &frame.span {
+        FrameSpan::Single(span) => vec![span],
+        FrameSpan::Multi(spans) => spans.iter().collect(),
+    };
+    let offset = spans.iter().map(|s| s.start).min().unwrap_or(0);
+    let end = spans
+        .iter()
+        .map(|s| s.start.saturating_add(s.len as u64))
+        .max()
+        .unwrap_or(offset);
+    let location = lines.project(offset);
+    CemTreeRange {
+        line: location.line,
+        column: location.column,
+        offset,
+        length: end.saturating_sub(offset),
+    }
+}
+
+pub(crate) fn merge_source(target: &mut SourceMapStack, source: &SourceMapStack) {
+    if target.frames.len() == 1
+        && source.frames.len() == 1
+        && target.frames[0].source_id == source.frames[0].source_id
+        && target.frames[0].transform == source.frames[0].transform
+    {
+        let spans = |span: &FrameSpan| match span {
+            FrameSpan::Single(s) => vec![*s],
+            FrameSpan::Multi(s) => s.clone(),
+        };
+        let mut merged = spans(&target.frames[0].span);
+        merged.extend(spans(&source.frames[0].span));
+        target.frames[0].span = FrameSpan::Multi(merged);
+    } else {
+        target.frames.extend(source.frames.clone());
+    }
+}

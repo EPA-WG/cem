@@ -24943,8 +24943,18 @@ impl NativeTemplateModuleLowerer<'_> {
         let end_index = usize::try_from(end).ok()?;
         let raw = self.template_bytes.get(start_index..end_index)?;
         let text = std::str::from_utf8(raw).ok()?;
-        let leading = text.len().saturating_sub(text.trim_start().len());
-        let trimmed = text.trim();
+        let mut leading = text.len().saturating_sub(text.trim_start().len());
+        let mut trimmed = text.trim();
+        // RichContent keeps the delimiters in its physical source range. XPath
+        // owns the literal body, so retain a contiguous view of those original
+        // bytes and exclude the CEM fence before parsing or mapping diagnostics.
+        if let Some(body) = trimmed
+            .strip_prefix("```")
+            .and_then(|body| body.strip_suffix("```"))
+        {
+            leading += 3 + body.len().saturating_sub(body.trim_start().len());
+            trimmed = body.trim();
+        }
         if trimmed.is_empty() {
             self.push_diag(
                 TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
@@ -33684,6 +33694,7 @@ mod tests {
             &host_bindings,
             XPathEvaluationLimits {
                 max_sequence_items: Some(1),
+                ..Default::default()
             },
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
@@ -33698,7 +33709,12 @@ mod tests {
             panic!("expected one native XPath node result: {result:?}");
         };
         assert!(Arc::ptr_eq(
-            native_node.as_ref().expect("retained native node").owner(),
+            native_node
+                .as_ref()
+                .expect("retained native node")
+                .source_owner()
+                .as_ref()
+                .unwrap(),
             &owner
         ));
     }
@@ -33793,7 +33809,12 @@ mod tests {
             panic!("expected one native XPath node result: {result:?}");
         };
         assert!(Arc::ptr_eq(
-            native_node.as_ref().expect("retained native node").owner(),
+            native_node
+                .as_ref()
+                .expect("retained native node")
+                .source_owner()
+                .as_ref()
+                .unwrap(),
             &owner
         ));
     }

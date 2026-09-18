@@ -1,0 +1,65 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module |
+    {function @name=node.rows @visibility=public @returns=any |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="node()*" |
+            {expression | child::*/child::*}
+    }   }   }
+    {function @name=node.children @visibility=public @returns=any |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="node()*" |
+            {expression | child::node()}
+    }   }   }
+    {function @name=node.attributes @visibility=public @returns=any |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="node()*" |
+            {expression | @*}
+    }   }   }
+    {function @name=node.element @visibility=public @returns=boolean |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:boolean" |
+            {expression | exists(self::*)}
+    }   }   }
+    {function @name=node.local @visibility=public @returns=string |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:string" |
+            {expression | local-name()}
+    }   }   }
+    {function @name=node.namespace @visibility=public @returns=any |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:anyURI" |
+            {expression | namespace-uri()}
+    }   }   }
+    {function @name=node.value @visibility=public @returns=string |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:string" |
+            {expression | string(.)}
+    }   }   }
+    {function @name=node.id @visibility=public @returns=string |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:string" |
+            {expression | string(@id)}
+    }   }   }
+    {function @name=node.parent @visibility=public @returns=string |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:string" |
+            {expression | local-name(parent::node())}
+    }   }   }
+    {function @name=node.previous @visibility=public @returns=string |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:string" |
+            {expression | string(preceding-sibling::*[1])}
+    }   }   }
+    {function @name=node.kind @visibility=public @returns=string |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:string" |
+            {expression | if (self::text()) then 'text' else if (self::comment()) then 'comment' else 'processing instruction'}
+    }   }   }
+    {function @name=node.quantity @visibility=public @returns=any |
+        {param @name=node @type=any @required=true}
+        {body | {xpath @context=node @sequence-type="xs:untypedAtomic?" |
+            {expression | data(@qty)}
+    }   }   }
+}

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XPath sequences and table columns</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>XPath sequences and table columns</h1></nav>
+<main>
+    <section>
+        <h2>Select items and discover columns</h2>
+        <p>The <a href="./xpath-sequences.cemt">separate XPath library</a> selects a
+            window of words and derives XML table columns. <code>head</code>,
+            <code>tail</code>, <code>subsequence</code> and <code>reverse</code>
+            preserve the items they select, including native XML nodes.</p>
+        <p>Sequence positions start at 1. Start and length round to the nearest
+            integer, with ties toward positive infinity; zero or negative bounds
+            may produce fewer items. Reversal applies to the selected window.
+            Duplicate counting uses <code>distinct-values</code> with exact,
+            case-sensitive Unicode codepoint comparison. Tokenization splits only
+            XML whitespace, so non-breaking spaces remain inside a word.</p>
+        <p>The table considers each row's attributes before its child elements.
+            Its XPath expression explicitly keeps the first column with each
+            node kind, local name and namespace URI. It does not rely on the
+            implementation-dependent order of <code>distinct-values</code>.
+            Repeated cells join with “ / ”; ∅ means missing and "" means empty.</p>
+        <p>XML uses the explicit native reader view and is limited to 32 KiB,
+            64 levels and 4096 events. Shared XPath item, text and work budgets
+            bound these examples. The current duplicate-removal slice supports
+            strings, untyped values, URIs, booleans and numerics with the Unicode
+            codepoint collation; other collations and atomic families remain unsupported.</p>
+        <h3>See also</h3>
+        <p><a href="./xpath-maps-arrays.html">XPath maps and arrays</a> ·
+            <a href="./xpath-aggregates.html">XPath numeric aggregates</a></p>
+        <p><a href="./xpath-nodes.html">XPath XML tables and trees</a> ·
+            <a href="./functions/str.html">String functions</a> ·
+            <a href="./data-table.html">Multi-format data tables</a></p>
+    </section>
+    <cem-demo-element legend="1. A window into a word sequence"
+        description="Choose a rounded start and length, reverse the window, and inspect its first and remaining words">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-sequences.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 4rem; }
+    input[type=text] { width: 4rem; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=text | cherry apple cherry pear}
+{slice @name=start | 2}
+{slice @name=length | 2}
+{slice @name=descending | false}
+{article @class=demo-card |
+    {label | Words
+        {textarea @slice=text @slice-event=input @slice-value="$target.value"
+            | {$datadom.slices.text}}}
+    {p |
+        {label | Start
+            {input @type=text @inputmode=decimal @value="{$datadom.slices.start}"
+                @slice=start @slice-event=input @slice-value="$target.value"}}
+        {label | Length
+            {input @type=text @inputmode=decimal @value="{$datadom.slices.length}"
+                @slice=length @slice-event=input @slice-value="$target.value"}}
+        {label | {input @type=checkbox
+            @slice=descending @slice-event=change @slice-value="$target.checked"}
+            Reverse window}}
+    {p | Distinct words in the source:
+        {output | {$native:call("sequence.unique", datadom.slices.text)}}}
+    {cem:choose |
+        {cem:when @test='native:call("sequence.valid", datadom.slices.start, datadom.slices.length)' |
+            {cem:variable @name=window @select='
+                native:call("sequence.window", datadom.slices.text,
+                    datadom.slices.start, datadom.slices.length, datadom.slices.descending)'}
+            {p | Window: {output | {$str:concat(window, " | ")}}}
+            {p | First: {output | {$native:call("sequence.head", window)}}}
+            {p | Remaining: {output | {$native:call("sequence.tail", window)}}}}
+        {cem:otherwise | {p @role=alert | Enter numeric start and length values.}}
+}   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. First-seen XML columns"
+        description="Add an attribute or child element: XPath adds its heading at first appearance and finds matching cells in each row">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-sequences.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 7rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: .3rem; border-bottom: 1px solid #888; }
+    th { overflow-wrap: anywhere; }
+```}
+{slice @name=source | &lt;r&gt;&lt;row id="2"&gt;&lt;fruit&gt;Apple&lt;/fruit&gt;&lt;/row&gt;&lt;row id="1" qty="3"&gt;&lt;fruit&gt;Cherry&lt;/fruit&gt;&lt;note/&gt;&lt;/row&gt;&lt;/r&gt;}
+{cem-data @name=document @select=datadom.slices.source @type=xml @projection=xpath}
+{article @class=demo-card |
+    {label | XML source
+        {textarea @spellcheck=false @slice=source @slice-event=input
+            @slice-value="$target.value" | {$datadom.slices.source}}}
+    {cem:choose |
+        {cem:when @test='document.error != ""' | {p @role=alert | {$document.error}}}
+        {cem:otherwise |
+            {cem:variable @name=columns @select='native:call("table.columns", document.root)'}
+            {table |
+                {caption | Columns in first-seen order}
+                {thead | {tr |
+                    {cem:for-each @as=column @select=columns |
+                        {th @scope=col | {$native:call("table.heading", column)}}}}}
+                {tbody |
+                    {cem:for-each @as=row @select='native:call("table.rows", document.root)' |
+                        {tr |
+                            {cem:for-each @as=column @select=columns |
+                                {td | {$native:call("table.value",
+                                    native:call("table.cells", row, column))}}}
+}   }   }   }   }   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

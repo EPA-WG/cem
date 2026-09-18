@@ -256,10 +256,10 @@
     </cem-demo-element>
 
     <cem-demo-element legend="9. for-each over HTTP JSON/XML data"
-           description="Local JSON and XML fixtures feed record sequences into the same loop syntax">
+           description="Local JSON and XML fixtures feed CEM node sequences into the same loop syntax">
         <template>
 <cem-element tag="cem-loop-http">
-    <template type="text/cem-ml">
+    <template type="text/cem-ml" xpath-functions="./http-data.cemt">
 {http-request
     @slice=loop-json
     @url="{$datadom.attributes.json-url}"
@@ -271,18 +271,18 @@
     @content-type="application/xml"}
 {article @class=demo-card |
     {h2 | 9. for-each over HTTP JSON/XML data}
-    {p | Local JSON and XML fixtures feed record sequences into the same loop syntax.}
+    {p | Local JSON and XML fixtures feed CEM node sequences into the same loop syntax.}
     {p | json state: {output @data-role=json-state | {$datadom.slices.loop-json.state}}}
     {cem:if @test='datadom.slices.loop-json.state == "loaded"' |
         {ul @class=http-json-feed |
-{cem:for-each @select="datadom.slices.loop-json.data.results" @as=item |
-    {li | {$item.name}: {$item.status}}
+{cem:for-each @select='native:call("http.rows", datadom.slices.loop-json.data)' @as=item |
+    {li | {$native:call("http.field", item, "name")}: {$native:call("http.field", item, "status")}}
     }   }   }
     {p | xml state: {output @data-role=xml-state | {$datadom.slices.loop-xml.state}}}
     {cem:if @test='datadom.slices.loop-xml.state == "loaded"' |
         {ul @class=http-xml-feed |
-{cem:for-each @select="datadom.slices.loop-xml.data.children" @as=item |
-    {li | {$item.attributes.name}: {$item.attributes.status}}
+{cem:for-each @select='native:call("http.rows", datadom.slices.loop-xml.data)' @as=item |
+    {li | {$native:call("http.field", item, "name")}: {$native:call("http.field", item, "status")}}
 }   }   }   }
     </template>
 </cem-element>

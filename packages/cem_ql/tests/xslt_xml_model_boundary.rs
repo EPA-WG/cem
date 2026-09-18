@@ -197,7 +197,7 @@ fn xpath_native_owner_exposes_normalized_text_without_changing_cem_reader() {
         ["abc"]
     );
     for node in nodes {
-        assert!(Arc::ptr_eq(node.owner(), &owner));
+        assert!(Arc::ptr_eq(node.source_owner().as_ref().unwrap(), &owner));
         assert!(!node.source_map().frames.is_empty());
     }
 }

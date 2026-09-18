@@ -382,12 +382,16 @@ Deliverables:
   URI/module-map resolution, remote source streaming, local parser streaming, reusable host runtime support,
   patch-frame streams, worker-pool scheduling, service-worker-compatible artifact identity/hooks,
   post-Phase-3 edge/SSR boundaries, and main-thread DOM patch ownership.
-- Phase 1 `<http-request>` resource primitive from
-  [`docs/cem-elements-http-request-design.md`](docs/cem-elements-http-request-design.md): completed-response JSON/XML
-  resource slices with scoped URL/module-map resolution, host-controlled resource loading, serializable
-  request/response metadata, CEM-QL-navigable data AST/projections, stale-response abort protection, and fixture-backed
-  `cem:for-each` demo parity. Progressive streaming, full data source-map UI, cache identity, and SSR/preload support
-  remain later phases of that design.
+- The [loader custom element](docs/cem-data-loader-plan.md) uses CEM-ML library
+  loading/import to produce retained CEM-ML document/AST trees from XML/JSON.
+  Preserve the legacy `http-request` lifecycle, scoped URL/module-map resolution,
+  request/response metadata and stale-response abort protection. Migrate code,
+  samples and fixture adapters to CEM node queries; JavaScript document objects
+  are excluded. First delivery materializes a complete tree. Progressive CEM-ML
+  AST streaming is an accepted later phase recorded in
+  [wishlist.md](docs/wishlist.md#cem-ml-runtime); transport byte streaming alone
+  does not complete it. Full data source-map UI, cache identity and SSR/preload
+  remain later phases of the [HTTP resource design](docs/cem-elements-http-request-design.md).
 
 Exit criteria (browser substrate production-ready trigger, not `@epa-wg/custom-element` adoption):
 

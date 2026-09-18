@@ -12,7 +12,6 @@ const requiredFiles = [
     'README.md',
     'custom-element.d.ts',
     'custom-element.js',
-    'http-request.js',
     'index.js',
     'local-storage.js',
     'location-element.js',
@@ -158,12 +157,20 @@ async function verifyRoot(root) {
         assertIncludes(customElementSource, "from '../cem-elements/dist/index.js'", `${root}: source substrate import`);
     }
 
-    const httpRequestSource = await readFile(join(root, 'http-request.js'), 'utf8');
-    assertIncludes(
-        httpRequestSource,
-        "window.customElements.define( 'http-request'",
-        `${root}: http-request registration`,
-    );
+    const indexSource = await readFile(join(root, 'index.js'), 'utf8');
+    assertNotIncludes(indexSource, 'http-request.js', `${root}: retired HTTP export`);
+    if (await access(join(root, 'http-request.js')).then(() => true, () => false)) {
+        throw new Error(`${root}: retired standalone HTTP implementation must be absent`);
+    }
+
+    for (const name of ['http-request.html', 'npm-versions-demo.html']) {
+        const example = await readFile(join(root, 'demo', name), 'utf8');
+        assertIncludes(example, 'installCemElementRuntime', `${root}: native loader example`);
+        assertIncludes(example, 'xpath-functions="./http-data.cemt"', `${root}: explicit function library`);
+        for (const forbidden of ['http-request.js', '.data.results', '.data.versions', 'JSON.parse']) {
+            assertNotIncludes(example, forbidden, `${root}: imported document boundary`);
+        }
+    }
 
     const localStorageSource = await readFile(join(root, 'local-storage.js'), 'utf8');
     assertIncludes(

@@ -221,6 +221,7 @@ pub type QueryNativeBindings<'a> = BTreeMap<String, &'a dyn QueryNativeArtifact>
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct QueryExecutionLimits {
     pub max_result_items: Option<u64>,
+    pub max_text_bytes: Option<u64>,
     pub max_work_units: Option<u64>,
 }
 
@@ -978,6 +979,7 @@ mod query_execution_contract_tests {
             limits: QueryExecutionLimits {
                 max_result_items: Some(10),
                 max_work_units: Some(100),
+                ..Default::default()
             },
         };
         request

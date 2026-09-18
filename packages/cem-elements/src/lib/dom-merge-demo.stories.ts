@@ -5,6 +5,7 @@ const DEMO_URL = new URL('../../demo/dom-merge.html', import.meta.url);
 const EXPECTED_LEGENDS = [
     '1. Textarea word count',
     '2. Input word and character count',
+    '3. XPath word and character count',
 ] as const;
 
 const meta: Meta = {
@@ -33,7 +34,7 @@ export const EveryAuthoredSample: Story = {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
             () => host.querySelectorAll('cem-demo-element[legend] article').length === EXPECTED_LEGENDS.length,
-            'both DOM merge samples render from the HTML source',
+            'all DOM merge samples render from the HTML source',
             600
         );
 
@@ -86,6 +87,26 @@ export const EveryAuthoredSample: Story = {
         await waitForText(inputSample, 'form > p:nth-of-type(2) strong', '0', 'whitespace contains no words');
         setValueAndDispatch(input, '');
         await waitForText(inputSample, 'form > p:first-of-type strong', '0', 'empty input has zero characters');
+
+        const xpathSample = sampleByLegend(host, EXPECTED_LEGENDS[2]);
+        const xpathInput = requiredElement(xpathSample, 'textarea') as HTMLTextAreaElement;
+        xpathInput.focus();
+        for (const [value, words] of [
+            [' one\tone\n🍒  🍋 ', '4'],
+            ['\t\n\u00a0\u2003', '1'],
+            ['🍒e\u0301', '1'],
+            [' \t\n', '0'],
+            ['', '0'],
+        ]) {
+            setValueAndDispatch(xpathInput, value);
+            xpathInput.setSelectionRange(1, 1);
+            const caret = xpathInput.selectionStart;
+            await waitForText(xpathSample, 'p:first-of-type strong', String([...value].length), 'XPath counts codepoints');
+            await waitForText(xpathSample, 'p:nth-of-type(2) strong', words, 'XPath counts XML-whitespace tokens');
+            assert(requiredElement(xpathSample, 'textarea') === xpathInput, 'XPath edits preserve the control');
+            assert(document.activeElement === xpathInput, 'XPath edits preserve focus');
+            assert(xpathInput.selectionStart === caret, 'XPath edits preserve the caret');
+        }
     },
 };
 

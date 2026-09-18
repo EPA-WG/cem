@@ -44,8 +44,106 @@ a complete string, or return `{ body, resolvedUrl, resolverIdentity }`, where `b
 `AsyncIterable<Uint8Array>`. The stream form preserves module-map/resolver identity and
 makes the imported URL the base for relative resource controls inside that declaration.
 
+A CEM-ML template can explicitly reference a separate XPath function library:
+
+```html
+<template type="text/cem-ml" xpath-functions="./fruit-functions.cemt">
+{attribute @name=text}
+{output | {$native:call("demo.label", text)}}
+</template>
+```
+
+The library is a CEMT module containing public named functions with typed
+parameters and XPath bodies; see the [interactive examples](demo/xpath-functions.html)
+and [library source](demo/xpath-functions.cemt). Its reference uses the declaration's
+scope-aware module resolver, including module maps and host resolution hooks. Relative
+URLs resolve from the declaration document. A host redirect's final URL is preserved
+as the library source URI. The library is a separate dependency, never a render-data
+field, and inline function declarations do not implicitly enable it.
+
+Each logical scope loads an immutable source snapshot once per resolved URL/policy.
+The processing host shares retained companions by URL, source hash, compiler versions
+and resolver policy. Worker transport carries bounded source and identity metadata;
+the worker or fallback validates and compiles once, then selects its retained companion
+for subsequent renders. Binary template cache hits still require that separate library.
+The last evicted template consumer releases its companion; failed compilation and scope
+disposal also release handles. Failed source loads may retry on the next render. Use a
+new versioned library URL or a fresh scope to load changed source bytes.
+
+This browser route accepts explicitly declared scalars and imported CEM nodes.
+For example, the compatibility XML reader can be authored as:
+
+```cem-ml
+{cem-data @name=document @select=datadom.slices.source @type=xml @projection=xpath}
+{cem:for-each @as=item @select='native:call("demo.items", document.root)' |
+    {p | {$item}}}
+```
+
+The reader's `error` field reports invalid XML; check it before calling a function
+with `document.root`. XPath selects nodes from the CEM tree, preserving source
+ownership, identity and source maps. Worker and fallback hosts retain up to 16
+successful imports per compiled template, keyed by source, format and projection,
+and release them when the template is disposed. Each input is limited to 32 KiB,
+64 levels and 4096 source events or values. Changed input gets a distinct owner;
+unchanged cached input is not reparsed. Ordinary CEM reader roots also supply
+native nodes. Records and source strings are not inferred as nodes.
+
+The [XPath XML table/tree demos](./demo/xpath-nodes.html) use the separate
+`xpath-nodes.cemt` function library and explicit XML XPath reader view.
+Names retain their namespace URIs, adjacent text/CDATA shares a text node, and
+CEM-QL sorting preserves each native node for XPath parent/sibling navigation.
+The table selects rows by unique authored `@id`. This local XML slice leaves
+standard XPath `fn:sort` for later work; HTTP ownership now uses retained CEM documents.
+
+The [XPath sequence demos](./demo/xpath-sequences.html) use
+`xpath-sequences.cemt` for rounded word windows, reversal, head/tail selection
+and distinct word counts. A second example discovers XML columns and matches
+native cells by kind, local name and namespace URI. Its XPath expression
+explicitly preserves first-seen column order; it does not depend on
+`distinct-values` result order. Live edits add new columns without new field
+expressions. Missing cells display ∅, empty cells display `""`, and repeated
+cells join with ` / `.
+
+The [XPath aggregate demos](./demo/xpath-aggregates.html) use
+`xpath-aggregates.cemt` for decimal-list statistics and a live XML basket.
+Each newly added fruit element contributes to the sum, extrema and average.
+Authored XPath validates amounts before explicitly casting to decimal;
+invalid/missing amounts are errors, empty input sums to zero, and absent
+extrema/averages display ∅. Terminating decimal averages are exact; repeating
+averages follow the existing 18-significant-digit half-even division policy.
+Nonnumeric extrema and duration aggregates remain outside this native slice.
+
+The [XPath maps/arrays demos](./demo/xpath-maps-arrays.html) use
+`xpath-maps-arrays.cemt` for an optional-entry IP-filter preview and an XML basket
+selected by one-based array position. Native maps/arrays stay opaque between
+named calls; only explicit XPath lookup selects their contents. Empty-valued
+entries differ from absent keys, and square arrays keep empty member slots.
+These demos use declared scalars and retained CEM trees imported from XML and
+JSON. The third maps/arrays case imports the standard JSON-to-XML tree, retains
+selected nodes in an XPath array, and distinguishes null, empty and absent
+members. XML, JSON, YAML and CSV readers share one native XPath node view;
+format-specific code belongs to CEM AST import. The accepted
+[loader contract](../../docs/cem-data-loader-plan.md) connects HTTP XML/JSON
+to that same tree through the CEM-ML library. See the
+[import principle](../../docs/cem-data-import-principle.md).
+
+Library source and URI are each limited to 32 KiB, libraries to 64 XPath functions,
+and each scope to 64 loaded
+libraries; the WASM companion registry also enforces its count/byte limits. Calls share a 16,777,216-unit XPath work counter across nested expressions and
+limit intermediate/final text to 1 MiB of UTF-8 atomic lexical bytes per value
+or sequence. Atomizing native XML also obeys these limits; retained document
+owners are not serialized or counted as output text. Limit failures cannot be
+caught as CEM-QL data errors. The [live counts](demo/dom-merge.html) and
+[string comparisons](demo/functions/str.html) demonstrate XML whitespace,
+Unicode codepoints, tokenization and joining through [a text library](demo/xpath-text.cemt).
+Library imports and templates using the older non-retained resource-render path are not
+supported. Generic template binaries and
+ordinary JSON data cannot install functions. Native-owner bindings remain available
+at the Rust API described in the [CEM-QL contract](../cem_ql/README.md#xpath-function-companions).
+
 Phase 3B shares lazily allocated worker slots across compatible logical roots without
-changing the `compile` / `renderDiff` / `cancel` / `dispose` host contract. The default
+changing their scheduling semantics. The `cem-processing-host-v2` contract adds
+`document` retention/release alongside `compile`, `renderDiff`, `cancel` and `dispose`. The default
 pool uses browser hardware concurrency capped at eight workers, a 64-operation queue per
 slot, FIFO ordering per root, and round-robin cross-root dispatch. Compiled artifacts and
 render plans use bounded content-addressed LRU retention; an evicted previous plan safely
@@ -56,8 +154,15 @@ queue limits, while `onProcessingTrace` observes sequence-only scheduling decisi
 worker render plan is diffed. URL resolution, policy, response streaming, `AbortSignal`,
 and stale-resource revisions remain main-thread host responsibilities. Template-visible
 states use the portable lifecycle vocabulary: `scheduled`, `in-progress`, `loaded`, and
-`failed` for the implemented Phase 1 transitions. JSON/XML projections are available at
-`datadom.slices.<name>.data` and can be consumed by `cem:for-each`.
+`failed` for the implemented transitions. CEM-ML imports bounded response bytes
+into a retained CEM tree. During native rendering, `datadom.slices.<name>.data`
+is a CEM document node accepted by CEM-QL and XPath functions; JavaScript
+snapshots carry lifecycle metadata with `data: null`. Worker messages carry
+bytes and explicit execution-local bindings, and fallback re-imports those bytes
+through the same library. Owners are released on replacement, disconnect and
+scope disposal. See the [loader contract](../../docs/cem-data-loader-plan.md)
+and [HTTP examples](demo/http-request.html). Progressive CEM-ML AST streaming
+remains a later phase.
 
 `<repository-query>` and `<storage-status>` use the same transient-control boundary for
 logical repository reads. Applications register host-owned ports with

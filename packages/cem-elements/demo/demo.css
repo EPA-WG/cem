@@ -30,6 +30,8 @@ cem-demo-element h3
 *[slot="demo"]{ display: flex; gap: 1rem; flex-wrap: wrap; }
 
 /* Keep documentation above a compact, wrapping source/output gallery. */
+/* A source-loaded document host must also shrink within the flex page. */
+body > * { min-width: 0; }
 body > nav, body > main { flex-basis: 100%; min-width: 0; }
 main > section { flex-basis: 100%; min-width: 0; }
 main > cem-demo-element { flex: 1 1 32rem; min-width: 0; max-width: 100%; }

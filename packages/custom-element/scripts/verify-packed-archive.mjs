@@ -1,3 +1,4 @@
+import { verifyLoaderExamples } from './verify-loader-examples.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -74,6 +75,7 @@ try {
 
     const packedPaths = (packResult.files ?? []).map(({ path }) => path).sort();
     assert.equal(new Set(packedPaths).size, packedPaths.length, 'archive paths must be unique');
+    assert(!packedPaths.includes('http-request.js'), 'archive must exclude the retired HTTP companion');
     assert.equal(packedPaths.length, archiveManifest.archive.fileCount, 'archive file count');
     assert.equal(
         createHash('sha256').update(packedPaths.join('\n')).digest('hex'),
@@ -238,7 +240,7 @@ async function verifyBrowserContract() {
                 check('root named/default exports match', root.default === root.CustomElement);
                 check('subpath named/default exports match', subpath.default === subpath.CustomElement);
                 check('custom-element registration uses the public class', customElements.get('custom-element') === root.CustomElement);
-                check('root import registers http-request', customElements.get('http-request') !== undefined);
+                check('retired HTTP companion is absent', customElements.get('http-request') === undefined && !('HttpRequestElement' in root));
                 check('root import registers local-storage', customElements.get('local-storage') !== undefined);
                 check('root import registers location-element', customElements.get('location-element') !== undefined);
 
@@ -285,6 +287,7 @@ async function verifyBrowserContract() {
         const result = await page.evaluate(() => globalThis.__packedArchiveConsumer);
         assert.deepEqual([...pageErrors, ...(result.errors ?? [])], []);
         await page.close();
+        await verifyLoaderExamples(browser, `http://127.0.0.1:${port}`, '/node_modules/@epa-wg/custom-element');
     } finally {
         await browser.close();
         await new Promise((resolvePromise) => server.close(resolvePromise));

@@ -78,6 +78,7 @@ impl NativeQueryFunction for Select {
                     resolver_policy: &policy,
                     evaluation_limits: XPathEvaluationLimits {
                         max_sequence_items: Some(request.max_result_items),
+                        ..Default::default()
                     },
                     safety_policy_stamp: "xslt-native-call-fixture",
                     module_resolution: request.module_resolution,
@@ -199,6 +200,7 @@ fn cemt_native_hook_executes_the_same_xslt_ast_against_changed_xml_owners() {
             &TemplateData {
                 bindings,
                 native_functions: functions.clone(),
+                data_readers: Default::default(),
             },
         );
         assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);

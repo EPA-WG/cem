@@ -16,6 +16,8 @@ import {
     type CemProcessingCancelResult,
     type CemProcessingCompileInput,
     type CemProcessingCompileResult,
+    type CemProcessingDocumentInput,
+    type CemProcessingDocumentResult,
     type CemProcessingDiagnostic,
     type CemProcessingDisposeInput,
     type CemProcessingDisposeResult,
@@ -482,6 +484,7 @@ class RootCemProcessingHost implements CemProcessingHost {
     private readonly sequence: CemProcessingJobSequence;
     private readonly jobs = new CemProcessingCancellationRegistry();
     private readonly engine = new CemProcessingEngine();
+    private readonly documentInputs = new Map<string, Extract<CemProcessingDocumentInput, { action: 'retain' }>>();
     private readonly compileInputs = new Map<string, CemProcessingCompileInput>();
     private readonly jobPolicies = new Map<number, string>();
     private readonly initialReady: Promise<CemProcessingReadyEnvelope>;
@@ -526,6 +529,21 @@ class RootCemProcessingHost implements CemProcessingHost {
         return this.initialReady;
     }
 
+    document(input: CemProcessingDocumentInput): CemProcessingJob<CemProcessingDocumentResult> {
+        const key = JSON.stringify(input.handle);
+        if (input.action === 'retain') this.documentInputs.set(key, input);
+        else this.documentInputs.delete(key);
+        const job = this.submit('document', input);
+        return { jobId: job.jobId, result: job.result.catch((error: unknown) => {
+            if (input.action === 'retain' && this.documentInputs.get(key) === input) {
+                this.documentInputs.delete(key);
+                // A cancellation can follow native import before the reply arrives.
+                if (!this.disposed) void this.document({ action: 'release', handle: input.handle }).result.catch(() => undefined);
+            }
+            throw error;
+        }) };
+    }
+
     compile(input: CemProcessingCompileInput): CemProcessingJob<CemProcessingCompileResult> {
         this.compileInputs.set(compileInputKey(input.scopePolicyStamp, input.templateArtifactId), input);
         return this.submit('compile', input);
@@ -559,7 +577,15 @@ class RootCemProcessingHost implements CemProcessingHost {
         this.removeDisposeListener?.();
         const request = createCemProcessingRequestEnvelope(this.sequence, 'dispose', input);
         this.jobs.start(request.jobId);
-        const result = Promise.resolve().then(() => {
+        const result = Promise.resolve().then(async () => {
+            if (!this.fallbackSelected) {
+                // The worker may also serve other roots. Release this root's owners first.
+                await Promise.all([...this.documentInputs.values()].map((document) =>
+                    this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'document',
+                        { action: 'release', handle: document.handle }), document.handle.scopePolicyStamp)
+                        .catch(() => undefined)));
+            }
+            this.documentInputs.clear();
             this.lease.release();
             this.compileInputs.clear();
             this.jobPolicies.clear();
@@ -643,6 +669,11 @@ class RootCemProcessingHost implements CemProcessingHost {
                 throw new Error('the main-thread fallback is missing the worker template source');
             }
             await this.engine.compile(input);
+            for (const binding of request.payload.documents ?? []) {
+                const document = this.documentInputs.get(JSON.stringify(binding.handle));
+                if (!document) throw new Error('the main-thread fallback is missing the retained document bytes');
+                await this.engine.document(document);
+            }
         }
         return this.executeMainThread(request, cancellationAccepted);
     }
@@ -651,6 +682,18 @@ class RootCemProcessingHost implements CemProcessingHost {
         request: CemProcessingRequestEnvelope<TOperation>,
         cancellationAccepted = false
     ): Promise<OperationResult<TOperation>> {
+        if (request.operation === 'document') {
+            const result = await this.engine.document(request.payload);
+            try {
+                this.assertNotCancelled(request);
+            } catch (error) {
+                if (request.payload.action === 'retain') {
+                    await this.engine.document({ action: 'release', handle: request.payload.handle });
+                }
+                throw error;
+            }
+            return result as OperationResult<TOperation>;
+        }
         if (request.operation === 'compile') {
             const result = await this.engine.compile(request.payload);
             this.assertNotCancelled(request);
@@ -739,6 +782,7 @@ function requestScopePolicyStamp(
     request: CemProcessingRequestEnvelope,
     jobPolicies: ReadonlyMap<number, string>
 ): string {
+    if (request.operation === 'document') return request.payload.handle.scopePolicyStamp;
     if (request.operation === 'compile') {
         return request.payload.scopePolicyStamp;
     }
@@ -752,7 +796,8 @@ function requestScopePolicyStamp(
 }
 
 type OperationResult<TOperation extends CemProcessingOperation> =
-    TOperation extends 'compile' ? CemProcessingCompileResult
+    TOperation extends 'document' ? CemProcessingDocumentResult
+        : TOperation extends 'compile' ? CemProcessingCompileResult
         : TOperation extends 'render-diff' ? CemProcessingRenderDiffResult
             : TOperation extends 'cancel' ? CemProcessingCancelResult
                 : CemProcessingDisposeResult;

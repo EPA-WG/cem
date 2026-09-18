@@ -1,0 +1,68 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module |
+    {function @name=numbers.valid @visibility=public @returns=boolean |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:boolean" |
+            {variable @binding=text @local-name=text}
+            {expression | every $value in tokenize($text) satisfies $value castable as xs:decimal}
+    }   }   }
+    {function @name=numbers.values @visibility=public @returns=any |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:decimal*" |
+            {variable @binding=text @local-name=text}
+            {expression | tokenize($text) ! xs:decimal(.)}
+    }   }   }
+    {function @name=basket.valid @visibility=public @returns=boolean |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="xs:boolean" |
+            {expression | exists(/basket) and (every $fruit in /basket/child::* satisfies
+                    (empty($fruit/child::*) and (if (string($fruit) castable as xs:decimal)
+                     then xs:decimal($fruit) >= 0 else false())))}
+    }   }   }
+    {function @name=basket.rows @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="node()*" |
+            {expression | /basket/child::*}
+    }   }   }
+    {function @name=basket.values @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {body | {xpath @context=document @sequence-type="xs:decimal*" |
+            {expression | /basket/child::* ! xs:decimal(.)}
+    }   }   }
+    {function @name=basket.name @visibility=public @returns=string |
+        {param @name=fruit @type=any @required=true}
+        {body | {xpath @context=fruit @sequence-type="xs:string" |
+            {expression | local-name()}
+    }   }   }
+    {function @name=basket.amount @visibility=public @returns=string |
+        {param @name=fruit @type=any @required=true}
+        {body | {xpath @context=fruit @sequence-type="xs:string" |
+            {expression | string(xs:decimal(.))}
+    }   }   }
+    {function @name=aggregate.sum @visibility=public @returns=string |
+        {param @name=values @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=values @local-name=values}
+            {expression | let $value := sum($values) return if (empty($value)) then '∅' else string($value)}
+    }   }   }
+    {function @name=aggregate.min @visibility=public @returns=string |
+        {param @name=values @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=values @local-name=values}
+            {expression | let $value := min($values) return if (empty($value)) then '∅' else string($value)}
+    }   }   }
+    {function @name=aggregate.max @visibility=public @returns=string |
+        {param @name=values @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=values @local-name=values}
+            {expression | let $value := max($values) return if (empty($value)) then '∅' else string($value)}
+    }   }   }
+    {function @name=aggregate.avg @visibility=public @returns=string |
+        {param @name=values @type=any @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=values @local-name=values}
+            {expression | let $value := avg($values) return if (empty($value)) then '∅' else string($value)}
+    }   }   }
+}

@@ -17,11 +17,10 @@ export async function runCustomElementSmoke(importBase) {
         check(label, true);
     };
 
-    const [indexModule, customElementModule, httpRequestModule, localStorageModule, locationModule, moduleUrlModule] =
+    const [indexModule, customElementModule, localStorageModule, locationModule, moduleUrlModule] =
         await Promise.all([
             import(`${importBase}/index.js`),
             import(`${importBase}/custom-element.js`),
-            import(`${importBase}/http-request.js`),
             import(`${importBase}/local-storage.js`),
             import(`${importBase}/location-element.js`),
             import(`${importBase}/module-url.js`),
@@ -30,8 +29,6 @@ export async function runCustomElementSmoke(importBase) {
     const IndexCustomElement = indexModule.default;
     const CustomElement = customElementModule.default;
     const NamedCustomElement = customElementModule.CustomElement;
-    const HttpRequestElement = httpRequestModule.default;
-    const NamedHttpRequestElement = httpRequestModule.HttpRequestElement;
     const LocalStorageElement = localStorageModule.default;
     const NamedLocalStorageElement = localStorageModule.LocalStorageElement;
     const LocationElement = locationModule.default;
@@ -41,7 +38,6 @@ export async function runCustomElementSmoke(importBase) {
 
     check('index default export matches CustomElement', IndexCustomElement === CustomElement);
     check('custom-element named/default exports match', NamedCustomElement === CustomElement);
-    check('http-request named/default exports match', NamedHttpRequestElement === HttpRequestElement);
     check('local-storage named/default exports match', NamedLocalStorageElement === LocalStorageElement);
     check('location-element named/default exports match', NamedLocationElement === LocationElement);
     check('module-url named/default exports match', NamedModuleUrl === ModuleUrl);
@@ -148,7 +144,6 @@ export async function runCustomElementSmoke(importBase) {
     );
 
     check('custom-element is registered', customElements.get('custom-element') === CustomElement);
-    check('http-request is registered', customElements.get('http-request') === HttpRequestElement);
     check('local-storage is registered', customElements.get('local-storage') === LocalStorageElement);
     check('location-element is registered', customElements.get('location-element') === LocationElement);
     check('module-url is registered', customElements.get('module-url') === ModuleUrl);
@@ -596,27 +591,7 @@ export async function runCustomElementSmoke(importBase) {
             retainedControl.selectionEnd === 7,
     );
 
-    const request = document.createElement('http-request');
-    request.setAttribute('url', './http-data.json');
-    request.setAttribute('method', 'GET');
-    request.setAttribute('header-accept', 'application/json');
-    document.body.appendChild(request);
-    await waitFor('http-request fetches JSON data', () => request.value?.data?.status === 'ok');
-    check('http-request records response status', request.value?.response?.status === 200);
-    check('http-request forwards request headers', request.value?.request?.headers?.accept === 'application/json');
-
-    const xmlRequest = document.createElement('http-request');
-    xmlRequest.setAttribute('url', './http-data.xml');
-    xmlRequest.setAttribute('method', 'GET');
-    xmlRequest.setAttribute('header-accept', 'application/xml');
-    document.body.appendChild(xmlRequest);
-    await waitFor('http-request fetches XML data', () => xmlRequest.value?.data?.localName === 'response');
-    check('http-request records XML response status', xmlRequest.value?.response?.status === 200);
-    check(
-        'http-request parses XML payload',
-        [...(xmlRequest.value?.data?.querySelectorAll('item') ?? [])].map((item) => item.textContent).join(',') ===
-            'alpha,beta',
-    );
+    check('standalone HTTP companion is retired', customElements.get('http-request') === undefined && !('HttpRequestElement' in indexModule));
 
     localStorage.removeItem('fixture-key');
     const storage = document.createElement('local-storage');

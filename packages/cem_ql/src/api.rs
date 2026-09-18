@@ -178,6 +178,7 @@ pub fn evaluate_expression(
             current_item: context.context_item.clone(),
             module_resolution: context.module_resolution.clone(),
             native_functions: context.native_functions.clone(),
+            data_readers: Default::default(),
         },
     );
     Ok(ExpressionEvaluation { compiled, result })
@@ -308,6 +309,8 @@ pub struct EvaluationContext {
     pub module_resolution: Option<CemModuleUrlResolutionCapability>,
     /// Explicit runtime-only native query capabilities, absent by default.
     pub native_functions: crate::native::NativeFunctionRegistry,
+    /// Runtime-only, bounded retention for explicitly selected XPath readers.
+    pub data_readers: crate::eval::DataReaderCache,
 }
 
 impl Default for EvaluationContext {
@@ -320,6 +323,7 @@ impl Default for EvaluationContext {
             current_item: None,
             module_resolution: None,
             native_functions: Default::default(),
+            data_readers: Default::default(),
         }
     }
 }

@@ -105,7 +105,7 @@ describe('restored demo teaching points', () => {
 
     it('keeps a deterministic malformed response for HTTP failure and recovery', () => {
         const invalid = readFileSync(new URL('../../demo/http-data-invalid.json', import.meta.url), 'utf8');
-        expect(() => JSON.parse(invalid)).toThrow();
+        expect(invalid).toContain('deliberately malformed'); // Native loader/story fixture checks the parse diagnostic.
         expect(source('http-request')).toContain('./http-data-invalid.json');
         expect(source('http-request')).toContain('press GET to recover');
     });

@@ -1,0 +1,30 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module |
+    {function @name=text.words @visibility=public @returns=integer |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:integer" |
+            {variable @binding=text @local-name=text}
+            {expression | count(tokenize($text))}
+    }   }   }
+    {function @name=text.length @visibility=public @returns=integer |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:integer" |
+            {variable @binding=text @local-name=text}
+            {expression | string-length($text)}
+    }   }   }
+    {function @name=text.normalize @visibility=public @returns=string |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=text @local-name=text}
+            {expression | normalize-space($text)}
+    }   }   }
+    {function @name=text.join @visibility=public @returns=string |
+        {param @name=text @type=string @required=true}
+        {param @name=separator @type=string @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=text @local-name=text}
+            {variable @binding=separator @local-name=separator}
+            {expression | string-join(tokenize($text), $separator)}
+}   }   }   }

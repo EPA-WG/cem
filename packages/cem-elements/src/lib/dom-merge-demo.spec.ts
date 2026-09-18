@@ -22,6 +22,10 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
         legend: '2. Input word and character count',
         includes: ['{input', 'Character count:', 'Word count:', 'Current slice:'],
     },
+    {
+        legend: '3. XPath word and character count',
+        includes: ['{textarea', '@slice-event=input', 'xpath-functions="./xpath-text.cemt"', 'native:call("text.words"', 'native:call("text.length"'],
+    },
 ] as const;
 
 const samples = Array.from(
@@ -38,7 +42,7 @@ describe('DOM merge demo source contracts', () => {
 
     it('has one independent cem-demo-element for each counter use case', () => {
         expect(samples.map(({ legend }) => legend)).toEqual(SAMPLE_CONTRACTS.map(({ legend }) => legend));
-        expect(samples).toHaveLength(2);
+        expect(samples).toHaveLength(3);
     });
 
     it.each(SAMPLE_CONTRACTS)('$legend owns one anonymous, flush-left declaration', ({ legend, includes }) => {
@@ -50,9 +54,11 @@ describe('DOM merge demo source contracts', () => {
         expect(source).toMatch(/<template>\n<cem-element>/u);
         expect(source.match(/<cem-element(?:\s|>)/gu)).toHaveLength(1);
         expect(source).not.toMatch(/<cem-element\s+[^>]*\btag=/u);
-        expect(normalizedSource).toContain('seq:count(seq:where(');
-        expect(normalizedSource).toContain('str:split(str:normalize_space(datadom.slices.text), " ")');
-        expect(normalizedSource).toContain('fn(word) => word != ""');
+        if (!legend.includes('XPath')) {
+            expect(normalizedSource).toContain('seq:count(seq:where(');
+            expect(normalizedSource).toContain('str:split(str:normalize_space(datadom.slices.text), " ")');
+            expect(normalizedSource).toContain('fn(word) => word != ""');
+        }
         expect(source).not.toContain('str:translate');
 
         for (const required of includes) {

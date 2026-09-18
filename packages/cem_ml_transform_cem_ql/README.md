@@ -18,6 +18,22 @@ templates, and the bounded legacy XSLT-parity lane. It is infrastructure for
 hosts and embedders, not an application UI or an alternate query-language
 implementation.
 
+## Imported document bindings
+
+Lifecycle XML, JSON, YAML and CSV inputs and explicitly encoded JSON documents
+enter through `cem_ml::import`. `input` is one retained CEM document node using
+`cem_ql::eval::imported_cem_tree`; secondary labels bind the same node capability.
+JSON members no longer become query fields or top-level variables, arrays are
+not implicitly flattened, and XML no longer exposes an `events` query binding.
+Use CEM node navigation or a declared XPath function library. Duplicate keys,
+lexical values, node/source identity and native ownership survive import.
+
+For example, a generic-data property is selected through
+`seq:where(input.children.children, fn(p) => p.attributes.value == "title")`;
+its scalar text is at `.children.children.value`. Explicit numeric/boolean
+conversion belongs in the authored query. Named parser inspection and requested
+output serialization retain their separate contracts.
+
 ## Verification
 
 Use Nx for the publishable crate gates:

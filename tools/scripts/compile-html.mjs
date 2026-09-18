@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,10 @@ const srcDir = path.join(projectRoot, 'src');
 const distDir = path.join(projectRoot, 'dist');
 const repoNodeModulesDir = path.join(repoRoot, 'node_modules');
 const vendorDir = path.join(distDir, 'vendor');
+
+// Do not leave retired HTTP implementations in incremental theme distributions.
+await rm(path.join(vendorDir, '@epa-wg/custom-element/http-request.js'), { force: true });
+await rm(path.join(distDir, 'lib/css-generators/cem-http-request.js'), { force: true });
 
 const urlAttributePattern = /\b(src|href|xlink:href|url)\s*=\s*(["'])(.*?)\2/gis;
 const srcsetAttributePattern = /\b(srcset)\s*=\s*(["'])(.*?)\2/gis;

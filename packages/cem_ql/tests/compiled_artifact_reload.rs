@@ -43,6 +43,7 @@ fn eval_reloaded(source: &str) -> (CompiledArtifact, ItemStream) {
 fn eval_context() -> EvaluationContext {
     EvaluationContext {
         native_functions: Default::default(),
+        data_readers: Default::default(),
         scope: QueryContextScope(0),
         scope_policy: ScopePolicy::host_root().with_queue_size(2048),
         diagnostics: Vec::new(),

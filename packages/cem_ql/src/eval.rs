@@ -24,6 +24,8 @@ use crate::resolve::BindingId;
 use crate::types::Type;
 
 mod data;
+pub(crate) use data::xpath_node as imported_xpath_node;
+pub use data::{imported_cem_tree, DataReaderCache};
 pub mod pipeline;
 pub mod set_ops;
 pub mod types_runtime;
@@ -345,6 +347,8 @@ pub enum BudgetAxis {
     ClosureSize,
     RegexBacktrack,
     ExternalFetches,
+    XPathTextBytes,
+    XPathWorkUnits,
 }
 
 impl BudgetAxis {
@@ -356,6 +360,8 @@ impl BudgetAxis {
             BudgetAxis::ClosureSize => "closure-size",
             BudgetAxis::RegexBacktrack => "regex-backtrack",
             BudgetAxis::ExternalFetches => "external-fetches",
+            BudgetAxis::XPathTextBytes => "xpath-text-bytes",
+            BudgetAxis::XPathWorkUnits => "xpath-work-units",
         }
     }
 }
@@ -454,6 +460,7 @@ pub(crate) struct EvalCtx<'a> {
     recovery_depth: usize,
     module_resolution: Option<CemModuleUrlResolutionCapability>,
     native_functions: crate::native::NativeFunctionRegistry,
+    data_readers: DataReaderCache,
     control: OperationControl,
     query_scope: QueryContextScope,
 }
@@ -480,6 +487,7 @@ impl<'a> EvalCtx<'a> {
             recovery_depth: 0,
             module_resolution: context.module_resolution.clone(),
             native_functions: context.native_functions.clone(),
+            data_readers: context.data_readers.clone(),
             control: control.clone(),
             query_scope: context.scope,
         };

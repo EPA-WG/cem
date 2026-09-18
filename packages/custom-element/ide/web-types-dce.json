@@ -179,65 +179,6 @@
                     ]
                 },
                 {
-                    "name": "http-request",
-                    "description": "Fetches data from a URL and exposes request, response, and parsed data via the value property. Supports JSON and XML response parsing.",
-                    "doc-url": "https://unpkg.com/@epa-wg/custom-element@0/demo/http-request.html",
-                    "attributes": [
-                        {
-                            "name": "url",
-                            "description": "The URL to fetch data from. When changed, triggers a new fetch request.",
-                            "required": false,
-                            "doc-url": "https://unpkg.com/@epa-wg/custom-element@0/demo/http-request.html",
-                            "value": {
-                                "type": "string"
-                            }
-                        },
-                        {
-                            "name": "method",
-                            "description": "HTTP method for the request (GET, POST, etc.)",
-                            "required": false,
-                            "doc-url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods",
-                            "value": {
-                                "type": "string"
-                            }
-                        },
-                        {
-                            "name": "header-accept",
-                            "description": "Sets the Accept header for the request. Use header-* pattern for other headers.",
-                            "required": false,
-                            "doc-url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept",
-                            "value": {
-                                "type": "string"
-                            }
-                        },
-                        {
-                            "name": "slice",
-                            "description": "slice name where the fetched data would be propagated",
-                            "required": false,
-                            "doc-url": "https://unpkg.com/@epa-wg/custom-element@0/demo/data-slices.html",
-                            "value": {
-                                "type": "string"
-                            }
-                        }
-                    ],
-                    "js": {
-                        "events": [
-                            {
-                                "name": "change",
-                                "description": "Emitted when request, response, or data changes"
-                            }
-                        ],
-                        "properties": [
-                            {
-                                "name": "value",
-                                "type": "object",
-                                "default": "{}",
-                                "description": "Object containing request, response, and data properties"
-                            }
-                        ]
-                    }
-                },
-                {
                     "name": "local-storage",
                     "description": "Provides access to localStorage with reactive updates. Reads and writes values to localStorage by key.",
                     "doc-url": "https://unpkg.com/@epa-wg/custom-element@0/demo/local-storage.html",

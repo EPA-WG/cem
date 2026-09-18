@@ -3,6 +3,8 @@
 //! Slot construction is the only parsing boundary. Runtime invocation consumes
 //! the retained XPath AST plus native XPath context and variable sequences.
 
+pub mod functions;
+
 use std::sync::Arc;
 
 use cem_ml::diagnostics::Diagnostic;

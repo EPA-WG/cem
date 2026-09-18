@@ -370,6 +370,7 @@ fn schema_owned_cem_ql_xpath_slot_compiles_once_and_invokes_native_bindings() {
         &host_bindings,
         XPathEvaluationLimits {
             max_sequence_items: Some(2),
+            ..Default::default()
         },
         CemQlXPathRuntimeContext {
             resolver_registry: &resolver_registry,
@@ -394,7 +395,12 @@ fn schema_owned_cem_ql_xpath_slot_compiles_once_and_invokes_native_bindings() {
         FrameSpan::Single(ByteRange::new(96, expression_source.len() as u32))
     );
     assert!(Arc::ptr_eq(
-        native_node.as_ref().expect("native result node").owner(),
+        native_node
+            .as_ref()
+            .expect("native result node")
+            .source_owner()
+            .as_ref()
+            .unwrap(),
         &owner
     ));
 }

@@ -1,6 +1,13 @@
+mod aggregate;
+pub mod artifact;
+mod containers;
 mod lexer;
+mod node;
+pub use node::{XPathNativeNode, XPathNativeNodeError, XPathNativeNodeHandle};
 mod parser;
+mod sequence;
 mod syntax;
+mod text;
 
 pub use syntax::*;
 
@@ -35,9 +42,6 @@ use crate::transform_template::{
     TransformTemplateCompiledArtifact, TransformTemplateOutputArtifact,
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
     TransformTemplateRuntimeContext,
-};
-use crate::validation::xml::{
-    xml_decode_entity_reference, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
 };
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -740,811 +744,6 @@ pub enum XPathResultNodeKind {
     Namespace,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum XPathNativeNodeHandle {
-    XmlDocument,
-    XmlEvent {
-        event_index: usize,
-    },
-    XmlAttribute {
-        event_index: usize,
-        attribute_index: usize,
-    },
-}
-
-#[derive(Clone)]
-pub struct XPathNativeNode {
-    owner: Arc<LoadedInputAstStream>,
-    handle: XPathNativeNodeHandle,
-    // Text nodes use the first source event as their canonical identity and
-    // retain the exclusive end of the run. The XML owner's lexical AST stays
-    // unchanged; navigation, values and provenance use this XPath-only view.
-    text_run_end: Option<usize>,
-    resolution_context: Option<CemResolutionContextHandle>,
-}
-
-impl std::fmt::Debug for XPathNativeNode {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("XPathNativeNode")
-            .field("owner", &Arc::as_ptr(&self.owner))
-            .field("handle", &self.handle)
-            .finish()
-    }
-}
-
-impl PartialEq for XPathNativeNode {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.owner, &other.owner) && self.handle == other.handle
-    }
-}
-
-impl Eq for XPathNativeNode {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum XPathNativeNodeError {
-    OwnerIsNotXml,
-    XmlEventMissing {
-        event_index: usize,
-    },
-    XmlEventIsNotNode {
-        event_index: usize,
-    },
-    XmlAttributeMissing {
-        event_index: usize,
-        attribute_index: usize,
-    },
-    XmlAttributeIsNamespace {
-        event_index: usize,
-        attribute_index: usize,
-    },
-    XmlEntityReferenceUnsupported {
-        event_index: usize,
-    },
-}
-
-impl std::fmt::Display for XPathNativeNodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::OwnerIsNotXml => write!(formatter, "XPath native node owner is not an XML AST"),
-            Self::XmlEventMissing { event_index } => {
-                write!(formatter, "XML event `{event_index}` does not exist")
-            }
-            Self::XmlEventIsNotNode { event_index } => write!(
-                formatter,
-                "XML event `{event_index}` does not represent an XPath node"
-            ),
-            Self::XmlAttributeMissing {
-                event_index,
-                attribute_index,
-            } => write!(
-                formatter,
-                "XML attribute `{attribute_index}` does not exist on event `{event_index}`"
-            ),
-            Self::XmlAttributeIsNamespace {
-                event_index,
-                attribute_index,
-            } => write!(
-                formatter,
-                "XML attribute `{attribute_index}` on event `{event_index}` declares a namespace, not an XPath attribute"
-            ),
-            Self::XmlEntityReferenceUnsupported { event_index } => write!(
-                formatter,
-                "XML entity reference at event `{event_index}` has no supported XPath text value"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for XPathNativeNodeError {}
-
-impl XPathNativeNode {
-    pub fn xml_document(owner: Arc<LoadedInputAstStream>) -> Result<Self, XPathNativeNodeError> {
-        if !matches!(owner.as_ref(), LoadedInputAstStream::XmlDocument(_)) {
-            return Err(XPathNativeNodeError::OwnerIsNotXml);
-        }
-        Ok(Self {
-            owner,
-            handle: XPathNativeNodeHandle::XmlDocument,
-            text_run_end: None,
-            resolution_context: None,
-        })
-    }
-
-    pub fn xml_event(
-        owner: Arc<LoadedInputAstStream>,
-        event_index: usize,
-    ) -> Result<Self, XPathNativeNodeError> {
-        let LoadedInputAstStream::XmlDocument(document) = owner.as_ref() else {
-            return Err(XPathNativeNodeError::OwnerIsNotXml);
-        };
-        let event = document
-            .events
-            .get(event_index)
-            .ok_or(XPathNativeNodeError::XmlEventMissing { event_index })?;
-        if xpath_xml_event_node_kind(event.kind).is_none() {
-            return Err(XPathNativeNodeError::XmlEventIsNotNode { event_index });
-        }
-        let (event_index, text_run_end) = if xpath_xml_event_is_text(event.kind) {
-            // Whitespace outside the document element is XML source trivia,
-            // not a child text node of an XDM document constructed from XML.
-            if event.depth == 0 {
-                return Err(XPathNativeNodeError::XmlEventIsNotNode { event_index });
-            }
-            let belongs_to_run = |candidate: &XmlEventAst| {
-                candidate.depth == event.depth && xpath_xml_event_is_text(candidate.kind)
-            };
-            let mut start = event_index;
-            while start > 0 && belongs_to_run(&document.events[start - 1]) {
-                start -= 1;
-            }
-            let mut end = event_index + 1;
-            while end < document.events.len() && belongs_to_run(&document.events[end]) {
-                end += 1;
-            }
-            let mut nonempty = false;
-            for member in &document.events[start..end] {
-                if member.kind == XmlEventKind::EntityReference {
-                    if member
-                        .value
-                        .as_deref()
-                        .and_then(xml_decode_entity_reference)
-                        .is_none()
-                    {
-                        return Err(XPathNativeNodeError::XmlEntityReferenceUnsupported {
-                            event_index: member.index,
-                        });
-                    }
-                    nonempty = true;
-                } else {
-                    nonempty |= member
-                        .value
-                        .as_deref()
-                        .is_some_and(|value| !value.is_empty());
-                }
-            }
-            if !nonempty {
-                return Err(XPathNativeNodeError::XmlEventIsNotNode { event_index });
-            }
-            (start, Some(end))
-        } else {
-            (event_index, None)
-        };
-        Ok(Self {
-            owner,
-            handle: XPathNativeNodeHandle::XmlEvent { event_index },
-            text_run_end,
-            resolution_context: None,
-        })
-    }
-
-    pub fn xml_attribute(
-        owner: Arc<LoadedInputAstStream>,
-        event_index: usize,
-        attribute_index: usize,
-    ) -> Result<Self, XPathNativeNodeError> {
-        let LoadedInputAstStream::XmlDocument(document) = owner.as_ref() else {
-            return Err(XPathNativeNodeError::OwnerIsNotXml);
-        };
-        let event = document
-            .events
-            .get(event_index)
-            .ok_or(XPathNativeNodeError::XmlEventMissing { event_index })?;
-        let attribute = event.attributes.get(attribute_index).ok_or(
-            XPathNativeNodeError::XmlAttributeMissing {
-                event_index,
-                attribute_index,
-            },
-        )?;
-        if attribute.qualified_name == "xmlns" || attribute.prefix.as_deref() == Some("xmlns") {
-            return Err(XPathNativeNodeError::XmlAttributeIsNamespace {
-                event_index,
-                attribute_index,
-            });
-        }
-        Ok(Self {
-            owner,
-            handle: XPathNativeNodeHandle::XmlAttribute {
-                event_index,
-                attribute_index,
-            },
-            text_run_end: None,
-            resolution_context: None,
-        })
-    }
-
-    pub fn with_resolution_context(mut self, context: CemResolutionContextHandle) -> Self {
-        self.resolution_context = Some(context);
-        self
-    }
-
-    pub fn resolution_context(&self) -> Option<&CemResolutionContextHandle> {
-        self.resolution_context.as_ref()
-    }
-
-    pub fn owner(&self) -> &Arc<LoadedInputAstStream> {
-        &self.owner
-    }
-
-    pub fn handle(&self) -> XPathNativeNodeHandle {
-        self.handle
-    }
-
-    pub fn source_map(&self) -> SourceMapStack {
-        match self.handle {
-            XPathNativeNodeHandle::XmlDocument => SourceMapStack {
-                frames: vec![SourceMapFrame {
-                    source_id: SourceId(1),
-                    span: FrameSpan::Single(ByteRange::new(
-                        0,
-                        u32::try_from(self.xml_document_ast().source.byte_length)
-                            .unwrap_or(u32::MAX),
-                    )),
-                    transform: TransformKind::ContentTypeTransform {
-                        content_type: self.xml_document_ast().source.media_type.clone(),
-                    },
-                }],
-            },
-            XPathNativeNodeHandle::XmlEvent { event_index } => {
-                let events = &self.xml_document_ast().events;
-                let mut source_map = events[event_index].source_range.source_map();
-                if let Some(end) = self.text_run_end.filter(|end| *end > event_index + 1) {
-                    source_map.frames[0].span = FrameSpan::Multi(
-                        events[event_index..end]
-                            .iter()
-                            .map(|event| {
-                                let range = event.source_range;
-                                ByteRange::new(
-                                    range.start.byte_offset,
-                                    u32::try_from(range.byte_length).unwrap_or(u32::MAX),
-                                )
-                            })
-                            .collect(),
-                    );
-                }
-                source_map
-            }
-            XPathNativeNodeHandle::XmlAttribute { .. } => self
-                .xml_attribute_ast()
-                .and_then(|attribute| attribute.value_source_range)
-                .unwrap_or_else(|| {
-                    self.xml_event_ast()
-                        .expect("validated XPath XML attribute owner")
-                        .source_range
-                })
-                .source_map(),
-        }
-    }
-
-    fn xml_document_ast(&self) -> &XmlDocumentAst {
-        let LoadedInputAstStream::XmlDocument(document) = self.owner.as_ref() else {
-            unreachable!("XPathNativeNode constructors validate XML owners")
-        };
-        document
-    }
-
-    fn xml_event_ast(&self) -> Option<&XmlEventAst> {
-        let event_index = match self.handle {
-            XPathNativeNodeHandle::XmlEvent { event_index }
-            | XPathNativeNodeHandle::XmlAttribute { event_index, .. } => event_index,
-            XPathNativeNodeHandle::XmlDocument => return None,
-        };
-        self.xml_document_ast().events.get(event_index)
-    }
-
-    fn xml_attribute_ast(&self) -> Option<&XmlAttributeAst> {
-        let XPathNativeNodeHandle::XmlAttribute {
-            event_index,
-            attribute_index,
-        } = self.handle
-        else {
-            return None;
-        };
-        self.xml_document_ast()
-            .events
-            .get(event_index)?
-            .attributes
-            .get(attribute_index)
-    }
-
-    fn document_root(&self) -> Self {
-        Self {
-            owner: Arc::clone(&self.owner),
-            handle: XPathNativeNodeHandle::XmlDocument,
-            text_run_end: None,
-            resolution_context: self.resolution_context.clone(),
-        }
-    }
-
-    fn child_nodes(&self) -> Vec<Self> {
-        let document = self.xml_document_ast();
-        let (start_index, child_depth, closing_depth) = match self.handle {
-            XPathNativeNodeHandle::XmlDocument => (0, 0, None),
-            XPathNativeNodeHandle::XmlEvent { event_index } => {
-                let Some(event) = document.events.get(event_index) else {
-                    return Vec::new();
-                };
-                if event.kind != XmlEventKind::StartElement {
-                    return Vec::new();
-                }
-                (
-                    event_index.saturating_add(1),
-                    event.depth.saturating_add(1),
-                    Some(event.depth),
-                )
-            }
-            XPathNativeNodeHandle::XmlAttribute { .. } => return Vec::new(),
-        };
-
-        let mut children = Vec::new();
-        for event in document.events.iter().skip(start_index) {
-            if closing_depth
-                .is_some_and(|depth| event.kind == XmlEventKind::EndElement && event.depth == depth)
-            {
-                break;
-            }
-            if event.depth != child_depth || xpath_xml_event_node_kind(event.kind).is_none() {
-                continue;
-            }
-            // Only visit the first lexical member of a text run. Besides
-            // deduplicating logical children this avoids rescanning long runs
-            // once for every CDATA/entity boundary.
-            if xpath_xml_event_is_text(event.kind)
-                && event.index > 0
-                && document
-                    .events
-                    .get(event.index - 1)
-                    .is_some_and(|previous| {
-                        previous.depth == event.depth && xpath_xml_event_is_text(previous.kind)
-                    })
-            {
-                continue;
-            }
-            if let Ok(mut node) = Self::xml_event(Arc::clone(&self.owner), event.index) {
-                node.resolution_context = self.resolution_context.clone();
-                children.push(node);
-            }
-        }
-        children
-    }
-
-    fn attribute_nodes(&self) -> Vec<Self> {
-        let XPathNativeNodeHandle::XmlEvent { event_index } = self.handle else {
-            return Vec::new();
-        };
-        let Some(event) = self.xml_event_ast() else {
-            return Vec::new();
-        };
-        if !matches!(
-            event.kind,
-            XmlEventKind::StartElement | XmlEventKind::EmptyElement
-        ) {
-            return Vec::new();
-        }
-        event
-            .attributes
-            .iter()
-            .enumerate()
-            .filter(|(_, attribute)| {
-                attribute.qualified_name != "xmlns" && attribute.prefix.as_deref() != Some("xmlns")
-            })
-            .filter_map(|(attribute_index, _)| {
-                Self::xml_attribute(Arc::clone(&self.owner), event_index, attribute_index)
-                    .ok()
-                    .map(|mut node| {
-                        node.resolution_context = self.resolution_context.clone();
-                        node
-                    })
-            })
-            .collect()
-    }
-
-    fn parent_node(&self) -> Option<Self> {
-        let event_index = match self.handle {
-            XPathNativeNodeHandle::XmlDocument => return None,
-            XPathNativeNodeHandle::XmlAttribute { event_index, .. } => {
-                return Self::xml_event(Arc::clone(&self.owner), event_index)
-                    .ok()
-                    .map(|mut node| {
-                        node.resolution_context = self.resolution_context.clone();
-                        node
-                    });
-            }
-            XPathNativeNodeHandle::XmlEvent { event_index } => event_index,
-        };
-        let event = self.xml_document_ast().events.get(event_index)?;
-        if event.depth == 0 {
-            return Some(self.document_root());
-        }
-        self.xml_document_ast().events[..event_index]
-            .iter()
-            .rev()
-            .find(|candidate| {
-                candidate.kind == XmlEventKind::StartElement
-                    && candidate.depth.saturating_add(1) == event.depth
-            })
-            .and_then(|parent| Self::xml_event(Arc::clone(&self.owner), parent.index).ok())
-            .map(|mut node| {
-                node.resolution_context = self.resolution_context.clone();
-                node
-            })
-    }
-
-    fn descendant_nodes(&self) -> Vec<Self> {
-        let mut descendants = Vec::new();
-        let mut pending = self.child_nodes();
-        pending.reverse();
-        while let Some(node) = pending.pop() {
-            let mut children = node.child_nodes();
-            children.reverse();
-            pending.extend(children);
-            descendants.push(node);
-        }
-        descendants
-    }
-
-    fn ancestor_nodes(&self) -> Vec<Self> {
-        let mut ancestors = Vec::new();
-        let mut current = self.parent_node();
-        while let Some(node) = current {
-            current = node.parent_node();
-            ancestors.push(node);
-        }
-        ancestors
-    }
-
-    fn following_sibling_nodes(&self) -> Vec<Self> {
-        if matches!(
-            self.handle,
-            XPathNativeNodeHandle::XmlDocument | XPathNativeNodeHandle::XmlAttribute { .. }
-        ) {
-            return Vec::new();
-        }
-        let Some(parent) = self.parent_node() else {
-            return Vec::new();
-        };
-        let siblings = parent.child_nodes();
-        siblings
-            .iter()
-            .position(|candidate| candidate == self)
-            .map(|index| siblings.into_iter().skip(index.saturating_add(1)).collect())
-            .unwrap_or_default()
-    }
-
-    fn preceding_sibling_nodes(&self) -> Vec<Self> {
-        if matches!(
-            self.handle,
-            XPathNativeNodeHandle::XmlDocument | XPathNativeNodeHandle::XmlAttribute { .. }
-        ) {
-            return Vec::new();
-        }
-        let Some(parent) = self.parent_node() else {
-            return Vec::new();
-        };
-        let siblings = parent.child_nodes();
-        siblings
-            .iter()
-            .position(|candidate| candidate == self)
-            .map(|index| siblings.into_iter().take(index).rev().collect())
-            .unwrap_or_default()
-    }
-
-    fn is_ancestor_of(&self, other: &Self) -> bool {
-        let mut current = other.parent_node();
-        while let Some(node) = current {
-            if node == *self {
-                return true;
-            }
-            current = node.parent_node();
-        }
-        false
-    }
-
-    fn following_nodes(&self) -> Vec<Self> {
-        let context_order = self.document_order_key();
-        self.document_root()
-            .descendant_nodes()
-            .into_iter()
-            .filter(|candidate| {
-                candidate.document_order_key() > context_order && !self.is_ancestor_of(candidate)
-            })
-            .collect()
-    }
-
-    fn preceding_nodes(&self) -> Vec<Self> {
-        let context_order = self.document_order_key();
-        let mut nodes = self
-            .document_root()
-            .descendant_nodes()
-            .into_iter()
-            .filter(|candidate| {
-                candidate.document_order_key() < context_order && !candidate.is_ancestor_of(self)
-            })
-            .collect::<Vec<_>>();
-        nodes.reverse();
-        nodes
-    }
-
-    fn document_order_key(&self) -> (usize, usize, usize) {
-        match self.handle {
-            XPathNativeNodeHandle::XmlDocument => (0, 0, 0),
-            XPathNativeNodeHandle::XmlEvent { event_index } => {
-                (event_index.saturating_add(1), 0, 0)
-            }
-            XPathNativeNodeHandle::XmlAttribute {
-                event_index,
-                attribute_index,
-            } => (
-                event_index.saturating_add(1),
-                1,
-                attribute_index.saturating_add(1),
-            ),
-        }
-    }
-
-    pub fn string_value(&self) -> String {
-        if let Some(attribute) = self.xml_attribute_ast() {
-            return attribute
-                .entity_decoded_value
-                .clone()
-                .unwrap_or_else(|| attribute.value.clone());
-        }
-        match self.result_node_kind() {
-            XPathResultNodeKind::Document | XPathResultNodeKind::Element => self
-                .descendant_nodes()
-                .into_iter()
-                .filter(|node| node.result_node_kind() == XPathResultNodeKind::Text)
-                .map(|node| node.string_value())
-                .collect(),
-            XPathResultNodeKind::Text => {
-                let XPathNativeNodeHandle::XmlEvent { event_index } = self.handle else {
-                    unreachable!("text nodes are backed by XML event runs")
-                };
-                let end = self.text_run_end.expect("validated XPath text run");
-                let mut value = String::new();
-                for event in &self.xml_document_ast().events[event_index..end] {
-                    if event.kind == XmlEventKind::EntityReference {
-                        value.push(
-                            event
-                                .value
-                                .as_deref()
-                                .and_then(xml_decode_entity_reference)
-                                .expect("validated XPath entity reference"),
-                        );
-                    } else if let Some(text) = &event.value {
-                        value.push_str(&xpath_xml_normalize_line_endings(text));
-                    }
-                }
-                value
-            }
-            XPathResultNodeKind::Comment => self
-                .xml_event_ast()
-                .and_then(|event| event.value.as_deref())
-                .map(xpath_xml_normalize_line_endings)
-                .unwrap_or_default(),
-            XPathResultNodeKind::ProcessingInstruction => self
-                .xml_event_ast()
-                .and_then(|event| event.value.as_deref())
-                .map(|value| {
-                    value
-                        .char_indices()
-                        .find_map(|(offset, character)| {
-                            matches!(character, ' ' | '\t' | '\r' | '\n').then_some(offset)
-                        })
-                        .map(|offset| {
-                            xpath_xml_normalize_line_endings(
-                                value[offset..].trim_start_matches([' ', '\t', '\r', '\n']),
-                            )
-                        })
-                        .unwrap_or_default()
-                })
-                .unwrap_or_default(),
-            XPathResultNodeKind::Attribute => unreachable!("attributes return above"),
-            XPathResultNodeKind::Namespace => String::new(),
-        }
-    }
-
-    fn typed_value(&self) -> XPathAtomicValue {
-        let type_name = match self.result_node_kind() {
-            XPathResultNodeKind::Document
-            | XPathResultNodeKind::Element
-            | XPathResultNodeKind::Attribute
-            | XPathResultNodeKind::Text => "xs:untypedAtomic",
-            XPathResultNodeKind::Comment
-            | XPathResultNodeKind::ProcessingInstruction
-            | XPathResultNodeKind::Namespace => "xs:string",
-        };
-        XPathAtomicValue {
-            type_name: type_name.to_owned(),
-            lexical_value: self.string_value(),
-            namespace_uri: None,
-            local_name: None,
-        }
-    }
-
-    fn result_node_kind(&self) -> XPathResultNodeKind {
-        match self.handle {
-            XPathNativeNodeHandle::XmlDocument => XPathResultNodeKind::Document,
-            XPathNativeNodeHandle::XmlEvent { .. } => xpath_xml_event_node_kind(
-                self.xml_event_ast()
-                    .expect("validated XPath XML event handle")
-                    .kind,
-            )
-            .expect("validated XPath XML event node kind"),
-            XPathNativeNodeHandle::XmlAttribute { .. } => XPathResultNodeKind::Attribute,
-        }
-    }
-
-    fn source_range(&self) -> XPathSourceRange {
-        match self.handle {
-            XPathNativeNodeHandle::XmlDocument => {
-                XPathSourceRange::new(1, 1, 0, self.xml_document_ast().source.byte_length as u64)
-            }
-            XPathNativeNodeHandle::XmlEvent { .. } => {
-                let range = self
-                    .xml_event_ast()
-                    .expect("validated XPath XML event handle")
-                    .source_range;
-                XPathSourceRange::new(
-                    range.start.line,
-                    range.start.column,
-                    range.start.byte_offset,
-                    self.text_run_end.map_or(range.byte_length, |end| {
-                        let last = self.xml_document_ast().events[end - 1].source_range;
-                        last.start.byte_offset + last.byte_length - range.start.byte_offset
-                    }),
-                )
-            }
-            XPathNativeNodeHandle::XmlAttribute { .. } => {
-                let range = self
-                    .xml_attribute_ast()
-                    .and_then(|attribute| attribute.value_source_range)
-                    .unwrap_or_else(|| {
-                        self.xml_event_ast()
-                            .expect("validated XPath XML attribute owner")
-                            .source_range
-                    });
-                XPathSourceRange::new(
-                    range.start.line,
-                    range.start.column,
-                    range.start.byte_offset,
-                    range.byte_length,
-                )
-            }
-        }
-    }
-
-    fn node_id(&self) -> String {
-        match self.handle {
-            XPathNativeNodeHandle::XmlDocument => "xml:document".to_owned(),
-            XPathNativeNodeHandle::XmlEvent { event_index } => {
-                format!("xml:event:{event_index}")
-            }
-            XPathNativeNodeHandle::XmlAttribute {
-                event_index,
-                attribute_index,
-            } => format!("xml:event:{event_index}:attribute:{attribute_index}"),
-        }
-    }
-
-    fn expanded_name(&self) -> Option<String> {
-        let (local_name, namespace_uri) = if let Some(attribute) = self.xml_attribute_ast() {
-            (
-                attribute.local_name.as_str(),
-                attribute.namespace_uri.as_deref(),
-            )
-        } else {
-            let event = self.xml_event_ast()?;
-            if event.kind == XmlEventKind::ProcessingInstruction {
-                return event.value.as_deref().map(|value| {
-                    value
-                        .split([' ', '\t', '\r', '\n'])
-                        .next()
-                        .unwrap_or_default()
-                        .to_owned()
-                });
-            }
-            (event.local_name.as_deref()?, event.namespace_uri.as_deref())
-        };
-        Some(match namespace_uri {
-            Some(namespace_uri) => format!("{{{namespace_uri}}}{local_name}"),
-            None => local_name.to_owned(),
-        })
-    }
-
-    fn matches_node_test(&self, node_test: &XPathNodeTest) -> bool {
-        match node_test {
-            XPathNodeTest::Name(name_test) => {
-                let (local_name, node_namespace_uri) =
-                    if let Some(attribute) = self.xml_attribute_ast() {
-                        (
-                            attribute.local_name.as_str(),
-                            attribute.namespace_uri.as_deref(),
-                        )
-                    } else {
-                        let Some(event) = self.xml_event_ast() else {
-                            return false;
-                        };
-                        if !matches!(
-                            event.kind,
-                            XmlEventKind::StartElement | XmlEventKind::EmptyElement
-                        ) {
-                            return false;
-                        }
-                        let Some(local_name) = event.local_name.as_deref() else {
-                            return false;
-                        };
-                        (local_name, event.namespace_uri.as_deref())
-                    };
-                match name_test {
-                    XPathNameTest::Name(name) => {
-                        local_name == name.local_name.as_str()
-                            && node_namespace_uri == name.namespace_uri.as_deref()
-                    }
-                    XPathNameTest::Any => true,
-                    XPathNameTest::AnyNamespace {
-                        local_name: expected_local_name,
-                    } => local_name == expected_local_name,
-                    XPathNameTest::Namespace {
-                        namespace_uri: expected_namespace_uri,
-                    } => node_namespace_uri == Some(expected_namespace_uri.as_str()),
-                }
-            }
-            XPathNodeTest::Kind {
-                kind,
-                processing_instruction_target,
-                ..
-            } => match kind {
-                XPathKindTest::Document => self.result_node_kind() == XPathResultNodeKind::Document,
-                XPathKindTest::Element | XPathKindTest::SchemaElement => {
-                    self.result_node_kind() == XPathResultNodeKind::Element
-                }
-                XPathKindTest::Attribute | XPathKindTest::SchemaAttribute => {
-                    self.result_node_kind() == XPathResultNodeKind::Attribute
-                }
-                XPathKindTest::ProcessingInstruction => {
-                    self.result_node_kind() == XPathResultNodeKind::ProcessingInstruction
-                        && processing_instruction_target
-                            .as_ref()
-                            .is_none_or(|target| self.expanded_name().as_ref() == Some(target))
-                }
-                XPathKindTest::Comment => self.result_node_kind() == XPathResultNodeKind::Comment,
-                XPathKindTest::Text => self.result_node_kind() == XPathResultNodeKind::Text,
-                XPathKindTest::NamespaceNode => {
-                    self.result_node_kind() == XPathResultNodeKind::Namespace
-                }
-                XPathKindTest::AnyNode => true,
-            },
-        }
-    }
-}
-
-fn xpath_xml_event_is_text(kind: XmlEventKind) -> bool {
-    matches!(
-        kind,
-        XmlEventKind::Text | XmlEventKind::Cdata | XmlEventKind::EntityReference
-    )
-}
-
-fn xpath_xml_normalize_line_endings(value: &str) -> String {
-    // Numeric character references are decoded separately: &#13; stays CR.
-    value.replace("\r\n", "\n").replace('\r', "\n")
-}
-
-fn xpath_xml_event_node_kind(kind: XmlEventKind) -> Option<XPathResultNodeKind> {
-    match kind {
-        XmlEventKind::StartElement | XmlEventKind::EmptyElement => {
-            Some(XPathResultNodeKind::Element)
-        }
-        XmlEventKind::Text | XmlEventKind::Cdata | XmlEventKind::EntityReference => {
-            Some(XPathResultNodeKind::Text)
-        }
-        XmlEventKind::Comment => Some(XPathResultNodeKind::Comment),
-        XmlEventKind::ProcessingInstruction => Some(XPathResultNodeKind::ProcessingInstruction),
-        XmlEventKind::Declaration | XmlEventKind::EndElement | XmlEventKind::Doctype => None,
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct XPathMapEntry {
@@ -1612,7 +811,7 @@ impl XPathResultItem {
         Self::Node {
             node_kind: native_node.result_node_kind(),
             source_id,
-            source_uri: native_node.xml_document_ast().source.uri.clone(),
+            source_uri: native_node.owner().source_uri().to_owned(),
             node_id: native_node.node_id(),
             expanded_name: native_node.expanded_name(),
             source_range: Some(native_node.source_range()),
@@ -1687,9 +886,24 @@ impl Default for XPathDynamicContext {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XPathEvaluationLimits {
     pub max_sequence_items: Option<u64>,
+    /// Maximum UTF-8 lexical bytes in any materialized sequence or string,
+    /// including intermediate values. Native nodes are charged when atomized.
+    pub max_text_bytes: Option<u64>,
+    /// Cumulative evaluator steps and text bytes visited/copied per invocation.
+    pub max_work_units: Option<u64>,
+}
+
+impl Default for XPathEvaluationLimits {
+    fn default() -> Self {
+        Self {
+            max_sequence_items: None,
+            max_text_bytes: Some(1024 * 1024),
+            max_work_units: Some(16 * 1024 * 1024),
+        }
+    }
 }
 
 impl XPathEvaluationLimits {
@@ -1717,10 +931,17 @@ impl XPathEvaluationLimits {
     }
 
     fn stamp(self, safety_policy_stamp: &str) -> String {
-        self.max_sequence_items.map_or_else(
+        let mut stamp = self.max_sequence_items.map_or_else(
             || safety_policy_stamp.to_owned(),
             |max_items| format!("{safety_policy_stamp};xpath-items={max_items}"),
-        )
+        );
+        if let Some(bytes) = self.max_text_bytes {
+            stamp.push_str(&format!(";xpath-text-bytes={bytes}"));
+        }
+        if let Some(work) = self.max_work_units {
+            stamp.push_str(&format!(";xpath-work-units={work}"));
+        }
+        stamp
     }
 }
 
@@ -1740,6 +961,7 @@ pub struct XPathEvaluationRequest<'a> {
 
 struct XPathEvaluationRuntime {
     limits: XPathEvaluationLimits,
+    work_units: u64,
     safe_points: Option<crate::operation_control::SafePointPoller>,
     module_resolution: Option<CemModuleUrlResolutionCapability>,
 }
@@ -1751,6 +973,7 @@ impl XPathEvaluationRuntime {
     ) -> Self {
         Self {
             limits,
+            work_units: 0,
             safe_points: None,
             module_resolution: module_resolution.cloned(),
         }
@@ -1764,6 +987,7 @@ impl XPathEvaluationRuntime {
     ) -> Self {
         Self {
             limits,
+            work_units: 0,
             safe_points: Some(crate::operation_control::SafePointPoller::new(
                 control.clone(),
                 scope,
@@ -1773,16 +997,37 @@ impl XPathEvaluationRuntime {
     }
 
     fn poll(&mut self, source_range: XPathSourceRange) -> Result<(), XPathEvaluationError> {
+        self.charge_work(1, source_range)
+    }
+
+    fn charge_work(
+        &mut self,
+        units: u64,
+        source_range: XPathSourceRange,
+    ) -> Result<(), XPathEvaluationError> {
+        self.work_units = self
+            .work_units
+            .checked_add(units)
+            .ok_or_else(|| text::work_limit(source_range))?;
+        if self
+            .limits
+            .max_work_units
+            .is_some_and(|limit| self.work_units > limit)
+        {
+            return Err(text::work_limit(source_range));
+        }
         let Some(safe_points) = self.safe_points.as_mut() else {
             return Ok(());
         };
-        safe_points.poll_one().map_err(|error| {
-            XPathEvaluationError::dynamic(
-                "cem.xpath.control_failure",
-                format!("{}: {error}", error.code()),
-                source_range,
-            )
-        })
+        safe_points
+            .poll(units.min(u64::from(u32::MAX)) as u32)
+            .map_err(|error| {
+                XPathEvaluationError::dynamic(
+                    "cem.xpath.control_failure",
+                    format!("{}: {error}", error.code()),
+                    source_range,
+                )
+            })
     }
 
     fn force(&mut self, source_range: XPathSourceRange) -> Result<(), XPathEvaluationError> {
@@ -2121,6 +1366,28 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
                         message,
                     )
                 })?,
+            max_text_bytes: request
+                .target_scope
+                .xpath_text_bytes_budget()
+                .map_err(|message| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        message,
+                    )
+                })?
+                .or(XPathEvaluationLimits::default().max_text_bytes),
+            max_work_units: request
+                .target_scope
+                .xpath_work_units_budget()
+                .map_err(|message| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        message,
+                    )
+                })?
+                .or(XPathEvaluationLimits::default().max_work_units),
         };
         let result = CemXPathEvaluator::default()
             .evaluate_with_control(
@@ -2461,16 +1728,12 @@ fn xpath_evaluate_expression_sequence(
     debug_assert!(focus.position <= focus.size);
     debug_assert_eq!(focus.context_item.is_some(), focus.size > 0);
     let mut items = Vec::new();
+    let mut text_bytes = 0;
     for node in &sequence.expressions {
         runtime.poll(node.source_range)?;
-        items.extend(xpath_evaluate_expression_node(
-            expression,
-            node,
-            focus,
-            variable_bindings,
-            runtime,
-        )?);
-        runtime.enforce_sequence_items(items.len(), sequence.source_range)?;
+        let values =
+            xpath_evaluate_expression_node(expression, node, focus, variable_bindings, runtime)?;
+        runtime.append_items(&mut items, &mut text_bytes, values, sequence.source_range)?;
     }
     Ok(XPathResultSequence {
         sequence_type: xpath_result_sequence_type(&items),
@@ -2498,7 +1761,8 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let Some(value) = xpath_arithmetic_operand(&operand_items, operand.source_range)?
+            let Some(value) =
+                xpath_arithmetic_operand(&operand_items, operand.source_range, runtime)?
             else {
                 return Ok(Vec::new());
             };
@@ -2510,7 +1774,8 @@ fn xpath_evaluate_expression_node(
                 expression,
                 node.source_range,
                 value,
-            )])
+                runtime,
+            )?])
         }
         XPathExpression::CastAs {
             operand,
@@ -2524,8 +1789,8 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let atomized = xpath_atomize_cast_sequence(&operand_items, node.source_range)?;
-            match xpath_cast_atomized_sequence(atomized, single_type) {
+            let atomized = xpath_atomize_cast_sequence(&operand_items, node.source_range, runtime)?;
+            match xpath_cast_atomized_sequence(atomized, single_type, runtime) {
                 Ok(Some(value)) => Ok(vec![xpath_atomic_result_item(
                     expression,
                     node.source_range,
@@ -2551,11 +1816,21 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let atomized = xpath_atomize_cast_sequence(&operand_items, node.source_range)?;
+            let atomized = xpath_atomize_cast_sequence(&operand_items, node.source_range, runtime)?;
             Ok(vec![xpath_boolean_result_item(
                 expression,
                 node.source_range,
-                xpath_cast_atomized_sequence(atomized, single_type).is_ok(),
+                match xpath_cast_atomized_sequence(atomized, single_type, runtime) {
+                    Ok(_) => true,
+                    Err(failure) if matches!(failure.kind, XPathCastFailureKind::Resource(_)) => {
+                        return Err(XPathEvaluationError::dynamic(
+                            failure.diagnostic_code(),
+                            failure.message,
+                            node.source_range,
+                        ))
+                    }
+                    Err(_) => false,
+                },
             )])
         }
         XPathExpression::InstanceOf {
@@ -2646,7 +1921,7 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let left_value = xpath_string_concat_operand(&left_items, left.source_range)?;
+            let left_value = xpath_string_concat_operand(&left_items, left.source_range, runtime)?;
             let right_items = xpath_evaluate_expression_node(
                 expression,
                 right,
@@ -2654,11 +1929,14 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let right_value = xpath_string_concat_operand(&right_items, right.source_range)?;
-            let mut value =
-                String::with_capacity(left_value.len().saturating_add(right_value.len()));
-            value.push_str(&left_value);
-            value.push_str(&right_value);
+            let right_value =
+                xpath_string_concat_operand(&right_items, right.source_range, runtime)?;
+            runtime.check_text_size(
+                left_value.len().saturating_add(right_value.len()),
+                node.source_range,
+            )?;
+            let mut value = left_value;
+            runtime.append_text(&mut value, &right_value, node.source_range)?;
             Ok(vec![xpath_string_result_item(
                 expression,
                 node.source_range,
@@ -2684,7 +1962,8 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let Some(left_value) = xpath_range_operand(&left_items, left.source_range)? else {
+            let Some(left_value) = xpath_range_operand(&left_items, left.source_range, runtime)?
+            else {
                 return Ok(Vec::new());
             };
             let right_items = xpath_evaluate_expression_node(
@@ -2694,7 +1973,8 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let Some(right_value) = xpath_range_operand(&right_items, right.source_range)? else {
+            let Some(right_value) = xpath_range_operand(&right_items, right.source_range, runtime)?
+            else {
                 return Ok(Vec::new());
             };
             xpath_integer_range(
@@ -2727,7 +2007,9 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let Some(left_value) = xpath_arithmetic_operand(&left_items, left.source_range)? else {
+            let Some(left_value) =
+                xpath_arithmetic_operand(&left_items, left.source_range, runtime)?
+            else {
                 return Ok(Vec::new());
             };
             let right_items = xpath_evaluate_expression_node(
@@ -2737,7 +2019,8 @@ fn xpath_evaluate_expression_node(
                 variable_bindings,
                 runtime,
             )?;
-            let Some(right_value) = xpath_arithmetic_operand(&right_items, right.source_range)?
+            let Some(right_value) =
+                xpath_arithmetic_operand(&right_items, right.source_range, runtime)?
             else {
                 return Ok(Vec::new());
             };
@@ -2753,7 +2036,8 @@ fn xpath_evaluate_expression_node(
                 expression,
                 node.source_range,
                 value,
-            )])
+                runtime,
+            )?])
         }
         XPathExpression::Binary {
             operator,
@@ -2865,9 +2149,10 @@ fn xpath_evaluate_expression_node(
                     &right,
                     relation,
                     node.source_range,
+                    runtime,
                 )?),
                 XPathComparisonMode::Value => {
-                    xpath_value_compare(&left, &right, relation, node.source_range)?
+                    xpath_value_compare(&left, &right, relation, node.source_range, runtime)?
                 }
             };
             Ok(value
@@ -2894,6 +2179,7 @@ fn xpath_evaluate_expression_node(
             let binding_name = XPathExpandedName::from_syntax_name(binding);
             let mut scoped_bindings = variable_bindings.clone();
             let mut items = Vec::new();
+            let mut text_bytes = 0;
             for binding_item in binding_items {
                 runtime.poll(node.source_range)?;
                 let sequence_type = xpath_result_sequence_type(std::slice::from_ref(&binding_item));
@@ -2904,14 +2190,14 @@ fn xpath_evaluate_expression_node(
                         items: vec![binding_item],
                     },
                 );
-                items.extend(xpath_evaluate_expression_node(
+                let values = xpath_evaluate_expression_node(
                     expression,
                     return_expression,
                     focus,
                     &scoped_bindings,
                     runtime,
-                )?);
-                runtime.enforce_sequence_items(items.len(), node.source_range)?;
+                )?;
+                runtime.append_items(&mut items, &mut text_bytes, values, node.source_range)?;
             }
             Ok(items)
         }
@@ -3035,9 +2321,10 @@ fn xpath_evaluate_expression_node(
                 }
                 let size = current.len();
                 let mut mapped = Vec::new();
+                let mut text_bytes = 0;
                 for (position, item) in current.iter().enumerate() {
                     runtime.poll(mapping.source_range)?;
-                    mapped.extend(xpath_evaluate_expression_node(
+                    let values = xpath_evaluate_expression_node(
                         expression,
                         mapping,
                         XPathFocus::item(
@@ -3049,8 +2336,13 @@ fn xpath_evaluate_expression_node(
                         ),
                         variable_bindings,
                         runtime,
-                    )?);
-                    runtime.enforce_sequence_items(mapped.len(), node.source_range)?;
+                    )?;
+                    runtime.append_items(
+                        &mut mapped,
+                        &mut text_bytes,
+                        values,
+                        node.source_range,
+                    )?;
                 }
                 current = mapped;
             }
@@ -3062,6 +2354,7 @@ fn xpath_evaluate_expression_node(
         )),
     }?;
     runtime.enforce_sequence_items(items.len(), node.source_range)?;
+    runtime.check_items_text(&items, node.source_range)?;
     Ok(items)
 }
 
@@ -3097,6 +2390,7 @@ fn xpath_validate_single_type_supported(
 enum XPathCastFailureKind {
     Cardinality,
     Conversion,
+    Resource(&'static str),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3120,10 +2414,18 @@ impl XPathCastFailure {
         }
     }
 
+    fn budget(error: XPathEvaluationError) -> Self {
+        Self {
+            kind: XPathCastFailureKind::Resource(error.code),
+            message: error.message,
+        }
+    }
+
     fn diagnostic_code(&self) -> &'static str {
         match self.kind {
             XPathCastFailureKind::Cardinality => "cem.xpath.cast_cardinality",
             XPathCastFailureKind::Conversion => "cem.xpath.cast_invalid",
+            XPathCastFailureKind::Resource(code) => code,
         }
     }
 }
@@ -3154,42 +2456,87 @@ impl XPathCastAtomic {
         }
     }
 
-    fn into_string_value(self) -> String {
-        match self {
+    fn into_string_value(
+        self,
+        runtime: &mut XPathEvaluationRuntime,
+        range: XPathSourceRange,
+    ) -> Result<String, XPathCastFailure> {
+        if let Self::Integer(value) | Self::Decimal(value) = &self {
+            runtime
+                .check_text_size(text::decimal_bytes(value), range)
+                .map_err(XPathCastFailure::budget)?;
+            runtime
+                .charge_work(text::decimal_bytes(value) as u64, range)
+                .map_err(XPathCastFailure::budget)?;
+        }
+        let value = match self {
             Self::Untyped(value) | Self::String(value) | Self::AnyUri(value) => value,
             Self::Boolean(value) => value.to_string(),
             Self::Integer(value) | Self::Decimal(value) => value.to_lexical(),
             Self::Float(value) => xpath_float_string_value(value),
             Self::Double(value) => xpath_double_string_value(value),
-        }
+        };
+        runtime
+            .read_text(&value, range)
+            .map_err(XPathCastFailure::budget)?;
+        Ok(value)
     }
 }
 
 fn xpath_atomize_cast_sequence(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<Vec<XPathCastAtomic>, XPathEvaluationError> {
-    items
-        .iter()
-        .map(|item| xpath_atomize_cast_item(item, source_range))
-        .collect()
+    let mut values = Vec::new();
+    let mut bytes = 0usize;
+    for item in items {
+        runtime.poll(source_range)?;
+        let value = xpath_atomize_cast_item(item, source_range, runtime)?;
+        bytes = bytes.saturating_add(match &value {
+            XPathCastAtomic::Untyped(value) | XPathCastAtomic::String(value) => value.len(),
+            XPathCastAtomic::AnyUri(value) => value.len(),
+            XPathCastAtomic::Integer(value) | XPathCastAtomic::Decimal(value) => {
+                text::decimal_bytes(value)
+            }
+            XPathCastAtomic::Boolean(value) => {
+                if *value {
+                    4
+                } else {
+                    5
+                }
+            }
+            XPathCastAtomic::Float(value) => xpath_float_string_value(*value).len(),
+            XPathCastAtomic::Double(value) => xpath_double_string_value(*value).len(),
+        });
+        runtime.check_text_size(bytes, source_range)?;
+        values.push(value);
+    }
+    Ok(values)
 }
 
 fn xpath_atomize_cast_item(
     item: &XPathResultItem,
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<XPathCastAtomic, XPathEvaluationError> {
     match item {
         XPathResultItem::Node {
             native_node: Some(node),
             ..
-        } => xpath_cast_atomic_value(&node.typed_value(), source_range),
+        } => xpath_cast_atomic_value(
+            &text::node_typed_value(node, runtime, source_range)?,
+            source_range,
+        ),
         XPathResultItem::Node { .. } => Err(XPathEvaluationError::dynamic(
             "cem.xpath.native_node_missing",
             "XPath node atomization requires its retained native node handle",
             source_range,
         )),
-        XPathResultItem::Atomic { value, .. } => xpath_cast_atomic_value(value, source_range),
+        XPathResultItem::Atomic { value, .. } => {
+            runtime.read_text(&value.lexical_value, source_range)?;
+            xpath_cast_atomic_value(value, source_range)
+        }
         item => Err(XPathEvaluationError::unsupported(
             format!(
                 "XPath atomization for result item kind `{:?}` is outside the native atomic slice",
@@ -3223,6 +2570,7 @@ fn xpath_cast_atomic_value(
 fn xpath_cast_atomized_sequence(
     mut values: Vec<XPathCastAtomic>,
     single_type: &XPathSingleType,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<Option<XPathAtomicValue>, XPathCastFailure> {
     match values.len() {
         0 if single_type.allows_empty => return Ok(None),
@@ -3241,17 +2589,27 @@ fn xpath_cast_atomized_sequence(
         }
     }
     let value = values.pop().expect("singleton cast operand");
-    xpath_cast_atomic(value, single_type.type_name.local_name.as_str()).map(Some)
+    xpath_cast_atomic(
+        value,
+        single_type.type_name.local_name.as_str(),
+        runtime,
+        single_type.source_range,
+    )
+    .map(Some)
 }
 
 fn xpath_cast_atomic(
     value: XPathCastAtomic,
     target: &str,
+    runtime: &mut XPathEvaluationRuntime,
+    source_range: XPathSourceRange,
 ) -> Result<XPathAtomicValue, XPathCastFailure> {
     let source_type = value.type_name();
     let converted = match target {
-        "string" => XPathCastAtomic::String(value.into_string_value()),
-        "untypedAtomic" => XPathCastAtomic::Untyped(value.into_string_value()),
+        "string" => XPathCastAtomic::String(value.into_string_value(runtime, source_range)?),
+        "untypedAtomic" => {
+            XPathCastAtomic::Untyped(value.into_string_value(runtime, source_range)?)
+        }
         "anyURI" => match value {
             XPathCastAtomic::Untyped(value)
             | XPathCastAtomic::String(value)
@@ -3390,7 +2748,7 @@ fn xpath_cast_atomic(
     let type_name = converted.type_name().to_owned();
     Ok(XPathAtomicValue {
         type_name,
-        lexical_value: converted.into_string_value(),
+        lexical_value: converted.into_string_value(runtime, source_range)?,
         namespace_uri: None,
         local_name: None,
     })
@@ -3854,17 +3212,27 @@ fn xpath_evaluate_postfix(
                     runtime,
                 )?;
             }
-            XPathPostfixExpression::ArgumentList(_) => {
-                return Err(XPathEvaluationError::unsupported(
-                    "XPath dynamic function calls are outside the native evaluator slice",
+            XPathPostfixExpression::ArgumentList(arguments) => {
+                current = containers::call(
+                    expression,
+                    &current,
+                    arguments,
+                    focus,
+                    variable_bindings,
+                    runtime,
                     source_range,
-                ));
+                )?;
             }
-            XPathPostfixExpression::Lookup { .. } => {
-                return Err(XPathEvaluationError::unsupported(
-                    "XPath postfix lookups are outside the native evaluator slice",
+            XPathPostfixExpression::Lookup { key } => {
+                current = containers::lookup(
+                    expression,
+                    &current,
+                    key,
+                    focus,
+                    variable_bindings,
+                    runtime,
                     source_range,
-                ));
+                )?;
             }
         }
     }
@@ -3880,30 +3248,36 @@ fn xpath_evaluate_primary(
     source_range: XPathSourceRange,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     match primary {
-        XPathPrimaryExpression::Literal(literal) => Ok(vec![XPathResultItem::Atomic {
-            value: XPathAtomicValue {
-                type_name: match literal.kind {
-                    XPathLiteralKind::Integer => "xs:integer",
-                    XPathLiteralKind::Decimal => "xs:decimal",
-                    XPathLiteralKind::Double => "xs:double",
-                    XPathLiteralKind::String => "xs:string",
-                }
-                .to_owned(),
-                lexical_value: match literal.kind {
-                    XPathLiteralKind::String => literal.value.clone(),
-                    _ => literal.lexical.clone(),
+        XPathPrimaryExpression::Literal(literal) => {
+            let lexical = match literal.kind {
+                XPathLiteralKind::String => &literal.value,
+                _ => &literal.lexical,
+            };
+            runtime.read_text(lexical, source_range)?;
+            Ok(vec![XPathResultItem::Atomic {
+                value: XPathAtomicValue {
+                    type_name: match literal.kind {
+                        XPathLiteralKind::Integer => "xs:integer",
+                        XPathLiteralKind::Decimal => "xs:decimal",
+                        XPathLiteralKind::Double => "xs:double",
+                        XPathLiteralKind::String => "xs:string",
+                    }
+                    .to_owned(),
+                    lexical_value: match literal.kind {
+                        XPathLiteralKind::String => literal.value.clone(),
+                        _ => literal.lexical.clone(),
+                    },
+                    namespace_uri: None,
+                    local_name: None,
                 },
-                namespace_uri: None,
-                local_name: None,
-            },
-            source_map: source_range.source_map(
-                expression.attachment.source_id(),
-                expression.source.media_type.as_str(),
-            ),
-        }]),
+                source_map: source_range.source_map(
+                    expression.attachment.source_id(),
+                    expression.source.media_type.as_str(),
+                ),
+            }])
+        }
         XPathPrimaryExpression::VariableReference(name) => variable_bindings
             .get(&XPathExpandedName::from_syntax_name(name))
-            .map(|sequence| sequence.items.clone())
             .ok_or_else(|| XPathEvaluationError {
                 code: "cem.xpath.variable_unbound",
                 message: format!(
@@ -3912,6 +3286,11 @@ fn xpath_evaluate_primary(
                     XPathExpandedName::from_syntax_name(name).display()
                 ),
                 source_range: Some(name.source_range),
+            })
+            .and_then(|sequence| {
+                runtime.check_items_text(&sequence.items, source_range)?;
+                text::charge_items_copy(&sequence.items, runtime, source_range)?;
+                Ok(sequence.items.clone())
             }),
         XPathPrimaryExpression::Parenthesized(None) => Ok(Vec::new()),
         XPathPrimaryExpression::Parenthesized(Some(sequence)) => {
@@ -3926,12 +3305,15 @@ fn xpath_evaluate_primary(
         }
         XPathPrimaryExpression::ContextItem => focus
             .context_item
-            .cloned()
-            .map(|item| vec![item])
             .ok_or_else(|| XPathEvaluationError {
                 code: "cem.xpath.context_item_missing",
                 message: "XPath context item is not available".to_owned(),
                 source_range: Some(source_range),
+            })
+            .and_then(|item| {
+                runtime.check_items_text(std::slice::from_ref(item), source_range)?;
+                text::charge_items_copy(std::slice::from_ref(item), runtime, source_range)?;
+                Ok(vec![item.clone()])
             }),
         XPathPrimaryExpression::FunctionCall { name, arguments } => xpath_evaluate_function_call(
             expression,
@@ -3942,14 +3324,16 @@ fn xpath_evaluate_primary(
             runtime,
             source_range,
         ),
-        XPathPrimaryExpression::MapConstructor { .. } => Err(XPathEvaluationError::unsupported(
-            "XPath map constructors are outside the first native evaluator slice",
+        XPathPrimaryExpression::MapConstructor { .. }
+        | XPathPrimaryExpression::ArrayConstructor(_)
+        | XPathPrimaryExpression::UnaryLookup(_) => containers::primary(
+            expression,
+            primary,
+            focus,
+            variable_bindings,
+            runtime,
             source_range,
-        )),
-        XPathPrimaryExpression::ArrayConstructor(_) => Err(XPathEvaluationError::unsupported(
-            "XPath array constructors are outside the first native evaluator slice",
-            source_range,
-        )),
+        ),
         XPathPrimaryExpression::Unsupported { production } => {
             Err(XPathEvaluationError::unsupported(
                 format!("XPath production `{production}` is not executable yet"),
@@ -3961,17 +3345,37 @@ fn xpath_evaluate_primary(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum XPathNativeFunction {
+    MapContains,
+    MapGet,
+    MapKeys,
+    ArraySize,
+    ArrayGet,
     CemQlModuleUrl,
     Position,
     Last,
     Count,
     Exists,
     Empty,
+    Head,
+    Tail,
+    Reverse,
+    Subsequence,
+    DistinctValues,
+    Sum,
+    Avg,
+    Min,
+    Max,
     Boolean,
     Not,
     True,
     False,
     String,
+    LocalName,
+    NamespaceUri,
+    NormalizeSpace,
+    StringLength,
+    StringJoin,
+    Tokenize,
     Data,
     Number,
     Abs,
@@ -4049,6 +3453,21 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         };
         return Some(XPathNativeFunction::AtomicConstructor(target));
     }
+    if name.namespace_uri.as_deref() == Some("http://www.w3.org/2005/xpath-functions/map") {
+        return match (name.local_name.as_str(), arity) {
+            ("contains", 2) => Some(XPathNativeFunction::MapContains),
+            ("get", 2) => Some(XPathNativeFunction::MapGet),
+            ("keys", 1) => Some(XPathNativeFunction::MapKeys),
+            _ => None,
+        };
+    }
+    if name.namespace_uri.as_deref() == Some("http://www.w3.org/2005/xpath-functions/array") {
+        return match (name.local_name.as_str(), arity) {
+            ("size", 1) => Some(XPathNativeFunction::ArraySize),
+            ("get", 2) => Some(XPathNativeFunction::ArrayGet),
+            _ => None,
+        };
+    }
     if name.namespace_uri.as_deref() != Some("http://www.w3.org/2005/xpath-functions") {
         return None;
     }
@@ -4058,11 +3477,26 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("count", 1) => Some(XPathNativeFunction::Count),
         ("exists", 1) => Some(XPathNativeFunction::Exists),
         ("empty", 1) => Some(XPathNativeFunction::Empty),
+        ("head", 1) => Some(XPathNativeFunction::Head),
+        ("tail", 1) => Some(XPathNativeFunction::Tail),
+        ("reverse", 1) => Some(XPathNativeFunction::Reverse),
+        ("subsequence", 2 | 3) => Some(XPathNativeFunction::Subsequence),
+        ("distinct-values", 1 | 2) => Some(XPathNativeFunction::DistinctValues),
+        ("sum", 1 | 2) => Some(XPathNativeFunction::Sum),
+        ("avg", 1) => Some(XPathNativeFunction::Avg),
+        ("min", 1 | 2) => Some(XPathNativeFunction::Min),
+        ("max", 1 | 2) => Some(XPathNativeFunction::Max),
         ("boolean", 1) => Some(XPathNativeFunction::Boolean),
         ("not", 1) => Some(XPathNativeFunction::Not),
         ("true", 0) => Some(XPathNativeFunction::True),
         ("false", 0) => Some(XPathNativeFunction::False),
         ("string", 0 | 1) => Some(XPathNativeFunction::String),
+        ("local-name", 0 | 1) => Some(XPathNativeFunction::LocalName),
+        ("namespace-uri", 0 | 1) => Some(XPathNativeFunction::NamespaceUri),
+        ("normalize-space", 0 | 1) => Some(XPathNativeFunction::NormalizeSpace),
+        ("string-length", 0 | 1) => Some(XPathNativeFunction::StringLength),
+        ("string-join", 1 | 2) => Some(XPathNativeFunction::StringJoin),
+        ("tokenize", 1) => Some(XPathNativeFunction::Tokenize),
         ("data", 0 | 1) => Some(XPathNativeFunction::Data),
         ("number", 0 | 1) => Some(XPathNativeFunction::Number),
         ("abs", 1) => Some(XPathNativeFunction::Abs),
@@ -4158,6 +3592,57 @@ fn xpath_decimal_format_expanded_name(
     }
 }
 
+// Read the retained XML metadata directly: node()? never atomizes its argument.
+fn xpath_node_name_accessor(
+    function: XPathNativeFunction,
+    expression: &XPathExpressionAst,
+    items: &[XPathResultItem],
+    argument_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
+    source_range: XPathSourceRange,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    let node = match items {
+        [] => None,
+        [XPathResultItem::Node { native_node, .. }] => {
+            Some(native_node.as_ref().ok_or_else(|| {
+                XPathEvaluationError::dynamic(
+                    "cem.xpath.native_node_missing",
+                    "XPath node name accessors require a retained native node handle",
+                    argument_range,
+                )
+            })?)
+        }
+        _ => {
+            return Err(XPathEvaluationError::dynamic(
+                "cem.xpath.node_accessor_type_error",
+                "err:XPTY0004: XPath node name accessors expect zero or one node",
+                argument_range,
+            ))
+        }
+    };
+    let local = function == XPathNativeFunction::LocalName;
+    let value = node
+        .map(|node| {
+            if local {
+                node.local_name()
+            } else {
+                node.namespace_uri()
+            }
+        })
+        .unwrap_or_default();
+    let lexical_value = runtime.copy_text(value, source_range)?;
+    Ok(vec![xpath_atomic_result_item(
+        expression,
+        source_range,
+        XPathAtomicValue {
+            type_name: if local { "xs:string" } else { "xs:anyURI" }.to_owned(),
+            lexical_value,
+            namespace_uri: None,
+            local_name: None,
+        },
+    )])
+}
+
 fn xpath_evaluate_function_call(
     expression: &XPathExpressionAst,
     name: &XPathName,
@@ -4203,7 +3688,8 @@ fn xpath_evaluate_function_call(
             expression,
             source_range,
             XPathComparableAtomic::Integer(XPathExactDecimal::from_usize(value)),
-        )]);
+            runtime,
+        )?]);
     }
 
     if matches!(
@@ -4217,6 +3703,43 @@ fn xpath_evaluate_function_call(
         )]);
     }
 
+    if matches!(
+        function,
+        XPathNativeFunction::LocalName | XPathNativeFunction::NamespaceUri
+    ) {
+        let evaluated;
+        let (items, argument_range) = if let Some(argument) = arguments.first() {
+            evaluated = xpath_evaluate_expression_node(
+                expression,
+                argument,
+                focus,
+                variable_bindings,
+                runtime,
+            )?;
+            (evaluated.as_slice(), argument.source_range)
+        } else {
+            let item = focus.context_item.ok_or_else(|| {
+                XPathEvaluationError::dynamic(
+                    "cem.xpath.context_item_missing",
+                    format!(
+                        "err:XPDY0002: XPath {}() requires an available context item",
+                        name.lexical
+                    ),
+                    source_range,
+                )
+            })?;
+            (std::slice::from_ref(item), source_range)
+        };
+        return xpath_node_name_accessor(
+            function,
+            expression,
+            items,
+            argument_range,
+            runtime,
+            source_range,
+        );
+    }
+
     if function == XPathNativeFunction::String && arguments.is_empty() {
         let context_item = focus.context_item.ok_or_else(|| {
             XPathEvaluationError::dynamic(
@@ -4225,12 +3748,31 @@ fn xpath_evaluate_function_call(
                 source_range,
             )
         })?;
-        let value = xpath_string_function_value(std::slice::from_ref(context_item), source_range)?;
+        let value =
+            xpath_string_function_value(std::slice::from_ref(context_item), source_range, runtime)?;
         return Ok(vec![xpath_string_result_item(
             expression,
             source_range,
             value,
         )]);
+    }
+
+    if matches!(
+        function,
+        XPathNativeFunction::NormalizeSpace
+            | XPathNativeFunction::StringLength
+            | XPathNativeFunction::StringJoin
+            | XPathNativeFunction::Tokenize
+    ) {
+        return text::evaluate(
+            function,
+            expression,
+            arguments,
+            focus,
+            variable_bindings,
+            runtime,
+            source_range,
+        );
     }
 
     if function == XPathNativeFunction::Data && arguments.is_empty() {
@@ -4265,13 +3807,68 @@ fn xpath_evaluate_function_call(
         )]);
     }
 
+    if matches!(
+        function,
+        XPathNativeFunction::Head
+            | XPathNativeFunction::Tail
+            | XPathNativeFunction::Reverse
+            | XPathNativeFunction::Subsequence
+            | XPathNativeFunction::DistinctValues
+    ) {
+        return sequence::evaluate(
+            function,
+            expression,
+            arguments,
+            focus,
+            variable_bindings,
+            runtime,
+            source_range,
+        );
+    }
+
+    if matches!(
+        function,
+        XPathNativeFunction::Sum
+            | XPathNativeFunction::Avg
+            | XPathNativeFunction::Min
+            | XPathNativeFunction::Max
+    ) {
+        return aggregate::evaluate(
+            function,
+            expression,
+            arguments,
+            focus,
+            variable_bindings,
+            runtime,
+            source_range,
+        );
+    }
+
+    if matches!(
+        function,
+        XPathNativeFunction::MapContains
+            | XPathNativeFunction::MapGet
+            | XPathNativeFunction::MapKeys
+            | XPathNativeFunction::ArraySize
+            | XPathNativeFunction::ArrayGet
+    ) {
+        return containers::evaluate(
+            function,
+            expression,
+            arguments,
+            focus,
+            variable_bindings,
+            runtime,
+            source_range,
+        );
+    }
     let argument = arguments
         .first()
         .expect("resolved sequence functions have one argument");
     let items =
         xpath_evaluate_expression_node(expression, argument, focus, variable_bindings, runtime)?;
     if function == XPathNativeFunction::CemQlModuleUrl {
-        let mut atomized = xpath_atomize_cast_sequence(&items, argument.source_range)?;
+        let mut atomized = xpath_atomize_cast_sequence(&items, argument.source_range, runtime)?;
         let specifier = match atomized.as_mut_slice() {
             [XPathCastAtomic::Untyped(value)
             | XPathCastAtomic::String(value)
@@ -4394,7 +3991,7 @@ fn xpath_evaluate_function_call(
         )]);
     }
     if function == XPathNativeFunction::String {
-        let value = xpath_string_function_value(&items, argument.source_range)?;
+        let value = xpath_string_function_value(&items, argument.source_range, runtime)?;
         return Ok(vec![xpath_string_result_item(
             expression,
             source_range,
@@ -4427,7 +4024,8 @@ fn xpath_evaluate_function_call(
             expression,
             source_range,
             xpath_numeric_absolute(value),
-        )]);
+            runtime,
+        )?]);
     }
     if function == XPathNativeFunction::Ceiling {
         let Some(value) = xpath_numeric_function_operand(
@@ -4444,7 +4042,8 @@ fn xpath_evaluate_function_call(
             expression,
             source_range,
             xpath_numeric_ceiling(value),
-        )]);
+            runtime,
+        )?]);
     }
     if function == XPathNativeFunction::Floor {
         let Some(value) = xpath_numeric_function_operand(
@@ -4461,7 +4060,8 @@ fn xpath_evaluate_function_call(
             expression,
             source_range,
             xpath_numeric_floor(value),
-        )]);
+            runtime,
+        )?]);
     }
     if let Some(contract) = XPathRoundFunctionContract::from_native(function) {
         let precision = if let Some(precision) = arguments.get(1) {
@@ -4495,7 +4095,8 @@ fn xpath_evaluate_function_call(
             expression,
             source_range,
             xpath_numeric_round(value, &precision, contract.midpoint_rounding),
-        )]);
+            runtime,
+        )?]);
     }
     if function == XPathNativeFunction::FormatInteger {
         let picture_argument = arguments
@@ -4539,6 +4140,7 @@ fn xpath_evaluate_function_call(
             language.as_deref(),
             focus.default_language,
             picture_argument.source_range,
+            runtime,
         )?;
         return Ok(vec![xpath_string_result_item(
             expression,
@@ -4602,6 +4204,7 @@ fn xpath_evaluate_function_call(
             &picture,
             decimal_format,
             picture_argument.source_range,
+            runtime,
         )?;
         return Ok(vec![xpath_string_result_item(
             expression,
@@ -4611,13 +4214,13 @@ fn xpath_evaluate_function_call(
     }
     if let XPathNativeFunction::AtomicConstructor(target) = function {
         debug_assert_eq!(name.local_name, target);
-        let atomized = xpath_atomize_cast_sequence(&items, source_range)?;
+        let atomized = xpath_atomize_cast_sequence(&items, source_range, runtime)?;
         let single_type = XPathSingleType {
             type_name: name.clone(),
             allows_empty: true,
             source_range: name.source_range,
         };
-        return match xpath_cast_atomized_sequence(atomized, &single_type) {
+        return match xpath_cast_atomized_sequence(atomized, &single_type, runtime) {
             Ok(Some(value)) => Ok(vec![xpath_atomic_result_item(
                 expression,
                 source_range,
@@ -4639,7 +4242,8 @@ fn xpath_evaluate_function_call(
             expression,
             source_range,
             XPathComparableAtomic::Integer(XPathExactDecimal::from_usize(items.len())),
-        ),
+            runtime,
+        )?,
         XPathNativeFunction::Exists => {
             xpath_boolean_result_item(expression, source_range, !items.is_empty())
         }
@@ -4670,8 +4274,35 @@ fn xpath_evaluate_function_call(
         XPathNativeFunction::String => {
             unreachable!("string functions return after optional-item conversion")
         }
+        XPathNativeFunction::LocalName | XPathNativeFunction::NamespaceUri => {
+            unreachable!("node name accessors return before atomization")
+        }
+        XPathNativeFunction::NormalizeSpace
+        | XPathNativeFunction::StringLength
+        | XPathNativeFunction::StringJoin
+        | XPathNativeFunction::Tokenize => {
+            unreachable!("text functions return through bounded dispatch")
+        }
         XPathNativeFunction::Data => {
             unreachable!("data functions return after sequence atomization")
+        }
+        XPathNativeFunction::Sum
+        | XPathNativeFunction::Avg
+        | XPathNativeFunction::Min
+        | XPathNativeFunction::Max => {
+            unreachable!("aggregate functions use their bounded dispatcher")
+        }
+        XPathNativeFunction::MapContains
+        | XPathNativeFunction::MapGet
+        | XPathNativeFunction::MapKeys
+        | XPathNativeFunction::ArraySize
+        | XPathNativeFunction::ArrayGet => unreachable!("container dispatcher"),
+        XPathNativeFunction::Head
+        | XPathNativeFunction::Tail
+        | XPathNativeFunction::Reverse
+        | XPathNativeFunction::Subsequence
+        | XPathNativeFunction::DistinctValues => {
+            unreachable!("sequence functions return through bounded dispatch")
         }
         XPathNativeFunction::Number => {
             unreachable!("number functions return after optional atomic conversion")
@@ -5112,7 +4743,7 @@ fn xpath_compare_nodes(
     if comparison == XPathNodeComparison::Is {
         return Ok(left == right);
     }
-    if !Arc::ptr_eq(left.owner(), right.owner()) {
+    if left.document_identity() != right.document_identity() {
         return Err(XPathEvaluationError::dynamic(
             "cem.xpath.node_order_cross_owner_unsupported",
             "XPath node ordering across distinct AST owners requires a stable host document-order policy",
@@ -5236,6 +4867,7 @@ fn xpath_string_result_item(
 fn xpath_string_function_value(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<String, XPathEvaluationError> {
     let [item] = items else {
         return if items.is_empty() {
@@ -5252,15 +4884,16 @@ fn xpath_string_function_value(
         XPathResultItem::Node {
             native_node: Some(node),
             ..
-        } => Ok(node.string_value()),
+        } => text::node_string_value(node, runtime, source_range),
         XPathResultItem::Node { .. } => Err(XPathEvaluationError::dynamic(
             "cem.xpath.native_node_missing",
             "XPath fn:string requires a retained native node handle",
             source_range,
         )),
-        XPathResultItem::Atomic { value, .. } => Ok(xpath_atomic_string_value(
-            xpath_comparable_atomic(value, source_range)?,
-        )),
+        XPathResultItem::Atomic { value, .. } => {
+            runtime.read_text(&value.lexical_value, source_range)?;
+            text::atomic_string(xpath_comparable_atomic(value, source_range)?, runtime, source_range)
+        },
         XPathResultItem::Map { .. }
         | XPathResultItem::Array { .. }
         | XPathResultItem::Function { .. } => Err(XPathEvaluationError::dynamic(
@@ -5328,7 +4961,13 @@ fn xpath_number_function_value(
         return Ok(xpath_double_atomic_value(f64::NAN));
     }
     let value = xpath_cast_atomic_value(value, source_range)?;
-    Ok(xpath_cast_atomic(value, "double").unwrap_or_else(|_| xpath_double_atomic_value(f64::NAN)))
+    match xpath_cast_atomic(value, "double", runtime, source_range) {
+        Ok(value) => Ok(value),
+        Err(failure) if matches!(failure.kind, XPathCastFailureKind::Resource(_)) => Err(
+            XPathEvaluationError::dynamic(failure.diagnostic_code(), failure.message, source_range),
+        ),
+        Err(_) => Ok(xpath_double_atomic_value(f64::NAN)),
+    }
 }
 
 fn xpath_numeric_function_operand(
@@ -5655,7 +5294,9 @@ fn xpath_format_number(
     picture: &str,
     decimal_format: &XPathDecimalFormat,
     picture_source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<String, XPathEvaluationError> {
+    runtime.read_text(picture, picture_source_range)?;
     let picture = xpath_parse_number_picture(picture, decimal_format).map_err(|message| {
         XPathEvaluationError::dynamic(
             "cem.xpath.format_number_picture_invalid",
@@ -5671,7 +5312,7 @@ fn xpath_format_number(
         value,
         XPathComparableAtomic::Double(value) if value.is_nan()
     ) {
-        return Ok(decimal_format.nan.clone());
+        return runtime.copy_text(&decimal_format.nan, picture_source_range);
     }
 
     let negative = match &value {
@@ -5700,12 +5341,14 @@ fn xpath_format_number(
         XPathComparableAtomic::Double(value) if value.is_infinite()
     );
     if infinite {
-        return Ok(xpath_format_number_with_affixes(
+        return xpath_format_number_with_affixes(
             &decimal_format.infinity,
             subpicture,
             decimal_format,
             implicit_minus,
-        ));
+            runtime,
+            picture_source_range,
+        );
     }
 
     let exact = xpath_format_number_exact_magnitude(scaled);
@@ -5714,8 +5357,36 @@ fn xpath_format_number(
         &XPathExactDecimal::from_usize(subpicture.maximum_fractional_size),
         XPathMidpointRounding::HalfToEven,
     );
-    let mut formatted = xpath_render_number_mantissa(&rounded, subpicture, decimal_format);
+    let mut formatted = xpath_render_number_mantissa(
+        &rounded,
+        subpicture,
+        decimal_format,
+        runtime,
+        picture_source_range,
+    )?;
     if let Some(exponent) = exponent {
+        let exponent_digits = exponent
+            .magnitude
+            .to_string()
+            .len()
+            .max(subpicture.minimum_exponent_size);
+        runtime.check_text_size(
+            formatted
+                .len()
+                .saturating_add(decimal_format.exponent_separator.len_utf8())
+                .saturating_add(
+                    usize::from(exponent.negative && exponent.magnitude != 0)
+                        * decimal_format.minus_sign.len_utf8(),
+                )
+                .saturating_add(
+                    exponent_digits.saturating_mul(decimal_format.zero_digit.len_utf8()),
+                ),
+            picture_source_range,
+        )?;
+        runtime.charge_work(
+            exponent_digits.saturating_mul(3) as u64,
+            picture_source_range,
+        )?;
         formatted.push(decimal_format.exponent_separator);
         if exponent.negative && exponent.magnitude != 0 {
             formatted.push(decimal_format.minus_sign);
@@ -5729,12 +5400,14 @@ fn xpath_format_number(
         }
         formatted.push_str(&xpath_translate_number_digits(&digits, decimal_format));
     }
-    Ok(xpath_format_number_with_affixes(
+    xpath_format_number_with_affixes(
         &formatted,
         subpicture,
         decimal_format,
         implicit_minus,
-    ))
+        runtime,
+        picture_source_range,
+    )
 }
 
 fn xpath_scale_format_number_value(
@@ -5883,7 +5556,10 @@ fn xpath_render_number_mantissa(
     value: &XPathExactDecimal,
     subpicture: &XPathNumberSubPicture,
     decimal_format: &XPathDecimalFormat,
-) -> String {
+    runtime: &mut XPathEvaluationRuntime,
+    source_range: XPathSourceRange,
+) -> Result<String, XPathEvaluationError> {
+    text::check_number_mantissa(value, subpicture, decimal_format, runtime, source_range)?;
     let (mut integer, mut fraction) = if value.is_zero() {
         (String::new(), String::new())
     } else if value.scale == 0 {
@@ -5924,7 +5600,7 @@ fn xpath_render_number_mantissa(
         result.push(decimal_format.decimal_separator);
         result.push_str(&xpath_translate_number_digits(&fraction, decimal_format));
     }
-    result
+    Ok(result)
 }
 
 fn xpath_group_number_integer(
@@ -5990,15 +5666,17 @@ fn xpath_format_number_with_affixes(
     subpicture: &XPathNumberSubPicture,
     decimal_format: &XPathDecimalFormat,
     implicit_minus: bool,
-) -> String {
+    runtime: &mut XPathEvaluationRuntime,
+    source_range: XPathSourceRange,
+) -> Result<String, XPathEvaluationError> {
     let mut result = String::new();
     if implicit_minus {
-        result.push(decimal_format.minus_sign);
+        runtime.append_char(&mut result, decimal_format.minus_sign, source_range)?;
     }
-    result.push_str(&subpicture.prefix);
-    result.push_str(number);
-    result.push_str(&subpicture.suffix);
-    result
+    runtime.append_text(&mut result, &subpicture.prefix, source_range)?;
+    runtime.append_text(&mut result, number, source_range)?;
+    runtime.append_text(&mut result, &subpicture.suffix, source_range)?;
+    Ok(result)
 }
 
 fn xpath_parse_number_picture(
@@ -6319,16 +5997,21 @@ fn xpath_atomized_items(
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     let mut pending = items.iter().rev().collect::<Vec<_>>();
     let mut result = Vec::new();
+    let mut text_bytes = 0usize;
     while let Some(item) = pending.pop() {
         runtime.poll(source_range)?;
+        let before = result.len();
         match item {
-            XPathResultItem::Atomic { .. } => result.push(item.clone()),
+            XPathResultItem::Atomic { value, .. } => {
+                runtime.read_text(&value.lexical_value, source_range)?;
+                result.push(item.clone());
+            }
             XPathResultItem::Node {
                 native_node: Some(node),
                 source_map,
                 ..
             } => result.push(XPathResultItem::Atomic {
-                value: node.typed_value(),
+                value: text::node_typed_value(node, runtime, source_range)?,
                 source_map: source_map.clone(),
             }),
             XPathResultItem::Node { .. } => {
@@ -6340,6 +6023,7 @@ fn xpath_atomized_items(
             }
             XPathResultItem::Array { members, .. } => {
                 for member in members.iter().rev() {
+                    runtime.poll(source_range)?;
                     pending.extend(member.items.iter().rev());
                 }
             }
@@ -6354,6 +6038,9 @@ fn xpath_atomized_items(
             }
         }
         runtime.enforce_sequence_items(result.len(), source_range)?;
+        text_bytes =
+            text_bytes.saturating_add(runtime.items_text_bytes(&result[before..], source_range)?);
+        runtime.check_text_size(text_bytes, source_range)?;
     }
     Ok(result)
 }
@@ -6362,17 +6049,11 @@ fn xpath_numeric_result_item(
     expression: &XPathExpressionAst,
     source_range: XPathSourceRange,
     value: XPathComparableAtomic,
-) -> XPathResultItem {
+    runtime: &mut XPathEvaluationRuntime,
+) -> Result<XPathResultItem, XPathEvaluationError> {
     let type_name = value.type_name().to_owned();
-    let lexical_value = match value {
-        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => {
-            value.to_lexical()
-        }
-        XPathComparableAtomic::Float(value) => xpath_float_string_value(value),
-        XPathComparableAtomic::Double(value) => xpath_double_string_value(value),
-        _ => unreachable!("numeric result items require native numeric values"),
-    };
-    XPathResultItem::Atomic {
+    let lexical_value = text::atomic_string(value, runtime, source_range)?;
+    Ok(XPathResultItem::Atomic {
         value: XPathAtomicValue {
             type_name,
             lexical_value,
@@ -6383,7 +6064,7 @@ fn xpath_numeric_result_item(
             expression.attachment.source_id(),
             expression.source.media_type.as_str(),
         ),
-    }
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -6582,6 +6263,13 @@ impl XPathExactDecimal {
     }
 
     fn compare_magnitude(&self, other: &Self) -> Ordering {
+        // Scale padding must not give zero a larger magnitude than a fraction.
+        match (self.is_zero(), other.is_zero()) {
+            (true, true) => return Ordering::Equal,
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
+            (false, false) => {}
+        }
         let common_scale = self.scale.max(other.scale);
         let left_length = self
             .coefficient
@@ -7060,9 +6748,10 @@ fn xpath_value_compare(
     right: &[XPathResultItem],
     relation: XPathComparisonRelation,
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<Option<bool>, XPathEvaluationError> {
-    let mut left = xpath_atomize_sequence(left, source_range)?;
-    let mut right = xpath_atomize_sequence(right, source_range)?;
+    let mut left = xpath_atomize_sequence(left, source_range, runtime)?;
+    let mut right = xpath_atomize_sequence(right, source_range, runtime)?;
     if left.is_empty() || right.is_empty() {
         return Ok(None);
     }
@@ -7083,11 +6772,13 @@ fn xpath_general_compare(
     right: &[XPathResultItem],
     relation: XPathComparisonRelation,
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<bool, XPathEvaluationError> {
-    let left = xpath_atomize_sequence(left, source_range)?;
-    let right = xpath_atomize_sequence(right, source_range)?;
+    let left = xpath_atomize_sequence(left, source_range, runtime)?;
+    let right = xpath_atomize_sequence(right, source_range, runtime)?;
     for left_value in &left {
         for right_value in &right {
+            text::charge_atomic_pair(left_value, right_value, runtime, source_range)?;
             let (left_value, right_value) =
                 xpath_prepare_general_pair(left_value.clone(), right_value.clone(), source_range)?;
             if xpath_compare_atomic(&left_value, &right_value, relation, source_range)? {
@@ -7101,18 +6792,42 @@ fn xpath_general_compare(
 fn xpath_atomize_sequence(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<Vec<XPathComparableAtomic>, XPathEvaluationError> {
-    items
-        .iter()
-        .map(|item| xpath_atomize_item(item, source_range))
-        .collect()
+    let mut values = Vec::new();
+    let mut bytes = 0usize;
+    for item in items {
+        runtime.poll(source_range)?;
+        let value = xpath_atomize_item(item, source_range, runtime)?;
+        bytes = bytes.saturating_add(match &value {
+            XPathComparableAtomic::Untyped(value) | XPathComparableAtomic::String(value) => {
+                value.len()
+            }
+            XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => {
+                text::decimal_bytes(value)
+            }
+            XPathComparableAtomic::Boolean(value) => {
+                if *value {
+                    4
+                } else {
+                    5
+                }
+            }
+            XPathComparableAtomic::Float(value) => xpath_float_string_value(*value).len(),
+            XPathComparableAtomic::Double(value) => xpath_double_string_value(*value).len(),
+        });
+        runtime.check_text_size(bytes, source_range)?;
+        values.push(value);
+    }
+    Ok(values)
 }
 
 fn xpath_arithmetic_operand(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<Option<XPathComparableAtomic>, XPathEvaluationError> {
-    let mut values = xpath_atomize_sequence(items, source_range)?;
+    let mut values = xpath_atomize_sequence(items, source_range, runtime)?;
     match values.len() {
         0 => return Ok(None),
         1 => {}
@@ -7153,8 +6868,9 @@ fn xpath_arithmetic_operand(
 fn xpath_range_operand(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<Option<XPathExactDecimal>, XPathEvaluationError> {
-    let mut values = xpath_atomize_sequence(items, source_range)?;
+    let mut values = xpath_atomize_sequence(items, source_range, runtime)?;
     match values.len() {
         0 => return Ok(None),
         1 => {}
@@ -7225,6 +6941,9 @@ fn xpath_integer_range(
             source_range,
         )
     })?;
+    runtime.check_text_size(item_count, source_range)?;
+    runtime.charge_work(item_count as u64, source_range)?;
+    let mut text_bytes = 0usize;
     let mut items = Vec::new();
     items.try_reserve_exact(item_count).map_err(|_| {
         XPathEvaluationError::dynamic(
@@ -7236,11 +6955,14 @@ fn xpath_integer_range(
     let mut value = first;
     for _ in 0..item_count {
         runtime.poll(source_range)?;
+        text_bytes = text_bytes.saturating_add(text::decimal_bytes(&value));
+        runtime.check_text_size(text_bytes, source_range)?;
         items.push(xpath_numeric_result_item(
             expression,
             source_range,
             XPathComparableAtomic::Integer(value.clone()),
-        ));
+            runtime,
+        )?);
         value = value.add(&one);
     }
     Ok(items)
@@ -7410,11 +7132,13 @@ fn xpath_format_integer(
     language: Option<&str>,
     default_language: &str,
     picture_source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<String, XPathEvaluationError> {
     let Some(value) = value else {
         return Ok(String::new());
     };
     debug_assert_eq!(value.scale, 0);
+    runtime.read_text(picture, picture_source_range)?;
     let picture = xpath_parse_integer_picture(picture).map_err(|message| {
         XPathEvaluationError::dynamic(
             "cem.xpath.format_integer_picture_invalid",
@@ -7443,12 +7167,20 @@ fn xpath_format_integer(
     };
 
     let magnitude = match presentation {
-        XPathIntegerPresentation::Decimal(pattern) => {
-            xpath_format_decimal_integer_magnitude(&value.coefficient, &pattern)
-        }
+        XPathIntegerPresentation::Decimal(pattern) => xpath_format_decimal_integer_magnitude(
+            &value.coefficient,
+            &pattern,
+            runtime,
+            picture_source_range,
+        )?,
         XPathIntegerPresentation::Alphabetic { uppercase } => {
-            xpath_format_alphabetic_integer_magnitude(&value.coefficient, uppercase)
-                .unwrap_or_else(|| xpath_format_ascii_integer_magnitude(&value.coefficient))
+            xpath_format_alphabetic_integer_magnitude(
+                &value.coefficient,
+                uppercase,
+                runtime,
+                picture_source_range,
+            )?
+            .unwrap_or_else(|| xpath_format_ascii_integer_magnitude(&value.coefficient))
         }
         XPathIntegerPresentation::Roman { uppercase } => {
             xpath_format_roman_integer_magnitude(&value.coefficient, uppercase)
@@ -7463,6 +7195,14 @@ fn xpath_format_integer(
     } else {
         ""
     };
+    runtime.check_text_size(
+        magnitude
+            .len()
+            .saturating_add(suffix.len())
+            .saturating_add(usize::from(value.negative)),
+        picture_source_range,
+    )?;
+    runtime.charge_work(magnitude.len() as u64, picture_source_range)?;
     let mut formatted = String::with_capacity(
         magnitude
             .len()
@@ -7652,7 +7392,9 @@ fn xpath_decimal_digit_family_start(character: char) -> Option<u32> {
 fn xpath_format_decimal_integer_magnitude(
     coefficient: &[u8],
     pattern: &XPathDecimalIntegerPattern,
-) -> String {
+    runtime: &mut XPathEvaluationRuntime,
+    source_range: XPathSourceRange,
+) -> Result<String, XPathEvaluationError> {
     let padding = pattern.minimum_digits.saturating_sub(coefficient.len());
     let total_digits = coefficient
         .len()
@@ -7670,7 +7412,7 @@ fn xpath_format_decimal_integer_magnitude(
                 XPathIntegerGrouping::Irregular(separators) => separators.get(&position).copied(),
             };
             if let Some(separator) = separator {
-                formatted.push(separator);
+                runtime.append_char(&mut formatted, separator, source_range)?;
             }
         }
         let digit = if index < padding {
@@ -7678,12 +7420,14 @@ fn xpath_format_decimal_integer_magnitude(
         } else {
             coefficient[index.saturating_sub(padding)]
         };
-        formatted.push(
+        runtime.append_char(
+            &mut formatted,
             char::from_u32(pattern.zero_digit.saturating_add(u32::from(digit)))
                 .expect("Unicode decimal digit families contain ten scalar values"),
-        );
+            source_range,
+        )?;
     }
-    formatted
+    Ok(formatted)
 }
 
 fn xpath_format_ascii_integer_magnitude(coefficient: &[u8]) -> String {
@@ -7696,13 +7440,17 @@ fn xpath_format_ascii_integer_magnitude(coefficient: &[u8]) -> String {
 fn xpath_format_alphabetic_integer_magnitude(
     coefficient: &[u8],
     uppercase: bool,
-) -> Option<String> {
+    runtime: &mut XPathEvaluationRuntime,
+    source_range: XPathSourceRange,
+) -> Result<Option<String>, XPathEvaluationError> {
     if coefficient == [0] {
-        return None;
+        return Ok(None);
     }
     let mut remaining = coefficient.to_vec();
     let mut reversed = Vec::new();
     while remaining != [0] {
+        runtime.charge_work(remaining.len().saturating_mul(3) as u64, source_range)?;
+        runtime.check_text_size(reversed.len().saturating_add(1), source_range)?;
         xpath_decrement_decimal_magnitude(&mut remaining);
         let (quotient, remainder) = XPathExactDecimal::divide_magnitude_by_digit(&remaining, 26);
         let base = if uppercase { b'A' } else { b'a' };
@@ -7710,7 +7458,7 @@ fn xpath_format_alphabetic_integer_magnitude(
         remaining = quotient;
     }
     reversed.reverse();
-    Some(reversed.into_iter().collect())
+    Ok(Some(reversed.into_iter().collect()))
 }
 
 fn xpath_decrement_decimal_magnitude(coefficient: &mut Vec<u8>) {
@@ -7994,13 +7742,16 @@ fn xpath_arithmetic_integer_division_non_finite(
 fn xpath_string_concat_operand(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<String, XPathEvaluationError> {
-    let mut values = xpath_atomize_sequence(items, source_range)?;
+    let mut values = xpath_atomize_sequence(items, source_range, runtime)?;
     match values.len() {
         0 => Ok(String::new()),
-        1 => Ok(xpath_atomic_string_value(
+        1 => text::atomic_string(
             values.pop().expect("singleton concat operand"),
-        )),
+            runtime,
+            source_range,
+        ),
         _ => Err(XPathEvaluationError::dynamic(
             "cem.xpath.string_concat_cardinality",
             "XPath string concatenation operands must atomize to zero or one value",
@@ -8145,18 +7896,25 @@ fn xpath_finite_floating_string(rust_lexical: String, magnitude: f64, negative: 
 fn xpath_atomize_item(
     item: &XPathResultItem,
     source_range: XPathSourceRange,
+    runtime: &mut XPathEvaluationRuntime,
 ) -> Result<XPathComparableAtomic, XPathEvaluationError> {
     match item {
         XPathResultItem::Node {
             native_node: Some(node),
             ..
-        } => xpath_comparable_atomic(&node.typed_value(), source_range),
+        } => xpath_comparable_atomic(
+            &text::node_typed_value(node, runtime, source_range)?,
+            source_range,
+        ),
         XPathResultItem::Node { .. } => Err(XPathEvaluationError::dynamic(
             "cem.xpath.native_node_missing",
             "XPath node atomization requires its retained native node handle",
             source_range,
         )),
-        XPathResultItem::Atomic { value, .. } => xpath_comparable_atomic(value, source_range),
+        XPathResultItem::Atomic { value, .. } => {
+            runtime.read_text(&value.lexical_value, source_range)?;
+            xpath_comparable_atomic(value, source_range)
+        }
         item => Err(XPathEvaluationError::unsupported(
             format!(
                 "XPath atomization for result item kind `{:?}` is outside the native atomic slice",
@@ -8439,7 +8197,7 @@ fn xpath_normalize_node_results(
     mut items: Vec<XPathResultItem>,
     source_range: XPathSourceRange,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
-    let mut owners = Vec::<Arc<LoadedInputAstStream>>::new();
+    let mut owners = Vec::new();
     for item in &items {
         let node = item.native_node().ok_or_else(|| {
             XPathEvaluationError::dynamic(
@@ -8448,8 +8206,8 @@ fn xpath_normalize_node_results(
                 source_range,
             )
         })?;
-        if !owners.iter().any(|owner| Arc::ptr_eq(owner, node.owner())) {
-            owners.push(Arc::clone(node.owner()));
+        if !owners.contains(&node.document_identity()) {
+            owners.push(node.document_identity());
         }
     }
     items.sort_by_key(|item| {
@@ -8458,7 +8216,7 @@ fn xpath_normalize_node_results(
             .expect("XPath node results validated before ordering");
         let owner_index = owners
             .iter()
-            .position(|owner| Arc::ptr_eq(owner, node.owner()))
+            .position(|owner| *owner == node.document_identity())
             .expect("XPath node owner registered before ordering");
         (owner_index, node.document_order_key())
     });
@@ -8475,7 +8233,7 @@ fn xpath_normalize_set_results(
     items: Vec<XPathResultItem>,
     source_range: XPathSourceRange,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
-    let mut owner: Option<&Arc<LoadedInputAstStream>> = None;
+    let mut owner = None;
     for item in &items {
         let node = item.native_node().ok_or_else(|| {
             XPathEvaluationError::dynamic(
@@ -8484,14 +8242,14 @@ fn xpath_normalize_set_results(
                 source_range,
             )
         })?;
-        if owner.is_some_and(|owner| !Arc::ptr_eq(owner, node.owner())) {
+        if owner.is_some_and(|owner| owner != node.document_identity()) {
             return Err(XPathEvaluationError::dynamic(
                 "cem.xpath.node_order_cross_owner_unsupported",
                 "XPath set results spanning distinct AST owners require a stable host document-order policy",
                 source_range,
             ));
         }
-        owner = Some(node.owner());
+        owner = Some(node.document_identity());
     }
     xpath_normalize_node_results(items, source_range)
 }
@@ -9910,9 +9668,9 @@ impl<'a> XPathSyntaxLowerer<'a> {
             xee_ast::PrimaryExpr::InlineFunction(_) => XPathPrimaryExpression::Unsupported {
                 production: "inline-function-expression".to_owned(),
             },
-            xee_ast::PrimaryExpr::UnaryLookup(_) => XPathPrimaryExpression::Unsupported {
-                production: "unary-lookup".to_owned(),
-            },
+            xee_ast::PrimaryExpr::UnaryLookup(key) => {
+                XPathPrimaryExpression::UnaryLookup(self.lower_lookup_key(key))
+            }
         }
     }
 
@@ -9928,19 +9686,21 @@ impl<'a> XPathSyntaxLowerer<'a> {
                     .collect(),
             ),
             xee_ast::Postfix::Lookup(key) => XPathPostfixExpression::Lookup {
-                lexical: self.key_specifier_lexical(key),
+                key: self.lower_lookup_key(key),
             },
         }
     }
 
-    fn key_specifier_lexical(&self, key: &xee_ast::KeySpecifier) -> String {
+    fn lower_lookup_key(&self, key: &xee_ast::KeySpecifier) -> XPathLookupKey {
         match key {
-            xee_ast::KeySpecifier::NcName(name) => name.clone(),
-            xee_ast::KeySpecifier::Integer(integer) => integer.to_string(),
-            xee_ast::KeySpecifier::Expr(expression) => self
-                .slice(expression.span.start, expression.span.end)
-                .to_owned(),
-            xee_ast::KeySpecifier::Star => "*".to_owned(),
+            xee_ast::KeySpecifier::NcName(name) => XPathLookupKey::Name(name.clone()),
+            xee_ast::KeySpecifier::Integer(integer) => XPathLookupKey::Integer(integer.to_string()),
+            xee_ast::KeySpecifier::Expr(expression) => {
+                XPathLookupKey::Expression(expression.value.as_ref().map(|value| {
+                    Box::new(self.lower_expr(value, expression.span.start, expression.span.end))
+                }))
+            }
+            xee_ast::KeySpecifier::Star => XPathLookupKey::Wildcard,
         }
     }
 
@@ -10376,6 +10136,7 @@ impl QueryAstOwner for XPathQueryAstOwner {
 #[derive(Debug, Clone)]
 pub struct XPathXdmTreeOwner {
     owner: Arc<LoadedInputAstStream>,
+    tree: Arc<crate::parser::tree::RetainedCemTree>,
     identity: FormatIdentity,
     source_map: SourceMapStack,
 }
@@ -10385,30 +10146,13 @@ impl XPathXdmTreeOwner {
         owner: Arc<LoadedInputAstStream>,
         identity: FormatIdentity,
     ) -> Result<Self, String> {
-        let LoadedInputAstStream::XmlDocument(document) = owner.as_ref() else {
-            return Err(
-                "XPath queries require a lifecycle-owned XML XDM tree; the input exposes no compatible native view"
-                    .to_owned(),
-            );
-        };
-        let byte_length = document.source.byte_length;
-        let content_type = identity
-            .content_type
-            .clone()
-            .unwrap_or_else(|| "application/octet-stream".to_owned());
+        let tree = crate::import::retain_lifecycle(Arc::clone(&owner))?;
+        let source_map = tree.node(0).expect("imported document root").source.clone();
         Ok(Self {
             owner,
+            tree,
             identity,
-            source_map: SourceMapStack {
-                frames: vec![SourceMapFrame {
-                    source_id: SourceId(1),
-                    span: FrameSpan::Single(crate::source::ByteRange::new(
-                        0,
-                        u32::try_from(byte_length).unwrap_or(u32::MAX),
-                    )),
-                    transform: TransformKind::ContentTypeTransform { content_type },
-                }],
-            },
+            source_map,
         })
     }
 
@@ -10502,22 +10246,7 @@ impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
                 "XPath query host bindings require typed XDM variable artifacts",
             )]);
         }
-        let context_node = XPathNativeNode::xml_document(Arc::clone(input.lifecycle_owner()))
-            .map_err(|error| {
-                vec![xpath_query_diagnostic(
-                    Some(query.source_uri()),
-                    error.to_string(),
-                )]
-            })?;
-        let max_sequence_items = match (
-            request.limits.max_result_items,
-            request.limits.max_work_units,
-        ) {
-            (Some(results), Some(work)) => Some(results.min(work)),
-            (Some(results), None) => Some(results),
-            (None, Some(work)) => Some(work),
-            (None, None) => None,
-        };
+        let context_node = XPathNativeNode::cem_document(Arc::clone(&input.tree));
         let evaluator = CemXPathEvaluator::default();
         let abort_signal = request.abort_signal;
         let result = evaluator.evaluate_with_control(
@@ -10536,7 +10265,17 @@ impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
                 expected_result: None,
                 resolver_registry: request.resolver_registry,
                 resolver_policy: request.resolver_policy,
-                evaluation_limits: XPathEvaluationLimits { max_sequence_items },
+                evaluation_limits: XPathEvaluationLimits {
+                    max_sequence_items: request.limits.max_result_items,
+                    max_text_bytes: request
+                        .limits
+                        .max_text_bytes
+                        .or(XPathEvaluationLimits::default().max_text_bytes),
+                    max_work_units: request
+                        .limits
+                        .max_work_units
+                        .or(XPathEvaluationLimits::default().max_work_units),
+                },
                 safety_policy_stamp: request.safety_policy_stamp,
                 module_resolution: None,
             },
@@ -10882,7 +10621,10 @@ mod tests {
             expected_result: None,
             resolver_registry: &resolver_registry,
             resolver_policy: &resolver_policy,
-            evaluation_limits: XPathEvaluationLimits { max_sequence_items },
+            evaluation_limits: XPathEvaluationLimits {
+                max_sequence_items,
+                ..Default::default()
+            },
             safety_policy_stamp: "xpath-safety/1;pure",
             module_resolution: None,
         })
@@ -12363,6 +12105,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits {
                     max_sequence_items: Some(2),
+                    ..Default::default()
                 },
                 safety_policy_stamp: "xpath-safety/1;cemt-render",
                 module_resolution: None,
@@ -12379,7 +12122,12 @@ mod tests {
         assert_eq!(result.invocation_host, XPathInvocationHost::Cemt);
         assert!(result.safety_policy_stamp.contains("xpath-items=2"));
         assert!(Arc::ptr_eq(
-            native_node.as_ref().expect("native result node").owner(),
+            native_node
+                .as_ref()
+                .expect("native result node")
+                .source_owner()
+                .as_ref()
+                .unwrap(),
             &owner
         ));
     }
@@ -12581,6 +12329,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 evaluation_limits: XPathEvaluationLimits {
                     max_sequence_items: Some(2),
+                    ..Default::default()
                 },
                 safety_policy_stamp: "xpath-safety/1;xslt-transform",
                 module_resolution: None,
@@ -12611,7 +12360,12 @@ mod tests {
             ))
         );
         assert!(Arc::ptr_eq(
-            native_node.as_ref().expect("native result node").owner(),
+            native_node
+                .as_ref()
+                .expect("native result node")
+                .source_owner()
+                .as_ref()
+                .unwrap(),
             &owner
         ));
 
@@ -12636,7 +12390,9 @@ mod tests {
             native_node
                 .as_ref()
                 .expect("native AVT result node")
-                .owner(),
+                .source_owner()
+                .as_ref()
+                .unwrap(),
             &owner
         ));
 
@@ -12766,7 +12522,10 @@ mod tests {
             assert_eq!(expanded_name.as_deref(), Some("book"));
             assert!(!source_map.frames.is_empty());
             let native_node = native_node.as_ref().expect("native owner reference");
-            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+            assert!(Arc::ptr_eq(
+                native_node.source_owner().as_ref().unwrap(),
+                &owner
+            ));
             assert!(matches!(
                 native_node.handle(),
                 XPathNativeNodeHandle::XmlEvent { .. }
@@ -12790,6 +12549,7 @@ mod tests {
             resolver_policy: &resolver_policy,
             evaluation_limits: XPathEvaluationLimits {
                 max_sequence_items: Some(128),
+                ..Default::default()
             },
             safety_policy_stamp: "xpath-safety/1;controlled-range",
             module_resolution: None,
@@ -12874,7 +12634,10 @@ mod tests {
                 .iter()
                 .map(|item| {
                     let native_node = item.native_node().expect("native title node");
-                    assert!(Arc::ptr_eq(native_node.owner(), &owner));
+                    assert!(Arc::ptr_eq(
+                        native_node.source_owner().as_ref().unwrap(),
+                        &owner
+                    ));
                     assert_eq!(
                         item,
                         &XPathResultItem::from_native_node(native_node.clone())
@@ -12963,7 +12726,10 @@ mod tests {
                         };
                         assert_eq!(*node_kind, XPathResultNodeKind::Attribute);
                         assert_eq!(expanded_name.as_deref(), Some("id"));
-                        assert!(Arc::ptr_eq(native_node.owner(), &owner));
+                        assert!(Arc::ptr_eq(
+                            native_node.source_owner().as_ref().unwrap(),
+                            &owner
+                        ));
                         assert_eq!(native_node.source_map(), *source_map);
                         match native_node.handle() {
                             XPathNativeNodeHandle::XmlAttribute { .. } => {}
@@ -13056,7 +12822,10 @@ mod tests {
                     };
                     assert_eq!(*node_kind, XPathResultNodeKind::Attribute);
                     assert_eq!(expanded_name.as_deref(), Some("id"));
-                    assert!(Arc::ptr_eq(native_node.owner(), &owner));
+                    assert!(Arc::ptr_eq(
+                        native_node.source_owner().as_ref().unwrap(),
+                        &owner
+                    ));
                     assert_eq!(native_node.source_map(), *source_map);
                     native_node.string_value()
                 })
@@ -14772,7 +14541,10 @@ mod tests {
             let native_node = item
                 .native_node()
                 .expect("for expression returns retained native XML nodes");
-            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+            assert!(Arc::ptr_eq(
+                native_node.source_owner().as_ref().unwrap(),
+                &owner
+            ));
         }
 
         let focus = evaluate_for_test(
@@ -14968,7 +14740,10 @@ mod tests {
             let native_node = item
                 .native_node()
                 .expect("let expression returns retained native XML nodes");
-            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+            assert!(Arc::ptr_eq(
+                native_node.source_owner().as_ref().unwrap(),
+                &owner
+            ));
         }
 
         let dependent = evaluate_for_test(
@@ -15124,7 +14899,10 @@ mod tests {
             let native_node = item
                 .native_node()
                 .expect("conditional expression returns retained native XML nodes");
-            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+            assert!(Arc::ptr_eq(
+                native_node.source_owner().as_ref().unwrap(),
+                &owner
+            ));
         }
 
         let source = "if ((1, 2)) then 1 else 0";
@@ -15421,7 +15199,10 @@ mod tests {
             .iter()
             .map(|item| {
                 let native_node = item.native_node().expect("mapped native node");
-                assert!(Arc::ptr_eq(native_node.owner(), &owner));
+                assert!(Arc::ptr_eq(
+                    native_node.source_owner().as_ref().unwrap(),
+                    &owner
+                ));
                 native_node.handle()
             })
             .collect::<Vec<_>>();
@@ -18951,7 +18732,10 @@ mod tests {
             panic!("node treat did not return one item: {treated_node:?}");
         };
         let native_node = node.native_node().expect("retained native node");
-        assert!(Arc::ptr_eq(native_node.owner(), &owner));
+        assert!(Arc::ptr_eq(
+            native_node.source_owner().as_ref().unwrap(),
+            &owner
+        ));
     }
 
     #[test]
@@ -19041,7 +18825,13 @@ mod tests {
             .zip(allowed_targets)
             {
                 assert_eq!(
-                    xpath_cast_atomic(source.clone(), target).is_ok(),
+                    xpath_cast_atomic(
+                        source.clone(),
+                        target,
+                        &mut XPathEvaluationRuntime::new(XPathEvaluationLimits::default(), None),
+                        XPathSourceRange::new(1, 1, 0, 0)
+                    )
+                    .is_ok(),
                     allowed,
                     "{} to xs:{target}",
                     source.type_name()
@@ -19316,7 +19106,7 @@ mod tests {
     }
 
     #[test]
-    fn xpath_native_evaluator_executes_named_arrows_and_rejects_dynamic_calls() {
+    fn xpath_native_evaluator_executes_named_arrows_and_rejects_nonfunction_calls() {
         for (source, expected_type, expected_value) in [
             ("(1, 2, 3) => count()", "xs:integer", "3"),
             ("() => exists()", "xs:boolean", "false"),
@@ -19347,10 +19137,10 @@ mod tests {
                 singleton_test_binding("xs:string", "not-a-function"),
             )]),
         )
-        .expect_err("dynamic arrow invocation remains fail-closed until function items execute");
-        assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+        .expect_err("a string cannot be invoked as a function");
+        assert_eq!(diagnostics[0].code, "cem.xpath.container_type_error");
         assert_eq!(diagnostics[0].byte_offset, Some(0));
-        assert!(diagnostics[0].message.contains("dynamic function calls"));
+        assert!(diagnostics[0].message.contains("XPTY0004"));
     }
 
     #[test]
@@ -19476,7 +19266,11 @@ mod tests {
         );
         let secondary_inputs = BTreeMap::new();
         let target_scope = ScopeConfig {
-            budgets: BTreeMap::from([("xpathItems".to_owned(), "2".to_owned())]),
+            budgets: BTreeMap::from([
+                ("xpathItems".to_owned(), "2".to_owned()),
+                ("xpathTextBytes".to_owned(), "128".to_owned()),
+                ("xpathWorkUnits".to_owned(), "2048".to_owned()),
+            ]),
             ..ScopeConfig::default()
         };
         let target = FormatIdentity {
@@ -19514,9 +19308,14 @@ mod tests {
         };
         assert_eq!(result.sequence.items.len(), 2);
         assert!(result.safety_policy_stamp.contains("xpath-items=2"));
+        assert!(result.safety_policy_stamp.contains("xpath-text-bytes=128"));
+        assert!(result.safety_policy_stamp.contains("xpath-work-units=2048"));
         for item in &result.sequence.items {
             let native_node = item.native_node().expect("native XPath result node");
-            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+            assert!(Arc::ptr_eq(
+                native_node.source_owner().as_ref().unwrap(),
+                &owner
+            ));
         }
 
         let constrained_scope = ScopeConfig {

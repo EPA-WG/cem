@@ -94,6 +94,8 @@
                     "mkdir -p packages/cem_ml/schema-packages/xpath/v1/dist",
                     "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/xpath/v1/dist packages/cem_ml/schema-packages/xpath/v1/package.cem",
                     "cargo test -p cem-ml 'validation::xpath::tests' -- --nocapture",
+                    "cargo test -p cem-ml --lib validation::xpath::artifact:: -- --nocapture",
+                    "cargo test -p cem-ml --test xpath_compiled_artifact -- --nocapture",
                     "cargo test -p cem-ml xpath_source_validation -- --nocapture",
                     "cargo test -p cem-ml 'lifecycle::tests::builtins_load_xpath' -- --nocapture",
                     "cargo test -p cem-ml 'lifecycle::tests::xpath_schema' -- --nocapture",
@@ -120,6 +122,7 @@
                 "{projectRoot}/tests/**/*.cem",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/tests/schema_package_structure.rs",
+                "{workspaceRoot}/packages/cem_ml/tests/xpath_compiled_artifact.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/tests/schema_validation_examples.rs",
@@ -128,6 +131,17 @@
             "outputs": [
                 "{projectRoot}/dist/cem-ml.report.json"
             ]
+        },
+        "verify:compiled-artifacts": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                { "projects": ["cem_ql"], "target": "build:wasm" }
+            ],
+            "options": {
+                "command": "node tools/scripts/verify-xpath-artifacts.mjs",
+                "cwd": "{workspaceRoot}"
+            }
         }
     },
     "tags": [

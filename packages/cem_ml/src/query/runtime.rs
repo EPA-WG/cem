@@ -343,7 +343,19 @@ pub fn query_execution_limits(
     };
     Ok(QueryExecutionLimits {
         max_result_items: query_budget_value(scope, result_names)?,
-        max_work_units: query_budget_value(scope, &["querywork"])?,
+        max_text_bytes: if language == QueryLanguage::XPath {
+            query_budget_value(scope, &["xpathtextbytes"])?
+        } else {
+            None
+        },
+        max_work_units: query_budget_value(
+            scope,
+            if language == QueryLanguage::XPath {
+                &["querywork", "xpathworkunits"]
+            } else {
+                &["querywork"]
+            },
+        )?,
     })
 }
 

@@ -1,5 +1,9 @@
 # `@epa-wg/custom-element` Phase 3.6 Inventory
 
+> HTTP update (2026-09-17): standalone `http-request.js` is retired and its
+> examples use `cem-elements`. Historical package inventories below preserve
+> their original snapshot. See the [current loader plan](cem-data-loader-plan.md).
+
 Status: accepted inventory evidence as of 2026-08-19. No external checkout was
 modified while collecting it.
 
