@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import init, {
     importXsltBundle, renderXsltBundle, disposeXsltBundle,
+    compileXsltBundle, retainXsltStylesheet,
     retainCemDocument, disposeCemDocument,
     compileTemplate, renderTemplate, disposeTemplate,
 } from '../../packages/cem_ql/dist/wasm/cem_ql.js';
@@ -16,6 +17,9 @@ const directory = mkdtempSync(join(tmpdir(), 'cem-xslt-bundles-'));
 try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_bundle'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_BUNDLE_FIXTURE_DIR: directory },
+    });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_lowering'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_LOWER_FIXTURE_DIR: directory },
     });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
@@ -102,6 +106,62 @@ try {
     assert.ok(next > retained.at(-1));
     assert.equal(disposeXsltBundle(next), true);
     checks++;
+    // XSLT-LOWER-CORE: this bundle is produced by the stylesheet compiler,
+    // with runtime loops and original typed XPath programs, not hand-written CEMT.
+    const loweredBytes = readFileSync(join(directory, 'lowered.bin'));
+    const loweredManifest = JSON.parse(readFileSync(join(directory, 'manifest.json'), 'utf8'));
+    const stylesheet = readFileSync(join(directory, 'stylesheet.xslt'), 'utf8');
+    assert.deepEqual(Buffer.from(compileXsltBundle(stylesheet, 'memory:lower.xslt')), loweredBytes);
+    checks++;
+    const lowered = load(loweredBytes, loweredManifest.contentHash, loweredManifest.sourceHash);
+    const sourceLoaded = JSON.parse(retainXsltStylesheet(stylesheet, 'memory:lower.xslt'));
+    assert.equal(sourceLoaded.contentHash, loweredManifest.contentHash);
+    assert.equal(sourceLoaded.rootSourceHash, loweredManifest.sourceHash);
+    assert.deepEqual(sourceLoaded.hostBindings, ['document']);
+    checks++;
+    for (const retained of [lowered, sourceLoaded]) {
+        try {
+            for (const [source, type, labels] of [
+                ['<r><a>A</a><b>B</b></r>', 'application/xml', ['A', 'B']],
+                ['{"a":"A","b":"B"}', 'application/json', ['A', 'B']],
+                ['a: A\nb: B\n', 'application/yaml', ['A', 'B']],
+                ['v\nA\nB\n', 'text/csv', ['A', 'B']],
+                ['<r><a>C</a></r>', 'application/xml', ['C']],
+                ['<r/>', 'application/xml', []],
+            ]) {
+                const document = retainCemDocument(new TextEncoder().encode(source), type, 'memory:lower-input');
+                try {
+                    const output = render(document, '{}', retained.bundleId);
+                    assert.deepEqual(output.diagnostics, []);
+                    assert.equal(text(output.nodes), labels.map((label, i) =>
+                        `${label}:${i + 1}/${labels.length}10:1/220:2/2${i + 1}/${labels.length}`).join(''));
+                    checks++;
+                } finally { assert.equal(disposeCemDocument(document), true); }
+            }
+        } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
+        assert.ok(JSON.parse(renderXsltBundle(retained.bundleId, '{}', '[]')).diagnostics.some(d => d.code === 'cem.xslt.unknown_bundle'));
+    }
+    const wrap = body => `<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/">${body}</xsl:template></xsl:stylesheet>`;
+    for (const compile of [compileXsltBundle, retainXsltStylesheet]) {
+        assert.throws(() => compile(wrap('<xsl:apply-templates/>'), 'memory:unsupported.xslt'), error => {
+            const diagnostics = JSON.parse(String(error)).diagnostics;
+            assert.ok(diagnostics.some(d => d.code === 'cem.xslt.compile_unsupported'
+                && d.uri === 'memory:unsupported.xslt' && d.byteOffset > 0 && d.sourceMap.frames.length));
+            return true;
+        });
+        checks++;
+    }
+    const failed = JSON.parse(retainXsltStylesheet(wrap('<p>partial<xsl:value-of select="map{1:2}"/></p>'), 'memory:failed.xslt'));
+    const failedInput = retainCemDocument(new TextEncoder().encode('<r/>'), 'application/xml', 'memory:input');
+    try {
+        const output = render(failedInput, '{}', failed.bundleId);
+        assert.deepEqual(output.nodes, []);
+        assert.ok(output.diagnostics.some(d => d.uri === 'memory:failed.xslt' && d.byteOffset > 0));
+        checks++;
+    } finally {
+        disposeXsltBundle(failed.bundleId);
+        disposeCemDocument(failedInput);
+    }
     console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, ownership, focus, bounds and isolation).`);
 } finally {
     rmSync(directory, { recursive: true, force: true });

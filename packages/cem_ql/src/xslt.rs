@@ -25,6 +25,7 @@ use std::{
     sync::Arc,
 };
 
+pub mod compiler;
 mod invocation;
 mod source_maps;
 pub use cem_ml::schema::registry::XSLT_BUNDLE_CONTENT_TYPE as BUNDLE_CONTENT_TYPE;

@@ -1,10 +1,40 @@
 //! Explicit XSLT bundle control plane. JSON carries scalar parameters and
 //! retained-document handles, never documents or executable capabilities.
 use super::*;
-use crate::xslt::{parse_hash, XsltBundleHost, BUNDLE_CONTENT_TYPE, BUNDLE_VERSION};
+use crate::xslt::{
+    compiler::compile_xslt_bundle, parse_hash, XsltBundleHost, BUNDLE_CONTENT_TYPE, BUNDLE_VERSION,
+};
 
 thread_local! {
     static BUNDLES: RefCell<XsltBundleHost> = RefCell::new(XsltBundleHost::default());
+}
+
+/// Compile stylesheet authoring source into portable native members. Errors
+/// carry explicit diagnostic metadata; executable ASTs never cross as JSON.
+#[wasm_bindgen(js_name = "compileXsltBundle")]
+pub fn compile_xslt_bundle_bytes(source: &str, source_uri: &str) -> Result<Vec<u8>, JsValue> {
+    compile_xslt_bundle(source, source_uri)
+        .map(|compiled| compiled.bytes)
+        .map_err(|diagnostics| {
+            JsValue::from_str(
+                &json!({
+                    "diagnostics": diagnostics_json(&diagnostics),
+                })
+                .to_string(),
+            )
+        })
+}
+
+/// Source-loaded hosts obtain trusted hashes from the native compiler and use
+/// the same bounded retention/disposal lifecycle as precompiled bundles.
+#[wasm_bindgen(js_name = "retainXsltStylesheet")]
+pub fn retain_xslt_stylesheet(source: &str, source_uri: &str) -> Result<String, JsValue> {
+    let bytes = compile_xslt_bundle_bytes(source, source_uri)?;
+    import_xslt_bundle(
+        &bytes,
+        &cem_ml::content_cache::ContentHash::from_blake3(&bytes).header_value(),
+        &cem_ml::content_cache::ContentHash::from_blake3(source.as_bytes()).header_value(),
+    )
 }
 
 #[wasm_bindgen(js_name = "importXsltBundle")]

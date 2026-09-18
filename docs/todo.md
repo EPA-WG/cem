@@ -1039,15 +1039,34 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       All 361 CEM-QL tests, 13 schema-package checks and the existing 17 XPath
       artifact / 125 companion WASM checks pass; native lint has existing
       warnings only.
-      The fixture composes generated CEMT explicitly; stylesheet lowering and
-      the executable viewer remain open below.
-- [ ] Fixture XSLT-VIEW-LOWER: preserve XSLT instructions as runtime CEMT;
+      This fixture composes generated CEMT explicitly; typed lowering follows
+      below and the executable viewer remains open.
+- [x] Fixture XSLT-VIEW-LOWER: preserve XSLT instructions as runtime CEMT;
       translate the needed XPath paths, predicates, variables, context,
       sequences, conditionals and map/array operations with standard semantics.
       Reject unsupported expressions; do not unroll current source data.
+    - [x] Fixture XSLT-LOWER-CORE: compile a single root template from the typed
+          stylesheet AST into the approved bundle. Cover nested loops and
+          restored focus, scoped native variables/maps/arrays, XPath boolean
+          tests, simple text construction, changed imported documents, strict
+          unsupported-instruction diagnostics, compiler limits and atomic
+          failure output.
+          Verify native-produced bundles in WASM before exposing source compile
+          and retention entry points; keep template dispatch/imports and the
+          complete viewer/output profile in their following fixtures.
+      Implemented the [bounded typed runtime compiler](xslt-runtime-lowering.md)
+      and WASM source compile/retention entry points. Eight native lowering
+      cases and 59 native/WASM checks cover changed XML/JSON/YAML/CSV documents,
+      native values, lexical/focus scope, diagnostics, output discard and
+      resource limits. All 369 CEM-QL tests, 17 XPath artifact checks and
+      125 companion checks pass; lint retains its 22 existing warnings.
+      Template dispatch and adapter migration follow below.
 - [ ] Fixture XSLT-VIEW-MATCH: lower recursive named/matched templates,
       parameters, modes, priorities and imports. Preserve XSLT import precedence
       independently of CEMT priority ordering and test imported overrides.
+      Migrate the older transform/CLI adapter to the typed bundle path once
+      those existing entry/template contracts are covered; never fall back
+      silently from unsupported typed compilation to legacy token rewriting.
 - [ ] Fixture XSLT-VIEW-GROUP: lower for-each-group, current-group and
       current-grouping-key to existing generic queries. Derive repeated rows
       and first-seen union headings in the stylesheet, never in Rust.

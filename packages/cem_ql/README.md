@@ -23,7 +23,11 @@ closure. Bundles have local capabilities and bounded retained handles, with
 WASM `importXsltBundle`, `renderXsltBundle` and `disposeXsltBundle` entry
 points. The [bundle contract](../../docs/xslt-bundle.md) defines source
 ownership, focus/variable arguments and retained CEM document bindings.
-Stylesheet runtime lowering remains a separate pending implementation step.
+The [typed stylesheet compiler](../../docs/xslt-runtime-lowering.md) supports
+root templates, runtime loops, scoped variables, XPath conditionals and simple
+text construction. WASM `compileXsltBundle` / `retainXsltStylesheet` expose the
+same bounded compiler. Template dispatch/imports, the transform/CLI adapter
+migration and the complete viewer remain separate pending steps.
 
 ## String helpers
 

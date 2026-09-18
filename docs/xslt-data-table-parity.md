@@ -6,8 +6,9 @@ normalization are implemented and verified. The user also approved the generic
 native query-function hook; its runtime integration is implemented and verified
 below. The compiled-bundle/browser-host delivery path is approved, with
 independently identified XPath programs. The XPath artifact foundation is
-implemented; XSLT bundle delivery is implemented and runtime lowering remains
-open in [todo.md](todo.md). Explicit host position and sequence size are now
+implemented; XSLT bundle delivery and bounded root-template runtime lowering
+are implemented. Template dispatch and subsequent viewer stages remain open
+in [todo.md](todo.md). Explicit host position and sequence size are now
 supported by the shared XPath API. No equivalent XSLT stylesheet or browser
 sample is available yet.
 
@@ -525,10 +526,17 @@ tests. The contract covers all three focus modes, namespace-qualified
 variables, original diagnostics, retention, shared cancellation and budgets.
 
 This completes delivery infrastructure using a manually composed generated
-CEMT fixture. The next fixture is XSLT-VIEW-LOWER: preserve stylesheet
-instructions as reusable runtime CEMT and connect their typed XPath slots to
+CEMT fixture. XSLT-VIEW-LOWER subsequently preserves stylesheet
+instructions as reusable runtime CEMT and connects their typed XPath slots to
 the bundle. Import precedence, grouping, sorting, viewer output and the gallery
 case remain tracked separately.
+
+The [bounded runtime compiler](xslt-runtime-lowering.md) now compiles one root
+template into that bundle. It preserves native loop focus, lexical variables,
+XPath boolean/simple-content semantics and source diagnostics, with atomic
+failure output. Native-produced and source-compiled bundles share the WASM
+retention lifecycle. This does not yet migrate the older transform/CLI adapter
+or deliver the equivalent viewer. XSLT-VIEW-MATCH is next.
 
 ## Acceptance and implementation order
 
