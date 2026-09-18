@@ -13,6 +13,54 @@ and import contracts in XSLT-VIEW-MATCH. There is no automatic fallback from
 this compiler to that path. Browser component URL loading and the viewer
 remain later integration fixtures in [todo.md](todo.md).
 
+## Adapter migration decision (pending)
+
+The XSLT-VIEW-MATCH audit found a public compatibility boundary before adapter
+replacement. The existing `XsltParityTransformTemplateAdapter` and its CLI
+fixtures accept XSLT 1.0 and legacy namespace shortcuts. This compiler accepts
+only the documented namespace-correct XSLT 3.0 profile. Replacing the registered
+adapter therefore changes accepted source, even for a stylesheet containing
+only literal output.
+
+The native characterization fixture
+[`xslt_adapter_migration_boundary.rs`](../packages/cem_ml_transform_cem_ql/tests/xslt_adapter_migration_boundary.rs)
+compares both public compile APIs. It checks namespace-correct version 1.0,
+version 3.0 with an undeclared `xsl` prefix, and a namespace-correct version 3.0
+positive case. Existing consumer evidence includes the adapter's
+`xslt_parity_adapter_*` unit tests and
+[`xslt_parity_transform.rs`](../packages/cem_ml_cli/tests/xslt_parity_transform.rs).
+Those consumers also exercise named entrypoints, implicit parameter shortcuts,
+EXSLT syntax and stylesheet output; their migration must preserve the intended
+results through supported standard declarations or explicit unsupported errors.
+
+The user must choose between these public migration contracts before replacing
+the adapter:
+
+1. **Recommended: retire the legacy execution adapter.** Route execution through
+   the typed compiler and migrate affected consumers/tests to namespace-correct
+   XSLT 3.0 with explicit declarations. Diagnose unsupported legacy authoring;
+   do not change versions or inject namespaces silently. This removes accepted
+   legacy syntax from that execution route. Separate legacy conversion tools
+   are outside this decision.
+2. **Keep an explicit compatibility route.** Retain legacy execution behind an
+   independently selected adapter/runtime route and expose typed execution
+   separately. Keep the typed viewer on the new route with no fallback. This
+   preserves compatibility while retaining two execution implementations and
+   requires documenting their explicit selection.
+
+Adding standards-compliant XSLT 1.0 compatibility to the typed runtime is a
+third, larger scope if requested. It cannot be implemented by changing the
+version check: [XSLT 3.0 §3.9](https://www.w3.org/TR/xslt-30/#backwards) defines
+version-dependent instruction and XPath behavior. The current legacy converter
+is not evidence of that conformance.
+
+The audit confirms existing generic CEMT named calls, mode-based match rules,
+native parameter streams and recursion limits as foundations for lowering.
+XSLT pattern semantics, import precedence and parameter rules still need their
+own compiler work and tests. No shared capability expansion has been identified
+or approved by this audit. Runtime code and adapter registration remain
+unchanged while this choice is pending; XSLT-VIEW-MATCH remains open.
+
 ## Supported authoring profile
 
 The stylesheet must declare version `3.0` and contain exactly one

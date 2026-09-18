@@ -1067,6 +1067,18 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       Migrate the older transform/CLI adapter to the typed bundle path once
       those existing entry/template contracts are covered; never fall back
       silently from unsupported typed compilation to legacy token rewriting.
+    - [x] Fixture XSLT-ADAPTER-MIGRATION-GATE: characterize the legacy adapter's
+          accepted version/namespace forms against the typed compiler and record
+          the unresolved public compatibility choice before replacing dispatch.
+          Keep runtime behavior unchanged until the user selects retirement
+          with consumer migration or an explicitly separate compatibility route.
+      Three native public-API characterization tests pass.
+      Decision pending: [adapter migration contract](xslt-runtime-lowering.md#adapter-migration-decision-pending).
+      Replacing the current adapter removes accepted XSLT 1.0 and namespace
+      shortcuts. Choose retirement with strict XSLT 3.0 consumer migration
+      (recommended), or retain a separately selected legacy execution route.
+      No adapter/runtime behavior has changed; do not infer this choice from
+      the earlier retirement of the standalone legacy HTTP element.
 - [ ] Fixture XSLT-VIEW-GROUP: lower for-each-group, current-group and
       current-grouping-key to existing generic queries. Derive repeated rows
       and first-seen union headings in the stylesheet, never in Rust.
