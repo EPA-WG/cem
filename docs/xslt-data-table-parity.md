@@ -7,7 +7,8 @@ native query-function hook; its runtime integration is implemented and verified
 below. The compiled-bundle/browser-host delivery path is approved, with
 independently identified XPath programs. The XPath artifact foundation is
 implemented; XSLT bundle composition and runtime lowering remain open in
-[todo.md](todo.md). No equivalent XSLT stylesheet or browser sample is available
+[todo.md](todo.md). The bundle invocation focus gate below now awaits a shared
+XPath API decision. No equivalent XSLT stylesheet or browser sample is available
 yet.
 
 ## Scope
@@ -439,6 +440,60 @@ bundle or an executable viewer. The approved next work is bundle composition,
 explicit capability binding, typed stylesheet lowering, equivalent stylesheet
 and browser parity. Keep those checklist items open; the delivery decision
 itself is resolved and does not need to be requested again.
+
+## Bundle invocation focus gate (2026-09-18)
+
+Bundle composition must specify how each compiled XPath slot receives its
+dynamic context. The public `XPathDynamicContext` currently accepts a context
+item, variable bindings and default language, but no context position or size.
+`XPathFocus::outer` therefore creates singleton focus whenever an item is
+present. The XSLT invocation adapter delegates to that same evaluator.
+
+Two native characterization fixtures in
+[`xslt_bundle_focus_boundary.rs`](../packages/cem_ml_transform_cem_ql/tests/xslt_bundle_focus_boundary.rs)
+exercise original XSLT-owned expressions and source-free binary reloads over
+retained imported CEM nodes. They establish:
+
+| Invocation | Observed result |
+| --- | --- |
+| Host invokes a label expression separately for items A and B | `A:1/1`, `B:1/1`; three-item input likewise reports `1/1` for every call |
+| One XPath expression iterates with `/r/item ! ...` | `A:1/2`, `B:2/2`; an inner predicate has its own focus and restores the surrounding focus |
+
+The native owner and stylesheet source provenance survive reload. The missing
+contract is outer focus supplied at invocation, not program serialization or
+node import. The tests deliberately characterize the current limitation; they
+must change when host focus support is implemented and are not evidence of
+XSLT loop conformance.
+
+Verification: the Nx adapter test target passes all 97 cases, including the
+two new probes and existing native-hook integration. The adapter lint target
+passes with existing warnings; fixture formatting and diff checks pass.
+This gate changes tests and documentation only.
+
+XPath defines focus as the context item, position and size; XSLT iteration
+sets these for the selected sequence. See
+[XPath dynamic context](https://www.w3.org/TR/xpath-31/#id-xq-evaluation-context-components)
+and [XSLT focus](https://www.w3.org/TR/xslt-30/#focus). The bundle's XSLT host
+cannot currently supply the position and size required by `xsl:for-each` or
+`xsl:apply-templates` bodies. Expression-local focus already works and must
+continue to override and restore the outer focus correctly.
+
+**Decision pending:** extend the shared XPath invocation API, or restrict the
+initial bundle to singleton host focus and explicitly reject instructions
+requiring unavailable outer focus. The recommended extension keeps ownership
+in XPath and validates explicit position/size alongside the context item. It
+preserves existing singleton defaults, absent focus in inline functions,
+native node retention, controls and diagnostics. Focus is runtime invocation
+state and must not enter the compiled-program bytes. Progressive streaming
+and unknown stream size remain in the separately recorded later phase.
+
+This is a new shared-capability decision under the scope rule above; the native
+hook and compiled-bundle delivery remain approved. Do not define a singleton-
+only bundle contract as if it can already carry XSLT iteration semantics.
+After the decision, verify explicit outer focus, invalid position/size,
+predicate/simple-map nesting, function focus isolation and binary reload, then
+resume bundle version/hash/import/source-map/lifetime validation and explicit
+WASM binding. Stylesheet lowering and viewer parity remain later checklist work.
 
 ## Acceptance and implementation order
 

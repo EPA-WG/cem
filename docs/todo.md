@@ -976,6 +976,32 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       loading XSLT-owned programs does not install CEMT native callbacks.
       Uncached CEM-QL lint passes with warnings. XSLT bundle composition and
       explicit capability binding remain open below.
+- [x] Fixture XSLT-BUNDLE-FOCUS-GATE: characterize the outer XPath focus
+      available to an XSLT bundle callback before fixing its invocation
+      contract. Compare per-item host calls with expression-local iteration,
+      source and binary-reloaded programs, using retained imported CEM nodes.
+      If host position/size need a shared XPath API expansion, stop for that
+      decision under the XSLT viewer scope boundary.
+      Result 2026-09-18: two native fixtures confirm that per-item XSLT-host
+      calls retain CEM node ownership and source provenance through binary
+      reload, but always initialize position/size to 1/1. Expression-local
+      simple maps and predicates establish and restore correct sequence focus.
+      `XPathDynamicContext` cannot accept an outer position or size; this is
+      an invocation API gap, not a compiled-program encoding failure. See
+      [the focus gate](xslt-data-table-parity.md#bundle-invocation-focus-gate-2026-09-18).
+      Verification: all 97 adapter tests pass through Nx, including the two
+      new probes and existing native-hook integration. Adapter lint passes
+      with existing warnings; fixture formatting and `git diff --check` pass.
+- [ ] XSLT-BUNDLE-FOCUS-DECISION: approve a shared XPath dynamic-context
+      extension for explicit host position/size before defining the bundle
+      call contract, or restrict the initial bundle to singleton host focus
+      and explicitly reject instructions that require unavailable outer focus.
+      Recommended: extend the XPath-owned invocation context with validated
+      position/size, preserving current singleton defaults, expression-local
+      focus changes, absent focus in inline functions, native owners and
+      source diagnostics. Runtime focus must not be serialized into programs.
+      The bundle/native-hook approvals remain resolved; the new decision is
+      only this shared capability expansion. Stop here pending direction.
 - [ ] Fixture XSLT-COMPILED-BUNDLE: compose generated CEMT with independently
       identified XPath programs and stylesheet imports. Validate versions,
       hashes, source maps, capability ownership and disposal; explicitly bind
