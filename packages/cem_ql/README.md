@@ -24,10 +24,12 @@ WASM `importXsltBundle`, `renderXsltBundle` and `disposeXsltBundle` entry
 points. The [bundle contract](../../docs/xslt-bundle.md) defines source
 ownership, focus/variable arguments and retained CEM document bindings.
 The [typed stylesheet compiler](../../docs/xslt-runtime-lowering.md) supports
-root templates, runtime loops, scoped variables, XPath conditionals and simple
-text construction. WASM `compileXsltBundle` / `retainXsltStylesheet` expose the
-same bounded compiler. Template dispatch/imports, the transform/CLI adapter
-migration and the complete viewer remain separate pending steps.
+recursive named/matched templates, explicit parameters, modes, import/include
+precedence, runtime loops, scoped variables, XPath conditionals and simple text
+construction. The transform/CLI adapter uses this strict XSLT 3.0 path. WASM
+`compileXsltBundle` / `retainXsltStylesheet` expose default compiler options;
+native-built module closures load through the explicit bundle API. Grouping,
+sorting, the full output profile and the complete viewer remain pending.
 
 ## String helpers
 

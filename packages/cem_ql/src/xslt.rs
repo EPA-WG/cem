@@ -362,6 +362,19 @@ impl XsltBundle {
         data.data_readers = self.data_readers.clone();
         render_compiled_template(&self.template, &data)
     }
+    /// Run the same bundle under the transform host's existing operation scope.
+    pub fn render_with_control(
+        &self,
+        input: &TemplateData,
+        control: &cem_ml::operation_control::OperationControl,
+        scope: cem_ml::operation_control::ExecutionScopeId,
+    ) -> RenderPlan {
+        let mut data = input.clone();
+        data.native_functions = self.functions.clone();
+        data.data_readers = self.data_readers.clone();
+        crate::render::render_compiled_template_with_control(&self.template, &data, control, scope)
+    }
+
 }
 
 fn identifier(value: &str) -> Result<()> {

@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    eval::{BudgetAxis, EvalError, ItemStream},
+    eval::{AtomValue, BudgetAxis, EvalError, Item, ItemStream},
     native::{NativeQueryFunction, NativeQueryRequest},
     xpath::functions::{
         bind_argument, invocation_failure, item_has_type, Parameter, XPathQueryItem,
@@ -13,6 +13,39 @@ use cem_ml::{
         XsltXPathInvocationAdapter,
     },
 };
+
+// XSLT parameters are item sequences. Reuse the existing explicitly typed
+// scalar bridge for host control atoms; retained XPath/CEM values keep their
+// native owners. Records and CEM arrays are not alternate document models.
+fn bind_xslt_argument(
+    parameter: &Parameter,
+    argument: &ItemStream,
+    request: &NativeQueryRequest<'_>,
+) -> std::result::Result<Vec<XPathResultItem>, String> {
+    if parameter.kind != ParamType::Any {
+        return bind_argument(parameter, argument, request);
+    }
+    let mut values = Vec::new();
+    for item in &argument.items {
+        let kind = match item {
+            Item::Atomic(AtomValue::String(_)) => ParamType::String,
+            Item::Atomic(AtomValue::Boolean(_)) => ParamType::Boolean,
+            Item::Atomic(AtomValue::Integer(_)) => ParamType::Integer,
+            Item::Atomic(AtomValue::Decimal(_) | AtomValue::Double(_)) => ParamType::Number,
+            _ => ParamType::Any,
+        };
+        values.extend(bind_argument(
+            &Parameter {
+                name: parameter.name.clone(),
+                kind,
+                nullable: parameter.nullable,
+            },
+            &ItemStream::once(item.clone()),
+            request,
+        )?);
+    }
+    Ok(values)
+}
 
 pub(super) fn registry(
     bindings: &[ProgramBinding],
@@ -67,7 +100,7 @@ impl NativeQueryFunction for Installed {
         let mut dynamic_context = XPathDynamicContext::default();
         let arguments = (|| -> std::result::Result<(), String> {
             if binding.focus != BundleFocus::Absent {
-                let values = bind_argument(
+                let values = bind_xslt_argument(
                     &Parameter {
                         name: "context".into(),
                         kind: ParamType::Any,
@@ -111,7 +144,7 @@ impl NativeQueryFunction for Installed {
                 .iter()
                 .zip(&request.arguments[binding.focus.arity()..])
             {
-                let values = bind_argument(
+                let values = bind_xslt_argument(
                     &Parameter {
                         name: variable.name.local_name.clone(),
                         kind: variable.kind,

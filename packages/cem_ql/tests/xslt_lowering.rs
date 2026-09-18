@@ -137,7 +137,7 @@ fn xpath_errors_keep_stylesheet_locations_and_discard_partial_output() {
 #[test]
 fn unsupported_or_malformed_instructions_fail_with_original_locations() {
     for body in [
-        r#"<xsl:apply-templates/>"#,
+        r#"<xsl:apply-imports/>"#,
         r#"<xsl:variable name="bad:name" select="1"/>"#,
         r#"<xsl:variable name="x + 1" select="1"/>"#,
         r#"<xsl:for-each/>"#,
@@ -149,7 +149,7 @@ fn unsupported_or_malformed_instructions_fail_with_original_locations() {
         r#"<xsl:choose><xsl:otherwise>A</xsl:otherwise><xsl:when test="true()">B</xsl:when></xsl:choose>"#,
     ] {
         let source = stylesheet(body);
-        let errors = compile_xslt_bundle(&source, "memory:lower.xslt").unwrap_err();
+        let errors = compile_xslt_bundle(&source, "memory:lower.xslt").err().expect("must reject");
         assert!(
             errors.iter().any(|d| d.severity.is_hard_violation()
                 && d.uri.as_deref() == Some("memory:lower.xslt")
@@ -170,11 +170,11 @@ fn unsupported_or_malformed_instructions_fail_with_original_locations() {
 }
 
 #[test]
-fn compiler_limits_and_static_text_do_not_require_runtime_input() {
+fn compiler_limits_and_literal_text_compilation_are_input_independent() {
     let source = stylesheet("<p>plain<![CDATA[ ]]>&amp;<!--split-->&#32;</p>");
     let bundle = load(&source);
     assert_eq!(
-        render_plan_to_html(&bundle.render(&TemplateData::default())),
+        render_plan_to_html(&bundle.render(&data("<r/>", "xml"))),
         "<p>plain &amp;</p>"
     );
     for source in [

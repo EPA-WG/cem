@@ -20,14 +20,11 @@ use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::engine::{
     ConvertExecutionMetadata, ConvertOutputPipelineMetadata, ConvertOutputPipelineStageMetadata,
     ConvertRequest, ConvertRequestHandler, ConvertResponse, EngineContext, FormatIdentity,
-    InputFormat, LayerFormat, PrimaryBytes, TemplateInput, TransformTemplateEntrypoint,
+    InputFormat, LayerFormat, PrimaryBytes, TemplateInput,
     TransformTemplateKind, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
 };
 use cem_ml::interpreter::OutputSpan;
-use cem_ml::legacy_custom_element::{
-    convert_template_source, LegacyConversionDiagnostic, TEMPLATE_CONTENT_TYPES,
-    UNSUPPORTED_CONSTRUCT_CODE, UNSUPPORTED_FUNCTION_CODE, XSLT_TEMPLATE_CONTENT_TYPES,
-};
+use cem_ml::legacy_custom_element::XSLT_TEMPLATE_CONTENT_TYPES;
 use cem_ml::lifecycle::LoadedInputAstStream;
 use cem_ml::parser::document::CemDocument;
 use cem_ml::parser::{AstNodeId, CemAstNode};
@@ -1828,240 +1825,7 @@ impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter {
     }
 }
 
-impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
-    fn id(&self) -> &'static str {
-        XSLT_PARITY_TEMPLATE_ADAPTER_ID
-    }
-
-    fn kind(&self) -> TransformTemplateKind {
-        TransformTemplateKind::Xslt
-    }
-
-    fn capability(&self) -> TransformTemplateAdapterCapability {
-        TransformTemplateAdapterCapability::Executable
-    }
-
-    fn matches_template(&self, identity: &FormatIdentity) -> bool {
-        matches_xslt_identity(identity)
-    }
-
-    fn compile(
-        &self,
-        request: TransformTemplateCompileRequest<'_>,
-    ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
-        let source = std::str::from_utf8(&request.template.bytes).map_err(|err| {
-            TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Compile,
-                format!(
-                    "template `{}` is not valid UTF-8: {err}",
-                    request.template.uri
-                ),
-            )
-        })?;
-        let source = xslt_source_for_entrypoint(source, request.entrypoint, request.params)
-            .map_err(|message| {
-                TransformTemplateAdapterError::failed(
-                    self.id(),
-                    TransformTemplateAdapterExecutionPhase::Compile,
-                    message,
-                )
-            })?;
-        let lowered = convert_template_source(&source);
-        let mut diagnostics = lowered
-            .diagnostics
-            .iter()
-            .map(|diagnostic| {
-                xslt_lowering_diagnostic_to_engine(
-                    diagnostic,
-                    request.template.uri.as_str(),
-                    request.entrypoint.name.as_deref(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let host_bindings = host_binding_names(
-            request.params,
-            request.data_bindings,
-            &request.module_options,
-        );
-        let artifact = compile_template(
-            &lowered.source,
-            &CompileTemplateOptions {
-                host_bindings: host_bindings.clone(),
-                ..CompileTemplateOptions::default()
-            },
-        );
-        diagnostics.extend(diagnostics_with_uri(
-            &artifact.diagnostics,
-            request.template.uri.as_str(),
-        ));
-        let mut render_artifact = artifact;
-        clear_template_artifact_diagnostics(&mut render_artifact);
-        let opaque = json!({
-            "engine": "cem-ql",
-            "source": "xslt-parity",
-            "templateBytes": request.template.bytes.len(),
-            "entrypoint": request.entrypoint.name.clone(),
-            "loweredBytes": lowered.source.len(),
-            "loweringDiagnostics": diagnostics.len(),
-        });
-
-        Ok(TransformTemplateCompileResponse {
-            artifact: TransformTemplateCompiledArtifact::new(
-                self.id(),
-                self.kind(),
-                request.template.uri.clone(),
-                request.template.identity.clone(),
-                request.entrypoint.clone(),
-                opaque,
-            )
-            .with_parameters(request.params.clone())
-            .with_native_payload(CemQlCompiledTemplatePayload {
-                template_uri: request.template.uri.clone(),
-                artifact: render_artifact,
-                selected_entrypoint: request.entrypoint.name.clone(),
-                param_declarations: Vec::new(),
-                entrypoints: CemQlTemplateEntrypoints::default(),
-                modules: Vec::new(),
-                max_recursion_depth: request.module_options.limits.max_recursion_depth,
-            }),
-            diagnostics,
-        })
-    }
-
-    fn render(
-        &self,
-        request: TransformTemplateRenderRequest<'_>,
-    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
-        render_cem_ql_payload(self.id(), request)
-    }
-
-    fn render_with_runtime(
-        &self,
-        request: TransformTemplateRenderRequest<'_>,
-        runtime: TransformTemplateRuntimeContext<'_>,
-    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
-        render_cem_ql_payload_with_runtime(self.id(), request, runtime)
-    }
-}
-
-fn xslt_source_for_entrypoint(
-    source: &str,
-    entrypoint: &TransformTemplateEntrypoint,
-    params: &TransformTemplateParameterArena,
-) -> Result<String, String> {
-    let Some(name) = entrypoint.name.as_deref() else {
-        return Ok(source.to_owned());
-    };
-
-    let wrapper = xslt_entrypoint_wrapper(name, params)?;
-    for closing in ["</xsl:stylesheet>", "</stylesheet>"] {
-        if let Some(index) = source.rfind(closing) {
-            let mut out = String::with_capacity(source.len() + wrapper.len());
-            out.push_str(&source[..index]);
-            out.push_str(&wrapper);
-            out.push_str(&source[index..]);
-            return Ok(out);
-        }
-    }
-
-    Ok(format!(
-        r#"<xsl:stylesheet version="1.0">{source}{wrapper}</xsl:stylesheet>"#
-    ))
-}
-
-fn xslt_entrypoint_wrapper(
-    name: &str,
-    params: &TransformTemplateParameterArena,
-) -> Result<String, String> {
-    let mut out = format!(
-        r#"<xsl:template match="/"><xsl:call-template name="{}">"#,
-        xml_attr_escape(name)
-    );
-    for (name, value) in params.iter() {
-        out.push_str(&format!(
-            r#"<xsl:with-param name="{}">{}"#,
-            xml_attr_escape(name),
-            xml_text_escape(&xslt_param_text(name, value)?)
-        ));
-        out.push_str("</xsl:with-param>");
-    }
-    out.push_str("</xsl:call-template></xsl:template>");
-    Ok(out)
-}
-
-fn xslt_param_text(name: &str, value: &CemtEvaluatorValue<'_>) -> Result<String, String> {
-    match value.kind() {
-        CemtEvaluatorValueKind::Null => Ok(String::new()),
-        CemtEvaluatorValueKind::Boolean => value
-            .as_bool()
-            .map(|value| value.to_string())
-            .ok_or_else(|| format!("XSLT entrypoint param `{name}` has no boolean value")),
-        CemtEvaluatorValueKind::Number => value
-            .as_number()
-            .map(CemtEvaluatorNumber::key_string)
-            .ok_or_else(|| format!("XSLT entrypoint param `{name}` has no numeric value")),
-        CemtEvaluatorValueKind::String => value
-            .as_str()
-            .map(str::to_owned)
-            .ok_or_else(|| format!("XSLT entrypoint param `{name}` has no string value")),
-        kind => Err(format!(
-            "XSLT entrypoint param `{name}` must be scalar, got `{}`",
-            kind.as_str()
-        )),
-    }
-}
-
-fn xslt_lowering_diagnostic_to_engine(
-    diagnostic: &LegacyConversionDiagnostic,
-    uri: &str,
-    selected_entrypoint: Option<&str>,
-) -> Diagnostic {
-    if diagnostic.code == "legacy_xslt.call_template_missing_target" {
-        let mut message = diagnostic.message.clone();
-        if let Some(entrypoint) = selected_entrypoint {
-            message = format!("XSLT template entrypoint `{entrypoint}` was not found");
-        }
-        return Diagnostic {
-            uri: Some(uri.to_owned()),
-            code: TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE.to_owned(),
-            severity: Severity::Fatal,
-            message,
-            ..Diagnostic::default()
-        };
-    }
-    if matches!(
-        diagnostic.code.as_str(),
-        UNSUPPORTED_CONSTRUCT_CODE | UNSUPPORTED_FUNCTION_CODE
-    ) {
-        return Diagnostic {
-            uri: Some(uri.to_owned()),
-            code: diagnostic.code.clone(),
-            severity: Severity::Fatal,
-            message: diagnostic.message.clone(),
-            ..Diagnostic::default()
-        };
-    }
-
-    let mut diagnostic = diagnostic.to_engine_diagnostic(Some(uri.to_owned()));
-    diagnostic.severity = Severity::Warning;
-    diagnostic
-}
-
-fn xml_attr_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('"', "&quot;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
-fn xml_text_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
+mod xslt_runtime;
 
 pub fn register_cem_ql_template_adapter(registry: &mut TransformTemplateAdapterRegistry) {
     registry.register(CemQlTransformTemplateAdapter);
@@ -3555,12 +3319,13 @@ fn matches_cem_ql_expression_identity(identity: &FormatIdentity) -> bool {
 fn matches_xslt_identity(identity: &FormatIdentity) -> bool {
     if let Some(content_type) = identity.content_type.as_deref() {
         let essence = content_type_essence(content_type);
-        return TEMPLATE_CONTENT_TYPES
+        return XSLT_TEMPLATE_CONTENT_TYPES
             .iter()
             .any(|allowed| *allowed == essence);
     }
 
-    identity.default_namespace.as_deref() == Some(cem_ml::schema::xslt::XSL_NAMESPACE)
+    identity.schema.as_deref() == Some(XSLT_SCHEMA_URI)
+        || identity.default_namespace.as_deref() == Some(cem_ml::schema::xslt::XSL_NAMESPACE)
         || identity
             .namespaces
             .values()
@@ -3613,6 +3378,15 @@ fn render_cem_ql_payload_internal(
                 message,
             )
         })?;
+    render_plan_output(adapter_id, request, runtime, plan)
+}
+
+fn render_plan_output(
+    adapter_id: &'static str,
+    request: TransformTemplateRenderRequest<'_>,
+    runtime: Option<TransformTemplateRuntimeContext<'_>>,
+    plan: RenderPlan,
+) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
     if target_is_cem_tree(request.target) {
         let tree = match runtime {
             Some(runtime) => render_plan_to_cem_tree_nodes_with_control(
@@ -8417,7 +8191,7 @@ count + 1"#,
         };
         let template = TemplateInput {
             uri: "view.xsl".to_owned(),
-            bytes: br#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main><h1>Sign in</h1></main></xsl:template></xsl:stylesheet>"#.to_vec(),
+            bytes: br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><main><h1>Sign in</h1></main></xsl:template></xsl:stylesheet>"#.to_vec(),
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
@@ -8438,11 +8212,7 @@ count + 1"#,
             })
             .expect("XSLT parity template should compile")
             .artifact;
-        let primary_input = explicit_json_test_artifact(
-            "data",
-            Some("data.cem"),
-            json_object([("kind", Value::String("document".to_owned()))]),
-        );
+        let primary_input = packaged_dom_projection_artifact(document_from_cem("{p | source}"));
         let rendered = adapter
             .render(TransformTemplateRenderRequest {
                 compiled: &compiled,
@@ -8477,7 +8247,7 @@ count + 1"#,
         };
         let template = TemplateInput {
             uri: "view.xsl".to_owned(),
-            bytes: br#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main>default</main></xsl:template><xsl:template name="card"><article><xsl:value-of select="$title"/></article></xsl:template></xsl:stylesheet>"#.to_vec(),
+            bytes: br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><main>default</main></xsl:template><xsl:template name="card"><xsl:param name="title" required="yes"/><article><xsl:value-of select="$title"/></article></xsl:template></xsl:stylesheet>"#.to_vec(),
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
@@ -8502,11 +8272,7 @@ count + 1"#,
             })
             .expect("XSLT parity template should compile")
             .artifact;
-        let primary_input = explicit_json_test_artifact(
-            "data",
-            Some("data.cem"),
-            json_object([("kind", Value::String("document".to_owned()))]),
-        );
+        let primary_input = packaged_dom_projection_artifact(document_from_cem("{p | source}"));
         let rendered = adapter
             .render(TransformTemplateRenderRequest {
                 compiled: &compiled,
@@ -8523,7 +8289,7 @@ count + 1"#,
 
         assert_eq!(
             test_output_value(&rendered.output),
-            Value::String("<article>Intro</article>".to_owned())
+            Value::String("<article>Intro</article>".to_owned()), "{:?}",rendered.diagnostics
         );
         assert!(
             rendered.diagnostics.is_empty(),
@@ -8541,7 +8307,7 @@ count + 1"#,
         };
         let template = TemplateInput {
             uri: "view.xsl".to_owned(),
-            bytes: br#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main>default</main></xsl:template></xsl:stylesheet>"#.to_vec(),
+            bytes: br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><main>default</main></xsl:template></xsl:stylesheet>"#.to_vec(),
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
@@ -8580,7 +8346,7 @@ count + 1"#,
         };
         let template = TemplateInput {
             uri: "view.xsl".to_owned(),
-            bytes: br#"<xsl:stylesheet version="1.0"><xsl:template match="/"><msxsl:script language="JScript">function run(){return 1;}</msxsl:script></xsl:template></xsl:stylesheet>"#.to_vec(),
+            bytes: br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><xsl:apply-imports/></xsl:template></xsl:stylesheet>"#.to_vec(),
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
@@ -8602,7 +8368,7 @@ count + 1"#,
             .expect("XSLT parity template compile should return diagnostics");
 
         assert!(compiled.diagnostics.iter().any(|diagnostic| {
-            diagnostic.code == UNSUPPORTED_CONSTRUCT_CODE && diagnostic.severity == Severity::Fatal
+            diagnostic.code == "cem.xslt.compile_unsupported" && diagnostic.severity == Severity::Fatal
         }));
     }
 
@@ -12017,7 +11783,7 @@ if greeting == "Hello" {
     }
 
     #[test]
-    fn real_engine_transform_xslt_remains_explicitly_unimplemented() {
+    fn real_engine_transform_xslt_uses_typed_execution() {
         let context = engine_context_with_cem_ql_template_adapter();
         let request = TransformRequest {
             data: EngineInput {
@@ -12032,7 +11798,7 @@ if greeting == "Hello" {
             },
             template: TemplateInput {
                 uri: "view.xsl".to_owned(),
-                bytes: br#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main><h1>Sign in</h1></main></xsl:template></xsl:stylesheet>"#.to_vec(),
+                bytes: br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><main><h1>Sign in</h1></main></xsl:template></xsl:stylesheet>"#.to_vec(),
                 identity: Some(FormatIdentity {
                     content_type: Some("application/xslt+xml".to_owned()),
                     ..FormatIdentity::default()
@@ -12065,13 +11831,8 @@ if greeting == "Hello" {
             .transform(request)
             .expect("XSLT parity transform should execute");
 
-        assert_eq!(response.primary, Value::Null);
-        assert!(response.diagnostics.iter().any(|diagnostic| {
-            diagnostic.code == TransformTemplateAdapterError::NOT_IMPLEMENTED_CODE
-                && diagnostic.severity == Severity::Fatal
-                && diagnostic.message.contains("xslt-template")
-                && diagnostic.message.contains("does not implement compile")
-        }));
+        assert_eq!(response.primary, Value::String("<main><h1>Sign in</h1></main>".into()), "{:?}", response.diagnostics);
+        assert!(response.diagnostics.is_empty(), "{:?}", response.diagnostics);
     }
 
     #[test]

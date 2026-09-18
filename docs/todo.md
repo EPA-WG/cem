@@ -1061,7 +1061,7 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       resource limits. All 369 CEM-QL tests, 17 XPath artifact checks and
       125 companion checks pass; lint retains its 22 existing warnings.
       Template dispatch and adapter migration follow below.
-- [ ] Fixture XSLT-VIEW-MATCH: lower recursive named/matched templates,
+- [x] Fixture XSLT-VIEW-MATCH: lower recursive named/matched templates,
       parameters, modes, priorities and imports. Preserve XSLT import precedence
       independently of CEMT priority ordering and test imported overrides.
       Migrate the older transform/CLI adapter to the typed bundle path once
@@ -1073,12 +1073,27 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
           Keep runtime behavior unchanged until the user selects retirement
           with consumer migration or an explicitly separate compatibility route.
       Three native public-API characterization tests pass.
-      Decision pending: [adapter migration contract](xslt-runtime-lowering.md#adapter-migration-decision-pending).
-      Replacing the current adapter removes accepted XSLT 1.0 and namespace
-      shortcuts. Choose retirement with strict XSLT 3.0 consumer migration
-      (recommended), or retain a separately selected legacy execution route.
-      No adapter/runtime behavior has changed; do not infer this choice from
-      the earlier retirement of the standalone legacy HTTP element.
+      Decision accepted: retire legacy execution and migrate affected consumers
+      and tests to namespace-correct XSLT 3.0 with explicit declarations. Keep
+      standalone legacy conversion tools separate; no fallback execution route.
+    - [x] Fixture XSLT-MATCH-RUNTIME: compile recursive named/matched templates,
+          parameters (including empty values and defaults), modes and native
+          focus restoration; map exact XSLT priority/import order to existing
+          CEMT dispatch. Verify source ownership, unsupported forms and limits.
+          Cover cancellation, host parameter binding validation, and explicit
+          preflighted module authorization without permitting
+          runtime document/output URI access.
+    - [x] Fixture XSLT-MATCH-ADAPTER: replace legacy execution with typed bundles,
+          migrate native/CLI consumers and rejection contracts, and verify
+          retained imported documents plus explicit WASM loading. Cover CLI nested
+          import/include preflight and cycles, and explicit rejection of pending
+          stylesheet style exports while retaining their OUTPUT acceptance case.
+      Implemented the [bounded dispatch/compiler profile](xslt-runtime-lowering.md)
+      and retired legacy execution. Verification: 382 CEM-QL tests, 101 adapter
+      tests, 22 XSLT validation tests, 16 CLI XSLT unit tests, 10 active CLI
+      integration tests, 61 native/WASM bundle checks, 17 XPath artifact checks
+      and 125 companion checks pass. Both lint targets pass with existing warnings. The stylesheet style-export success case is
+      explicitly ignored under OUTPUT; its rejection/no-export case is active.
 - [ ] Fixture XSLT-VIEW-GROUP: lower for-each-group, current-group and
       current-grouping-key to existing generic queries. Derive repeated rows
       and first-seen union headings in the stylesheet, never in Rust.
@@ -1092,11 +1107,12 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
 - [ ] Fixture XSLT-VIEW-OUTPUT: preserve HTML, AVTs, whitespace, static styles
       and existing slice/event bindings. Document the bounded profile and
       source-located diagnostics without claiming full XSLT 3.0 support.
-      Regression found during recovery verification: the existing CLI test
-      `graph_config_projects_inline_style_export_to_css_and_links_html` fails
-      because the page lacks its CSS link. Compilation collects stylesheet
-      sidecars, but the XSLT export path does not consume them. Restore the
-      link/inline/omit/CSS export cases through the appropriate output boundary;
+      The previous legacy path failed the CLI style-export acceptance case
+      because the page lacked its CSS link. Strict typed execution now rejects
+      stylesheet style output explicitly. The migrated 3.0 test
+      `graph_config_projects_inline_style_export_to_css_and_links_html` remains
+      explicitly ignored here; the no-output rejection test is active. Restore
+      its link/inline/omit/CSS export assertions through the output boundary;
       do not change declaration-style handling for browser CEMT components.
 - [ ] Fixture XSLT-VIEW-PARITY: author data-table-view.xslt and compare its
       CLI-translated rendering with direct CEMT across XML/CSV/YAML/JSON,

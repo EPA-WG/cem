@@ -14,9 +14,16 @@ in this crate prevents a dependency cycle and gives native hosts one explicit
 adapter registration boundary.
 
 The adapter supports CEM-native templates, standalone CEM-QL expression
-templates, and the bounded legacy XSLT-parity lane. It is infrastructure for
+templates, and the [strict typed XSLT 3.0 profile](../../docs/xslt-runtime-lowering.md). It is infrastructure for
 hosts and embedders, not an application UI or an alternate query-language
 implementation.
+
+XSLT execution uses compiled bundles with retained native document input,
+recursive named/matched templates, explicit parameters, modes, and policy-resolved
+import/include closures. Legacy version/namespace shortcuts and implicit
+parameters are rejected. Separate legacy conversion tools remain available.
+The historical adapter type/ID names are retained for host registration;
+standard XSLT media types now select this executable adapter.
 
 ## Imported document bindings
 

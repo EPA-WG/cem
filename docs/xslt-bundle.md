@@ -66,8 +66,10 @@ XML, JSON, and future external document formats resolve exclusively at the
 [CEM import boundary](cem-data-import-principle.md).
 
 The [typed runtime compiler](xslt-runtime-lowering.md) now produces these
-bundles from a bounded single-root-template stylesheet. WASM also provides
-`compileXsltBundle` and `retainXsltStylesheet` source entry points. Template
-dispatch, import precedence generation, broader output and the data-table
-viewer remain subsequent checklist items. Verification covers both explicitly
-composed bundles and native/WASM stylesheet compilation.
+bundles from a bounded stylesheet profile with recursive templates, parameters,
+modes and import/include precedence. WASM also provides `compileXsltBundle`
+and `retainXsltStylesheet` with default compiler options; native-built closures
+load through the binary bundle API. Grouping, sorting, broader output and the
+data-table viewer remain subsequent checklist items. Verification covers
+explicitly composed bundles, native/WASM stylesheet compilation and compiled
+module closures with imported overrides.

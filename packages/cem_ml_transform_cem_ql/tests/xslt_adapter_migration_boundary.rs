@@ -1,5 +1,4 @@
-//! XSLT-ADAPTER-MIGRATION-GATE: characterize public contracts before replacing
-//! the legacy adapter. These are migration probes, not desired typed semantics.
+//! XSLT-MATCH-ADAPTER: execution accepts the strict typed profile only.
 use cem_ml::{
     engine::{
         FormatIdentity, TemplateInput, TransformExecutionPolicy, TransformRuntimePhase,
@@ -13,7 +12,7 @@ use cem_ml::{
 use cem_ml_transform_cem_ql::XsltParityTransformTemplateAdapter;
 use cem_ql::xslt::compiler::compile_xslt_bundle;
 
-fn legacy_accepts(source: &str) {
+fn adapter_diagnostics(source: &str) -> Vec<cem_ml::diagnostics::Diagnostic> {
     let template = TemplateInput {
         uri: "memory:adapter-migration.xslt".into(),
         bytes: source.as_bytes().to_vec(),
@@ -36,21 +35,16 @@ fn legacy_accepts(source: &str) {
                 ..Default::default()
             },
         })
-        .expect("legacy adapter accepts its existing authoring contract");
-    assert!(
-        response
-            .diagnostics
-            .iter()
-            .all(|d| !d.severity.is_hard_violation()),
-        "{:?}",
-        response.diagnostics
-    );
+        .expect("adapter returns typed compilation diagnostics");
+    response.diagnostics
 }
 
 #[test]
-fn version_one_is_accepted_by_legacy_but_rejected_by_the_typed_profile() {
+fn version_one_is_rejected_by_both_execution_apis() {
     let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><p>legacy</p></xsl:template></xsl:stylesheet>"#;
-    legacy_accepts(source);
+    assert!(adapter_diagnostics(source)
+        .iter()
+        .any(|d| d.severity.is_hard_violation()));
     let diagnostics = compile_xslt_bundle(source, "memory:adapter-migration.xslt").unwrap_err();
     assert!(diagnostics
         .iter()
@@ -60,9 +54,11 @@ fn version_one_is_accepted_by_legacy_but_rejected_by_the_typed_profile() {
 }
 
 #[test]
-fn missing_namespace_is_accepted_by_legacy_but_rejected_by_the_typed_profile() {
+fn missing_namespace_is_rejected_by_both_execution_apis() {
     let source = r#"<xsl:stylesheet version="3.0"><xsl:template match="/"><p>legacy namespace shortcut</p></xsl:template></xsl:stylesheet>"#;
-    legacy_accepts(source);
+    assert!(adapter_diagnostics(source)
+        .iter()
+        .any(|d| d.severity.is_hard_violation()));
     let diagnostics = compile_xslt_bundle(source, "memory:adapter-migration.xslt").unwrap_err();
     assert!(diagnostics.iter().any(|d| d.severity.is_hard_violation()
         && d.uri.as_deref() == Some("memory:adapter-migration.xslt")
@@ -72,6 +68,8 @@ fn missing_namespace_is_accepted_by_legacy_but_rejected_by_the_typed_profile() {
 #[test]
 fn namespace_correct_version_three_remains_the_shared_positive_case() {
     let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><p>typed</p></xsl:template></xsl:stylesheet>"#;
-    legacy_accepts(source);
+    assert!(adapter_diagnostics(source)
+        .iter()
+        .all(|d| !d.severity.is_hard_violation()));
     compile_xslt_bundle(source, "memory:adapter-migration.xslt").unwrap();
 }

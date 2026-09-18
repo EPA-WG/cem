@@ -435,6 +435,16 @@ pub fn validate_xslt_source_bytes(request: XsltSourceValidationRequest<'_>) -> V
 pub fn xslt_stylesheet_ast_from_source_bytes(
     request: XsltSourceValidationRequest<'_>,
 ) -> (Option<XsltStylesheetAst>, Vec<Diagnostic>) {
+    xslt_stylesheet_ast_from_source_bytes_with_modules(request, &[])
+}
+
+/// Parse stylesheet authoring source with an explicit, already-resolved module
+/// closure. Only direct top-level import/include hrefs listed for this source
+/// are authorized. This does not permit document(), result-document, or I/O.
+pub fn xslt_stylesheet_ast_from_source_bytes_with_modules(
+    request: XsltSourceValidationRequest<'_>,
+    resolved_module_hrefs: &[&str],
+) -> (Option<XsltStylesheetAst>, Vec<Diagnostic>) {
     let (xml_document, _) = xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
         bytes: request.bytes,
         source_uri: request.source_uri,
@@ -444,7 +454,7 @@ pub fn xslt_stylesheet_ast_from_source_bytes(
         return (None, Vec::new());
     };
     let contracts = XsltSchemaContractCatalog::from_builtin();
-    let (version, mut facts) = xslt_facts(&xml_document, contracts);
+    let (version, mut facts) = xslt_facts(&xml_document, contracts, resolved_module_hrefs);
     let embedded = xslt_embedded_attribute_asts(&xml_document, contracts);
     facts.extend(embedded.facts);
     let mut diagnostics = xslt_fact_diagnostics(
@@ -941,6 +951,7 @@ fn xpath_range_from_xml(range: XmlSourceRange) -> XPathSourceRange {
 fn xslt_facts(
     document: &XmlDocumentAst,
     contracts: &XsltSchemaContractCatalog,
+    resolved_module_hrefs: &[&str],
 ) -> (Option<String>, Vec<XsltFact>) {
     let mut facts = document
         .parse_facts
@@ -1113,7 +1124,15 @@ fn xslt_facts(
                 });
             }
 
-            if !external_uri_reported && xslt_event_requires_external_uri_policy(event) {
+            let resolved_module = event.depth == 1
+                && matches!(local_name, "import" | "include")
+                && xslt_attribute(event, "href")
+                    .and_then(|attribute| attribute.entity_decoded_value.as_deref())
+                    .is_some_and(|href| resolved_module_hrefs.contains(&href));
+            if !external_uri_reported
+                && !resolved_module
+                && xslt_event_requires_external_uri_policy(event)
+            {
                 external_uri_reported = true;
                 facts.push(XsltFact {
                     kind: XsltFactKind::ExternalUriRejected,
@@ -1227,7 +1246,14 @@ fn xslt_facts(
         }
     }
 
-    if root_is_stylesheet && !top_level_template_seen {
+    if root_is_stylesheet
+        && !top_level_template_seen
+        && !document.events.iter().any(|event| {
+            event.depth == 1
+                && event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
+                && matches!(event.local_name.as_deref(), Some("import" | "include"))
+        })
+    {
         facts.push(XsltFact {
             kind: XsltFactKind::EntryPointMissing,
             source_range: root_range,

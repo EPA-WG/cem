@@ -82,7 +82,10 @@ pub(super) fn variable_name(
     Err("variable name must be a declared EQName".into())
 }
 
-fn primary(value: XPathPrimaryExpression, range: XPathSourceRange) -> XPathExpressionNode {
+pub(super) fn primary(
+    value: XPathPrimaryExpression,
+    range: XPathSourceRange,
+) -> XPathExpressionNode {
     XPathExpressionNode {
         source_range: range,
         expression: XPathExpression::Path(XPathPathExpression {
@@ -130,7 +133,7 @@ fn bind(
 // Only compiler-owned macro nodes are reanchored. Authored nodes are spliced
 // afterward and retain their exact ranges. Fail closed if the macro gains a
 // construct this small visitor does not support.
-fn anchor_sequence(
+pub(super) fn anchor_sequence(
     sequence: &mut XPathExpressionSequence,
     range: XPathSourceRange,
 ) -> Result<(), String> {
@@ -190,7 +193,18 @@ fn anchor_node(node: &mut XPathExpressionNode, range: XPathSourceRange) -> Resul
                             }
                         }
                     }
-                    _ => return Err("unsupported compiler macro step".into()),
+                    XPathStep::Axis {
+                        node_test,
+                        predicates,
+                        ..
+                    } => {
+                        if let XPathNodeTest::Name(XPathNameTest::Name(name)) = node_test {
+                            name.source_range = range;
+                        }
+                        for predicate in predicates {
+                            anchor_sequence(predicate, range)?;
+                        }
+                    }
                 }
             }
         }

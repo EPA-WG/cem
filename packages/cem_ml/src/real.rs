@@ -4445,6 +4445,8 @@ struct TransformTemplateCompileSpec<'a> {
     execution_policy: TransformExecutionPolicy,
 }
 
+mod xslt_modules;
+
 fn compile_transform_template(
     spec: TransformTemplateCompileSpec<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -4483,31 +4485,50 @@ fn compile_transform_template(
                 return None;
             }
         };
-    let mut module_preflight = preflight_transform_template_modules(
-        spec.context,
-        spec.adapter.id(),
-        spec.template,
-        spec.entrypoint,
-        &module_options,
-        spec.execution_policy,
-        diagnostics,
-    )?;
+    let mut module_preflight = if spec.template_kind == TransformTemplateKind::Xslt
+        && spec.adapter.capability()
+            == crate::transform_template::TransformTemplateAdapterCapability::Executable
+    {
+        xslt_modules::preflight(
+            spec.context,
+            spec.adapter.id(),
+            spec.template,
+            spec.entrypoint,
+            &module_options,
+            spec.execution_policy,
+            diagnostics,
+        )?
+    } else {
+        preflight_transform_template_modules(
+            spec.context,
+            spec.adapter.id(),
+            spec.template,
+            spec.entrypoint,
+            &module_options,
+            spec.execution_policy,
+            diagnostics,
+        )?
+    };
     if let Some(cache_key) = module_preflight.cache_key.as_mut() {
         cache_key.parameter_hash = content_hash(parameter_arena.identity_bytes());
     }
-    let imported_modules = parse_imported_template_modules(&module_preflight, diagnostics)?;
-    validate_transform_template_call_sites_with_imported_modules(
-        &spec.template.uri,
-        &module_options,
-        &module_preflight,
-        &imported_modules,
-        diagnostics,
-    )?;
-    let compiled_module_options = normalize_transform_template_module_call_arguments(
-        &module_options,
-        &module_preflight,
-        &imported_modules,
-    );
+    let compiled_module_options = if spec.template_kind == TransformTemplateKind::Xslt {
+        module_options
+    } else {
+        let imported_modules = parse_imported_template_modules(&module_preflight, diagnostics)?;
+        validate_transform_template_call_sites_with_imported_modules(
+            &spec.template.uri,
+            &module_options,
+            &module_preflight,
+            &imported_modules,
+            diagnostics,
+        )?;
+        normalize_transform_template_module_call_arguments(
+            &module_options,
+            &module_preflight,
+            &imported_modules,
+        )
+    };
     match spec.adapter.compile(TransformTemplateCompileRequest {
         template: spec.template,
         entrypoint: spec.entrypoint,

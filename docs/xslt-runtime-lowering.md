@@ -6,69 +6,37 @@ It returns binary bytes, their content hash, the stylesheet source hash and
 inspectable generated CEMT. Compilation does not accept runtime documents.
 The same bundle evaluates changed retained CEM documents on every render.
 
-This is the XSLT-VIEW-LOWER foundation, not the completed data-table viewer or
-full XSLT 3.0 support. The existing transform/CLI adapter still uses its older
-conversion path; replacing that path requires the template dispatch, parameter
-and import contracts in XSLT-VIEW-MATCH. There is no automatic fallback from
-this compiler to that path. Browser component URL loading and the viewer
-remain later integration fixtures in [todo.md](todo.md).
+The transform/CLI adapter now executes this typed bundle path. Legacy execution
+is retired, as selected by the user in XSLT-VIEW-MATCH. The public adapter type
+and registration ID remain stable, but source must declare the XSLT namespace
+and version `3.0`. Standard `application/xslt+xml` and `text/xsl` media types,
+and the historical custom-element-XSLT aliases, all select this strict profile.
+There is no fallback, version replacement, namespace injection, or XPath token
+rewriting. Standalone legacy conversion commands remain separate authoring tools.
 
-## Adapter migration decision (pending)
-
-The XSLT-VIEW-MATCH audit found a public compatibility boundary before adapter
-replacement. The existing `XsltParityTransformTemplateAdapter` and its CLI
-fixtures accept XSLT 1.0 and legacy namespace shortcuts. This compiler accepts
-only the documented namespace-correct XSLT 3.0 profile. Replacing the registered
-adapter therefore changes accepted source, even for a stylesheet containing
-only literal output.
-
-The native characterization fixture
-[`xslt_adapter_migration_boundary.rs`](../packages/cem_ml_transform_cem_ql/tests/xslt_adapter_migration_boundary.rs)
-compares both public compile APIs. It checks namespace-correct version 1.0,
-version 3.0 with an undeclared `xsl` prefix, and a namespace-correct version 3.0
-positive case. Existing consumer evidence includes the adapter's
-`xslt_parity_adapter_*` unit tests and
-[`xslt_parity_transform.rs`](../packages/cem_ml_cli/tests/xslt_parity_transform.rs).
-Those consumers also exercise named entrypoints, implicit parameter shortcuts,
-EXSLT syntax and stylesheet output; their migration must preserve the intended
-results through supported standard declarations or explicit unsupported errors.
-
-The user must choose between these public migration contracts before replacing
-the adapter:
-
-1. **Recommended: retire the legacy execution adapter.** Route execution through
-   the typed compiler and migrate affected consumers/tests to namespace-correct
-   XSLT 3.0 with explicit declarations. Diagnose unsupported legacy authoring;
-   do not change versions or inject namespaces silently. This removes accepted
-   legacy syntax from that execution route. Separate legacy conversion tools
-   are outside this decision.
-2. **Keep an explicit compatibility route.** Retain legacy execution behind an
-   independently selected adapter/runtime route and expose typed execution
-   separately. Keep the typed viewer on the new route with no fallback. This
-   preserves compatibility while retaining two execution implementations and
-   requires documenting their explicit selection.
-
-Adding standards-compliant XSLT 1.0 compatibility to the typed runtime is a
-third, larger scope if requested. It cannot be implemented by changing the
-version check: [XSLT 3.0 §3.9](https://www.w3.org/TR/xslt-30/#backwards) defines
-version-dependent instruction and XPath behavior. The current legacy converter
-is not evidence of that conformance.
-
-The audit confirms existing generic CEMT named calls, mode-based match rules,
-native parameter streams and recursion limits as foundations for lowering.
-XSLT pattern semantics, import precedence and parameter rules still need their
-own compiler work and tests. No shared capability expansion has been identified
-or approved by this audit. Runtime code and adapter registration remain
-unchanged while this choice is pending; XSLT-VIEW-MATCH remains open.
+Consumers declare template parameters explicitly and replace legacy EXSLT
+shortcuts with supported standard expressions over retained input documents.
+The migration fixture verifies that both public compilation APIs reject version
+1.0 and unbound `xsl` prefixes. This is a bounded runtime profile, not the
+completed data-table viewer or full XSLT 3.0 implementation. Grouping, sorting,
+output and browser component URL loading remain in [todo.md](todo.md).
 
 ## Supported authoring profile
 
-The stylesheet must declare version `3.0` and contain exactly one
-`xsl:template match="/"`. Its initial context is the native `document` host
-binding, with position and size both one.
+The stylesheet must declare the XSLT namespace and version `3.0`. The native
+`document` host binding supplies its initial context. Default entry selection
+applies templates in the default mode; an explicit named entrypoint receives
+that context with position and size both one.
 
 | Construct | Runtime behavior |
 | --- | --- |
+| Named templates and `xsl:call-template` | Recursive calls, expanded names, restored caller focus, explicit `xsl:param` / select-based `xsl:with-param`. |
+| Parameters | Omitted values evaluate their defaults in callee focus; supplied empty sequences stay empty. Required and duplicate parameters are diagnosed. Caller-local variables do not leak into the callee. |
+| `xsl:apply-templates` | Explicit/default child selection with original sequence position/size. One named mode, `#default`, and invocation-only `#current`. |
+| Node match patterns | Root, child/attribute paths, descendant separators, namespace-aware names, bare kind tests, targeted processing instructions, predicates and unions. Unlisted pattern syntax is rejected. |
+| Rule ordering | Import precedence, exact decimal priority, then declaration order. Union branches retain their individual default priorities. |
+| Built-in rules | Elements/documents recurse in the current mode and forward supplied parameters; text/attribute nodes emit their string value; other nodes emit nothing. Atomic/map/array dispatch is outside this profile. |
+| `xsl:import` / `xsl:include` | Explicit closed source graph; includes share precedence and later imports override earlier imports. Named calls resolve the winning declaration across the closure. |
 | `xsl:for-each select` | Native item sequence, one-based position and sequence size; nested loops restore the outer focus. |
 | Local `xsl:variable name select` | Expanded names and lexical scope; the value is evaluated before the new binding exists. Native node owners, map values and array member sequences are preserved. |
 | `xsl:if test`, `xsl:choose/when/otherwise` | XPath effective boolean values; only the chosen branch runs. |
@@ -93,15 +61,20 @@ all standard instructions or functions are available.
 Unsupported instructions, attributes, dynamic AVTs and unsupported syntax
 fail compilation with stylesheet coordinates. The shared XPath evaluator
 reports unsupported functions when evaluated; for example `concat()` is not
-currently supported, while the standard `||` operator is. Runtime errors
-preserve stylesheet diagnostics and discard the whole partial result through
-existing protected CEMT rendering. Cancellation and budget errors remain
+currently supported, while the standard `||` operator is. XPath evaluation errors
+preserve stylesheet coordinates; generic dispatch and missing-required-parameter
+failures retain generated CEMT frames. Both discard the whole partial result
+through existing protected CEMT rendering. Cancellation and budget errors remain
 uncatchable. No substitute output is manufactured.
 
-Named/matched template dispatch, parameters, imports, grouping, sorting,
-standard parsing functions, dynamic output, stylesheet sidecars and full
-namespace/output handling belong to the following fixtures. `script` and
-`style` literal result elements are rejected until that output profile is
+Grouping, sorting, standard parsing functions, dynamic output, stylesheet
+sidecars and full namespace/output handling belong to the following fixtures.
+Global variables/parameters, parameter constructors/types/tunnels, multiple
+mode tokens, `#all`, `xsl:mode`, `apply-imports` and `next-match` are also outside
+this bounded slice. Parameterized `element(name)`, `attribute(name)`,
+`document-node(element(...))` and schema type patterns are rejected because
+the current shared XPath kind-test model does not retain their typed arguments.
+`script` and `style` literal result elements are rejected until that output profile is
 implemented. `xml:space` and other unlisted instruction attributes are also
 rejected rather than silently ignored.
 
@@ -128,7 +101,37 @@ bundles use the same `renderXsltBundle` and `disposeXsltBundle` lifecycle and
 retained-document bindings. Disposing a bundle never disposes a caller-owned
 input document; stale bundle/document handles fail explicitly.
 
-Compiler limits are 128 KiB of source, 8,192 XML authoring events, 64 nested
-source levels, 128 XPath programs and a source URI short enough to append the
-generated CEMT identity within the bundle's 4 KiB identifier limit. Existing
-XPath, CEMT, bundle and operation limits also apply.
+Native `compile_xslt_bundle_with_options` accepts an expanded named entrypoint,
+expanded parameter names mapped to host binding identifiers, and preflighted
+`XsltModuleSource` edges. `resolve_xslt_names` resolves host names in the root
+stylesheet namespace context. Bindings cannot occupy the compiler's `xslt_`
+namespace or `document`. The compiler validates hashes, exact parent/href
+edges, reachability, cycles and source ownership without I/O. Import/include
+authorization applies only to those source edges; it does not authorize
+`document()`, `result-document`, or runtime URI access.
+
+The transform engine discovers stylesheet dependencies at this authoring
+boundary and resolves them with its existing policy-controlled resolver. The
+bundle retains every source hash and original XPath owner. CEMT module
+aliases/visibility and reserved include semantics do not substitute for XSLT
+linking. CLI parameters are explicit scalar controls (null supplies the empty
+sequence); document records and secondary input bindings are rejected. Native
+CEM arenas use the existing retained-tree constructor without serialization.
+The adapter preserves the host operation-control scope during rendering.
+
+WASM source entry points currently use default compiler options. Native-built
+bundles containing named entries, parameter bindings and module closures load
+through the existing explicit WASM bundle API; loading needs no source resolver.
+
+Compiler limits are 128 KiB across the source closure, 64 sources, 128 dependency
+edges, 8,192 authoring events per source, 64 nested source levels, 32 dependency
+levels, 1,024 include/import expansions, 128 linked declarations and 128 XPath
+programs, with at most 250 external parameter bindings. Source URIs leave room for the generated CEMT identity within the
+bundle's 4 KiB identifier limit. Existing XPath, bundle and operation limits
+also apply. Native CEMT dispatch supplies its fixed 32-call recursion guard;
+custom adapter recursion limits are explicitly rejected in this profile.
+
+The CLI style-export success fixture remains explicitly ignored under
+XSLT-VIEW-OUTPUT, alongside an active test proving rejection with no output or
+sidecars. Restore its link/inline/omit/CSS assertions when that profile is
+implemented; do not silently drop stylesheet styles.

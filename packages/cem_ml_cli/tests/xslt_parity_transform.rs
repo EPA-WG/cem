@@ -61,7 +61,7 @@ fn direct_cli_executes_xslt_parity_for_login_profile_shape() {
     write(&data, r#"{main @id="login"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main class="login"><h1>Sign in</h1><section class="profile"><xsl:call-template name="row"><xsl:with-param name="label" select="'Display name'"/></xsl:call-template></section></main></xsl:template><xsl:template name="row"><p><xsl:value-of select="$label"/></p></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><main class="login"><h1>Sign in</h1><section class="profile"><xsl:call-template name="row"><xsl:with-param name="label" select="'Display name'"/></xsl:call-template></section></main></xsl:template><xsl:template name="row"><xsl:param name="label" required="yes"/><p><xsl:value-of select="$label"/></p></xsl:template></xsl:stylesheet>"#,
     );
 
     let output = cem_ml(&[
@@ -72,7 +72,7 @@ fn direct_cli_executes_xslt_parity_for_login_profile_shape() {
         "--template",
         template.to_str().expect("template path is utf-8"),
         "--template-content-type",
-        "custom-element-xslt",
+        "application/xslt+xml",
         "--to-content-type",
         "text/html",
         "--report-json",
@@ -99,7 +99,7 @@ fn direct_cli_executes_xslt_named_entrypoint_and_params() {
     write(&data, r#"{section @id="ada"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section>default</section></xsl:template><xsl:template name="profile"><section class="profile"><p><xsl:value-of select="$label"/></p></section></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:v="urn:profile" version="3.0"><xsl:template match="/"><section>default</section></xsl:template><xsl:template name="v:profile"><xsl:param name="v:label" required="yes"/><section class="profile"><p><xsl:value-of select="$v:label"/></p></section></xsl:template></xsl:stylesheet>"#,
     );
 
     let output = cem_ml(&[
@@ -110,11 +110,11 @@ fn direct_cli_executes_xslt_named_entrypoint_and_params() {
         "--template",
         template.to_str().expect("template path is utf-8"),
         "--template-content-type",
-        "custom-element-xslt",
+        "application/xslt+xml",
         "--template-entrypoint",
-        "profile",
+        "v:profile",
         "--param",
-        "label=Display name",
+        "v:label=Display name",
         "--to-content-type",
         "text/html",
         "--report-json",
@@ -141,7 +141,7 @@ fn direct_cli_reports_missing_xslt_named_entrypoint() {
     write(&data, r#"{section @id="ada"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section>default</section></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><section>default</section></xsl:template></xsl:stylesheet>"#,
     );
 
     let output = cem_ml(&[
@@ -152,7 +152,7 @@ fn direct_cli_reports_missing_xslt_named_entrypoint() {
         "--template",
         template.to_str().expect("template path is utf-8"),
         "--template-content-type",
-        "custom-element-xslt",
+        "application/xslt+xml",
         "--template-entrypoint",
         "missing",
         "--to-content-type",
@@ -182,7 +182,7 @@ fn direct_cli_reports_unsupported_xslt_construct_without_output() {
     write(&data, r#"{section @id="ada"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><msxsl:script language="JScript">function run(){return 1;}</msxsl:script></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><xsl:apply-imports/></xsl:template></xsl:stylesheet>"#,
     );
 
     let output = cem_ml(&[
@@ -193,7 +193,7 @@ fn direct_cli_reports_unsupported_xslt_construct_without_output() {
         "--template",
         template.to_str().expect("template path is utf-8"),
         "--template-content-type",
-        "custom-element-xslt",
+        "application/xslt+xml",
         "--to-content-type",
         "text/html",
         "--out",
@@ -214,28 +214,31 @@ fn direct_cli_reports_unsupported_xslt_construct_without_output() {
         "failed direct transform must not write source-map sidecar"
     );
     let report = report(&report_path);
-    assert!(has_diagnostic(&report, "legacy_xslt.unsupported_construct"));
+    assert!(has_diagnostic(&report, "cem.xslt.compile_unsupported"));
     assert_eq!(report["summary"]["hardViolationCount"], 1);
 }
 
 #[test]
 fn graph_config_executes_xslt_parity_asset_list_and_writes_sidecar() {
     let root = fixture_root("graph-asset-list");
-    let data = root.join("asset.cem");
+    let data = root.join("asset.xml");
     let template = root.join("assets.xsl");
     let graph = root.join("graph.cem");
     let report_path = root.join("report.json");
     let out = root.join("out/assets.html");
-    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &data,
+        "<assets><asset>Logo</asset><asset>Hero</asset></assets>",
+    );
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:variable name="assets"><asset>Logo</asset><asset>Hero</asset></xsl:variable><xsl:template match="/"><ul><li>default</li></ul></xsl:template><xsl:template name="assets"><ul><xsl:apply-templates select="exsl:node-set($assets)/*"/><li><xsl:value-of select="$suffix"/></li></ul></xsl:template><xsl:template match="asset"><li><xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><ul><li>default</li></ul></xsl:template><xsl:template name="assets"><xsl:param name="suffix" required="yes"/><ul><xsl:apply-templates select="/*/*"/><li><xsl:value-of select="$suffix"/></li></ul></xsl:template><xsl:template match="asset"><li><xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
     );
     write(
         &graph,
         r#"{run |
-  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=html @src="assets.xsl" @template-content-type="custom-element-xslt" @entrypoint="assets" |
+  {import @id=asset @src="asset.xml" @content-type="application/xml" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" @entrypoint="assets" |
       {param @name="suffix" @value="{stem}"}
       {export @id=main @out="out/assets.html" @content-type="text/html"}
     }
@@ -288,13 +291,13 @@ fn graph_config_reports_missing_xslt_named_entrypoint_without_export() {
     write(&data, r#"{article @id="asset"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><ul><li>default</li></ul></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><ul><li>default</li></ul></xsl:template></xsl:stylesheet>"#,
     );
     write(
         &graph,
         r#"{run |
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=html @src="assets.xsl" @template-content-type="custom-element-xslt" @entrypoint="missing" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" @entrypoint="missing" |
       {export @id=main @out="out/assets.html" @content-type="text/html"}
     }
   }
@@ -341,13 +344,13 @@ fn graph_config_reports_unsupported_xslt_construct_without_export() {
     write(&data, r#"{article @id="asset"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><msxsl:script language="JScript">function run(){return 1;}</msxsl:script></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><xsl:apply-imports/></xsl:template></xsl:stylesheet>"#,
     );
     write(
         &graph,
         r#"{run |
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=html @src="assets.xsl" @template-content-type="custom-element-xslt" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" |
       {export @id=main @out="out/assets.html" @content-type="text/html"}
     }
   }
@@ -371,7 +374,7 @@ fn graph_config_reports_unsupported_xslt_construct_without_export() {
         "failed graph stage must not write source-map sidecar"
     );
     let report = report(&report_path);
-    assert!(has_diagnostic(&report, "legacy_xslt.unsupported_construct"));
+    assert!(has_diagnostic(&report, "cem.xslt.compile_unsupported"));
     assert_eq!(report["summary"]["hardViolationCount"], 1);
     assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 0);
     assert!(report["reportAst"]["transformGraph"]["exports"]
@@ -403,7 +406,7 @@ fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
     );
     write(
         &xslt_template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main><h1>Sign in</h1></main></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><main><h1>Sign in</h1></main></xsl:template></xsl:stylesheet>"#,
     );
     write(
         &graph,
@@ -413,7 +416,7 @@ fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
       {param @name="title" @value="{stem}"}
       {export @id=cardOut @out="out/card.html" @content-type="text/html"}
     }
-    {transform @id=shell @src="shell.xsl" @template-content-type="custom-element-xslt" |
+    {transform @id=shell @src="shell.xsl" @template-content-type="application/xslt+xml" |
       {export @id=shellOut @out="out/shell.html" @content-type="text/html"}
     }
   }
@@ -445,6 +448,67 @@ fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
 }
 
 #[test]
+fn graph_config_rejects_styles_before_the_output_profile_is_available() {
+    let root = fixture_root("graph-inline-style-css-export");
+    let data = root.join("asset.cem");
+    let template = root.join("page.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let html_out = root.join("out/page.html");
+    let inline_out = root.join("out/page-inline.html");
+    let omit_out = root.join("out/page-omit.html");
+    let css_out = root.join("out/page.css");
+    let html_map = root.join("out/page.html.map");
+    let omit_map = root.join("out/page-omit.html.map");
+    let css_map = root.join("out/page.css.map");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><html><head><style>.card { color: red; }</style></head><body><main class="card"><h1>Asset</h1></main></body></html></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="page.xsl" @template-content-type="application/xslt+xml" |
+      {export @id=htmlOut @out="out/page.html" @content-type="text/html"}
+      {export @id=inlineOut @out="out/page-inline.html" @content-type="text/html" @style-policy="inline"}
+      {export @id=omitOut @out="out/page-omit.html" @content-type="text/html" @style-policy="omit"}
+      {export @id=cssOut @out="out/page.css" @content-type="text/css" @schema="https://cem.dev/ns/data/css/1"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty());
+    for path in [
+        &html_out,
+        &inline_out,
+        &omit_out,
+        &css_out,
+        &html_map,
+        &omit_map,
+        &css_map,
+    ] {
+        assert!(!path.exists(), "{} must not be emitted", path.display());
+    }
+    assert!(has_diagnostic(
+        &report(&report_path),
+        "cem.xslt.compile_unsupported"
+    ));
+}
+
+#[test]
+#[ignore = "XSLT-VIEW-OUTPUT: stylesheet style sidecar exports remain unsupported"]
 fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     let root = fixture_root("graph-inline-style-css-export");
     let data = root.join("asset.cem");
@@ -461,13 +525,13 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     write(&data, r#"{article @id="asset"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><html><head><style>.card { color: red; }</style></head><body><main class="card"><h1>Asset</h1></main></body></html></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><html><head><style>.card { color: red; }</style></head><body><main class="card"><h1>Asset</h1></main></body></html></xsl:template></xsl:stylesheet>"#,
     );
     write(
         &graph,
         r#"{run |
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=page @src="page.xsl" @template-content-type="custom-element-xslt" |
+    {transform @id=page @src="page.xsl" @template-content-type="application/xslt+xml" |
       {export @id=htmlOut @out="out/page.html" @content-type="text/html"}
       {export @id=inlineOut @out="out/page-inline.html" @content-type="text/html" @style-policy="inline"}
       {export @id=omitOut @out="out/page-omit.html" @content-type="text/html" @style-policy="omit"}
@@ -573,4 +637,61 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
         .as_array()
         .unwrap()
         .is_empty());
+}
+
+#[test]
+fn direct_cli_resolves_nested_xslt_modules_and_preserves_overrides() {
+    let root = fixture_root("nested-imports");
+    let data = root.join("data.xml");
+    let template = root.join("view.xsl");
+    let report_path = root.join("report.json");
+    write(&data, "<r><a>A</a><a>B</a></r>");
+    write(
+        &template,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:import href="lib/base.xsl"/><xsl:template name="card"><b>override</b></xsl:template><xsl:template match="a" priority="-999"><i><xsl:value-of select="."/></i></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &root.join("lib/base.xsl"),
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:include href="entry.xsl"/><xsl:template name="card"><b>base</b></xsl:template><xsl:template match="a" priority="999"><i>base</i></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &root.join("lib/entry.xsl"),
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><xsl:call-template name="card"/><xsl:apply-templates select="/*/*"/></xsl:template></xsl:stylesheet>"#,
+    );
+    let run = || {
+        cem_ml(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-content-type",
+            "application/xslt+xml",
+            "--to-content-type",
+            "text/html",
+            "--report-json",
+            report_path.to_str().unwrap(),
+        ])
+    };
+    let output = run();
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_OK),
+        "{} {:?}",
+        stderr(&output),
+        report(&report_path)
+    );
+    assert_eq!(stdout(&output), "<b>override</b><i>A</i><i>B</i>");
+    write(
+        &root.join("lib/entry.xsl"),
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:include href="base.xsl"/></xsl:stylesheet>"#,
+    );
+    let output = run();
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty());
+    assert!(has_diagnostic(
+        &report(&report_path),
+        "cem.xslt.compile_import"
+    ));
 }

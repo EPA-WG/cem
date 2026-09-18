@@ -9,13 +9,17 @@ use cem_ml::{
         xml::{xml_decode_entity_reference, XmlAttributeAst, XmlEventAst, XmlEventKind},
         xpath::XPathSyntaxNodeKind,
         xslt::{
-            xslt_stylesheet_ast_from_source_bytes, XsltAttributeValueTemplateSegmentAst,
-            XsltSourceValidationRequest, XsltStylesheetAst,
+            xslt_stylesheet_ast_from_source_bytes_with_modules,
+            XsltAttributeValueTemplateSegmentAst, XsltSourceValidationRequest, XsltStylesheetAst,
         },
     },
 };
 
+mod imports;
+mod patterns;
+mod templates;
 mod xpath;
+use templates::TemplateDeclaration;
 type CompileResult<T> = std::result::Result<T, Vec<Diagnostic>>;
 const MAX_SOURCE_BYTES: usize = 128 * 1024;
 
@@ -28,10 +32,61 @@ pub struct CompiledXsltBundle {
     pub generated_cemt: String,
 }
 
-/// Compile one stylesheet with one `match="/"` template. The initial native
-/// context is supplied through the `document` host binding. Dispatch, imports,
-/// parameters, grouping, sorting and the full output profile are later slices.
+#[derive(Debug, Default)]
+pub struct XsltCompileOptions {
+    pub entrypoint: Option<XPathExpandedName>,
+    /// Expanded XSLT parameter name to explicit host binding identifier.
+    pub parameters: BTreeMap<XPathExpandedName, String>,
+    pub modules: Vec<XsltModuleSource>,
+}
+
+/// Resolver-preflighted authoring source. The compiler performs no I/O and
+/// resolves a declaration only through its exact parent/href edge.
+#[derive(Debug, Clone)]
+pub struct XsltModuleSource {
+    pub parent_uri: String,
+    pub href: String,
+    pub uri: String,
+    pub source: String,
+    pub content_hash: ContentHash,
+}
+
+/// Compile a stylesheet with default entry selection.
 pub fn compile_xslt_bundle(source: &str, source_uri: &str) -> CompileResult<CompiledXsltBundle> {
+    compile_xslt_bundle_with_options(source, source_uri, &XsltCompileOptions::default())
+}
+
+/// Compile the bounded template-dispatch profile. The initial native context
+/// is supplied through `document`; module sources are preflighted by the host.
+pub fn compile_xslt_bundle_with_options(
+    source: &str,
+    source_uri: &str,
+    options: &XsltCompileOptions,
+) -> CompileResult<CompiledXsltBundle> {
+    if options.parameters.len() > 250 {
+        return Err(imports::diagnostic(
+            source_uri,
+            "parameter binding limit exceeded",
+        ));
+    }
+    for binding in options.parameters.values() {
+        if binding.len() > MAX_IDENTIFIER_BYTES {
+            return Err(imports::diagnostic(
+                source_uri,
+                "parameter binding exceeds identifier limit",
+            ));
+        }
+        let tokens = crate::lexer::Lexer::new(binding).scan_all();
+        if !matches!(tokens.as_slice(), [token, end] if token.kind == crate::lexer::TokenKind::Ident && end.kind == crate::lexer::TokenKind::EndOfInput)
+            || binding.starts_with("xslt_")
+            || binding == "document"
+        {
+            return Err(imports::diagnostic(
+                source_uri,
+                "parameter host bindings must be identifiers outside reserved document/xslt_ names",
+            ));
+        }
+    }
     if source.len() > MAX_SOURCE_BYTES || source_uri.len() > MAX_IDENTIFIER_BYTES - 32 {
         return Err(vec![Diagnostic {
             uri: Some(source_uri.into()),
@@ -41,89 +96,151 @@ pub fn compile_xslt_bundle(source: &str, source_uri: &str) -> CompileResult<Comp
             ..Default::default()
         }]);
     }
-    let (stylesheet, diagnostics) =
-        xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
-            bytes: source.as_bytes(),
+    let mut sources = BTreeMap::new();
+    sources.insert(
+        source_uri.to_owned(),
+        (
+            source.to_owned(),
+            ContentHash::from_blake3(source.as_bytes()),
+        ),
+    );
+    if options.modules.len() > 128 {
+        return Err(imports::diagnostic(
             source_uri,
-            content_type: Some("application/xslt+xml"),
-        });
-    if diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
-        return Err(diagnostics);
+            "stylesheet dependency limit exceeded",
+        ));
     }
-    let stylesheet = stylesheet.ok_or(diagnostics)?;
+    for module in &options.modules {
+        if module.source.len() > MAX_SOURCE_BYTES
+            || [&module.uri, &module.parent_uri, &module.href]
+                .iter()
+                .any(|value| value.len() > MAX_IDENTIFIER_BYTES - 32)
+        {
+            return Err(imports::diagnostic(
+                &module.uri,
+                "stylesheet source or dependency identifier exceeds limits",
+            ));
+        }
+        if ContentHash::from_blake3(module.source.as_bytes()) != module.content_hash {
+            return Err(imports::diagnostic(
+                &module.uri,
+                "preflighted stylesheet hash mismatch",
+            ));
+        }
+        if let Some((previous, _)) = sources.get(&module.uri) {
+            if previous != &module.source {
+                return Err(imports::diagnostic(
+                    &module.uri,
+                    "conflicting source for stylesheet URI",
+                ));
+            }
+        } else {
+            sources.insert(
+                module.uri.clone(),
+                (module.source.clone(), module.content_hash.clone()),
+            );
+        }
+    }
+    if sources.len() > 64
+        || sources.values().map(|(s, _)| s.len()).sum::<usize>() > MAX_SOURCE_BYTES
+    {
+        return Err(imports::diagnostic(
+            source_uri,
+            "stylesheet closure exceeds source limits",
+        ));
+    }
+    let root_source = sources.remove(source_uri).expect("root inserted");
+    let sources: Vec<_> = std::iter::once((source_uri.to_owned(), root_source))
+        .chain(sources)
+        .collect();
+    let mut stylesheets = Vec::new();
+    let mut manifests = Vec::new();
+    let mut hashes = Vec::new();
+    for (uri, (source, hash)) in &sources {
+        if uri.len() > MAX_IDENTIFIER_BYTES - 32 {
+            return Err(imports::diagnostic(
+                uri,
+                "stylesheet URI exceeds the compiler limit",
+            ));
+        }
+        let hrefs: Vec<_> = options
+            .modules
+            .iter()
+            .filter(|module| &module.parent_uri == uri)
+            .map(|module| module.href.as_str())
+            .collect();
+        let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules(
+            XsltSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: uri,
+                content_type: Some("application/xslt+xml"),
+            },
+            &hrefs,
+        );
+        if diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+            return Err(diagnostics);
+        }
+        let stylesheet = stylesheet
+            .ok_or_else(|| imports::diagnostic(uri, "stylesheet source could not be parsed"))?;
+        if stylesheet.xml_document.events.len() > 8192 {
+            return Err(imports::diagnostic(uri, "stylesheet event limit exceeded"));
+        }
+        stylesheets.push(stylesheet);
+        hashes.push(hash.clone());
+        manifests.push(StylesheetSource {
+            source: BundleSource::new(uri, source.as_bytes()),
+            dependencies: vec![],
+        });
+    }
     let mut compiler = Compiler {
-        stylesheet: &stylesheet,
+        stylesheet: &stylesheets[0],
+        source_hash: hashes[0].clone(),
         programs: Vec::new(),
         next_binding: 0,
-        source_hash: ContentHash::from_blake3(source.as_bytes()),
+        templates: Vec::new(),
+        names: BTreeMap::new(),
+        modes: BTreeMap::new(),
+        sources: &stylesheets,
+        source_hashes: &hashes,
+        source_index: 0,
     };
-    let events = &stylesheet.xml_document.events;
-    if events.len() > 8192 {
-        return Err(compiler.error(
-            &events[0],
-            "cem.xslt.compile_limit",
-            "stylesheet event limit exceeded",
-        ));
+    let mut roots = Vec::new();
+    for (index, stylesheet) in stylesheets.iter().enumerate() {
+        compiler.select_source(index);
+        let mut cursor = 0;
+        let nodes = author_nodes(&stylesheet.xml_document.events, &mut cursor, 0, &compiler)?;
+        let mut elements = nodes.into_iter().filter(|node| is_element(node.event));
+        let root = elements.next().ok_or_else(|| {
+            imports::diagnostic(
+                &stylesheet.xml_document.source.uri,
+                "one stylesheet root is required",
+            )
+        })?;
+        if elements.next().is_some() {
+            return Err(imports::diagnostic(
+                &stylesheet.xml_document.source.uri,
+                "one stylesheet root is required",
+            ));
+        }
+        compiler.attributes(root.event, &["version"])?;
+        if compiler.required(root.event, "version")? != "3.0" {
+            return Err(compiler.error(
+                root.event,
+                "cem.xslt.compile_unsupported",
+                "this runtime profile requires XSLT version 3.0",
+            ));
+        }
+        roots.push(root);
     }
-    let mut index = 0;
-    let roots = author_nodes(events, &mut index, 0, &compiler)?;
-    let roots: Vec<_> = roots.iter().filter(|node| is_element(node.event)).collect();
-    let [root] = roots.as_slice() else {
-        return Err(vec![Diagnostic {
-            uri: Some(source_uri.into()),
-            code: "cem.xslt.compile_root".into(),
-            severity: Severity::Error,
-            message: "one stylesheet root is required".into(),
-            ..Default::default()
-        }]);
-    };
-    compiler.attributes(root.event, &["version"])?;
-    if compiler.required(root.event, "version")? != "3.0" {
-        return Err(compiler.error(
-            root.event,
-            "cem.xslt.compile_unsupported",
-            "this runtime profile requires XSLT version 3.0",
-        ));
-    }
-    let declarations: Vec<_> = root
-        .children
-        .iter()
-        .filter(|node| !ignorable(node))
-        .collect();
-    let [entry] = declarations.as_slice() else {
-        return Err(compiler.error(root.event, "cem.xslt.compile_unsupported", "this profile requires exactly one root template; declarations and imports are not supported yet"));
-    };
-    if entry.event.namespace_uri.as_deref() != Some(XSLT_NAMESPACE_URI)
-        || entry.event.local_name.as_deref() != Some("template")
-    {
-        return Err(compiler.error(
-            entry.event,
-            "cem.xslt.compile_unsupported",
-            "only a root template is supported at stylesheet level",
-        ));
-    }
-    compiler.attributes(entry.event, &["match"])?;
-    if compiler.required(entry.event, "match")? != "/" {
-        return Err(compiler.error(
-            entry.event,
-            "cem.xslt.compile_unsupported",
-            "template dispatch is not implemented in this profile",
-        ));
-    }
-    let scope = Scope {
-        item: "document".into(),
-        position: "1".into(),
-        size: "1".into(),
-        variables: BTreeMap::new(),
-    };
-    let body = compiler.sequence(&entry.children, scope)?;
-    // Existing protected CEMT rendering buffers the whole result. An unmatched
-    // handler preserves the original error and discards partial result nodes.
-    let generated_cemt = format!("{{try | {body}{{catch @test=\"false\" | }}}}");
+    let declarations = imports::link(&mut compiler, &roots, &options.modules, &mut manifests)?;
+    compiler.select_source(0);
+    let generated_cemt = compiler.templates(&roots[0], &declarations, options)?;
     let template = compile_template_artifact(
         &generated_cemt,
         &CompileTemplateOptions {
-            host_bindings: vec!["document".into()],
+            host_bindings: std::iter::once("document".into())
+                .chain(options.parameters.values().cloned())
+                .collect(),
             ..Default::default()
         },
         TemplateArtifactSourceMapMode::Dev,
@@ -134,21 +251,101 @@ pub fn compile_xslt_bundle(source: &str, source_uri: &str) -> CompileResult<Comp
             format!("{source_uri}#generated-cemt"),
             generated_cemt.as_bytes(),
         ),
-        &[StylesheetSource {
-            source: BundleSource::new(source_uri, source.as_bytes()),
-            dependencies: vec![],
-        }],
+        &manifests,
         &compiler.programs,
     )
-    .map_err(|error| compiler.error(root.event, "cem.xslt.compile_bundle", error.to_string()))?;
+    .map_err(|error| {
+        compiler.error(roots[0].event, "cem.xslt.compile_bundle", error.to_string())
+    })?;
     Ok(CompiledXsltBundle {
         content_hash: ContentHash::from_blake3(&bytes),
         bytes,
-        source_hash: compiler.source_hash,
+        source_hash: hashes[0].clone(),
         generated_cemt,
     })
 }
 
+/// Resolve host-selected template/parameter names in the principal stylesheet's
+/// namespace context. This parses authoring declarations, never runtime data.
+pub fn resolve_xslt_names(
+    source: &str,
+    source_uri: &str,
+    names: &[&str],
+) -> CompileResult<Vec<XPathExpandedName>> {
+    use cem_ml::validation::xpath::*;
+    if source.len() > MAX_SOURCE_BYTES
+        || source_uri.len() > MAX_IDENTIFIER_BYTES - 32
+        || names.len() > 251
+        || names.iter().any(|name| name.len() > MAX_IDENTIFIER_BYTES)
+    {
+        return Err(imports::diagnostic(
+            source_uri,
+            "stylesheet name resolution exceeds compiler limits",
+        ));
+    }
+    let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules(
+        XsltSourceValidationRequest {
+            bytes: source.as_bytes(),
+            source_uri,
+            content_type: Some("application/xslt+xml"),
+        },
+        &[],
+    );
+    let stylesheet = stylesheet.ok_or_else(|| {
+        if diagnostics.is_empty() {
+            imports::diagnostic(source_uri, "stylesheet source could not be parsed")
+        } else {
+            diagnostics
+        }
+    })?;
+    let root = stylesheet
+        .xml_document
+        .events
+        .iter()
+        .find(|event| is_element(event))
+        .ok_or_else(|| imports::diagnostic(source_uri, "stylesheet root missing"))?;
+    let mut context = XPathStaticContext::default();
+    context
+        .namespaces
+        .insert("xml".into(), "http://www.w3.org/XML/1998/namespace".into());
+    for attribute in &root.attributes {
+        if attribute.prefix.as_deref() == Some("xmlns") {
+            context.namespaces.insert(
+                attribute.local_name.clone(),
+                attribute.entity_decoded_value.clone().unwrap_or_default(),
+            );
+        }
+    }
+    let expression = xpath_expression_ast_from_source_bytes(
+        XPathSourceRequest {
+            bytes: b"0",
+            source_uri,
+            content_type: Some(XPATH_CONTENT_TYPE),
+            source_range_projector: None,
+        },
+        XPathAttachment::StandaloneStaticContext {
+            source_id: 1,
+            static_context: context,
+        },
+    );
+    names
+        .iter()
+        .map(|name| {
+            xpath::variable_name(name, &expression).map_err(|message| {
+                vec![Diagnostic {
+                    uri: Some(source_uri.into()),
+                    code: "cem.xslt.compile_name".into(),
+                    severity: Severity::Error,
+                    message,
+                    source_map: Some(root.source_range.source_map()),
+                    ..Default::default()
+                }]
+            })
+        })
+        .collect()
+}
+
+#[derive(Clone)]
 struct AuthorNode<'a> {
     event: &'a XmlEventAst,
     children: Vec<AuthorNode<'a>>,
@@ -273,6 +470,7 @@ struct Scope {
     item: String,
     position: String,
     size: String,
+    mode: String,
     variables: BTreeMap<XPathExpandedName, String>,
 }
 struct Compiler<'a> {
@@ -280,8 +478,19 @@ struct Compiler<'a> {
     source_hash: ContentHash,
     programs: Vec<BundleProgram>,
     next_binding: usize,
+    templates: Vec<TemplateDeclaration<'a>>,
+    names: BTreeMap<XPathExpandedName, usize>,
+    modes: BTreeMap<XPathExpandedName, String>,
+    sources: &'a [XsltStylesheetAst],
+    source_hashes: &'a [ContentHash],
+    source_index: usize,
 }
-impl Compiler<'_> {
+impl<'a> Compiler<'a> {
+    fn select_source(&mut self, index: usize) {
+        self.source_index = index;
+        self.stylesheet = &self.sources[index];
+        self.source_hash = self.source_hashes[index].clone();
+    }
     fn error(
         &self,
         event: &XmlEventAst,
@@ -306,13 +515,13 @@ impl Compiler<'_> {
         self.next_binding += 1;
         name
     }
-    fn attribute<'a>(&self, event: &'a XmlEventAst, name: &str) -> Option<&'a XmlAttributeAst> {
+    fn attribute<'b>(&self, event: &'b XmlEventAst, name: &str) -> Option<&'b XmlAttributeAst> {
         event
             .attributes
             .iter()
             .find(|a| a.namespace_uri.is_none() && a.local_name == name)
     }
-    fn required<'a>(&self, event: &'a XmlEventAst, name: &str) -> CompileResult<&'a str> {
+    fn required<'b>(&self, event: &'b XmlEventAst, name: &str) -> CompileResult<&'b str> {
         self.attribute(event, name)
             .and_then(|a| a.entity_decoded_value.as_deref())
             .filter(|v| !v.trim().is_empty())
@@ -451,6 +660,7 @@ impl Compiler<'_> {
                     item: item.clone(),
                     position: position.clone(),
                     size: size.clone(),
+                    mode: scope.mode.clone(),
                     variables: scope.variables.clone(),
                 };
                 let body = self.sequence(&node.children, inner)?;
@@ -478,6 +688,8 @@ impl Compiler<'_> {
                 ))
             }
             "choose" => self.choose(node, scope),
+            "call-template" => self.named_call(node, scope),
+            "apply-templates" => self.apply_templates(node, scope),
             "value-of" => {
                 self.attributes(event, &["select", "separator"])?;
                 self.empty(node)?;
@@ -700,7 +912,7 @@ impl Compiler<'_> {
         ];
         arguments.extend(scope.variables.values().cloned());
         self.programs.push(BundleProgram {
-            stylesheet: 0,
+            stylesheet: self.source_index,
             focus: BundleFocus::Sequence,
             variables: scope
                 .variables

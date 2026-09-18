@@ -21,6 +21,9 @@ try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_lowering'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_LOWER_FIXTURE_DIR: directory },
     });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_matching'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_MATCH_FIXTURE_DIR: directory },
+    });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
     // go straight to the common CEM import/retention boundary below.
@@ -141,9 +144,25 @@ try {
         } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
         assert.ok(JSON.parse(renderXsltBundle(retained.bundleId, '{}', '[]')).diagnostics.some(d => d.code === 'cem.xslt.unknown_bundle'));
     }
+    // XSLT-MATCH-RUNTIME: imported named overrides and match precedence are
+    // already linked in this native-produced bundle; WASM performs no I/O.
+    const matchedManifest = JSON.parse(readFileSync(join(directory, 'matched.json'), 'utf8'));
+    const matched = load(readFileSync(join(directory, 'matched.bin')), matchedManifest.contentHash, matchedManifest.sourceHash);
+    try {
+        assert.equal(matched.sourceClosure.length, 2);
+        for (const [source, expected] of [['<r><a>A</a></r>', 'overrideA'], ['<r><a>B</a><a>C</a></r>', 'overrideBC']]) {
+            const document = retainCemDocument(new TextEncoder().encode(source), 'application/xml', 'memory:match-input');
+            try {
+                const output = render(document, '{}', matched.bundleId);
+                assert.deepEqual(output.diagnostics, []);
+                assert.equal(text(output.nodes), expected);
+                checks++;
+            } finally { disposeCemDocument(document); }
+        }
+    } finally { disposeXsltBundle(matched.bundleId); }
     const wrap = body => `<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/">${body}</xsl:template></xsl:stylesheet>`;
     for (const compile of [compileXsltBundle, retainXsltStylesheet]) {
-        assert.throws(() => compile(wrap('<xsl:apply-templates/>'), 'memory:unsupported.xslt'), error => {
+        assert.throws(() => compile(wrap('<xsl:apply-imports/>'), 'memory:unsupported.xslt'), error => {
             const diagnostics = JSON.parse(String(error)).diagnostics;
             assert.ok(diagnostics.some(d => d.code === 'cem.xslt.compile_unsupported'
                 && d.uri === 'memory:unsupported.xslt' && d.byteOffset > 0 && d.sourceMap.frames.length));

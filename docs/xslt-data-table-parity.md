@@ -7,9 +7,10 @@ native query-function hook; its runtime integration is implemented and verified
 below. The compiled-bundle/browser-host delivery path is approved, with
 independently identified XPath programs. The XPath artifact foundation is
 implemented; XSLT bundle delivery and bounded root-template runtime lowering
-are implemented. Template dispatch and subsequent viewer stages remain open
-in [todo.md](todo.md). Explicit host position and sequence size are now
-supported by the shared XPath API. No equivalent XSLT stylesheet or browser
+are implemented. Template dispatch, parameters, modes, imports/includes and
+strict transform/CLI execution are now implemented. Grouping and subsequent
+viewer stages remain open in [todo.md](todo.md). Explicit host position and
+sequence size are now supported by the shared XPath API. No equivalent XSLT stylesheet or browser
 sample is available yet.
 
 ## Scope
@@ -386,8 +387,9 @@ reaches the browser with its executable XPath programs. Inspection established
 the following delivery boundary:
 
 - `XsltParityTransformTemplateAdapter` lives above both `cem_ml` and `cem_ql`.
-  Its current compiler still uses the legacy converter. It can retain a native
-  payload in a CLI process, but that is not a browser-loadable artifact.
+  At that delivery audit its compiler still used the legacy converter;
+  XSLT-VIEW-MATCH has since replaced execution with typed bundles. The original
+  CLI-native payload alone was not a browser-loadable artifact.
 - The portable CEMT artifact carries CEMT/query IR. It intentionally excludes
   the callback registry and any typed XPath AST retained by a callback.
   `cemt_binary_reload_requires_explicit_capabilities_and_preserves_recovery`
@@ -528,15 +530,19 @@ variables, original diagnostics, retention, shared cancellation and budgets.
 This completes delivery infrastructure using a manually composed generated
 CEMT fixture. XSLT-VIEW-LOWER subsequently preserves stylesheet
 instructions as reusable runtime CEMT and connects their typed XPath slots to
-the bundle. Import precedence, grouping, sorting, viewer output and the gallery
-case remain tracked separately.
+the bundle. Import precedence was subsequently implemented in XSLT-VIEW-MATCH;
+grouping, sorting, viewer output and the gallery case remain tracked separately.
 
-The [bounded runtime compiler](xslt-runtime-lowering.md) now compiles one root
-template into that bundle. It preserves native loop focus, lexical variables,
-XPath boolean/simple-content semantics and source diagnostics, with atomic
-failure output. Native-produced and source-compiled bundles share the WASM
-retention lifecycle. This does not yet migrate the older transform/CLI adapter
-or deliver the equivalent viewer. XSLT-VIEW-MATCH is next.
+The [bounded runtime compiler](xslt-runtime-lowering.md) now compiles recursive
+named/matched templates, explicit parameters, modes, exact priorities and
+import/include precedence into that bundle. It preserves native focus,
+lexical scope, original XPath source owners and atomic failure output. The
+transform/CLI adapter executes this namespace-correct XSLT 3.0 profile; legacy
+execution and implicit parameter/version/namespace shortcuts are retired.
+Standalone legacy conversion commands remain separate. Native-produced
+closures use the same explicit WASM loading lifecycle without fetching source.
+Grouping, sorting and the complete output/viewer profile remain pending.
+XSLT-VIEW-GROUP is next.
 
 ## Acceptance and implementation order
 
