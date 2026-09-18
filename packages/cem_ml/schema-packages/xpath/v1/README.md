@@ -552,6 +552,26 @@ expression attributes and AVT segments. None of these runtime adapters parses
 an expression string or maps a CEMT, CEM-QL `ItemStream`, or JSON value into
 XDM.
 
+`XPathDynamicContext` accepts optional `context_position` and `context_size`
+as `u64` invocation metadata. Supply both alongside a context item, with
+`1 <= position <= size`. Omitting both preserves singleton focus (`1/1`) for
+a present item and absent focus otherwise. Partial coordinates, zero values,
+position greater than size, or coordinates without an item fail before
+expression execution with `cem.xpath.focus_invalid`, retaining the expression's
+source location. These are host-contract errors, not a new XPath language error.
+Positions and sizes remain exact `xs:integer` values on native and WASM targets;
+the size does not allocate a sequence or replace existing item/work limits.
+
+Predicates, path steps and simple maps establish their own focus and restore
+the caller's focus afterward. Inline functions still have absent focus;
+authors can explicitly capture `position()`/`last()` results in variables.
+The new fields are runtime-only: artifact formats and hashes are unchanged,
+and reloaded programs accept a different focus on every call. The native XSLT
+adapter now accepts this contract; stylesheet-loop lowering and bundle/WASM
+binding remain separate pending work. Unknown streaming size is not supported
+by this materialized-focus contract. See
+[XPath dynamic context](https://www.w3.org/TR/xpath-31/#id-xq-evaluation-context-components).
+
 The result media type is intentionally distinct from expression source and does
 not enter the XPath source parser. XML, JSON, CEM, and text serialization remain
 explicit downstream conversion edges. CEMT has both the typed adapter boundary

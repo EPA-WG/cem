@@ -189,6 +189,7 @@
         {diagnostic @code="cem.xpath.evaluation_unsupported" @severity="error"}
         {diagnostic @code="cem.xpath.invocation_host_mismatch" @severity="error"}
         {diagnostic @code="cem.xpath.context_item_missing" @severity="error"}
+        {diagnostic @code="cem.xpath.focus_invalid" @severity="error"}
         {diagnostic @code="cem.xpath.context_item_native_node_required" @severity="error"}
         {diagnostic @code="cem.xpath.variable_unbound" @severity="error"}
         {diagnostic @code="cem.xpath.result_artifact_invalid" @severity="fatal"}

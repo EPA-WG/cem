@@ -992,7 +992,7 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       Verification: all 97 adapter tests pass through Nx, including the two
       new probes and existing native-hook integration. Adapter lint passes
       with existing warnings; fixture formatting and `git diff --check` pass.
-- [ ] XSLT-BUNDLE-FOCUS-DECISION: approve a shared XPath dynamic-context
+- [x] XSLT-BUNDLE-FOCUS-DECISION: approve a shared XPath dynamic-context
       extension for explicit host position/size before defining the bundle
       call contract, or restrict the initial bundle to singleton host focus
       and explicitly reject instructions that require unavailable outer focus.
@@ -1001,7 +1001,22 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       focus changes, absent focus in inline functions, native owners and
       source diagnostics. Runtime focus must not be serialized into programs.
       The bundle/native-hook approvals remain resolved; the new decision is
-      only this shared capability expansion. Stop here pending direction.
+      only this shared capability expansion.
+      Approved 2026-09-18: option 1, explicit host position and sequence size
+      in the shared XPath dynamic context.
+- [x] Fixture XPATH-HOST-FOCUS: add validated explicit host position/size with
+      singleton defaults. Verify absent/invalid focus, nested predicates/maps,
+      inline-function focus isolation, native owners, source diagnostics,
+      limits/control and source-free reload. Replace the XSLT boundary probes
+      with invocation acceptance tests; verify native and shared WASM paths.
+      Completed 2026-09-18: optional `u64` context position/size are validated
+      together with the item; omitted coordinates preserve singleton/absent
+      focus. Seven direct fixtures and three XSLT invocation fixtures cover
+      the contract, including exact 64-bit values and original source ranges.
+      Verification: 86 XPath unit tests, 42 focused native cases and all 98
+      adapter tests pass; shared WASM rebuild, 17 artifact and 125 companion
+      checks pass. Native lint passes with existing warnings. Artifact bytes
+      and versions stay unchanged; bundle/WASM focus binding remains below.
 - [ ] Fixture XSLT-COMPILED-BUNDLE: compose generated CEMT with independently
       identified XPath programs and stylesheet imports. Validate versions,
       hashes, source maps, capability ownership and disposal; explicitly bind

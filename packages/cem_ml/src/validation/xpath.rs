@@ -875,6 +875,13 @@ pub const XPATH_DEFAULT_LANGUAGE: &str = "en";
 #[derive(Debug, Clone)]
 pub struct XPathDynamicContext {
     pub context_item: Option<XPathResultItem>,
+    /// One-based position in the host's current sequence. Explicit coordinates
+    /// require a context item and both fields, with 1 <= position <= size.
+    /// Omitting both retains singleton focus for a present context item.
+    pub context_position: Option<u64>,
+    /// Size of the host's current sequence. This is metadata, not an instruction
+    /// to materialize that sequence. Unknown streaming size is not supported.
+    pub context_size: Option<u64>,
     pub variable_bindings: XPathVariableBindings,
     pub default_language: String,
 }
@@ -883,6 +890,8 @@ impl Default for XPathDynamicContext {
     fn default() -> Self {
         Self {
             context_item: None,
+            context_position: None,
+            context_size: None,
             variable_bindings: BTreeMap::new(),
             default_language: XPATH_DEFAULT_LANGUAGE.to_owned(),
         }
@@ -1142,14 +1151,22 @@ impl CemXPathEvaluator {
         runtime
             .force(syntax.root.source_range)
             .map_err(|error| vec![error.into_diagnostic(request.expression)])?;
+        let focus = XPathFocus::from_dynamic_context(
+            &request.dynamic_context,
+            &request.static_context,
+        )
+        .map_err(|message| {
+            vec![xpath_evaluation_diagnostic(
+                request.expression,
+                "cem.xpath.focus_invalid",
+                message,
+                Some(syntax.root.source_range),
+            )]
+        })?;
         let sequence = xpath_evaluate_expression_sequence(
             request.expression,
             &syntax.root,
-            XPathFocus::outer(
-                request.dynamic_context.context_item.as_ref(),
-                &request.dynamic_context.default_language,
-                &request.static_context,
-            ),
+            focus,
             &request.dynamic_context.variable_bindings,
             &mut runtime,
         )
@@ -1664,13 +1681,35 @@ impl XPathEvaluationError {
 #[derive(Debug, Clone, Copy)]
 struct XPathFocus<'a> {
     context_item: Option<&'a XPathResultItem>,
-    position: usize,
-    size: usize,
+    position: u64,
+    size: u64,
     default_language: &'a str,
     static_context: &'a XPathStaticContext,
 }
 
 impl<'a> XPathFocus<'a> {
+    fn from_dynamic_context(
+        context: &'a XPathDynamicContext,
+        static_context: &'a XPathStaticContext,
+    ) -> Result<Self, &'static str> {
+        let mut focus = Self::outer(
+            context.context_item.as_ref(),
+            &context.default_language,
+            static_context,
+        );
+        match (context.context_position, context.context_size) {
+            (None, None) => Ok(focus),
+            (Some(position), Some(size))
+                if context.context_item.is_some() && position > 0 && position <= size =>
+            {
+                focus.position = position;
+                focus.size = size;
+                Ok(focus)
+            }
+            _ => Err("XPath host focus requires a context item and both position and size, with 1 <= position <= size"),
+        }
+    }
+
     fn outer(
         context_item: Option<&'a XPathResultItem>,
         default_language: &'a str,
@@ -1678,8 +1717,8 @@ impl<'a> XPathFocus<'a> {
     ) -> Self {
         Self {
             context_item,
-            position: usize::from(context_item.is_some()),
-            size: usize::from(context_item.is_some()),
+            position: u64::from(context_item.is_some()),
+            size: u64::from(context_item.is_some()),
             default_language,
             static_context,
         }
@@ -1694,8 +1733,8 @@ impl<'a> XPathFocus<'a> {
     ) -> Self {
         Self {
             context_item: Some(context_item),
-            position,
-            size,
+            position: position as u64,
+            size: size as u64,
             default_language,
             static_context,
         }
@@ -3751,7 +3790,7 @@ fn xpath_evaluate_function_call(
         return Ok(vec![xpath_numeric_result_item(
             expression,
             source_range,
-            XPathComparableAtomic::Integer(XPathExactDecimal::from_usize(value)),
+            XPathComparableAtomic::Integer(XPathExactDecimal::from_u64(value)),
             runtime,
         )?]);
     }
@@ -4536,7 +4575,7 @@ fn xpath_apply_predicates(
 
 fn xpath_predicate_truth_value(
     items: &[XPathResultItem],
-    position: usize,
+    position: u64,
     source_range: XPathSourceRange,
 ) -> Result<bool, XPathEvaluationError> {
     if let [XPathResultItem::Atomic { value, .. }] = items {
@@ -4549,15 +4588,15 @@ fn xpath_predicate_truth_value(
 
 fn xpath_numeric_equals_position(
     value: &XPathAtomicValue,
-    position: usize,
+    position: u64,
     source_range: XPathSourceRange,
 ) -> Result<Option<bool>, XPathEvaluationError> {
     let result = match value.type_name.as_str() {
         "xs:integer" => XPathExactDecimal::parse(&value.lexical_value, false).map(|number| {
-            number.compare(&XPathExactDecimal::from_usize(position)) == Ordering::Equal
+            number.compare(&XPathExactDecimal::from_u64(position)) == Ordering::Equal
         }),
         "xs:decimal" => XPathExactDecimal::parse(&value.lexical_value, true).map(|number| {
-            number.compare(&XPathExactDecimal::from_usize(position)) == Ordering::Equal
+            number.compare(&XPathExactDecimal::from_u64(position)) == Ordering::Equal
         }),
         "xs:float" => {
             xpath_parse_float(&value.lexical_value).map(|number| number == position as f32)

@@ -1,9 +1,9 @@
-//! XSLT-BUNDLE-FOCUS-GATE: characterize the missing host focus before fixing
-//! the bundle invocation contract. These are boundary probes, not acceptance
-//! tests for a conforming XSLT loop. Replace the singleton expectation when
-//! explicit host position/size support is approved and implemented.
+//! XPATH-HOST-FOCUS: XSLT-owned programs accept explicit host focus before and
+//! after binary reload. This verifies the invocation contract, not the pending
+//! stylesheet-to-CEMT loop compiler or bundle loader.
 use cem_ml::{
     content_cache::ContentHash,
+    diagnostics::Diagnostic,
     import::import_data,
     resolver::{ResolverPolicy, ResolverRegistry},
     validation::{
@@ -62,7 +62,11 @@ fn document(source: &str) -> XPathResultItem {
     ))
 }
 
-fn evaluate(expression: &XPathExpressionAst, context: &XPathResultItem) -> Vec<XPathResultItem> {
+fn evaluate(
+    expression: &XPathExpressionAst,
+    context: &XPathResultItem,
+    coordinates: Option<(u64, u64)>,
+) -> Result<Vec<XPathResultItem>, Vec<Diagnostic>> {
     let XPathAttachment::Host(host) = &expression.attachment else {
         panic!("XSLT attachment must survive reload")
     };
@@ -72,6 +76,8 @@ fn evaluate(expression: &XPathExpressionAst, context: &XPathResultItem) -> Vec<X
             expression,
             dynamic_context: XPathDynamicContext {
                 context_item: Some(context.clone()),
+                context_position: coordinates.map(|(position, _)| position),
+                context_size: coordinates.map(|(_, size)| size),
                 ..Default::default()
             },
             static_context: host.static_context.clone(),
@@ -82,9 +88,7 @@ fn evaluate(expression: &XPathExpressionAst, context: &XPathResultItem) -> Vec<X
             safety_policy_stamp: "xslt-bundle-focus-gate",
             module_resolution: None,
         })
-        .unwrap()
-        .sequence
-        .items
+        .map(|result| result.sequence.items)
 }
 
 fn strings(items: Vec<XPathResultItem>) -> Vec<String> {
@@ -98,7 +102,7 @@ fn strings(items: Vec<XPathResultItem>) -> Vec<String> {
 }
 
 #[test]
-fn per_item_host_calls_cannot_supply_the_xslt_iteration_position_and_size() {
+fn per_item_host_calls_supply_the_xslt_iteration_position_and_size() {
     let selectors = programs("/r/item");
     let labels = programs(LABEL);
     for source in [
@@ -107,7 +111,7 @@ fn per_item_host_calls_cannot_supply_the_xslt_iteration_position_and_size() {
     ] {
         let root = document(source);
         for (selector, label) in selectors.iter().zip(&labels) {
-            let items = evaluate(selector, &root);
+            let items = evaluate(selector, &root, None).unwrap();
             let size = items.len();
             let mut actual = Vec::new();
             let mut required = Vec::new();
@@ -118,14 +122,18 @@ fn per_item_host_calls_cannot_supply_the_xslt_iteration_position_and_size() {
                     root.native_node().unwrap().owner(),
                 ));
                 let text = node.string_value();
-                let result = strings(evaluate(label, item));
-                assert_eq!(result, [format!("{text}:1/1")]);
+                assert_eq!(
+                    strings(evaluate(label, item, None).unwrap()),
+                    [format!("{text}:1/1")]
+                );
+                let result =
+                    strings(evaluate(label, item, Some((index as u64 + 1, size as u64))).unwrap());
                 actual.extend(result);
                 required.push(format!("{text}:{}/{size}", index + 1));
             }
-            assert_ne!(
+            assert_eq!(
                 actual, required,
-                "the bundle cannot promise XSLT loop focus yet"
+                "the host can supply XSLT loop focus without rewriting XPath"
             );
         }
     }
@@ -134,16 +142,33 @@ fn per_item_host_calls_cannot_supply_the_xslt_iteration_position_and_size() {
 #[test]
 fn expression_local_map_and_predicate_focus_work_before_and_after_reload() {
     let select = format!(
-        "/r/item ! string-join(({LABEL}, ':', string((10, 20, 30)[position() = last()]), ':', string(position()), '/', string(last())), '')"
+        "(/r/item ! string-join(({LABEL}, ':', string((10, 20, 30)[position() = last()]), ':', string(position()), '/', string(last())), ''), position(), last())"
     );
     for expression in programs(&select) {
         assert_eq!(
-            strings(evaluate(
-                &expression,
-                &document("<r><item>A</item><item>B</item></r>")
-            )),
-            ["A:1/2:30:1/2", "B:2/2:30:2/2"],
+            strings(
+                evaluate(
+                    &expression,
+                    &document("<r><item>A</item><item>B</item></r>"),
+                    Some((4, 9)),
+                )
+                .unwrap()
+            ),
+            ["A:1/2:30:1/2", "B:2/2:30:2/2", "4", "9"],
             "inner predicates establish their own focus and restore the simple-map focus"
         );
+    }
+}
+
+#[test]
+fn invalid_host_focus_keeps_the_original_stylesheet_range_after_reload() {
+    for expression in programs("42") {
+        let errors = evaluate(&expression, &document("<r/>"), Some((3, 2))).unwrap_err();
+        assert_eq!(errors[0].code, "cem.xpath.focus_invalid");
+        assert_eq!(errors[0].uri.as_deref(), Some("memory:bundle-focus.xslt"));
+        let range = expression.syntax_ast.as_ref().unwrap().root.source_range;
+        assert!(range.start.byte_offset > 0);
+        assert_eq!(errors[0].byte_offset, Some(range.start.byte_offset));
+        assert!(!errors[0].source_map.as_ref().unwrap().frames.is_empty());
     }
 }
