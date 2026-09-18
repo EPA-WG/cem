@@ -92,8 +92,8 @@ The [XPath XML table/tree demos](./demo/xpath-nodes.html) use the separate
 `xpath-nodes.cemt` function library and explicit XML XPath reader view.
 Names retain their namespace URIs, adjacent text/CDATA shares a text node, and
 CEM-QL sorting preserves each native node for XPath parent/sibling navigation.
-The table selects rows by unique authored `@id`. This local XML slice leaves
-standard XPath `fn:sort` for later work; HTTP ownership now uses retained CEM documents.
+The table selects rows by unique authored `@id`. The sorting gallery below
+uses standard XPath `fn:sort`; HTTP ownership uses retained CEM documents.
 
 The [XPath sequence demos](./demo/xpath-sequences.html) use
 `xpath-sequences.cemt` for rounded word windows, reversal, head/tail selection
@@ -103,6 +103,20 @@ explicitly preserves first-seen column order; it does not depend on
 `distinct-values` result order. Live edits add new columns without new field
 expressions. Missing cells display ∅, empty cells display `""`, and repeated
 cells join with ` / `.
+
+The [XPath sorting demos](./demo/xpath-sort.html) use `xpath-sort.cemt` for
+stable text/numeric ordering and multiple row keys. Inline functions capture
+scalar direction settings inside XPath and return retained source nodes;
+selection and source-sibling navigation survive reordering. Missing/invalid-last
+keys are explicitly authored. Only codepoint collation is supported, and compiled
+XPath program format v3 requires recompilation of older v1/v2 programs.
+
+The [XPath validation demos](./demo/xpath-validation.html) use
+`xpath-validation.cemt` for form fields and a local IPv4 prefix-length rule.
+Regex lexical checks combine with integer ranges and `some`/`every`;
+regex tokenize/replace format accepted tags. The demos explain the supported
+regex subset and explicit exclusions. They do not implement subnet matching
+or network enforcement.
 
 The [XPath aggregate demos](./demo/xpath-aggregates.html) use
 `xpath-aggregates.cemt` for decimal-list statistics and a live XML basket.

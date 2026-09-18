@@ -1,0 +1,75 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module |
+    {function @name=sort.words @visibility=public @returns=any |
+        {param @name=text @type=string @required=true}
+        {param @name=numeric @type=boolean @required=true}
+        {param @name=descending @type=boolean @required=true}
+        {body | {xpath @sequence-type="xs:string*" |
+            {variable @binding=text @local-name=text}
+            {variable @binding=numeric @local-name=numeric}
+            {variable @binding=descending @local-name=descending}
+            {expression | ```
+                let $words := tokenize($text)
+                return if ($numeric) then
+                    sort($words, (), function($word) {
+                        let $valid := $word castable as xs:decimal
+                        return (not($valid),
+                            if ($valid) then
+                                (if ($descending) then -xs:decimal($word)
+                                 else xs:decimal($word))
+                            else 0)
+                    })
+                else if ($descending) then reverse(sort(reverse($words)))
+                else sort($words)
+            ```}
+    }   }   }
+    {function @name=sort.rows @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {param @name=descending @type=boolean @required=true}
+        {body | {xpath @context=document @sequence-type="node()*" |
+            {variable @binding=descending @local-name=descending}
+            {expression | ```
+                sort(/r/row, (), function($row) {
+                    if (string($row/@qty) castable as xs:decimal)
+                    then (false(), string($row/@group),
+                        if ($descending) then -xs:decimal($row/@qty)
+                        else xs:decimal($row/@qty))
+                    else true()
+                })
+            ```}
+    }   }   }
+    {function @name=sort.selected @visibility=public @returns=any |
+        {param @name=document @type=any @required=true}
+        {param @name=id @type=string @required=true}
+        {body | {xpath @context=document @sequence-type="node()*" |
+            {variable @binding=id @local-name=id}
+            {expression | /r/row[@id = $id]}
+    }   }   }
+    {function @name=row.id @visibility=public @returns=string |
+        {param @name=row @type=any @required=true}
+        {body | {xpath @context=row @sequence-type="xs:string" |
+            {expression | string(@id)}
+    }   }   }
+    {function @name=row.label @visibility=public @returns=string |
+        {param @name=row @type=any @required=true}
+        {body | {xpath @context=row @sequence-type="xs:string" |
+            {expression | string(.)}
+    }   }   }
+    {function @name=row.group @visibility=public @returns=string |
+        {param @name=row @type=any @required=true}
+        {body | {xpath @context=row @sequence-type="xs:string" |
+            {expression | string(@group)}
+    }   }   }
+    {function @name=row.qty @visibility=public @returns=string |
+        {param @name=row @type=any @required=true}
+        {body | {xpath @context=row @sequence-type="xs:string" |
+            {expression | if (exists(@qty)) then string(@qty) else '∅'}
+    }   }   }
+    {function @name=row.previous @visibility=public @returns=string |
+        {param @name=row @type=any @required=true}
+        {body | {xpath @context=row @sequence-type="xs:string" |
+            {expression | string(preceding-sibling::row[1])}
+    }   }   }
+}

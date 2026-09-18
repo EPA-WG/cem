@@ -265,6 +265,7 @@ fn native_sequences_retain_node_identity_maps_arrays_functions_and_source_maps()
         name: None,
         arity: 0,
         signature: "function() as item()*".into(),
+        native_function: None,
         source_map: origin.clone(),
     };
     for item in [array.clone(), map, function] {

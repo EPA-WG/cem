@@ -613,19 +613,84 @@ or put table-specific logic in Rust. Keep each demo's original feature visible.
       [wishlist.md](wishlist.md#cem-ml-runtime). Typed chunks/events, backpressure,
       bounded retention, partial errors, cancellation, stable identity and query
       streamability require their own fixtures after materialized-loader parity.
-- [ ] Fixture XPATH-DEMO-SORT: implement the required function-item/inline-
+- [x] Fixture XPATH-DEMO-SORT: implement the required function-item/inline-
       function slice before keyed `fn:sort`; verify stable multi-key ordering,
       typed comparisons, supported collations and retained source selection.
       Explicitly author missing/invalid-last keys in the viewer; standard sort
       is not an alias for the existing `seq:sorted` policy. Keep XSLT grouping,
       xsl:sort options and presentation dispatch in their owning layer.
-- [ ] Fixture XPATH-DEMO-VALIDATION: add bounded XPath regex `fn:matches` and
+    - [x] Fixture XPATH-SORT-FUNCTIONS: add native inline-function closures,
+          lexical capture, typed invocation and bounded dynamic calls; preserve
+          retained CEM owners and source maps through compiled-program reload.
+          Keep executable closures inside XPath and retain the existing CEM-QL
+          rejection of function-valued arguments/results.
+          Completed: lexical capture/shadowing, typed conversion, absent focus,
+          expanded parameter names, retained owners, defining-source diagnostics
+          and bounded recursive calls pass native and WASM checks. Portable
+          programs use v3; v1/v2 programs require recompilation.
+    - [x] Fixture XPATH-SORT-NATIVE: implement stable `fn:sort` with atomized
+          lexicographic keys, supported typed comparisons and codepoint
+          collation; verify errors, limits, cancellation and source identity.
+          Completed: stable typed/multi-key sorting, callable map/array keys,
+          empty/NaN ordering, explicit invalid-last policies and retained node
+          identities pass native fixtures. The external-import source guard
+          includes the new sorting and inline-function modules.
+    - [x] Fixture XPATH-SORT-DEMO: teach authored validity and direction keys
+          with retained source selection, native/WASM parity and compact
+          standalone/source-loaded browser coverage.
+          Completed 2026-09-17: two anonymous samples use a separate XPath
+          library, preserve selected-row source navigation, and cover edits,
+          malformed input, recovery and focus. Both loading modes fit two
+          704px cards at 1440px without page overflow.
+      Verification: 350 CEM-QL tests, 86 XPath unit tests and 32 focused native
+      cases; 103 companion and 17 artifact native/WASM checks; 380 browser-host
+      unit tests, all 162 Chromium stories, 24 standalone pages and 30 source-
+      loaded documents. Native/TypeScript lint, typecheck, source guards and
+      layout checks pass. The first broad browser run hit the existing
+      data-slices startup timeout; all stories passed on the final rerun.
+- [x] XPATH-REGEX-SCOPE-DECISION: clarify the initial regex contract before
+      XPATH-DEMO-VALIDATION. The current Rust `regex` engine excludes
+      backreferences, while XPath F&O 3.1 permits them and defines its own
+      pattern/flag rules. Choose a documented standards-compatible subset that
+      explicitly rejects unsupported valid constructs, or implement the full
+      XPath regex language with bounded execution before enabling the demos.
+      Recommended: the explicit subset first, consistent with staged XPath
+      delivery; do not silently treat Rust regex syntax as XPath syntax.
+      Sources: [XPath regex](https://www.w3.org/TR/xpath-functions-31/#regex-syntax)
+      and [regex 1.12.3](https://docs.rs/regex/1.12.3/regex/index.html).
+      Accepted 2026-09-18: option 1, the explicit standards-compatible subset.
+      Reject unsupported constructs; do not silently accept the engine dialect.
+- [x] Fixture XPATH-DEMO-VALIDATION: add bounded XPath regex `fn:matches` and
       regex tokenize/replace when needed, preserving standard pattern/flag/
       replacement and error semantics rather than inheriting literal CEM-QL
       split/replace behavior. Reuse `some`/`every` and supported `castable as`
       in form and IP-filter preview cases, including numeric ranges and invalid
       input; regex alone must not be presented as complete address validation.
       Date/time types and formatters remain a later separately bounded slice.
+    - [x] Fixture XPATH-REGEX-NATIVE: implement and document a bounded regex
+          grammar/flag subset for matches, replace and tokenize. Test standard
+          errors, dialect exclusions, empty matches, replacement captures,
+          Unicode/XML whitespace, limits, cancellation and compiled reload.
+          Completed 2026-09-18: seven native groups cover the explicit grammar,
+          s/x/q flags, numbered captures, standard errors and exclusions,
+          repeated-search work charging, hard/shared limits and control checks.
+          Typed programs reload without source; XML/JSON/YAML atomization uses
+          retained imported trees. NFA state/edge work counts are portable.
+    - [x] Fixture XPATH-REGEX-HOST: verify separate-library invocation and
+          native/WASM parity, including retained imported node atomization,
+          diagnostics and host budget propagation; extend import source guards.
+          Completed: all 352 CEM-QL tests and 125 native/WASM companion checks
+          pass, including source/reloaded libraries, explicit error diagnostics,
+          and uncatchable capability/resource failures. The source guard now
+          includes the regex module.
+    - [x] Fixture XPATH-REGEX-DEMO: add form and IPv4/CIDR preview samples using
+          authored lexical checks plus numeric ranges, with standalone/source-
+          loaded interactions, recovery, focus and compact-layout coverage.
+          Completed 2026-09-18: two anonymous samples invoke a separate XPath
+          library for form fields and an IPv4 prefix-length allow-list. Browser
+          coverage verifies boundaries, invalid input, recovery, focus/caret and
+          instance isolation. Both loading modes fit two 704px cards at 1440px
+          without page overflow; the preview does not claim subnet membership.
 - [x] XPATH-DEMO-CONFORMANCE-DOCS: reconcile the XPath conformance matrix and
       README with the implemented arithmetic/range and accessor/numeric
       function dispatch before marking new slices complete. Distinguish native
@@ -636,10 +701,16 @@ or put table-specific logic in Rust. Keep each demo's original feature visible.
       Native execution, artifact representation, host ownership and per-slice
       demo coverage remain separate; full standard-library/QT3 coverage is
       still incomplete. Keep these notes current as later slices land.
-- [ ] XPATH-DEMO-VERIFY: for each completed slice run focused native fixtures,
+- [x] XPATH-DEMO-VERIFY: for each completed slice run focused native fixtures,
       then shared WASM and browser integration, source guards, fixture inventory,
       lint/typecheck and compact standalone/source-loaded layout checks. Keep
       original CEM-QL cases and their event/reset/focus/instance teaching points.
+      Sorting-slice evidence is recorded in XPATH-DEMO-SORT above. Final regex
+      verification 2026-09-18: seven native regex groups, 352 CEM-QL tests,
+      86 XPath unit tests and 125 native/WASM companion checks pass; 382 host
+      unit tests, all 163 Chromium stories, 25 standalone pages and 31 source-
+      loaded documents pass. Import-boundary guards, native/TypeScript lint,
+      typecheck and both validation-demo layout checks pass.
 - [x] XPATH-DEMO-JSON-NATIVE-REPLAN: replaced the deferred JSON-specific
       reader/view decision on 2026-09-17 with XPATH-CEM-TREE-PARITY, VIEW and
       INTEGRATION above, following the user's common-tree direction. This

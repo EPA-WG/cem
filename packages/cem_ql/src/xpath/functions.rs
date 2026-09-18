@@ -372,18 +372,25 @@ impl NativeQueryFunction for InstalledFunction {
                     failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::ItemsPerStage));
                 } else if diagnostics
                     .iter()
+                    .any(|d| d.code == "cem.xpath.function_depth_exceeded")
+                {
+                    failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::CallDepth));
+                } else if diagnostics
+                    .iter()
                     .any(|d| d.code == "cem.xpath.text_byte_limit_exceeded")
                 {
                     failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::XPathTextBytes));
                 } else if diagnostics
                     .iter()
-                    .any(|d| d.code == "cem.xpath.work_limit_exceeded")
+                    .any(|d| matches!(d.code.as_str(),
+                        "cem.xpath.work_limit_exceeded" | "cem.xpath.regex_limit_exceeded"))
                 {
                     failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::XPathWorkUnits));
                 } else if diagnostics.iter().any(|d| {
                     matches!(
                         d.code.as_str(),
                         "cem.xpath.evaluation_unsupported"
+                            | "cem.xpath.regex_unsupported"
                             | "cem.xpath.control_failure"
                             | "cem.xpath.node_order_cross_owner_unsupported"
                             | "cem.xpath.module_url_unavailable"

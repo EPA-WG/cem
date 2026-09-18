@@ -263,7 +263,9 @@ The bounded native binding contract is:
   `xs:integer`, `xs:decimal`, `xs:float`, `xs:double`, `xs:anyURI`,
   `xs:untypedAtomic` types, with `?`, `*`, `+` occurrences. This is a closed host
   result contract, not full XPath schema typing; general function items
-  remain unsupported.
+  cannot cross this boundary. Inline functions can execute inside XPath for
+  operations such as `fn:sort`, retaining lexical values and native nodes;
+  functions nested in returned maps/arrays are rejected as well.
 - Compilation limits source and URI to 32 KiB each and XPath bodies to 64.
   Only public XPath functions are installed; imports require a future resolved
   companion closure. Calls share operation control and sequence/call budgets
@@ -274,6 +276,7 @@ The bounded native binding contract is:
   retained and text extraction is bounded on atomization. Hosts can use
   `install_with_limits` to choose `XPathEvaluationLimits`; library source and
   portable companions cannot override the host. Unsupported capabilities,
+  the XPath inline limits (32 calls and 32 active expression frames),
   cancellation and item/text/work limits remain uncatchable; failed calls
   return no partial sequence.
 

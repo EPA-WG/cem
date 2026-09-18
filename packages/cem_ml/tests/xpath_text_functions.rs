@@ -187,17 +187,11 @@ fn invalid_text_arguments_report_the_argument_and_unsupported_arities_fail_close
         );
     }
     for source in [
-        "tokenize('a', ' ')",
-        "tokenize('a', ' ', 'i')",
         "normalize-space()",
         "string-length()",
     ] {
         let errors = evaluate(source, XPathEvaluationLimits::default()).unwrap_err();
-        let code = if source.starts_with("tokenize") {
-            "cem.xpath.evaluation_unsupported"
-        } else {
-            "cem.xpath.context_item_missing"
-        };
+        let code = "cem.xpath.context_item_missing";
         assert_eq!(errors[0].code, code, "{source}: {errors:?}");
     }
 }

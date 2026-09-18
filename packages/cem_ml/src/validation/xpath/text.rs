@@ -174,6 +174,10 @@ impl XPathEvaluationRuntime {
             for item in items {
                 runtime.poll(range)?;
                 match item {
+                    XPathResultItem::Function { native_function: Some(function), .. } => {
+                        *total = total.saturating_add(function.retained_text_bytes());
+                        runtime.check_text_size(*total, range)?;
+                    }
                     XPathResultItem::Atomic { value, .. } => {
                         *total = total.saturating_add(value.lexical_value.len());
                         runtime.check_text_size(*total, range)?;
@@ -303,7 +307,7 @@ pub(super) fn node_typed_value(
     })
 }
 
-fn string_argument(
+pub(super) fn string_argument(
     items: &[XPathResultItem],
     optional: bool,
     range: XPathSourceRange,

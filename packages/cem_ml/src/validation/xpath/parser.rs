@@ -1,7 +1,8 @@
 use super::lexer::{XPathLexicalToken, XPathLexicalTokenKind};
 use super::{
     XPathArrayConstructor, XPathAttachment, XPathAxis, XPathBinaryOperator, XPathExpression,
-    XPathExpressionNode, XPathExpressionSequence, XPathKindTest, XPathLiteral, XPathLiteralKind,
+    XPathExpressionNode, XPathExpressionSequence, XPathFunctionParameter, XPathKindTest,
+    XPathLiteral, XPathLiteralKind,
     XPathLookupKey, XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest,
     XPathOccurrenceIndicator, XPathPathExpression, XPathPathRoot, XPathPostfixExpression,
     XPathPrimaryExpression, XPathQuantifier, XPathSequenceItemType, XPathSequenceType,
@@ -922,12 +923,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
                     XPathArrayConstructor::Curly(expression),
                 ))
             }
-            _ if token.lexeme == "function" => {
-                self.consume_unsupported_tail();
-                Ok(XPathPrimaryExpression::Unsupported {
-                    production: "inline-function-expression".to_owned(),
-                })
-            }
+            _ if token.lexeme == "function" => self.parse_inline_function(),
             _ if is_name_token(token) && self.consume_if("(").is_some() => {
                 let name = self.resolve_name(token_index, token, XPathNameUse::Function)?;
                 let arguments = self.parse_argument_list_after_open()?;
@@ -968,6 +964,57 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         }
         self.expect("}")?;
         Ok(XPathPrimaryExpression::MapConstructor { entries })
+    }
+
+    fn parse_inline_function(&mut self) -> Result<XPathPrimaryExpression, XPathParseError> {
+        self.expect("(")?;
+        let mut parameters = Vec::new();
+        let mut parameter_names = std::collections::BTreeSet::new();
+        if self.consume_if(")").is_none() {
+            loop {
+                self.expect("$")?;
+                let (index, token) = self.expect_name("parameter name")?;
+                let name = self.resolve_name(index, token, XPathNameUse::Variable)?;
+                if !parameter_names.insert(super::XPathExpandedName::from_syntax_name(&name)) {
+                    return Err(self.syntax_error_at(
+                        index,
+                        token,
+                        &["unique parameter name (err:XQST0039)"],
+                    ));
+                }
+                let sequence_type = if self.consume_if("as").is_some() {
+                    Some(self.parse_sequence_type()?)
+                } else {
+                    None
+                };
+                parameters.push(XPathFunctionParameter {
+                    name,
+                    sequence_type,
+                });
+                if self.consume_if(",").is_none() {
+                    break;
+                }
+            }
+            self.expect(")")?;
+        }
+        let result_type = if self.consume_if("as").is_some() {
+            Some(self.parse_sequence_type()?)
+        } else {
+            None
+        };
+        self.expect("{")?;
+        let body = if self.consume_if("}").is_some() {
+            None
+        } else {
+            let body = self.parse_expression_sequence()?;
+            self.expect("}")?;
+            Some(Box::new(body))
+        };
+        Ok(XPathPrimaryExpression::InlineFunction {
+            parameters,
+            result_type,
+            body,
+        })
     }
 
     fn parse_postfixes(&mut self) -> Result<Vec<XPathPostfixExpression>, XPathParseError> {

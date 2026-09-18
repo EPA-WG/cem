@@ -1,4 +1,4 @@
-//! Private v2 executable wire grammar. Explicit tags and fixed-width lengths
+//! Private v3 executable wire grammar. Explicit tags and fixed-width lengths
 //! keep it independent of Rust layout, serde, JSON, and source-token spelling.
 use super::*;
 const MAX_DEPTH: usize = 128;
@@ -399,8 +399,10 @@ structure!(XPathStepNode { step, source_range });
 variants!(XPathStep { 0 => Axis { axis, node_test, predicates }, 1 => Primary(value), 2 => Postfix { primary, postfixes } });
 variants!(XPathPrimaryExpression {
     0 => Literal(value), 1 => VariableReference(value), 2 => Parenthesized(value), 3 => ContextItem,
-    4 => FunctionCall { name, arguments }, 5 => MapConstructor { entries }, 6 => ArrayConstructor(value), 7 => Unsupported { production }, 8 => UnaryLookup(value)
+    4 => FunctionCall { name, arguments }, 5 => MapConstructor { entries }, 6 => ArrayConstructor(value), 7 => Unsupported { production }, 8 => UnaryLookup(value),
+    9 => InlineFunction { parameters, result_type, body }
 });
+structure!(XPathFunctionParameter { name, sequence_type });
 structure!(XPathMapConstructorEntry {
     key,
     value,

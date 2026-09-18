@@ -26,6 +26,18 @@ fn query_consumers_do_not_interpret_external_document_formats() {
             "XPath aggregates",
             include_str!("../src/validation/xpath/aggregate.rs"),
         ),
+        (
+            "XPath inline functions",
+            include_str!("../src/validation/xpath/functions.rs"),
+        ),
+        (
+            "XPath sorting",
+            include_str!("../src/validation/xpath/sort.rs"),
+        ),
+        (
+            "XPath regular expressions",
+            include_str!("../src/validation/xpath/regular_expression.rs"),
+        ),
         ("query runtime", include_str!("../src/query/runtime.rs")),
         ("semantic CEM tree", include_str!("../src/parser/tree.rs")),
         (

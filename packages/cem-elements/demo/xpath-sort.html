@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XPath stable sorting</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>XPath stable sorting</h1></nav>
+<main>
+    <section>
+        <h2>Choose keys without changing the source</h2>
+        <p><code>fn:sort</code> returns the original items in key order. Equal keys
+            keep their source order. The <a href="./xpath-sort.cemt">separate XPath
+            library</a> uses inline functions to calculate several keys and capture
+            the chosen quantity direction.</p>
+        <p>Compare text “10” before “2” with numeric 2 before 10. In numeric mode,
+            the examples put invalid or missing values last by authoring a validity
+            key. Standard sort puts empty keys first; missing-last is an explicit
+            choice in this library. Descending text reverses the input and output
+            around a stable sort, preserving ties.</p>
+        <p>Numeric keys use <code>xs:decimal</code>; exponent notation, NaN and
+            infinities count as invalid values in these examples.</p>
+        <p>The row example orders valid quantities by group A–Z, then quantity;
+            invalid and missing quantities follow all valid rows. Select a row and
+            change direction: its previous source sibling remains the same.
+            Authored row IDs must be unique and should remain stable during edits.</p>
+        <p>This slice supports numeric, boolean and string keys with Unicode
+            codepoint collation. Locale collations, date/time keys, named function
+            references and partial application remain unsupported. Inline functions
+            stay inside XPath; CEM-QL receives sorted values or retained CEM nodes.
+            Shared item, text and work limits apply. The XML reader accepts 32 KiB.</p>
+        <h3>See also</h3>
+        <p><a href="./xpath-nodes.html">XPath nodes and source navigation</a> ·
+            <a href="./xpath-sequences.html">XPath sequences and columns</a> ·
+            <a href="./data-table.html">Multi-format data tables</a> ·
+            <a href="./xpath-validation.html">XPath validation previews</a></p>
+    </section>
+    <cem-demo-element legend="1. Text and numeric keys"
+        description="Switch key types and direction; numeric ties and invalid values keep source order">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-sort.cemt">
+{style |```
+    input[type=text] { box-sizing: border-box; width: 100%; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=text | 10 2 02 bad 1}
+{slice @name=numeric | false}
+{slice @name=descending | false}
+{article @class=demo-card |
+    {label | Values
+        {input @type=text @slice=text @slice-event=input
+            @slice-value="$target.value" @value="{$datadom.slices.text}"}}
+    {label | {input @type=checkbox @slice=numeric @slice-event=change
+        @slice-value="$target.checked"} Numeric keys}
+    {label | {input @type=checkbox @slice=descending @slice-event=change
+        @slice-value="$target.checked"} Descending}
+    {p | Sorted: {output | {$str:concat(native:call("sort.words",
+        datadom.slices.text, datadom.slices.numeric,
+        datadom.slices.descending), " / ")}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. Multiple keys and source selection"
+        description="Sort by group and quantity; select a row to inspect its unchanged source sibling">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-sort.cemt">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 6rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: .25rem; border-bottom: 1px solid #888; }
+    tr[aria-selected=true] { background: color-mix(in srgb, currentColor 12%, transparent); }
+```}
+{slice @name=source | &lt;r&gt;
+&lt;row id="a" group="B" qty="2"&gt;Pear&lt;/row&gt;
+&lt;row id="b" group="A" qty="10"&gt;Apple&lt;/row&gt;
+&lt;row id="c" group="A" qty="2"&gt;Cherry&lt;/row&gt;
+&lt;row id="d" group="A" qty="2"&gt;Plum&lt;/row&gt;
+&lt;row id="e" group="A" qty="bad"&gt;Kiwi&lt;/row&gt;
+&lt;row id="f" group="B"&gt;Mango&lt;/row&gt;&lt;/r&gt;}
+{slice @name=descending | false}
+{slice @name=selected | }
+{cem-data @name=document @select=datadom.slices.source @type=xml @projection=xpath}
+{article @class=demo-card |
+    {label | XML rows
+        {textarea @spellcheck=false @slice=source @slice-event=input
+            @slice-value="$target.value" | {$datadom.slices.source}}}
+    {label | {input @type=checkbox @slice=descending @slice-event=change
+        @slice-value="$target.checked"} Descending quantity}
+    {cem:choose |
+        {cem:when @test='document.error != ""' | {p @role=alert | {$document.error}}}
+        {cem:otherwise |
+            {table |
+                {caption | Group and quantity}
+                {thead | {tr | {th @scope=col | Row}{th @scope=col | Group}
+                    {th @scope=col | Qty}}}
+                {tbody |
+                    {cem:for-each @as=row @select='native:call("sort.rows",
+                        document.root, datadom.slices.descending)' |
+                        {cem:variable @name=id @select='native:call("row.id", row)'}
+                        {tr @aria-selected="{datadom.slices.selected == id}" |
+                            {th @scope=row | {button @type=button @slice=selected
+                                @slice-event=click @value="{$id}"
+                                @aria-pressed="{datadom.slices.selected == id}"
+                                | {$native:call("row.label", row)}}}
+                            {td | {$native:call("row.group", row)}}
+                            {td | {$native:call("row.qty", row)}}
+            }   }   }   }
+            {cem:for-each @as=row @select='native:call("sort.selected",
+                document.root, datadom.slices.selected)' |
+                {p | Selected: {output | {$native:call("row.label", row)}};
+                    previous source sibling: {output | {$native:call("row.previous", row)}}}}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

@@ -24,7 +24,7 @@ try {
     const fixtures = JSON.parse(readFileSync(join(fixtureDirectory, 'manifest.json'), 'utf8'));
     const load = (fixture, bytes = readFileSync(join(fixtureDirectory, `${fixture.name}.bin`))) =>
         JSON.parse(importXPathArtifact(bytes, fixture.contentHash, fixture.sourceHash, fixture.host));
-    const [xslt, standalone, containers] = fixtures;
+    const [xslt, standalone, containers, inline] = fixtures;
     let checks = 0;
     for (const fixture of fixtures) {
         const imported = load(fixture);
@@ -42,6 +42,10 @@ try {
     const containerBytes = compileXPathArtifact("let $m := map {'rows': [(),(1,2)]} return ($m?rows?(2), $m ! ?rows?*)", 'memory:expression.xpath');
     assert.deepEqual(Buffer.from(containerBytes), readFileSync(join(fixtureDirectory, 'containers.bin')));
     assert.equal(disposeXPathArtifact(load(containers, containerBytes).artifactId), true);
+    checks++;
+    const inlineBytes = compileXPathArtifact('sort((3,1,2), (), function($x as xs:integer) as xs:integer {-$x})', 'memory:expression.xpath');
+    assert.deepEqual(Buffer.from(inlineBytes), readFileSync(join(fixtureDirectory, 'inline.bin')));
+    assert.equal(disposeXPathArtifact(load(inline, inlineBytes).artifactId), true);
     checks++;
     for (const fixture of [
         { ...xslt, host: 'cem-ql' }, { ...xslt, host: 'unknown' },

@@ -212,6 +212,11 @@ pub enum XPathPrimaryExpression {
         name: XPathName,
         arguments: Vec<XPathExpressionNode>,
     },
+    InlineFunction {
+        parameters: Vec<XPathFunctionParameter>,
+        result_type: Option<XPathSequenceType>,
+        body: Option<Box<XPathExpressionSequence>>,
+    },
     MapConstructor {
         entries: Vec<XPathMapConstructorEntry>,
     },
@@ -220,6 +225,12 @@ pub enum XPathPrimaryExpression {
     Unsupported {
         production: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XPathFunctionParameter {
+    pub name: XPathName,
+    pub sequence_type: Option<XPathSequenceType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -399,6 +410,7 @@ pub enum XPathSyntaxNodeKind {
     ParenthesizedExpression,
     ContextItem,
     FunctionCall,
+    InlineFunction,
     MapConstructor,
     MapEntry,
     ArrayConstructor,
@@ -435,6 +447,7 @@ impl XPathSyntaxNodeKind {
             Self::ParenthesizedExpression => "parenthesized-expression",
             Self::ContextItem => "context-item",
             Self::FunctionCall => "function-call",
+            Self::InlineFunction => "inline-function",
             Self::MapConstructor => "map-constructor",
             Self::MapEntry => "map-entry",
             Self::ArrayConstructor => "array-constructor",
@@ -669,6 +682,7 @@ impl XPathPrimaryExpression {
             Self::Parenthesized(_) => XPathSyntaxNodeKind::ParenthesizedExpression,
             Self::ContextItem => XPathSyntaxNodeKind::ContextItem,
             Self::FunctionCall { .. } => XPathSyntaxNodeKind::FunctionCall,
+            Self::InlineFunction { .. } => XPathSyntaxNodeKind::InlineFunction,
             Self::MapConstructor { .. } => XPathSyntaxNodeKind::MapConstructor,
             Self::ArrayConstructor(_) => XPathSyntaxNodeKind::ArrayConstructor,
             Self::UnaryLookup(_) => XPathSyntaxNodeKind::Lookup,
@@ -687,6 +701,25 @@ impl XPathPrimaryExpression {
                 Self::FunctionCall { arguments, .. } => {
                     for argument in arguments {
                         argument.emit_events(depth, events);
+                    }
+                }
+                Self::InlineFunction { parameters, result_type, body } => {
+                    for parameter in parameters {
+                        if let Some(ty) = &parameter.sequence_type {
+                            emit_node(
+                                XPathSyntaxNodeKind::SequenceType, ty.source_range(),
+                                depth, events, |_, _| {},
+                            );
+                        }
+                    }
+                    if let Some(ty) = result_type {
+                        emit_node(
+                            XPathSyntaxNodeKind::SequenceType, ty.source_range(),
+                            depth, events, |_, _| {},
+                        );
+                    }
+                    if let Some(body) = body {
+                        body.emit_events(depth, events);
                     }
                 }
                 Self::MapConstructor { entries } => {

@@ -146,6 +146,7 @@ fn optional_nodes_reject_atomic_values_and_multiple_nodes_at_argument_range() {
                 name: None,
                 arity: 0,
                 signature: "function() as item()*".into(),
+                native_function: None,
                 source_map: Default::default(),
             },
         ] {

@@ -213,6 +213,102 @@ try {
         disposeTemplate(sequenceReloaded.artifactId);
         disposeCemtXPathFunctions(sequenceCompanion.companionId);
     }
+    const sortLibrary = readFileSync(join(root, 'packages/cem-elements/demo/xpath-sort.cemt'), 'utf8');
+    const sortCompanion = JSON.parse(retainCemtXPathFunctions(sortLibrary, 'memory:sort.cemt'));
+    const sortTemplate = `{cem-data @name=document @select=source @type=xml @projection=xpath}
+{p | {$str:concat(native:call("sort.words", text, true, descending), " / ")}}
+{cem:for-each @as=row @select='native:call("sort.rows", document.root, descending)' |
+    {b | {$native:call("row.label", row)}}}`;
+    const sortBindings = '["source","text","descending"]';
+    const sortCompiled = JSON.parse(compileTemplate(sortTemplate, sortBindings));
+    const sortReloaded = JSON.parse(importTemplateArtifact(
+        compileTemplateArtifact(sortTemplate, sortBindings, 'dev'), '', sortTemplate, sortBindings, 'dev'));
+    try {
+        for (const artifact of [sortCompiled, sortReloaded]) {
+            assert.deepEqual(artifact.diagnostics, []);
+            for (const descending of [false, true]) {
+                const result = JSON.parse(renderTemplateWithXPathFunctions(artifact.artifactId,
+                    sortCompanion.companionId, JSON.stringify({
+                        source: '<r><row id="a" group="A" qty="10">A</row><row id="b" group="A" qty="2">B</row><row id="c" group="A" qty="2">C</row><row id="d">D</row></r>',
+                        text: '10 2 02 bad 1', descending,
+                    })));
+                assert.deepEqual(result.diagnostics, []);
+                assert.equal(html(result.nodes).replace(/>\s+</gu, '><').trim(), descending
+                    ? '<p>10 / 2 / 02 / 1 / bad</p><b>A</b><b>B</b><b>C</b><b>D</b>'
+                    : '<p>1 / 2 / 02 / 10 / bad</p><b>B</b><b>C</b><b>A</b><b>D</b>');
+                checks++;
+            }
+        }
+    } finally {
+        disposeTemplate(sortCompiled.artifactId);
+        disposeTemplate(sortReloaded.artifactId);
+        disposeCemtXPathFunctions(sortCompanion.companionId);
+    }
+    const validationLibrary = readFileSync(join(root, 'packages/cem-elements/demo/xpath-validation.cemt'), 'utf8');
+    const validationCompanion = JSON.parse(retainCemtXPathFunctions(validationLibrary, 'memory:validation.cemt'));
+    const validationImported = JSON.parse(importCemtXPathFunctions(
+        compileCemtXPathFunctions(validationLibrary, 'memory:validation.cemt'),
+        validationCompanion.contentHash, validationCompanion.sourceHash));
+    const validationTemplate = '{p | {$native:call("form.tags", text)}}{b | {$native:call("ip.preview", address, prefixes)}}';
+    const validationBindings = '["text","address","prefixes"]';
+    const validationCompiled = JSON.parse(compileTemplate(validationTemplate, validationBindings));
+    const validationReloaded = JSON.parse(importTemplateArtifact(
+        compileTemplateArtifact(validationTemplate, validationBindings, 'dev'), '', validationTemplate, validationBindings, 'dev'));
+    try {
+        for (const companion of [validationCompanion, validationImported]) {
+            for (const artifact of [validationCompiled, validationReloaded]) {
+                assert.deepEqual(artifact.diagnostics, []);
+                for (const [text, address, prefixes, tags, verdict] of [
+                    ['Blue, green; RED', '192.0.2.10/24', '24 32', 'Blue / green / RED', 'Allowed by the local prefix rule'],
+                    ['Red; GOLD', '192.0.2.10/16', '24 32', 'Red / GOLD', 'Blocked by the local prefix rule'],
+                    ['a,b', '256.0.2.10/24', '24', 'a / b', 'Octets must be 0–255 and prefix length 0–32'],
+                    ['a,b', '192.00.2.10/24', '24', 'a / b', 'Enter IPv4 with an optional /prefix; no leading zeros'],
+                ]) {
+                    const result = JSON.parse(renderTemplateWithXPathFunctions(artifact.artifactId,
+                        companion.companionId, JSON.stringify({ text, address, prefixes })));
+                    assert.deepEqual(result.diagnostics, []);
+                    assert.equal(html(result.nodes).replace(/>\s+</gu, '><').trim(),
+                        '<p>' + tags + '</p><b>' + verdict + '</b>');
+                    checks++;
+                }
+            }
+        }
+    } finally {
+        disposeTemplate(validationCompiled.artifactId);
+        disposeTemplate(validationReloaded.artifactId);
+        disposeCemtXPathFunctions(validationCompanion.companionId);
+        disposeCemtXPathFunctions(validationImported.companionId);
+    }
+    const regexSource = '@doc cem-ml 1\n@ns t = "https://cem.dev/ns/transform/cem/1"\n@default t\n' +
+        '{module | {function @name=test.regex @visibility=public @returns=string |' +
+        '{param @name=pattern @type=string @required=true}{param @name=flags @type=string @required=true}' +
+        '{param @name=replacement @type=string @required=true}' +
+        '{body | {xpath @sequence-type="xs:string" |' +
+        '{variable @binding=pattern @local-name=pattern}{variable @binding=flags @local-name=flags}' +
+        '{variable @binding=replacement @local-name=replacement}' +
+        '{expression | replace("aa", $pattern, $replacement, $flags)} } } } }';
+    const regexCompanion = JSON.parse(retainCemtXPathFunctions(regexSource, 'memory:regex.cemt'));
+    const regexTemplate = JSON.parse(compileTemplate(
+        '{p | {$native:call("test.regex", pattern, flags, replacement)}}', '["pattern","flags","replacement"]'));
+    try {
+        assert.deepEqual(regexTemplate.diagnostics, []);
+        for (const [pattern, flags, replacement, code] of [
+            ['a', 'z', 'x', 'cem.xpath.regex_flags'],
+            ['(?i)a', '', 'x', 'cem.xpath.regex_pattern'],
+            ['(a)\\1', '', 'x', 'cem.xpath.regex_unsupported'],
+            ['a*', '', 'x', 'cem.xpath.regex_empty_match'],
+            ['b', '', '$', 'cem.xpath.regex_replacement'],
+            ['a{1025}', '', 'x', 'cem.xpath.regex_limit_exceeded'],
+        ]) {
+            const result = JSON.parse(renderTemplateWithXPathFunctions(regexTemplate.artifactId,
+                regexCompanion.companionId, JSON.stringify({ pattern, flags, replacement })));
+            assert.ok(hasCode(result, code), JSON.stringify(result));
+            checks++;
+        }
+    } finally {
+        disposeTemplate(regexTemplate.artifactId);
+        disposeCemtXPathFunctions(regexCompanion.companionId);
+    }
     const aggregateLibrary = readFileSync(join(root, 'packages/cem-elements/demo/xpath-aggregates.cemt'), 'utf8');
     const aggregateCompanion = JSON.parse(retainCemtXPathFunctions(aggregateLibrary, 'memory:aggregates.cemt'));
     const aggregateTemplate = `{cem-data @name=document @select=source @type=xml @projection=xpath}
@@ -374,7 +470,36 @@ try {
         disposeTemplate(boundedTemplate.artifactId);
         disposeCemtXPathFunctions(boundedCompanion.companionId);
     }
-    console.log(`XPath function companion checks passed: ${checks} (native/WASM parity, matching, reload, nodes, sequences, aggregates, maps/arrays, text, limits and isolation).`);
+    const fence = '```';
+    const recursiveBody = `let $f := function($self) { ${'('.repeat(8)}$self($self)${')'.repeat(8)} } return $f($f)`;
+    const recursiveLibrary = [
+        '@doc cem-ml 1', '@ns t = "https://cem.dev/ns/transform/cem/1"', '@default t',
+        '{module | {function @name=test.recurse @visibility=public @returns=any |',
+        '{body | {xpath @sequence-type="item()*" |',
+        `{expression | ${fence}${recursiveBody}${fence}}`, '} } }',
+        '{function @name=test.emptyNamespace @visibility=public @returns=integer |',
+        '{body | {xpath @sequence-type="xs:integer" |',
+        `{expression | ${fence}(function($Q{}x) {$x})(3)${fence}}`, '} } } }',
+    ].join('\n');
+    const recursiveCompanion = JSON.parse(retainCemtXPathFunctions(recursiveLibrary, 'memory:recursive.cemt'));
+    const recursiveTemplate = JSON.parse(compileTemplate('{$native:call("test.recurse")}', '[]'));
+    const namespaceTemplate = JSON.parse(compileTemplate('{$native:call("test.emptyNamespace")}', '[]'));
+    try {
+        assert.deepEqual(recursiveTemplate.diagnostics, []);
+        const result = JSON.parse(renderTemplateWithXPathFunctions(recursiveTemplate.artifactId,
+            recursiveCompanion.companionId, '{}'));
+        assert.ok(hasCode(result, 'cem.xpath.function_depth_exceeded'));
+        const namespaceResult = JSON.parse(renderTemplateWithXPathFunctions(namespaceTemplate.artifactId,
+            recursiveCompanion.companionId, '{}'));
+        assert.deepEqual(namespaceResult.diagnostics, []);
+        assert.equal(html(namespaceResult.nodes).trim(), '3');
+        checks += 2;
+    } finally {
+        disposeTemplate(recursiveTemplate.artifactId);
+        disposeTemplate(namespaceTemplate.artifactId);
+        disposeCemtXPathFunctions(recursiveCompanion.companionId);
+    }
+    console.log(`XPath function companion checks passed: ${checks} (native/WASM parity, matching, reload, nodes, sequences, aggregates, maps/arrays, inline calls, sort, regex, text, limits and isolation).`);
 } finally {
     // Only the exact temporary fixture directory created above is removed.
     rmSync(directory, { recursive: true, force: true });

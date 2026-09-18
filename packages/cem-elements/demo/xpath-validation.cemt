@@ -1,0 +1,69 @@
+@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module |
+    {function @name=form.user @visibility=public @returns=string |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=text @local-name=text}
+            {expression | ```
+                if (matches($text, '^[A-Za-z][A-Za-z0-9_]{2,15}$'))
+                then 'Valid user name'
+                else 'Use 3–16 ASCII letters, digits or underscores; start with a letter'
+            ```}
+    }   }   }
+    {function @name=form.age @visibility=public @returns=string |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=text @local-name=text}
+            {expression | ```
+                if (matches($text, '^[0-9]{1,3}$') and $text castable as xs:integer)
+                then if (xs:integer($text) >= 18 and xs:integer($text) <= 120)
+                     then 'Age in range' else 'Use an age from 18 to 120'
+                else 'Enter an integer age'
+            ```}
+    }   }   }
+    {function @name=form.tags @visibility=public @returns=string |
+        {param @name=text @type=string @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=text @local-name=text}
+            {expression | ```
+                let $clean := normalize-space($text),
+                    $tags := tokenize($clean, '\s*[,;]\s*')
+                return if (exists($tags) and
+                    (every $tag in $tags satisfies matches($tag, '^[A-Za-z]{1,12}$')))
+                then replace($clean, '\s*[,;]\s*', ' / ')
+                else 'Use 1–12 ASCII letters per tag, separated by commas or semicolons'
+            ```}
+    }   }   }
+    {function @name=ip.preview @visibility=public @returns=string |
+        {param @name=text @type=string @required=true}
+        {param @name=prefixes @type=string @required=true}
+        {body | {xpath @sequence-type="xs:string" |
+            {variable @binding=text @local-name=text}
+            {variable @binding=prefixes @local-name=prefixes}
+            {expression | ```
+                let $value := normalize-space($text)
+                return if (not(matches($value,
+                    '^(0|[1-9][0-9]{0,2})(\.(0|[1-9][0-9]{0,2})){3}(/(0|[1-9][0-9]?))?$')))
+                then 'Enter IPv4 with an optional /prefix; no leading zeros'
+                else let $parts := tokenize($value, '/'),
+                         $octets := tokenize($parts[1], '\.'),
+                         $prefix := if (count($parts) = 2) then xs:integer($parts[2]) else 32,
+                         $allowed := tokenize(normalize-space($prefixes))
+                     return if (not(every $octet in $octets satisfies
+                         (xs:integer($octet) >= 0 and xs:integer($octet) <= 255))
+                         or $prefix > 32)
+                     then 'Octets must be 0–255 and prefix length 0–32'
+                     else if (empty($allowed) or
+                         not(every $p in $allowed satisfies
+                             if ($p castable as xs:integer)
+                             then xs:integer($p) >= 0 and xs:integer($p) <= 32
+                             else false()))
+                     then 'Enter allowed prefix lengths from 0 to 32'
+                     else if (some $p in $allowed satisfies xs:integer($p) = $prefix)
+                     then 'Allowed by the local prefix rule'
+                     else 'Blocked by the local prefix rule'
+            ```}
+    }   }   }
+}

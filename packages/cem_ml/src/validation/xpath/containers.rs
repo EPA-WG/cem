@@ -422,9 +422,13 @@ pub(super) fn call(
         ));
     };
     let items = xpath_evaluate_expression_node(expression, argument, focus, bindings, runtime)?;
-    let key = one_key(&items, runtime, argument.source_range)?;
+    call_value(container, &items, runtime, argument.source_range)
+}
+
+pub(super) fn call_value(container: &XPathResultItem, items: &[XPathResultItem], runtime: &mut XPathEvaluationRuntime, range: XPathSourceRange) -> Result<Vec<XPathResultItem>> {
+    let key = one_key(items, runtime, range)?;
     let mut result = Vec::new();
-    if let Some(member) = get(container, &key, runtime, argument.source_range)? {
+    if let Some(member) = get(container, &key, runtime, range)? {
         append(&mut result, &mut 0, member, runtime, range)?;
     }
     Ok(result)

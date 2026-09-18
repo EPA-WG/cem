@@ -1,11 +1,15 @@
 mod aggregate;
 pub mod artifact;
 mod containers;
+mod functions;
+pub use functions::XPathNativeFunctionItem;
 mod lexer;
 mod node;
 pub use node::{XPathNativeNode, XPathNativeNodeError, XPathNativeNodeHandle};
 mod parser;
+mod regular_expression;
 mod sequence;
+mod sort;
 mod syntax;
 mod text;
 
@@ -594,7 +598,7 @@ pub struct XPathExpandedName {
 impl XPathExpandedName {
     pub fn new(namespace_uri: Option<impl Into<String>>, local_name: impl Into<String>) -> Self {
         Self {
-            namespace_uri: namespace_uri.map(Into::into),
+            namespace_uri: namespace_uri.map(Into::into).filter(|uri| !uri.is_empty()),
             local_name: local_name.into(),
         }
     }
@@ -607,10 +611,7 @@ impl XPathExpandedName {
     }
 
     fn from_syntax_name(name: &XPathName) -> Self {
-        Self {
-            namespace_uri: name.namespace_uri.clone(),
-            local_name: name.local_name.clone(),
-        }
+        Self::new(name.namespace_uri.clone(), name.local_name.clone())
     }
 
     fn display(&self) -> String {
@@ -798,6 +799,8 @@ pub enum XPathResultItem {
         arity: usize,
         signature: String,
         source_map: SourceMapStack,
+        #[serde(skip)]
+        native_function: Option<XPathNativeFunctionItem>,
     },
 }
 
@@ -964,6 +967,8 @@ struct XPathEvaluationRuntime {
     work_units: u64,
     safe_points: Option<crate::operation_control::SafePointPoller>,
     module_resolution: Option<CemModuleUrlResolutionCapability>,
+    function_depth: usize,
+    expression_depth: usize,
 }
 
 impl XPathEvaluationRuntime {
@@ -976,6 +981,8 @@ impl XPathEvaluationRuntime {
             work_units: 0,
             safe_points: None,
             module_resolution: module_resolution.cloned(),
+            function_depth: 0,
+            expression_depth: 0,
         }
     }
 
@@ -993,6 +1000,8 @@ impl XPathEvaluationRuntime {
                 scope,
             )),
             module_resolution: module_resolution.cloned(),
+            function_depth: 0,
+            expression_depth: 0,
         }
     }
 
@@ -1619,12 +1628,14 @@ struct XPathEvaluationError {
     code: &'static str,
     message: String,
     source_range: Option<XPathSourceRange>,
+    diagnostic: Option<Box<Diagnostic>>,
 }
 
 impl XPathEvaluationError {
     fn unsupported(message: impl Into<String>, source_range: XPathSourceRange) -> Self {
         Self {
             code: "cem.xpath.evaluation_unsupported",
+            diagnostic: None,
             message: message.into(),
             source_range: Some(source_range),
         }
@@ -1637,13 +1648,16 @@ impl XPathEvaluationError {
     ) -> Self {
         Self {
             code,
+            diagnostic: None,
             message: message.into(),
             source_range: Some(source_range),
         }
     }
 
     fn into_diagnostic(self, expression: &XPathExpressionAst) -> Diagnostic {
-        xpath_evaluation_diagnostic(expression, self.code, self.message, self.source_range)
+        self.diagnostic.map(|diagnostic| *diagnostic).unwrap_or_else(|| {
+            xpath_evaluation_diagnostic(expression, self.code, self.message, self.source_range)
+        })
     }
 }
 
@@ -1742,6 +1756,30 @@ fn xpath_evaluate_expression_sequence(
 }
 
 fn xpath_evaluate_expression_node(
+    expression: &XPathExpressionAst,
+    node: &XPathExpressionNode,
+    focus: XPathFocus<'_>,
+    variable_bindings: &XPathVariableBindings,
+    runtime: &mut XPathEvaluationRuntime,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    // Inline recursion can multiply ordinary expression nesting. Bound the
+    // combined stack while a closure is running, as well as its call count.
+    if runtime.function_depth > 0 && runtime.expression_depth >= 32 {
+        return Err(XPathEvaluationError::dynamic(
+            "cem.xpath.function_depth_exceeded",
+            "XPath inline function evaluation exceeds 32 nested expression frames",
+            node.source_range,
+        ));
+    }
+    runtime.expression_depth += 1;
+    let result = xpath_evaluate_expression_node_inner(
+        expression, node, focus, variable_bindings, runtime,
+    );
+    runtime.expression_depth -= 1;
+    result
+}
+
+fn xpath_evaluate_expression_node_inner(
     expression: &XPathExpressionAst,
     node: &XPathExpressionNode,
     focus: XPathFocus<'_>,
@@ -3085,6 +3123,7 @@ fn xpath_evaluate_path(
                 if current.is_empty() && path.root == XPathPathRoot::Relative && index == 0 {
                     current.push(focus.context_item.cloned().ok_or_else(|| {
                         XPathEvaluationError {
+                            diagnostic: None,
                             code: "cem.xpath.context_item_missing",
                             message: "relative XPath path requires a context item".to_owned(),
                             source_range: Some(step.source_range),
@@ -3213,7 +3252,7 @@ fn xpath_evaluate_postfix(
                 )?;
             }
             XPathPostfixExpression::ArgumentList(arguments) => {
-                current = containers::call(
+                current = functions::call(
                     expression,
                     &current,
                     arguments,
@@ -3279,6 +3318,7 @@ fn xpath_evaluate_primary(
         XPathPrimaryExpression::VariableReference(name) => variable_bindings
             .get(&XPathExpandedName::from_syntax_name(name))
             .ok_or_else(|| XPathEvaluationError {
+                diagnostic: None,
                 code: "cem.xpath.variable_unbound",
                 message: format!(
                     "XPath variable `${}` ({}) is not bound",
@@ -3306,6 +3346,7 @@ fn xpath_evaluate_primary(
         XPathPrimaryExpression::ContextItem => focus
             .context_item
             .ok_or_else(|| XPathEvaluationError {
+                diagnostic: None,
                 code: "cem.xpath.context_item_missing",
                 message: "XPath context item is not available".to_owned(),
                 source_range: Some(source_range),
@@ -3323,6 +3364,10 @@ fn xpath_evaluate_primary(
             variable_bindings,
             runtime,
             source_range,
+        ),
+        XPathPrimaryExpression::InlineFunction { parameters, result_type, body } => functions::create(
+            expression, parameters, result_type.as_ref(), body.as_deref(),
+            focus, variable_bindings, runtime, source_range,
         ),
         XPathPrimaryExpression::MapConstructor { .. }
         | XPathPrimaryExpression::ArrayConstructor(_)
@@ -3361,6 +3406,7 @@ enum XPathNativeFunction {
     Reverse,
     Subsequence,
     DistinctValues,
+    Sort,
     Sum,
     Avg,
     Min,
@@ -3376,6 +3422,8 @@ enum XPathNativeFunction {
     StringLength,
     StringJoin,
     Tokenize,
+    Matches,
+    Replace,
     Data,
     Number,
     Abs,
@@ -3482,6 +3530,7 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("reverse", 1) => Some(XPathNativeFunction::Reverse),
         ("subsequence", 2 | 3) => Some(XPathNativeFunction::Subsequence),
         ("distinct-values", 1 | 2) => Some(XPathNativeFunction::DistinctValues),
+        ("sort", 1 | 2 | 3) => Some(XPathNativeFunction::Sort),
         ("sum", 1 | 2) => Some(XPathNativeFunction::Sum),
         ("avg", 1) => Some(XPathNativeFunction::Avg),
         ("min", 1 | 2) => Some(XPathNativeFunction::Min),
@@ -3496,7 +3545,9 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("normalize-space", 0 | 1) => Some(XPathNativeFunction::NormalizeSpace),
         ("string-length", 0 | 1) => Some(XPathNativeFunction::StringLength),
         ("string-join", 1 | 2) => Some(XPathNativeFunction::StringJoin),
-        ("tokenize", 1) => Some(XPathNativeFunction::Tokenize),
+        ("tokenize", 1 | 2 | 3) => Some(XPathNativeFunction::Tokenize),
+        ("matches", 2 | 3) => Some(XPathNativeFunction::Matches),
+        ("replace", 3 | 4) => Some(XPathNativeFunction::Replace),
         ("data", 0 | 1) => Some(XPathNativeFunction::Data),
         ("number", 0 | 1) => Some(XPathNativeFunction::Number),
         ("abs", 1) => Some(XPathNativeFunction::Abs),
@@ -3664,6 +3715,19 @@ fn xpath_evaluate_function_call(
             source_range,
         ));
     };
+
+    if matches!(function, XPathNativeFunction::Matches | XPathNativeFunction::Replace)
+        || (function == XPathNativeFunction::Tokenize && arguments.len() > 1)
+    {
+        return regular_expression::evaluate(
+            function, expression, arguments, focus, variable_bindings, runtime, source_range,
+        );
+    }
+    if function == XPathNativeFunction::Sort {
+        return sort::evaluate(
+            expression, arguments, focus, variable_bindings, runtime, source_range,
+        );
+    }
 
     if matches!(
         function,
@@ -4280,7 +4344,9 @@ fn xpath_evaluate_function_call(
         XPathNativeFunction::NormalizeSpace
         | XPathNativeFunction::StringLength
         | XPathNativeFunction::StringJoin
-        | XPathNativeFunction::Tokenize => {
+        | XPathNativeFunction::Tokenize
+        | XPathNativeFunction::Matches
+        | XPathNativeFunction::Replace => {
             unreachable!("text functions return through bounded dispatch")
         }
         XPathNativeFunction::Data => {
@@ -4301,7 +4367,8 @@ fn xpath_evaluate_function_call(
         | XPathNativeFunction::Tail
         | XPathNativeFunction::Reverse
         | XPathNativeFunction::Subsequence
-        | XPathNativeFunction::DistinctValues => {
+        | XPathNativeFunction::DistinctValues
+        | XPathNativeFunction::Sort => {
             unreachable!("sequence functions return through bounded dispatch")
         }
         XPathNativeFunction::Number => {
@@ -4339,6 +4406,7 @@ fn xpath_context_native_node(
     context_item
         .and_then(XPathResultItem::native_node)
         .ok_or_else(|| XPathEvaluationError {
+            diagnostic: None,
             code: "cem.xpath.context_item_native_node_required",
             message: "XPath path evaluation requires a native AST node context".to_owned(),
             source_range: Some(source_range),
@@ -4366,6 +4434,7 @@ fn xpath_evaluate_axis(
         }
     }
     let native_node = input.native_node().ok_or_else(|| XPathEvaluationError {
+        diagnostic: None,
         code: "cem.xpath.context_item_native_node_required",
         message: "XPath axis evaluation requires native AST node items".to_owned(),
         source_range: Some(source_range),
@@ -11431,16 +11500,16 @@ mod tests {
 
     #[test]
     fn xpath_cem_parser_retains_unmodeled_primaries_as_typed_ranged_nodes() {
-        let inline = "function($x) { $x }";
-        let syntax = cem_parser_syntax(inline).expect("recognized inline-function production");
+        let inline = "fn:abs#1";
+        let syntax = cem_parser_syntax(inline).expect("recognized named-function-reference production");
         assert_eq!(syntax, xee_parser_syntax(inline));
         let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
-            panic!("expected inline function primary path");
+            panic!("expected named function reference primary path");
         };
         assert!(matches!(
             path.steps[0].step,
             XPathStep::Primary(XPathPrimaryExpression::Unsupported { ref production })
-                if production == "inline-function-expression"
+                if production == "named-function-reference"
         ));
         assert_eq!(
             path.source_range,
@@ -11905,6 +11974,7 @@ mod tests {
                     name: Some("fn:string".to_owned()),
                     arity: 1,
                     signature: "function(item()?) as xs:string".to_owned(),
+                    native_function: None,
                     source_map: result_source_map(7, 12),
                 },
             ],
@@ -15454,6 +15524,7 @@ mod tests {
                     name: None,
                     arity: 0,
                     signature: "function(*)".to_owned(),
+                    native_function: None,
                     source_map: result_source_map(9, 1),
                 },
             ),
@@ -15779,6 +15850,7 @@ mod tests {
                     name: None,
                     arity: 0,
                     signature: "function(*)".to_owned(),
+                    native_function: None,
                     source_map: result_source_map(9, 1),
                 },
             ),
@@ -16005,6 +16077,7 @@ mod tests {
                     name: None,
                     arity: 0,
                     signature: "function(*)".to_owned(),
+                    native_function: None,
                     source_map: result_source_map(9, 1),
                 },
             ),
@@ -16279,6 +16352,7 @@ mod tests {
                     name: None,
                     arity: 0,
                     signature: "function(*)".to_owned(),
+                    native_function: None,
                     source_map: result_source_map(9, 1),
                 },
             ),

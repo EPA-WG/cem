@@ -467,7 +467,7 @@ fn xpath_limits_and_unsupported_capabilities_cannot_be_caught_as_data_errors() {
     );
     assert!(limited.items.is_empty());
 
-    let unsupported = IDENTITY.replace("{expression | $value}", "{expression | sort($value)}");
+    let unsupported = IDENTITY.replace("{expression | $value}", "{expression | current-dateTime()}");
     let result = evaluate(
         &query,
         &EvaluationContext {
@@ -1187,4 +1187,158 @@ fn fenced_xpath_container_errors_keep_original_cemt_coordinates_after_reload() {
         Some(source.rfind("'x'").unwrap() as u64)
     );
     assert!(diagnostic.source_map.is_some());
+}
+
+#[test]
+fn sort_library_uses_captured_direction_and_preserves_source_selection() {
+    let source = include_str!("../../cem-elements/demo/xpath-sort.cemt");
+    let functions = functions(source);
+    for (numeric, descending, expected) in [
+        (false, false, vec!["02", "1", "10", "2", "bad"]),
+        (true, false, vec!["1", "2", "02", "10", "bad"]),
+        (true, true, vec!["10", "2", "02", "1", "bad"]),
+    ] {
+        let query =
+            format!("native:call(\"sort.words\", \"10 2 02 bad 1\", {numeric}, {descending})");
+        let result = run(&query, BTreeMap::new(), functions.clone());
+        assert!(result.error.is_none(), "{result:?}");
+        assert_eq!(
+            result
+                .items
+                .iter()
+                .map(|item| item.atom().unwrap())
+                .collect::<Vec<_>>(),
+            expected
+                .into_iter()
+                .map(|value| AtomValue::String(value.into()))
+                .collect::<Vec<_>>()
+        );
+    }
+    let (document, _) = xml("<r><row id='a' group='B' qty='2'>Pear</row><row id='b' group='A' qty='10'>Apple</row><row id='c' group='A' qty='2'>Cherry</row><row id='d' group='A' qty='2'>Plum</row><row id='e' group='A' qty='bad'>Kiwi</row><row id='f' group='B'>Mango</row></r>");
+    let bindings = BTreeMap::from([("document".into(), ItemStream::once(document))]);
+    for (descending, expected) in [
+        (
+            false,
+            vec!["Cherry", "Plum", "Apple", "Pear", "Kiwi", "Mango"],
+        ),
+        (
+            true,
+            vec!["Apple", "Cherry", "Plum", "Pear", "Kiwi", "Mango"],
+        ),
+    ] {
+        let query = format!("seq:map(native:call(\"sort.rows\", document, {descending}), fn(row) => native:call(\"row.label\", row))");
+        let result = run(&query, bindings.clone(), functions.clone());
+        assert!(result.error.is_none(), "{result:?}");
+        assert_eq!(
+            result
+                .items
+                .iter()
+                .map(|item| item.atom().unwrap())
+                .collect::<Vec<_>>(),
+            expected
+                .into_iter()
+                .map(|value| AtomValue::String(value.into()))
+                .collect::<Vec<_>>()
+        );
+    }
+    let selected = run("seq:map(native:call(\"sort.selected\", document, \"c\"), fn(row) => native:call(\"row.previous\", row))", bindings, functions);
+    assert!(selected.error.is_none(), "{selected:?}");
+    assert_eq!(
+        selected.items[0].atom(),
+        Some(AtomValue::String("Apple".into()))
+    );
+}
+
+#[test]
+fn inline_closures_cannot_escape_the_closed_named_function_contract() {
+    for body in [
+        "function($x) {$x}",
+        "map {'f': function($x) {$x}}",
+        "[function($x) {$x}]",
+    ] {
+        let source = format!(
+            r#"@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{{module | {{function @name=test.escape @visibility=public @returns=any |
+    {{body | {{xpath @sequence-type="item()*" |
+        {{expression | ```{body}```}}
+}} }} }} }}"#
+        );
+        let result = run(
+            "native:call(\"test.escape\")",
+            BTreeMap::new(),
+            functions(&source),
+        );
+        assert!(result.error.is_some(), "executable closure escaped: {body}");
+    }
+}
+
+#[test]
+fn inline_recursion_budget_cannot_be_caught_as_a_data_error() {
+    let source = r#"@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module | {function @name=test.recurse @visibility=public @returns=any |
+    {body | {xpath @sequence-type="item()*" |
+        {expression | ```let $f := function($self) {$self($self)} return $f($f)```}
+} } } }"#;
+    let result = run(
+        "try { native:call(\"test.recurse\") } catch (code, message) { \"caught\" }",
+        BTreeMap::new(),
+        functions(source),
+    );
+    assert_eq!(
+        result.error,
+        Some(EvalError::BudgetExceeded(BudgetAxis::CallDepth))
+    );
+    assert!(result.items.is_empty());
+}
+
+#[test]
+fn regex_validation_library_combines_lexical_numeric_and_quantified_rules() {
+    let functions = functions(include_str!("../../cem-elements/demo/xpath-validation.cemt"));
+    for (query, expected) in [
+        (r#"native:call("form.user", "Ada_7")"#, "Valid user name"),
+        (r#"native:call("form.user", "7Ada")"#, "Use 3–16 ASCII letters, digits or underscores; start with a letter"),
+        (r#"native:call("form.age", "21")"#, "Age in range"),
+        (r#"native:call("form.age", "17")"#, "Use an age from 18 to 120"),
+        (r#"native:call("form.age", "1e2")"#, "Enter an integer age"),
+        (r#"native:call("form.tags", "Blue, green; RED")"#, "Blue / green / RED"),
+        (r#"native:call("form.tags", "red,,blue")"#, "Use 1–12 ASCII letters per tag, separated by commas or semicolons"),
+        (r#"native:call("form.tags", "")"#, "Use 1–12 ASCII letters per tag, separated by commas or semicolons"),
+        (r#"native:call("ip.preview", "192.0.2.10/24", "24 32")"#, "Allowed by the local prefix rule"),
+        (r#"native:call("ip.preview", "192.0.2.10/16", "24 32")"#, "Blocked by the local prefix rule"),
+        (r#"native:call("ip.preview", "255.255.255.255", "32")"#, "Allowed by the local prefix rule"),
+        (r#"native:call("ip.preview", "0.0.0.0/0", "0")"#, "Allowed by the local prefix rule"),
+        (r#"native:call("ip.preview", "256.0.2.10/24", "24")"#, "Octets must be 0–255 and prefix length 0–32"),
+        (r#"native:call("ip.preview", "192.0.2.10/33", "24")"#, "Octets must be 0–255 and prefix length 0–32"),
+        (r#"native:call("ip.preview", "192.00.2.10/24", "24")"#, "Enter IPv4 with an optional /prefix; no leading zeros"),
+        (r#"native:call("ip.preview", "::1", "32")"#, "Enter IPv4 with an optional /prefix; no leading zeros"),
+        (r#"native:call("ip.preview", "192.0.2.10/24", "x")"#, "Enter allowed prefix lengths from 0 to 32"),
+    ] {
+        let result = run(query, BTreeMap::new(), functions.clone());
+        assert!(result.error.is_none(), "{query}: {result:?}");
+        assert_eq!(result.items[0].atom(), Some(AtomValue::String(expected.into())), "{query}");
+    }
+}
+
+#[test]
+fn regex_subset_and_resource_errors_cannot_be_caught_as_data_errors() {
+    for (body, error) in [
+        ("matches('aa', '(a)\\1')", EvalError::Unsupported("XPath capability or operation control unavailable")),
+        ("matches('a', 'a{1025}')", EvalError::BudgetExceeded(BudgetAxis::XPathWorkUnits)),
+    ] {
+        let source = format!(r#"@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{{module | {{function @name=test.regex @visibility=public @returns=boolean |
+    {{body | {{xpath @sequence-type="xs:boolean" |
+        {{expression | ```{body}```}}
+}} }} }} }}"#);
+        let result = run(r#"try { native:call("test.regex") } catch (code, message) { "caught" }"#,
+            BTreeMap::new(), functions(&source));
+        assert_eq!(result.error, Some(error));
+        assert!(result.items.is_empty());
+    }
 }

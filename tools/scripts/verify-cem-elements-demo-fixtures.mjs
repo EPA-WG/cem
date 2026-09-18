@@ -58,6 +58,54 @@ xpathMapArraySamples.push(sampleContract('3. Query an imported JSON tree', [
     fillThenText('article textarea', '{"note":null}', 'article p:nth-of-type(2) output', 'Null value'),
 ]));
 
+const xpathValidationSamples = [
+    sampleContract('1. Form validation preview', [
+        normalizedText('article p:nth-of-type(1) output', 'Valid user name'),
+        normalizedText('article p:nth-of-type(2) output', 'Age in range'),
+        normalizedText('article p:nth-of-type(3) output', 'Blue / green / RED'),
+        fillThenText('article label:nth-of-type(1) input', '7Ada', 'article p:nth-of-type(1) output', 'start with a letter'),
+        fillThenText('article label:nth-of-type(2) input', '17', 'article p:nth-of-type(2) output', '18 to 120'),
+        fillThenText('article label:nth-of-type(2) input', '1e2', 'article p:nth-of-type(2) output', 'Enter an integer age'),
+        fillThenText('article label:nth-of-type(3) input', 'red,,blue', 'article p:nth-of-type(3) output', 'per tag'),
+        fillThenText('article label:nth-of-type(1) input', 'Grace_2', 'article p:nth-of-type(1) output', 'Valid user name'),
+        fillThenText('article label:nth-of-type(2) input', '120', 'article p:nth-of-type(2) output', 'Age in range'),
+        fillThenText('article label:nth-of-type(3) input', 'Red; GOLD', 'article p:nth-of-type(3) output', 'Red / GOLD'),
+    ]),
+    sampleContract('2. IPv4 prefix-rule preview', [
+        normalizedText('article output', 'Allowed by the local prefix rule'),
+        fillThenText('article label:first-of-type input', '192.0.2.10/16', 'article output', 'Blocked by the local prefix rule'),
+        fillThenText('article label:first-of-type input', '256.0.2.10/24', 'article output', 'Octets must be 0–255'),
+        fillThenText('article label:first-of-type input', '192.0.2.10/33', 'article output', 'prefix length 0–32'),
+        fillThenText('article label:first-of-type input', '192.00.2.10/24', 'article output', 'no leading zeros'),
+        fillThenText('article label:first-of-type input', '::1', 'article output', 'Enter IPv4'),
+        fillThenText('article label:first-of-type input', '255.255.255.255', 'article output', 'Allowed by the local prefix rule'),
+        fillThenText('article label:last-of-type input', 'bad', 'article output', 'Enter allowed prefix lengths'),
+        fillThenText('article label:last-of-type input', '24', 'article output', 'Blocked by the local prefix rule'),
+        fillThenText('article label:first-of-type input', '192.0.2.10/24', 'article output', 'Allowed by the local prefix rule'),
+    ]),
+];
+
+const xpathSortSamples = [
+    sampleContract('1. Text and numeric keys', [
+        normalizedText('article output', '02 / 1 / 10 / 2 / bad'),
+        checkThenText('article label:nth-of-type(2) input', 'article output', '1 / 2 / 02 / 10 / bad'),
+        checkThenText('article label:nth-of-type(3) input', 'article output', '10 / 2 / 02 / 1 / bad'),
+        fillThenText('article input[type=text]', '3 nope 03 bad -1', 'article output', '3 / 03 / -1 / nope / bad'),
+        uncheckThenNormalizedText('article label:nth-of-type(2) input', 'article output', 'nope / bad / 3 / 03 / -1'),
+    ]),
+    sampleContract('2. Multiple keys and source selection', [
+        normalizedText('article tbody tr:first-child button', 'Cherry'),
+        normalizedText('article tbody tr:last-child button', 'Mango'),
+        clickThenText('article button[value="c"]', 'article output:first-of-type', 'Cherry'),
+        normalizedText('article output:last-of-type', 'Apple'),
+        checkThenText('article input[type=checkbox]', 'article tbody tr:first-child button', 'Apple'),
+        normalizedText('article button[aria-pressed=true]', 'Cherry'),
+        normalizedText('article output:last-of-type', 'Apple'),
+        fillThenText('article textarea', '<r>', 'article [role="alert"]', 'XML'),
+        fillThenText('article textarea', '<r><row id="c" group="A" qty="1">One</row></r>', 'article tbody button', 'One'),
+    ]),
+];
+
 const xpathAggregateSamples = [
     sampleContract('1. Decimal sequence statistics', [
         normalizedText('article p:first-of-type output', '0.3'),
@@ -601,6 +649,16 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/xpath-maps-arrays.html',
         checks: xpathMapArraySamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-validation.html',
+        checks: xpathValidationSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, 'cem-demo-element[legend="' + sample.legend + '"]'))),
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-sort.html',
+        checks: xpathSortSamples.flatMap((sample) => sample.checks.map((check) =>
             scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
@@ -1554,6 +1612,14 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/xpath-maps-arrays.html',
         samples: xpathMapArraySamples,
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-validation.html',
+        samples: xpathValidationSamples,
+    },
+    {
+        path: '/packages/cem-elements/demo/xpath-sort.html',
+        samples: xpathSortSamples,
     },
     {
         path: '/packages/cem-elements/demo/xpath-aggregates.html',

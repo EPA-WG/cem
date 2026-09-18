@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XPath validation previews</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>XPath validation previews</h1></nav>
+<main>
+    <section>
+        <h2>Combine patterns with typed checks</h2>
+        <p><code>fn:matches</code> checks the shape of text. Numeric casts and
+            comparisons check its values. These examples use a
+            <a href="./xpath-validation.cemt">separate XPath library</a> to preview
+            authored rules as you edit; they do not submit or persist data.</p>
+        <p>The form accepts a 3–16 character ASCII user name, an integer age
+            from 18 to 120, and short letter-only tags. Try a leading digit in
+            the name, age 17, or an empty tag between commas. Regex
+            <code>tokenize</code> separates tags, <code>every</code> checks them,
+            and <code>replace</code> formats the accepted list.</p>
+        <p>The IPv4 preview checks four decimal octets and an optional CIDR
+            prefix, then compares the prefix length with a local allow-list using
+            <code>some</code>. No slash means /32. Leading zeros are rejected.
+            The rule checks prefix lengths; it does not test subnet membership
+            or install network rules. IPv6 is outside this example.</p>
+        <p>The regex subset supports groups, alternatives, classes, bounded and
+            reluctant repetition, Unicode categories, and the <code>s</code>,
+            <code>x</code> and <code>q</code> flags. Backreferences, class
+            subtraction, XML name/block escapes, and <code>i</code>/<code>m</code>
+            modes are explicitly unsupported. XPath whitespace and replacement
+            rules apply. The tag rule explicitly accepts both ASCII letter cases
+            and preserves their spelling. Pattern, input and work limits apply;
+            see the <a href="../../cem_ml/schema-packages/xpath/v1/README.md">XPath reference</a>.
+            Regex alone is not complete address or form validation.</p>
+        <h3>See also</h3>
+        <p><a href="./dom-merge.html">XPath text functions and live text</a> ·
+            <a href="./xpath-maps-arrays.html">XPath maps and arrays</a> ·
+            <a href="./xpath-sort.html">XPath stable sorting</a></p>
+    </section>
+    <cem-demo-element legend="1. Form validation preview"
+        description="Check text shape, an integer range and every tag before formatting a preview">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-validation.cemt">
+{style | ```
+    label { display: block; margin-bottom: .5rem; }
+    input { box-sizing: border-box; width: 100%; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=user | Ada_7}
+{slice @name=age | 21}
+{slice @name=tags | Blue, green; RED}
+{article @class=demo-card |
+    {label | User name
+        {input @type=text @maxlength=64 @slice=user @slice-event=input
+            @slice-value="$target.value" @value="{$datadom.slices.user}"}}
+    {p | {output | {$native:call("form.user", datadom.slices.user)}}}
+    {label | Age
+        {input @type=text @inputmode=numeric @maxlength=16 @slice=age
+            @slice-event=input @slice-value="$target.value"
+            @value="{$datadom.slices.age}"}}
+    {p | {output | {$native:call("form.age", datadom.slices.age)}}}
+    {label | Tags
+        {input @type=text @maxlength=128 @slice=tags @slice-event=input
+            @slice-value="$target.value" @value="{$datadom.slices.tags}"}}
+    {p | {output | {$native:call("form.tags", datadom.slices.tags)}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. IPv4 prefix-rule preview"
+        description="Check octet ranges and preview whether the prefix length occurs in a local allow-list">
+        <template>
+<cem-element>
+    <template type="text/cem-ml" xpath-functions="./xpath-validation.cemt">
+{style | ```
+    label { display: block; margin-bottom: .5rem; }
+    input { box-sizing: border-box; width: 100%; }
+    output { overflow-wrap: anywhere; }
+```}
+{slice @name=address | 192.0.2.10/24}
+{slice @name=prefixes | 24 32}
+{article @class=demo-card |
+    {label | IPv4 address, optionally /prefix
+        {input @type=text @maxlength=64 @slice=address @slice-event=input
+            @slice-value="$target.value" @value="{$datadom.slices.address}"}}
+    {label | Allowed prefix lengths, separated by spaces
+        {input @type=text @maxlength=64 @slice=prefixes @slice-event=input
+            @slice-value="$target.value" @value="{$datadom.slices.prefixes}"}}
+    {p | {output | {$native:call("ip.preview",
+        datadom.slices.address, datadom.slices.prefixes)}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

@@ -26,6 +26,7 @@ pulldown-cmark = { version = "0.13", default-features = false }
 blake3 = "1"
 syn = { version = "2", features = ["full", "visit"] }
 regex = "1"
+regex-automata = "0.4"
 sha2 = "0.10"
 csv = "1"
 cssparser = "0.37"

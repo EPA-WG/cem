@@ -86,10 +86,15 @@ fn deterministic_binary_reload_retains_typed_host_without_xpath_source() {
         )
         .unwrap();
         let mut manifest = Vec::new();
+        let inline_source = "sort((3,1,2), (), function($x as xs:integer) as xs:integer {-$x})";
+        let mut inline = parse(inline_source);
+        inline.attachment = XPathAttachment::Standalone { source_id: 1 };
+        let inline = XPathCompiledArtifact::compile(&inline, ContentHash::from_blake3(inline_source.as_bytes())).unwrap();
         for (name, artifact, host) in [
             ("xslt", &first, "xslt"),
             ("standalone", &standalone, "query"),
             ("containers", &containers, "query"),
+            ("inline", &inline, "query"),
         ] {
             std::fs::write(directory.join(format!("{name}.bin")), artifact.bytes()).unwrap();
             manifest.push(serde_json::json!({
@@ -316,10 +321,10 @@ fn compiler_and_decoder_bound_nested_programs_and_reject_bad_versions() {
     let artifact = compile();
     let mut wrong = artifact.bytes().to_vec();
     let position = wrong
-        .windows(b"cem-xpath-program-v2".len())
-        .position(|part| part == b"cem-xpath-program-v2")
+        .windows(b"cem-xpath-program-v3".len())
+        .position(|part| part == b"cem-xpath-program-v3")
         .unwrap();
-    wrong[position + b"cem-xpath-program-v2".len() - 1] = b'9';
+    wrong[position + b"cem-xpath-program-v3".len() - 1] = b'9';
     assert_eq!(
         XPathCompiledArtifact::from_bytes(wrong.clone(), &ContentHash::from_blake3(&wrong))
             .unwrap_err()

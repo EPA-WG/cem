@@ -8,7 +8,7 @@ pub use crate::schema::registry::XPATH_ARTIFACT_CONTENT_TYPE;
 mod codec;
 
 pub const XPATH_ARTIFACT_VERSION: &str = "cem-xpath-artifact/1";
-pub const XPATH_PROGRAM_FORMAT: &str = "cem-xpath-program-v2";
+pub const XPATH_PROGRAM_FORMAT: &str = "cem-xpath-program-v3";
 /// Bounds apply before allocation/recursive decoding as well as compilation.
 pub const XPATH_ARTIFACT_MAX_BYTES: usize = 2 * 1024 * 1024;
 const MAGIC: &[u8] = b"CEMXPATH1\n";
