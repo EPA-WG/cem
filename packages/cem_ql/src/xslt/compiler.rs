@@ -17,6 +17,7 @@ use cem_ml::{
 
 mod grouping;
 mod imports;
+mod output;
 mod patterns;
 mod recovery;
 mod sorting;
@@ -211,7 +212,9 @@ pub fn compile_xslt_bundle_with_options(
     for (index, stylesheet) in stylesheets.iter().enumerate() {
         compiler.select_source(index);
         let mut cursor = 0;
-        let nodes = author_nodes(&stylesheet.xml_document.events, &mut cursor, 0, &compiler)?;
+        let nodes = author_nodes(
+            &stylesheet.xml_document.events, &mut cursor, 0, false, &compiler,
+        )?;
         let mut elements = nodes.into_iter().filter(|node| is_element(node.event));
         let root = elements.next().ok_or_else(|| {
             imports::diagnostic(
@@ -353,6 +356,7 @@ struct AuthorNode<'a> {
     event: &'a XmlEventAst,
     children: Vec<AuthorNode<'a>>,
     text: Option<String>,
+    preserve_whitespace: bool,
 }
 fn is_element(event: &XmlEventAst) -> bool {
     matches!(
@@ -370,16 +374,18 @@ fn ignorable(node: &AuthorNode<'_>) -> bool {
     matches!(
         node.event.kind,
         XmlEventKind::Comment | XmlEventKind::ProcessingInstruction | XmlEventKind::Declaration
-    ) || node.text.as_deref().is_some_and(|value| {
-        value
-            .chars()
-            .all(|ch| matches!(ch, ' ' | '\t' | '\r' | '\n'))
-    })
+    ) || !node.preserve_whitespace
+        && node.text.as_deref().is_some_and(|value| {
+            value
+                .chars()
+                .all(|ch| matches!(ch, ' ' | '\t' | '\r' | '\n'))
+        })
 }
 fn author_nodes<'a>(
     events: &'a [XmlEventAst],
     index: &mut usize,
     depth: usize,
+    preserve_whitespace: bool,
     compiler: &Compiler<'_>,
 ) -> CompileResult<Vec<AuthorNode<'a>>> {
     let mut nodes = Vec::new();
@@ -395,8 +401,26 @@ fn author_nodes<'a>(
         if event.kind == XmlEventKind::EndElement {
             break;
         }
+        let preserve = if let Some(attribute) = event.attributes.iter().find(|a| {
+            a.namespace_uri.as_deref() == Some("http://www.w3.org/XML/1998/namespace")
+                && a.local_name == "space"
+        }) {
+            match attribute.entity_decoded_value.as_deref() {
+                Some("preserve") => true,
+                Some("default") => false,
+                _ => {
+                    return Err(compiler.error(
+                        event,
+                        "XTSE0020",
+                        "xml:space requires preserve or default",
+                    ))
+                }
+            }
+        } else {
+            preserve_whitespace
+        };
         let children = if event.kind == XmlEventKind::StartElement {
-            author_nodes(events, index, depth + 1, compiler)?
+            author_nodes(events, index, depth + 1, preserve, compiler)?
         } else {
             vec![]
         };
@@ -416,6 +440,7 @@ fn author_nodes<'a>(
             event,
             children,
             text: value,
+            preserve_whitespace: preserve,
         });
     }
     Ok(nodes)
@@ -543,6 +568,11 @@ impl<'a> Compiler<'a> {
     fn attributes(&self, event: &XmlEventAst, allowed: &[&str]) -> CompileResult<()> {
         for attribute in &event.attributes {
             if attribute.qualified_name == "xmlns" || attribute.prefix.as_deref() == Some("xmlns") {
+                continue;
+            }
+            if attribute.namespace_uri.as_deref() == Some("http://www.w3.org/XML/1998/namespace")
+                && attribute.local_name == "space"
+            {
                 continue;
             }
             if attribute.namespace_uri.is_some()
@@ -693,6 +723,12 @@ impl<'a> Compiler<'a> {
                     self.sequence(&node.children, scope.clone())?
                 ))
             }
+            "sequence" | "copy-of" => {
+                self.attributes(event, &["select"])?;
+                self.empty(node)?;
+                self.result_select(event, scope)
+            }
+            "element" | "attribute" | "document" => self.result_constructor(node, scope),
             "choose" => self.choose(node, scope),
             "try" => self.recover(node, scope),
             "for-each-group" => self.grouping(node, scope),
@@ -804,46 +840,6 @@ impl<'a> Compiler<'a> {
                 "choose requires at least one when",
             ));
         }
-        output.push('}');
-        Ok(output)
-    }
-    fn literal(&mut self, node: &AuthorNode<'_>, scope: &Scope) -> CompileResult<String> {
-        let event = node.event;
-        if event
-            .namespace_uri
-            .as_deref()
-            .is_some_and(|uri| uri != "http://www.w3.org/1999/xhtml")
-            || matches!(event.local_name.as_deref(), Some("script" | "style"))
-        {
-            return Err(self.error(
-                event,
-                "cem.xslt.compile_unsupported",
-                "namespaced results and lexical islands belong to the output-profile fixture",
-            ));
-        }
-        let mut output = format!(
-            "{{element @name={} |",
-            quote(event.local_name.as_deref().unwrap_or_default())
-        );
-        for attribute in &event.attributes {
-            if attribute.qualified_name == "xmlns" || attribute.prefix.as_deref() == Some("xmlns") {
-                continue;
-            }
-            if attribute.namespace_uri.is_some() {
-                return Err(self.error(
-                    event,
-                    "cem.xslt.compile_unsupported",
-                    "namespaced result attributes are not supported yet",
-                ));
-            }
-            let value = self.literal_attribute(event, attribute)?;
-            output.push_str(&format!(
-                "{{attribute @name={} |{}}}",
-                quote(&attribute.local_name),
-                emit_text(&value)
-            ));
-        }
-        output.push_str(&self.sequence(&node.children, scope.clone())?);
         output.push('}');
         Ok(output)
     }

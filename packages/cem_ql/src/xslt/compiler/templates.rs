@@ -392,8 +392,9 @@ impl<'a> Compiler<'a> {
                 "external parameters require an explicit named entrypoint in this profile",
             ));
         };
+        let policy = self.result_policy(root.event);
         Ok(format!(
-            "{{module |{declarations}{{body |{{try |{entry_call}{{catch @test=false |}}}}}}}}"
+            "{{module |{declarations}{{body |{{try |{{result-document {policy} |{entry_call}}}{{catch @test=false |}}}}}}}}"
         ))
     }
     fn mode(&self, event: &XmlEventAst, current: Option<&str>) -> CompileResult<String> {

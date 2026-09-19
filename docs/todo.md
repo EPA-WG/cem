@@ -1179,27 +1179,41 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       without weakening its requirement. XML/JSON decoding and projection
       remain in CEM-ML import; XPath and XSLT consume retained native trees.
       All three Nx lint targets pass with existing warnings.
-- [ ] Fixture XSLT-VIEW-OUTPUT: preserve HTML, AVTs, whitespace, static styles
+- [x] Fixture XSLT-VIEW-OUTPUT: preserve HTML, AVTs, whitespace, static styles
       and existing slice/event bindings. Document the bounded profile and
       source-located diagnostics without claiming full XSLT 3.0 support.
     - [x] Fixture XSLT-OUTPUT-PREREQUISITES: characterize native-node insertion,
           atomic/text distinction, attribute ordering and result-style versus
           declaration-style handling. Record any shared result-construction
           capability needed before expanding the renderer.
-      Five native probes and all 424 CEM-QL tests pass, with none ignored.
-      Nx lint passes with existing warnings.
-      The [result-construction proposal](xslt-runtime-lowering.md#output-construction-scope-decision-pending)
-      requires approval before changing shared CEMT rendering. This checkpoint
-      changes tests and documentation only; output lowering remains open.
-      Include select-based `xsl:try`/`xsl:catch` result construction; the data
-      profile currently supports contained sequence constructors only.
-      The previous legacy path failed the CLI style-export acceptance case
-      because the page lacked its CSS link. Strict typed execution now rejects
-      stylesheet style output explicitly. The migrated 3.0 test
-      `graph_config_projects_inline_style_export_to_css_and_links_html` remains
-      explicitly ignored here; the no-output rejection test is active. Restore
-      its link/inline/omit/CSS export assertions through the output boundary;
-      do not change declaration-style handling for browser CEMT components.
+      The initial five probes characterized the boundary; ordinary CEMT
+      compatibility probes remain active alongside the new native output tests.
+      The [result-construction proposal](xslt-runtime-lowering.md#native-output-construction)
+      was approved on 2026-09-18. Keep ordinary CEMT interpolation and declaration
+      styles compatible while adding the explicit native result path.
+    - [x] Fixture XSLT-OUTPUT-NATIVE: add portable typed result instructions;
+          test retained nodes, atomic/text adjacency, attributes, namespaces,
+          nested calls/recovery, limits and cancellation against ordinary CEMT.
+    - [x] Fixture XSLT-OUTPUT-LOWERING: lower sequence/select-based try/catch,
+          result constructors, AVTs, whitespace and slice/event attributes;
+          test source locations, changed inputs and explicit unsupported forms.
+    - [x] Fixture XSLT-OUTPUT-CLI: restore static-style link/inline/omit/CSS
+          exports and source maps without changing component declaration styles;
+          verify native XML/JSON subtree export and expanded names through the CLI.
+    - [x] Fixture XSLT-OUTPUT-WASM: reload native result bundles, compare bytes
+          with WASM compilation, and verify changed inputs and typed failures.
+      Native constructors retain pending nodes/atomics across calls, loops and
+      recovery; output AVTs, xml:space and existing slice/event attributes are
+      lowered. Static style link/inline/omit/CSS exports and source maps are
+      active CLI acceptance cases. XML/JSON/YAML/CSV decoding stays in CEM-ML
+      import, guarded against format logic in native result construction.
+      Verification: 442 CEM-QL tests, 101 adapter tests, 12 CLI parity tests,
+      both import-boundary audits, 132 native/WASM bundle checks, 17 XPath
+      artifact checks and 125 function-companion checks pass. The existing
+      XPath functions demo remains at `packages/cem-elements/demo/xpath-functions.html`.
+      Nx CEM-QL and adapter lint pass with existing warnings. Ordinary CEMT
+      render-protocol attributes remain unchanged; native namespace metadata is
+      emitted only for the explicitly selected result path.
 - [ ] Fixture XSLT-VIEW-PARITY: author data-table-view.xslt and compare its
       CLI-translated rendering with direct CEMT across XML/CSV/YAML/JSON,
       heterogeneous/nested/empty data, sorting, selection and parse failures.

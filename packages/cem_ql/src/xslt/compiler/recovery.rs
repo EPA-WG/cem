@@ -19,16 +19,13 @@ impl Compiler<'_> {
         let Some(first) = node.children.iter().position(catch) else {
             return Err(self.error(node.event, "XTSE0010", "xsl:try requires a catch"));
         };
-        if self.attribute(node.event, "select").is_some() {
-            let code = if node.children[..first].iter().any(|n| !ignorable(n)) {
-                "XTSE3140"
-            } else {
-                "cem.xslt.compile_unsupported"
-            };
+        if self.attribute(node.event, "select").is_some()
+            && node.children[..first].iter().any(|n| !ignorable(n))
+        {
             return Err(self.error(
                 node.event,
-                code,
-                "select-based try result construction belongs to the output profile",
+                "XTSE3140",
+                "try select requires empty protected content",
             ));
         }
         if let Some(attribute) = self.attribute(node.event, "rollback-output") {
@@ -44,7 +41,11 @@ impl Compiler<'_> {
             }
             // XSLT permits buffering even when rollback-output is no.
         }
-        let body = self.sequence(&node.children[..first], scope.clone())?;
+        let body = if self.attribute(node.event, "select").is_some() {
+            self.result_select(node.event, scope)?
+        } else {
+            self.sequence(&node.children[..first], scope.clone())?
+        };
         let mut output = format!("{{try | {body}");
         for handler in &node.children[first..] {
             if ignorable(handler) {
@@ -58,16 +59,13 @@ impl Compiler<'_> {
                 ));
             }
             self.attributes(handler.event, &["errors", "select"])?;
-            if self.attribute(handler.event, "select").is_some() {
-                let code = if handler.children.iter().any(|n| !ignorable(n)) {
-                    "XTSE3150"
-                } else {
-                    "cem.xslt.compile_unsupported"
-                };
+            if self.attribute(handler.event, "select").is_some()
+                && handler.children.iter().any(|n| !ignorable(n))
+            {
                 return Err(self.error(
                     handler.event,
-                    code,
-                    "select-based catch result construction belongs to the output profile",
+                    "XTSE3150",
+                    "catch select requires empty content",
                 ));
             }
             let error = self.fresh();
@@ -107,7 +105,11 @@ impl Compiler<'_> {
             inner
                 .variables
                 .insert(XPathExpandedName::new(Some(ERR), "value"), "()".into());
-            let body = self.sequence(&handler.children, inner)?;
+            let body = if self.attribute(handler.event, "select").is_some() {
+                self.result_select(handler.event, &inner)?
+            } else {
+                self.sequence(&handler.children, inner)?
+            };
             output.push_str(&format!(
                 "{{catch @as={} @test={} | {body}}}",
                 quote(&error),

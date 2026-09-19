@@ -1,6 +1,6 @@
 //! XSLT-OUTPUT-PREREQUISITES: characterize the shared result-construction boundary.
 //! These assertions preserve existing CEMT behavior, not XSLT conformance.
-//! Replace the XSLT rejection probes with acceptance cases after scope approval.
+//! XSLT acceptance now uses an explicitly selected native result path.
 use cem_ml::{import::import_data, validation::xpath::XPathNativeNode};
 use cem_ql::{
     eval::ItemStream,
@@ -114,7 +114,7 @@ fn result_style_constructor_is_distinct_from_component_style_declaration() {
 }
 
 #[test]
-fn output_forms_are_rejected_with_stylesheet_locations_until_lowered() {
+fn approved_output_forms_compile_without_altering_ordinary_cemt() {
     for body in [
         r#"<p title="{1 + 1}"/>"#,
         r#"<p xml:space="preserve"> </p>"#,
@@ -125,13 +125,6 @@ fn output_forms_are_rejected_with_stylesheet_locations_until_lowered() {
         let source = format!(
             r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/">{body}</xsl:template></xsl:stylesheet>"#
         );
-        let errors = compile_xslt_bundle(&source, "memory:output-prerequisites.xslt").unwrap_err();
-        assert!(
-            errors.iter().any(|d| d.severity.is_hard_violation()
-                && d.uri.as_deref() == Some("memory:output-prerequisites.xslt")
-                && d.byte_offset.is_some()
-                && d.source_map.is_some()),
-            "{body}: {errors:?}"
-        );
+        compile_xslt_bundle(&source, "memory:output-prerequisites.xslt").unwrap();
     }
 }

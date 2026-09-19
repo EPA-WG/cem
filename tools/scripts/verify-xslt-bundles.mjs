@@ -33,6 +33,9 @@ try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_data_recovery'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_DATA_FIXTURE_DIR: directory },
     });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_output'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_OUTPUT_FIXTURE_DIR: directory },
+    });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
     // go straight to the common CEM import/retention boundary below.
@@ -98,6 +101,14 @@ try {
         assert.ok(output.diagnostics.some(d => d.code === 'cem.ql.native_function_unavailable'));
         checks++;
     } finally { disposeTemplate(ordinary.artifactId); }
+    const legacy = JSON.parse(compileTemplate('{p @title=legacy |text}', '[]'));
+    try {
+        const output = JSON.parse(renderTemplate(legacy.artifactId, '{}'));
+        assert.deepEqual(output.diagnostics, []);
+        assert.equal(output.nodes[0].attributes[0].name, 'title');
+        assert.equal('namespaceUri' in output.nodes[0].attributes[0], false);
+        checks++;
+    } finally { disposeTemplate(legacy.artifactId); }
     for (const rejected of JSON.parse(readFileSync(join(directory, 'rejections.json'), 'utf8'))) {
         assert.throws(() => load(readFileSync(join(directory, rejected.name)), rejected.hash), /cem\.xslt\.bundle_/);
         checks++;
@@ -285,6 +296,63 @@ try {
             } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
         }
     }
+    // XSLT-OUTPUT-WASM: the JSON below is the explicit render-plan protocol.
+    // XML/JSON document bytes are still imported and queried entirely in CEM-ML.
+    for (const name of ['native-output', 'avt-output']) {
+        const manifest = JSON.parse(readFileSync(join(directory, `${name}.json`), 'utf8'));
+        const bytes = readFileSync(join(directory, `${name}.bin`));
+        const source = readFileSync(join(directory, `${name}.xslt`), 'utf8');
+        assert.deepEqual(Buffer.from(compileXsltBundle(source, 'memory:output.xslt')), bytes);
+        checks++;
+        for (const retained of [load(bytes, manifest.contentHash, manifest.sourceHash), JSON.parse(retainXsltStylesheet(source, 'memory:output.xslt'))]) {
+            try {
+                for (const input of name === 'native-output'
+                    ? ['<input>&lt;r&gt;&lt;b/&gt;&lt;!--end--&gt;&lt;?test data?&gt;&lt;/r&gt;</input>', '<input>{"a":null,"b":""}</input>']
+                    : ['<r>A &amp; B</r>', '<r>changed</r>']) {
+                    const document = retainCemDocument(new TextEncoder().encode(input), 'application/xml', 'memory:output-input.xml');
+                    try {
+                        const output = render(document, '{}', retained.bundleId);
+                        assert.deepEqual(output.diagnostics, []);
+                        const [root] = output.nodes;
+                        if (name === 'native-output') {
+                            assert.equal(root.tag, 'main');
+                            const [copied] = root.children;
+                            assert.ok(copied.sourceMap.frames.length);
+                            if (copied.tag === 'r') {
+                                assert.deepEqual(copied.children.map(n => n.kind), ['element', 'comment', 'processing-instruction']);
+                                assert.equal(copied.children[2].target, 'test');
+                                assert.equal(copied.children[2].data, 'data');
+                            } else {
+                                assert.equal(copied.tag, 'map');
+                                assert.equal(copied.namespace, 'http://www.w3.org/2005/xpath-functions');
+                                assert.deepEqual(copied.children.map(n => n.tag), ['null', 'string']);
+                                assert.equal(copied.children[1].attributes.find(a => a.name === 'key').value, 'b');
+                            }
+                        } else {
+                            assert.equal(root.attributes.find(a => a.name === 'title').value, input.includes('changed') ? '{changed}:1 2' : '{A & B}:1 2');
+                            assert.equal(root.attributes.find(a => a.name === 'xml:space').namespaceUri, 'http://www.w3.org/XML/1998/namespace');
+                            assert.equal(root.children[0].text, ' ');
+                        }
+                        checks++;
+                    } finally { assert.equal(disposeCemDocument(document), true); }
+                }
+            } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
+        }
+    }
+    for (const [body, code] of [
+        ['<p>body<xsl:attribute name="late">bad</xsl:attribute></p>', 'XTDE0410'],
+        ['<xsl:sequence select="/*/@a"/>', 'XTDE0420'],
+        ['<p><xsl:sequence select="map{}"/></p>', 'XTDE0450'],
+    ]) {
+        const retained = JSON.parse(retainXsltStylesheet(wrap(body), 'memory:output-error.xslt'));
+        const document = retainCemDocument(new TextEncoder().encode('<r a="bad"/>'), 'application/xml', 'memory:input');
+        try {
+            const output = render(document, '{}', retained.bundleId);
+            assert.deepEqual(output.nodes, []);
+            assert.ok(output.diagnostics.some(d => d.details?.errorQName?.localName === code && d.uri === 'memory:output-error.xslt'));
+            checks++;
+        } finally { disposeXsltBundle(retained.bundleId); disposeCemDocument(document); }
+    }
     for (const [attributes, code] of [
         ['select="(1, 2)"', 'XTTE1020'],
         ['select="if (position() = 1) then 1 else &quot;a&quot;"', 'XTDE1030'],
@@ -322,7 +390,7 @@ try {
         disposeXsltBundle(failed.bundleId);
         disposeCemDocument(failedInput);
     }
-    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, ownership, focus, grouping, sorting, parsing, recovery, bounds and isolation).`);
+    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, native output, ownership, focus, grouping, sorting, parsing, recovery, bounds and isolation).`);
 } finally {
     rmSync(directory, { recursive: true, force: true });
 }

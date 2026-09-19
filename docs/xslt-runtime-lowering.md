@@ -18,8 +18,8 @@ Consumers declare template parameters explicitly and replace legacy EXSLT
 shortcuts with supported standard expressions over retained input documents.
 The migration fixture verifies that both public compilation APIs reject version
 1.0 and unbound `xsl` prefixes. This is a bounded runtime profile, not the
-completed data-table viewer or full XSLT 3.0 implementation. Output construction
-and browser component URL loading remain in [todo.md](todo.md).
+completed data-table viewer or full XSLT 3.0 implementation. Native output construction is implemented; viewer parity and browser component
+URL loading remain in [todo.md](todo.md).
 
 ## Supported authoring profile
 
@@ -45,7 +45,12 @@ that context with position and size both one.
 | `xsl:if test`, `xsl:choose/when/otherwise` | XPath effective boolean values; only the chosen branch runs. |
 | `xsl:value-of select` | Simple content construction, with a literal `separator` or the default space. Empty text nodes are removed, adjacent text nodes merge, and atomized string values are joined. |
 | `xsl:text` | Literal text, including whitespace, entity references and CEMT delimiter characters. |
-| Literal HTML elements and attributes | Plain result elements and static attributes, including escaped literal AVT braces. Stylesheet text/CDATA/entity chunks join before whitespace-only text is stripped. |
+| Literal result elements and attributes | Expanded names, output AVTs (including escaped braces), and unchanged declarative `slice`, `slice-event`, `slice-value` attributes. |
+| Whitespace | Text/CDATA/entity chunks join before whitespace-only nodes are stripped; inherited `xml:space="preserve"` / `"default"` controls stripping. |
+| `xsl:sequence`, `xsl:copy-of` | Select native nodes or values; retain them across calls, loops and recovery until the parent constructs its content. The bounded untyped copy profile supports `select` only. |
+| `xsl:document`, `xsl:element`, `xsl:attribute` | Native document/element construction and attribute simple content, including attribute `select`. Element/attribute names and namespace URIs must be static in this profile. |
+| `xsl:try` / `xsl:catch` | Contained constructors or `select`, ordered error-name matching and buffered rollback. |
+| Static literal `style` | Result text is emitted only by the selected branch; CLI exports support linked, inline, omitted and CSS output. |
 
 Paths, predicates, variables, sequences, map/array operations and other XPath
 syntax remain typed XPath programs evaluated by the existing shared native
@@ -61,7 +66,7 @@ These behaviors follow the bounded portions of the
 construction (§5.7.2). A stylesheet recognizing version 3.0 is not a claim that
 all standard instructions or functions are available.
 
-Unsupported instructions, attributes, output AVTs and unsupported syntax
+Unsupported instructions, attributes and unsupported syntax
 fail compilation with stylesheet coordinates. The shared XPath evaluator
 reports unsupported functions when evaluated; for example `concat()` is not
 currently supported, while the standard `||` operator is. XPath evaluation errors
@@ -70,16 +75,17 @@ failures retain generated CEMT frames. Both discard the whole partial result
 through existing protected CEMT rendering. Cancellation and budget errors remain
 uncatchable. No substitute output is manufactured.
 
-Standard parsing and recovery are documented below. Dynamic output, stylesheet
-sidecars and full namespace/output handling belong to the output fixture.
+Standard parsing, recovery and native output are documented below. Full namespace
+node handling, schema-aware output, serialization controls, dynamic constructor
+names/namespace AVTs and secondary result documents remain outside this profile.
 Global variables/parameters, parameter constructors/types/tunnels, multiple
 mode tokens, `#all`, `xsl:mode`, `apply-imports` and `next-match` are also outside
 this bounded slice. Parameterized `element(name)`, `attribute(name)`,
 `document-node(element(...))` and schema type patterns are rejected because
 the current shared XPath kind-test model does not retain their typed arguments.
-`script` and `style` literal result elements are rejected until that output profile is
-implemented. `xml:space` and other unlisted instruction attributes are also
-rejected rather than silently ignored.
+Literal `script` and dynamic literal `style` bodies remain rejected. Static literal
+styles contain stylesheet text/CDATA/entities, without nested XSLT instructions.
+Unlisted instruction attributes remain source-located rejections.
 
 ## Grouping
 
@@ -269,8 +275,10 @@ standard error names; other CEM failures retain implementation error names.
 The [XSLT recovery contract](https://www.w3.org/TR/xslt-30/#try-catch) permits
 buffering with `rollback-output="no"`; this runtime always buffers. Cancellation,
 import limits, evaluator budgets and unavailable capabilities remain uncatchable.
-Select-based `xsl:try`/`xsl:catch` result construction is explicitly rejected
-until the output-profile task; it is not approximated by stringification.
+Select-based `xsl:try`/`xsl:catch` retains native results. A construction error is
+caught only when its enclosing element/document is constructed inside the try;
+returning a pending map or late attribute from a try does not construct the parent
+there. The parent reports the error in its own recovery scope.
 
 ### Verification
 
@@ -294,78 +302,64 @@ marker from the earlier strict-XSLT migration; updating that marker restored
 the original zero-serialization check. CEM-ML, CEM-QL and adapter Nx lint
 targets pass with existing warnings.
 
-## Output construction: scope decision pending
+## Native output construction
 
-XSLT-VIEW-OUTPUT reached a shared renderer boundary on 2026-09-18. The
-[scope rule](xslt-data-table-parity.md#scope) requires approval before adding
-CEMT/CEM-QL capabilities. Five native probes in
-[`xslt_output_prerequisites.rs`](../packages/cem_ql/tests/xslt_output_prerequisites.rs)
-characterize the boundary; this checkpoint changes no production behavior.
-All 424 CEM-QL tests pass, including the five new probes, with none ignored.
-Nx lint passes with existing warnings. No WASM rebuild is needed for this
-tests-and-documentation checkpoint.
+The shared extension was approved on 2026-09-18. XSLT lowering selects explicit
+`result-sequence`, `result-element`, `result-attribute` and `result-document`
+instructions. Their typed portable IR is distinct from literal CEMT elements;
+older readers reject the unknown instruction form. Ordinary CEMT interpolation,
+late-attribute handling and component stylesheet declarations retain their
+existing behavior, covered by the original compatibility probes.
 
-| Existing path | Observed behavior and implication |
-| --- | --- |
-| XPath native nodes inserted through a CEMT expression | The owner and source survive, but insertion emits only the node's string value. XML/JSON subtree structure is lost from output. |
-| Atomic expression results | Adjacent values become text immediately: `(1, 2)` produces `12`. Their atomic identity is unavailable when the parent is constructed. |
-| CEMT element/attribute constructors | An attribute emitted after child text is still attached to the element. The original sequence order is not retained for XSLT validation. |
-| Static style output | `{element @name=style}` produces a result node without extracting a component stylesheet. Ordinary `{style}` keeps its existing declaration semantics. This distinction is reusable. |
-| XSLT output authoring | AVTs, `xml:space`, result styles and select-based try/catch remain source-located rejections pending lowering. |
+Pending values remain distinct from constructed text through internal named
+calls, XSLT imports, loops and buffered recovery. An enclosing native result
+constructor consumes them using [complex-content construction](https://www.w3.org/TR/xslt-30/#constructing-complex-content):
+arrays flatten recursively, atomic values use shared XPath string conversion,
+adjacent atomics receive spaces, documents contribute children, empty text nodes
+are removed and adjacent text nodes merge. An empty document still separates
+atomic runs. Attribute simple content instead atomizes nodes and joins values,
+after merging adjacent text. Maps/functions fail explicitly. XSLT supplies
+standard names such as `XTDE0410` (late attribute), `XTDE0420` (attribute in a
+document), `XTDE0450` (function/map in complex content), and `FOTY0013`
+(unatomizable simple content). Duplicate attributes use the last value by
+expanded name. Error URI, offset, line and column identify the constructing
+stylesheet instruction; imported nodes retain their original source frames.
 
-[XSLT complex-content construction](https://www.w3.org/TR/xslt-30/#constructing-complex-content)
-keeps items until the parent is constructed: adjacent atomic values need space
-separation, while adjacent text nodes merge without it. Native subtrees must
-remain nodes. Attribute ordering must raise `XTDE0410` where required.
-These rules also apply to values returned through
-[select-based try/catch](https://www.w3.org/TR/xslt-30/#try-catch).
-String interpolation or a generated recursive copy template alone cannot
-preserve all these distinctions across calls, loops and recovery boundaries.
-Serializing source nodes and parsing the markup back is prohibited by the
-[import rule](cem-data-import-principle.md).
+Copying uses the common CEM semantic node view: document, element, attribute,
+text, comment and processing-instruction nodes. It never traverses an external
+format AST, serializes an input tree or reparses output. XML, JSON, YAML and CSV
+imports all use this same path. JSON-to-XML is an import projection into CEM
+nodes, not an intermediate XML string or JavaScript document object.
 
-### Proposed shared change
+Namespace fixup preserves expanded element/attribute names, assigns prefixes
+when required and resets inherited default namespaces for unqualified children.
+The bounded untyped profile preserves names rather than original prefix
+spelling or unused in-scope namespace declarations; namespace-node constructors,
+namespace-axis copying and schema-typed QName content are not supported. Native
+render-plan names carry explicit lexical QName metadata and namespace URIs;
+legacy CEMT namespace fields retain their prior contract. CLI CEM-tree export
+and WASM render-plan serialization consume that metadata directly. WASM emits
+attribute `namespaceUri` as explicit render protocol metadata. This checkpoint
+verifies native/CLI/WASM output; browser viewer integration remains a later gate.
 
-Add an explicit native result-construction capability to shared CEMT rendering,
-selected by XSLT lowering. Keep ordinary CEMT interpolation and component-style
-extraction unchanged. The capability must:
+Native construction polls host cancellation and has cumulative limits of 1 MiB
+of copied/constructed text, 100,000 construction work steps and depth 128.
+Buffer production is charged before pending results accumulate. The existing
+XPath/evaluator limits and 32-template-call limit remain in force. Rollback does
+not replenish budgets, and catches cannot suppress limits or cancellation.
+Pending values outside a result constructor fail explicitly; independent external
+CEMT transform calls still return completed render plans.
 
-1. Carry native items and constructed nodes until the enclosing result
-   element/document consumes them, including across template calls, loops and
-   buffered try/catch. Keep atomic values distinct from constructed text.
-2. Copy retained CEM/XPath nodes through their common semantic view, preserving
-   expanded names, node kinds and source provenance. Never inspect external
-   XML/JSON/YAML/CSV parser ASTs, manufacture document records, or reparse output.
-3. Expose explicit construction policy and typed failures so the XSLT layer can
-   enforce array flattening, atomic spacing, text merging, attribute order and
-   duplicate rules, and namespace fixup within its documented bounded profile.
-   Unsupported function/map items must fail explicitly. XSLT owns standard
-   error names; existing CEMT behavior must not change implicitly.
-4. Retain the existing limits, cancellation and buffered rollback guarantees.
-   Portable compilation/loading must carry the new capability explicitly and
-   reject unsupported forms instead of silently treating them as text.
+Static literal result styles bypass component declaration extraction and remain
+in their runtime branch. HTML serialization retains their raw text; the existing
+CLI output boundary supplies linked CSS, inline and omit policies, CSS exports
+and source maps. The restored CLI fixture is active, alongside rejection of
+dynamic literal styles with no output files or sidecars.
 
-The proposed extension is a reusable result path. It adds no format reader or
-table-specific renderer. All external parsing remains in `cem-ml` import.
-Without approval, select-based try/catch stays deferred; ordinary literal HTML,
-AVTs, whitespace and static-style work can be considered separately.
-
-### Acceptance after approval
-
-- Lower select-based try/catch and the corresponding sequence-producing
-  instructions through native results. Verify XML/JSON subtrees, empty nodes,
-  documents, attributes, comments/PIs and source retention after bundle reload.
-- Test atomic versus text adjacency across instructions, named calls, loops and
-  catches; recursive array flattening; attribute order/duplicate handling;
-  namespace behavior; unsupported items; rollback; limits and cancellation.
-- Implement output AVTs, whitespace preservation and existing slice/event
-  attributes without browser-local interpretation of source documents.
-- Keep declaration styles unchanged, lower static result styles as output
-  nodes, and restore the CLI link/inline/omit/CSS export fixture through the
-  existing output boundary. Do not extract inactive result branches as styles.
-- Run native and CLI acceptance first, followed by portable native/WASM checks.
-  Replace the current XSLT rejection probes with positive acceptance cases;
-  retain the ordinary CEMT behavior probes as compatibility checks.
+Acceptance is covered by `native_result_construction.rs`, `xslt_output.rs`, the
+ordinary CEMT compatibility probes, the CLI style export fixture and native/WASM
+bundle checks. Verification totals are recorded with **XSLT-VIEW-OUTPUT** in
+[todo.md](todo.md). Full viewer parity remains the next slice.
 
 ## Native ownership and loading
 
@@ -420,7 +414,5 @@ bundle's 4 KiB identifier limit. Existing XPath, bundle and operation limits
 also apply. Native CEMT dispatch supplies its fixed 32-call recursion guard;
 custom adapter recursion limits are explicitly rejected in this profile.
 
-The CLI style-export success fixture remains explicitly ignored under
-XSLT-VIEW-OUTPUT, alongside an active test proving rejection with no output or
-sidecars. Restore its link/inline/omit/CSS assertions when that profile is
-implemented; do not silently drop stylesheet styles.
+The CLI style-export fixture is active under XSLT-VIEW-OUTPUT. Unsupported
+dynamic literal styles still fail before any output or sidecars are emitted.

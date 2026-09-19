@@ -441,6 +441,12 @@ fn strip_nodes(nodes: &mut [TemplateNode]) {
                 children,
                 source_map,
                 ..
+            }
+            | TemplateNode::Result {
+                attributes,
+                children,
+                source_map,
+                ..
             } => {
                 source_map.frames.clear();
                 for attribute in attributes {

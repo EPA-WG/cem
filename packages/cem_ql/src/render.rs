@@ -24,6 +24,19 @@ use crate::api::{compile, evaluate, evaluate_with_control, CompileContext, Evalu
 use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
+mod construction;
+use construction::ResultBuffer;
+
+/// Explicit result instructions survive portable compilation. Unknown instructions
+/// are rejected by older artifact readers instead of becoming literal elements.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub enum ResultInstruction {
+    Sequence,
+    Element,
+    Attribute,
+    Document,
+}
+
 /// Binding name under which the `/datadom` data document is exposed to expressions.
 const DATA_DOCUMENT_BINDING: &str = "datadom";
 /// Stable transform primary artifact binding.
@@ -139,6 +152,12 @@ pub struct TemplateModuleMapArtifact {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TemplateNode {
+    Result {
+        instruction: ResultInstruction,
+        attributes: Vec<TemplateAttribute>,
+        children: Vec<TemplateNode>,
+        source_map: SourceMapStack,
+    },
     Element {
         tag: String,
         attributes: Vec<TemplateAttribute>,
@@ -252,6 +271,9 @@ pub enum RenderPlanNode {
     Element {
         tag: String,
         namespace: Option<String>,
+        /// Native expanded-name construction supplies its lexical QName explicitly.
+        /// `None` retains the existing CEMT name/namespace contract.
+        qualified_name: Option<String>,
         attributes: Vec<RenderPlanAttribute>,
         children: Vec<RenderPlanNode>,
         source_map: SourceMapStack,
@@ -279,6 +301,7 @@ pub enum RenderPlanNode {
 pub struct RenderPlanAttribute {
     pub name: String,
     pub namespace: Option<String>,
+    pub qualified_name: Option<String>,
     pub value: String,
     /// Typed CEM-QL value before HTML/string serialization.
     ///
@@ -294,6 +317,7 @@ impl PartialEq for RenderPlanAttribute {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.namespace == other.namespace
+            && self.qualified_name == other.qualified_name
             && self.value == other.value
             && self.source_map == other.source_map
     }
@@ -978,9 +1002,12 @@ fn render_compiled_template_internal(
         control_failed: false,
         recovery_depth: usize::from(protected),
         failure: None,
+        result_work: 0,
+        result_bytes: 0,
+        result_depth: 0,
         calls,
     };
-    let mut nodes = Vec::new();
+    let mut nodes = ResultBuffer::default();
     renderer.apply_attribute_declaration_selects(&artifact.nodes, &mut host_attribute_updates);
     let boundary_source = artifact
         .nodes
@@ -1009,6 +1036,7 @@ fn render_compiled_template_internal(
             });
         }
     }
+    let nodes = renderer.finish_result_buffer(nodes, &boundary_source);
     TemplateCallResult {
         failure: renderer.failure,
         plan: RenderPlan {
@@ -1300,11 +1328,13 @@ impl RenderPlanHtmlRenderer {
         match node {
             RenderPlanNode::Element {
                 tag,
-                namespace: _,
+                namespace,
+                qualified_name,
                 attributes,
                 children,
                 source_map,
             } => {
+                let tag = qualified_name.as_deref().unwrap_or(tag);
                 let open_start = self.out.len() as u64;
                 self.out.push('<');
                 self.out.push_str(tag);
@@ -1314,7 +1344,7 @@ impl RenderPlanHtmlRenderer {
                     }
                     self.render_attribute(attribute);
                 }
-                if HTML_VOID_ELEMENTS.contains(&tag.as_str()) && children.is_empty() {
+                if HTML_VOID_ELEMENTS.contains(&tag) && children.is_empty() {
                     self.out.push('>');
                     self.record_span(open_start, source_map);
                     return;
@@ -1324,6 +1354,17 @@ impl RenderPlanHtmlRenderer {
                 for child in children {
                     if !self.poll() {
                         return;
+                    }
+                    if qualified_name.is_some()
+                        && matches!(namespace.as_deref(), None | Some("http://www.w3.org/1999/xhtml"))
+                        && matches!(tag, "style" | "script")
+                    {
+                        if let RenderPlanNode::Text { text, source_map } = child {
+                            let start = self.out.len() as u64;
+                            self.push_raw(text);
+                            self.record_span(start, source_map);
+                            continue;
+                        }
                     }
                     self.render_node(child);
                 }
@@ -1374,13 +1415,13 @@ impl RenderPlanHtmlRenderer {
         if let Some(namespace) = attribute
             .namespace
             .as_deref()
-            .filter(|value| !value.is_empty())
+            .filter(|value| !value.is_empty() && attribute.qualified_name.is_none())
         {
             self.out.push_str(namespace);
             self.out.push(':');
         }
-        self.out.push_str(&attribute.name);
-        if !attribute.value.is_empty() {
+        self.out.push_str(attribute.qualified_name.as_deref().unwrap_or(&attribute.name));
+        if !attribute.value.is_empty() || attribute.qualified_name.is_some() {
             self.out.push_str("=\"");
             self.escape_attr(&attribute.value);
             self.out.push('"');
@@ -1506,10 +1547,12 @@ impl RenderPlanXmlRenderer {
             RenderPlanNode::Element {
                 tag,
                 namespace: _,
+                qualified_name,
                 attributes,
                 children,
                 source_map,
             } => {
+                let tag = qualified_name.as_deref().unwrap_or(tag);
                 let open_start = self.out.len() as u64;
                 self.out.push('<');
                 self.out.push_str(tag);
@@ -1582,12 +1625,12 @@ impl RenderPlanXmlRenderer {
         if let Some(namespace) = attribute
             .namespace
             .as_deref()
-            .filter(|value| !value.is_empty())
+            .filter(|value| !value.is_empty() && attribute.qualified_name.is_none())
         {
             self.out.push_str(namespace);
             self.out.push(':');
         }
-        self.out.push_str(&attribute.name);
+        self.out.push_str(attribute.qualified_name.as_deref().unwrap_or(&attribute.name));
         self.out.push_str("=\"");
         self.escape_attr(&attribute.value);
         self.out.push('"');
@@ -1773,6 +1816,7 @@ impl TemplateCompiler<'_> {
                         if (local_template_name(tag) == "attribute" && name == "select")
                             || (local_template_name(tag) == "template" && name == "match")
                             || (local_template_name(tag) == "apply-templates" && name == "select")
+                            || (local_template_name(tag) == "result-sequence" && name == "select")
                         {
                             TemplateAttributeValue::Expression(
                                 self.compile_expression(value, &token),
@@ -1996,11 +2040,20 @@ impl TemplateCompiler<'_> {
             self.element_stack.pop();
             children
         };
-        TemplateNode::Element {
-            tag,
-            attributes,
-            children,
-            source_map: frame_for(&start),
+        let instruction = match local_template_name(&tag) {
+            "result-sequence" => Some(ResultInstruction::Sequence),
+            "result-element" => Some(ResultInstruction::Element),
+            "result-attribute" => Some(ResultInstruction::Attribute),
+            "result-document" => Some(ResultInstruction::Document),
+            _ => None,
+        };
+        if let Some(instruction) = instruction {
+            if let Some(message) = construction::validate_instruction(instruction, &attributes, &children) {
+                self.diagnostics.push(render_diagnostic("cem.ql.result.instruction", message.into(), source_map_start(&frame_for(&start)), frame_for(&start)));
+            }
+            TemplateNode::Result { instruction, attributes, children, source_map: frame_for(&start) }
+        } else {
+            TemplateNode::Element { tag, attributes, children, source_map: frame_for(&start) }
         }
     }
 
@@ -2561,6 +2614,9 @@ struct PlanRenderer<'a> {
     recovery_depth: usize,
     failure: Option<TemplateFailure>,
     calls: Option<&'a dyn TemplateCallHandler>,
+    result_work: u64,
+    result_bytes: u64,
+    result_depth: usize,
 }
 
 impl PlanRenderer<'_> {
@@ -2631,7 +2687,7 @@ impl PlanRenderer<'_> {
     fn render_nodes_scoped(
         &mut self,
         nodes: &[TemplateNode],
-        out: &mut Vec<RenderPlanNode>,
+        out: &mut ResultBuffer,
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
         let names = nodes
@@ -2712,14 +2768,28 @@ impl PlanRenderer<'_> {
     fn render_into(
         &mut self,
         node: &TemplateNode,
-        out: &mut Vec<RenderPlanNode>,
+        out: &mut ResultBuffer,
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
         let source_map = template_node_source_map(node);
-        if !self.poll_render(source_map) {
+        let permitted = if self.result_depth > 0 {
+            let bytes = match node {
+                TemplateNode::Text { text, .. } | TemplateNode::Comment { text, .. } => text.len(),
+                _ => 0,
+            };
+            self.charge_result(bytes, self.result_depth, source_map)
+        } else { self.poll_render(source_map) };
+        if !permitted {
             return;
         }
         match node {
+            TemplateNode::Result { instruction, attributes, children, source_map } => {
+                self.recovery_depth += 1;
+                self.result_depth += 1;
+                self.render_result(*instruction, attributes, children, source_map, out);
+                self.result_depth -= 1;
+                self.recovery_depth -= 1;
+            }
             TemplateNode::Element {
                 tag,
                 attributes,
@@ -2821,13 +2891,14 @@ impl PlanRenderer<'_> {
                     .iter()
                     .filter_map(|attribute| self.render_attribute(attribute))
                     .collect::<Vec<_>>();
-                let mut child_nodes = Vec::new();
+                let mut child_nodes = ResultBuffer::default();
                 self.render_nodes_scoped(children, &mut child_nodes, &mut attributes);
                 out.push(RenderPlanNode::Element {
+                    qualified_name: None,
                     tag: tag.clone(),
                     namespace: None,
                     attributes,
-                    children: child_nodes,
+                    children: self.finish_result_buffer(child_nodes, source_map),
                     source_map: source_map.clone(),
                 });
             }
@@ -2951,7 +3022,7 @@ impl PlanRenderer<'_> {
         &mut self,
         attributes: &[TemplateAttribute],
         source_map: &SourceMapStack,
-        out: &mut Vec<RenderPlanNode>,
+        out: &mut ResultBuffer,
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
         if !self.force_render(source_map) {
@@ -3037,7 +3108,7 @@ impl PlanRenderer<'_> {
         &mut self,
         attributes: &[TemplateAttribute],
         source_map: &SourceMapStack,
-        out: &mut Vec<RenderPlanNode>,
+        out: &mut ResultBuffer,
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
         if !self.force_render(source_map) {
@@ -3186,6 +3257,7 @@ impl PlanRenderer<'_> {
             return None;
         }
         Some(RenderPlanAttribute {
+            qualified_name: None,
             name: attribute.name.clone(),
             namespace: None,
             value,
@@ -3229,7 +3301,7 @@ impl PlanRenderer<'_> {
         attributes: &[TemplateAttribute],
         children: &[TemplateNode],
         source_map: &SourceMapStack,
-        out: &mut Vec<RenderPlanNode>,
+        out: &mut ResultBuffer,
     ) {
         let Some((tag, tag_source_map)) =
             self.render_constructor_name(attributes, "name", source_map, "element")
@@ -3238,16 +3310,17 @@ impl PlanRenderer<'_> {
         };
         let namespace = self.render_constructor_optional_text(attributes, "namespace");
         let mut rendered_attributes = Vec::new();
-        let mut rendered_children = Vec::new();
+        let mut rendered_children = ResultBuffer::default();
         for child in children {
             self.render_into(child, &mut rendered_children, &mut rendered_attributes);
         }
         sort_render_plan_attributes(&mut rendered_attributes);
         out.push(RenderPlanNode::Element {
+            qualified_name: None,
             tag,
             namespace,
             attributes: rendered_attributes,
-            children: rendered_children,
+            children: self.finish_result_buffer(rendered_children, source_map),
             source_map: tag_source_map,
         });
     }
@@ -3266,12 +3339,13 @@ impl PlanRenderer<'_> {
             .find(|attribute| attribute.name == "value")
         else {
             let mut ignored_attributes = Vec::new();
-            let mut rendered_children = Vec::new();
+            let mut rendered_children = ResultBuffer::default();
             for child in children {
                 self.render_into(child, &mut rendered_children, &mut ignored_attributes);
             }
-            let value = render_plan_nodes_to_text(&rendered_children);
+            let value = render_plan_nodes_to_text(&self.finish_result_buffer(rendered_children, &SourceMapStack::default()));
             return Some(RenderPlanAttribute {
+                qualified_name: None,
                 name,
                 namespace,
                 value: value.clone(),
@@ -3281,6 +3355,7 @@ impl PlanRenderer<'_> {
         };
         let (value, value_stream) = self.render_attribute_value(value_attribute);
         Some(RenderPlanAttribute {
+            qualified_name: None,
             name,
             namespace,
             value,
@@ -3303,11 +3378,11 @@ impl PlanRenderer<'_> {
             return value;
         }
         let mut ignored_attributes = Vec::new();
-        let mut rendered_children = Vec::new();
+        let mut rendered_children = ResultBuffer::default();
         for child in children {
             self.render_into(child, &mut rendered_children, &mut ignored_attributes);
         }
-        render_plan_nodes_to_text(&rendered_children)
+        render_plan_nodes_to_text(&self.finish_result_buffer(rendered_children, &SourceMapStack::default()))
     }
 
     fn render_constructor_optional_text(
@@ -3466,13 +3541,13 @@ impl PlanRenderer<'_> {
     fn render_try(
         &mut self,
         children: &[TemplateNode],
-        out: &mut Vec<RenderPlanNode>,
+        out: &mut ResultBuffer,
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
         let first_catch = children.iter().position(|n| matches!(n, TemplateNode::Element { tag, .. } if local_template_name(tag) == "catch")).unwrap_or(children.len());
         let saved_bindings = self.evaluation_context.policy_bindings.clone();
         let diagnostic_start = self.diagnostics.len();
-        let mut buffered = Vec::new();
+        let mut buffered = ResultBuffer::default();
         let mut attributes = parent_attributes.clone();
         self.recovery_depth += 1;
         self.render_nodes_scoped(&children[..first_catch], &mut buffered, &mut attributes);
@@ -3543,7 +3618,7 @@ impl PlanRenderer<'_> {
                 }));
                 self.diagnostics.extend(tail);
                 if self.failure.is_none() && !self.control_failed {
-                    let mut recovered = Vec::new();
+                    let mut recovered = ResultBuffer::default();
                     let mut recovered_attributes = parent_attributes.clone();
                     self.recovery_depth += 1;
                     self.render_nodes_scoped(children, &mut recovered, &mut recovered_attributes);
@@ -3832,6 +3907,7 @@ fn root_render_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
 fn template_node_source_map(node: &TemplateNode) -> &SourceMapStack {
     match node {
         TemplateNode::Element { source_map, .. }
+        | TemplateNode::Result { source_map, .. }
         | TemplateNode::Text { source_map, .. }
         | TemplateNode::Comment { source_map, .. }
         | TemplateNode::If { source_map, .. }
@@ -3984,7 +4060,7 @@ fn rewrite_module_calls(
                     diagnostics,
                 );
             }
-            TemplateNode::If { children, .. } | TemplateNode::ForEach { children, .. } => {
+            TemplateNode::Result { children, .. } | TemplateNode::If { children, .. } | TemplateNode::ForEach { children, .. } => {
                 rewrite_module_calls(
                     children,
                     current_module_uri,
@@ -4228,6 +4304,7 @@ fn payload_item_to_render_node(item: &Item, source_map: &SourceMapStack) -> Opti
                     attributes
                         .iter()
                         .map(|(name, values)| RenderPlanAttribute {
+                            qualified_name: None,
                             name: name.clone(),
                             namespace: None,
                             value: values.iter().map(item_to_string).collect::<String>(),
@@ -4243,6 +4320,7 @@ fn payload_item_to_render_node(item: &Item, source_map: &SourceMapStack) -> Opti
                 .filter_map(|item| payload_item_to_render_node(&item, source_map))
                 .collect::<Vec<_>>();
             Some(RenderPlanNode::Element {
+                qualified_name: None,
                 tag,
                 namespace,
                 attributes,
@@ -4404,9 +4482,11 @@ mod tests {
     fn sample_plan() -> RenderPlan {
         RenderPlan {
             nodes: vec![RenderPlanNode::Element {
+                qualified_name: None,
                 tag: "p".to_owned(),
                 namespace: None,
                 attributes: vec![RenderPlanAttribute {
+                    qualified_name: None,
                     name: "title".to_owned(),
                     namespace: None,
                     value: "A&B".to_owned(),
@@ -4553,9 +4633,11 @@ mod tests {
                     source_map: stack(0, 8),
                 },
                 RenderPlanNode::Element {
+                    qualified_name: None,
                     tag: "root".to_owned(),
                     namespace: None,
                     attributes: vec![RenderPlanAttribute {
+                        qualified_name: None,
                         name: "id".to_owned(),
                         namespace: None,
                         value: "a&b".to_owned(),
@@ -4564,6 +4646,7 @@ mod tests {
                     }],
                     children: vec![
                         RenderPlanNode::Element {
+                            qualified_name: None,
                             tag: "empty".to_owned(),
                             namespace: None,
                             attributes: Vec::new(),

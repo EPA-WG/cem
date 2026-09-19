@@ -261,6 +261,7 @@ fn render_plan_preserves_structured_nodes_and_source_maps() {
     let [RenderPlanNode::Element {
         tag,
         namespace,
+        qualified_name: None,
         attributes,
         children,
         source_map,

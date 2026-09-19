@@ -407,20 +407,27 @@ fn node_json(node: &RenderPlanNode) -> Value {
         RenderPlanNode::Element {
             tag,
             namespace,
+            qualified_name,
             attributes,
             children,
             source_map,
         } => json!({
             "kind": "element",
-            "tag": tag,
+            "tag": qualified_name.as_ref().unwrap_or(tag),
             "namespace": namespace,
-            "attributes": attributes.iter().map(|attribute| json!({
-                "name": attribute.name,
-                "namespace": attribute.namespace,
-                "value": attribute.value,
-                "byteOffset": source_map_offset(&attribute.source_map),
-                "sourceMap": source_map_json(&attribute.source_map)
-            })).collect::<Vec<_>>(),
+            "attributes": attributes.iter().map(|attribute| {
+                let mut value = json!({
+                    "name": attribute.qualified_name.as_ref().unwrap_or(&attribute.name),
+                    "namespace": attribute.namespace,
+                    "value": attribute.value,
+                    "byteOffset": source_map_offset(&attribute.source_map),
+                    "sourceMap": source_map_json(&attribute.source_map)
+                });
+                if attribute.qualified_name.is_some() {
+                    value["namespaceUri"] = json!(attribute.namespace);
+                }
+                value
+            }).collect::<Vec<_>>(),
             "children": children.iter().map(node_json).collect::<Vec<_>>(),
             "byteOffset": source_map_offset(source_map),
             "sourceMap": source_map_json(source_map)

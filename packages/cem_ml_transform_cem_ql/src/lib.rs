@@ -3620,6 +3620,7 @@ fn render_plan_node_to_cem_tree_with_control(
         RenderPlanNode::Element {
             tag,
             namespace,
+            qualified_name,
             attributes,
             children,
             source_map,
@@ -3637,7 +3638,7 @@ fn render_plan_node_to_cem_tree_with_control(
                 }
             }
             Some(CemTreeAstNode::Element {
-                name: render_plan_cem_tree_name(tag, namespace.as_deref()),
+                name: qualified_name.clone().unwrap_or_else(|| render_plan_cem_tree_name(tag, namespace.as_deref())),
                 attributes: converted_attributes,
                 children: converted_children,
                 source: source_map.clone(),
@@ -3681,11 +3682,12 @@ fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<CemTreeAstNode>
         RenderPlanNode::Element {
             tag,
             namespace,
+            qualified_name,
             attributes,
             children,
             source_map,
         } => Some(CemTreeAstNode::Element {
-            name: render_plan_cem_tree_name(tag, namespace.as_deref()),
+            name: qualified_name.clone().unwrap_or_else(|| render_plan_cem_tree_name(tag, namespace.as_deref())),
             attributes: attributes
                 .iter()
                 .map(render_plan_attribute_to_cem_tree)
@@ -3729,7 +3731,7 @@ fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<CemTreeAstNode>
 
 fn render_plan_attribute_to_cem_tree(attribute: &RenderPlanAttribute) -> CemTreeAstAttribute {
     CemTreeAstAttribute {
-        name: render_plan_cem_tree_name(&attribute.name, attribute.namespace.as_deref()),
+        name: attribute.qualified_name.clone().unwrap_or_else(|| render_plan_cem_tree_name(&attribute.name, attribute.namespace.as_deref())),
         value: Some(attribute.value.clone()),
         source: attribute.source_map.clone(),
     }
@@ -3999,7 +4001,7 @@ fn protect_transform_call_nodes(nodes: &mut [TemplateNode]) {
                 }
                 protect_transform_call_nodes(children);
             }
-            TemplateNode::If { children, .. } | TemplateNode::ForEach { children, .. } => {
+            TemplateNode::Result { children, .. } | TemplateNode::If { children, .. } | TemplateNode::ForEach { children, .. } => {
                 protect_transform_call_nodes(children);
             }
             TemplateNode::Choose { branches, .. } => {

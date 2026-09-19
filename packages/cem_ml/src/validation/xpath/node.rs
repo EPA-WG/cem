@@ -253,10 +253,10 @@ impl XPathNativeNode {
     pub(super) fn document_root(&self) -> Self {
         self.at(0)
     }
-    pub(super) fn child_nodes(&self) -> Vec<Self> {
+    pub fn child_nodes(&self) -> Vec<Self> {
         self.data().children.iter().map(|&id| self.at(id)).collect()
     }
-    pub(super) fn attribute_nodes(&self) -> Vec<Self> {
+    pub fn attribute_nodes(&self) -> Vec<Self> {
         self.data()
             .attributes
             .iter()
@@ -282,7 +282,7 @@ impl XPathNativeNode {
             .map(|node| node.data().value.as_str())
             .collect()
     }
-    pub(super) fn result_node_kind(&self) -> XPathResultNodeKind {
+    pub fn result_node_kind(&self) -> XPathResultNodeKind {
         match self.data().kind {
             CemTreeNodeKind::Document => XPathResultNodeKind::Document,
             CemTreeNodeKind::Element => XPathResultNodeKind::Element,
@@ -316,13 +316,13 @@ impl XPathNativeNode {
             }
         })
     }
-    pub(super) fn local_name(&self) -> &str {
+    pub fn local_name(&self) -> &str {
         self.data().name.as_ref().map_or("", |n| &n.local_name)
     }
-    pub(super) fn namespace_uri(&self) -> &str {
+    pub fn namespace_uri(&self) -> &str {
         self.data().name.as_ref().map_or("", |n| &n.namespace_uri)
     }
-    pub(super) fn semantic_value(&self) -> &str {
+    pub fn semantic_value(&self) -> &str {
         &self.data().value
     }
     pub(super) fn descendant_nodes(&self) -> Vec<Self> {

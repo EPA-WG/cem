@@ -29,8 +29,10 @@ precedence, runtime loops, scoped variables, non-composite `group-by` with nativ
 XSLT group context, stable dynamic multi-key sorting, XPath conditionals and
 simple text construction. The transform/CLI adapter uses this strict XSLT 3.0 path. WASM
 `compileXsltBundle` / `retainXsltStylesheet` expose default compiler options;
-native-built module closures load through the explicit bundle API. Standard parsing,
-the full output profile and the complete viewer remain pending. Grouping uses
+native-built module closures load through the explicit bundle API. Standard parsing
+and typed recovery use CEM import. Native result construction, output AVTs,
+whitespace and static-style exports are implemented; full output conformance and
+the complete viewer remain pending. Grouping uses
 XPath key equality and preserves native items; the CEM `seq:group_by` identity
 contract is not substituted for XSLT semantics. Sorting uses common numeric
 promotion and native XPath comparisons; stylesheets explicitly author any
@@ -431,7 +433,36 @@ The native CLI adapter resolves module calls during rendering through
 `TemplateCallHandler`, so recovery spans imported calls while retaining typed
 parameters and module recursion limits. The same core semantics work in WASM
 and precompiled templates. XSLT syntax, standard error-name mapping and standard
-parsing-function semantics remain separate compatibility-layer work.
+parsing-function semantics are owned by the XSLT compatibility layer.
+
+## Native result construction
+
+`result-document`, `result-element`, `result-attribute` and `result-sequence`
+select an explicit native output path. For example:
+
+```cem
+{result-document |
+  {result-element @name=p |
+    {result-sequence @select='(1, 2)'}{$ "x"}
+  }
+}
+```
+
+This produces `<p>1 2x</p>`. Ordinary `{$ (1, 2)}` still produces `12`.
+Native CEM/XPath selections remain nodes until construction; there is no markup
+reparse or document-record conversion. Arrays flatten, text merges, attributes
+retain sequence order, duplicates use the last expanded-name value, and
+unsupported maps/functions/records fail explicitly. Attributes use simple-content
+atomization. Calls and buffered recovery carry pending values until their parent
+is built; a pending value without a parent constructor is an error.
+
+The typed artifact variant makes the capability explicit to loaders. Language
+lowering supplies error-name and origin metadata; generic CEMT has no implicit
+XSLT error contract. Expanded-name output uses optional `qualified_name` metadata
+in the native render plan; when present, `namespace` is the URI. Existing CEMT
+name/namespace behavior stays unchanged when the metadata is absent. The
+[bounded profile](../../docs/xslt-runtime-lowering.md#native-output-construction)
+describes namespaces, provenance, limits and output integration.
 
 ## Verification
 

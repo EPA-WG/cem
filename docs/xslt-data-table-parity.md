@@ -16,11 +16,11 @@ The shared parsing and typed-error extension was approved on 2026-09-18 and is
 implemented through CEM import and native buffered recovery. The bounded
 contract and verification are recorded under XSLT-VIEW-DATA and in the
 [runtime profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
-Output construction reached a new [shared-renderer decision](xslt-runtime-lowering.md#output-construction-scope-decision-pending):
-five native probes show that direct expression insertion loses node/atomic
-result distinctions and that CEMT attribute construction has different ordering
-semantics. The proposed opt-in native result path awaits approval; AVTs, styles
-and the remaining output profile are not implemented by this checkpoint.
+The shared [native output construction](xslt-runtime-lowering.md#native-output-construction)
+extension was approved on 2026-09-18 and is implemented. Native nodes and atomics
+remain distinct through calls/recovery; output AVTs, whitespace, expanded names,
+attribute ordering and static result-style exports use the shared renderer.
+The viewer stylesheet and browser parity demonstration remain open.
 
 ## Scope
 
@@ -44,8 +44,10 @@ extensions were approved on 2026-09-18. The shared CEM-QL call-depth accounting
 correction was also approved on that date, preserving configured limits and
 cumulative function-call accounting. Native standard parsing through CEM import,
 typed import errors and standard error identity for XSLT recovery were also
-approved on that date. Other shared capability expansions still
-require approval.
+approved on that date. Shared native result construction was also approved,
+including native copying, atomic/text normalization, attribute ordering, typed
+failures, bounded namespace fixup and portable output. Other shared capability
+expansions still require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
 or browser runtime behavior, stop and ask before implementing it. No table-
 specific Rust rendering, demo-local JavaScript, browser XSLTProcessor, or opaque

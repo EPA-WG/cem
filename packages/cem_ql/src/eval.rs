@@ -26,6 +26,7 @@ use crate::types::Type;
 mod data;
 pub(crate) use data::xpath_node as imported_xpath_node;
 pub use data::{imported_cem_tree, DataReaderCache};
+pub(crate) use data::xpath_node as result_native_node;
 pub mod pipeline;
 pub mod set_ops;
 pub mod types_runtime;

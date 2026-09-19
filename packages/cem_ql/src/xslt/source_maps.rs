@@ -140,6 +140,12 @@ pub(super) fn validate_template(template: &TemplateArtifact, source: &BundleSour
                 children,
                 source_map,
                 ..
+            }
+            | TemplateNode::Result {
+                attributes,
+                children,
+                source_map,
+                ..
             } => {
                 map(source_map, source)?;
                 for attribute in attributes {

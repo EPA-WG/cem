@@ -91,6 +91,29 @@ fn direct_cli_executes_xslt_parity_for_login_profile_shape() {
 }
 
 #[test]
+fn direct_cli_exports_native_parsed_xml_and_json_subtrees_with_source_maps() {
+    let root = fixture_root("native-output");
+    let data = root.join("input.xml");
+    let template = root.join("copy.xsl");
+    let report_path = root.join("report.json");
+    write(
+        &template,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><page><xsl:sequence select="if (/*/@json) then json-to-xml(string(/*)) else parse-xml(string(/*))"/></page></xsl:template></xsl:stylesheet>"#,
+    );
+    for (input, fragments) in [
+        ("<input><![CDATA[<r xmlns='urn:r' xmlns:a='urn:a' a:id='one'><empty/><!--end--><?test data?></r>]]></input>", vec!["<r", "xmlns=\"urn:r\"", "xmlns:ns1=\"urn:a\"", "ns1:id=\"one\"", "<empty", "<!--end-->", "<?test data?>"]),
+        ("<input json='yes'>{\"a\":null,\"b\":\"\"}</input>", vec!["<map", "xmlns=\"http://www.w3.org/2005/xpath-functions\"", "<null", "key=\"a\"", "<string", "key=\"b\""]),
+    ] {
+        write(&data, input);
+        let output = cem_ml(&["transform", data.to_str().unwrap(), "--data-content-type", "application/xml", "--template", template.to_str().unwrap(), "--template-content-type", "application/xslt+xml", "--to-content-type", "application/xml", "--report-json", report_path.to_str().unwrap()]);
+        assert_eq!(output.status.code(), Some(EXIT_OK), "{}", stderr(&output));
+        let text = stdout(&output);
+        for fragment in fragments { assert!(text.contains(fragment), "missing {fragment}: {text}"); }
+        assert!(!text.contains("&lt;r"));
+        assert_eq!(report(&report_path)["reportAst"]["transform"]["hasSourceMap"], true);
+    }
+}
+#[test]
 fn direct_cli_executes_xslt_named_entrypoint_and_params() {
     let root = fixture_root("direct-named-entrypoint");
     let data = root.join("profile.cem");
@@ -448,7 +471,7 @@ fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
 }
 
 #[test]
-fn graph_config_rejects_styles_before_the_output_profile_is_available() {
+fn graph_config_rejects_dynamic_style_output_without_sidecars() {
     let root = fixture_root("graph-inline-style-css-export");
     let data = root.join("asset.cem");
     let template = root.join("page.xsl");
@@ -464,7 +487,7 @@ fn graph_config_rejects_styles_before_the_output_profile_is_available() {
     write(&data, r#"{article @id="asset"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><html><head><style>.card { color: red; }</style></head><body><main class="card"><h1>Asset</h1></main></body></html></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><html><head><style><xsl:value-of select="1"/></style></head><body><main class="card"><h1>Asset</h1></main></body></html></xsl:template></xsl:stylesheet>"#,
     );
     write(
         &graph,
@@ -508,7 +531,6 @@ fn graph_config_rejects_styles_before_the_output_profile_is_available() {
 }
 
 #[test]
-#[ignore = "XSLT-VIEW-OUTPUT: stylesheet style sidecar exports remain unsupported"]
 fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     let root = fixture_root("graph-inline-style-css-export");
     let data = root.join("asset.cem");

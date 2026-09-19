@@ -42,6 +42,7 @@ fn query_consumers_do_not_interpret_external_document_formats() {
             "XPath regular expressions",
             include_str!("../src/validation/xpath/regular_expression.rs"),
         ),
+        ("native result construction", include_str!("../../cem_ql/src/render/construction.rs")),
         ("query runtime", include_str!("../src/query/runtime.rs")),
         ("semantic CEM tree", include_str!("../src/parser/tree.rs")),
         (

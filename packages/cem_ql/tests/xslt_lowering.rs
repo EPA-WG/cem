@@ -105,9 +105,9 @@ fn simple_content_merges_adjacent_text_and_preserves_atomic_separators() {
     assert_eq!(
         html(&bundle, "<r><a>A</a><b>B</b></r>", "xml"),
         concat!(
-            r#"<p>1 true 3</p><b>AB|X|A|B</b><i data-empty title="&quot;it's&quot; } { &amp; "#,
+            r#"<p>1 true 3</p><b>AB|X|A|B</b><i title="&quot;it's&quot; } { &amp; "#,
             "\n",
-            r#""> {literal} &amp; 🍒 } ' " \ </i>"#
+            r#"" data-empty=""> {literal} &amp; 🍒 } ' " \ </i>"#
         )
     );
 }
@@ -145,7 +145,7 @@ fn unsupported_or_malformed_instructions_fail_with_original_locations() {
         r#"<xsl:perform-sort select="/*/*"><xsl:sort select="."/></xsl:perform-sort>"#,
         r#"<xsl:value-of select="1 +"/>"#,
         r#"<xsl:value-of select="1" disable-output-escaping="yes"/>"#,
-        r#"<p title="{position()}">pending AVT</p>"#,
+        r#"<p title="{position(}">invalid AVT</p>"#,
         r#"<xsl:choose><xsl:otherwise>A</xsl:otherwise><xsl:when test="true()">B</xsl:when></xsl:choose>"#,
     ] {
         let source = stylesheet(body);

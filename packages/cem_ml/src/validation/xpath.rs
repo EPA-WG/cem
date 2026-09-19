@@ -735,6 +735,35 @@ pub struct XPathAtomicValue {
     pub local_name: Option<String>,
 }
 
+impl XPathAtomicValue {
+    /// Canonical string conversion for native result construction. Uses the
+    /// same bounded conversion as fn:string; this does not parse a document.
+    pub fn string_value(&self) -> Result<String, Diagnostic> {
+        let convert = || -> Result<String, XPathEvaluationError> {
+            let range = XPathSourceRange::new(0, 0, 0, 0);
+            let mut runtime = XPathEvaluationRuntime::new(XPathEvaluationLimits::default(), None);
+            runtime.read_text(&self.lexical_value, range)?;
+            if self.type_name == "xs:QName" {
+                return runtime.copy_text(&self.lexical_value, range);
+            }
+            text::atomic_string(xpath_comparable_atomic(self, range)?, &mut runtime, range)
+        };
+        convert().map_err(|error| Diagnostic {
+            code: error.code.into(), message: error.message, severity: Severity::Error,
+            ..Default::default()
+        })
+    }
+}
+
+/// Lexical QName validation shared by native result constructors. Namespace
+/// resolution remains with the calling language and the CEM semantic tree.
+pub fn xpath_is_qname(value: &str) -> bool {
+    match value.split_once(':') {
+        Some((prefix, local)) => lexer::is_ncname(prefix) && lexer::is_ncname(local),
+        None => lexer::is_ncname(value),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum XPathResultNodeKind {
