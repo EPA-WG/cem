@@ -1217,6 +1217,22 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
 - [ ] Fixture XSLT-VIEW-PARITY: author data-table-view.xslt and compare its
       CLI-translated rendering with direct CEMT across XML/CSV/YAML/JSON,
       heterogeneous/nested/empty data, sorting, selection and parse failures.
+    - [x] Fixture XSLT-VIEW-SELECTION-BOUNDARY: verify retained row provenance
+          across all four string imports, distinguish XDM node identity from
+          selection keys across rerenders, and characterize stylesheet access
+          to source metadata before choosing the viewer's selection contract.
+          Four native probes confirm retained provenance and CEMT's stable
+          keys, missing XPath metadata access, and CSV's header-profile mismatch.
+          The [shared proposal](xslt-runtime-lowering.md#viewer-selection-and-csv-parity-gate)
+          requires approval under the viewer scope rule; runtime code is unchanged.
+          Verification: all 446 CEM-QL tests pass; Nx lint passes with its
+          existing 23 warnings. No browser runtime or demo behavior changed.
+    - [ ] Fixture XSLT-VIEW-SOURCE-ACCESS: after approval, expose native source
+          keys and line numbers to XPath and CEM-QL; verify repeated parsing,
+          same-line nodes, edits, projection separation and native/WASM parity.
+    - [ ] Fixture XSLT-VIEW-CSV-HEADERS: after approval, add explicit CSV header
+          options through CEM-ML string import, preserve the one-argument profile,
+          and compare native rows/headers and typed failures with CEM-QL readers.
 - [ ] Fixture XSLT-VIEW-DEMO: add an independent XSLT viewer case and source
       display to data-table.html. Add an imported XSLT aspect case for notes
       as a tree and the IP-filter local-preview form; retain the CEMT cases.
@@ -1224,6 +1240,13 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
 - [ ] XSLT-VIEW-VERIFY: run native/CLI parity first, then WASM/browser gates,
       standalone/source-loaded demos, lint/typecheck and desktop/mobile checks.
       Verify edits/reset, sorting, selection, aspects, focus and instance state.
+- [ ] XPATH-CEMQL-PARITY-AUDIT: after the data viewer is complete, inventory
+      the XPath capabilities added for it against native CEM-QL equivalents.
+      Record each missing equivalent as an actionable checkitem and implement
+      and verify each, as requested on 2026-09-19. Compare semantics, native
+      ownership, error behavior and limits, distinguishing native functions
+      from optional XPath companions. Stop for a new contract
+      decision or ambiguity, and keep external parsing in CEM-ML import.
 
 ## Immediate: Legacy Demo Case Coverage
 

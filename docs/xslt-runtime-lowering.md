@@ -302,6 +302,60 @@ marker from the earlier strict-XSLT migration; updating that marker restored
 the original zero-serialization check. CEM-ML, CEM-QL and adapter Nx lint
 targets pass with existing warnings.
 
+## Viewer selection and CSV parity gate
+
+The 2026-09-19 viewer prerequisite probes in
+[`xslt_viewer_selection_boundary.rs`](../packages/cem_ql/tests/xslt_viewer_selection_boundary.rs)
+establish two remaining shared contracts. The viewer stylesheet is still open;
+these probes are not evidence of full viewer parity.
+
+| Probe | Current result |
+| --- | --- |
+| CEMT `data:read` over XML/JSON/YAML/CSV | Row `.id` values survive fresh reads of identical source; changed source invalidates them. `.line` identifies the original source line. |
+| XPath string imports followed by sorting | Native rows, owners, source maps and original line numbers survive sorting. Separate parses create distinct XDM documents and pointer-based identities. |
+| Stylesheet calls to proposed `Q{urn:cem:source}node-key` / `line-number` | No installed capability; source-located `cem.xpath.evaluation_unsupported`, with buffered output discarded. Metadata exists in native values but is unavailable to expressions. |
+| CSV `label\nB\nA` | CEMT's reader defaults to a header and produces two object rows; `import:parse-csv` produces three array rows, including `label`. |
+
+Persisting the current XPath native identity into a selection slice would lose
+selection on the next parse. Using sorted row position would select a different
+row after sorting. Source line numbers alone also cannot distinguish two rows
+on the same line. Existing metadata must remain attached to native nodes; no
+document-object projection or source serialization can repair this boundary.
+
+Proposed extension, **awaiting approval** under the viewer scope rule:
+
+- Add format-neutral provenance access to the retained CEM tree, exposed as
+  `Q{urn:cem:source}node-key($node)` and `line-number($node)` in XPath, with
+  matching native CEM-QL `data:node_key(node)` / `data:line_number(node)` functions.
+  Each accepts zero or one native node; empty input returns the empty sequence,
+  other types/cardinalities fail explicitly. The key is an opaque string; the
+  line is a one-based integer, or empty when original location is unavailable.
+- Compute the source-key fingerprint once at the shared tree/import boundary
+  from source identity, content and import/projection profile, then combine it
+  with the canonical node ID. Identical input under the same profile retains
+  keys across rerenders and native/WASM execution; changed content or profile
+  invalidates them. Keys are versioned source-selection tokens, not XDM identity
+  or persistent edit tracking. Independently parsed trees remain distinct for
+  XPath `is` and document ordering. Do not change existing CEMT `.id` values.
+  For trees without an imported-source fingerprint, return no source key.
+- Extend `import:parse-csv($text, map {'header': 'present'})` through an explicit
+  option owned by CEM-ML string import. Accept `present` and `absent`; keep the
+  existing one-argument header-absent behavior and reject invalid options with
+  a typed import error. The viewer selects `present`, matching the existing
+  `data:read($text, 'csv')` contract. CEM-QL already supports explicit header
+  selection through `data:read($text, 'text/csv;header=present')` / `absent`.
+  CSV record/header mapping stays exclusively in import.
+- Verify duplicate values and same-line nodes have distinct keys, sort/selection
+  survives repeated parsing, edits invalidate keys, profiles cannot alias, and
+  metadata/errors survive binary reload. Cover all four formats and both query
+  languages, with existing ownership, cancellation and resource limits.
+
+Native named-entry parameters already support the viewer's scalar controls.
+This gate does not approve a new browser binding or claim browser interactions
+are complete; those remain in XSLT-VIEW-DEMO/VERIFY. After viewer completion,
+the user requested an audit and implementation of missing CEM-QL equivalents
+for the XPath functionality added during this work (XPATH-CEMQL-PARITY-AUDIT).
+
 ## Native output construction
 
 The shared extension was approved on 2026-09-18. XSLT lowering selects explicit

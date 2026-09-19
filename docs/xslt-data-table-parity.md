@@ -21,6 +21,10 @@ extension was approved on 2026-09-18 and is implemented. Native nodes and atomic
 remain distinct through calls/recovery; output AVTs, whitespace, expanded names,
 attribute ordering and static result-style exports use the shared renderer.
 The viewer stylesheet and browser parity demonstration remain open.
+The 2026-09-19 native probes identified missing stylesheet access to stable
+source-selection keys/line numbers and a CSV header-profile mismatch. The
+[viewer selection and CSV proposal](xslt-runtime-lowering.md#viewer-selection-and-csv-parity-gate)
+is awaiting the shared-capability decision required by the scope rule below.
 
 ## Scope
 
