@@ -142,7 +142,7 @@ fn unsupported_or_malformed_instructions_fail_with_original_locations() {
         r#"<xsl:variable name="x + 1" select="1"/>"#,
         r#"<xsl:for-each/>"#,
         r#"<xsl:variable name="x"><p/></xsl:variable>"#,
-        r#"<xsl:for-each select="/*/*"><xsl:sort select="."/></xsl:for-each>"#,
+        r#"<xsl:perform-sort select="/*/*"><xsl:sort select="."/></xsl:perform-sort>"#,
         r#"<xsl:value-of select="1 +"/>"#,
         r#"<xsl:value-of select="1" disable-output-escaping="yes"/>"#,
         r#"<p title="{position()}">pending AVT</p>"#,

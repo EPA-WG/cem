@@ -165,6 +165,21 @@ fn anchor_primary(
         XPathPrimaryExpression::ArrayConstructor(XPathArrayConstructor::Square(sequence)) => {
             anchor_sequence(sequence, range)?;
         }
+        XPathPrimaryExpression::InlineFunction {
+            parameters,
+            result_type: None,
+            body,
+        } => {
+            for parameter in parameters {
+                if parameter.sequence_type.is_some() {
+                    return Err("typed compiler macro parameter is unsupported".into());
+                }
+                parameter.name.source_range = range;
+            }
+            if let Some(body) = body {
+                anchor_sequence(body, range)?;
+            }
+        }
         _ => return Err("unsupported compiler macro primary".into()),
     }
     Ok(())
@@ -319,6 +334,29 @@ fn macro_node(code: &str, range: XPathSourceRange) -> Result<XPathExpressionNode
         .root;
     anchor_sequence(&mut sequence, range)?;
     Ok(sequence_node(sequence))
+}
+
+// Compiler-owned programs use fixed standard namespaces, independently of
+// authored prefix rebinding. Their arguments are native values, not XPath text.
+pub(super) fn compiler_macro(target: &mut XPathExpressionAst, code: &str) -> Result<(), String> {
+    let range = target
+        .syntax_ast
+        .as_ref()
+        .ok_or("missing compiler XPath")?
+        .root
+        .source_range;
+    target.syntax_ast = Some(XPathSyntaxAst {
+        root: XPathExpressionSequence {
+            expressions: vec![macro_node(code, range)?],
+            source_range: range,
+        },
+        events: Vec::new(),
+    });
+    target.tokens.clear();
+    target.events.clear();
+    target.facts.clear();
+    target.source_text = None;
+    Ok(())
 }
 
 pub(super) fn group_by(

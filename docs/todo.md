@@ -1120,9 +1120,31 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       101 adapter tests, 80 native/WASM bundle checks, 17 XPath artifact checks
       and 125 function-companion checks pass. Nx lint passes with existing
       warnings. Sorting remains the next task.
-- [ ] Fixture XSLT-VIEW-SORT: lower dynamic stable multi-key sorting with
+- [x] Fixture XSLT-VIEW-SORT: lower dynamic stable multi-key sorting with
       standard semantics. Author explicit missing/invalid-last keys in XSLT;
       do not equate the legacy invalid-number-as-zero behavior with parity.
+    - [x] Fixture CEMQL-SORT-CALL-BUDGET: reproduce the shared evaluator's
+          cumulative CallDepth bug under explicit one/four-worker policies;
+          with user approval, enforce active nesting independently from cumulative
+          FunctionCalls and cover sequential, recursive and recovered calls.
+          Four native regressions cover named/native/lambda calls and
+          uncatchable depth/total-call exhaustion without increasing limits.
+    - [x] Fixture XSLT-SORT-NATIVE: prove common numeric promotion and stable
+          descending sorting with existing XPath; lower sort keys with original
+          focus, dynamic controls with outer focus, and sorted body focus.
+          Cover multi-key ties, explicit validity keys, node/container ownership,
+          template dispatch, group context, diagnostics and resource bounds.
+    - [x] Fixture XSLT-SORT-WASM: reload native sorting bundles, compare native
+          and WASM compilation, and verify changed inputs and sorting errors.
+      The [bounded sorting profile](xslt-runtime-lowering.md#sorting) supports
+      loops, template application and groups, with original key focus, dynamic
+      outer-focus controls, native ownership and common numeric promotion.
+      Verification: 409 CEM-QL tests (12 sorting and four call-budget cases,
+      none ignored), 101 adapter tests, 109 native/WASM bundle checks, 17 XPath
+      artifact checks and 125 function-companion checks pass. Both Nx lint
+      targets pass with existing warnings. The shared call-depth
+      correction was approved on 2026-09-18; configured limits and cumulative
+      function-call accounting remain unchanged. Standard parsing is next.
 - [ ] Fixture XSLT-VIEW-DATA: lower standard XML/JSON parsing and error
       recovery to native data capabilities. Use CEM extensions only for
       CSV/YAML parsing and unavailable host/provenance capabilities. Preserve

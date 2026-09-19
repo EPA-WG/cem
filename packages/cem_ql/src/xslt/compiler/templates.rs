@@ -428,6 +428,7 @@ impl<'a> Compiler<'a> {
             self.generated_xpath(node.event, "child::node()")?
         };
         let select = self.program(node.event, expression, scope, xpath::ResultKind::Sequence)?;
+        let (sorting, select, children) = self.sorted(node, scope, select, false)?;
         let current = self
             .attribute(node.event, "mode")
             .and_then(|a| a.entity_decoded_value.as_deref())
@@ -437,8 +438,14 @@ impl<'a> Compiler<'a> {
         } else {
             quote(&self.mode(node.event, None)?)
         };
-        let arguments = self.arguments(node, scope)?;
-        Ok(self.dispatch(&select, &mode, &arguments, false, scope))
+        let arguments = self.arguments(
+            &AuthorNode {
+                children,
+                ..node.clone()
+            },
+            scope,
+        )?;
+        Ok(sorting + &self.dispatch(&select, &mode, &arguments, false, scope))
     }
     fn dispatch(
         &mut self,

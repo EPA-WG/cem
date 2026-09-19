@@ -8,10 +8,10 @@ below. The compiled-bundle/browser-host delivery path is approved, with
 independently identified XPath programs. The XPath artifact foundation is
 implemented; XSLT bundle delivery and bounded root-template runtime lowering
 are implemented. Template dispatch, parameters, modes, imports/includes and
-strict transform/CLI execution are now implemented. Grouping and subsequent
-viewer stages remain open in [todo.md](todo.md). Explicit host position and
-sequence size are now supported by the shared XPath API. No equivalent XSLT stylesheet or browser
-sample is available yet.
+strict transform/CLI execution, bounded grouping and stable sorting are now
+implemented. Subsequent viewer stages remain open in [todo.md](todo.md).
+Explicit host position and sequence size are now supported by the shared XPath
+API. No equivalent XSLT stylesheet or browser sample is available yet.
 
 ## Scope
 
@@ -31,7 +31,9 @@ The user also approved the reusable native query-function invocation hook on
 2026-09-13 and the XSLT-owned compiled bundle with explicit browser/WASM host
 loading on 2026-09-14. XPath must retain its own namespace and content types,
 as CEM-QL does. The shared XPath host position/size and XSLT dynamic group-context
-extensions were approved on 2026-09-18. Other shared capability expansions still
+extensions were approved on 2026-09-18. The shared CEM-QL call-depth accounting
+correction was also approved on that date, preserving configured limits and
+cumulative function-call accounting. Other shared capability expansions still
 require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
 or browser runtime behavior, stop and ask before implementing it. No table-
@@ -215,8 +217,9 @@ The initial broader adapter and CLI XSLT runs exposed the two failures below;
 the loader repair now resolves the adapter failure, while the stylesheet-export
 failure remains open.
 
-Runtime/template and bounded grouping lowering were completed in later
-milestones; sorting and the equivalent gallery cases remain open. Shared
+Runtime/template, bounded grouping and stable multi-key sorting lowering were
+completed in later milestones. Standard parsing and the equivalent gallery
+cases remain open. Shared
 recovery does not itself implement XSLT standard functions,
 QNames, catch-name matching or parsing/error-code translation.
 
@@ -532,8 +535,8 @@ variables, original diagnostics, retention, shared cancellation and budgets.
 This completes delivery infrastructure using a manually composed generated
 CEMT fixture. XSLT-VIEW-LOWER subsequently preserves stylesheet
 instructions as reusable runtime CEMT and connects their typed XPath slots to
-the bundle. Import precedence was subsequently implemented in XSLT-VIEW-MATCH;
-grouping, sorting, viewer output and the gallery case remain tracked separately.
+the bundle. Import precedence, grouping and sorting were subsequently
+implemented; viewer output and the gallery case remain tracked separately.
 
 The [bounded runtime compiler](xslt-runtime-lowering.md) now compiles recursive
 named/matched templates, explicit parameters, modes, exact priorities and
@@ -548,8 +551,13 @@ XPath queries, including multiple keys, numeric promotion, first-seen headings
 and preserved native members. The approved shared XPath group context supplies
 the standard group functions across template calls and clears inside functions.
 The native fixtures run over all four import formats and portable bundles.
-Sorting and the complete output/viewer profile remain pending; XSLT-VIEW-SORT
-is next. See the [bounded grouping profile](xslt-runtime-lowering.md#grouping).
+Stable multi-key sorting now uses compiler-owned typed XPath over retained
+native values, including common numeric promotion, dynamic controls and group
+sort context. Its WASM gate exposed cumulative depth charging in the shared
+evaluator; the approved correction now measures active nesting while preserving
+the total-call budget. Standard data parsing/error recovery is next under
+XSLT-VIEW-DATA; the complete output/viewer profile remains pending. See the
+[bounded sorting profile](xslt-runtime-lowering.md#sorting).
 
 ## Acceptance and implementation order
 

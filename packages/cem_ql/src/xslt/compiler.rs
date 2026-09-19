@@ -18,6 +18,7 @@ use cem_ml::{
 mod grouping;
 mod imports;
 mod patterns;
+mod sorting;
 mod templates;
 mod xpath;
 use templates::TemplateDeclaration;
@@ -654,6 +655,7 @@ impl<'a> Compiler<'a> {
                     scope,
                     xpath::ResultKind::Sequence,
                 )?;
+                let (sorting, select, children) = self.sorted(node, scope, select, false)?;
                 let sequence = self.fresh();
                 let size = self.fresh();
                 let item = self.fresh();
@@ -666,9 +668,9 @@ impl<'a> Compiler<'a> {
                     groups: scope.groups.clone(),
                     variables: scope.variables.clone(),
                 };
-                let body = self.sequence(&node.children, inner)?;
+                let body = self.sequence(&children, inner)?;
                 Ok(format!(
-                    "{}{}{{for-each @select={} @as={} | {}{body}}}",
+                    "{sorting}{}{}{{for-each @select={} @as={} | {}{body}}}",
                     emit_variable(&sequence, &select),
                     emit_variable(&size, &format!("seq:count({sequence})")),
                     quote(&sequence),

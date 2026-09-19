@@ -1409,7 +1409,9 @@ impl<'a> EvalCtx<'a> {
         self.force_safe_point(source)?;
         self.charge(BudgetAxis::FunctionCalls, 1, source)?;
         self.call_depth += 1;
-        if let Err(err) = self.charge(BudgetAxis::CallDepth, 1, source) {
+        // Depth measures simultaneous calls. FunctionCalls above is the
+        // cumulative work budget, including calls that later raise errors.
+        if let Err(err) = self.check_limit(BudgetAxis::CallDepth, self.call_depth, source) {
             self.call_depth = self.call_depth.saturating_sub(1);
             return Err(err);
         }
@@ -1424,8 +1426,14 @@ impl<'a> EvalCtx<'a> {
         self.ensure_active(source)?;
         let current = self.counters.get(&axis).copied().unwrap_or(0);
         let next = current.saturating_add(amount);
+        self.check_limit(axis, next, source)?;
+        self.counters.insert(axis, next);
+        Ok(())
+    }
+
+    fn check_limit(&mut self, axis: BudgetAxis, value: u64, source: IrId) -> Result<(), ItemStream> {
         let limit = self.limits.get(&axis).copied().unwrap_or(u64::MAX);
-        if next > limit {
+        if value > limit {
             let message = format!("cem-ql budget exceeded: {}", axis.as_str());
             let diagnostic = self.diagnostic(source, BUDGET_EXCEEDED, message, Severity::Error);
             let error = EvalError::BudgetExceeded(axis);
@@ -1433,7 +1441,6 @@ impl<'a> EvalCtx<'a> {
             self.error = Some(error.clone());
             return Err(ItemStream::failed(error, diagnostic));
         }
-        self.counters.insert(axis, next);
         Ok(())
     }
 

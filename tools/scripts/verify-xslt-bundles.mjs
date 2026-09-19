@@ -27,6 +27,9 @@ try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_grouping'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_GROUP_FIXTURE_DIR: directory },
     });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_sorting'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_SORT_FIXTURE_DIR: directory },
+    });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
     // go straight to the common CEM import/retention boundary below.
@@ -209,6 +212,65 @@ try {
             disposeCemDocument(document);
         }
     }
+    // XSLT-SORT-WASM: the same portable programs retain native values across
+    // changed sort controls, group sorting, and each shared import format.
+    for (const [name, inputs] of [
+        ['sorted', [
+            ['<r order="ascending"><row id="a" n="2" label="B"/><row id="b" n="10"/><row id="c" n="2" label="A"/><row id="d" n="02" label="A"/><row id="e" n="bad"/><row id="f"/></r>', 'application/xml', 'c|1|6|rd|2|6|ra|3|6|rb|4|6|re|5|6|rf|6|6|r'],
+            ['<r order="descending"><row id="a" n="2"/><row id="b" n="10"/><row id="c" n="02"/><row id="d" n="bad"/></r>', 'application/xml', 'b|1|4|ra|2|4|rc|3|4|rd|4|4|r'],
+            ['<r order="ascending"/>', 'application/xml', ''],
+        ]],
+        ['sorted-groups', [
+            ['<r><row id="a" g="B"/><row id="b" g="A"/><row id="c" g="A"/></r>', 'application/xml', 'A|1|2|b|cA|c|1|2|b|cA|b|2|2|b|cB|2|2|aB|a|1|1|a'],
+            ['<r/>', 'application/xml', ''],
+        ]],
+        ['sorted-conversions', [
+            ['<r kind="number" order="descending"><row id="a" n="2"/><row id="b" n="bad"/><row id="c" n="10"/><row id="d" n="02"/></r>', 'application/xml', 'cadb'],
+            ['<r kind="text" order="ascending"><row id="a" n="2"/><row id="b" n="10"/><row id="c"/></r>', 'application/xml', 'cba'],
+        ]],
+        ['sorted-formats', [
+            ['<r><a>B</a><b>A</b></r>', 'application/xml', 'AB'],
+            ['{"a":"B","b":"A"}', 'application/json', 'AB'],
+            ['a: B\nb: A\n', 'application/yaml', 'AB'],
+            ['v\nB\nA\n', 'text/csv', 'AB'],
+        ]],
+    ]) {
+        const manifest = JSON.parse(readFileSync(join(directory, `${name}.json`), 'utf8'));
+        const bytes = readFileSync(join(directory, `${name}.bin`));
+        const source = readFileSync(join(directory, `${name}.xslt`), 'utf8');
+        assert.deepEqual(Buffer.from(compileXsltBundle(source, 'memory:sort.xslt')), bytes);
+        checks++;
+        for (const retained of [load(bytes, manifest.contentHash, manifest.sourceHash), JSON.parse(retainXsltStylesheet(source, 'memory:sort.xslt'))]) {
+            try {
+                for (const [input, type, expected] of inputs) {
+                    const document = retainCemDocument(new TextEncoder().encode(input), type, 'memory:sort-input');
+                    try {
+                        const output = render(document, '{}', retained.bundleId);
+                        assert.deepEqual(output.diagnostics, []);
+                        assert.equal(text(output.nodes), expected);
+                        checks++;
+                    } finally { assert.equal(disposeCemDocument(document), true); }
+                }
+            } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
+        }
+    }
+    for (const [attributes, code] of [
+        ['select="(1, 2)"', 'XTTE1020'],
+        ['select="if (position() = 1) then 1 else &quot;a&quot;"', 'XTDE1030'],
+        ['order="{/*/@order}"', 'XTDE0030'],
+    ]) {
+        const retained = JSON.parse(retainXsltStylesheet(wrap(`<p>partial</p><xsl:for-each select="/*/*"><xsl:sort ${attributes}/><b>bad</b></xsl:for-each>`), 'memory:sort-error.xslt'));
+        const document = retainCemDocument(new TextEncoder().encode('<r order="sideways"><row/><row/></r>'), 'application/xml', 'memory:sort-input');
+        try {
+            const output = render(document, '{}', retained.bundleId);
+            assert.deepEqual(output.nodes, []);
+            assert.ok(output.diagnostics.some(d => d.code === code && d.message.includes('memory:sort-error.xslt')));
+            checks++;
+        } finally {
+            disposeXsltBundle(retained.bundleId);
+            disposeCemDocument(document);
+        }
+    }
     for (const compile of [compileXsltBundle, retainXsltStylesheet]) {
         assert.throws(() => compile(wrap('<xsl:apply-imports/>'), 'memory:unsupported.xslt'), error => {
             const diagnostics = JSON.parse(String(error)).diagnostics;
@@ -229,7 +291,7 @@ try {
         disposeXsltBundle(failed.bundleId);
         disposeCemDocument(failedInput);
     }
-    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, ownership, focus, grouping, bounds and isolation).`);
+    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, ownership, focus, grouping, sorting, bounds and isolation).`);
 } finally {
     rmSync(directory, { recursive: true, force: true });
 }

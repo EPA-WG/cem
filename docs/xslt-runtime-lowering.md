@@ -18,7 +18,7 @@ Consumers declare template parameters explicitly and replace legacy EXSLT
 shortcuts with supported standard expressions over retained input documents.
 The migration fixture verifies that both public compilation APIs reject version
 1.0 and unbound `xsl` prefixes. This is a bounded runtime profile, not the
-completed data-table viewer or full XSLT 3.0 implementation. Sorting,
+completed data-table viewer or full XSLT 3.0 implementation. Standard parsing,
 output and browser component URL loading remain in [todo.md](todo.md).
 
 ## Supported authoring profile
@@ -32,13 +32,14 @@ that context with position and size both one.
 | --- | --- |
 | Named templates and `xsl:call-template` | Recursive calls, expanded names, restored caller focus, explicit `xsl:param` / select-based `xsl:with-param`. |
 | Parameters | Omitted values evaluate their defaults in callee focus; supplied empty sequences stay empty. Required and duplicate parameters are diagnosed. Caller-local variables do not leak into the callee. |
-| `xsl:apply-templates` | Explicit/default child selection with original sequence position/size. One named mode, `#default`, and invocation-only `#current`. |
+| `xsl:apply-templates` | Explicit/default child selection, optional sorting and resulting sequence position/size. One named mode, `#default`, and invocation-only `#current`. |
 | Node match patterns | Root, child/attribute paths, descendant separators, namespace-aware names, bare kind tests, targeted processing instructions, predicates and unions. Unlisted pattern syntax is rejected. |
 | Rule ordering | Import precedence, exact decimal priority, then declaration order. Union branches retain their individual default priorities. |
 | Built-in rules | Elements/documents recurse in the current mode and forward supplied parameters; text/attribute nodes emit their string value; other nodes emit nothing. Atomic/map/array dispatch is outside this profile. |
 | `xsl:import` / `xsl:include` | Explicit closed source graph; includes share precedence and later imports override earlier imports. Named calls resolve the winning declaration across the closure. |
 | `xsl:for-each select` | Native item sequence, one-based position and sequence size; nested loops restore the outer focus. |
 | `xsl:for-each-group select group-by` | Non-composite, Unicode codepoint grouping with population focus, multiple/empty keys, first-seen groups and native members. |
+| `xsl:sort` | Stable multiple keys on loops, template application and groups; dynamic direction, text/number conversion, stability and codepoint collation controls. |
 | `current-group()` / `current-grouping-key()` | XSLT dynamic context across non-streaming template calls, restored nested groups, lazy absent-context errors and absent state inside invoked function bodies. |
 | Local `xsl:variable name select` | Expanded names and lexical scope; the value is evaluated before the new binding exists. Native node owners, map values and array member sequences are preserved. |
 | `xsl:if test`, `xsl:choose/when/otherwise` | XPath effective boolean values; only the chosen branch runs. |
@@ -60,7 +61,7 @@ These behaviors follow the bounded portions of the
 construction (§5.7.2). A stylesheet recognizing version 3.0 is not a claim that
 all standard instructions or functions are available.
 
-Unsupported instructions, attributes, dynamic AVTs and unsupported syntax
+Unsupported instructions, attributes, output AVTs and unsupported syntax
 fail compilation with stylesheet coordinates. The shared XPath evaluator
 reports unsupported functions when evaluated; for example `concat()` is not
 currently supported, while the standard `||` operator is. XPath evaluation errors
@@ -69,7 +70,7 @@ failures retain generated CEMT frames. Both discard the whole partial result
 through existing protected CEMT rendering. Cancellation and budget errors remain
 uncatchable. No substitute output is manufactured.
 
-Sorting, standard parsing functions, dynamic output, stylesheet
+Standard parsing functions, dynamic output, stylesheet
 sidecars and full namespace/output handling belong to the following fixtures.
 Global variables/parameters, parameter constructors/types/tunnels, multiple
 mode tokens, `#all`, `xsl:mode`, `apply-imports` and `next-match` are also outside
@@ -85,7 +86,7 @@ rejected rather than silently ignored.
 The shared XPath group-context extension was approved on 2026-09-18.
 `xsl:for-each-group` currently supports non-composite `group-by`, with the default
 Unicode codepoint collation or its explicit literal URI. Composite, adjacent,
-starting/ending-pattern grouping, dynamic collations and `xsl:sort` children
+starting/ending-pattern grouping and dynamic grouping collations
 are rejected explicitly. This is the bounded viewer-required grouping slice.
 
 The compiler evaluates the population and each item's authored key expression
@@ -124,7 +125,88 @@ This materialized implementation uses pairwise scans and existing XPath
 item/text/work limits, plus the caller's cancellation scope. Budget failures
 remain uncatchable and discard partial output. Named function references,
 streaming and the other unimplemented grouping forms remain outside this
-profile. The next viewer task is XSLT-VIEW-SORT.
+profile. Sorting the resulting groups is described below.
+
+## Sorting
+
+`xsl:for-each`, `xsl:apply-templates` and `xsl:for-each-group` accept multiple
+`xsl:sort` keys. The bounded profile supports a `select` expression or the
+default `.` key, Unicode codepoint comparison, and dynamic `order`, `stable`,
+`data-type` and `collation` AVTs. Without `data-type`, keys keep their native
+atomic types, except that untyped values and URIs compare as strings. Supported
+comparison families are strings, booleans and numbers. Explicit `data-type`
+supports `text` and `number`; other types are diagnosed as unsupported.
+Locale/case tailoring, other collations, sequence-constructor keys and
+`xsl:perform-sort` remain outside this profile.
+
+Controls evaluate once in the containing instruction's outer focus. Each key
+evaluates once in the original population focus; group keys receive the first
+member, original group position/count and that group's native members/key.
+Processing then uses sorted positions. Sorting groups leaves their members in
+population order. Sorting a template selection keeps the caller's group state
+and evaluates supplied template parameters in caller focus.
+
+Compiler-owned typed XPath programs build native array records, normalize each
+key column to its common numeric comparison type, and apply stable `fn:sort`
+passes from the least significant key to the most significant. Reversing both
+the input and output of a descending pass preserves ties. `stable="no"` also
+returns stable order, one of the orders the standard permits. Authored XPath
+remains separate from the compiler's fixed namespace context and local names.
+The shared call-depth correction below was approved separately. No shared
+sorter, host ABI, document representation or renderer was changed.
+
+Empty keys sort before ordinary keys ascending; NaNs compare equal and precede
+other numbers. Text/number conversion uses standard `string()`/`number()`
+semantics, including empty values. Mixed float/decimal/double columns use one
+common promoted type, including comparisons between two values originally of
+the same narrower type. These rules follow
+[XSLT 3.0 §13](https://www.w3.org/TR/xslt-30/#sorting), rather than CEM's
+`seq:sorted` missing/invalid-last policy.
+
+The stylesheet defines any missing/invalid-last behavior explicitly, for example:
+
+```xml
+<xsl:sort select="not(@n castable as xs:decimal)"/>
+<xsl:sort select="if (@n castable as xs:decimal) then xs:decimal(@n) else 0"
+          order="{$direction}"/>
+```
+
+Here the first key separates invalid values; the second key's fallback merely
+ties those values. It does not treat invalid data as a valid zero. The native
+[sorting fixture](../packages/cem_ql/tests/xslt_sorting.rs) covers both directions,
+secondary keys, ownership, original/sorted focus, groups and template calls,
+numeric promotion, NaN/infinities, native containers, import formats and limits.
+The same fixtures run through the WASM bundle gate.
+
+Static checks reject sort placement, nonempty select-based keys (`XTSE1015`),
+`stable` on a later key (`XTSE1017`), and invalid literal order/stability values
+(`XTSE0020`). Runtime checks diagnose multi-item keys (`XTTE1020`), incompatible
+key families (`XTDE1030`), invalid dynamic order/stability (`XTDE0030`) and
+unrecognized collations (`XTDE1035`). Authored expression failures retain exact
+stylesheet ranges. Compiler control checks use the existing `report:raise`
+capability: their messages identify the stylesheet location, while their source
+frames identify generated CEMT. Both paths discard partial output. Native item,
+text and work limits and host cancellation remain enforced; no error recovery
+can swallow budget/cancellation failures. The next viewer task is XSLT-VIEW-DATA.
+
+### Shared call-depth accounting
+
+WASM sorting exposed a shared CEM-QL budget defect, whose correction the user
+approved on 2026-09-18. `EvalCtx::enter_call` had charged `CallDepth` cumulatively,
+so completed sequential calls exhausted a supposed nesting limit. The smaller
+default WASM limit exposed the error before the native host did.
+
+[`eval.rs`](../packages/cem_ql/src/eval.rs) now checks active nesting against
+the existing depth limit; completed and recovered calls release depth normally.
+`FunctionCalls` remains cumulative. The configured limits, uncatchable failures,
+safe-point checks and bundle ABI are unchanged. Compiler lowering does not split
+queries or increase limits to evade accounting.
+
+The four native regressions in
+[`call_budgets.rs`](../packages/cem_ql/tests/call_budgets.rs) cover explicit
+one/four-worker policies, sequential named/native/lambda calls, completed and
+excessive recursion, recovered failures and total-call exhaustion. They run
+independently of sorting and host hardware.
 
 ## Native ownership and loading
 

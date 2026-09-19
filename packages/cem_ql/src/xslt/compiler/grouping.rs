@@ -185,6 +185,7 @@ impl Compiler<'_> {
         xpath::group_by(&mut expression, select, key)
             .map_err(|message| self.error(event, "cem.xslt.compile_xpath", message))?;
         let select = self.program(event, expression, scope, xpath::ResultKind::Sequence)?;
+        let (sorting, select, children) = self.sorted(node, scope, select, true)?;
         let groups = self.fresh();
         let size = self.fresh();
         let group = self.fresh();
@@ -216,9 +217,9 @@ impl Compiler<'_> {
             groups: Some(["true".into(), members.clone(), "true".into(), key.clone()]),
             ..scope.clone()
         };
-        let body = self.sequence(&node.children, inner)?;
+        let body = self.sequence(&children, inner)?;
         Ok(format!(
-            "{}{}{{for-each @select={} @as={} |{}{}{}{}{body}}}",
+            "{sorting}{}{}{{for-each @select={} @as={} |{}{}{}{}{body}}}",
             emit_variable(&groups, &select),
             emit_variable(&size, &format!("seq:count({groups})")),
             quote(&groups),

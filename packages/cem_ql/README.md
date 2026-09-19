@@ -26,13 +26,19 @@ ownership, focus/variable arguments and retained CEM document bindings.
 The [typed stylesheet compiler](../../docs/xslt-runtime-lowering.md) supports
 recursive named/matched templates, explicit parameters, modes, import/include
 precedence, runtime loops, scoped variables, non-composite `group-by` with native
-XSLT group context, XPath conditionals and simple text
-construction. The transform/CLI adapter uses this strict XSLT 3.0 path. WASM
+XSLT group context, stable dynamic multi-key sorting, XPath conditionals and
+simple text construction. The transform/CLI adapter uses this strict XSLT 3.0 path. WASM
 `compileXsltBundle` / `retainXsltStylesheet` expose default compiler options;
-native-built module closures load through the explicit bundle API. Sorting,
+native-built module closures load through the explicit bundle API. Standard parsing,
 the full output profile and the complete viewer remain pending. Grouping uses
 XPath key equality and preserves native items; the CEM `seq:group_by` identity
-contract is not substituted for XSLT semantics.
+contract is not substituted for XSLT semantics. Sorting uses common numeric
+promotion and native XPath comparisons; stylesheets explicitly author any
+missing/invalid-last policy. Sort control AVTs use outer focus, keys use original
+population focus, and template bodies use sorted positions.
+Shared `CallDepth` accounting measures active nesting; completed and recovered
+calls release depth while `FunctionCalls` stays cumulative. The existing limits
+apply equally to named, lambda and native calls.
 
 ## String helpers
 
