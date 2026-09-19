@@ -1182,6 +1182,15 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
 - [ ] Fixture XSLT-VIEW-OUTPUT: preserve HTML, AVTs, whitespace, static styles
       and existing slice/event bindings. Document the bounded profile and
       source-located diagnostics without claiming full XSLT 3.0 support.
+    - [x] Fixture XSLT-OUTPUT-PREREQUISITES: characterize native-node insertion,
+          atomic/text distinction, attribute ordering and result-style versus
+          declaration-style handling. Record any shared result-construction
+          capability needed before expanding the renderer.
+      Five native probes and all 424 CEM-QL tests pass, with none ignored.
+      Nx lint passes with existing warnings.
+      The [result-construction proposal](xslt-runtime-lowering.md#output-construction-scope-decision-pending)
+      requires approval before changing shared CEMT rendering. This checkpoint
+      changes tests and documentation only; output lowering remains open.
       Include select-based `xsl:try`/`xsl:catch` result construction; the data
       profile currently supports contained sequence constructors only.
       The previous legacy path failed the CLI style-export acceptance case

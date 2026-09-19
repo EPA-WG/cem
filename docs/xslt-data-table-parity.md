@@ -16,6 +16,11 @@ The shared parsing and typed-error extension was approved on 2026-09-18 and is
 implemented through CEM import and native buffered recovery. The bounded
 contract and verification are recorded under XSLT-VIEW-DATA and in the
 [runtime profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
+Output construction reached a new [shared-renderer decision](xslt-runtime-lowering.md#output-construction-scope-decision-pending):
+five native probes show that direct expression insertion loses node/atomic
+result distinctions and that CEMT attribute construction has different ordering
+semantics. The proposed opt-in native result path awaits approval; AVTs, styles
+and the remaining output profile are not implemented by this checkpoint.
 
 ## Scope
 

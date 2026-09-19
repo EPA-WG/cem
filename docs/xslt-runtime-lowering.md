@@ -294,6 +294,79 @@ marker from the earlier strict-XSLT migration; updating that marker restored
 the original zero-serialization check. CEM-ML, CEM-QL and adapter Nx lint
 targets pass with existing warnings.
 
+## Output construction: scope decision pending
+
+XSLT-VIEW-OUTPUT reached a shared renderer boundary on 2026-09-18. The
+[scope rule](xslt-data-table-parity.md#scope) requires approval before adding
+CEMT/CEM-QL capabilities. Five native probes in
+[`xslt_output_prerequisites.rs`](../packages/cem_ql/tests/xslt_output_prerequisites.rs)
+characterize the boundary; this checkpoint changes no production behavior.
+All 424 CEM-QL tests pass, including the five new probes, with none ignored.
+Nx lint passes with existing warnings. No WASM rebuild is needed for this
+tests-and-documentation checkpoint.
+
+| Existing path | Observed behavior and implication |
+| --- | --- |
+| XPath native nodes inserted through a CEMT expression | The owner and source survive, but insertion emits only the node's string value. XML/JSON subtree structure is lost from output. |
+| Atomic expression results | Adjacent values become text immediately: `(1, 2)` produces `12`. Their atomic identity is unavailable when the parent is constructed. |
+| CEMT element/attribute constructors | An attribute emitted after child text is still attached to the element. The original sequence order is not retained for XSLT validation. |
+| Static style output | `{element @name=style}` produces a result node without extracting a component stylesheet. Ordinary `{style}` keeps its existing declaration semantics. This distinction is reusable. |
+| XSLT output authoring | AVTs, `xml:space`, result styles and select-based try/catch remain source-located rejections pending lowering. |
+
+[XSLT complex-content construction](https://www.w3.org/TR/xslt-30/#constructing-complex-content)
+keeps items until the parent is constructed: adjacent atomic values need space
+separation, while adjacent text nodes merge without it. Native subtrees must
+remain nodes. Attribute ordering must raise `XTDE0410` where required.
+These rules also apply to values returned through
+[select-based try/catch](https://www.w3.org/TR/xslt-30/#try-catch).
+String interpolation or a generated recursive copy template alone cannot
+preserve all these distinctions across calls, loops and recovery boundaries.
+Serializing source nodes and parsing the markup back is prohibited by the
+[import rule](cem-data-import-principle.md).
+
+### Proposed shared change
+
+Add an explicit native result-construction capability to shared CEMT rendering,
+selected by XSLT lowering. Keep ordinary CEMT interpolation and component-style
+extraction unchanged. The capability must:
+
+1. Carry native items and constructed nodes until the enclosing result
+   element/document consumes them, including across template calls, loops and
+   buffered try/catch. Keep atomic values distinct from constructed text.
+2. Copy retained CEM/XPath nodes through their common semantic view, preserving
+   expanded names, node kinds and source provenance. Never inspect external
+   XML/JSON/YAML/CSV parser ASTs, manufacture document records, or reparse output.
+3. Expose explicit construction policy and typed failures so the XSLT layer can
+   enforce array flattening, atomic spacing, text merging, attribute order and
+   duplicate rules, and namespace fixup within its documented bounded profile.
+   Unsupported function/map items must fail explicitly. XSLT owns standard
+   error names; existing CEMT behavior must not change implicitly.
+4. Retain the existing limits, cancellation and buffered rollback guarantees.
+   Portable compilation/loading must carry the new capability explicitly and
+   reject unsupported forms instead of silently treating them as text.
+
+The proposed extension is a reusable result path. It adds no format reader or
+table-specific renderer. All external parsing remains in `cem-ml` import.
+Without approval, select-based try/catch stays deferred; ordinary literal HTML,
+AVTs, whitespace and static-style work can be considered separately.
+
+### Acceptance after approval
+
+- Lower select-based try/catch and the corresponding sequence-producing
+  instructions through native results. Verify XML/JSON subtrees, empty nodes,
+  documents, attributes, comments/PIs and source retention after bundle reload.
+- Test atomic versus text adjacency across instructions, named calls, loops and
+  catches; recursive array flattening; attribute order/duplicate handling;
+  namespace behavior; unsupported items; rollback; limits and cancellation.
+- Implement output AVTs, whitespace preservation and existing slice/event
+  attributes without browser-local interpretation of source documents.
+- Keep declaration styles unchanged, lower static result styles as output
+  nodes, and restore the CLI link/inline/omit/CSS export fixture through the
+  existing output boundary. Do not extract inactive result branches as styles.
+- Run native and CLI acceptance first, followed by portable native/WASM checks.
+  Replace the current XSLT rejection probes with positive acceptance cases;
+  retain the ordinary CEMT behavior probes as compatibility checks.
+
 ## Native ownership and loading
 
 Only stylesheet **authoring** source is parsed by this compiler. Runtime XML,
