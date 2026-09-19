@@ -43,6 +43,7 @@ vi.mock('./cem-ql-render.js', () => {
             diagnostics: [],
         };
     }),
+    retainXsltComponentSource: vi.fn(async () => ({ stylesheets: [], diagnostics: [], dispose: vi.fn(), render: vi.fn() })),
     retainLoadedCemDocument: vi.fn(async () => 101),
     disposeLoadedCemDocument: vi.fn(),
     disposeRetainedCemMlTemplate: vi.fn(() => true),
@@ -149,6 +150,7 @@ vi.mock('./cem-ql-render.js', () => {
 import { CemProcessingEngine } from './processing-engine.js';
 import {
     retainLoadedCemDocument,
+    retainXsltComponentSource,
     disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
     retainCemMlTemplateArtifact,
@@ -839,5 +841,55 @@ describe('retained CEM document ownership', () => {
         await expect(pending).rejects.toThrow('superseded or released');
         expect(disposeLoadedCemDocument).toHaveBeenCalledWith(202);
         engine.dispose({ reason: 'scope-disposed' });
+    });
+});
+
+
+describe('retained typed XSLT processing', () => {
+    const input = () => ({ language: 'xslt' as const, producedTag: 'cem-xslt', templateArtifactId: 'xslt-1',
+        registrationIdentity: 'xslt-registration', source: createCemProcessingTextSource('stylesheet'),
+        sourceRef: { kind: 'url' as const, value: 'https://example.test/view.xslt' },
+        resolverIdentity: 'test', scopePolicyStamp: 'scope-policy-v1', sourceMapMode: 'dev' as const,
+        xslt: { sourceUri: 'https://example.test/view.xslt', options: { entrypoint: 'view', parameters: [{ name: 'label', select: 'datadom.slices.label' }] } },
+        hostBindings: ['datadom'],
+    });
+    it('keys mappings separately and passes the lease independently of render controls', async () => {
+        const compile = vi.mocked(retainXsltComponentSource);
+        compile.mockClear();
+        const engine = new CemProcessingEngine();
+        const original = input();
+        const first = await engine.compile(original);
+        await engine.compile({ ...original, templateArtifactId: 'alias' });
+        expect(compile).toHaveBeenCalledTimes(1);
+        const lease = await compile.mock.results[0].value;
+        const snapshot = snapshotFixture('revision', original.templateArtifactId, original.producedTag);
+        await engine.renderDiff({ artifact: first.artifact, snapshot, revision: revision(snapshot),
+            data: { label: 'changed', xslt: 'untrusted control' }, scopeUid: 'scope', previousRenderPlan: null });
+        expect(processRetainedCemMlTemplate).toHaveBeenLastCalledWith(0, expect.objectContaining({ xslt: lease }));
+        await expect(engine.compile({ ...original, xslt: { ...original.xslt, options: { entrypoint: 'other', parameters: [] } } })).rejects.toThrow('another identity');
+        await engine.compile({ ...original, templateArtifactId: 'new', xslt: { ...original.xslt, options: { entrypoint: 'other', parameters: [] } } });
+        expect(compile).toHaveBeenCalledTimes(2);
+        engine.dispose({});
+        expect(lease.dispose).toHaveBeenCalledTimes(1);
+    });
+    it('releases evicted, concurrent and disposed-during-compile leases', async () => {
+        const compile = vi.mocked(retainXsltComponentSource);
+        compile.mockClear();
+        const engine = new CemProcessingEngine({ maxArtifactEntries: 1 });
+        await Promise.all([engine.compile(input()), engine.compile(input())]);
+        const leases = await Promise.all(compile.mock.results.map(result => result.value));
+        expect(leases.filter(lease => vi.mocked(lease.dispose).mock.calls.length === 1)).toHaveLength(1);
+        await engine.compile({ ...input(), templateArtifactId: 'replacement', source: createCemProcessingTextSource('changed') });
+        expect(leases.every(lease => vi.mocked(lease.dispose).mock.calls.length === 1)).toBe(true);
+        let resume!: (lease: Awaited<ReturnType<typeof retainXsltComponentSource>>) => void;
+        compile.mockImplementationOnce(() => new Promise(resolve => { resume = resolve; }));
+        const pending = engine.compile({ ...input(), templateArtifactId: 'late', source: createCemProcessingTextSource('late') });
+        await vi.waitFor(() => expect(resume).toBeTypeOf('function'));
+        engine.dispose({});
+        const late = leases[0];
+        vi.mocked(late.dispose).mockClear();
+        resume(late);
+        await expect(pending).rejects.toThrow('disposed');
+        expect(late.dispose).toHaveBeenCalledTimes(1);
     });
 });

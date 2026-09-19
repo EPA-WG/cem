@@ -4,6 +4,7 @@ import { decideCemDeclarationTemplateLanguage } from './template-language.js';
 
 describe('legacy bridge runtime boundary', () => {
     it.each([
+        [{ type: 'application/xslt+xml', lang: null, source: 'stylesheet' }, 'xslt'],
         [{ type: null, lang: 'custom-element-v0', source: '<if test="$label">yes</if>' }, 'legacy-xslt'],
         [{ type: null, lang: 'custom-element-xslt', source: '<if test="$label">yes</if>' }, 'dom'],
         [{ type: null, lang: null, source: '<if test="$label">yes</if>' }, 'dom'],

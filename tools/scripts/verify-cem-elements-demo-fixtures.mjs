@@ -417,7 +417,7 @@ function tableInteractions(column, table) {
 
 const xsltVariantSamples = [
     sampleContract('7d. Anonymous external XSLT', [
-        text('article h2', 'XSLT data island tree'),
+        text('article h2', 'XSLT XML payload tree'),
         text('article', '🍒 from anonymous XSLT'),
         countExactly('details', 4),
         clickThenText('article > details > summary', 'article', 'catalog'),
@@ -787,7 +787,7 @@ const fixtureSpecs = [
             text('dce-cemt-tree', 'a1'),
             text('dce-cemt-tree', 'Leaf text from cem-elements data island'),
             countAtLeast('dce-cemt-tree details', 4),
-            text('dce-xslt-tree', 'XSLT data island tree'),
+            text('dce-xslt-tree', 'XSLT XML payload tree'),
             text('dce-xslt-tree article.demo-card > details > summary > b', 'catalog'),
             text('dce-xslt-tree', 'data-root='),
             text('dce-xslt-tree', 'data-level='),
@@ -1745,8 +1745,8 @@ const sourceDocumentSpecs = [
                 text('dce-cemt-tree', 'Leaf text from cem-elements data island'),
                 countAtLeast('dce-cemt-tree details', 4),
             ]),
-            sampleContract('7b. external XSLT data-island tree template', [
-                text('dce-xslt-tree', 'XSLT data island tree'),
+            sampleContract('7b. External XSLT XML payload tree', [
+                text('dce-xslt-tree', 'XSLT XML payload tree'),
                 text('dce-xslt-tree article.demo-card > details > summary > b', 'catalog'),
                 text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'),
                 countAtLeast('dce-xslt-tree details', 4),

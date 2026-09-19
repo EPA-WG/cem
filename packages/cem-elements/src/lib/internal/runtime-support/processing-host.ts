@@ -1,6 +1,6 @@
 import type { CemXPathFunctionLibrarySource } from './xpath-function-library.js';
 import type { DataIslandSnapshot, SourceMapMode } from '../../cem-elements.js';
-import type { CemMlTemplateModuleClosure, CemQlStylesheetArtifact } from './cem-ql-render.js';
+import type { CemMlTemplateModuleClosure, CemQlStylesheetArtifact, CemXsltComponentOptions } from './cem-ql-render.js';
 import {
     assertProcessingBoundaryValue,
     type PatchFrame,
@@ -13,7 +13,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v2' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v3' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -105,7 +105,7 @@ export function createCemProcessingTextSource(
 }
 
 export interface CemProcessingCompileInput {
-    language: 'cem-ml';
+    language: 'cem-ml' | 'xslt';
     producedTag: string;
     templateArtifactId: string;
     registrationIdentity: string;
@@ -115,6 +115,7 @@ export interface CemProcessingCompileInput {
     scopePolicyStamp: string;
     sourceMapMode: SourceMapMode;
     hostBindings?: string[];
+    xslt?: { sourceUri: string; options: CemXsltComponentOptions };
     /** Resolved and content-hashed source modules; no DOM or executable callbacks. */
     moduleClosure?: CemMlTemplateModuleClosure;
     /** Separately resolved executable dependency; never accepted through render data. */

@@ -409,7 +409,7 @@ native source nodes and calculated cells, rather than replacing the input tree.
 rendered structure with CEMT for namespaces, later columns, nested collections,
 empty/missing/null values and inert processing instructions. Comparison ignores
 formatting whitespace, per-language opaque selection keys, and empty versus
-absent select `value` attributes. Separate checks verify source keys/lines,
+absent input/select `value` attributes. Separate checks verify source keys/lines,
 selection after sorting, invalidation on edits and recoverable parse errors.
 Text/number sorting preserves stable ties and places missing, nonnumeric and
 nonfinite numeric keys last, matching CEMT, including exponent notation.
@@ -428,18 +428,18 @@ Verification: 457 CEM-QL tests, 13 CLI parity tests and 172 native/WASM bundle
 checks pass. The CLI executes the actual stylesheet for all four formats;
 WASM reloads its native-produced named-entry bundle for twelve source/sort/
 selection cases and matches native compilation under default options. Native
-and browser namespace fixtures pass. Full browser viewer parity, styling and
-imported XSLT presentation aspects remain open.
+and browser namespace fixtures pass. The later work below adds styling and
+native imported aspects; full browser viewer parity remains open at its control
+envelope decision.
 
 ## Browser state-binding decision
 
 **Explicit scalar parameter mappings approved on 2026-09-19.**
-`cem-elements` currently routes XSLT URLs through
-`ensureLegacyConverted` and `convertLegacyTemplate`, then compiles the converted
-CEMT source. It does not retain the typed XSLT bundle. The public WASM
-`compileXsltBundle` / `retainXsltStylesheet` functions use default compiler
-options; native-produced bundles can already declare an entrypoint and scalar
-bindings and render through the tested import/render/dispose API.
+`cem-elements` routes full `.xsl` / `.xslt` documents and
+`application/xslt+xml` templates through the native typed XSLT compiler and
+retains the component bundle in the existing processing host. Strict source
+requires namespace-correct XSLT 3.0. The explicitly labeled legacy fragment
+adapter remains separate from this path.
 
 The accepted contract is **explicit scalar parameter bindings** for a
 strict XSLT component declaration. Reuse CEM-ML/CEM-QL expressions for state
@@ -478,43 +478,110 @@ WASM exposes `retainXsltComponent`, `renderXsltComponent`,
 stylesheet-import query returns only authored dependency specifiers from typed
 XSLT authoring input. Documents enter through the existing CEM import/handle
 channel. No external-format reader or JavaScript document projection was added.
-The adapter currently requires an explicit native initial context for named
-templates that evaluate XPath, as does the existing lowered bundle. Browser
-declaration syntax, resolver preflight and worker integration remain unshipped
-pending the focus choice below.
+A declaration names its entrypoint and scalar selectors explicitly:
+
+```html
+<cem-element src="./view.xslt" xslt-template="viewer">
+    <xslt-param name="source"
+        select='datadom.slices.source ??
+            str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
+    <template>Authored source text</template>
+</cem-element>
+```
+
+`xslt-param` is a direct declaration child with only `name` and `select`.
+Mappings require `xslt-template`; names must be declared by that entrypoint.
+Metadata stays outside the produced instance payload. Inline
+`application/xslt+xml` templates contain escaped XML source text; external
+stylesheets preserve their original source text. The native base viewer and imported presentation aspects are ready; their
+interactive gallery cases remain gated by the control-envelope limit below.
+
+The declaration resolver preflights typed import/include edges with explicit
+source URIs and hashes. Shared dependencies load once within a closure; cycles,
+source/dependency bounds and hash drift are rejected. Each compiled declaration
+retains this closure across state changes. Different declarations resolve in
+their own contexts. Source URI, resolver identity, language and parameter options
+participate in compilation identity, including source-selection provenance.
+
+The package-private processing envelope is now `cem-processing-host-v3`:
+`compile` can explicitly select XSLT with declaration-owned options. Older
+worker protocols are rejected. Document retention, scheduling, cancellation,
+revision checks, patches and worker fallback reuse the existing lifecycle.
+The XSLT resident cache is shared by engines in a WASM instance and releases
+least-recently-used native handles within the 16-component/32 MiB limits.
+Logical leases retain immutable source/options and reload after eviction;
+scope disposal releases their native owners. Control data cannot replace the
+retained selectors or supply a JavaScript document object.
 
 ### Named-entry initial focus decision
 
-The scalar mapping fixture exposed a separate existing limitation. Even a
-named template that reads only `$text` fails without a source context item:
-`cem.xslt.bundle_argument: XSLT context requires exactly one native item`.
-The compiler emits sequence-focus XPath programs throughout the named body;
-the existing bundle ABI requires a singleton item for those programs. Its
-static `absent` focus form does not represent a named call whose focus may be
-absent initially and become present inside an iteration.
+**Absent initial focus approved and implemented on 2026-09-19.** The original
+scalar-only fixture exposed an unconditional singleton-context requirement.
+The bundle now declares `optional-sequence` focus explicitly: three empty
+streams mean absent item/position/size; any present focus must satisfy the
+existing singleton and coordinate checks. Older readers reject the unknown
+focus form. Existing strict `singleton` and `sequence` forms remain strict.
 
-The native test `characterizes_the_named_entry_absent_focus_gate` and its WASM
-counterpart reproduce this without a synthetic document. Supplying an explicit
-retained CEM document makes the same scalar mappings work. This characterizes
-the current limitation; it is not a claim that the browser contract is complete.
+Generated named calls preserve absence. Iterations establish native focus and
+restore it afterward; empty iterations do not evaluate their bodies. The shared
+XPath evaluator already reports `err:XPDY0002` only when missing focus is read,
+so no shared evaluator change or synthetic context tree was needed. Native,
+binary and WASM fixtures cover scalar-only calls, position/size, lazy errors,
+typed recovery and loops. Browser entrypoints receive scalar mappings without
+an initial source document; their parsing functions produce native CEM trees.
 
-**Recommended next change:** extend typed XSLT lowering and its bundle focus
-contract to preserve an absent initial focus for named-template invocation.
-This follows [XSLT 3.0 call-template invocation](https://www.w3.org/TR/xslt-30/#invoking-initial-template):
-the initial context item is optional. Scalar-only expressions should succeed;
-expressions reading missing focus should raise their standard dynamic errors
-when accessed. Named calls must preserve absence, and iteration/application of
-templates must establish ordinary native item/position/size focus. Use an
-explicitly identified optional-focus ABI form, preserving existing strict
-singleton/sequence bundle validation, ownership and limits. Verify native,
-binary reload and WASM behavior, including typed recovery and empty iterations.
-Do not invent an XML control document or route state through JSON records.
+Bare variable sequence selections and the empty sequence lower directly to
+existing CEMT bindings, preserving native values without redundant XPath
+programs. Conversion, text and boolean evaluation still use typed XPath.
+The native forwarding regression retains node identity and sequence-valued
+array members across 140 calls without initial focus. Imported presentation
+aspects compile within the unchanged 128-program limit. The viewer's optional
+`presentation` map is constructed inside XSLT; browser mappings remain scalar.
 
-The alternative is to require a separately declared retained CEM source-document
-binding for every browser XSLT declaration, in addition to scalar parameters.
-This is a new initial-context contract, not a reconsideration of scalar state
-selection. **Awaiting this choice** per the user's stop-at-decisions instruction
-and the browser-runtime scope gate in [the viewer plan](xslt-data-table-parity.md#scope).
+### Browser control-envelope decision
+
+The optional-focus choice and explicit scalar mapping contract are implemented.
+A separate browser fixture now reproduces the next boundary: the component
+WASM adapter rejects control JSON larger than 128 KiB before evaluation. The
+existing CEM-ML browser state includes serialized hydration/control metadata and
+indexes. After selecting a row in the real viewer, this envelope exceeds the
+cap even though the document source is small. The correct instance receives
+the stable selection key, but rendering returns `cem.xslt.binding_limit` and
+keeps the previous DOM. No source parsing or selection-identity bug is involved.
+
+`ViewerControlEnvelopeBoundary` in
+[`xslt-runtime.stories.ts`](../packages/cem-elements/src/lib/xslt-runtime.stories.ts)
+source-loads the real stylesheet and measures the serialized control input in
+the main-thread fallback adapter. It verifies initial rendering, the failed
+selection, and a valid source just below the 32 KiB import limit. It also covers
+runtime-stamped declaration metadata. The measured envelopes were 65,368 bytes
+initially, 152,871 bytes after selection, and 1,365,019 bytes with 32,713 bytes
+of source text (the source remains below the 32 KiB import cap). Worker/fallback rendering, dependency
+retry, failure recovery and native-owner disposal have separate passing tests.
+
+**Recommended:** raise only the XSLT component control-envelope cap to 8 MiB,
+matching the existing component-options bound. Check bytes before JSON decoding;
+retain the 128 KiB document-handle metadata bound, the 32 KiB source-import cap,
+all native query/render budgets and the 16-component/32 MiB retention limits.
+Add exact-boundary native/WASM checks, then finish viewer browser parity and the
+gallery. This changes an explicit resource contract and awaits the user's
+stop-at-decisions approval.
+
+The alternative is a generic native selector-dependency/transport mechanism
+that avoids sending unused control projections. It needs a separate shared
+query/host contract for dynamic selectors; do not add a viewer-specific pruning
+rule, JavaScript XPath evaluation, or a new document-object handoff.
+The XPath/CEM-QL function parity audit and paired demo samples remain queued
+after full viewer parity, as requested.
+
+Checkpoint verification passes the 468-test CEM-QL suite plus focused external
+consumer checks, 13 CLI parity tests, 209 native/WASM bundle checks, 93 unit
+checks and 81 browser stories. Lint/typecheck pass with existing QL warnings.
+The existing standalone XSLT consumer now uses XSLT 3.0, a named `tree` entrypoint
+and explicit XML source text imported by `parse-xml`; explicitly labeled legacy
+fragments keep their separate compatibility path. All 25 standalone pages and
+31 source-loaded documents pass, with desktop/mobile layout checks for the
+migrated examples. The full viewer gallery has not been published.
 
 ## Native output construction
 

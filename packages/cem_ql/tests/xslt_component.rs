@@ -89,21 +89,13 @@ fn maps_native_control_expressions_and_preserves_unmapped_defaults() {
 }
 
 #[test]
-fn characterizes_the_named_entry_absent_focus_gate() {
+fn named_entry_renders_scalars_without_initial_focus() {
     let component =
         XsltComponent::compile(SOURCE, "memory:component.xslt", &options("\"scalar\""), &[])
             .unwrap();
     let plan = component.render(&TemplateData::default());
-    assert!(plan.nodes.is_empty());
-    assert!(
-        plan.diagnostics
-            .iter()
-            .any(|d| d.code == "cem.xslt.bundle_argument"
-                && d.message
-                    .contains("context requires exactly one native item")),
-        "{:?}",
-        plan.diagnostics
-    );
+    assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    assert_eq!(render_plan_to_html(&plan), "<p>scalar:false</p>");
 }
 
 #[test]

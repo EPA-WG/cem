@@ -99,7 +99,15 @@ impl NativeQueryFunction for Installed {
         }
         let mut dynamic_context = XPathDynamicContext::default();
         let arguments = (|| -> std::result::Result<(), String> {
-            if binding.focus != BundleFocus::Absent {
+            let absent = binding.focus == BundleFocus::OptionalSequence
+                && request.arguments[0].items.is_empty();
+            if absent
+                && (!request.arguments[1].items.is_empty()
+                    || !request.arguments[2].items.is_empty())
+            {
+                return Err("absent optional focus requires empty item, position and size".into());
+            }
+            if binding.focus != BundleFocus::Absent && !absent {
                 let values = bind_xslt_argument(
                     &Parameter {
                         name: "context".into(),
@@ -117,7 +125,11 @@ impl NativeQueryFunction for Installed {
                 }
                 dynamic_context.context_item = Some(value.clone());
             }
-            if binding.focus == BundleFocus::Sequence {
+            if matches!(
+                binding.focus,
+                BundleFocus::Sequence | BundleFocus::OptionalSequence
+            ) && !absent
+            {
                 let coordinate = |index: usize, name: &str| -> std::result::Result<u64, String> {
                     let values = bind_argument(
                         &Parameter {

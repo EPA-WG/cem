@@ -11,8 +11,9 @@ are implemented. Template dispatch, parameters, modes, imports/includes and
 strict transform/CLI execution, bounded grouping and stable sorting are now
 implemented. Subsequent viewer stages remain open in [todo.md](todo.md).
 Explicit host position and sequence size are now supported by the shared XPath
-API. A native/CLI base stylesheet is now available; its browser binding and
-imported presentation aspects remain open.
+API. The native/CLI base stylesheet and browser scalar binding are implemented;
+native imported presentation aspects pass parity tests. Full browser viewer
+parity awaits the [control-envelope decision](xslt-runtime-lowering.md#browser-control-envelope-decision).
 The shared parsing and typed-error extension was approved on 2026-09-18 and is
 implemented through CEM import and native buffered recovery. The bounded
 contract and verification are recorded under XSLT-VIEW-DATA and in the
@@ -30,8 +31,9 @@ provenance functions. Namespace declarations are now excluded from both viewers'
 data presentation, as approved on 2026-09-19. The
 [browser state-binding decision](xslt-runtime-lowering.md#browser-state-binding-decision)
 selected explicit scalar parameter mappings. Native/WASM mapping support is
-implemented; browser wiring awaits the separately tested
-[named-entry initial-focus choice](xslt-runtime-lowering.md#named-entry-initial-focus-decision).
+implemented with the approved
+[optional named-entry focus](xslt-runtime-lowering.md#named-entry-initial-focus-decision),
+strict declarations and retained worker/fallback lifecycle.
 
 ## Scope
 
@@ -62,6 +64,8 @@ keys, original line-number access in both query languages, and explicit CSV
 header options and namespace-declaration exclusion were approved on 2026-09-19.
 Explicit scalar state mappings to declared XSLT template parameters, reusing
 CEM-QL expressions and retained worker lifecycle, were also approved that day.
+Absent initial focus for named entrypoints was subsequently approved and
+implemented through an explicit optional-focus bundle form.
 Other shared capability expansions
 still require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
@@ -593,7 +597,8 @@ evaluator; the approved correction now measures active nesting while preserving
 the total-call budget. Standard data parsing now delegates to shared CEM import;
 ordered QName catches use structured errors and preserve native nodes, focus
 and lexical scope. Native output construction and the base viewer's native/CLI
-parity checks now pass; browser state bindings and imported aspects remain open. See the
+parity checks now pass. Scalar browser bindings and native imported aspects are
+implemented; interactive viewer parity awaits the control-envelope decision. See the
 [bounded runtime profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
 
 ## Acceptance and implementation order

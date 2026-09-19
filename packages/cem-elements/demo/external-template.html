@@ -269,18 +269,26 @@
     </template>
 </cem-demo-element>
 
-<cem-demo-element legend="7b. external XSLT data-island tree template" description="The compatibility XSLT template projects the supplied payload as an expandable tree">
-    <a href="data-island-tree.xsl">data-island-tree.xsl</a>
+<cem-demo-element legend="7b. External XSLT XML payload tree" description="The native XSLT 3.0 template imports XML source through CEM-ML and displays an expandable tree">
+    <p><a href="data-island-tree.xsl">data-island-tree.xsl</a> declares a named
+        <code>tree</code> entrypoint. Its <code>source</code> parameter receives
+        XML text from a CEM-QL selector; <code>parse-xml</code> imports a retained
+        CEM tree for XPath navigation.</p>
     <template>
-<cem-element tag="dce-xslt-tree" src="data-island-tree.xsl"></cem-element>
+<cem-element tag="dce-xslt-tree" src="data-island-tree.xsl" xslt-template="tree">
+    <xslt-param name="source"
+        select='str:concat(datadom.payload.nodes.text, "")'></xslt-param>
+</cem-element>
 <dce-xslt-tree>
-    <catalog data-root="cem-elements-xslt">
-        <section data-level="1" name="beta">
-            <item data-level="2" code="b1">
-                <leaf data-level="3">Leaf text from cem-elements XSLT data island</leaf>
-            </item>
-        </section>
-    </catalog>
+    <template>
+    &lt;catalog data-root="cem-elements-xslt"&gt;
+        &lt;section data-level="1" name="beta"&gt;
+            &lt;item data-level="2" code="b1"&gt;
+                &lt;leaf data-level="3"&gt;Leaf text from cem-elements XSLT data island&lt;/leaf&gt;
+            &lt;/item&gt;
+        &lt;/section&gt;
+    &lt;/catalog&gt;
+    </template>
 </dce-xslt-tree>
     </template>
 </cem-demo-element>
@@ -294,16 +302,20 @@
 </cem-demo-element>
 
 <cem-demo-element legend="7d. Anonymous external XSLT"
-    description="Omit tag to render a whole stylesheet in place; its tree comes from this declaration's payload. Collapse and reopen a branch">
+    description="Omit tag to render a native stylesheet in place using an explicit XML source parameter. Collapse and reopen a branch">
     <template>
-<cem-element src="data-island-tree.xsl">
-    <catalog data-root="anonymous-xslt">
-        <section data-level="1" name="fruit">
-            <item data-level="2" code="cherry">
-                <leaf data-level="3">🍒 from anonymous XSLT</leaf>
-            </item>
-        </section>
-    </catalog>
+<cem-element src="data-island-tree.xsl" xslt-template="tree">
+    <xslt-param name="source"
+        select='str:concat(datadom.payload.nodes.text, "")'></xslt-param>
+    <template>
+    &lt;catalog data-root="anonymous-xslt"&gt;
+        &lt;section data-level="1" name="fruit"&gt;
+            &lt;item data-level="2" code="cherry"&gt;
+                &lt;leaf data-level="3"&gt;🍒 from anonymous XSLT&lt;/leaf&gt;
+            &lt;/item&gt;
+        &lt;/section&gt;
+    &lt;/catalog&gt;
+    </template>
 </cem-element>
     </template>
 </cem-demo-element>

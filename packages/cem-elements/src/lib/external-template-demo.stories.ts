@@ -101,7 +101,7 @@ export const AnonymousSourcesAndFallbacks: Story = {
         branch?.querySelector('summary')?.click();
         expect(branch?.open).toBe(false);
         for (const [legend, heading, payload, details] of [
-            ['7d. Anonymous external XSLT', 'XSLT data island tree', '🍒 from anonymous XSLT', 4],
+            ['7d. Anonymous external XSLT', 'XSLT XML payload tree', '🍒 from anonymous XSLT', 4],
             ['7e. Embedded XSLT fragment', 'Embedded XSLT fruit tree', '🍋', 1],
         ] as const) {
             const sample = host.querySelector(`cem-demo-element[legend="${legend}"]`) as HTMLElement;

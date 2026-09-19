@@ -32,6 +32,54 @@ fn fixture(select: &str) -> Vec<u8> {
         TemplateArtifactSourceMapMode::Dev,
     )
 }
+
+#[test]
+fn optional_focus_accepts_only_an_empty_triple_or_a_valid_sequence_focus() {
+    let empty = || {
+        TemplateData::default()
+            .with_binding("document", ItemStream::empty())
+            .with_binding("position", ItemStream::empty())
+            .with_binding("size", ItemStream::empty())
+            .with_binding(
+                "prefix",
+                ItemStream::once(Item::Atomic(AtomValue::String("ok".into()))),
+            )
+    };
+    for focus in [
+        BundleFocus::Singleton,
+        BundleFocus::Sequence,
+        BundleFocus::OptionalSequence,
+    ] {
+        let bundle = load(&fixture_with(
+            "$prefix",
+            focus,
+            false,
+            TemplateArtifactSourceMapMode::Dev,
+        ));
+        let plan = bundle.render(&empty());
+        if focus == BundleFocus::OptionalSequence {
+            assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+            assert_eq!(render_plan_to_html(&plan), "<p>ok</p>");
+            for control in ["document", "position", "size"] {
+                let plan = bundle.render(&empty().with_binding(
+                    control,
+                    ItemStream::once(Item::Atomic(AtomValue::Integer(1))),
+                ));
+                assert!(plan
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == "cem.xslt.bundle_argument"));
+            }
+        } else {
+            assert!(plan
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "cem.xslt.bundle_argument"));
+        }
+        let plan = bundle.render(&data("<input/>", "xml"));
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    }
+}
 fn fixture_with(
     select: &str,
     focus: BundleFocus,
@@ -63,7 +111,7 @@ fn fixture_with(
         "xs:string".into(),
     );
     let generated = match focus {
-        BundleFocus::Sequence => GENERATED.to_owned(),
+        BundleFocus::Sequence | BundleFocus::OptionalSequence => GENERATED.to_owned(),
         BundleFocus::Singleton => {
             GENERATED.replace("document, position, size, prefix", "document, prefix")
         }

@@ -33,6 +33,10 @@ import initCemQlWasm, {
     resolveModuleUrl as resolveModuleUrlWasm,
     templateArtifactPayloadKey,
     templateModuleImports,
+    retainXsltComponent,
+    renderXsltComponent,
+    disposeXsltComponent,
+    xsltStylesheetImports,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 import {
     assertProcessingBoundaryValue,
@@ -104,6 +108,118 @@ export interface CemMlTemplateModuleSource {
     uri: string;
     contentHash: string;
     source: string;
+}
+
+export interface CemXsltComponentOptions {
+    entrypoint?: string;
+    parameters: Array<{ name: string; select: string }>;
+    modules?: Array<{ parentUri: string; href: string; uri: string; source: string; contentHash: string }>;
+}
+
+// Shared by engines using this WASM instance, including main-thread fallback.
+// Leases survive native cache eviction; their next render recompiles the same
+// immutable authoring inputs. A synchronous WASM render cannot be evicted midway.
+const xsltResidents = new Map<RetainedXsltComponent, number>();
+
+export class RetainedXsltComponent {
+    readonly stylesheets: CemQlStylesheetArtifact[];
+    readonly diagnostics: RuntimeSupportDiagnostic[];
+    private disposed = false;
+
+    constructor(private readonly source: string, private readonly uri: string,
+        private readonly optionsJson: string, private readonly hostBindingsJson: string) {
+        const compiled = this.ensureNative();
+        this.stylesheets = (compiled.stylesheets ?? []).map(mapStylesheet);
+        this.diagnostics = (compiled.diagnostics ?? []).map(mapDiagnostic);
+    }
+
+    private ensureNative(): { artifactId: number; stylesheets?: WasmStylesheetArtifact[]; diagnostics?: WasmDiagnostic[] } {
+        if (this.disposed) throw new Error('XSLT component lease is disposed');
+        const retained = xsltResidents.get(this);
+        if (retained !== undefined) {
+            xsltResidents.delete(this);
+            xsltResidents.set(this, retained);
+            return { artifactId: retained };
+        }
+        const evict = (): boolean => {
+            const oldest = xsltResidents.entries().next().value;
+            if (!oldest) return false;
+            xsltResidents.delete(oldest[0]);
+            disposeXsltComponent(oldest[1]);
+            return true;
+        };
+        if (xsltResidents.size >= 16) evict();
+        for (;;) {
+            try {
+                const compiled = JSON.parse(retainXsltComponent(this.source, this.uri, this.optionsJson, this.hostBindingsJson)) as {
+                    artifactId: number; stylesheets?: WasmStylesheetArtifact[]; diagnostics?: WasmDiagnostic[];
+                };
+                xsltResidents.set(this, compiled.artifactId);
+                return compiled;
+            } catch (error) {
+                // Native byte capacity may be reached before the handle bound.
+                const message = String(error);
+                if ((message === 'XSLT component byte limit exceeded' || message === 'XSLT component handle limit exceeded') && evict()) continue;
+                throw error;
+            }
+        }
+    }
+
+    async render(data: Record<string, unknown>, options: CemQlRenderOptions & { documents?: { slice: string; documentId: number }[] }): Promise<CemQlRenderResult> {
+        assertProcessingBoundaryValue(data, 'XSLT component control data');
+        await ensureRuntimeReady();
+        const { artifactId } = this.ensureNative();
+        return mapWasmRenderPlan(renderXsltComponent(artifactId, JSON.stringify(data), JSON.stringify(options.documents ?? [])), options);
+    }
+
+    dispose(): void {
+        const id = xsltResidents.get(this);
+        if (id !== undefined) disposeXsltComponent(id);
+        xsltResidents.delete(this);
+        this.disposed = true;
+    }
+}
+
+export async function retainXsltComponentSource(source: string, uri: string, options: CemXsltComponentOptions,
+    hostBindings: readonly string[]): Promise<RetainedXsltComponent> {
+    await ensureRuntimeReady();
+    return new RetainedXsltComponent(source, uri, JSON.stringify(options), JSON.stringify(hostBindings));
+}
+
+/** Host URL resolution over typed authoring import/include edges. */
+export async function preflightXsltModules(source: string, loader: CemMlTemplateModuleLoader): Promise<NonNullable<CemXsltComponentOptions['modules']>> {
+    await ensureRuntimeReady();
+    const root = absoluteModuleUrl(loader.rootUrl, 'root stylesheet');
+    const modules: NonNullable<CemXsltComponentOptions['modules']> = [];
+    const loaded = new Map<string, { source: string; contentHash: string }>();
+    const expanded = new Set<string>();
+    const active = new Set<string>();
+    const visit = async (source: string, uri: string, depth: number): Promise<void> => {
+        if (active.has(uri)) throw new Error(`cyclic XSLT import: ${uri}`);
+        if (expanded.has(uri)) return;
+        if (depth > 32 || expanded.size >= 64) throw new Error('XSLT import closure exceeds limits');
+        active.add(uri);
+        const imports = JSON.parse(xsltStylesheetImports(source, uri)) as string[];
+        for (const href of new Set(imports)) {
+            if (modules.length >= 128) throw new Error('XSLT import edge limit exceeded');
+            const resolved = absoluteModuleUrl(await loader.resolve(href, uri, null), 'imported stylesheet');
+            if (active.has(resolved)) throw new Error(`cyclic XSLT import: ${resolved}`);
+            let member = loaded.get(resolved);
+            if (!member) {
+                if (loaded.size >= 63) throw new Error('XSLT source count exceeds limits');
+                const text = loader.load ? await loader.load(resolved) : await fetchModuleSource(resolved);
+                if (new TextEncoder().encode(text).byteLength > 128 * 1024) throw new Error('XSLT source exceeds byte limit');
+                member = { source: text, contentHash: (await cemMlTemplateArtifactPayloadKey(text, 'dev')).sourceHash };
+                loaded.set(resolved, member);
+            }
+            modules.push({ parentUri: uri, href, uri: resolved, ...member });
+            await visit(member.source, resolved, depth + 1);
+        }
+        active.delete(uri);
+        expanded.add(uri);
+    };
+    await visit(source, root, 0);
+    return modules;
 }
 
 export interface CemMlTemplateModuleClosure {
@@ -611,7 +727,7 @@ export async function processCemMlTemplate(
 /** Processing path for a validated, retained component-template artifact. */
 export async function processRetainedCemMlTemplate(
     artifactId: number,
-    input: CemMlTemplateProcessingInput & { xpathCompanionId?: number; documents?: { slice: string; documentId: number }[] }
+    input: CemMlTemplateProcessingInput & { xslt?: RetainedXsltComponent; xpathCompanionId?: number; documents?: { slice: string; documentId: number }[] }
 ): Promise<CemMlTemplateProcessingResult> {
     assertProcessingBoundaryValue(input.data, 'CEM-ML processing data');
     assertProcessingBoundaryValue(input.identity, 'CEM-ML processing identity');
@@ -622,11 +738,13 @@ export async function processRetainedCemMlTemplate(
         assertProcessingBoundaryValue(input.previousRenderPlan, 'previous render plan');
     }
 
-    const rendered = await renderRetainedCemMlTemplate(artifactId, input.data, {
+    const renderOptions = {
         xpathCompanionId: input.xpathCompanionId,
         documents: input.documents,
         renderNodeIdPrefix: input.renderNodeIdPrefix ?? input.identity.producedTag,
-    });
+    };
+    const rendered = input.xslt ? await input.xslt.render(input.data, renderOptions)
+        : await renderRetainedCemMlTemplate(artifactId, input.data, renderOptions);
     const renderPlan = projectSlotsInRenderPlan(
         {
             ...input.identity,

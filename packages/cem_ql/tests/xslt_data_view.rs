@@ -131,7 +131,9 @@ fn visible(nodes: &[RenderPlanNode]) -> Vec<VisibleNode> {
                     .iter()
                     .filter(|a| {
                         !(selection && a.name == "value")
-                            && !(tag == "select" && a.name == "value" && a.value.is_empty())
+                            && !((tag == "select" || tag == "input")
+                                && a.name == "value"
+                                && a.value.is_empty())
                     })
                     .map(|a| (a.name.clone(), a.value.clone()))
                     .collect();
@@ -384,7 +386,7 @@ fn viewer_reports_malformed_sources_and_remains_resettable() {
         let html = render_plan_to_html(&render(&bundle, source, format, ""));
         assert!(html.contains("role=\"alert\""), "{format}: {html}");
         assert!(html.contains("aria-label=\"Reset source\""));
-        assert_eq!(html.matches("<select ").count(),3,"{format}: {html}");
+        assert_eq!(html.matches("<select ").count(), 3, "{format}: {html}");
         assert!(!html.contains("<table"));
     }
 }
@@ -420,5 +422,140 @@ fn authored_xslt_view_imports_and_sorts_all_four_formats() {
             "{format}: {table}"
         );
         assert!(table.contains("Select source line"));
+    }
+}
+
+#[test]
+fn imported_xslt_aspects_match_cemt_with_toggles_and_local_drafts() {
+    use cem_ql::render::{
+        compile_template_module_closure, TemplateModuleClosure, TemplateModuleSource,
+    };
+    use cem_ql::xslt::compiler::XsltModuleSource;
+    let source = r#"{"visits":[{"address":"192.0.2.1","hits":10},{"address":"192.0.2.2","hits":2}],"notes":[{"message":"🍒"},{"message":"🍋"}],"filter":{"kind":"ip-filter","address":"192.0.2.0/24","action":"allow"}}"#;
+    let xslt = include_str!("../../cem-elements/demo/data-table-aspects.xslt");
+    let cemt = include_str!("../../cem-elements/demo/data-table-aspects.cemt");
+    let base = include_str!("../../cem-elements/demo/data-table-view.cemt");
+    let hash = |s: &str| cem_ml::content_cache::ContentHash::from_blake3(s.as_bytes());
+    let options = XsltCompileOptions {
+        entrypoint: Some(XPathExpandedName::unqualified("viewer-aspects")),
+        parameters: [
+            "source",
+            "initial",
+            "format",
+            "aspects",
+            "ipAddress",
+            "ipAction",
+        ]
+        .into_iter()
+        .map(|name| (XPathExpandedName::unqualified(name), name.into()))
+        .collect(),
+        modules: vec![XsltModuleSource {
+            parent_uri: "memory:data-table-aspects.xslt".into(),
+            href: "./data-table-view.xslt".into(),
+            uri: "memory:data-table-view.xslt".into(),
+            source: VIEW.into(),
+            content_hash: hash(VIEW),
+        }],
+    };
+    let compiled =
+        compile_xslt_bundle_with_options(xslt, "memory:data-table-aspects.xslt", &options).unwrap();
+    let bundle = XsltBundle::from_bytes(
+        &compiled.bytes,
+        &compiled.content_hash,
+        &compiled.source_hash,
+    )
+    .unwrap();
+    let artifact = compile_template_module_closure(
+        cemt,
+        &TemplateModuleClosure {
+            root_uri: "memory:data-table-aspects.cemt".into(),
+            root_content_hash: hash(cemt).header_value(),
+            modules: vec![TemplateModuleSource {
+                alias: "base".into(),
+                parent_uri: None,
+                uri: "memory:data-table-view.cemt".into(),
+                content_hash: hash(base).header_value(),
+                source: base.into(),
+            }],
+            ..Default::default()
+        },
+        &CompileTemplateOptions::default(),
+    );
+    let string = |s: &str| Item::Atomic(AtomValue::String(s.into()));
+    let record = |fields: Vec<(&str, Vec<Item>)>| {
+        Item::Record(fields.into_iter().map(|(k, v)| (k.into(), v)).collect())
+    };
+    let mut cases = Vec::new();
+    for (enabled, address, action) in [
+        (true, None, None),
+        (false, None, None),
+        (true, Some("198.51.100.0/24"), Some("deny")),
+        (true, Some(""), Some("allow")),
+    ] {
+        let mut slices = vec![("aspects", vec![Item::Atomic(AtomValue::Boolean(enabled))])];
+        let mut input = TemplateData::default();
+        for (name, value) in [("source", source), ("initial", source), ("format", "json")] {
+            input = input.with_binding(name, ItemStream::once(string(value)));
+        }
+        input = input.with_binding(
+            "aspects",
+            ItemStream::once(Item::Atomic(AtomValue::Boolean(enabled))),
+        );
+        for (name, value) in [("ipAddress", address), ("ipAction", action)] {
+            let values: Vec<_> = value.map(&string).into_iter().collect();
+            slices.push((name, values.clone()));
+            input = input.with_binding(name, ItemStream::from_items(values));
+        }
+        let actual = bundle.render(&input);
+        assert!(actual.diagnostics.is_empty(), "{:?}", actual.diagnostics);
+        let data = TemplateData::default()
+            .with_binding("format", ItemStream::once(string("json")))
+            .with_binding(
+                "datadom",
+                ItemStream::once(record(vec![
+                    (
+                        "payload",
+                        vec![record(vec![(
+                            "nodes",
+                            vec![record(vec![("text", vec![string(source)])])],
+                        )])],
+                    ),
+                    ("slices", vec![record(slices)]),
+                ])),
+            );
+        let expected = render_compiled_template(&artifact, &data);
+        assert!(
+            expected.diagnostics.is_empty(),
+            "{:?}",
+            expected.diagnostics
+        );
+        let actual = visible(&actual.nodes);
+        let expected = visible(&expected.nodes);
+        assert_eq!(
+            difference(&actual, &expected),
+            "",
+            "enabled={enabled}, address={address:?}, action={action:?}"
+        );
+        cases.push(serde_json::json!({"controls":{"source":source,"initial":source,"format":"json","aspects":enabled,
+            "ipAddress":address,"ipAction":action},"nodes":actual}));
+    }
+    if let Ok(directory) = std::env::var("CEM_XSLT_VIEW_FIXTURE_DIR") {
+        let directory = std::path::PathBuf::from(directory);
+        std::fs::write(directory.join("aspects.xslt"), xslt).unwrap();
+        std::fs::write(directory.join("aspects.bin"), compiled.bytes).unwrap();
+        let mut defaults = options;
+        defaults
+            .parameters
+            .retain(|name, _| !["ipAddress", "ipAction"].contains(&name.local_name.as_str()));
+        let defaults =
+            compile_xslt_bundle_with_options(xslt, "memory:data-table-aspects.xslt", &defaults)
+                .unwrap();
+        std::fs::write(directory.join("aspects-defaults.bin"), defaults.bytes).unwrap();
+        // Explicit deployment/control/render metadata; document inputs remain source text.
+        std::fs::write(directory.join("aspects.json"), serde_json::to_vec(&serde_json::json!({
+            "contentHash":compiled.content_hash.header_value(),"sourceHash":compiled.source_hash.header_value(),
+            "moduleHash":hash(VIEW).header_value(),"cases":cases,
+                "defaultsContentHash":defaults.content_hash.header_value(),"defaultsSourceHash":defaults.source_hash.header_value()
+        })).unwrap()).unwrap();
     }
 }

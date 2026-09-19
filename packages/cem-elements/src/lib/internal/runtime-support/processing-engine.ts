@@ -20,6 +20,8 @@ import {
     retainCemMlTemplateArtifact,
     retainCemMlTemplateSource,
     retainCemMlTemplateModuleClosure,
+    retainXsltComponentSource,
+    type RetainedXsltComponent,
     type CemQlStylesheetArtifact,
     type RetainedCemMlTemplate,
 } from './cem-ql-render.js';
@@ -51,6 +53,7 @@ interface RetainedTemplateArtifact {
 }
 
 interface CachedTemplateCompilation {
+    xslt?: RetainedXsltComponent;
     xpathLibrary?: CemXPathFunctionLibraryLease;
     diagnostics: CemProcessingDiagnostic[];
     wasmArtifactId: number;
@@ -124,6 +127,13 @@ export class CemProcessingEngine {
 
     async compile(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
         this.assertActive();
+        if (input.language === 'xslt') {
+            if (!input.xslt || input.moduleClosure || input.xpathFunctionLibrary || input.precompiledArtifact || input.exportCompiledArtifact) {
+                throw new Error('XSLT compilation requires its explicit source/options contract');
+            }
+        } else if (input.language !== 'cem-ml' || input.xslt) {
+            throw new Error('invalid processing language or XSLT options');
+        }
         const artifactKey = retainedArtifactKey(input.scopePolicyStamp, input.templateArtifactId);
         const retained = this.artifacts.get(artifactKey);
         if (retained) {
@@ -147,6 +157,7 @@ export class CemProcessingEngine {
                 hostBindings: [...new Set(input.hostBindings ?? [])].sort(),
                 moduleClosure: input.moduleClosure ?? null,
                 xpathFunctionLibrary: input.xpathFunctionLibrary ?? null,
+                xslt: input.xslt ?? null,
             }).key,
             registrationIdentity: input.registrationIdentity,
             scopePolicyStamp: input.scopePolicyStamp,
@@ -165,7 +176,7 @@ export class CemProcessingEngine {
                 // this request awaited WASM. Reuse it and release the extra lease.
                 compilation = this.compiledArtifacts.get(handle.cacheKey);
                 if (compilation) {
-                    disposeRetainedCemMlTemplate(loaded.wasmArtifactId);
+                    disposeCompilation(loaded);
                     xpathLibrary?.release();
                 } else {
                     compilation = { ...loaded, xpathLibrary };
@@ -174,7 +185,7 @@ export class CemProcessingEngine {
                     if (evicted) this.releaseCompilation(evicted.value);
                 }
             } catch (error) {
-                if (loaded) disposeRetainedCemMlTemplate(loaded.wasmArtifactId);
+                if (loaded) disposeCompilation(loaded);
                 xpathLibrary?.release();
                 throw error;
             }
@@ -212,6 +223,7 @@ export class CemProcessingEngine {
         assertRenderRevision(input);
         const previous = retainedPreviousPlan(this.renderPlans, input.previousRenderPlan, input.artifact);
         const processed = await processRetainedCemMlTemplate(artifact.wasmArtifactId, {
+            xslt: artifact.compilation.xslt,
             xpathCompanionId: artifact.compilation.xpathLibrary?.companionId,
             documents: (input.documents ?? []).map(({ slice, handle }) => {
                 if (handle.instanceId !== input.revision.instanceId || handle.scopePolicyStamp !== input.revision.scopePolicyStamp) {
@@ -276,7 +288,7 @@ export class CemProcessingEngine {
         this.documents.clear();
         this.documentOperations.clear();
         for (const compilation of this.compilations.keys()) {
-            disposeRetainedCemMlTemplate(compilation.wasmArtifactId);
+            disposeCompilation(compilation);
             compilation.xpathLibrary?.release();
         }
         this.compilations.clear();
@@ -294,7 +306,7 @@ export class CemProcessingEngine {
             this.compilations.set(compilation, references);
         } else {
             this.compilations.delete(compilation);
-            disposeRetainedCemMlTemplate(compilation.wasmArtifactId);
+            disposeCompilation(compilation);
             compilation.xpathLibrary?.release();
         }
     }
@@ -310,6 +322,10 @@ export class CemProcessingEngine {
         source: string
     ): Promise<CachedTemplateCompilation> {
         const hostBindings = input.hostBindings ?? [];
+        if (input.xslt) {
+            const xslt = await retainXsltComponentSource(source, input.xslt.sourceUri, input.xslt.options, hostBindings);
+            return { xslt, wasmArtifactId: 0, diagnostics: xslt.diagnostics, stylesheets: xslt.stylesheets };
+        }
         if (input.moduleClosure) {
             // A source-only binary is not a dependency-closure artifact. Keep the
             // closure content/version/resolver contract in the native compilation.
@@ -402,17 +418,24 @@ function compileResult(artifact: RetainedTemplateArtifact): CemProcessingCompile
 }
 
 function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessingCompileInput): boolean {
-    return left.registrationIdentity === right.registrationIdentity
+    return left.language === right.language
+        && left.registrationIdentity === right.registrationIdentity
         && left.scopePolicyStamp === right.scopePolicyStamp
         && left.sourceMapMode === right.sourceMapMode
         && left.exportCompiledArtifact === right.exportCompiledArtifact
         && JSON.stringify(left.moduleClosure ?? null) === JSON.stringify(right.moduleClosure ?? null)
         && JSON.stringify(left.xpathFunctionLibrary ?? null) === JSON.stringify(right.xpathFunctionLibrary ?? null)
+        && JSON.stringify(left.xslt ?? null) === JSON.stringify(right.xslt ?? null)
         && sameStrings(left.hostBindings ?? [], right.hostBindings ?? [])
         && processingSourceText(left) === processingSourceText(right)
         && left.sourceRef.kind === right.sourceRef.kind
         && left.sourceRef.value === right.sourceRef.value
         && left.resolverIdentity === right.resolverIdentity;
+}
+
+function disposeCompilation(compilation: CachedTemplateCompilation): void {
+    if (compilation.xslt) compilation.xslt.dispose();
+    else disposeRetainedCemMlTemplate(compilation.wasmArtifactId);
 }
 
 function retainedCompilation(

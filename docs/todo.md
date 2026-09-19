@@ -1249,23 +1249,56 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
           mapped empty sequences, retained-handle limits/disposal and all four
           viewer import formats through native-compiled control fixtures.
           Verification: 463 CEM-QL tests and 200 native/WASM bundle checks pass;
-          CEM-QL lint passes with its existing 23 warnings. Component authoring
-          and worker wiring remain open at the initial-focus choice below.
-    - [x] Fixture XSLT-VIEW-NAMED-FOCUS-BOUNDARY: reproduce the existing
-          singleton-context requirement for scalar-only named templates. Native
-          and WASM adapters must report the limitation without inventing a
-          source tree. See the [tested focus proposal](xslt-runtime-lowering.md#named-entry-initial-focus-decision).
-    - [ ] XSLT-VIEW-NAMED-FOCUS-DECISION: choose absent initial focus for
+          CEM-QL lint passed with its existing 23 warnings. At that checkpoint,
+          component authoring and worker wiring awaited the focus choice below.
+    - [x] Fixture XSLT-VIEW-NAMED-FOCUS-BOUNDARY: characterized the original
+          singleton-context requirement for scalar-only named templates in native
+          and WASM adapters, without inventing a source tree. The approved fix
+          below replaces that limitation with explicit optional focus. See the [tested focus proposal](xslt-runtime-lowering.md#named-entry-initial-focus-decision).
+    - [x] XSLT-VIEW-NAMED-FOCUS-DECISION: choose absent initial focus for
           named entrypoints (recommended, following XSLT 3.0), or require a
           separate native source-document binding on every browser declaration.
-          Scalar parameter mappings remain approved. Do not change focus ABI
-          or ship browser integration before this choice.
-    - [ ] Fixture XSLT-VIEW-BROWSER-LIFECYCLE: retain typed XSLT in the shared
+          Absent initial focus approved; scalar parameter mappings remain approved.
+    - [x] Fixture XSLT-VIEW-OPTIONAL-FOCUS: add an explicit optional-sequence
+          bundle focus form; verify scalar-only named calls, lazy standard
+          missing-focus errors, recovery, nested calls, populated/empty loops,
+          imported modules, binary reload and native/WASM parity. Preserve
+          strict singleton/sequence validation and shared limits.
+    - [x] Fixture XSLT-VIEW-BROWSER-LIFECYCLE: retain typed XSLT in the shared
           processing engine; test cache identity, disposal, worker recovery and
           declaration state changes without the legacy converter.
+          Basic browser lifecycle passes; viewer interaction completion is gated
+          by the control-envelope decision below.
           Match worker eviction to the native 16-component retention limit;
           preserve stylesheet URI in identity and source-selection provenance.
-    - [ ] Fixture XSLT-VIEW-ASPECTS-NATIVE: author an imported XSLT presentation
+    - [x] Fixture XSLT-VIEW-PARAM-FORWARD: forward typed bare variable
+          sequences through existing CEMT bindings without allocating redundant
+          XPath programs, including empty-sequence defaults; preserve native
+          values, missing-focus semantics and the 128-program limit. Verify imported aspect compilation and parity.
+    - [x] Fixture XSLT-VIEW-EXTERNAL-CONSUMER: migrate the existing standalone
+          data-island-tree.xsl demo and named/anonymous consumers to strict XSLT
+          3.0 with explicit XML source-text mapping. Verify native import, source
+          contracts, source-loaded stories and standalone/source-loaded inventory.
+          Checkpoint verification: the 468-test CEM-QL suite and focused consumer
+          checks, 13 CLI parity tests, 209 native/WASM bundle checks, 93 unit tests
+          and 81 browser stories pass. Lint/typecheck pass (23 existing QL
+          warnings); the demo verifier passes 25 standalone pages and 31
+          source-loaded documents. At 1440px and 390px, the migrated external
+          examples have no page/card overflow; desktop keeps a two-card row.
+          The interactive viewer gallery and function audit remain open below.
+    - [x] Fixture XSLT-VIEW-CONTROL-BUDGET-BOUNDARY: reproduce the native
+          component's 128 KiB control-input rejection after selecting a row in
+          the real browser viewer; measure ordinary and 32 KiB-source envelopes
+          without decoding document data in JavaScript. Keep the gallery open.
+    - [ ] XSLT-VIEW-CONTROL-BUDGET-DECISION: decide whether to raise the bounded
+          XSLT control envelope to 8 MiB, or add generic native selector-based
+          control transport. Existing 32 KiB document-import limits remain.
+          See the measured [control-envelope proposal](xslt-runtime-lowering.md#browser-control-envelope-decision).
+    - [ ] Fixture XSLT-VIEW-CONTROL-BUDGET: after the decision, enforce the
+          approved control-input bound independently of native document/import
+          limits. Test UTF-8 byte boundaries, worker/fallback viewer interactions
+          and rejection without partial output before publishing gallery cases.
+    - [x] Fixture XSLT-VIEW-ASPECTS-NATIVE: author an imported XSLT presentation
           module for notes-as-tree and the local IP-filter form; compare enabled,
           disabled and changed-draft outputs with the CEMT reference.
     - [x] Fixture XSLT-VIEW-SELECTION-BOUNDARY: verify retained row provenance

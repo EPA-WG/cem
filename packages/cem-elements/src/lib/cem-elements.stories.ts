@@ -2276,14 +2276,13 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
                                 xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
                                 xmlns:cem-island="https://cem.dev/ns/runtime/data-island"
                                 xmlns:cem-payload="https://cem.dev/ns/runtime/instance-payload"
-                                version="1.0"
+                                version="3.0"
                             >
-                                <xsl:template match="/">
+                                <xsl:template name="view">
+                                    <xsl:param name="payloadTag"/>
                                     <article class="standalone-xslt">
                                         <h3>Standalone XSLT</h3>
-                                        <xsl:for-each select="/cem-island:context-root/cem-payload:payload/*">
-                                            <strong><xsl:value-of select="name()"/></strong>
-                                        </xsl:for-each>
+                                        <strong><xsl:value-of select="$payloadTag"/></strong>
                                     </article>
                                 </xsl:template>
                             </xsl:stylesheet>
@@ -2323,6 +2322,8 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         const xsltDeclaration = document.createElement('cem-element-story-ext-src');
         xsltDeclaration.setAttribute('tag', 'story-ext-src-xslt');
         xsltDeclaration.setAttribute('src', './remote-tree.xsl');
+        xsltDeclaration.setAttribute('xslt-template', 'view');
+        xsltDeclaration.innerHTML = '<xslt-param name="payloadTag" select="datadom.payload.nodes.tag"></xslt-param>';
         root.appendChild(xsltDeclaration);
 
         const xsltInstance = document.createElement('story-ext-src-xslt');

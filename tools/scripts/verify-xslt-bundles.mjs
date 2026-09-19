@@ -46,6 +46,9 @@ try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_component'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_COMPONENT_FIXTURE_DIR: directory },
     });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_optional_focus'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_OPTIONAL_FOCUS_FIXTURE_DIR: directory },
+    });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
     // go straight to the common CEM import/retention boundary below.
@@ -354,7 +357,7 @@ try {
             if (node.tag === 'style') continue;
             const selection = node.tag === 'button' && node.attributes.some(a => a.name === 'slice' && a.value === 'selected');
             const attributes = node.attributes.filter(a => !(selection && a.name === 'value')
-                && !(node.tag === 'select' && a.name === 'value' && !a.value))
+                && !((node.tag === 'select' || node.tag === 'input') && a.name === 'value' && !a.value))
                 .map(a => [a.name, a.value]).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
             result.push({ Element: [node.tag, attributes, visible(node.children)] });
         }
@@ -385,6 +388,33 @@ try {
     const componentOptions = JSON.parse(readFileSync(join(directory, 'component-options.json'), 'utf8'));
     const retainComponent = (options = componentOptions, source = componentSource, uri = 'memory:component.xslt') =>
         JSON.parse(retainXsltComponent(source, uri, JSON.stringify(options), '["datadom"]'));
+    const aspects = JSON.parse(readFileSync(join(directory, 'aspects.json'), 'utf8'));
+    const aspectBundle = load(readFileSync(join(directory, 'aspects.bin')), aspects.contentHash, aspects.sourceHash);
+    const aspectDefaults = load(readFileSync(join(directory, 'aspects-defaults.bin')), aspects.defaultsContentHash, aspects.defaultsSourceHash);
+    const aspectComponent = retainComponent({
+        entrypoint: 'viewer-aspects',
+        parameters: Object.keys(aspects.cases[0].controls).map(name => ({ name, select: `datadom.slices.${name}` })),
+        modules: [{ parentUri: 'memory:data-table-aspects.xslt', href: './data-table-view.xslt',
+            uri: 'memory:data-table-view.xslt', source: readFileSync(join(directory, 'viewer.xslt'), 'utf8'), contentHash: aspects.moduleHash }],
+    }, readFileSync(join(directory, 'aspects.xslt'), 'utf8'), 'memory:data-table-aspects.xslt');
+    try {
+        for (const test of aspects.cases) {
+            // Missing drafts are absent bindings; JSON null is not an XPath empty sequence.
+            const controls = Object.fromEntries(Object.entries(test.controls).filter(([, value]) => value !== null));
+            for (const output of [
+                JSON.parse(renderXsltBundle(test.controls.ipAddress === null ? aspectDefaults.bundleId : aspectBundle.bundleId, JSON.stringify(controls), '[]')),
+                JSON.parse(renderXsltComponent(aspectComponent.artifactId, JSON.stringify({ datadom: { slices: controls } }), '[]')),
+            ]) {
+                assert.deepEqual(output.diagnostics, []);
+                assert.deepEqual(visible(output.nodes), test.nodes);
+                checks++;
+            }
+        }
+    } finally {
+        disposeXsltComponent(aspectComponent.artifactId);
+        disposeXsltBundle(aspectBundle.bundleId);
+        disposeXsltBundle(aspectDefaults.bundleId);
+    }
     const component = retainComponent();
     const focus = retainCemDocument(new TextEncoder().encode('<input/>'), 'application/xml', 'memory:component-input');
     try {
@@ -405,7 +435,8 @@ try {
         }
         const missingFocus = JSON.parse(renderXsltComponent(component.artifactId,
             '{"datadom":{"slices":{"text":"scalar"}}}', '[]'));
-        assert.ok(missingFocus.diagnostics.some(d => d.code === 'cem.xslt.bundle_argument'));
+        assert.deepEqual(missingFocus.diagnostics, []);
+        assert.equal(text(missingFocus.nodes), 'scalar:false');
         checks++;
         const importedSource = readFileSync(join(directory, 'component-import.xslt'), 'utf8');
         const importedOptions = JSON.parse(readFileSync(join(directory, 'component-import-options.json'), 'utf8'));
@@ -445,7 +476,7 @@ try {
         try {
             for (const test of viewer.cases) {
                 const output = JSON.parse(renderXsltComponent(viewerComponent.artifactId,
-                    JSON.stringify({ datadom: { slices: test.controls } }), '[]', focus));
+                    JSON.stringify({ datadom: { slices: test.controls } }), '[]'));
                 assert.deepEqual(output.diagnostics, []);
                 assert.deepEqual(visible(output.nodes), test.nodes);
                 assert.deepEqual(selections(output.nodes), test.selections);
@@ -470,6 +501,14 @@ try {
     assert.ok(nextComponent.artifactId > componentHandles.at(-1));
     assert.equal(disposeXsltComponent(nextComponent.artifactId), true);
     checks++;
+    const optionalManifest = JSON.parse(readFileSync(join(directory, 'optional-focus.json'), 'utf8'));
+    const optional = load(readFileSync(join(directory, 'optional-focus.bin')), optionalManifest.contentHash, optionalManifest.sourceHash);
+    try {
+        const output = JSON.parse(renderXsltBundle(optional.bundleId, '{}', '[]'));
+        assert.deepEqual(output.diagnostics, []);
+        assert.equal(text(output.nodes), 'scalar:2/1/2:4/2/2:absent');
+        checks++;
+    } finally { disposeXsltBundle(optional.bundleId); }
     // XSLT-OUTPUT-WASM: the JSON below is the explicit render-plan protocol.
     // XML/JSON document bytes are still imported and queried entirely in CEM-ML.
     for (const name of ['native-output', 'avt-output']) {

@@ -110,13 +110,15 @@ pub enum BundleFocus {
     Absent,
     Singleton,
     Sequence,
+    /// Three empty streams mean absent focus; otherwise a strict sequence focus.
+    OptionalSequence,
 }
 impl BundleFocus {
     fn arity(self) -> usize {
         match self {
             Self::Absent => 0,
             Self::Singleton => 1,
-            Self::Sequence => 3,
+            Self::Sequence | Self::OptionalSequence => 3,
         }
     }
 }
@@ -371,9 +373,7 @@ impl XsltBundle {
         invocation::registry(&self.manifest.programs, &self.expressions, limits)
     }
     pub fn render(&self, input: &TemplateData) -> RenderPlan {
-        let mut data = input.clone();
-        data.native_functions = self.functions.clone();
-        data.data_readers = self.data_readers.clone();
+        let data = self.render_data(input);
         render_compiled_template(&self.template, &data)
     }
     /// Run the same bundle under the transform host's existing operation scope.
@@ -383,10 +383,22 @@ impl XsltBundle {
         control: &cem_ml::operation_control::OperationControl,
         scope: cem_ml::operation_control::ExecutionScopeId,
     ) -> RenderPlan {
+        let data = self.render_data(input);
+        crate::render::render_compiled_template_with_control(&self.template, &data, control, scope)
+    }
+    fn render_data(&self, input: &TemplateData) -> TemplateData {
         let mut data = input.clone();
         data.native_functions = self.functions.clone();
         data.data_readers = self.data_readers.clone();
-        crate::render::render_compiled_template_with_control(&self.template, &data, control, scope)
+        if self
+            .manifest
+            .programs
+            .iter()
+            .any(|program| program.focus == BundleFocus::OptionalSequence)
+        {
+            data.bindings.entry("document".into()).or_default();
+        }
+        data
     }
 }
 

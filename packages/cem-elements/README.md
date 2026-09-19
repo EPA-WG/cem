@@ -155,9 +155,20 @@ supported. Generic template binaries and
 ordinary JSON data cannot install functions. Native-owner bindings remain available
 at the Rust API described in the [CEM-QL contract](../cem_ql/README.md#xpath-function-companions).
 
+Strict XSLT 3.0 declarations use `src="./view.xslt"` and
+`xslt-template="entrypoint"`, with direct `<xslt-param name="..." select="...">`
+children containing independent CEM-QL scalar selectors. Unmapped parameters
+keep their XSLT defaults. Named entrypoints may run without initial focus;
+source parsing stays in CEM-ML import. Imported stylesheets and native bundles
+share the existing resolver, worker/fallback and disposal lifecycle. The full
+viewer gallery remains blocked by the current 128 KiB control-envelope limit.
+See the [control-envelope proposal](../../docs/xslt-runtime-lowering.md#browser-control-envelope-decision)
+and [parameter contract](../../docs/xslt-runtime-lowering.md#browser-state-binding-decision).
+
 Phase 3B shares lazily allocated worker slots across compatible logical roots without
-changing their scheduling semantics. The `cem-processing-host-v2` contract adds
-`document` retention/release alongside `compile`, `renderDiff`, `cancel` and `dispose`. The default
+changing their scheduling semantics. The current `cem-processing-host-v3` contract
+adds explicit native XSLT compilation options to the retained processing path;
+its `document` retention/release remains alongside `compile`, `renderDiff`, `cancel` and `dispose`. The default
 pool uses browser hardware concurrency capped at eight workers, a 64-operation queue per
 slot, FIFO ordering per root, and round-robin cross-root dispatch. Compiled artifacts and
 render plans use bounded content-addressed LRU retention; an evicted previous plan safely

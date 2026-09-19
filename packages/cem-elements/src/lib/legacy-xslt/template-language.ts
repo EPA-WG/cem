@@ -1,4 +1,4 @@
-export type CemDeclarationTemplateLanguage = 'dom' | 'cem-ml' | 'legacy-xslt';
+export type CemDeclarationTemplateLanguage = 'dom' | 'cem-ml' | 'legacy-xslt' | 'xslt';
 
 export interface CemDeclarationTemplateLanguageInput {
     type: string | null;
@@ -17,6 +17,7 @@ export function decideCemDeclarationTemplateLanguage(
     if (input.type === 'text/cem-ml' || input.type === 'application/cem-ml') {
         return 'cem-ml';
     }
+    if (input.type === 'application/xslt+xml') return 'xslt';
     if (input.lang === 'custom-element-v0') {
         return 'legacy-xslt';
     }

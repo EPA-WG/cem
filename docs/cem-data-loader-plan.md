@@ -82,7 +82,7 @@ JavaScript snapshots/data islands carry only lifecycle metadata with `data: null
 They carry neither response records nor AST objects nor durable native handles.
 On reconnect/hydration the metadata returns to `scheduled` and the request
 acquires a fresh native owner. The package-private processing protocol is
-`cem-processing-host-v2`: its explicit `document` operation transfers response
+`cem-processing-host-v3`: its explicit `document` operation transfers response
 bytes plus ownership metadata, retains/releases the CEM tree, and supplies
 instance/scope-checked bindings separately from render data. Worker fallback
 re-imports retained source bytes through the same CEM-ML import API. Handles are

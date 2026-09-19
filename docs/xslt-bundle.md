@@ -40,6 +40,7 @@ Its positional ABI is a declared focus, optional group context, then ordered var
 | absent | none |
 | singleton | one native context item |
 | sequence | one native context item, integer position, integer size |
+| optional-sequence | the same three arguments, or three empty sequences for absent focus |
 
 The additive program binding `group_context: true` inserts four arguments after
 focus: group-present (boolean), native group sequence, key-present (boolean),
@@ -106,15 +107,17 @@ bundle bytes plus selector-source bytes. The options transport is bounded to
 `xsltStylesheetImports(source, sourceUri)` returns only import/include hrefs
 from typed authoring source for resolver preflight.
 
-The component adapter uses the existing required native focus. The
-[absent initial-focus proposal](xslt-runtime-lowering.md#named-entry-initial-focus-decision)
-is pending; browser declaration/worker wiring is not yet available. Existing
-bundle delivery APIs and their focus validation are unchanged.
+The component adapter accepts absent initial focus, using the explicit
+`optional-sequence` bundle form. Scalar-only named entrypoints work without a
+document; accessing missing focus raises `err:XPDY0002` lazily. A partial empty
+triple is rejected. The existing strict singleton/sequence forms are unchanged;
+older bundle readers reject the new form. See the
+[implemented focus contract](xslt-runtime-lowering.md#named-entry-initial-focus-decision).
 
 Non-composite grouping and its dynamic
 context also execute through this ABI. Sorting, native output and the base
-data-table viewer execute through native-produced bundles. Browser state
-binding and imported viewer aspects remain subsequent checklist items. Verification covers
+data-table viewer execute through native-produced bundles. Browser scalar
+bindings and imported presentation aspects use the same retained component path. Verification covers
 explicitly composed bundles, native/WASM stylesheet compilation and compiled
 module closures with imported overrides, grouping over all shared import
 formats, absent group-context errors without partial output, and base viewer

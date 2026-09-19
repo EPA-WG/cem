@@ -373,8 +373,8 @@ impl<'a> Compiler<'a> {
         }
         let scope = Scope {
             item: "document".into(),
-            position: "1".into(),
-            size: "1".into(),
+            position: "if seq:count(document) == 0 { () } else { 1 }".into(),
+            size: "if seq:count(document) == 0 { () } else { 1 }".into(),
             mode: quote(""),
             groups: None,
             variables: BTreeMap::new(),

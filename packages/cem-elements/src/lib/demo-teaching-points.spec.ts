@@ -27,7 +27,7 @@ const inventories: Record<string, string[]> = {
         "6a. SVG fragment by ID",
         "6b. MathML fragment by ID",
         "7a. external CEM-ML data-island tree template",
-        "7b. external XSLT data-island tree template",
+        "7b. External XSLT XML payload tree",
         "7c. Missing fragment fallback",
         "7d. Anonymous external XSLT",
         "7e. Embedded XSLT fragment",
@@ -83,9 +83,11 @@ describe('restored demo teaching points', () => {
         expect(source('lib-dir/embed-lib')).toContain('@src="../embed-1.html"');
     });
 
-    it('keeps whole-file and embedded XSLT as distinct, explicit compatibility cases', () => {
+    it('keeps native whole-file XSLT and explicitly labeled legacy fragments distinct', () => {
         const document = source('external-template');
-        expect(document).toContain('<cem-element src="data-island-tree.xsl">');
+        expect(document).toContain('<cem-element src="data-island-tree.xsl" xslt-template="tree">');
+        expect(document).toContain('<xslt-param name="source"');
+        expect(readFileSync(new URL('../../demo/data-island-tree.xsl', import.meta.url), 'utf8')).toContain('parse-xml($source)');
         expect(document).toContain('<cem-element src="html-template.xhtml#embedded-xslt">');
         const library = readFileSync(new URL('../../demo/html-template.xhtml', import.meta.url), 'utf8');
         const fragment = library.split('<template id="embedded-xslt" lang="custom-element-v0">')[1]?.split('</template>')[0];

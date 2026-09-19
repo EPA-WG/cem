@@ -52,24 +52,44 @@ fn render(source: &str, payload: Vec<Item>) -> String {
 }
 
 #[test]
-fn whole_file_xslt_renders_payload_without_a_produced_tag_binding() {
-    let output = render(
+fn whole_file_xslt_renders_explicit_source_without_initial_focus() {
+    use cem_ml::validation::xpath::XPathExpandedName;
+    use cem_ql::{
+        render::render_plan_to_html,
+        xslt::{
+            compiler::{compile_xslt_bundle_with_options, XsltCompileOptions},
+            XsltBundle,
+        },
+    };
+    let compiled = compile_xslt_bundle_with_options(
         STYLESHEET,
-        vec![element(
-            "catalog",
-            vec![element(
-                "section",
-                vec![element(
-                    "item",
-                    vec![element("leaf", vec![text("🍒 & 🍋")])],
-                )],
-            )],
-        )],
-    );
-    assert!(output.contains("XSLT data island tree"));
-    assert!(output.contains("🍒 &amp; 🍋"));
-    assert_eq!(output.matches("<details").count(), 4);
-    assert_eq!(output.matches("<summary").count(), 4);
+        "memory:data-island-tree.xsl",
+        &XsltCompileOptions {
+            entrypoint: Some(XPathExpandedName::unqualified("tree")),
+            parameters: [(XPathExpandedName::unqualified("source"), "source".into())].into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let bundle = XsltBundle::from_bytes(
+        &compiled.bytes,
+        &compiled.content_hash,
+        &compiled.source_hash,
+    )
+    .unwrap();
+    for label in ["🍒 &amp; 🍋", "Changed"] {
+        let source =
+            format!("<catalog><section><item><leaf>{label}</leaf></item></section></catalog>");
+        let plan = bundle.render(
+            &TemplateData::default().with_binding("source", ItemStream::once(string(&source))),
+        );
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+        let output = render_plan_to_html(&plan);
+        assert!(output.contains("XSLT XML payload tree"));
+        assert!(output.contains(label));
+        assert_eq!(output.matches("<details").count(), 4);
+        assert_eq!(output.matches("<summary").count(), 4);
+    }
 }
 
 #[test]

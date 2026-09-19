@@ -29,6 +29,9 @@ import {
     convertLegacyTemplate,
     processCemMlTemplate,
     preflightCemMlTemplateModules,
+    preflightXsltModules,
+    type CemXsltComponentOptions,
+    type CemMlTemplateModuleLoader,
     type CemMlTemplateModuleClosure,
     type CemQlStylesheetArtifact,
     type RuntimeSupportDiagnostic,
@@ -680,7 +683,7 @@ export interface CemElementUidSeedInput {
     declarationTag: string;
     producedTag: string;
     template: HTMLTemplateElement;
-    mode: 'dom' | 'cem-ml' | 'legacy-xslt';
+    mode: CemDeclarationTemplateLanguage;
     occurrencePath: string;
     sourceText: string;
     sourceHash: string;
@@ -725,7 +728,7 @@ interface CompiledDeclaration {
     xpathFunctionsRef: string | null;
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
-    mode: 'dom' | 'cem-ml' | 'legacy-xslt';
+    mode: CemDeclarationTemplateLanguage;
     /**
      * Raw canonical CEM-ML source text for the `cem_ql` WASM render boundary. For legacy-xslt this
      * starts null and is filled by the async engine conversion of {@link legacySource} on first render.
@@ -733,6 +736,8 @@ interface CompiledDeclaration {
     cemMlSource: string | null;
     /** Raw legacy HTML+XSLT markup, lowered to {@link cemMlSource} by the engine on first render. */
     legacySource: string | null;
+    xsltSource: string | null;
+    xsltOptions: CemXsltComponentOptions | null;
     /** Whether this declaration renders through the canonical CEM-ML WASM boundary. */
     wasmEligible: boolean;
     declaredAttributes: AttributeDeclaration[];
@@ -1060,6 +1065,7 @@ const ANONYMOUS_DECLARATION_ONLY_ATTRIBUTES = new Set([
     'tag',
     'uid-seed',
     'version',
+    'xslt-template',
 ]);
 const UID_SEED_ATTR = 'uid-seed';
 const PUBLIC_STYLE_SCOPE_ATTR = 'scope';
@@ -1676,7 +1682,7 @@ export class CemElementRuntime {
             declarationElement.setAttribute('data-cem-anonymous-declaration', '');
             this.anonymousDeclarationElements.add(declarationElement);
             if (declarationElement.getAttribute('src')?.trim()) {
-                this.anonymousSrcPayloads.set(declarationElement, Array.from(declarationElement.childNodes));
+                this.anonymousSrcPayloads.set(declarationElement, Array.from(declarationElement.childNodes).filter((node) => !isXsltParameter(node)));
             }
         }
 
@@ -1858,7 +1864,7 @@ export class CemElementRuntime {
             behaviorIdentity: capability?.behaviorIdentity ?? registrationOptions?.behaviorIdentity,
         });
         this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
-        if (!compiled.registrationIdentity) {
+        if (!compiled.registrationIdentity || (compiled.mode === 'xslt' && compiled.diagnostics.some((d) => d.severity === 'error' || d.severity === 'fatal'))) {
             return Promise.resolve();
         }
 
@@ -2007,7 +2013,7 @@ export class CemElementRuntime {
             ...loaded.source,
             ...(loaded.kind === 'xslt'
                 ? {
-                      templateLanguage: 'legacy-xslt' as const,
+                      templateLanguage: 'xslt' as const,
                       templateSource: loaded.sourceText,
                   }
                 : {}),
@@ -2628,9 +2634,9 @@ export class CemElementRuntime {
 
     private usesProcessingHost(compiled: CompiledDeclaration): boolean {
         return (
-            compiled.mode === 'cem-ml' &&
+            compiled.mode === 'xslt' || (compiled.mode === 'cem-ml' &&
             compiled.cemMlSource !== null &&
-            !containsNonHttpRuntimeResourceDirective(compiled.cemMlSource)
+            !containsNonHttpRuntimeResourceDirective(compiled.cemMlSource))
         );
     }
 
@@ -2674,6 +2680,22 @@ export class CemElementRuntime {
             ...compiled.declaredSlices.map((slice) => slice.name),
             ...renderBindings,
         ];
+        if (compiled.xsltSource !== null && compiled.xsltOptions !== null) {
+            const modules = await preflightXsltModules(compiled.xsltSource, this.declarationModuleLoader(compiled));
+            const result = await this.processingHost(compiled).compile({
+                language: 'xslt', producedTag: compiled.producedTag, templateArtifactId: compiled.artifactId,
+                registrationIdentity, source: createCemProcessingTextSource(compiled.xsltSource),
+                sourceRef: compiled.sourceRef, resolverIdentity: compiled.resolverIdentity,
+                scopePolicyStamp: this.scopePolicyStamp, sourceMapMode, hostBindings,
+                xslt: { sourceUri: compiled.resourceBaseUrl, options: { ...compiled.xsltOptions, modules } },
+            }).result;
+            compiled.stylesheets = result.stylesheets ?? [];
+            compiled.stylesheetsReady = true;
+            this.installDeclarationStylesheets(compiled);
+            this.recordDiagnostics(compiled.declarationElement, result.diagnostics.map((diagnostic) =>
+                declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag)));
+            return result;
+        }
         const moduleClosure = await this.preflightDeclarationModules(compiled, hostBindings);
         const xpathFunctionLibrary = await this.preflightXPathFunctionLibrary(compiled);
         const payloadKey = await cemMlTemplateArtifactPayloadKey(source, sourceMapMode);
@@ -2804,10 +2826,14 @@ export class CemElementRuntime {
     ): Promise<CemMlTemplateModuleClosure | undefined> {
         const source = compiled.cemMlSource ?? '';
         if (!hasStaticTemplateImport(source)) return undefined;
+        return preflightCemMlTemplateModules(source, this.declarationModuleLoader(compiled), hostBindings);
+    }
+
+    private declarationModuleLoader(compiled: CompiledDeclaration): CemMlTemplateModuleLoader {
         const declaration = compiled.declarationElement;
         const parent = this.ensureModuleUrlContext(declaration, compiled);
         const contexts = new Map<string, CemBrowserModuleUrlContext>();
-        return preflightCemMlTemplateModules(source, {
+        return {
             rootUrl: compiled.resourceBaseUrl,
             resolverPolicyStamp: `${compiled.resolverIdentity}:${this.scopePolicyStamp}`,
             resolve: async (specifier, referrerUrl, moduleMap) => {
@@ -2834,7 +2860,7 @@ export class CemElementRuntime {
                 const loaded = await this.loadSrcDocument(url, declaration.ownerDocument);
                 return typeof loaded === 'string' ? loaded : readTextStream(loaded.body);
             },
-        }, hostBindings);
+        };
     }
 
     private async renderViaProcessingHost(
@@ -5815,6 +5841,35 @@ function analyzeDeclarationElement(element: HTMLElement): DeclarationShapeResult
     });
 }
 
+function isXsltParameter(node: Node): node is Element {
+    return node.nodeType === 1 && (node as Element).localName === 'xslt-param';
+}
+
+function readXsltOptions(declaration: HTMLElement, mode: CemDeclarationTemplateLanguage,
+    diagnostics: CemElementDiagnostic[], tag: string): CemXsltComponentOptions | null {
+    const parameters = Array.from(declaration.children).filter(isXsltParameter);
+    const entrypoint = declaration.getAttribute('xslt-template')?.trim();
+    const invalid = (message: string) => diagnostics.push(declarationDiagnostic('cem-element.xslt_parameters_invalid', message, tag));
+    if (mode !== 'xslt') {
+        if (entrypoint !== undefined || parameters.length) invalid('xslt-template and xslt-param require an XSLT declaration');
+        return null;
+    }
+    if (entrypoint === '') invalid('xslt-template requires a nonempty template name');
+    if (parameters.length && !entrypoint) invalid('xslt-param requires an explicit xslt-template entrypoint');
+    return {
+        ...(entrypoint ? { entrypoint } : {}),
+        parameters: parameters.map((parameter) => {
+            const name = parameter.getAttribute('name')?.trim() ?? '';
+            const select = parameter.getAttribute('select')?.trim() ?? '';
+            if (!name || !select || parameter.children.length || parameter.textContent?.trim()
+                || Object.keys(payloadAttributes(parameter)).some((name) => !['name', 'select'].includes(name))) {
+                invalid('xslt-param requires only a name and a CEM-QL select expression');
+            }
+            return { name, select };
+        }),
+    };
+}
+
 function compileInlineDeclaration(
     declarationElement: HTMLElement,
     producedTag: string,
@@ -5852,15 +5907,22 @@ function compileInlineDeclaration(
                     ? template.innerHTML
                     : templateSourceText(template))
             : null;
-    const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt';
+    const xsltSource = mode === 'xslt' ? options.source.templateSource ?? templateSourceText(template) : null;
+    const xsltOptions = readXsltOptions(declarationElement, mode, diagnostics, producedTag);
+    if (mode === 'xslt' && options.source.templateSource === undefined && template.content.children.length > 0) {
+        diagnostics.push(declarationDiagnostic('cem-element.xslt_source_invalid',
+            'inline XSLT requires XML source text (escape markup), or load a stylesheet through src', producedTag));
+    }
+    const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt' || mode === 'xslt';
     const occurrencePath = declarationOccurrencePath(declarationElement);
-    const sourceText = sourceTextForUidSeed(template, mode, cemMlSource, legacySource);
+    const sourceText = xsltSource ?? sourceTextForUidSeed(template, mode, cemMlSource, legacySource);
     const xpathFunctionsRef = template.getAttribute('xpath-functions')?.trim() ?? null;
     if (xpathFunctionsRef !== null && (!xpathFunctionsRef || mode !== 'cem-ml')) {
         diagnostics.push(declarationDiagnostic('cem-element.xpath_functions_invalid',
             'xpath-functions requires a nonempty reference on a CEM-ML template', producedTag));
     }
-    const registrationSource = xpathFunctionsRef === null ? sourceText
+    const registrationSource = xsltOptions !== null ? JSON.stringify([sourceText, xsltOptions, options.source.resourceBaseUrl, options.source.resolverIdentity])
+        : xpathFunctionsRef === null ? sourceText
         : JSON.stringify([sourceText, xpathFunctionsRef, options.source.resourceBaseUrl, options.source.resolverIdentity]);
     const sourceHash = sourceHashSeedDigest({
         declarationTag: options.declarationTag,
@@ -5915,6 +5977,8 @@ function compileInlineDeclaration(
         mode,
         cemMlSource,
         legacySource,
+        xsltSource,
+        xsltOptions,
         wasmEligible,
         declaredAttributes,
         declaredSlices,
@@ -6321,19 +6385,19 @@ function validateStandaloneXsltDocument(document: Document, specifier: string): 
             `XSLT declaration source \`${specifier}\` must have an xsl:stylesheet or xsl:transform root in ${XSLT_NAMESPACE}`,
         );
     }
-    if (!(root.getAttribute('version')?.trim())) {
+    if (root.getAttribute('version')?.trim() !== '3.0') {
         throw new ExternalDeclarationSourceError(
             'cem-element.src_xslt_invalid',
-            `XSLT declaration source \`${specifier}\` must declare a stylesheet version`,
+            `XSLT declaration source \`${specifier}\` requires XSLT version 3.0`,
         );
     }
     const hasTemplate = Array.from(root.children).some(
-        (element) => element.namespaceURI === XSLT_NAMESPACE && element.localName === 'template',
+        (element) => element.namespaceURI === XSLT_NAMESPACE && ['template', 'import', 'include'].includes(element.localName),
     );
     if (!hasTemplate) {
         throw new ExternalDeclarationSourceError(
             'cem-element.src_xslt_invalid',
-            `XSLT declaration source \`${specifier}\` must declare at least one top-level xsl:template`,
+            `XSLT declaration source \`${specifier}\` must declare a top-level template, import or include`,
         );
     }
 }
@@ -7888,7 +7952,7 @@ function parseDataRevision(value: string): number {
 function directLiveNodeCount(element: Element): number {
     return Array.from(element.childNodes).filter((node) => {
         if (node.nodeType === 1) {
-            return (node as Element).localName !== 'template';
+            return (node as Element).localName !== 'template' && !isXsltParameter(node);
         }
         if (node.nodeType === 3) {
             return (node.textContent?.trim() ?? '').length > 0;

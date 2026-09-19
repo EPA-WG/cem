@@ -65,17 +65,36 @@ pub fn compile_xslt_bundle(source: &str, source_uri: &str) -> CompileResult<Comp
 /// No source document or parser projection crosses this control boundary.
 pub fn stylesheet_imports(source: &str, source_uri: &str) -> CompileResult<Vec<String>> {
     if source.len() > MAX_SOURCE_BYTES {
-        return Err(imports::diagnostic(source_uri, "stylesheet source exceeds limit"));
+        return Err(imports::diagnostic(
+            source_uri,
+            "stylesheet source exceeds limit",
+        ));
     }
     let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules(
-        XsltSourceValidationRequest { bytes: source.as_bytes(), source_uri,
-            content_type: Some("application/xslt+xml") }, &[]);
+        XsltSourceValidationRequest {
+            bytes: source.as_bytes(),
+            source_uri,
+            content_type: Some("application/xslt+xml"),
+        },
+        &[],
+    );
     let stylesheet = stylesheet.ok_or(diagnostics)?;
-    Ok(stylesheet.xml_document.events.iter()
-        .filter(|event| is_element(event) && event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
-            && matches!(event.local_name.as_deref(), Some("import" | "include")))
-        .filter_map(|event| event.attributes.iter().find(|attr| attr.local_name == "href"
-            && attr.namespace_uri.is_none()).and_then(|attr| attr.entity_decoded_value.clone()))
+    Ok(stylesheet
+        .xml_document
+        .events
+        .iter()
+        .filter(|event| {
+            is_element(event)
+                && event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
+                && matches!(event.local_name.as_deref(), Some("import" | "include"))
+        })
+        .filter_map(|event| {
+            event
+                .attributes
+                .iter()
+                .find(|attr| attr.local_name == "href" && attr.namespace_uri.is_none())
+                .and_then(|attr| attr.entity_decoded_value.clone())
+        })
         .collect())
 }
 
@@ -892,6 +911,23 @@ impl<'a> Compiler<'a> {
         scope: &Scope,
         kind: xpath::ResultKind,
     ) -> CompileResult<String> {
+        if matches!(kind, xpath::ResultKind::Sequence) {
+            if expression
+                .syntax_ast
+                .as_ref()
+                .is_some_and(|syntax| variables::empty_sequence(&syntax.root))
+            {
+                return Ok("()".into());
+            }
+            if let Some(binding) = expression
+                .syntax_ast
+                .as_ref()
+                .and_then(|syntax| variables::bare_reference(&syntax.root))
+                .and_then(|name| scope.variables.get(&name))
+            {
+                return Ok(binding.clone());
+            }
+        }
         if self.programs.len() >= 128 {
             return Err(self.error(
                 event,
@@ -958,7 +994,7 @@ impl<'a> Compiler<'a> {
         arguments.extend(bindings.values().map(|value| (*value).clone()));
         self.programs.push(BundleProgram {
             stylesheet: self.source_index,
-            focus: BundleFocus::Sequence,
+            focus: BundleFocus::OptionalSequence,
             group_context: groups.is_some(),
             variables: bindings
                 .keys()

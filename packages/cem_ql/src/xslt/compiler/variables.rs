@@ -3,6 +3,48 @@ use cem_ml::validation::xpath::*;
 use std::collections::BTreeSet;
 
 type Names = BTreeSet<XPathExpandedName>;
+
+/// A bare reference forwards the existing sequence unchanged. No focus,
+/// atomization, conversion or XPath operation is involved.
+pub(super) fn bare_reference(sequence: &XPathExpressionSequence) -> Option<XPathExpandedName> {
+    let [XPathExpressionNode {
+        expression: XPathExpression::Path(path),
+        ..
+    }] = sequence.expressions.as_slice()
+    else {
+        return None;
+    };
+    if path.root != XPathPathRoot::Relative {
+        return None;
+    }
+    let [XPathStepNode {
+        step: XPathStep::Primary(XPathPrimaryExpression::VariableReference(name)),
+        ..
+    }] = path.steps.as_slice()
+    else {
+        return None;
+    };
+    Some(expanded(name))
+}
+
+pub(super) fn empty_sequence(sequence: &XPathExpressionSequence) -> bool {
+    let [XPathExpressionNode {
+        expression: XPathExpression::Path(path),
+        ..
+    }] = sequence.expressions.as_slice()
+    else {
+        return false;
+    };
+    path.root == XPathPathRoot::Relative
+        && matches!(
+            path.steps.as_slice(),
+            [XPathStepNode {
+                step: XPathStep::Primary(XPathPrimaryExpression::Parenthesized(None)),
+                ..
+            }]
+        )
+}
+
 fn expanded(name: &XPathName) -> XPathExpandedName {
     XPathExpandedName::new(name.namespace_uri.as_deref(), &name.local_name)
 }

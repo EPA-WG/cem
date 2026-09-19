@@ -12,7 +12,25 @@
         <xsl:param name="direction" select="'ascending'"/>
         <xsl:param name="mode" select="'text'"/>
         <xsl:param name="selected" select="''"/>
-        <xsl:variable name="ui" select="map {'column':$column, 'direction':$direction, 'mode':$mode, 'selected':$selected}"/>
+        <xsl:param name="presentation" select="map {}"/>
+        <xsl:variable name="ui" select="map {'column':$column, 'direction':$direction, 'mode':$mode, 'selected':$selected, 'presentation':$presentation}"/>
+        <style>    article { min-width: 0; }
+    label { display: block; margin-block: .5rem; }
+    textarea { box-sizing: border-box; width: 100%; min-height: 9rem;
+        font-family: monospace; resize: vertical; }
+    select, input { max-width: 100%; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .table-scroll { overflow: auto; max-height: 22rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .35rem; border: 1px solid var(--cem-table-border, #999);
+        text-align: start; overflow-wrap: anywhere; }
+    .value { white-space: pre-wrap; }
+    tr[aria-selected=true] { background: var(--cem-table-selected, #d3f5dd); color: #18251c; }
+    summary { cursor: pointer; overflow-wrap: anywhere; }
+    details { margin-block: .5rem; }
+    ul { padding-inline-start: 1.25rem; }
+    [role=alert] { color: var(--cem-table-error, #a51d32); overflow-wrap: anywhere; }
+</style>
         <article class="demo-card">
             <label><xsl:text>Source (</xsl:text><xsl:value-of select="map {'xml':'XML', 'json':'JSON', 'csv':'CSV', 'yaml':'YAML'}?($format)"/><xsl:text>)</xsl:text>
                 <textarea aria-label="Source" spellcheck="false" slice="source" slice-event="change" slice-value="$target.value"><xsl:value-of select="$source"/></textarea>
