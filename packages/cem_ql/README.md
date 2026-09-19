@@ -31,8 +31,9 @@ simple text construction. The transform/CLI adapter uses this strict XSLT 3.0 pa
 `compileXsltBundle` / `retainXsltStylesheet` expose default compiler options;
 native-built module closures load through the explicit bundle API. Standard parsing
 and typed recovery use CEM import. Native result construction, output AVTs,
-whitespace and static-style exports are implemented; full output conformance and
-the complete viewer remain pending. Grouping uses
+whitespace and static-style exports are implemented. The bounded viewer passes
+native/CLI, WASM and browser parity; full XSLT conformance remains outside this
+profile. Grouping uses
 XPath key equality and preserves native items; the CEM `seq:group_by` identity
 contract is not substituted for XSLT semantics. Sorting uses common numeric
 promotion and native XPath comparisons; stylesheets explicitly author any
@@ -196,11 +197,13 @@ Unmatched values emit nothing. Parameter scopes are restored and recursion is
 bounded. Imported match rules participate without copying their bodies into
 the consuming module.
 
-The [five-case demo](../cem-elements/demo/data-table.html) authors repeated-row
+The [seven-case demo](../cem-elements/demo/data-table.html) authors repeated-row
 discovery, headings, cells, tree/table rendering and sort-key selection in
 [CEMT](../cem-elements/demo/data-table-view.cemt). There is no Rust table-view
 API. An [imported extension](../cem-elements/demo/data-table-aspects.cemt)
 changes notes to a tree and an IP-filter record to a local preview form.
+Two independent XSLT cases use the same native import and rendering lifecycle
+through explicit scalar parameters, including an imported presentation module.
 These are explicit lossy UI views, not the default typed CEM-tree writer.
 
 ## Native query capabilities

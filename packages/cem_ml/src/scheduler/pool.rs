@@ -111,6 +111,7 @@ mod tests {
             queue_size: cap,
             io_streams: 4,
             memory_bytes: 1024,
+            control_input_bytes: super::super::policy::default_control_input_bytes(),
             stack_depth: 256,
             timeout_ms: None,
             plugin_time_budget_ms: None,

@@ -29,8 +29,8 @@
             a number. ↑ / ↓ changes direction; equal keys keep source order.</p>
         <p><code>∅</code> means missing; <code>""</code> is an empty string.
             Missing or nonnumeric keys sort last. Selection follows source
-            identity through sorting; editing the document clears its highlight.
-            ↺ restores the authored source. Expand/collapse each table with its
+            identity through sorting; changing the source clears its highlight.
+            ↺ restores the authored source and its matching selection. Expand/collapse each table with its
             keyboard-operable summary.</p>
         <p>XML attributes use <code>@name</code>, direct text uses
             <code>#text</code>, and namespaces remain distinct. Namespace
@@ -48,8 +48,8 @@
             Parse errors replace the tables rather than leave stale results.</p>
         <p>Rust supplies format readers and reusable <code>seq:group_by</code> /
             <code>seq:sorted</code> functions, not table-view code. Row discovery,
-            cells, headings and presentation are authored in CEMT, with no
-            page-local JavaScript behavior.</p>
+            cells, headings and presentation are authored in CEMT or XSLT 3.0.
+            Both use the same CEM-ML import and CEM node model.</p>
         <h3>🧩 Extend presentation with matching aspects</h3>
         <p>Like <code>&lt;xsl:template match="…"&gt;</code>, a CEMT
             <code>template @match</code> rule selects a presentation for the current
@@ -61,6 +61,13 @@
             notes become a tree and an IP-filter record becomes a form.
             Toggle 🧩 to restore the defaults; other collections keep their tables.
             The form edits a local preview, not the original source or a firewall.</p>
+        <h3>Compare the XSLT 3.0 viewer</h3>
+        <p>Cases six and seven use the <a href="#data-table-view.xslt">XSLT viewer</a>
+            and <a href="#data-table-aspects.xslt">its imported aspects</a>.
+            They provide the same editing, stable sorting, selection and local
+            form preview. Each declaration maps scalar UI state to named template
+            parameters; XML, JSON, YAML and CSV source is imported into native
+            CEM trees before XPath reads it. XSLT runs through the CEM runtime.</p>
         <cem-element tag="cem-data-table" src="./data-table-view.cemt"></cem-element>
         <h3>See also</h3>
         <p><a href="./xpath-sort.html">XPath stable sorting</a></p>
@@ -150,6 +157,79 @@ qty,fruit,note
         </template>
     </cem-demo-element>
 
+    <cem-demo-element legend="6. XSLT table: native sorting and selection"
+        description="Edit source, sort and select rows using the same native CEM tree with XSLT 3.0 templates">
+        <template>
+<cem-element src="./data-table-view.xslt"
+    xslt-template="viewer" format="json">
+    <xslt-param name="initial"
+        select='str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
+    <xslt-param name="source"
+        select='datadom.slices.source ??
+            str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
+    <xslt-param name="format"
+        select='datadom.attributes.format ?? "json"'></xslt-param>
+    <xslt-param name="column"
+        select='datadom.slices.column ?? ""'></xslt-param>
+    <xslt-param name="direction"
+        select='datadom.slices.direction ?? "ascending"'></xslt-param>
+    <xslt-param name="mode"
+        select='datadom.slices.mode ?? "text"'></xslt-param>
+    <xslt-param name="selected"
+        select='datadom.slices.selected ?? ""'></xslt-param>
+    <template>
+[
+  {"qty": 10, "fruit": "🍒", "note": ""},
+  {"qty": 2, "fruit": "🍋"},
+  {"qty": 3, "fruit": "🍌", "note": null}
+]
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="7. XSLT aspects: tree and IP-filter form"
+        description="Import matching XSLT templates to turn notes into a tree and edit the local IP-filter preview">
+        <template>
+<cem-element src="./data-table-aspects.xslt"
+    xslt-template="viewer-aspects" format="json">
+    <xslt-param name="initial"
+        select='str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
+    <xslt-param name="source"
+        select='datadom.slices.source ??
+            str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
+    <xslt-param name="format"
+        select='datadom.attributes.format ?? "json"'></xslt-param>
+    <xslt-param name="column"
+        select='datadom.slices.column ?? ""'></xslt-param>
+    <xslt-param name="direction"
+        select='datadom.slices.direction ?? "ascending"'></xslt-param>
+    <xslt-param name="mode"
+        select='datadom.slices.mode ?? "text"'></xslt-param>
+    <xslt-param name="selected"
+        select='datadom.slices.selected ?? ""'></xslt-param>
+    <xslt-param name="aspects"
+        select='datadom.slices.aspects ?? true'></xslt-param>
+    <xslt-param name="ipAddress"
+        select='datadom.slices.ipAddress'></xslt-param>
+    <xslt-param name="ipAction"
+        select='datadom.slices.ipAction'></xslt-param>
+    <template>
+{
+  "visits": [
+    {"address": "192.0.2.1", "hits": 10},
+    {"address": "192.0.2.2", "hits": 2}
+  ],
+  "notes": [{"message": "🍒 ready"}, {"message": "🍋 review"}],
+  "filter": {
+    "kind": "ip-filter",
+    "address": "192.0.2.0/24",
+    "action": "allow"
+  }
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
 
 </main>
 <cem-demo-element
@@ -157,6 +237,19 @@ qty,fruit,note
     src="./data-table-view.cemt"
     type="text/cem-ml"
     legend="./data-table-view.cemt"
+></cem-demo-element>
+
+<cem-demo-element
+    id="data-table-view.xslt"
+    src="./data-table-view.xslt"
+    type="application/xslt+xml"
+    legend="./data-table-view.xslt"
+></cem-demo-element>
+<cem-demo-element
+    id="data-table-aspects.xslt"
+    src="./data-table-aspects.xslt"
+    type="application/xslt+xml"
+    legend="./data-table-aspects.xslt"
 ></cem-demo-element>
 
 <script type="module" src="../../cem-demo-element/dist/index.js"></script>

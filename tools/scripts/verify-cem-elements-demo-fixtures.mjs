@@ -393,9 +393,40 @@ const dataTableSamples = [
         countExactly('table[aria-label="notes"]', 0),
         countExactly('table[aria-label="visits"]', 1),
     ]),
+    sampleContract('6. XSLT table: native sorting and selection', [
+        text('tbody', '∅'), text('tbody', '""'), text('tbody', 'null'),
+        ...tableInteractions('qty', 'table'),
+        fillBlurThenText('textarea', '[oops]', '[role="alert"]', '⚠'),
+        countExactly('table', 0),
+        clickThenText('button[aria-label="Reset source"]', 'tbody', '🍒'),
+        countExactly('[role="alert"]', 0),
+    ]),
+    sampleContract('7. XSLT aspects: tree and IP-filter form', [
+        countExactly('table[aria-label="visits"]', 1),
+        countExactly('table[aria-label="notes"]', 0),
+        text('form[aria-label="IP filter"] output', 'allow'),
+        text('form[aria-label="IP filter"] output', '192.0.2.0/24'),
+        fillBlurThenText('input[aria-label="Address / CIDR"]', '198.51.100.0/24', 'form output', '198.51.100.0/24'),
+        selectThenText('select[aria-label="Action"]', 'deny', 'form output', 'deny'),
+        clickThenText('input[aria-label="Presentation aspects"]', 'article', 'ip-filter'),
+        countExactly('table[aria-label="notes"]', 1),
+        countExactly('form[aria-label="IP filter"]', 0),
+        clickThenText('input[aria-label="Presentation aspects"]', 'form output', '198.51.100.0/24'),
+        text('form output', 'deny'),
+        countExactly('table[aria-label="notes"]', 0),
+        countExactly('table[aria-label="visits"]', 1),
+    ]),
     sampleContract('./data-table-view.cemt', [
         attributeEquals(':scope', 'src', './data-table-view.cemt'),
         attributeEquals(':scope', 'type', 'text/cem-ml'),
+    ]),
+    sampleContract('./data-table-view.xslt', [
+        attributeEquals(':scope', 'src', './data-table-view.xslt'),
+        attributeEquals(':scope', 'type', 'application/xslt+xml'),
+    ]),
+    sampleContract('./data-table-aspects.xslt', [
+        attributeEquals(':scope', 'src', './data-table-aspects.xslt'),
+        attributeEquals(':scope', 'type', 'application/xslt+xml'),
     ]),
 ];
 

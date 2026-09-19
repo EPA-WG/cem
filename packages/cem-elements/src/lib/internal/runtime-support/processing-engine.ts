@@ -323,7 +323,7 @@ export class CemProcessingEngine {
     ): Promise<CachedTemplateCompilation> {
         const hostBindings = input.hostBindings ?? [];
         if (input.xslt) {
-            const xslt = await retainXsltComponentSource(source, input.xslt.sourceUri, input.xslt.options, hostBindings);
+            const xslt = await retainXsltComponentSource(source, input.xslt.sourceUri, input.xslt.options, hostBindings, input.xslt.controlPolicy);
             return { xslt, wasmArtifactId: 0, diagnostics: xslt.diagnostics, stylesheets: xslt.stylesheets };
         }
         if (input.moduleClosure) {

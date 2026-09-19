@@ -30,14 +30,18 @@ describe('XSLT native residency and typed dependency preflight', () => {
         });
         const leases: RetainedXsltComponent[] = [];
         const options = { entrypoint: 'view', parameters: [{ name: 'label', select: 'label' }] };
+        const controlPolicy = { environment: 4096, scopes: [1024] };
         try {
-            for (let i = 0; i < 20; i++) leases.push(await retainXsltComponentSource(`source ${i}`, `https://test/${i}.xslt`, options, ['label']));
+            for (let i = 0; i < 20; i++) leases.push(await retainXsltComponentSource(`source ${i}`, `https://test/${i}.xslt`, options, ['label'], controlPolicy));
             expect(residents.size).toBe(16);
             expect(wasm.dispose).toHaveBeenCalledTimes(4);
             options.parameters[0].select = 'changed';
+            controlPolicy.environment = 8192;
+            controlPolicy.scopes[0] = 2048;
             await leases[0].render({ label: 'updated' }, {});
             expect(wasm.retain).toHaveBeenLastCalledWith('source 0', 'https://test/0.xslt',
-                JSON.stringify({ entrypoint: 'view', parameters: [{ name: 'label', select: 'label' }] }), '["label"]');
+                JSON.stringify({ entrypoint: 'view', parameters: [{ name: 'label', select: 'label' }] }), '["label"]',
+                JSON.stringify({ environment: 4096, scopes: [1024] }));
             expect(residents.size).toBe(16);
             leases[0].dispose();
             await expect(leases[0].render({}, {})).rejects.toThrow('disposed');

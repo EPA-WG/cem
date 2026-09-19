@@ -83,7 +83,7 @@ and `retainXsltStylesheet` with default compiler options; native-built closures
 load through the binary bundle API.
 
 The approved component scalar-mapping adapter adds
-`retainXsltComponent(source, sourceUri, optionsJson, hostBindingsJson)`.
+`retainXsltComponent(source, sourceUri, optionsJson, hostBindingsJson, controlPolicyJson?)`.
 Its strictly decoded control options contain an optional lexical `entrypoint`,
 `parameters: [{name, select}]` with native CEM-QL expressions, and
 `modules: [{parentUri, href, uri, source, contentHash}]`. Names resolve in the
@@ -103,7 +103,13 @@ existing explicit render-plan protocol, never a document export.
 `disposeXsltComponent(artifactId)` releases ownership; IDs are monotonic and
 not reused. This registry admits at most 16 components and 32 MiB of encoded
 bundle bytes plus selector-source bytes. The options transport is bounded to
-8 MiB, and each render control input to 128 KiB.
+8 MiB. Each render control input uses the retained host/scope
+`control_input_bytes` ceiling (default host profile: 8 MiB). Optional separate
+policy metadata `{environment, scopes}` configures the environment ceiling and
+ordered scope overrides through the native CEM policy tree. Omitted overrides
+inherit; zero and increases are rejected. The check precedes JSON decoding and
+counts UTF-8 bytes. Policy and document-handle metadata remain bounded to
+128 KiB each, independently of document import limits.
 `xsltStylesheetImports(source, sourceUri)` returns only import/include hrefs
 from typed authoring source for resolver preflight.
 

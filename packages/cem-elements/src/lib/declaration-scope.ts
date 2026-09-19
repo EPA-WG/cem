@@ -10,6 +10,8 @@ import type { CemDeclarationRegistrationIdentity } from './cem-elements.js';
 export interface CemDeclarationScope {
     readonly document: Document;
     readonly parent: CemDeclarationScope | null;
+    /** Optional local ceiling; children inherit and may only lower it. */
+    readonly controlInputBytes?: number;
     readonly disposed: boolean;
     dispose(): void;
 }
@@ -17,6 +19,7 @@ export interface CemDeclarationScope {
 export interface CemDeclarationScopeOptions {
     document: Document;
     parent?: CemDeclarationScope | null;
+    controlInputBytes?: number;
 }
 
 export type CemDeclarationScopeErrorCode =
@@ -56,6 +59,7 @@ interface CemDeclarationScopeState {
     document: Document;
     parent: CemDeclarationScope | null;
     disposed: boolean;
+    controlInputBytes?: number;
     registrations: Map<string, CemDeclarationScopeRegistration>;
     disposeListeners: Set<() => void>;
 }
@@ -76,6 +80,10 @@ class LogicalCemDeclarationScope implements CemDeclarationScope {
         return scopeState(this).disposed;
     }
 
+    get controlInputBytes(): number | undefined {
+        return scopeState(this).controlInputBytes;
+    }
+
     dispose(): void {
         const state = scopeState(this);
         if (state.disposed) {
@@ -93,6 +101,7 @@ class LogicalCemDeclarationScope implements CemDeclarationScope {
 /** Create an explicit root or child scope. Parentage is immutable and never inferred from the DOM. */
 export function createCemDeclarationScope(options: CemDeclarationScopeOptions): CemDeclarationScope {
     const { document, parent = null } = options;
+    if (options.controlInputBytes !== undefined) validateControlInputBytes(options.controlInputBytes);
     if (!document || (typeof document !== 'object' && typeof document !== 'function')) {
         throw new CemDeclarationScopeError(
             'cem-element.scope_document_required',
@@ -116,15 +125,54 @@ export function createCemDeclarationScope(options: CemDeclarationScopeOptions): 
         }
     }
 
+    for (let ancestor = parent; ancestor; ancestor = ancestor.parent) {
+        if (options.controlInputBytes !== undefined && ancestor.controlInputBytes !== undefined
+            && options.controlInputBytes > ancestor.controlInputBytes) {
+            throw new RangeError('cem.a.cap_relaxation_denied: controlInputBytes exceeds the parent scope ceiling');
+        }
+    }
+
     const scope = Object.freeze(new LogicalCemDeclarationScope());
     scopeStates.set(scope, {
         document,
         parent,
+        controlInputBytes: options.controlInputBytes,
         disposed: false,
         registrations: new Map(),
         disposeListeners: new Set(),
     });
     return scope;
+}
+
+/** Explicit host control metadata; never external document data. */
+export interface CemControlInputPolicy {
+    environment: number;
+    scopes: number[];
+}
+
+/** @internal Resolve the host ceiling through explicit CEM scope ancestry. */
+export function resolveCemControlInputPolicy(
+    environment = 8 * 1024 * 1024,
+    scope?: CemDeclarationScope,
+): CemControlInputPolicy {
+    validateControlInputBytes(environment);
+    if (scope) assertScopeChainActive(scope);
+    const scopes: number[] = [];
+    for (let current = scope; current; current = current.parent ?? undefined) {
+        if (current.controlInputBytes !== undefined) scopes.unshift(current.controlInputBytes);
+    }
+    let parent = environment;
+    for (const limit of scopes) {
+        if (limit > parent) throw new RangeError('cem.a.cap_relaxation_denied: controlInputBytes exceeds the parent or environment ceiling');
+        parent = limit;
+    }
+    return { environment, scopes };
+}
+
+function validateControlInputBytes(limit: number): void {
+    if (!Number.isSafeInteger(limit) || limit < 1) {
+        throw new RangeError('controlInputBytes must be a positive safe integer');
+    }
 }
 
 /** Return the current default root for a Document, replacing it after explicit disposal. */

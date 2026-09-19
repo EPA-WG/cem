@@ -493,8 +493,9 @@ A declaration names its entrypoint and scalar selectors explicitly:
 Mappings require `xslt-template`; names must be declared by that entrypoint.
 Metadata stays outside the produced instance payload. Inline
 `application/xslt+xml` templates contain escaped XML source text; external
-stylesheets preserve their original source text. The native base viewer and imported presentation aspects are ready; their
-interactive gallery cases remain gated by the control-envelope limit below.
+stylesheets preserve their original source text. The base viewer and imported
+presentation aspects now have independent, verified interactive gallery cases
+using the environment/scope control-input policy below.
 
 The declaration resolver preflights typed import/include edges with explicit
 source URIs and hashes. Shared dependencies load once within a closure; cycles,
@@ -503,7 +504,7 @@ retains this closure across state changes. Different declarations resolve in
 their own contexts. Source URI, resolver identity, language and parameter options
 participate in compilation identity, including source-selection provenance.
 
-The package-private processing envelope is now `cem-processing-host-v3`:
+The package-private processing envelope is now `cem-processing-host-v4`:
 `compile` can explicitly select XSLT with declaration-owned options. Older
 worker protocols are rejected. Document retention, scheduling, cancellation,
 revision checks, patches and worker fallback reuse the existing lifecycle.
@@ -541,7 +542,7 @@ aspects compile within the unchanged 128-program limit. The viewer's optional
 ### Browser control-envelope decision
 
 The optional-focus choice and explicit scalar mapping contract are implemented.
-A separate browser fixture now reproduces the next boundary: the component
+The original browser fixture reproduced an admission boundary: the component
 WASM adapter rejects control JSON larger than 128 KiB before evaluation. The
 existing CEM-ML browser state includes serialized hydration/control metadata and
 indexes. After selecting a row in the real viewer, this envelope exceeds the
@@ -549,39 +550,67 @@ cap even though the document source is small. The correct instance receives
 the stable selection key, but rendering returns `cem.xslt.binding_limit` and
 keeps the previous DOM. No source parsing or selection-identity bug is involved.
 
-`ViewerControlEnvelopeBoundary` in
+The original `ViewerControlEnvelopeBoundary` fixture in
 [`xslt-runtime.stories.ts`](../packages/cem-elements/src/lib/xslt-runtime.stories.ts)
-source-loads the real stylesheet and measures the serialized control input in
-the main-thread fallback adapter. It verifies initial rendering, the failed
-selection, and a valid source just below the 32 KiB import limit. It also covers
+source-loaded the real stylesheet and measured the serialized control input in
+the main-thread fallback adapter. It verified initial rendering, failed
+selection, and a valid source just below the 32 KiB import limit, including
 runtime-stamped declaration metadata. The measured envelopes were 65,368 bytes
 initially, 152,871 bytes after selection, and 1,365,019 bytes with 32,713 bytes
 of source text (the source remains below the 32 KiB import cap). Worker/fallback rendering, dependency
 retry, failure recovery and native-owner disposal have separate passing tests.
 
-**Recommended:** raise only the XSLT component control-envelope cap to 8 MiB,
-matching the existing component-options bound. Check bytes before JSON decoding;
-retain the 128 KiB document-handle metadata bound, the 32 KiB source-import cap,
-all native query/render budgets and the 16-component/32 MiB retention limits.
-Add exact-boundary native/WASM checks, then finish viewer browser parity and the
-gallery. This changes an explicit resource contract and awaits the user's
-stop-at-decisions approval.
+The accepted policy is **environment-defined, with ordinary CEM scope overrides
+that may only lower the limit**. The 8 MiB value is the default host profile,
+not an engine maximum. Native hosts configure
+`ScopePolicy::with_control_input_bytes`; browser hosts configure
+`CemElementRuntime({ controlInputBytes })`. A logical declaration scope accepts
+`createCemDeclarationScope({ document, parent, controlInputBytes })`. Omitted
+scope values inherit; an attempted increase over any ancestor or environment
+ceiling fails with `cem.a.cap_relaxation_denied`. Limits are positive byte counts.
+The normalized root-scope budget name is `controlInputBytes`.
 
-The alternative is a generic native selector-dependency/transport mechanism
-that avoids sending unused control projections. It needs a separate shared
-query/host contract for dynamic selectors; do not add a viewer-specific pruning
-rule, JavaScript XPath evaluation, or a new document-object handoff.
-The XPath/CEM-QL function parity audit and paired demo samples remain queued
-after full viewer parity, as requested.
+The worker receives a separate host policy `{ environment, scopes }` when the
+component is retained. Native CEM `ScopePolicyTree` validates the chain and the
+component stores its effective ceiling. Render controls and stylesheet options
+cannot replace it. The complete policy participates in compilation identity;
+configured policies also distinguish browser scope-policy stamps. Anonymous
+browser tags include the declaration tag and policy stamp, preventing reuse of
+another runtime owner or ceiling. A fixed public tag cannot be redeclared under
+a different policy: the ordinary incompatible-registration diagnostic rejects
+it. Use a distinct public tag or an anonymous declaration for the lower scope.
+Immutable
+leases preserve it through eviction/recompilation and worker failure recovery.
+The processing protocol is v4 so a stale worker cannot silently drop policy.
 
-Checkpoint verification passes the 468-test CEM-QL suite plus focused external
-consumer checks, 13 CLI parity tests, 209 native/WASM bundle checks, 93 unit
-checks and 81 browser stories. Lint/typecheck pass with existing QL warnings.
-The existing standalone XSLT consumer now uses XSLT 3.0, a named `tree` entrypoint
-and explicit XML source text imported by `parse-xml`; explicitly labeled legacy
-fragments keep their separate compatibility path. All 25 standalone pages and
-31 source-loaded documents pass, with desktop/mobile layout checks for the
-migrated examples. The full viewer gallery has not been published.
+The native adapter checks UTF-8 bytes before control decoding. This is an
+admission limit for one explicit control input, separate from accounted memory,
+document import and execution budgets. Preserve the 128 KiB document-handle and
+host-policy metadata bounds, the 32 KiB source-import cap, all query/render
+budgets and the 16-component/32 MiB retention limits. Environment settings can
+exceed 8 MiB; nested scopes cannot exceed their parent even when below the
+original environment limit. Exact-boundary, multibyte, malformed-over-limit,
+independent component, scope-inheritance and worker/fallback fixtures cover it.
+
+The four replacement browser fixtures cover worker and fallback execution with
+both a roomy environment ceiling and a lowered child scope. The gallery now
+contains independent base XSLT and imported-aspect cases alongside the five CEMT
+cases. Source edits/reset, XML/JSON/YAML/CSV import, numeric/text sorting,
+selection provenance, typed recovery, focus and form drafts are covered.
+Selection disappears after changed source and returns when reset restores the
+same source provenance, matching CEMT.
+
+Completion verification: 469 CEM-QL tests, 67 focused shared native checks,
+18 scheduler/plugin integration checks, two generated-type checks, 13 CLI
+parity tests and 218 native/WASM bundle checks pass. Browser verification passes
+389 unit tests and 96 stories (including a focused rerun after correcting the
+reset expectation). Lint/typecheck pass with existing QL warnings. All 25
+standalone pages and 31 source-loaded documents pass. The viewer has no
+page/card overflow at 1440px and 390px, with two-card desktop rows.
+
+XML and JSON still enter through CEM-ML import into retained CEM AST trees;
+YAML and CSV follow the same boundary. No JavaScript document objects were
+introduced. The next work is the XPath/CEM-QL function audit and paired samples.
 
 ## Native output construction
 
@@ -640,7 +669,7 @@ dynamic literal styles with no output files or sidecars.
 Acceptance is covered by `native_result_construction.rs`, `xslt_output.rs`, the
 ordinary CEMT compatibility probes, the CLI style export fixture and native/WASM
 bundle checks. Verification totals are recorded with **XSLT-VIEW-OUTPUT** in
-[todo.md](todo.md). Full viewer parity remains the next slice.
+[todo.md](todo.md). Viewer parity is complete as recorded above.
 
 ## Native ownership and loading
 

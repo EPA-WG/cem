@@ -48,6 +48,30 @@ fn data() -> TemplateData {
 }
 
 #[test]
+fn control_input_limit_comes_from_host_scope_and_counts_utf8_bytes() {
+    use cem_ml::scheduler::ScopePolicy;
+    let component = XsltComponent::compile_with_scope_policy(
+        SOURCE,
+        "memory:bounded.xslt",
+        &options("\"scalar\""),
+        &[],
+        ScopePolicy::host_root().with_control_input_bytes(8),
+    )
+    .unwrap();
+    assert!(component.check_control_input("🍋🍒").is_ok());
+    let diagnostics = component.check_control_input("🍋🍒a").unwrap_err();
+    assert_eq!(diagnostics[0].code, "cem.xslt.binding_limit");
+    assert!(XsltComponent::compile_with_scope_policy(
+        SOURCE,
+        "memory:invalid.xslt",
+        &options("\"scalar\""),
+        &[],
+        ScopePolicy::host_root().with_control_input_bytes(0),
+    )
+    .is_err());
+}
+
+#[test]
 fn maps_native_control_expressions_and_preserves_unmapped_defaults() {
     let mut mapped = options("state ?? \"fallback\"");
     mapped.parameters.push(XsltScalarMapping {

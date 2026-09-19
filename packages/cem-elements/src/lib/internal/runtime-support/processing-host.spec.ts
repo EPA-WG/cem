@@ -84,7 +84,7 @@ describe('Phase 3A processing-host contract', () => {
         expect(structuredClone(compile)).toEqual(compile);
         expect(structuredClone(cancel)).toEqual(cancel);
         expect(structuredClone(dispose)).toEqual(dispose);
-        expect(() => assertCemProcessingEnvelope({ ...compile, protocolVersion: 'cem-processing-host-v2' })).toThrow(
+        expect(() => assertCemProcessingEnvelope({ ...compile, protocolVersion: 'cem-processing-host-v3' })).toThrow(
             /unsupported CEM processing-host protocol/
         );
         expect(() => assertCemProcessingEnvelope({ ...compile, jobId: 0 })).toThrow(/positive safe-integer job ID/);

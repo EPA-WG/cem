@@ -481,6 +481,8 @@ pub struct NormalizedScopePolicy {
     pub queue_size: u32,
     pub io_streams: u32,
     pub memory_bytes: u64,
+    #[serde(default = "crate::scheduler::policy::default_control_input_bytes")]
+    pub control_input_bytes: u64,
     #[serde(default = "default_normalized_stack_depth")]
     pub stack_depth: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -500,6 +502,7 @@ impl NormalizedScopePolicy {
             queue_size: policy.queue_size,
             io_streams: policy.io_streams,
             memory_bytes: policy.memory_bytes,
+            control_input_bytes: policy.control_input_bytes,
             stack_depth: policy.stack_depth,
             timeout_ms: policy.timeout_ms,
             plugin_time_budget_ms: policy.plugin_time_budget_ms,
@@ -543,6 +546,8 @@ pub struct NormalizedBudgets {
     pub plugin_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control_input_bytes: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stack_depth: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1171,6 +1176,15 @@ fn normalized_policy_and_budgets(
                     message, base_uri, &field_path,
                 )),
             },
+            "controlinputbytes" => match parse_u64_budget_value(field, value) {
+                Ok(value) if value > 0 => {
+                    policy.control_input_bytes = value;
+                    budgets.control_input_bytes = Some(value);
+                }
+                Ok(_) => diagnostics.push(budget_invalid_diagnostic(
+                    format!("budget `{field}` must be greater than zero"), base_uri, &field_path)),
+                Err(message) => diagnostics.push(budget_invalid_diagnostic(message, base_uri, &field_path)),
+            },
             "memory" | "memorybytes" => match parse_u64_budget_value(field, value) {
                 Ok(value) if value > 0 => {
                     policy.memory_bytes = value;
@@ -1361,6 +1375,7 @@ fn deterministic_scope_policy() -> ScopePolicy {
         queue_size: 8,
         io_streams: 4,
         memory_bytes: 8 * 1024 * 1024,
+        control_input_bytes: crate::scheduler::policy::default_control_input_bytes(),
         stack_depth: 256,
         timeout_ms: None,
         plugin_time_budget_ms: None,
@@ -3725,6 +3740,7 @@ mod tests {
                                 "queueSize": "16",
                                 "ioStreams": "4",
                                 "memoryBytes": "1024",
+                                "controlInputBytes": "8192",
                                 "stackDepth": "32",
                                 "timeoutMs": "40",
                                 "pluginMs": "20",
@@ -3751,6 +3767,8 @@ mod tests {
         assert_eq!(scope.policy.queue_size, 16);
         assert_eq!(scope.policy.io_streams, 4);
         assert_eq!(scope.policy.memory_bytes, 1024);
+        assert_eq!(scope.policy.control_input_bytes, 8192);
+        assert_eq!(scope.budgets.control_input_bytes, Some(8192));
         assert_eq!(scope.policy.stack_depth, 32);
         assert_eq!(scope.policy.timeout_ms, Some(40));
         assert_eq!(scope.policy.plugin_time_budget_ms, Some(20));

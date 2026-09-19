@@ -84,7 +84,7 @@ Phase 3 separates two registries that have different scopes:
 
 Every resolved declaration has a stable **registration identity** that binds the
 produced tag, optional declaration version, resolved template source identity,
-template language, and browser behavior contract. Registration is decided before
+template language, browser behavior contract, and effective processing policy. Registration is decided before
 calling `CustomElementRegistry#define`:
 
 1. A second declaration for the same tag in the same logical scope is an error,
@@ -141,6 +141,11 @@ The logical-scope host API is `CemDeclarationScope` plus
   for future lookup or registration. It does not and cannot remove a constructor
   from the document-global `customElements` registry; already-defined constructors
   and upgraded instances retain normal browser lifetime.
+- `controlInputBytes` is an optional positive local ceiling inherited through
+  explicit parents; it may only lower the parent and environment limit. The
+  environment supplies `CemElementRuntimeOptions.controlInputBytes` (default
+  8 MiB). The native retained XSLT component checks UTF-8 control bytes before
+  decoding. Document imports have separate limits.
 - `scopePolicyStamp` is not a scope identifier. It remains independently versioned
   processing, resolver, privacy, and cache-policy metadata.
 
@@ -149,7 +154,10 @@ pure declaration-scope tests. `CemElementRuntimeOptions.declarationScope` select
 explicit scope; otherwise inline and external declarations select their owning
 document's default root. The runtime derives a `cem-registration-v1` content address
 from the produced tag, exact declaration version when present, resolved template
-source, template language, and browser behavior version.
+source, template language, browser behavior version, and nondefault processing
+policy stamp. Constructors retain their original runtime owner, so a declaration
+under a lower control-input policy cannot silently alias a wider constructor.
+Use a distinct public tag or an anonymous declaration for that lower scope.
 `CemDeclarationRegistrationOptions.behaviorIdentity` is required
 and non-empty whenever `behavior` is present because function source text and object
 identity are not stable across builds. Behavior-less declarations use a fixed null
@@ -333,7 +341,8 @@ Rules:
 - `src` MAY appear on both named and anonymous declaration usages, mirroring the
   legacy POC (`<custom-element src="../index.html#nav-head">`). On a named
   declaration, `src` supplies the template body. When `tag` is omitted, the
-  declaration receives a deterministic anonymous tag and creates one contained
+  declaration receives a deterministic anonymous tag whose identity includes the
+  declaration tag and processing policy stamp, and creates one contained
   instance. Non-declaration attributes and authored children move to that
   instance before connection, then follow the normal data-island payload-capture
   lifecycle. The declaration retains `src`, generated `tag`, `uid-seed`,
@@ -777,7 +786,7 @@ pointer-only record would duplicate large values and discard their reusable iden
 #### Phase 3.5 external host envelope decision
 
 Edge and SSR hosts use a host-only profile of the existing
-`cem-processing-host-v3` structured-clone envelope. The profile reuses its positive,
+`cem-processing-host-v4` structured-clone envelope. The profile reuses its positive,
 monotonic host-assigned `jobId`, request/response correlation, diagnostics, and terminal
 failure lifecycle. It does not add Edge/SSR operations to the browser worker's advertised
 capabilities. Edge/SSR endpoints accept exactly `render-initial` and `render-update` and
@@ -1123,7 +1132,7 @@ fallback implement the same `document`, `compile`, `renderDiff`, `cancel`, and `
 interface, and both return the same artifact handles, render-plan handles,
 diagnostics, revisions, and patch frames.
 
-The `cem-processing-host-v3` document operation imports raw response bytes through
+The `cem-processing-host-v4` document operation imports raw response bytes through
 CEM-ML and retains a native tree under an instance/scope-bound handle. Render
 requests name these bindings separately from serializable lifecycle metadata.
 Fallback re-imports retained bytes; replacement, disconnect and root disposal
@@ -1174,7 +1183,7 @@ cancel, fallback, and overflow decisions. Events carry only a monotonic sequence
 logical owner, policy stamp, worker slot, job ID, and operation—never wall-clock time.
 Observer failures are ignored and cannot perturb scheduling or rendering.
 
-Every control message uses the `cem-processing-host-v3` structured-clone envelope.
+Every control message uses the `cem-processing-host-v4` structured-clone envelope.
 Requests carry a positive, monotonically increasing, host-assigned `jobId`; responses
 echo that ID. The ID is correlation and duplicate-suppression state, not render order.
 A retry always receives a new job ID. Render requests and successful responses carry

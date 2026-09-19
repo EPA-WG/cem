@@ -2551,7 +2551,7 @@ fn root_scope_budget_diagnostics(
                     ));
                 }
             }
-            "memory" | "memorybytes" | "timeout" | "timeoutms" | "scopetimeoutms"
+            "controlinputbytes" | "memory" | "memorybytes" | "timeout" | "timeoutms" | "scopetimeoutms"
             | "pluginms" | "plugintimebudgetms" | "parsems"
             | "parsetimebudgetms" | "validatems" | "validatetimebudgetms" | "checkms"
             | "checktimebudgetms" | "convertms" | "converttimebudgetms" | "tracems"
@@ -2608,6 +2608,7 @@ fn apply_scope_scheduler_fields(
                     queue_size: 8,
                     io_streams: 4,
                     memory_bytes: 8 * 1024 * 1024,
+                    control_input_bytes: crate::scheduler::policy::default_control_input_bytes(),
                     stack_depth: 256,
                     timeout_ms: None,
                     plugin_time_budget_ms: None,
@@ -2651,6 +2652,12 @@ fn apply_scope_scheduler_fields(
                     message,
                     direction,
                 )),
+            },
+            "controlinputbytes" => match parse_u64_budget(field, value) {
+                Ok(value) if value > 0 => policy.control_input_bytes = value,
+                Ok(_) => diagnostics.push(scope_policy_diagnostic(uri, "cem.scope.budget_invalid",
+                    format!("budget `{field}` must be greater than zero"), direction)),
+                Err(message) => diagnostics.push(scope_policy_diagnostic(uri, "cem.scope.budget_invalid", message, direction)),
             },
             "memory" | "memorybytes" => match parse_u64_budget(field, value) {
                 Ok(value) if value > 0 => policy.memory_bytes = value,
@@ -9742,6 +9749,7 @@ fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
         "queueSize": policy.queue_size,
         "ioStreams": policy.io_streams,
         "memoryBytes": policy.memory_bytes,
+        "controlInputBytes": policy.control_input_bytes,
         "pluginTimeBudgetMs": policy.plugin_time_budget_ms,
         "overflow": policy.overflow,
     })
@@ -23283,6 +23291,7 @@ mod tests {
             .root_scope
             .budgets
             .insert("pluginTimeBudgetMs".to_owned(), "7".to_owned());
+        source.root_scope.budgets.insert("controlInputBytes".to_owned(), "8192".to_owned());
         let req = TraceRequest {
             input: source,
             projection: TraceProjection::Json,
@@ -23291,6 +23300,7 @@ mod tests {
 
         let resp = RealCemMlEngine::new().trace(req).unwrap();
         assert_eq!(resp.body["scheduler"]["policy"]["queueSize"], 12);
+        assert_eq!(resp.body["scheduler"]["policy"]["controlInputBytes"], 8192);
         assert_eq!(resp.body["scheduler"]["policy"]["pluginTimeBudgetMs"], 7);
         assert!(!resp.body["report"]["diagnostics"]
             .as_array()

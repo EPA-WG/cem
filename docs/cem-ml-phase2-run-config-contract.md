@@ -337,6 +337,13 @@ inheritance, enforcement, and failure behavior are canonicalized in
 [`cem-ml-operation-control-design.md`](cem-ml-operation-control-design.md).
 Command paths must not each invent their own parsing rules.
 
+`controlInputBytes` is a positive host-control admission ceiling, separate from
+document import and accounted memory. Its default host profile is 8 MiB;
+environments may replace it. Child CEM scopes may inherit or lower it, and
+raising it is rejected by both the policy tree and operation-control scope
+registration. XSLT component control decoding enforces the effective ceiling
+before JSON decoding; portable stylesheets cannot set the host policy.
+
 ### Diagnostics Mode
 
 ```text

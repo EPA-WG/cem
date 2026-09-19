@@ -388,6 +388,30 @@ try {
     const componentOptions = JSON.parse(readFileSync(join(directory, 'component-options.json'), 'utf8'));
     const retainComponent = (options = componentOptions, source = componentSource, uri = 'memory:component.xslt') =>
         JSON.parse(retainXsltComponent(source, uri, JSON.stringify(options), '["datadom"]'));
+    // CONTROL-INPUT-SCOPE-POLICY: environment authority, constrain-only scopes,
+    // UTF-8 bytes before decoding, and immutable component-local policy.
+    const retainBounded = policy => JSON.parse(retainXsltComponent(componentSource, 'memory:bounded.xslt',
+        JSON.stringify(componentOptions), '["datadom"]', JSON.stringify(policy)));
+    const control = '{"datadom":{"slices":{"text":"🍒🍋"}}}';
+    const controlBytes = new TextEncoder().encode(control).byteLength;
+    const bounded = retainBounded({ environment: 16 * 1024 * 1024, scopes: [4096, controlBytes] });
+    const roomy = retainBounded({ environment: 16 * 1024 * 1024, scopes: [] });
+    try {
+        assert.deepEqual(JSON.parse(renderXsltComponent(bounded.artifactId, control, '[]')).diagnostics, []);
+        for (const rejected of [control + ' ', '!'.repeat(controlBytes + 1)]) {
+            const result = JSON.parse(renderXsltComponent(bounded.artifactId, rejected, '[]'));
+            assert.ok(result.diagnostics.some(d => d.code === 'cem.xslt.binding_limit'));
+            assert.deepEqual(result.nodes, []);
+        }
+        assert.deepEqual(JSON.parse(renderXsltComponent(roomy.artifactId, control + ' '.repeat(8 * 1024 * 1024), '[]')).diagnostics, []);
+        assert.ok(JSON.parse(renderXsltComponent(roomy.artifactId, control, ' '.repeat(128 * 1024 + 1)))
+            .diagnostics.some(d => d.code === 'cem.xslt.binding_limit'));
+        for (const policy of [{ environment: 0 }, { environment: 4096, scopes: [0] },
+            { environment: 4096, scopes: [4097] }, { environment: 4096, scopes: [1024, 2048] }]) {
+            assert.throws(() => retainBounded(policy));
+        }
+        checks += 9;
+    } finally { disposeXsltComponent(bounded.artifactId); disposeXsltComponent(roomy.artifactId); }
     const aspects = JSON.parse(readFileSync(join(directory, 'aspects.json'), 'utf8'));
     const aspectBundle = load(readFileSync(join(directory, 'aspects.bin')), aspects.contentHash, aspects.sourceHash);
     const aspectDefaults = load(readFileSync(join(directory, 'aspects-defaults.bin')), aspects.defaultsContentHash, aspects.defaultsSourceHash);

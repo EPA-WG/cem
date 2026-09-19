@@ -877,6 +877,7 @@ fn scope_budgets(scope: &NormalizedRootScope) -> BTreeMap<String, String> {
         ),
         ("queueSize".to_owned(), scope.policy.queue_size.to_string()),
         ("ioStreams".to_owned(), scope.policy.io_streams.to_string()),
+        ("controlInputBytes".to_owned(), scope.policy.control_input_bytes.to_string()),
         (
             "memoryBytes".to_owned(),
             scope.policy.memory_bytes.to_string(),
@@ -921,6 +922,7 @@ fn append_normalized_budgets(
     insert_budget(budgets, "observeMs", normalized.observe_ms);
     insert_budget(budgets, "pluginMs", normalized.plugin_ms);
     insert_budget(budgets, "memoryBytes", normalized.memory_bytes);
+    insert_budget(budgets, "controlInputBytes", normalized.control_input_bytes);
     insert_budget(budgets, "stackDepth", normalized.stack_depth);
     insert_budget(budgets, "timeoutMs", normalized.timeout_ms);
     insert_budget(budgets, "xpathItems", normalized.xpath_items);

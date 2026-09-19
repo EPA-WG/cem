@@ -2276,6 +2276,11 @@ fn check_constrain_only(
             child.memory_bytes,
         ),
         (
+            ResourceCap::ControlInputBytes,
+            parent.control_input_bytes,
+            child.control_input_bytes,
+        ),
+        (
             ResourceCap::StackDepth,
             u64::from(parent.stack_depth),
             u64::from(child.stack_depth),
@@ -2497,6 +2502,7 @@ mod tests {
         )
         .unwrap();
         for (candidate, cap) in [
+            (policy(1_024, 8, Some(50)).with_control_input_bytes(u64::MAX), ResourceCap::ControlInputBytes),
             (policy(2_048, 8, Some(50)), ResourceCap::MemoryBytes),
             (policy(1_024, 9, Some(50)), ResourceCap::StackDepth),
             (policy(1_024, 8, Some(51)), ResourceCap::TimeoutMs),

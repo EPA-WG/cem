@@ -10,10 +10,11 @@ import {
 import {
     assertCemDeclarationScopeActive,
     type CemDeclarationScope,
+    type CemControlInputPolicy,
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v3' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v4' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -115,7 +116,7 @@ export interface CemProcessingCompileInput {
     scopePolicyStamp: string;
     sourceMapMode: SourceMapMode;
     hostBindings?: string[];
-    xslt?: { sourceUri: string; options: CemXsltComponentOptions };
+    xslt?: { sourceUri: string; options: CemXsltComponentOptions; controlPolicy?: CemControlInputPolicy };
     /** Resolved and content-hashed source modules; no DOM or executable callbacks. */
     moduleClosure?: CemMlTemplateModuleClosure;
     /** Separately resolved executable dependency; never accepted through render data. */

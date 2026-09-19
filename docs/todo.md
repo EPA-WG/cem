@@ -1214,7 +1214,7 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       Nx CEM-QL and adapter lint pass with existing warnings. Ordinary CEMT
       render-protocol attributes remain unchanged; native namespace metadata is
       emitted only for the explicitly selected result path.
-- [ ] Fixture XSLT-VIEW-PARITY: author data-table-view.xslt and compare its
+- [x] Fixture XSLT-VIEW-PARITY: author data-table-view.xslt and compare its
       CLI-translated rendering with direct CEMT across XML/CSV/YAML/JSON,
       heterogeneous/nested/empty data, sorting, selection and parse failures.
     - [x] Fixture XSLT-VIEW-LIVE-VARIABLES: pass only referenced outer variables
@@ -1267,8 +1267,8 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
     - [x] Fixture XSLT-VIEW-BROWSER-LIFECYCLE: retain typed XSLT in the shared
           processing engine; test cache identity, disposal, worker recovery and
           declaration state changes without the legacy converter.
-          Basic browser lifecycle passes; viewer interaction completion is gated
-          by the control-envelope decision below.
+          Browser lifecycle and viewer interactions pass with the approved
+          environment/scope control-input policy below.
           Match worker eviction to the native 16-component retention limit;
           preserve stylesheet URI in identity and source-selection provenance.
     - [x] Fixture XSLT-VIEW-PARAM-FORWARD: forward typed bare variable
@@ -1290,11 +1290,19 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
           component's 128 KiB control-input rejection after selecting a row in
           the real browser viewer; measure ordinary and 32 KiB-source envelopes
           without decoding document data in JavaScript. Keep the gallery open.
-    - [ ] XSLT-VIEW-CONTROL-BUDGET-DECISION: decide whether to raise the bounded
-          XSLT control envelope to 8 MiB, or add generic native selector-based
-          control transport. Existing 32 KiB document-import limits remain.
+    - [x] XSLT-VIEW-CONTROL-BUDGET-DECISION: host/environment defines the
+          control-input ceiling; classic CEM scope inheritance may lower it,
+          never raise it. User approved this policy contract on 2026-09-19.
+          Existing 32 KiB document-import limits remain separate.
           See the measured [control-envelope proposal](xslt-runtime-lowering.md#browser-control-envelope-decision).
-    - [ ] Fixture XSLT-VIEW-CONTROL-BUDGET: after the decision, enforce the
+    - [x] Fixture CONTROL-INPUT-SCOPE-POLICY: add the shared native policy cap,
+          host configuration and nested constrain-only inheritance. Verify zero,
+          relaxed child limits, normalization, UTF-8 boundaries, immutable
+          retention/cache identity and worker/fallback policy transport.
+    - [x] Fixture CONTROL-INPUT-REGISTRATION: distinguish anonymous declaration
+          runtimes/policies in generated tags and reject incompatible fixed-tag
+          reuse before it can retain another runtime's wider policy or owner.
+    - [x] Fixture XSLT-VIEW-CONTROL-BUDGET: after the decision, enforce the
           approved control-input bound independently of native document/import
           limits. Test UTF-8 byte boundaries, worker/fallback viewer interactions
           and rejection without partial output before publishing gallery cases.
@@ -1345,20 +1353,32 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
           and typecheck pass; desktop (1440px, two-card row) and mobile (390px)
           checks show no page overflow. The XPath/CEM-QL paired demo request
           remains queued after full viewer parity and the function audit below.
-- [ ] Fixture XSLT-VIEW-DEMO: add an independent XSLT viewer case and source
+- [x] Fixture XSLT-VIEW-DEMO: add an independent XSLT viewer case and source
       display to data-table.html. Add an imported XSLT aspect case for notes
       as a tree and the IP-filter local-preview form; retain the CEMT cases.
       Update teaching notes, source guards, stories, inventories and Nx inputs.
-- [ ] XSLT-VIEW-VERIFY: run native/CLI parity first, then WASM/browser gates,
+- [x] XSLT-VIEW-VERIFY: run native/CLI parity first, then WASM/browser gates,
       standalone/source-loaded demos, lint/typecheck and desktop/mobile checks.
       Verify edits/reset, sorting, selection, aspects, focus and instance state.
+      Completion 2026-09-19: environment-defined control-input limits use
+      constrain-only CEM scopes, immutable retained policy and worker protocol
+      v4. Both independent XSLT gallery cases now cover all four formats,
+      sorting/selection, recovery, focus, drafts and imported aspects.
+      Verification: 469 CEM-QL tests, 67 focused shared native checks, 18
+      scheduler/plugin integration checks, two generated-type checks, 13 CLI
+      parity tests and 218 native/WASM bundle checks pass. Browser checks pass
+      389 unit tests and 96 stories (the corrected reset expectation was
+      rerun in the five-story viewer file). All 25 standalone pages and 31
+      source-loaded documents pass; lint/typecheck pass with existing QL
+      warnings. Layout at 1440px and 390px has no page/card overflow.
 - [ ] XPATH-CEMQL-PARITY-AUDIT: after the data viewer is complete, inventory
       the XPath capabilities added for it against native CEM-QL equivalents.
       Record each missing equivalent as an actionable checkitem and implement
       and verify each, as requested on 2026-09-19. Compare semantics, native
       ownership, error behavior and limits, distinguishing native functions
-      from optional XPath companions. Stop for a new contract
-      decision or ambiguity, and keep external parsing in CEM-ML import.
+      from optional XPath companions. For subsequent decisions, choose the
+      recommended option and continue (user instruction, 2026-09-19). Keep
+      external parsing in CEM-ML import.
 - [ ] Fixture XPATH-CEMQL-DEMO-PAIRS: after the function parity audit and gap
       implementations, pair XPath examples on `xpath-functions.html` with
       matching CEM-QL samples and links to detailed CEM-QL function use cases

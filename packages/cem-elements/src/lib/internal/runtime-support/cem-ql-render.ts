@@ -49,6 +49,7 @@ import {
     type SourceMapRef,
 } from '../../projection.js';
 import type { CemBrowserModuleUrlMap } from './module-url-resolution.js';
+import type { CemControlInputPolicy } from '../../declaration-scope.js';
 
 export interface RuntimeSupportDiagnostic {
     code: string;
@@ -127,7 +128,8 @@ export class RetainedXsltComponent {
     private disposed = false;
 
     constructor(private readonly source: string, private readonly uri: string,
-        private readonly optionsJson: string, private readonly hostBindingsJson: string) {
+        private readonly optionsJson: string, private readonly hostBindingsJson: string,
+        private readonly controlPolicyJson?: string) {
         const compiled = this.ensureNative();
         this.stylesheets = (compiled.stylesheets ?? []).map(mapStylesheet);
         this.diagnostics = (compiled.diagnostics ?? []).map(mapDiagnostic);
@@ -151,7 +153,7 @@ export class RetainedXsltComponent {
         if (xsltResidents.size >= 16) evict();
         for (;;) {
             try {
-                const compiled = JSON.parse(retainXsltComponent(this.source, this.uri, this.optionsJson, this.hostBindingsJson)) as {
+                const compiled = JSON.parse(retainXsltComponent(this.source, this.uri, this.optionsJson, this.hostBindingsJson, this.controlPolicyJson)) as {
                     artifactId: number; stylesheets?: WasmStylesheetArtifact[]; diagnostics?: WasmDiagnostic[];
                 };
                 xsltResidents.set(this, compiled.artifactId);
@@ -181,9 +183,12 @@ export class RetainedXsltComponent {
 }
 
 export async function retainXsltComponentSource(source: string, uri: string, options: CemXsltComponentOptions,
-    hostBindings: readonly string[]): Promise<RetainedXsltComponent> {
+    hostBindings: readonly string[], controlPolicy?: CemControlInputPolicy): Promise<RetainedXsltComponent> {
+    const optionsJson = JSON.stringify(options);
+    const hostBindingsJson = JSON.stringify(hostBindings);
+    const controlPolicyJson = controlPolicy === undefined ? undefined : JSON.stringify(controlPolicy);
     await ensureRuntimeReady();
-    return new RetainedXsltComponent(source, uri, JSON.stringify(options), JSON.stringify(hostBindings));
+    return new RetainedXsltComponent(source, uri, optionsJson, hostBindingsJson, controlPolicyJson);
 }
 
 /** Host URL resolution over typed authoring import/include edges. */

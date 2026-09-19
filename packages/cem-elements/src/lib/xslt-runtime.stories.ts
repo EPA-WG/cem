@@ -124,70 +124,92 @@ function lifecycle(fallback: boolean): Story {
 export const WorkerScalarParameters = lifecycle(false);
 export const FallbackDependencyRecovery = lifecycle(true);
 
-// XSLT-VIEW-CONTROL-BUDGET-BOUNDARY: characterize the current transport cap
-// before changing a public resource limit. Document input remains source text.
-export const ViewerControlEnvelopeBoundary: Story = {
-    render: () => '<section aria-label="XSLT control envelope boundary"></section>',
-    play: async ({ canvasElement }) => {
-        const root = canvasElement.querySelector('section');
-        if (!root) throw new Error('fixture root missing');
-        const { RetainedXsltComponent } = await import('./internal/runtime-support/cem-ql-render.js');
-        const originalRender = RetainedXsltComponent.prototype.render;
-        const sizes: number[] = [];
-        RetainedXsltComponent.prototype.render = function (data, options) {
-            sizes.push(new TextEncoder().encode(JSON.stringify(data)).byteLength);
-            return originalRender.call(this, data, options);
-        };
-        const scope = createCemDeclarationScope({ document });
-        const viewerUrl = new URL('../../demo/data-table-view.xslt', import.meta.url).href;
-        const viewer = await (await fetch(viewerUrl)).text();
-        const runtime = new CemElementRuntime({
-            declarationTag: 'cem-element-xslt-budget', declarationScope: scope,
-            processingWorkerFactory: () => { throw new Error('fixture selects fallback'); },
-            loadSrcDocument: async uri => {
-                if (uri.endsWith('/document.html')) return `<cem-element-xslt-budget src="./viewer.xslt" xslt-template="viewer">
-                    <xslt-param name="initial" select='str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
-                    <xslt-param name="source" select='datadom.slices.source ?? str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
-                    <xslt-param name="format" select='"json"'></xslt-param>
-                    <xslt-param name="selected" select='datadom.slices.selected ?? ""'></xslt-param>
-                    <template>[{"qty":10,"fruit":"🍒"},{"qty":2,"fruit":"🍋"},{"qty":3,"fruit":"🍌"}]</template>
-                </cem-element-xslt-budget>`;
-                if (uri.endsWith('/viewer.xslt')) return viewer;
-                throw new Error(`unexpected fixture URI ${uri}`);
-            },
-        });
-        runtime.install(window);
-        try {
-            const declaration = document.createElement('cem-element-xslt-budget');
-            declaration.setAttribute('tag', 'story-xslt-budget-document');
-            declaration.setAttribute('src', './native-xslt-budget/document.html');
-            root.append(declaration);
-            runtime.registerDeclaration(declaration);
-            await runtime.whenDeclarationSettled(declaration);
-            root.append(document.createElement('story-xslt-budget-document'));
-            await waitFor(() => expect(root.querySelector('tbody button')).toBeTruthy(), { timeout: 20000 });
-            const instance = root.querySelector('article')?.parentElement;
-            if (!instance) throw new Error('viewer instance missing');
-            expect(runtime.diagnosticsFor(instance).filter(d => d.severity === 'error')).toEqual([]);
-            const initialBytes = sizes.at(-1) ?? 0;
-            expect(initialBytes).toBeLessThanOrEqual(128 * 1024);
-            root.querySelectorAll<HTMLButtonElement>('tbody button')[1].click();
-            await waitFor(() => expect(runtime.diagnosticsFor(instance).some(d => d.code === 'cem.xslt.binding_limit')).toBe(true), { timeout: 10000 });
-            const selectionBytes = sizes.at(-1) ?? 0;
-            expect(selectionBytes).toBeGreaterThan(128 * 1024);
-            expect(root.querySelector('[aria-selected="true"]')).toBeNull();
-            const source = '[{"note":"' + 'a'.repeat(32700) + '"}]';
-            expect(new TextEncoder().encode(source).byteLength).toBeLessThan(32 * 1024);
-            const before = sizes.length;
-            runtime.setInstanceSlices(instance, { source });
-            await waitFor(() => expect(sizes.length).toBeGreaterThan(before));
-            await runtime.whenRenderSettled(instance);
-            expect(sizes.at(-1)).toBeGreaterThan(selectionBytes);
-            expect(sizes.at(-1)).toBeLessThan(8 * 1024 * 1024);
-        } finally {
-            root.replaceChildren();
-            scope.dispose();
-            RetainedXsltComponent.prototype.render = originalRender;
-        }
-    },
-};
+// CONTROL-INPUT-SCOPE-POLICY: environment and nested scope limits are retained
+// across both execution hosts. Document input remains source text.
+function viewerBudget(fallback: boolean, constrained: boolean): Story {
+    return {
+        render: () => '<section aria-label="XSLT control envelope boundary"></section>',
+        play: async ({ canvasElement }) => {
+            const root = canvasElement.querySelector('section');
+            if (!root) throw new Error('fixture root missing');
+            const { RetainedXsltComponent } = await import('./internal/runtime-support/cem-ql-render.js');
+            const originalRender = RetainedXsltComponent.prototype.render;
+            const sizes: number[] = [];
+            RetainedXsltComponent.prototype.render = function (data, options) {
+                sizes.push(new TextEncoder().encode(JSON.stringify(data)).byteLength);
+                return originalRender.call(this, data, options);
+            };
+            const suffix = `${fallback ? 'fallback' : 'worker'}-${constrained ? 'small' : 'large'}`;
+            const declarationTag = `cem-element-xslt-budget-${suffix}`;
+            const producedTag = `story-xslt-budget-${suffix}`;
+            const parent = createCemDeclarationScope({ document, controlInputBytes: 3 * 1024 * 1024 });
+            const scope = createCemDeclarationScope({ document, parent, controlInputBytes: constrained ? 128 * 1024 : 2 * 1024 * 1024 });
+            const viewerUrl = new URL('../../demo/data-table-view.xslt', import.meta.url).href;
+            const viewer = await (await fetch(viewerUrl)).text();
+            const runtime = new CemElementRuntime({
+                declarationTag, declarationScope: scope, controlInputBytes: 4 * 1024 * 1024,
+                ...(fallback ? { processingWorkerFactory: () => { throw new Error('fixture selects fallback'); } } : {}),
+                loadSrcDocument: async uri => {
+                    if (uri.endsWith('/document.html')) return `<${declarationTag} src="./viewer.xslt" xslt-template="viewer">
+                        <xslt-param name="initial" select='str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
+                        <xslt-param name="source" select='datadom.slices.source ?? str:trim(str:concat(datadom.payload.nodes.text, ""))'></xslt-param>
+                        <xslt-param name="format" select='"json"'></xslt-param>
+                        <xslt-param name="selected" select='datadom.slices.selected ?? ""'></xslt-param>
+                        <template>[{"qty":10,"fruit":"🍒"},{"qty":2,"fruit":"🍋"},{"qty":3,"fruit":"🍌"}]</template>
+                    </${declarationTag}>`;
+                    if (uri.endsWith('/viewer.xslt')) return viewer;
+                    throw new Error(`unexpected fixture URI ${uri}`);
+                },
+            });
+            runtime.install(window);
+            try {
+                const declaration = document.createElement(declarationTag);
+                declaration.setAttribute('tag', producedTag);
+                declaration.setAttribute('src', './native-xslt-budget/document.html');
+                root.append(declaration);
+                runtime.registerDeclaration(declaration);
+                await runtime.whenDeclarationSettled(declaration);
+                root.append(document.createElement(producedTag));
+                await waitFor(() => expect(root.querySelector('tbody button')).toBeTruthy(), { timeout: 20000 });
+                const instance = root.querySelector('article')?.parentElement;
+                if (!instance) throw new Error('viewer instance missing');
+                expect(runtime.diagnosticsFor(instance).filter(d => d.severity === 'error')).toEqual([]);
+                const initialBytes = sizes.at(-1) ?? 0;
+                expect(initialBytes).toBeLessThanOrEqual(128 * 1024);
+                root.querySelectorAll<HTMLButtonElement>('tbody button')[1].click();
+                if (constrained) {
+                    await waitFor(() => expect(runtime.diagnosticsFor(instance).some(d => d.code === 'cem.xslt.binding_limit')).toBe(true), { timeout: 10000 });
+                    expect(root.querySelector('[aria-selected="true"]')).toBeNull();
+                } else {
+                    await waitFor(() => expect(root.querySelector('[aria-selected="true"]')).toBeTruthy(), { timeout: 10000 });
+                }
+                const selectionBytes = sizes.at(-1) ?? 0;
+                if (fallback) expect(selectionBytes).toBeGreaterThan(128 * 1024);
+                const source = '[{"note":"' + 'a'.repeat(32700) + '"}]';
+                expect(new TextEncoder().encode(source).byteLength).toBeLessThan(32 * 1024);
+                const before = sizes.length;
+                runtime.setInstanceSlices(instance, { source });
+                if (fallback) await waitFor(() => expect(sizes.length).toBeGreaterThan(before));
+                await runtime.whenRenderSettled(instance);
+                if (fallback) {
+                    expect(sizes.at(-1)).toBeGreaterThan(selectionBytes);
+                    expect(sizes.at(-1)).toBeLessThan(2 * 1024 * 1024);
+                }
+                if (!constrained) {
+                    await waitFor(() => expect(root.querySelector('tbody')?.textContent).toContain('a'.repeat(40)), { timeout: 10000 });
+                    expect(runtime.diagnosticsFor(instance).filter(d => d.severity === 'error')).toEqual([]);
+                }
+            } finally {
+                root.replaceChildren();
+                scope.dispose();
+                parent.dispose();
+                RetainedXsltComponent.prototype.render = originalRender;
+            }
+        },
+    };
+}
+
+export const ViewerEnvironmentLimitWorker = viewerBudget(false, false);
+export const ViewerEnvironmentLimitFallback = viewerBudget(true, false);
+export const ViewerLoweredScopeWorker = viewerBudget(false, true);
+export const ViewerLoweredScopeFallback = viewerBudget(true, true);

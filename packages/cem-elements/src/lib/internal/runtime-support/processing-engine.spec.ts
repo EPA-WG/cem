@@ -869,6 +869,12 @@ describe('retained typed XSLT processing', () => {
         await expect(engine.compile({ ...original, xslt: { ...original.xslt, options: { entrypoint: 'other', parameters: [] } } })).rejects.toThrow('another identity');
         await engine.compile({ ...original, templateArtifactId: 'new', xslt: { ...original.xslt, options: { entrypoint: 'other', parameters: [] } } });
         expect(compile).toHaveBeenCalledTimes(2);
+        const constrained = { ...original, xslt: { ...original.xslt, controlPolicy: { environment: 8192, scopes: [1024] } } };
+        await expect(engine.compile(constrained)).rejects.toThrow('another identity');
+        const constrainedResult = await engine.compile({ ...constrained, templateArtifactId: 'constrained' });
+        expect(constrainedResult.artifact.cacheKey).not.toBe(first.artifact.cacheKey);
+        expect(compile).toHaveBeenLastCalledWith('stylesheet', original.xslt.sourceUri, original.xslt.options,
+            ['datadom'], { environment: 8192, scopes: [1024] });
         engine.dispose({});
         expect(lease.dispose).toHaveBeenCalledTimes(1);
     });

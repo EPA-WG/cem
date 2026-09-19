@@ -10,6 +10,7 @@ use crate::{
     ir::CompiledQuery,
 };
 use cem_ml::diagnostics::{Diagnostic, Severity};
+use cem_ml::scheduler::ScopePolicy;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -45,6 +46,7 @@ pub struct XsltComponent {
     uri: String,
     pub retained_bytes: usize,
     diagnostics: Vec<Diagnostic>,
+    scope_policy: ScopePolicy,
 }
 
 fn diagnostic(uri: &str, message: impl Into<String>) -> Vec<Diagnostic> {
@@ -64,6 +66,26 @@ impl XsltComponent {
         options: &XsltComponentOptions,
         host_bindings: &[String],
     ) -> std::result::Result<Self, Vec<Diagnostic>> {
+        Self::compile_with_scope_policy(
+            source,
+            uri,
+            options,
+            host_bindings,
+            ScopePolicy::host_root(),
+        )
+    }
+
+    /// Host policy is separate from portable stylesheet authoring options.
+    pub fn compile_with_scope_policy(
+        source: &str,
+        uri: &str,
+        options: &XsltComponentOptions,
+        host_bindings: &[String],
+        scope_policy: ScopePolicy,
+    ) -> std::result::Result<Self, Vec<Diagnostic>> {
+        scope_policy
+            .validate()
+            .map_err(|error| diagnostic(uri, error.to_string()))?;
         if options.parameters.len() > 250
             || options
                 .parameters
@@ -152,7 +174,26 @@ impl XsltComponent {
             uri: uri.into(),
             retained_bytes,
             diagnostics,
+            scope_policy,
         })
+    }
+
+    /// Enforce the retained host/scope ceiling before control decoding.
+    pub fn check_control_input(&self, input: &str) -> std::result::Result<(), Vec<Diagnostic>> {
+        if input.len() as u64 <= self.scope_policy.control_input_bytes {
+            return Ok(());
+        }
+        Err(vec![Diagnostic {
+            uri: Some(self.uri.clone()),
+            code: "cem.xslt.binding_limit".into(),
+            severity: Severity::Error,
+            message: format!(
+                "XSLT control input is {} bytes; scope limit is {} bytes",
+                input.len(),
+                self.scope_policy.control_input_bytes
+            ),
+            ..Default::default()
+        }])
     }
 
     pub fn diagnostics(&self) -> &[Diagnostic] {

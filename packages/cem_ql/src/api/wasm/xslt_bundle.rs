@@ -33,6 +33,7 @@ pub fn retain_xslt_component(
     source_uri: &str,
     options_json: &str,
     host_bindings_json: &str,
+    control_policy_json: Option<String>,
 ) -> Result<String, JsValue> {
     if options_json.len() > crate::xslt::MAX_BUNDLE_BYTES || host_bindings_json.len() > 128 * 1024 {
         return Err(JsValue::from_str("XSLT component options exceed limits"));
@@ -40,18 +41,35 @@ pub fn retain_xslt_component(
     let options =
         serde_json::from_str(options_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let bindings = parse_host_bindings(host_bindings_json).map_err(|e| JsValue::from_str(&e))?;
+    let policy: cem_ml::scheduler::policy::ControlInputPolicy = match control_policy_json {
+        Some(json) if json.len() <= 128 * 1024 => {
+            serde_json::from_str(&json).map_err(|error| JsValue::from_str(&error.to_string()))?
+        }
+        Some(_) => {
+            return Err(JsValue::from_str(
+                "control policy metadata exceeds byte limit",
+            ))
+        }
+        None => Default::default(),
+    };
+    let scope_policy = policy
+        .resolve()
+        .map_err(|error| JsValue::from_str(&error))?;
     COMPONENTS.with(|host| {
         let mut host = host.borrow_mut();
         if host.entries.len() >= 16 {
             return Err(JsValue::from_str("XSLT component handle limit exceeded"));
         }
-        let component =
-            crate::xslt::component::XsltComponent::compile(source, source_uri, &options, &bindings)
-                .map_err(|diagnostics| {
-                    JsValue::from_str(
-                        &json!({"diagnostics": diagnostics_json(&diagnostics)}).to_string(),
-                    )
-                })?;
+        let component = crate::xslt::component::XsltComponent::compile_with_scope_policy(
+            source,
+            source_uri,
+            &options,
+            &bindings,
+            scope_policy,
+        )
+        .map_err(|diagnostics| {
+            JsValue::from_str(&json!({"diagnostics": diagnostics_json(&diagnostics)}).to_string())
+        })?;
         if component.retained_bytes > (32usize * 1024 * 1024).saturating_sub(host.bytes) {
             return Err(JsValue::from_str("XSLT component byte limit exceeded"));
         }
@@ -90,7 +108,15 @@ pub fn render_xslt_component(
             "XSLT component is not retained",
         );
     };
-    if data_json.len() > 128 * 1024 || documents_json.len() > 128 * 1024 {
+    if let Err(diagnostics) = component.check_control_input(data_json) {
+        return plan_json(&crate::render::RenderPlan {
+            diagnostics,
+            nodes: vec![],
+            host_attribute_updates: vec![],
+        })
+        .to_string();
+    }
+    if documents_json.len() > 128 * 1024 {
         return error_json(
             "cem.xslt.binding_limit",
             "XSLT control bindings exceed byte limit",

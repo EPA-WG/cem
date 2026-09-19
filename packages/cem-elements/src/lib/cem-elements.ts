@@ -82,8 +82,10 @@ import {
     getDefaultCemDeclarationScope,
     lookupCemDeclarationScopeRegistration,
     onCemDeclarationScopeDispose,
+    resolveCemControlInputPolicy,
     unbindCemDeclarationScopeRegistration,
     type CemDeclarationScope,
+    type CemControlInputPolicy,
 } from './declaration-scope.js';
 import {
     createCemEdgeSsrHostRequestEnvelope,
@@ -196,6 +198,8 @@ export interface DeclarationRegistrationIdentityInput {
     templateLanguage: CemDeclarationTemplateLanguage;
     hasBehavior: boolean;
     behaviorIdentity?: string;
+    /** A document-global constructor retains its owner's processing policy. */
+    scopePolicyStamp?: string;
 }
 
 export interface DeclarationRegistrationIdentityResult {
@@ -511,6 +515,8 @@ export interface CemElementRuntimeOptions {
      * Document; scope ancestry is never inferred from DOM ancestry.
      */
     declarationScope?: CemDeclarationScope;
+    /** Environment ceiling for UTF-8 control input; scopes may only lower it. Default: 8 MiB. */
+    controlInputBytes?: number;
     scopePolicyStamp?: string;
     privacyPolicyStamp?: string;
     logger?: Pick<Console, 'warn' | 'error'>;
@@ -1404,6 +1410,8 @@ export function analyzeDeclarationRegistrationIdentity(
         resolvedTemplateSource: input.resolvedTemplateSource,
         templateLanguage: input.templateLanguage,
         behaviorIdentity: input.hasBehavior ? behaviorIdentity : null,
+        ...(input.scopePolicyStamp && input.scopePolicyStamp !== DEFAULT_SCOPE_POLICY_STAMP
+            ? { scopePolicyStamp: input.scopePolicyStamp } : {}),
     }).digest;
     return {
         registrationIdentity: `cem-registration-v1:${digest}`,
@@ -1572,6 +1580,7 @@ export class CemElementRuntime {
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
     private readonly processingPoolPolicy?: CemProcessingPoolPolicy;
+    private readonly controlInputPolicy: CemControlInputPolicy;
     private readonly artifactRegistry?: CemArtifactRegistryHooks;
     private readonly onProcessingTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
     private readonly srcDocuments = new Map<string, Promise<LoadedSrcDocument>>();
@@ -1602,7 +1611,10 @@ export class CemElementRuntime {
     constructor(options: CemElementRuntimeOptions = {}) {
         this.declarationTag = options.declarationTag ?? DEFAULT_DECLARATION_TAG;
         this.declarationScopeOption = options.declarationScope;
-        this.scopePolicyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
+        this.controlInputPolicy = resolveCemControlInputPolicy(options.controlInputBytes, options.declarationScope);
+        const policyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
+        this.scopePolicyStamp = options.controlInputBytes !== undefined || this.controlInputPolicy.scopes.length
+            ? `${policyStamp}:control-input:${edgeContentAddress('template-artifact', this.controlInputPolicy).digest}` : policyStamp;
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
         this.moduleUrlRootOption = options.moduleUrlRoot;
@@ -1678,7 +1690,7 @@ export class CemElementRuntime {
         }
 
         if (!declarationElement.getAttribute('tag')?.trim()) {
-            declarationElement.setAttribute('tag', deterministicAnonymousTag(declarationElement));
+            declarationElement.setAttribute('tag', deterministicAnonymousTag(declarationElement, this.scopePolicyStamp));
             declarationElement.setAttribute('data-cem-anonymous-declaration', '');
             this.anonymousDeclarationElements.add(declarationElement);
             if (declarationElement.getAttribute('src')?.trim()) {
@@ -1855,6 +1867,7 @@ export class CemElementRuntime {
         }
         const compiled = compileInlineDeclaration(declarationElement, tag, template, {
             declarationTag: this.declarationTag,
+            scopePolicyStamp: this.scopePolicyStamp,
             declarationVersion,
             declarationScope,
             source,
@@ -2687,7 +2700,7 @@ export class CemElementRuntime {
                 registrationIdentity, source: createCemProcessingTextSource(compiled.xsltSource),
                 sourceRef: compiled.sourceRef, resolverIdentity: compiled.resolverIdentity,
                 scopePolicyStamp: this.scopePolicyStamp, sourceMapMode, hostBindings,
-                xslt: { sourceUri: compiled.resourceBaseUrl, options: { ...compiled.xsltOptions, modules } },
+                xslt: { sourceUri: compiled.resourceBaseUrl, options: { ...compiled.xsltOptions, modules }, controlPolicy: this.controlInputPolicy },
             }).result;
             compiled.stylesheets = result.stylesheets ?? [];
             compiled.stylesheetsReady = true;
@@ -5937,6 +5950,7 @@ function compileInlineDeclaration(
         templateLanguage: mode,
         hasBehavior: options.behavior !== undefined,
         behaviorIdentity: options.behaviorIdentity,
+        scopePolicyStamp: options.scopePolicyStamp,
     });
     diagnostics.push(...registration.diagnostics);
     const uidSeedResolution = resolveDeclarationUidSeed(
@@ -6068,6 +6082,7 @@ function extractDomDeclarationStylesheets(
 }
 
 interface InlineDeclarationCompileOptions {
+    scopePolicyStamp: string;
     declarationTag: string;
     declarationVersion: string | null;
     declarationScope: CemDeclarationScope;
@@ -6243,9 +6258,11 @@ function declarationOccurrencePath(element: Element): string {
     return indexes.join('.');
 }
 
-export function deterministicAnonymousTag(element: HTMLElement): string {
+export function deterministicAnonymousTag(element: HTMLElement, scopePolicyStamp = DEFAULT_SCOPE_POLICY_STAMP): string {
     const template = directTemplateChildren(element)[0];
     const identity = {
+        declarationTag: element.localName,
+        scopePolicyStamp,
         uidSeed: element.getAttribute(UID_SEED_ATTR) ?? '',
         occurrencePath: declarationOccurrencePath(element),
         src: element.getAttribute('src') ?? '',

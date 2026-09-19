@@ -56,6 +56,21 @@ export const ScopedLogicalLookupWithDocumentGlobalRegistration: Story = {
             'an identical child declaration reuses the inherited document-global constructor'
         );
 
+        // CONTROL-INPUT-REGISTRATION: a browser constructor retains its owner.
+        // A lower policy must not silently reuse that owner's wider ceiling.
+        const boundedScope = createCemDeclarationScope({ document, parent: parentScope, controlInputBytes: 1024 });
+        const boundedRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-registration-bounded', declarationScope: boundedScope,
+        });
+        const boundedDeclaration = declaration('cem-element-story-registration-bounded', producedTag, template);
+        root.appendChild(boundedDeclaration);
+        boundedRuntime.registerDeclaration(boundedDeclaration);
+        await boundedRuntime.whenDeclarationSettled(boundedDeclaration);
+        assertDiagnosticCodes(boundedRuntime, boundedDeclaration, ['cem-element.registry_inherited_collision']);
+        assertEqual(window.customElements.get(producedTag), parentConstructor,
+            'a lower limit cannot inherit a constructor tied to a wider policy');
+        boundedScope.dispose();
+
         const sameScopeDuplicate = declaration('cem-element-story-registration-child', producedTag, template);
         root.appendChild(sameScopeDuplicate);
         childRuntime.registerDeclaration(sameScopeDuplicate);

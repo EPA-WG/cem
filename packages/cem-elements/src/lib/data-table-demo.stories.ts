@@ -160,3 +160,90 @@ export const TextPatchIdentityAndDirtyTextarea: Story = {
         expect(document.activeElement).toBe(textarea);
     },
 };
+
+export const NativeXsltViewer: Story = {
+    render: renderDocument,
+    play: async ({ canvasElement }) => {
+        await waitFor(() => expect(canvasElement.querySelector('cem-demo-element[legend="6. XSLT table: native sorting and selection"] textarea')).toBeTruthy(), { timeout: 30000 });
+        const sample = canvasElement.querySelector('cem-demo-element[legend="6. XSLT table: native sorting and selection"]');
+        const viewer = sample?.querySelector('article')?.parentElement;
+        if (!viewer) throw new Error('XSLT viewer missing');
+        const controls = within(viewer);
+        const input = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
+        const original = input.value;
+        const quantities = () => Array.from(viewer.querySelectorAll('table:first-of-type > tbody > tr'),
+            row => row.querySelectorAll(':scope > td')[1]?.textContent?.trim());
+        for (const [format, source] of [
+            ['xml', '<r><row qty="10"/><row qty="2"/><row qty="3"/></r>'],
+            ['csv', 'qty,fruit\n10,🍒\n2,🍋\n3,🍌'],
+            ['yaml', '- qty: 10\n- qty: 2\n- qty: 3'],
+            ['json', original],
+        ]) {
+            viewer.setAttribute('format', format);
+            input.value = source;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            await waitFor(() => expect(viewer.querySelector('label')).toHaveTextContent(`Source (${format.toUpperCase()})`));
+            await waitFor(() => expect(quantities()).toEqual(['10', '2', '3']), { timeout: 10000 });
+            expect(viewer.querySelector('[role="alert"]')).toBeNull();
+        }
+        viewer.querySelectorAll<HTMLButtonElement>('tbody button')[1].click();
+        await waitFor(() => expect(viewer.querySelector('[aria-selected="true"]')).toHaveTextContent('🍋'));
+        await select(controls.getByRole('combobox', { name: 'Sort column' }), 'qty');
+        await select(controls.getByRole('combobox', { name: 'Compare' }), 'number');
+        await waitFor(() => expect(quantities()).toEqual(['2', '3', '10']));
+        expect(viewer.querySelector('tbody tr:first-child')).toHaveAttribute('aria-selected', 'true');
+        await select(controls.getByRole('combobox', { name: 'Direction' }), 'descending');
+        await waitFor(() => expect(quantities()).toEqual(['10', '3', '2']));
+        input.value = original.replace('10', '11');
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitFor(() => expect(quantities()).toEqual(['11', '3', '2']));
+        expect(viewer.querySelector('[aria-selected="true"]')).toBeNull();
+        input.focus();
+        input.value = '[oops]';
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitFor(() => expect(controls.getByRole('alert')).toHaveTextContent('⚠'));
+        expect(viewer.querySelector('table')).toBeNull();
+        expect(document.activeElement).toBe(input);
+        controls.getByRole('button', { name: 'Reset source' }).click();
+        await waitFor(() => expect(viewer.querySelector('table')).toBeTruthy());
+        expect(input.value).toBe(original);
+        // Restoring identical source bytes restores the same provenance key.
+        expect(viewer.querySelector('[aria-selected="true"]')).toHaveTextContent('🍋');
+        expect(canvasElement.querySelector('cem-data-table[format="json"] textarea')).toHaveValue(original);
+    },
+};
+
+export const ImportedXsltPresentationAspects: Story = {
+    render: renderDocument,
+    play: async ({ canvasElement }) => {
+        await waitFor(() => expect(canvasElement.querySelector('cem-demo-element[legend="7. XSLT aspects: tree and IP-filter form"] form')).toBeTruthy(), { timeout: 30000 });
+        const sample = canvasElement.querySelector('cem-demo-element[legend="7. XSLT aspects: tree and IP-filter form"]');
+        const viewer = sample?.querySelector('article')?.parentElement;
+        if (!viewer) throw new Error('XSLT aspect viewer missing');
+        const controls = within(viewer);
+        const source = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
+        const original = source.value;
+        expect(viewer.querySelector('table[aria-label="notes"]')).toBeNull();
+        expect(viewer.querySelector('table[aria-label="visits"]')).toBeTruthy();
+        const address = controls.getByRole('textbox', { name: 'Address / CIDR' }) as HTMLInputElement;
+        address.focus();
+        address.value = '198.51.100.0/24';
+        address.setSelectionRange(3, 3);
+        address.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitFor(() => expect(viewer.querySelector('form output')).toHaveTextContent('198.51.100.0/24'));
+        expect(document.activeElement).toBe(address);
+        expect(address.selectionStart).toBe(3);
+        await select(controls.getByRole('combobox', { name: 'Action' }), 'deny');
+        controls.getByRole('checkbox', { name: 'Presentation aspects' }).click();
+        await waitFor(() => expect(viewer.querySelector('table[aria-label="notes"]')).toBeTruthy());
+        expect(viewer.querySelector('form')).toBeNull();
+        controls.getByRole('checkbox', { name: 'Presentation aspects' }).click();
+        await waitFor(() => expect(viewer.querySelector('form output')).toHaveTextContent('deny: 198.51.100.0/24'));
+        const restored = controls.getByRole('textbox', { name: 'Address / CIDR' }) as HTMLInputElement;
+        restored.value = '';
+        restored.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitFor(() => expect(viewer.querySelector('form output')?.textContent).toBe('deny: '));
+        expect(source.value).toBe(original);
+        expect(canvasElement.querySelector('cem-aspect-view form output')).toHaveTextContent('allow: 192.0.2.0/24');
+    },
+};

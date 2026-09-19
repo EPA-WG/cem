@@ -26,6 +26,7 @@ pub enum ResourceCap {
     QueueSize,
     IoStreams,
     MemoryBytes,
+    ControlInputBytes,
     StackDepth,
     TimeoutMs,
 }
@@ -48,6 +49,10 @@ pub struct ScopePolicy {
     /// Memory cap in bytes (informational; the runtime is responsible
     /// for enforcing it through accounted allocations).
     pub memory_bytes: u64,
+    /// Maximum UTF-8 bytes in an explicit host control input, checked before
+    /// decoding. External document import and accounted memory are separate caps.
+    #[serde(default = "default_control_input_bytes")]
+    pub control_input_bytes: u64,
     /// Maximum logical engine frames per task. This is independent of
     /// the native machine stack.
     #[serde(default = "default_stack_depth")]
@@ -72,6 +77,7 @@ impl ScopePolicy {
             queue_size: 64,
             io_streams: 16,
             memory_bytes: 256 * 1024 * 1024, // 256 MiB
+            control_input_bytes: default_control_input_bytes(),
             stack_depth: 256,
             timeout_ms: None,
             plugin_time_budget_ms: None,
@@ -97,6 +103,10 @@ impl ScopePolicy {
     }
     pub fn with_stack_depth(mut self, n: u32) -> Self {
         self.stack_depth = n;
+        self
+    }
+    pub fn with_control_input_bytes(mut self, n: u64) -> Self {
+        self.control_input_bytes = n;
         self
     }
     pub fn with_timeout_ms(mut self, n: Option<u64>) -> Self {
@@ -134,6 +144,9 @@ impl ScopePolicy {
         }
         if self.memory_bytes == 0 {
             return Err(ScopePolicyError::ZeroCap(ResourceCap::MemoryBytes));
+        }
+        if self.control_input_bytes == 0 {
+            return Err(ScopePolicyError::ZeroCap(ResourceCap::ControlInputBytes));
         }
         if self.stack_depth == 0 {
             return Err(ScopePolicyError::ZeroCap(ResourceCap::StackDepth));
@@ -184,6 +197,49 @@ const fn default_stack_depth() -> u32 {
     256
 }
 
+/// Default host profile, not an engine maximum. Environments may replace it.
+pub const fn default_control_input_bytes() -> u64 {
+    8 * 1024 * 1024
+}
+
+/// Host control metadata for the environment ceiling and authored scope chain.
+/// Kept separate from document data and portable executable artifacts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ControlInputPolicy {
+    pub environment: u64,
+    #[serde(default)]
+    pub scopes: Vec<u64>,
+}
+
+impl Default for ControlInputPolicy {
+    fn default() -> Self {
+        Self {
+            environment: default_control_input_bytes(),
+            scopes: Vec::new(),
+        }
+    }
+}
+
+impl ControlInputPolicy {
+    /// Resolve through the ordinary CEM policy tree; descendants cannot relax
+    /// a parent, even when still below the environment ceiling.
+    pub fn resolve(&self) -> Result<ScopePolicy, String> {
+        use super::tree::{PolicyScopeId, ScopePolicyTree};
+        let mut policy = ScopePolicy::host_root().with_control_input_bytes(self.environment);
+        policy.validate().map_err(|error| error.to_string())?;
+        let mut tree = ScopePolicyTree::new(PolicyScopeId(0), policy);
+        for (index, limit) in self.scopes.iter().enumerate() {
+            policy = policy.with_control_input_bytes(*limit);
+            policy.validate().map_err(|error| error.to_string())?;
+            let id = u32::try_from(index + 1).map_err(|_| "too many control policy scopes")?;
+            tree.install(PolicyScopeId(id), PolicyScopeId(id - 1), policy)
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(policy)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,5 +288,36 @@ mod tests {
         .unwrap();
         assert_eq!(policy.stack_depth, 256);
         assert_eq!(policy.timeout_ms, None);
+        assert_eq!(policy.control_input_bytes, default_control_input_bytes());
+    }
+
+    #[test]
+    fn control_input_environment_and_nested_scopes() {
+        let policy = ControlInputPolicy {
+            environment: 16 * 1024 * 1024,
+            scopes: vec![],
+        };
+        assert_eq!(
+            policy.resolve().unwrap().control_input_bytes,
+            16 * 1024 * 1024
+        );
+        let policy = ControlInputPolicy {
+            scopes: vec![4096, 2048, 2048],
+            ..policy
+        };
+        assert_eq!(policy.resolve().unwrap().control_input_bytes, 2048);
+        for (environment, scopes) in [
+            (0, vec![]),
+            (4096, vec![0]),
+            (4096, vec![4097]),
+            (4096, vec![1024, 2048]),
+        ] {
+            assert!(ControlInputPolicy {
+                environment,
+                scopes
+            }
+            .resolve()
+            .is_err());
+        }
     }
 }

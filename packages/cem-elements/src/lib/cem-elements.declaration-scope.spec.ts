@@ -5,9 +5,24 @@ import {
     createCemDeclarationScope,
     getDefaultCemDeclarationScope,
     lookupCemDeclarationScopeRegistration,
+    resolveCemControlInputPolicy,
 } from './declaration-scope.js';
 
 describe('cem-element logical declaration scope contract', () => {
+    it('inherits control limits and rejects increases across omitted scopes or the environment', () => {
+        const document = fakeDocument();
+        const parent = createCemDeclarationScope({ document, controlInputBytes: 4096 });
+        const middle = createCemDeclarationScope({ document, parent });
+        const child = createCemDeclarationScope({ document, parent: middle, controlInputBytes: 1024 });
+        expect(resolveCemControlInputPolicy(8192, child)).toEqual({ environment: 8192, scopes: [4096, 1024] });
+        expect(() => createCemDeclarationScope({ document, parent: middle, controlInputBytes: 4097 })).toThrow('cap_relaxation_denied');
+        expect(() => resolveCemControlInputPolicy(2048, child)).toThrow('cap_relaxation_denied');
+        expect(() => { (child as { controlInputBytes: number }).controlInputBytes = 8192; }).toThrow();
+        for (const value of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+            expect(() => createCemDeclarationScope({ document, controlInputBytes: value })).toThrow('positive safe integer');
+            expect(() => resolveCemControlInputPolicy(value)).toThrow('positive safe integer');
+        }
+    });
     it('uses one opaque default root per Document without conflating policy metadata', () => {
         const documentA = fakeDocument();
         const documentB = fakeDocument();

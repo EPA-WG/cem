@@ -9,11 +9,11 @@ independently identified XPath programs. The XPath artifact foundation is
 implemented; XSLT bundle delivery and bounded root-template runtime lowering
 are implemented. Template dispatch, parameters, modes, imports/includes and
 strict transform/CLI execution, bounded grouping and stable sorting are now
-implemented. Subsequent viewer stages remain open in [todo.md](todo.md).
+implemented. The viewer stages are complete in [todo.md](todo.md).
 Explicit host position and sequence size are now supported by the shared XPath
 API. The native/CLI base stylesheet and browser scalar binding are implemented;
 native imported presentation aspects pass parity tests. Full browser viewer
-parity awaits the [control-envelope decision](xslt-runtime-lowering.md#browser-control-envelope-decision).
+parity uses the approved [environment/scope control-input policy](xslt-runtime-lowering.md#browser-control-envelope-decision).
 The shared parsing and typed-error extension was approved on 2026-09-18 and is
 implemented through CEM import and native buffered recovery. The bounded
 contract and verification are recorded under XSLT-VIEW-DATA and in the
@@ -22,7 +22,9 @@ The shared [native output construction](xslt-runtime-lowering.md#native-output-c
 extension was approved on 2026-09-18 and is implemented. Native nodes and atomics
 remain distinct through calls/recovery; output AVTs, whitespace, expanded names,
 attribute ordering and static result-style exports use the shared renderer.
-The base viewer's native/CLI and WASM checks pass; full browser parity remains open.
+The base viewer and imported aspects pass native/CLI, WASM and browser parity.
+Independent gallery cases are published in `data-table.html`; verification
+includes source edits/reset, sorting, selection, focus, recovery and drafts.
 The 2026-09-19 native probes identified missing stylesheet access to stable
 source-selection keys/line numbers and a CSV header-profile mismatch. The
 [viewer selection and CSV proposal](xslt-runtime-lowering.md#viewer-selection-and-csv-parity-gate)
@@ -598,13 +600,14 @@ the total-call budget. Standard data parsing now delegates to shared CEM import;
 ordered QName catches use structured errors and preserve native nodes, focus
 and lexical scope. Native output construction and the base viewer's native/CLI
 parity checks now pass. Scalar browser bindings and native imported aspects are
-implemented; interactive viewer parity awaits the control-envelope decision. See the
+implemented; interactive viewer parity uses the environment/scope control-input policy. See the
 [bounded runtime profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
 
 ## Acceptance and implementation order
 
-1. Record the checklist and run minimal native data-model probes. If blocked,
-   document the smallest missing reusable capability and request approval.
+1. Record the checklist and run minimal native data-model probes. Document
+   missing reusable capabilities; for subsequent design choices, use the
+   recommended option and continue (user instruction, 2026-09-19).
 2. Add failing native fixtures for each compatibility feature, then implement
    and verify it without modifying unrelated language/runtime contracts.
 3. Author `data-table-view.xslt` and a companion imported-aspect stylesheet.

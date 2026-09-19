@@ -5,6 +5,8 @@ import { scopeCssText } from './projection.js';
 const source = readFileSync(new URL('../../demo/data-table.html', import.meta.url), 'utf8');
 const helper = readFileSync(new URL('../../demo/data-table-view.cemt', import.meta.url), 'utf8');
 const aspects = readFileSync(new URL('../../demo/data-table-aspects.cemt', import.meta.url), 'utf8');
+const xslt = readFileSync(new URL('../../demo/data-table-view.xslt', import.meta.url), 'utf8');
+const xsltAspects = readFileSync(new URL('../../demo/data-table-aspects.xslt', import.meta.url), 'utf8');
 
 describe('multi-format data table demo', () => {
     it('gives each native format an editable teaching case using one reusable helper', () => {
@@ -14,7 +16,11 @@ describe('multi-format data table demo', () => {
             '3. YAML table: nested collections',
             '4. JSON table: empty and missing',
             '5. Presentation aspects: tree and IP-filter form',
+            '6. XSLT table: native sorting and selection',
+            '7. XSLT aspects: tree and IP-filter form',
             './data-table-view.cemt',
+            './data-table-view.xslt',
+            './data-table-aspects.xslt',
         ]);
         for (const format of ['xml', 'csv', 'yaml', 'json']) {
             expect(source).toContain(`<template>\n<cem-data-table format="${format}">`);
@@ -31,7 +37,7 @@ describe('multi-format data table demo', () => {
 
     it('keeps source text inert and states parsing, sorting and selection limits', () => {
         for (const forbidden of ['DOMParser', 'JSON.parse', 'XSLTProcessor', 'onclick=', 'data-testid', '.sort(']) {
-            expect(source + helper + aspects).not.toContain(forbidden);
+            expect(source + helper + aspects + xslt + xsltAspects).not.toContain(forbidden);
         }
         for (const lesson of ['32 KiB', 'missing', 'empty string', 'source order', 'never execute', 'Selection follows source']) {
             expect(source).toContain(lesson);
@@ -41,6 +47,21 @@ describe('multi-format data table demo', () => {
         expect(helper).toContain('@aria-label="Reset source"');
         expect(source).toMatch(/Namespace\s+declarations/u);
         expect(source).toContain('are not data columns');
+    });
+
+    it('maps scalar controls to independent native XSLT declarations and shows their sources', () => {
+        expect(source).toContain('<template>\n<cem-element src="./data-table-view.xslt"');
+        expect(source).toContain('<template>\n<cem-element src="./data-table-aspects.xslt"');
+        expect(source).toContain('xslt-template="viewer"');
+        expect(source).toContain('xslt-template="viewer-aspects"');
+        for (const name of ['initial', 'source', 'format', 'column', 'mode', 'direction', 'selected', 'aspects', 'ipAddress', 'ipAction']) {
+            expect(source).toContain(`<xslt-param name="${name}"`);
+        }
+        expect(xslt).toContain('parse-xml($source)');
+        expect(xslt).toContain('json-to-xml($source)');
+        expect(xsltAspects).toContain('<xsl:import href="./data-table-view.xslt"/>');
+        expect(source).toContain('id="data-table-view.xslt"');
+        expect(source).toContain('id="data-table-aspects.xslt"');
     });
 
     it('extends the unchanged imported viewer through matching presentation rules', () => {

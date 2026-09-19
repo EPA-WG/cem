@@ -160,14 +160,21 @@ Strict XSLT 3.0 declarations use `src="./view.xslt"` and
 children containing independent CEM-QL scalar selectors. Unmapped parameters
 keep their XSLT defaults. Named entrypoints may run without initial focus;
 source parsing stays in CEM-ML import. Imported stylesheets and native bundles
-share the existing resolver, worker/fallback and disposal lifecycle. The full
-viewer gallery remains blocked by the current 128 KiB control-envelope limit.
-See the [control-envelope proposal](../../docs/xslt-runtime-lowering.md#browser-control-envelope-decision)
+share the existing resolver, worker/fallback and disposal lifecycle.
+The environment sets `CemElementRuntime({ controlInputBytes })` (default 8 MiB).
+An explicit declaration scope may lower this through
+`createCemDeclarationScope({ document, parent, controlInputBytes })`; omitted
+values inherit and increases above a parent or environment ceiling fail.
+Anonymous tags distinguish declaration runtimes and policies; a fixed public
+tag registered under another policy is an incompatible declaration.
+The effective limit is retained with the native component and checked in UTF-8
+bytes before control decoding, independently of document import limits.
+See the [control-input policy](../../docs/xslt-runtime-lowering.md#browser-control-envelope-decision)
 and [parameter contract](../../docs/xslt-runtime-lowering.md#browser-state-binding-decision).
 
 Phase 3B shares lazily allocated worker slots across compatible logical roots without
-changing their scheduling semantics. The current `cem-processing-host-v3` contract
-adds explicit native XSLT compilation options to the retained processing path;
+changing their scheduling semantics. The current `cem-processing-host-v4` contract
+carries explicit native XSLT compilation options and retained host/scope limits;
 its `document` retention/release remains alongside `compile`, `renderDiff`, `cancel` and `dispose`. The default
 pool uses browser hardware concurrency capped at eight workers, a 64-operation queue per
 slot, FIFO ordering per root, and round-robin cross-root dispatch. Compiled artifacts and

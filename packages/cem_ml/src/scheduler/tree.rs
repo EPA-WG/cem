@@ -198,6 +198,14 @@ fn check_constrain_only(
             child.memory_bytes,
         ));
     }
+    if child.control_input_bytes > parent.control_input_bytes {
+        return Err(deny(
+            scope,
+            ResourceCap::ControlInputBytes,
+            parent.control_input_bytes,
+            child.control_input_bytes,
+        ));
+    }
     if child.stack_depth > parent.stack_depth {
         return Err(deny(
             scope,
@@ -229,6 +237,7 @@ mod tests {
             queue_size: queue,
             io_streams: io,
             memory_bytes: mem,
+            control_input_bytes: super::super::policy::default_control_input_bytes(),
             stack_depth: 256,
             timeout_ms: None,
             plugin_time_budget_ms: None,
@@ -325,5 +334,35 @@ mod tests {
             .map(|(s, _)| s.0)
             .collect();
         assert_eq!(ids, vec![2, 1, 0]);
+    }
+
+    #[test]
+    fn control_input_bytes_inherit_and_only_lower() {
+        let root = ScopePolicy::host_root().with_control_input_bytes(4096);
+        let child = root.with_control_input_bytes(1024);
+        let mut tree = ScopePolicyTree::new(PolicyScopeId(0), root);
+        tree.install(PolicyScopeId(1), PolicyScopeId(0), child)
+            .unwrap();
+        tree.install(PolicyScopeId(2), PolicyScopeId(1), child)
+            .unwrap();
+        assert_eq!(
+            tree.effective(PolicyScopeId(2))
+                .unwrap()
+                .control_input_bytes,
+            1024
+        );
+        let error = tree
+            .install(PolicyScopeId(3), PolicyScopeId(2), root)
+            .unwrap_err();
+        assert_eq!(error.code(), "cem.a.cap_relaxation_denied");
+        assert!(matches!(
+            error,
+            ScopePolicyTreeError::CapRelaxationDenied {
+                cap: ResourceCap::ControlInputBytes,
+                parent_value: 1024,
+                attempted_value: 4096,
+                ..
+            }
+        ));
     }
 }

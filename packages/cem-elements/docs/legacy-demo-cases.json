@@ -372,7 +372,7 @@
             },
             {
               "file": "external-template.html",
-              "legend": "7b. external XSLT data-island tree template"
+              "legend": "7b. External XSLT XML payload tree"
             },
             {
               "file": "external-template.html",

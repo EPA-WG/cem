@@ -547,6 +547,7 @@ fn ac_pl_17_budget_can_be_inherited_from_scope_policy() {
         queue_size: 8,
         io_streams: 1,
         memory_bytes: 1024,
+        control_input_bytes: cem_ml::scheduler::policy::default_control_input_bytes(),
         stack_depth: 256,
         timeout_ms: None,
         plugin_time_budget_ms: Some(1),
