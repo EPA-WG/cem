@@ -208,6 +208,81 @@ one/four-worker policies, sequential named/native/lambda calls, completed and
 excessive recursion, recovered failures and total-call exhaustion. They run
 independently of sorting and host hardware.
 
+## Standard parsing and recovery: scope decision pending
+
+XSLT-VIEW-DATA reached another shared-capability boundary on 2026-09-18.
+The [scope rule](xslt-data-table-parity.md#scope) requires approval before
+expanding the importer or shared evaluator. No production behavior changes in
+this checkpoint. Four native probes in
+[`xslt_data_prerequisites.rs`](../packages/cem_ql/tests/xslt_data_prerequisites.rs)
+establish the remaining gaps:
+
+| Boundary | Observed behavior |
+| --- | --- |
+| Imported XML and JSON-to-XML trees | XPath returns distinct native nodes, including empty values, with the same retained tree owner and source maps. XML text/CDATA is normalized. |
+| Standard parsing within XPath | `parse-xml` and both arities of `json-to-xml` are unsupported, including empty-sequence arguments and calls in inline functions. Unselected conditional branches remain lazy. |
+| Import failures | Empty/multiple-root/unbound-prefix/malformed XML is rejected. Malformed JSON, input limits, unsupported DTDs and unknown projections all return only `String` errors. |
+| XSLT dynamic errors | An invalid integer cast rolls back output and preserves the stylesheet location, but exposes `cem.xpath.cast_invalid` without a structured standard error QName. |
+
+The existing CEM-QL native-function registry sits outside an XPath program.
+It cannot supply missing functions inside that program's predicates, branches
+or closures. Hoisting calls into generated CEMT would change when and under
+which focus they execute. Likewise, reading error-message prose to decide
+whether a failure is catchable would make limits and capability failures
+unsafe to classify. Existing QName atomic values and buffered CEMT recovery
+are reusable; neither needs a replacement data model.
+
+### Proposed shared change
+
+1. Add a typed import request/result for string parsing, keeping existing
+   reader/loader entry points and report behavior compatible. Import retains
+   the format parser, decoding, projection options and original source owner.
+   Distinguish malformed input, projection/option failures, unsupported
+   capabilities and limits without parsing error prose; preserve source
+   diagnostics and bounded operation control.
+2. Implement shared native XPath `fn:parse-xml` and `fn:json-to-xml` by calling
+   that import API at expression evaluation time. Use the already selected
+   native JSON-to-XML tree route; no JSON document records, new CEM array
+   semantics, source-token rewrites or serialization/reparse handoff. A
+   standard function selects its import profile and validates its arguments;
+   it must not inspect XML/JSON parser ASTs or implement format decoding.
+3. Preserve standard error QName identity across the XPath/native-query
+   failure boundary for the supported parsing and recovery profile. XSLT
+   owns `xsl:try`/`xsl:catch` validation, expanded-name selection and error
+   variable bindings. Reuse existing QName atomics and buffered recovery;
+   keep cancellation and resource exhaustion uncatchable. Existing CEM
+   diagnostic identifiers and source frames remain available.
+
+The proposed bounded profile uses untyped XML and JSON-to-XML documents.
+Follow the specified empty-input, result-node, base-URI and error contracts of
+[`fn:parse-xml`](https://www.w3.org/TR/xpath-functions-31/#func-parse-xml) and
+[`fn:json-to-xml`](https://www.w3.org/TR/xpath-functions-31/#func-json-to-xml).
+JSON options cover duplicate retain/use-first/reject and escaping. Required
+string-input handling, including BOM and invalid-XML escaped codepoints,
+belongs in import; the existing projection's surrogate limitation must not
+silently become a claim of standard conformance. XML string parsing likewise
+must not confuse a declaration's encoding with transport-byte decoding.
+Schema validation, custom JSON fallback callbacks, XML fragments and resource
+fetch functions remain outside this bounded profile with explicit diagnostics.
+`fn:parse-json` is not needed for the approved node-tree route. CSV/YAML use
+explicit CEM import extensions over the same native boundary.
+
+### Acceptance after approval
+
+- Replace the missing-function probes with native successes for both standard
+  functions: empty sequence versus empty text, XML namespaces/normalized text,
+  JSON null/empty slots/duplicates/escapes and retained owners/source maps.
+- Exercise calls in selected and unselected branches, predicates and inline
+  functions, plus changed inputs after portable bundle reload. Verify argument
+  errors, import limits and host cancellation without partial results.
+- Lower ordered catches by error QName and wildcard, preserve outer focus and
+  catch-variable scope, and test nested/template-call propagation and output
+  rollback under the [XSLT try/catch contract](https://www.w3.org/TR/xslt-30/#try-catch).
+  Prove that malformed input is recoverable and resource/control failures are
+  not, before native/WASM integration checks.
+- Keep the default data-reader/HTTP import contracts green and extend the
+  import-boundary guard for the new evaluator call site.
+
 ## Native ownership and loading
 
 Only stylesheet **authoring** source is parsed by this compiler. Runtime XML,

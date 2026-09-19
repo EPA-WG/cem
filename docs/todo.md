@@ -1149,6 +1149,14 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       recovery to native data capabilities. Use CEM extensions only for
       CSV/YAML parsing and unavailable host/provenance capabilities. Preserve
       native owners; no serialized AST handoff or fake standard function names.
+    - [x] Fixture XSLT-DATA-PREREQUISITES: characterize shared XPath parsing
+          availability, imported-node ownership, import failure classification
+          and standard error identity before requesting shared API expansion.
+          Record the bounded proposal and stop for the required scope decision.
+      Four native probes pass; all 413 CEM-QL tests pass with none ignored.
+      The [shared parsing/error proposal](xslt-runtime-lowering.md#standard-parsing-and-recovery-scope-decision-pending)
+      awaits approval before implementation. Standard parsing and XSLT catches
+      remain open; the existing native tree route and recovery are reusable.
 - [ ] Fixture XSLT-VIEW-OUTPUT: preserve HTML, AVTs, whitespace, static styles
       and existing slice/event bindings. Document the bounded profile and
       source-located diagnostics without claiming full XSLT 3.0 support.

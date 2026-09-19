@@ -12,6 +12,10 @@ strict transform/CLI execution, bounded grouping and stable sorting are now
 implemented. Subsequent viewer stages remain open in [todo.md](todo.md).
 Explicit host position and sequence size are now supported by the shared XPath
 API. No equivalent XSLT stylesheet or browser sample is available yet.
+Standard parsing reached a new [shared-capability decision](xslt-runtime-lowering.md#standard-parsing-and-recovery-scope-decision-pending)
+on 2026-09-18: native trees are ready, but XPath parsing functions and typed
+import/error classification still need approval. Four native probes document
+the boundary; this checkpoint does not implement standard parsing or catches.
 
 ## Scope
 
