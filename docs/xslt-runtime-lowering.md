@@ -433,15 +433,15 @@ imported XSLT presentation aspects remain open.
 
 ## Browser state-binding decision
 
-The native named-entry scalar contract works, but the component binding is
-unsettled. `cem-elements` currently routes XSLT URLs through
+**Explicit scalar parameter mappings approved on 2026-09-19.**
+`cem-elements` currently routes XSLT URLs through
 `ensureLegacyConverted` and `convertLegacyTemplate`, then compiles the converted
 CEMT source. It does not retain the typed XSLT bundle. The public WASM
 `compileXsltBundle` / `retainXsltStylesheet` functions use default compiler
 options; native-produced bundles can already declare an entrypoint and scalar
 bindings and render through the tested import/render/dispose API.
 
-The recommended contract is **explicit scalar parameter bindings** for a
+The accepted contract is **explicit scalar parameter bindings** for a
 strict XSLT component declaration. Reuse CEM-ML/CEM-QL expressions for state
 selection, map them to declared XSLT parameters, and retain the compiled bundle
 through the declaration/worker lifecycle. For this viewer the mapping is:
@@ -460,11 +460,61 @@ This keeps source text a scalar until CEM-ML imports it and keeps document
 handles native. It requires explicit declaration metadata, WASM compiler-option
 transport and worker retention/disposal; it must not silently infer parameter
 bindings, use the legacy converter for strict XSLT, or expose document records.
-An alternative is to expose a new native `datadom` CEM document to XPath and
-select state from that document, which introduces a different public node
-contract. **Awaiting the browser state-binding choice.** The already approved
-compiled-bundle delivery, imports and provenance functions are settled; this
-decision selects the new component binding contract under the viewer scope.
+The alternative native `datadom` document was not selected. Compiled-bundle
+delivery, imports, provenance and scalar state selection are settled.
+
+The native `xslt::component::XsltComponent` adapter now compiles each declared
+CEM-QL `select` expression once and resolves parameter/entrypoint names in the
+principal stylesheet's namespace context. Its control options carry
+`entrypoint`, `parameters: [{name, select}]` and the explicit, content-hashed
+stylesheet module closure. Expressions see only the declared host bindings.
+Each mapping is independent; a parameter name is not another selector's local
+variable. Zero items supply an empty sequence; an unmapped parameter keeps its
+XSLT default. Multiple items, nodes, arrays, records and functions are rejected
+before rendering. Native document properties may produce scalar values.
+
+WASM exposes `retainXsltComponent`, `renderXsltComponent`,
+`disposeXsltComponent` and `xsltStylesheetImports` for this adapter. The
+stylesheet-import query returns only authored dependency specifiers from typed
+XSLT authoring input. Documents enter through the existing CEM import/handle
+channel. No external-format reader or JavaScript document projection was added.
+The adapter currently requires an explicit native initial context for named
+templates that evaluate XPath, as does the existing lowered bundle. Browser
+declaration syntax, resolver preflight and worker integration remain unshipped
+pending the focus choice below.
+
+### Named-entry initial focus decision
+
+The scalar mapping fixture exposed a separate existing limitation. Even a
+named template that reads only `$text` fails without a source context item:
+`cem.xslt.bundle_argument: XSLT context requires exactly one native item`.
+The compiler emits sequence-focus XPath programs throughout the named body;
+the existing bundle ABI requires a singleton item for those programs. Its
+static `absent` focus form does not represent a named call whose focus may be
+absent initially and become present inside an iteration.
+
+The native test `characterizes_the_named_entry_absent_focus_gate` and its WASM
+counterpart reproduce this without a synthetic document. Supplying an explicit
+retained CEM document makes the same scalar mappings work. This characterizes
+the current limitation; it is not a claim that the browser contract is complete.
+
+**Recommended next change:** extend typed XSLT lowering and its bundle focus
+contract to preserve an absent initial focus for named-template invocation.
+This follows [XSLT 3.0 call-template invocation](https://www.w3.org/TR/xslt-30/#invoking-initial-template):
+the initial context item is optional. Scalar-only expressions should succeed;
+expressions reading missing focus should raise their standard dynamic errors
+when accessed. Named calls must preserve absence, and iteration/application of
+templates must establish ordinary native item/position/size focus. Use an
+explicitly identified optional-focus ABI form, preserving existing strict
+singleton/sequence bundle validation, ownership and limits. Verify native,
+binary reload and WASM behavior, including typed recovery and empty iterations.
+Do not invent an XML control document or route state through JSON records.
+
+The alternative is to require a separately declared retained CEM source-document
+binding for every browser XSLT declaration, in addition to scalar parameters.
+This is a new initial-context contract, not a reconsideration of scalar state
+selection. **Awaiting this choice** per the user's stop-at-decisions instruction
+and the browser-runtime scope gate in [the viewer plan](xslt-data-table-parity.md#scope).
 
 ## Native output construction
 

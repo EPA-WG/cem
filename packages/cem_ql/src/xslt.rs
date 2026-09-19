@@ -26,6 +26,7 @@ use std::{
 };
 
 pub mod compiler;
+pub mod component;
 mod invocation;
 mod source_maps;
 pub use cem_ml::schema::registry::XSLT_BUNDLE_CONTENT_TYPE as BUNDLE_CONTENT_TYPE;

@@ -61,6 +61,24 @@ pub fn compile_xslt_bundle(source: &str, source_uri: &str) -> CompileResult<Comp
     compile_xslt_bundle_with_options(source, source_uri, &XsltCompileOptions::default())
 }
 
+/// Import/include edges from typed authoring XML, for host resolver preflight.
+/// No source document or parser projection crosses this control boundary.
+pub fn stylesheet_imports(source: &str, source_uri: &str) -> CompileResult<Vec<String>> {
+    if source.len() > MAX_SOURCE_BYTES {
+        return Err(imports::diagnostic(source_uri, "stylesheet source exceeds limit"));
+    }
+    let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules(
+        XsltSourceValidationRequest { bytes: source.as_bytes(), source_uri,
+            content_type: Some("application/xslt+xml") }, &[]);
+    let stylesheet = stylesheet.ok_or(diagnostics)?;
+    Ok(stylesheet.xml_document.events.iter()
+        .filter(|event| is_element(event) && event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
+            && matches!(event.local_name.as_deref(), Some("import" | "include")))
+        .filter_map(|event| event.attributes.iter().find(|attr| attr.local_name == "href"
+            && attr.namespace_uri.is_none()).and_then(|attr| attr.entity_decoded_value.clone()))
+        .collect())
+}
+
 /// Compile the bounded template-dispatch profile. The initial native context
 /// is supplied through `document`; module sources are preflighted by the host.
 pub fn compile_xslt_bundle_with_options(

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import init, {
     importXsltBundle, renderXsltBundle, disposeXsltBundle,
     compileXsltBundle, retainXsltStylesheet,
+    retainXsltComponent, renderXsltComponent, disposeXsltComponent, xsltStylesheetImports,
     retainCemDocument, disposeCemDocument,
     compileTemplate, renderTemplate, disposeTemplate,
 } from '../../packages/cem_ql/dist/wasm/cem_ql.js';
@@ -41,6 +42,9 @@ try {
     });
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_data_view'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_VIEW_FIXTURE_DIR: directory },
+    });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_component'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_COMPONENT_FIXTURE_DIR: directory },
     });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
@@ -375,6 +379,97 @@ try {
             }
         } finally { assert.equal(disposeCemDocument(document), true); }
     } finally { assert.equal(disposeXsltBundle(retainedViewer.bundleId), true); }
+    // XSLT-VIEW-BROWSER-SCALARS: metadata carries CEM-QL selectors and scalar
+    // state, while the initial focus and resource data use native handles.
+    const componentSource = readFileSync(join(directory, 'component.xslt'), 'utf8');
+    const componentOptions = JSON.parse(readFileSync(join(directory, 'component-options.json'), 'utf8'));
+    const retainComponent = (options = componentOptions, source = componentSource, uri = 'memory:component.xslt') =>
+        JSON.parse(retainXsltComponent(source, uri, JSON.stringify(options), '["datadom"]'));
+    const component = retainComponent();
+    const focus = retainCemDocument(new TextEncoder().encode('<input/>'), 'application/xml', 'memory:component-input');
+    try {
+        assert.deepEqual(component.diagnostics, []);
+        for (const value of ['one', 'two', null]) {
+            const output = JSON.parse(renderXsltComponent(component.artifactId,
+                JSON.stringify({ datadom: { slices: { text: value } } }), '[]', focus));
+            assert.deepEqual(output.diagnostics, []);
+            assert.equal(text(output.nodes), `${value ?? 'fallback'}:false`);
+            checks++;
+        }
+        for (const value of [[], { value: 'structured control' }]) {
+            const output = JSON.parse(renderXsltComponent(component.artifactId,
+                JSON.stringify({ datadom: { slices: { text: value } } }), '[]', focus));
+            assert.deepEqual(output.nodes, []);
+            assert.ok(output.diagnostics.some(d => d.code === 'cem.xslt.scalar_mapping'));
+            checks++;
+        }
+        const missingFocus = JSON.parse(renderXsltComponent(component.artifactId,
+            '{"datadom":{"slices":{"text":"scalar"}}}', '[]'));
+        assert.ok(missingFocus.diagnostics.some(d => d.code === 'cem.xslt.bundle_argument'));
+        checks++;
+        const importedSource = readFileSync(join(directory, 'component-import.xslt'), 'utf8');
+        const importedOptions = JSON.parse(readFileSync(join(directory, 'component-import-options.json'), 'utf8'));
+        assert.deepEqual(JSON.parse(xsltStylesheetImports(importedSource, 'memory:component.xslt')), ['./base.xslt']);
+        const imported = retainComponent(importedOptions, importedSource);
+        try {
+            const output = JSON.parse(renderXsltComponent(imported.artifactId, '{}', '[]', focus));
+            assert.deepEqual(output.diagnostics, []);
+            assert.equal(text(output.nodes), 'imported:false');
+            checks++;
+        } finally { assert.equal(disposeXsltComponent(imported.artifactId), true); }
+        importedOptions.modules[0].source += '<!-- drift -->';
+        assert.throws(() => retainComponent(importedOptions, importedSource));
+        checks++;
+        for (const options of [
+            { ...componentOptions, parameters: [{ name: 'missing', select: '1' }] },
+            { ...componentOptions, parameters: [...componentOptions.parameters, ...componentOptions.parameters] },
+            { ...componentOptions, parameters: [{ name: 'p:text', select: 'unknown +' }] },
+            { ...componentOptions, unexpected: true },
+        ]) {
+            assert.throws(() => retainComponent(options));
+            checks++;
+        }
+        const nativeControl = retainComponent({ ...componentOptions,
+            parameters: [{ name: 'p:text', select: 'data:node_key(datadom.slices.response.data)' }] });
+        try {
+            const output = JSON.parse(renderXsltComponent(nativeControl.artifactId,
+                '{"datadom":{"slices":{"response":{"state":"ready"}}}}',
+                JSON.stringify([{ slice: 'response', documentId: focus }]), focus));
+            assert.deepEqual(output.diagnostics, []);
+            assert.ok(text(output.nodes).startsWith('cem-source:1:'));
+            checks++;
+        } finally { disposeXsltComponent(nativeControl.artifactId); }
+        const viewerComponent = retainComponent({ entrypoint: 'viewer', parameters:
+            Object.keys(viewer.cases[0].controls).map(name => ({ name, select: `datadom.slices.${name}` })),
+        }, readFileSync(join(directory, 'viewer.xslt'), 'utf8'), 'memory:data-table-view.xslt');
+        try {
+            for (const test of viewer.cases) {
+                const output = JSON.parse(renderXsltComponent(viewerComponent.artifactId,
+                    JSON.stringify({ datadom: { slices: test.controls } }), '[]', focus));
+                assert.deepEqual(output.diagnostics, []);
+                assert.deepEqual(visible(output.nodes), test.nodes);
+                assert.deepEqual(selections(output.nodes), test.selections);
+                checks++;
+            }
+        } finally { disposeXsltComponent(viewerComponent.artifactId); }
+    } finally { disposeCemDocument(focus); }
+    assert.ok(JSON.parse(renderXsltComponent(component.artifactId, '{}', '[]', focus))
+        .diagnostics.some(d => d.code === 'cem.xslt.unknown_document'));
+    assert.equal(disposeXsltComponent(component.artifactId), true);
+    assert.equal(disposeXsltComponent(component.artifactId), false);
+    assert.ok(JSON.parse(renderXsltComponent(component.artifactId, '{}', '[]'))
+        .diagnostics.some(d => d.code === 'cem.xslt.unknown_component'));
+    checks++;
+    const componentHandles = [];
+    try {
+        for (let index = 0; index < 16; index++) componentHandles.push(retainComponent().artifactId);
+        assert.throws(() => retainComponent());
+        checks++;
+    } finally { for (const id of componentHandles) assert.equal(disposeXsltComponent(id), true); }
+    const nextComponent = retainComponent();
+    assert.ok(nextComponent.artifactId > componentHandles.at(-1));
+    assert.equal(disposeXsltComponent(nextComponent.artifactId), true);
+    checks++;
     // XSLT-OUTPUT-WASM: the JSON below is the explicit render-plan protocol.
     // XML/JSON document bytes are still imported and queried entirely in CEM-ML.
     for (const name of ['native-output', 'avt-output']) {

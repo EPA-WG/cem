@@ -79,9 +79,41 @@ The [typed runtime compiler](xslt-runtime-lowering.md) now produces these
 bundles from a bounded stylesheet profile with recursive templates, parameters,
 modes and import/include precedence. WASM also provides `compileXsltBundle`
 and `retainXsltStylesheet` with default compiler options; native-built closures
-load through the binary bundle API. Non-composite grouping and its dynamic
+load through the binary bundle API.
+
+The approved component scalar-mapping adapter adds
+`retainXsltComponent(source, sourceUri, optionsJson, hostBindingsJson)`.
+Its strictly decoded control options contain an optional lexical `entrypoint`,
+`parameters: [{name, select}]` with native CEM-QL expressions, and
+`modules: [{parentUri, href, uri, source, contentHash}]`. Names resolve in the
+principal stylesheet namespace context; only declared template parameters can
+be mapped. Selectors are compiled once and render independently against the
+declared host bindings. Unmapped parameters retain their XSLT defaults; a
+mapped empty sequence remains an explicit empty sequence. Only zero or one
+scalar is accepted. Limits include 250 mappings and 32 KiB per selector.
+
+`renderXsltComponent(artifactId, controlDataJson, resourceBindingsJson,
+initialDocumentId?)` accepts existing component control metadata and native
+resource-handle entries `{slice, documentId}`. A supplied initial document ID
+must reference a retained CEM document; control JSON cannot supply that focus.
+Resource nodes are bound through the shared native `TemplateData` channel,
+where a CEM-QL selector may read a scalar property. The returned JSON is the
+existing explicit render-plan protocol, never a document export.
+`disposeXsltComponent(artifactId)` releases ownership; IDs are monotonic and
+not reused. This registry admits at most 16 components and 32 MiB of encoded
+bundle bytes plus selector-source bytes. The options transport is bounded to
+8 MiB, and each render control input to 128 KiB.
+`xsltStylesheetImports(source, sourceUri)` returns only import/include hrefs
+from typed authoring source for resolver preflight.
+
+The component adapter uses the existing required native focus. The
+[absent initial-focus proposal](xslt-runtime-lowering.md#named-entry-initial-focus-decision)
+is pending; browser declaration/worker wiring is not yet available. Existing
+bundle delivery APIs and their focus validation are unchanged.
+
+Non-composite grouping and its dynamic
 context also execute through this ABI. Sorting, native output and the base
-data-table viewer execute through native-produced bundles. Component state
+data-table viewer execute through native-produced bundles. Browser state
 binding and imported viewer aspects remain subsequent checklist items. Verification covers
 explicitly composed bundles, native/WASM stylesheet compilation and compiled
 module closures with imported overrides, grouping over all shared import

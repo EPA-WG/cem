@@ -1234,12 +1234,37 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
           Verification: 457 CEM-QL tests, 13 real CLI parity tests and 172
           native/WASM checks pass. The base stylesheet is ready for native/CLI
           use; browser wiring, styling and imported XSLT aspects remain open.
-    - [ ] XSLT-VIEW-BROWSER-PARAMS-DECISION: choose the component's state-binding
+    - [x] XSLT-VIEW-BROWSER-PARAMS-DECISION: choose the component's state-binding
           contract before adding declaration/worker integration. Recommend
           explicit scalar mappings to declared XSLT template parameters;
           the alternative introduces a native control-document node contract.
           See the [browser proposal](xslt-runtime-lowering.md#browser-state-binding-decision).
           Native bundle delivery, import and provenance approval remain settled.
+          Explicit scalar parameter mappings approved on 2026-09-19.
+    - [x] Fixture XSLT-VIEW-BROWSER-SCALARS: compile declared CEM-QL state
+          expressions once, bind only scalar results to declared XSLT parameters,
+          preserve defaults, and reject duplicate names, structured values and
+          invalid expressions. Verify native and WASM option transport.
+          Include imported modules/hash drift, native-property scalar selection,
+          mapped empty sequences, retained-handle limits/disposal and all four
+          viewer import formats through native-compiled control fixtures.
+          Verification: 463 CEM-QL tests and 200 native/WASM bundle checks pass;
+          CEM-QL lint passes with its existing 23 warnings. Component authoring
+          and worker wiring remain open at the initial-focus choice below.
+    - [x] Fixture XSLT-VIEW-NAMED-FOCUS-BOUNDARY: reproduce the existing
+          singleton-context requirement for scalar-only named templates. Native
+          and WASM adapters must report the limitation without inventing a
+          source tree. See the [tested focus proposal](xslt-runtime-lowering.md#named-entry-initial-focus-decision).
+    - [ ] XSLT-VIEW-NAMED-FOCUS-DECISION: choose absent initial focus for
+          named entrypoints (recommended, following XSLT 3.0), or require a
+          separate native source-document binding on every browser declaration.
+          Scalar parameter mappings remain approved. Do not change focus ABI
+          or ship browser integration before this choice.
+    - [ ] Fixture XSLT-VIEW-BROWSER-LIFECYCLE: retain typed XSLT in the shared
+          processing engine; test cache identity, disposal, worker recovery and
+          declaration state changes without the legacy converter.
+          Match worker eviction to the native 16-component retention limit;
+          preserve stylesheet URI in identity and source-selection provenance.
     - [ ] Fixture XSLT-VIEW-ASPECTS-NATIVE: author an imported XSLT presentation
           module for notes-as-tree and the local IP-filter form; compare enabled,
           disabled and changed-draft outputs with the CEMT reference.

@@ -27,9 +27,11 @@ source-selection keys/line numbers and a CSV header-profile mismatch. The
 [viewer selection and CSV proposal](xslt-runtime-lowering.md#viewer-selection-and-csv-parity-gate)
 was approved and implemented on 2026-09-19, including matching native CEM-QL
 provenance functions. Namespace declarations are now excluded from both viewers'
-data presentation, as approved on 2026-09-19. The next
+data presentation, as approved on 2026-09-19. The
 [browser state-binding decision](xslt-runtime-lowering.md#browser-state-binding-decision)
-chooses explicit scalar parameters or a new native control-document contract.
+selected explicit scalar parameter mappings. Native/WASM mapping support is
+implemented; browser wiring awaits the separately tested
+[named-entry initial-focus choice](xslt-runtime-lowering.md#named-entry-initial-focus-decision).
 
 ## Scope
 
@@ -58,6 +60,8 @@ including native copying, atomic/text normalization, attribute ordering, typed
 failures, bounded namespace fixup and portable output. Shared source-selection
 keys, original line-number access in both query languages, and explicit CSV
 header options and namespace-declaration exclusion were approved on 2026-09-19.
+Explicit scalar state mappings to declared XSLT template parameters, reusing
+CEM-QL expressions and retained worker lifecycle, were also approved that day.
 Other shared capability expansions
 still require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
