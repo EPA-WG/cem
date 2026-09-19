@@ -10,7 +10,7 @@ use cem_ml::{
     resolver::{ResolverPolicy, ResolverRegistry},
     validation::xpath::{
         XPathDynamicContext, XPathEvaluationRequest, XPathResultItem, XPathResultSequence,
-        XsltXPathInvocationAdapter,
+        XPathXsltGroupContext, XsltXPathInvocationAdapter,
     },
 };
 
@@ -57,7 +57,7 @@ pub(super) fn registry(
         registry
             .register(
                 format!("xslt.program.{index}"),
-                binding.focus.arity() + binding.variables.len(),
+                binding.context_arity() + binding.variables.len(),
                 Installed {
                     binding: binding.clone(),
                     expression: expression.clone(),
@@ -78,7 +78,7 @@ struct Installed {
 impl NativeQueryFunction for Installed {
     fn call(&self, request: NativeQueryRequest<'_>) -> ItemStream {
         let binding = &self.binding;
-        if request.arguments.len() != binding.focus.arity() + binding.variables.len() {
+        if request.arguments.len() != binding.context_arity() + binding.variables.len() {
             return request.raise("cem.xslt.bundle_argument", "XSLT program arity mismatch");
         }
         let limit = self
@@ -139,10 +139,58 @@ impl NativeQueryFunction for Installed {
                 dynamic_context.context_position = Some(coordinate(1, "position")?);
                 dynamic_context.context_size = Some(coordinate(2, "size")?);
             }
+            if binding.group_context {
+                let offset = binding.focus.arity();
+                let group_value =
+                    |index: usize| -> std::result::Result<Option<XPathResultSequence>, String> {
+                        let present = bind_argument(
+                            &Parameter {
+                                name: "group-present".into(),
+                                kind: ParamType::Boolean,
+                                nullable: false,
+                            },
+                            &request.arguments[offset + index],
+                            &request,
+                        )?;
+                        let [XPathResultItem::Atomic { value, .. }] = present.as_slice() else {
+                            return Err("XSLT group presence requires one boolean".into());
+                        };
+                        let present = match value.lexical_value.as_str() {
+                            "true" | "1" => true,
+                            "false" | "0" => false,
+                            _ => return Err("invalid XSLT group presence boolean".into()),
+                        };
+                        if !present {
+                            if !request.arguments[offset + index + 1].items.is_empty() {
+                                return Err(
+                                    "absent XSLT group context must have an empty payload".into()
+                                );
+                            }
+                            return Ok(None);
+                        }
+                        let items = bind_xslt_argument(
+                            &Parameter {
+                                name: "group-value".into(),
+                                kind: ParamType::Any,
+                                nullable: true,
+                            },
+                            &request.arguments[offset + index + 1],
+                            &request,
+                        )?;
+                        Ok(Some(XPathResultSequence {
+                            sequence_type: "item()*".into(),
+                            items,
+                        }))
+                    };
+                dynamic_context.xslt_group = Some(XPathXsltGroupContext {
+                    current_group: group_value(0)?,
+                    current_grouping_key: group_value(2)?,
+                });
+            }
             for (variable, argument) in binding
                 .variables
                 .iter()
-                .zip(&request.arguments[binding.focus.arity()..])
+                .zip(&request.arguments[binding.context_arity()..])
             {
                 let values = bind_xslt_argument(
                     &Parameter {
@@ -248,6 +296,7 @@ mod tests {
             binding: ProgramBinding {
                 stylesheet: 0,
                 focus: BundleFocus::Absent,
+                group_context: false,
                 variables: vec![],
                 hash: String::new(),
             },

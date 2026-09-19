@@ -24,6 +24,9 @@ try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_matching'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_MATCH_FIXTURE_DIR: directory },
     });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_grouping'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_GROUP_FIXTURE_DIR: directory },
+    });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
     // go straight to the common CEM import/retention boundary below.
@@ -161,6 +164,51 @@ try {
         }
     } finally { disposeXsltBundle(matched.bundleId); }
     const wrap = body => `<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/">${body}</xsl:template></xsl:stylesheet>`;
+    for (const [name, inputs] of [
+        ['grouped', [
+            ['<r><row id="a"><name>A</name></row><note/><row id="b"><age>2</age><name>B</name></row></r>', 'application/xml', 'idnameageab'],
+            ['<r><entry id="c"><city>C</city></entry><entry id="d"><extra>D</extra></entry></r>', 'application/xml', 'idcityextracd'],
+            ['<r/>', 'application/xml', ''],
+        ]],
+        ['grouped-formats', [
+            ['<r><a>A</a><b>B</b></r>', 'application/xml', 'all|A|B'],
+            ['{"a":"A","b":"B"}', 'application/json', 'all|A|B'],
+            ['a: A\nb: B\n', 'application/yaml', 'all|A|B'],
+            ['v\nA\nB\n', 'text/csv', 'all|A|B'],
+        ]],
+    ]) {
+        const manifest = JSON.parse(readFileSync(join(directory, `${name}.json`), 'utf8'));
+        const bytes = readFileSync(join(directory, `${name}.bin`));
+        const source = readFileSync(join(directory, `${name}.xslt`), 'utf8');
+        assert.deepEqual(Buffer.from(compileXsltBundle(source, 'memory:group.xslt')), bytes);
+        checks++;
+        for (const retained of [load(bytes, manifest.contentHash, manifest.sourceHash), JSON.parse(retainXsltStylesheet(source, 'memory:group.xslt'))]) {
+            try {
+                for (const [input, type, expected] of inputs) {
+                    const document = retainCemDocument(new TextEncoder().encode(input), type, 'memory:group-input');
+                    try {
+                        const output = render(document, '{}', retained.bundleId);
+                        assert.deepEqual(output.diagnostics, []);
+                        assert.equal(text(output.nodes), expected);
+                        checks++;
+                    } finally { assert.equal(disposeCemDocument(document), true); }
+                }
+            } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
+        }
+    }
+    for (const [expression, code] of [['current-group()', 'XTDE1061'], ['current-grouping-key()', 'XTDE1071']]) {
+        const retained = JSON.parse(retainXsltStylesheet(wrap(`<xsl:for-each-group select="/*/*" group-by="'one'"><p>partial<xsl:value-of select="(function() { ${expression} })()"/></p></xsl:for-each-group>`), 'memory:group-error.xslt'));
+        const document = retainCemDocument(new TextEncoder().encode('<r><row/></r>'), 'application/xml', 'memory:group-input');
+        try {
+            const output = render(document, '{}', retained.bundleId);
+            assert.deepEqual(output.nodes, []);
+            assert.ok(output.diagnostics.some(d => d.message.includes(code) && d.uri === 'memory:group-error.xslt' && d.sourceMap.frames.length));
+            checks++;
+        } finally {
+            disposeXsltBundle(retained.bundleId);
+            disposeCemDocument(document);
+        }
+    }
     for (const compile of [compileXsltBundle, retainXsltStylesheet]) {
         assert.throws(() => compile(wrap('<xsl:apply-imports/>'), 'memory:unsupported.xslt'), error => {
             const diagnostics = JSON.parse(String(error)).diagnostics;
@@ -181,7 +229,7 @@ try {
         disposeXsltBundle(failed.bundleId);
         disposeCemDocument(failedInput);
     }
-    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, ownership, focus, bounds and isolation).`);
+    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, ownership, focus, grouping, bounds and isolation).`);
 } finally {
     rmSync(directory, { recursive: true, force: true });
 }

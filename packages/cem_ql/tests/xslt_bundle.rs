@@ -102,6 +102,7 @@ fn fixture_with(
             },
         ],
         &[BundleProgram {
+            group_context: false,
             stylesheet: 1,
             focus,
             variables: vec![BundleVariable {
@@ -244,6 +245,7 @@ fn invalid_identity_members_closures_and_bindings_fail_before_installation() {
         |m| m["programs"][0]["hash"] = root_hash().header_value().into(),
         |m| m["programs"][0]["variables"][0]["name"]["localName"] = "missing".into(),
         |m| m["programs"][0]["variables"][0]["kind"] = "object".into(),
+        |m| m["programs"][0]["group_context"] = "invalid".into(),
         |m| m["templateHash"] = root_hash().header_value().into(),
         |m| m["generatedSource"]["byteLength"] = 1.into(),
         |m| m["hostBindings"] = serde_json::json!([]),

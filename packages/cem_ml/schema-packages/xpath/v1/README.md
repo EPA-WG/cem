@@ -567,10 +567,22 @@ the caller's focus afterward. Inline functions still have absent focus;
 authors can explicitly capture `position()`/`last()` results in variables.
 The new fields are runtime-only: artifact formats and hashes are unchanged,
 and reloaded programs accept a different focus on every call. The native XSLT
-adapter now accepts this contract; stylesheet-loop lowering and bundle/WASM
-binding remain separate pending work. Unknown streaming size is not supported
+adapter and compiled bundle/WASM bindings use this contract. Unknown streaming size is not supported
 by this materialized-focus contract. See
 [XPath dynamic context](https://www.w3.org/TR/xpath-31/#id-xq-evaluation-context-components).
+
+The XSLT invocation host additionally accepts `XPathDynamicContext.xslt_group`:
+`XPathXsltGroupContext` has independent optional `current_group` and
+`current_grouping_key` native sequences. Absence differs from a present empty
+sequence, and keys must be atomic. Other hosts reject supplied XSLT group state.
+`fn:current-group()` and `fn:current-grouping-key()` are XSLT host functions;
+they raise `XTDE1061`/`XTDE1071` only when evaluated with the corresponding state
+absent. Predicates, paths and simple maps preserve group state independently of
+their focus. Inline-function bodies start with absent group state; closures
+can still capture values explicitly stored in lexical variables. Native owner,
+source and resource-control contracts apply to these sequences. No runtime
+state is serialized into XPath artifacts. See
+[XSLT grouping context](https://www.w3.org/TR/xslt-30/#func-current-group).
 
 The result media type is intentionally distinct from expression source and does
 not enter the XPath source parser. XML, JSON, CEM, and text serialization remain

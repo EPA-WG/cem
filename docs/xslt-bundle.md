@@ -33,13 +33,23 @@ the owning URI distinguishes equal numeric IDs across sources. Packaging does
 not invent mappings from generated CEMT back to stylesheet instructions.
 
 Program `i` supplies exactly `xslt.program.i` to the bundle's local registry.
-Its positional ABI is a declared focus followed by ordered variables:
+Its positional ABI is a declared focus, optional group context, then ordered variables:
 
 | Focus | Leading arguments |
 | --- | --- |
 | absent | none |
 | singleton | one native context item |
 | sequence | one native context item, integer position, integer size |
+
+The additive program binding `group_context: true` inserts four arguments after
+focus: group-present (boolean), native group sequence, key-present (boolean),
+native atomic key sequence. Presence is distinct from an empty sequence; an
+absent value must have an empty payload. The field defaults to false and is
+omitted in that case, so existing version-1 bundles retain their ABI. Readers
+that predate this field reject it through strict manifest validation. Arity and
+argument limits include all four arguments. Only programs accessing group
+functions need these bindings; document/control inputs cannot install context
+capabilities. Native state is never encoded in the bundle.
 
 Sequence focus uses the shared XPath contract `1 <= position <= size`.
 Variables declare expanded names and scalar or native `any` types. Scalars
@@ -69,7 +79,9 @@ The [typed runtime compiler](xslt-runtime-lowering.md) now produces these
 bundles from a bounded stylesheet profile with recursive templates, parameters,
 modes and import/include precedence. WASM also provides `compileXsltBundle`
 and `retainXsltStylesheet` with default compiler options; native-built closures
-load through the binary bundle API. Grouping, sorting, broader output and the
+load through the binary bundle API. Non-composite grouping and its dynamic
+context also execute through this ABI. Sorting, broader output and the
 data-table viewer remain subsequent checklist items. Verification covers
 explicitly composed bundles, native/WASM stylesheet compilation and compiled
-module closures with imported overrides.
+module closures with imported overrides, grouping over all shared import
+formats, and absent group-context errors without partial output.

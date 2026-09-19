@@ -162,6 +162,9 @@ fn anchor_primary(
                 anchor_node(argument, range)?;
             }
         }
+        XPathPrimaryExpression::ArrayConstructor(XPathArrayConstructor::Square(sequence)) => {
+            anchor_sequence(sequence, range)?;
+        }
         _ => return Err("unsupported compiler macro primary".into()),
     }
     Ok(())
@@ -189,6 +192,7 @@ fn anchor_node(node: &mut XPathExpressionNode, range: XPathSourceRange) -> Resul
                                         anchor_sequence(sequence, range)?;
                                     }
                                 }
+                                XPathPostfixExpression::Lookup { .. } => (),
                                 _ => return Err("unsupported compiler macro postfix".into()),
                             }
                         }
@@ -245,6 +249,19 @@ fn anchor_node(node: &mut XPathExpressionNode, range: XPathSourceRange) -> Resul
             operand,
             sequence_type:
                 XPathSequenceType::Item {
+                    item_type: XPathSequenceItemType::Atomic(name),
+                    source_range,
+                    ..
+                },
+        } => {
+            name.source_range = range;
+            *source_range = range;
+            anchor_node(operand, range)?;
+        }
+        XPathExpression::InstanceOf {
+            operand,
+            sequence_type:
+                XPathSequenceType::Item {
                     item_type:
                         XPathSequenceItemType::Kind {
                             source_range: item_range,
@@ -260,6 +277,114 @@ fn anchor_node(node: &mut XPathExpressionNode, range: XPathSourceRange) -> Resul
         }
         _ => return Err("unsupported compiler macro expression".into()),
     }
+    Ok(())
+}
+
+// First-seen distinct-values selects representatives with XPath promotion,
+// unlike map same-key or CEM identity. Assign each key to the FIRST matching
+// representative: it existed by that key's population position, including
+// non-transitive numeric cases (§14.5). Per-record indices remove duplicate
+// keys without removing duplicate population positions or native node owners.
+const GROUP_BY: &str = r#"
+let $keys := array { distinct-values(for $record in $records?* return $record?(2)) }
+return let $assigned := array {
+    for $record in $records?*
+    return [$record?(1), distinct-values(
+        for $key in $record?(2)
+        return head(for $i in 1 to array:size($keys)
+                    return if (count(distinct-values(($key, $keys?($i)))) = 1)
+                           then $i else ()))]
+}
+return for $i in 1 to array:size($keys)
+       return [$keys?($i), for $record in $assigned?*
+                          return if ($record?(2) = $i) then $record?(1) else ()]
+"#;
+
+fn macro_node(code: &str, range: XPathSourceRange) -> Result<XPathExpressionNode, String> {
+    let parsed = xpath_expression_ast_from_source_bytes(
+        XPathSourceRequest {
+            bytes: code.as_bytes(),
+            source_uri: "memory:xslt-macro",
+            content_type: Some(XPATH_CONTENT_TYPE),
+            source_range_projector: None,
+        },
+        XPathAttachment::StandaloneStaticContext {
+            source_id: 1,
+            static_context: XPathStaticContext::default(),
+        },
+    );
+    let mut sequence = parsed
+        .syntax_ast
+        .ok_or_else(|| format!("invalid grouping macro: {:?}", parsed.facts))?
+        .root;
+    anchor_sequence(&mut sequence, range)?;
+    Ok(sequence_node(sequence))
+}
+
+pub(super) fn group_by(
+    target: &mut XPathExpressionAst,
+    select: XPathExpressionAst,
+    key: XPathExpressionAst,
+) -> Result<(), String> {
+    let range = target
+        .syntax_ast
+        .as_ref()
+        .ok_or("missing compiler XPath")?
+        .root
+        .source_range;
+    let select = select.syntax_ast.ok_or("missing typed population")?.root;
+    let key = key.syntax_ast.ok_or("missing typed key")?.root;
+    let key_range = key.source_range;
+    let normalized = bind(
+        "input",
+        sequence_node(key),
+        macro_node(
+            "data($input) ! (if (. instance of xs:untypedAtomic) then string(.) else .)",
+            key_range,
+        )?,
+        key_range,
+    );
+    let record = primary(
+        XPathPrimaryExpression::ArrayConstructor(XPathArrayConstructor::Square(
+            XPathExpressionSequence {
+                source_range: range,
+                expressions: vec![
+                    primary(XPathPrimaryExpression::ContextItem, range),
+                    normalized,
+                ],
+            },
+        )),
+        range,
+    );
+    let records = primary(
+        XPathPrimaryExpression::ArrayConstructor(XPathArrayConstructor::Curly(Some(Box::new(
+            XPathExpressionSequence {
+                source_range: range,
+                expressions: vec![XPathExpressionNode {
+                    source_range: range,
+                    expression: XPathExpression::SimpleMap {
+                        input: Box::new(sequence_node(select)),
+                        mappings: vec![record],
+                    },
+                }],
+            },
+        )))),
+        range,
+    );
+    // Every authored expression is evaluated before compiler-local variables
+    // enter scope; generated names cannot capture authored variable references.
+    let body = bind("records", records, macro_node(GROUP_BY, range)?, range);
+    target.syntax_ast = Some(XPathSyntaxAst {
+        root: XPathExpressionSequence {
+            expressions: vec![body],
+            source_range: range,
+        },
+        events: Vec::new(),
+    });
+    target.tokens.clear();
+    target.events.clear();
+    target.facts.clear();
+    target.source_text = None;
     Ok(())
 }
 

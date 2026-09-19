@@ -130,6 +130,8 @@ pub struct BundleVariable {
 pub struct BundleProgram {
     pub stylesheet: usize,
     pub focus: BundleFocus,
+    /// Four arguments after focus: group-present, group, key-present, key.
+    pub group_context: bool,
     pub variables: Vec<BundleVariable>,
     pub artifact: XPathCompiledArtifact,
 }
@@ -138,8 +140,18 @@ pub struct BundleProgram {
 struct ProgramBinding {
     stylesheet: usize,
     focus: BundleFocus,
+    #[serde(default, skip_serializing_if = "is_false")]
+    group_context: bool,
     variables: Vec<BundleVariable>,
     hash: String,
+}
+fn is_false(value: &bool) -> bool {
+    !value
+}
+impl ProgramBinding {
+    fn context_arity(&self) -> usize {
+        self.focus.arity() + if self.group_context { 4 } else { 0 }
+    }
 }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -194,6 +206,7 @@ impl XsltBundle {
                 .map(|p| ProgramBinding {
                     stylesheet: p.stylesheet,
                     focus: p.focus,
+                    group_context: p.group_context,
                     variables: p.variables.clone(),
                     hash: p.artifact.content_hash().header_value(),
                 })
@@ -374,7 +387,6 @@ impl XsltBundle {
         data.data_readers = self.data_readers.clone();
         crate::render::render_compiled_template_with_control(&self.template, &data, control, scope)
     }
-
 }
 
 fn identifier(value: &str) -> Result<()> {
@@ -477,7 +489,7 @@ fn validate_manifest(m: &Manifest, expected_root: &ContentHash) -> Result<()> {
         if program.stylesheet >= m.stylesheets.len() {
             return Err(BundleError::invalid("unknown XPath stylesheet owner"));
         }
-        if program.focus.arity() + program.variables.len() >= 255 {
+        if program.context_arity() + program.variables.len() >= 255 {
             return Err(BundleError::limit());
         }
         parse_hash(&program.hash)?;

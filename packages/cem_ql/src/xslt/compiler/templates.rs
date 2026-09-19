@@ -6,6 +6,24 @@ pub(super) const FOCUS_ITEM: &str = "xslt_context";
 pub(super) const FOCUS_POSITION: &str = "xslt_position";
 pub(super) const FOCUS_SIZE: &str = "xslt_size";
 const FOCUS_MODE: &str = "xslt_mode";
+const GROUP_BINDINGS: [&str; 4] = [
+    "xslt_group_present",
+    "xslt_group",
+    "xslt_key_present",
+    "xslt_key",
+];
+
+fn inherited_group() -> Option<[String; 4]> {
+    Some(GROUP_BINDINGS.map(str::to_owned))
+}
+fn group_arguments(scope: &Scope) -> String {
+    let absent = ["false".into(), "()".into(), "false".into(), "()".into()];
+    GROUP_BINDINGS
+        .iter()
+        .zip(scope.groups.as_ref().unwrap_or(&absent))
+        .map(|(name, value)| with(name, value))
+        .collect()
+}
 
 #[derive(Clone)]
 pub(super) struct Parameter<'a> {
@@ -269,6 +287,7 @@ impl<'a> Compiler<'a> {
                 position: FOCUS_POSITION.into(),
                 size: FOCUS_SIZE.into(),
                 mode: FOCUS_MODE.into(),
+                groups: inherited_group(),
                 variables: BTreeMap::new(),
             };
             let mut body = String::new();
@@ -278,6 +297,7 @@ impl<'a> Compiler<'a> {
                 FOCUS_SIZE.into(),
                 FOCUS_MODE.into(),
             ];
+            bindings.extend(GROUP_BINDINGS.map(str::to_owned));
             for param in &declaration.params {
                 bindings.extend([param.value.clone(), param.supplied.clone()]);
                 let default = if param.required {
@@ -334,6 +354,7 @@ impl<'a> Compiler<'a> {
                     position: FOCUS_POSITION.into(),
                     size: FOCUS_SIZE.into(),
                     mode: FOCUS_MODE.into(),
+                    groups: None,
                     variables: BTreeMap::new(),
                 };
                 let test = self.program(
@@ -355,6 +376,7 @@ impl<'a> Compiler<'a> {
             position: "1".into(),
             size: "1".into(),
             mode: quote(""),
+            groups: None,
             variables: BTreeMap::new(),
         };
         self.select_source(0);
@@ -362,7 +384,7 @@ impl<'a> Compiler<'a> {
         let entry_call = if let Some(entry) = entry {
             self.call(entry, &options.parameters, &scope, root.event)?
         } else if options.parameters.is_empty() {
-            self.dispatch("document", &quote(""), &BTreeMap::new(), false)
+            self.dispatch("document", &quote(""), &BTreeMap::new(), false, &scope)
         } else {
             return Err(self.error(
                 root.event,
@@ -416,7 +438,7 @@ impl<'a> Compiler<'a> {
             quote(&self.mode(node.event, None)?)
         };
         let arguments = self.arguments(node, scope)?;
-        Ok(self.dispatch(&select, &mode, &arguments, false))
+        Ok(self.dispatch(&select, &mode, &arguments, false, scope))
     }
     fn dispatch(
         &mut self,
@@ -424,6 +446,7 @@ impl<'a> Compiler<'a> {
         mode: &str,
         arguments: &BTreeMap<XPathExpandedName, String>,
         forward: bool,
+        scope: &Scope,
     ) -> String {
         let sequence = self.fresh();
         let size = self.fresh();
@@ -441,6 +464,7 @@ impl<'a> Compiler<'a> {
             + &with(FOCUS_POSITION, &position)
             + &with(FOCUS_SIZE, &size)
             + &with(FOCUS_MODE, mode);
+        attributes.push_str(&group_arguments(scope));
         for template in &self.templates {
             for param in &template.params {
                 let argument = cached.get(&param.name);
@@ -473,6 +497,7 @@ impl<'a> Compiler<'a> {
             position: FOCUS_POSITION.into(),
             size: FOCUS_SIZE.into(),
             mode: FOCUS_MODE.into(),
+            groups: inherited_group(),
             variables: BTreeMap::new(),
         };
         let mut program =
@@ -488,7 +513,7 @@ impl<'a> Compiler<'a> {
         )?;
         let value = program("string(.)", xpath::ResultKind::Sequence)?;
         let other_node = program(". instance of node()", xpath::ResultKind::Boolean)?;
-        let recursion = self.dispatch(&children, FOCUS_MODE, &BTreeMap::new(), true);
+        let recursion = self.dispatch(&children, FOCUS_MODE, &BTreeMap::new(), true, &scope);
         let body = format!("{{choose |{{when @test={} |{recursion}}}{{when @test={} |{{$ {value}}}}}{{when @test={} |}}{{otherwise |{{$report:raise(\"cem.xslt.dispatch_unsupported\", \"this profile supports node dispatch\")}}}}}}", query_attribute(&parent), query_attribute(&text), query_attribute(&other_node));
         let mut bindings = vec![
             FOCUS_ITEM.to_owned(),
@@ -496,6 +521,7 @@ impl<'a> Compiler<'a> {
             FOCUS_SIZE.into(),
             FOCUS_MODE.into(),
         ];
+        bindings.extend(GROUP_BINDINGS.map(str::to_owned));
         for template in &self.templates {
             for param in &template.params {
                 bindings.extend([param.value.clone(), param.supplied.clone()]);
@@ -594,6 +620,7 @@ impl<'a> Compiler<'a> {
             with(FOCUS_SIZE, &scope.size)
         );
         output.push_str(&with(FOCUS_MODE, &scope.mode));
+        output.push_str(&group_arguments(scope));
         for param in &declaration.params {
             let argument = arguments.get(&param.name);
             if param.required && argument.is_none() {

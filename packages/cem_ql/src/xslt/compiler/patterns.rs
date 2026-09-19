@@ -146,6 +146,28 @@ impl Compiler<'_> {
                 "invalid or unsupported match pattern",
             )
         })?;
+        if let Some((code, range)) = grouping::group_function(&syntax.root) {
+            let mut diagnostics = self.error(
+                event,
+                "cem.xslt.group_pattern",
+                format!("err:{code}: group context functions cannot be used in match patterns"),
+            );
+            let diagnostic = &mut diagnostics[0];
+            diagnostic.line = Some(range.start.line);
+            diagnostic.column = Some(range.start.column);
+            diagnostic.byte_offset = Some(range.start.byte_offset);
+            if let Some(frame) = diagnostic
+                .source_map
+                .as_mut()
+                .and_then(|map| map.frames.last_mut())
+            {
+                frame.span = cem_ml::source_map::FrameSpan::Single(cem_ml::source::ByteRange::new(
+                    range.start.byte_offset,
+                    range.byte_length as u32,
+                ));
+            }
+            return Err(diagnostics);
+        }
         let [root] = syntax.root.expressions.as_slice() else {
             return Err(self.error(
                 event,

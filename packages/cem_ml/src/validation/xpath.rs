@@ -2,6 +2,7 @@ mod aggregate;
 pub mod artifact;
 mod containers;
 mod functions;
+mod grouping;
 pub use functions::XPathNativeFunctionItem;
 mod lexer;
 mod node;
@@ -872,6 +873,14 @@ pub struct XPathResultArtifact {
 
 pub const XPATH_DEFAULT_LANGUAGE: &str = "en";
 
+/// Native XSLT dynamic state. None means absent; Some(empty) is a present
+/// empty value. This is independent of focus and never captured by closures.
+#[derive(Debug, Clone, Default)]
+pub struct XPathXsltGroupContext {
+    pub current_group: Option<XPathResultSequence>,
+    pub current_grouping_key: Option<XPathResultSequence>,
+}
+
 #[derive(Debug, Clone)]
 pub struct XPathDynamicContext {
     pub context_item: Option<XPathResultItem>,
@@ -884,6 +893,7 @@ pub struct XPathDynamicContext {
     pub context_size: Option<u64>,
     pub variable_bindings: XPathVariableBindings,
     pub default_language: String,
+    pub xslt_group: Option<XPathXsltGroupContext>,
 }
 
 impl Default for XPathDynamicContext {
@@ -894,6 +904,7 @@ impl Default for XPathDynamicContext {
             context_size: None,
             variable_bindings: BTreeMap::new(),
             default_language: XPATH_DEFAULT_LANGUAGE.to_owned(),
+            xslt_group: None,
         }
     }
 }
@@ -1151,9 +1162,17 @@ impl CemXPathEvaluator {
         runtime
             .force(syntax.root.source_range)
             .map_err(|error| vec![error.into_diagnostic(request.expression)])?;
+        grouping::validate(
+            request.dynamic_context.xslt_group.as_ref(),
+            request.invocation_host,
+            syntax.root.source_range,
+            &mut runtime,
+        )
+        .map_err(|error| vec![error.into_diagnostic(request.expression)])?;
         let focus = XPathFocus::from_dynamic_context(
             &request.dynamic_context,
             &request.static_context,
+            request.invocation_host,
         )
         .map_err(|message| {
             vec![xpath_evaluation_diagnostic(
@@ -1672,9 +1691,11 @@ impl XPathEvaluationError {
     }
 
     fn into_diagnostic(self, expression: &XPathExpressionAst) -> Diagnostic {
-        self.diagnostic.map(|diagnostic| *diagnostic).unwrap_or_else(|| {
-            xpath_evaluation_diagnostic(expression, self.code, self.message, self.source_range)
-        })
+        self.diagnostic
+            .map(|diagnostic| *diagnostic)
+            .unwrap_or_else(|| {
+                xpath_evaluation_diagnostic(expression, self.code, self.message, self.source_range)
+            })
     }
 }
 
@@ -1685,18 +1706,23 @@ struct XPathFocus<'a> {
     size: u64,
     default_language: &'a str,
     static_context: &'a XPathStaticContext,
+    xslt_host: bool,
+    xslt_group: Option<&'a XPathXsltGroupContext>,
 }
 
 impl<'a> XPathFocus<'a> {
     fn from_dynamic_context(
         context: &'a XPathDynamicContext,
         static_context: &'a XPathStaticContext,
+        host: XPathInvocationHost,
     ) -> Result<Self, &'static str> {
         let mut focus = Self::outer(
             context.context_item.as_ref(),
             &context.default_language,
             static_context,
         );
+        focus.xslt_host = host == XPathInvocationHost::Xslt;
+        focus.xslt_group = context.xslt_group.as_ref();
         match (context.context_position, context.context_size) {
             (None, None) => Ok(focus),
             (Some(position), Some(size))
@@ -1721,22 +1747,17 @@ impl<'a> XPathFocus<'a> {
             size: u64::from(context_item.is_some()),
             default_language,
             static_context,
+            xslt_host: false,
+            xslt_group: None,
         }
     }
 
-    fn item(
-        context_item: &'a XPathResultItem,
-        position: usize,
-        size: usize,
-        default_language: &'a str,
-        static_context: &'a XPathStaticContext,
-    ) -> Self {
+    fn item(self, context_item: &'a XPathResultItem, position: usize, size: usize) -> Self {
         Self {
             context_item: Some(context_item),
             position: position as u64,
             size: size as u64,
-            default_language,
-            static_context,
+            ..self
         }
     }
 }
@@ -1811,9 +1832,8 @@ fn xpath_evaluate_expression_node(
         ));
     }
     runtime.expression_depth += 1;
-    let result = xpath_evaluate_expression_node_inner(
-        expression, node, focus, variable_bindings, runtime,
-    );
+    let result =
+        xpath_evaluate_expression_node_inner(expression, node, focus, variable_bindings, runtime);
     runtime.expression_depth -= 1;
     result
 }
@@ -2404,13 +2424,7 @@ fn xpath_evaluate_expression_node_inner(
                     let values = xpath_evaluate_expression_node(
                         expression,
                         mapping,
-                        XPathFocus::item(
-                            item,
-                            position.saturating_add(1),
-                            size,
-                            focus.default_language,
-                            focus.static_context,
-                        ),
+                        focus.item(item, position.saturating_add(1), size),
                         variable_bindings,
                         runtime,
                     )?;
@@ -3178,8 +3192,7 @@ fn xpath_evaluate_path(
                         expression,
                         predicates,
                         candidates,
-                        focus.default_language,
-                        focus.static_context,
+                        focus,
                         variable_bindings,
                         runtime,
                     )?);
@@ -3204,13 +3217,7 @@ fn xpath_evaluate_path(
                         combined.extend(xpath_evaluate_primary(
                             expression,
                             primary,
-                            XPathFocus::item(
-                                item,
-                                position.saturating_add(1),
-                                size,
-                                focus.default_language,
-                                focus.static_context,
-                            ),
+                            focus.item(item, position.saturating_add(1), size),
                             variable_bindings,
                             runtime,
                             step.source_range,
@@ -3239,13 +3246,7 @@ fn xpath_evaluate_path(
                             expression,
                             primary,
                             postfixes,
-                            XPathFocus::item(
-                                item,
-                                position.saturating_add(1),
-                                size,
-                                focus.default_language,
-                                focus.static_context,
-                            ),
+                            focus.item(item, position.saturating_add(1), size),
                             variable_bindings,
                             runtime,
                             step.source_range,
@@ -3284,8 +3285,7 @@ fn xpath_evaluate_postfix(
                     expression,
                     std::slice::from_ref(predicate),
                     current,
-                    focus.default_language,
-                    focus.static_context,
+                    focus,
                     variable_bindings,
                     runtime,
                 )?;
@@ -3404,9 +3404,19 @@ fn xpath_evaluate_primary(
             runtime,
             source_range,
         ),
-        XPathPrimaryExpression::InlineFunction { parameters, result_type, body } => functions::create(
-            expression, parameters, result_type.as_ref(), body.as_deref(),
-            focus, variable_bindings, runtime, source_range,
+        XPathPrimaryExpression::InlineFunction {
+            parameters,
+            result_type,
+            body,
+        } => functions::create(
+            expression,
+            parameters,
+            result_type.as_ref(),
+            body.as_deref(),
+            focus,
+            variable_bindings,
+            runtime,
+            source_range,
         ),
         XPathPrimaryExpression::MapConstructor { .. }
         | XPathPrimaryExpression::ArrayConstructor(_)
@@ -3429,6 +3439,8 @@ fn xpath_evaluate_primary(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum XPathNativeFunction {
+    CurrentGroup,
+    CurrentGroupingKey,
     MapContains,
     MapGet,
     MapKeys,
@@ -3559,6 +3571,8 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         return None;
     }
     match (name.local_name.as_str(), arity) {
+        ("current-group", 0) => Some(XPathNativeFunction::CurrentGroup),
+        ("current-grouping-key", 0) => Some(XPathNativeFunction::CurrentGroupingKey),
         ("position", 0) => Some(XPathNativeFunction::Position),
         ("last", 0) => Some(XPathNativeFunction::Last),
         ("count", 1) => Some(XPathNativeFunction::Count),
@@ -3755,16 +3769,36 @@ fn xpath_evaluate_function_call(
         ));
     };
 
-    if matches!(function, XPathNativeFunction::Matches | XPathNativeFunction::Replace)
-        || (function == XPathNativeFunction::Tokenize && arguments.len() > 1)
+    if matches!(
+        function,
+        XPathNativeFunction::CurrentGroup | XPathNativeFunction::CurrentGroupingKey
+    ) {
+        return grouping::evaluate(function, focus, runtime, source_range);
+    }
+
+    if matches!(
+        function,
+        XPathNativeFunction::Matches | XPathNativeFunction::Replace
+    ) || (function == XPathNativeFunction::Tokenize && arguments.len() > 1)
     {
         return regular_expression::evaluate(
-            function, expression, arguments, focus, variable_bindings, runtime, source_range,
+            function,
+            expression,
+            arguments,
+            focus,
+            variable_bindings,
+            runtime,
+            source_range,
         );
     }
     if function == XPathNativeFunction::Sort {
         return sort::evaluate(
-            expression, arguments, focus, variable_bindings, runtime, source_range,
+            expression,
+            arguments,
+            focus,
+            variable_bindings,
+            runtime,
+            source_range,
         );
     }
 
@@ -4338,6 +4372,9 @@ fn xpath_evaluate_function_call(
         };
     }
     let result = match function {
+        XPathNativeFunction::CurrentGroup | XPathNativeFunction::CurrentGroupingKey => {
+            unreachable!("group functions return before argument evaluation")
+        }
         XPathNativeFunction::CemQlModuleUrl => {
             unreachable!("module URL functions return after host resolution")
         }
@@ -4535,8 +4572,7 @@ fn xpath_apply_predicates(
     expression: &XPathExpressionAst,
     predicates: &[XPathExpressionSequence],
     mut input: Vec<XPathResultItem>,
-    default_language: &str,
-    static_context: &XPathStaticContext,
+    focus: XPathFocus<'_>,
     variable_bindings: &XPathVariableBindings,
     runtime: &mut XPathEvaluationRuntime,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
@@ -4546,13 +4582,7 @@ fn xpath_apply_predicates(
         let mut filtered = Vec::new();
         for (index, item) in input.into_iter().enumerate() {
             runtime.poll(predicate.source_range)?;
-            let predicate_focus = XPathFocus::item(
-                &item,
-                index.saturating_add(1),
-                size,
-                default_language,
-                static_context,
-            );
+            let predicate_focus = focus.item(&item, index.saturating_add(1), size);
             let result = xpath_evaluate_expression_sequence(
                 expression,
                 predicate,
@@ -11540,7 +11570,8 @@ mod tests {
     #[test]
     fn xpath_cem_parser_retains_unmodeled_primaries_as_typed_ranged_nodes() {
         let inline = "fn:abs#1";
-        let syntax = cem_parser_syntax(inline).expect("recognized named-function-reference production");
+        let syntax =
+            cem_parser_syntax(inline).expect("recognized named-function-reference production");
         assert_eq!(syntax, xee_parser_syntax(inline));
         let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
             panic!("expected named function reference primary path");

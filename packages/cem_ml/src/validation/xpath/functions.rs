@@ -17,6 +17,7 @@ struct Closure {
     static_context: XPathStaticContext,
     default_language: String,
     retained_text_bytes: usize,
+    xslt_host: bool,
 }
 
 impl std::fmt::Debug for XPathNativeFunctionItem {
@@ -138,6 +139,7 @@ pub(super) fn create(
             static_context: focus.static_context.clone(),
             default_language: focus.default_language.to_owned(),
             retained_text_bytes: bytes,
+            xslt_host: focus.xslt_host,
         }))),
     }])
 }
@@ -233,7 +235,10 @@ pub(super) fn invoke(
             xpath_evaluate_expression_sequence(
                 &closure.expression,
                 body,
-                XPathFocus::outer(None, &closure.default_language, &closure.static_context),
+                XPathFocus {
+                    xslt_host: closure.xslt_host,
+                    ..XPathFocus::outer(None, &closure.default_language, &closure.static_context)
+                },
                 &bindings,
                 runtime,
             )?

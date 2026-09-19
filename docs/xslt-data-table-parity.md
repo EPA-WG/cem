@@ -30,8 +30,9 @@ layer, reused by XSLT, without changing core XML/CEM AST or default imports.
 The user also approved the reusable native query-function invocation hook on
 2026-09-13 and the XSLT-owned compiled bundle with explicit browser/WASM host
 loading on 2026-09-14. XPath must retain its own namespace and content types,
-as CEM-QL does. The shared XPath host position/size extension was approved on
-2026-09-18. Other shared capability expansions still require approval.
+as CEM-QL does. The shared XPath host position/size and XSLT dynamic group-context
+extensions were approved on 2026-09-18. Other shared capability expansions still
+require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
 or browser runtime behavior, stop and ask before implementing it. No table-
 specific Rust rendering, demo-local JavaScript, browser XSLTProcessor, or opaque
@@ -214,8 +215,9 @@ The initial broader adapter and CLI XSLT runs exposed the two failures below;
 the loader repair now resolves the adapter failure, while the stylesheet-export
 failure remains open.
 
-Runtime/template/grouping/sorting lowering and the equivalent gallery cases
-remain open. Shared recovery does not itself implement XSLT standard functions,
+Runtime/template and bounded grouping lowering were completed in later
+milestones; sorting and the equivalent gallery cases remain open. Shared
+recovery does not itself implement XSLT standard functions,
 QNames, catch-name matching or parsing/error-code translation.
 
 ## Document-loader regression discovered during verification
@@ -541,8 +543,13 @@ transform/CLI adapter executes this namespace-correct XSLT 3.0 profile; legacy
 execution and implicit parameter/version/namespace shortcuts are retired.
 Standalone legacy conversion commands remain separate. Native-produced
 closures use the same explicit WASM loading lifecycle without fetching source.
-Grouping, sorting and the complete output/viewer profile remain pending.
-XSLT-VIEW-GROUP is next.
+The grouping slice now lowers non-composite `group-by` through typed native
+XPath queries, including multiple keys, numeric promotion, first-seen headings
+and preserved native members. The approved shared XPath group context supplies
+the standard group functions across template calls and clears inside functions.
+The native fixtures run over all four import formats and portable bundles.
+Sorting and the complete output/viewer profile remain pending; XSLT-VIEW-SORT
+is next. See the [bounded grouping profile](xslt-runtime-lowering.md#grouping).
 
 ## Acceptance and implementation order
 

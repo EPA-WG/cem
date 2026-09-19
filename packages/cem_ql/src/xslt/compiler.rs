@@ -15,6 +15,7 @@ use cem_ml::{
     },
 };
 
+mod grouping;
 mod imports;
 mod patterns;
 mod templates;
@@ -471,6 +472,7 @@ struct Scope {
     position: String,
     size: String,
     mode: String,
+    groups: Option<[String; 4]>,
     variables: BTreeMap<XPathExpandedName, String>,
 }
 struct Compiler<'a> {
@@ -661,6 +663,7 @@ impl<'a> Compiler<'a> {
                     position: position.clone(),
                     size: size.clone(),
                     mode: scope.mode.clone(),
+                    groups: scope.groups.clone(),
                     variables: scope.variables.clone(),
                 };
                 let body = self.sequence(&node.children, inner)?;
@@ -688,6 +691,7 @@ impl<'a> Compiler<'a> {
                 ))
             }
             "choose" => self.choose(node, scope),
+            "for-each-group" => self.grouping(node, scope),
             "call-template" => self.named_call(node, scope),
             "apply-templates" => self.apply_templates(node, scope),
             "value-of" => {
@@ -910,10 +914,20 @@ impl<'a> Compiler<'a> {
             scope.position.clone(),
             scope.size.clone(),
         ];
+        let groups = scope.groups.as_ref().filter(|_| {
+            expression
+                .syntax_ast
+                .as_ref()
+                .is_some_and(|syntax| grouping::group_function(&syntax.root).is_some())
+        });
+        if let Some(groups) = groups {
+            arguments.extend(groups.iter().cloned());
+        }
         arguments.extend(scope.variables.values().cloned());
         self.programs.push(BundleProgram {
             stylesheet: self.source_index,
             focus: BundleFocus::Sequence,
+            group_context: groups.is_some(),
             variables: scope
                 .variables
                 .keys()

@@ -1094,22 +1094,32 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       integration tests, 61 native/WASM bundle checks, 17 XPath artifact checks
       and 125 companion checks pass. Both lint targets pass with existing warnings. The stylesheet style-export success case is
       explicitly ignored under OUTPUT; its rejection/no-export case is active.
-- [ ] Fixture XSLT-VIEW-GROUP: lower for-each-group, current-group and
+- [x] Fixture XSLT-VIEW-GROUP: lower for-each-group, current-group and
       current-grouping-key to existing generic queries. Derive repeated rows
       and first-seen union headings in the stylesheet, never in Rust.
     - [x] Fixture XSLT-GROUP-PREREQUISITES: verify native grouping-key
           comparisons, first-seen keys and retained node identity/axes through
           XPath arrays. Two native tests pass; CEM identity and XPath map
           same-key must not substitute for XSLT grouping equality.
-    - [ ] Fixture XSLT-GROUP-CONTEXT: resolve the
-          [shared XPath group-context decision](xslt-runtime-lowering.md#grouping-capability-decision-pending),
-          then enable the four native acceptance tests for repeated-row/heading
-          derivation, population/group focus, nested/called-template group scope,
-          multiple/empty keys, duplicate population positions and lazy absent-group
-          errors. Tests were run red and are explicitly ignored pending that
-          decision and grouping lowering; GROUP is not complete.
-          Verification: 384 CEM-QL tests pass, four grouping acceptance tests
-          are explicitly ignored, and Nx lint passes with existing warnings.
+    - [x] Fixture XSLT-GROUP-CONTEXT: implement the shared XPath group context
+          approved on 2026-09-18. Enable repeated-row/heading derivation,
+          population/group focus, nested/called-template scope, multiple/empty
+          keys, duplicate population positions and lazy absent-group errors.
+          Cover numeric non-transitivity/NaN, native containers, compiler-name
+          hygiene, pattern errors and explicit rejection of unsupported forms.
+    - [x] Fixture XPATH-XSLT-GROUP-HOST: verify native host isolation,
+          absent/present-empty values, closure clearing, focus independence,
+          ownership, key validation and resource limits.
+    - [x] Fixture XSLT-GROUP-WASM: verify native/source-compiled bundle equality,
+          changed documents and heading unions, the same grouping stylesheet
+          across XML/JSON/YAML/CSV imports, handle disposal and source-mapped
+          group errors without partial output.
+      The [bounded grouping profile](xslt-runtime-lowering.md#grouping) supports
+      non-composite `group-by` with Unicode codepoint comparison. Verification:
+      393 CEM-QL tests (11 grouping cases, none ignored), 92 shared XPath tests,
+      101 adapter tests, 80 native/WASM bundle checks, 17 XPath artifact checks
+      and 125 function-companion checks pass. Nx lint passes with existing
+      warnings. Sorting remains the next task.
 - [ ] Fixture XSLT-VIEW-SORT: lower dynamic stable multi-key sorting with
       standard semantics. Author explicit missing/invalid-last keys in XSLT;
       do not equate the legacy invalid-number-as-zero behavior with parity.

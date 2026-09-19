@@ -18,7 +18,7 @@ Consumers declare template parameters explicitly and replace legacy EXSLT
 shortcuts with supported standard expressions over retained input documents.
 The migration fixture verifies that both public compilation APIs reject version
 1.0 and unbound `xsl` prefixes. This is a bounded runtime profile, not the
-completed data-table viewer or full XSLT 3.0 implementation. Grouping, sorting,
+completed data-table viewer or full XSLT 3.0 implementation. Sorting,
 output and browser component URL loading remain in [todo.md](todo.md).
 
 ## Supported authoring profile
@@ -38,6 +38,8 @@ that context with position and size both one.
 | Built-in rules | Elements/documents recurse in the current mode and forward supplied parameters; text/attribute nodes emit their string value; other nodes emit nothing. Atomic/map/array dispatch is outside this profile. |
 | `xsl:import` / `xsl:include` | Explicit closed source graph; includes share precedence and later imports override earlier imports. Named calls resolve the winning declaration across the closure. |
 | `xsl:for-each select` | Native item sequence, one-based position and sequence size; nested loops restore the outer focus. |
+| `xsl:for-each-group select group-by` | Non-composite, Unicode codepoint grouping with population focus, multiple/empty keys, first-seen groups and native members. |
+| `current-group()` / `current-grouping-key()` | XSLT dynamic context across non-streaming template calls, restored nested groups, lazy absent-context errors and absent state inside invoked function bodies. |
 | Local `xsl:variable name select` | Expanded names and lexical scope; the value is evaluated before the new binding exists. Native node owners, map values and array member sequences are preserved. |
 | `xsl:if test`, `xsl:choose/when/otherwise` | XPath effective boolean values; only the chosen branch runs. |
 | `xsl:value-of select` | Simple content construction, with a literal `separator` or the default space. Empty text nodes are removed, adjacent text nodes merge, and atomized string values are joined. |
@@ -67,7 +69,7 @@ failures retain generated CEMT frames. Both discard the whole partial result
 through existing protected CEMT rendering. Cancellation and budget errors remain
 uncatchable. No substitute output is manufactured.
 
-Grouping, sorting, standard parsing functions, dynamic output, stylesheet
+Sorting, standard parsing functions, dynamic output, stylesheet
 sidecars and full namespace/output handling belong to the following fixtures.
 Global variables/parameters, parameter constructors/types/tunnels, multiple
 mode tokens, `#all`, `xsl:mode`, `apply-imports` and `next-match` are also outside
@@ -78,59 +80,51 @@ the current shared XPath kind-test model does not retain their typed arguments.
 implemented. `xml:space` and other unlisted instruction attributes are also
 rejected rather than silently ignored.
 
-## Grouping capability decision (pending)
+## Grouping
 
-XSLT-VIEW-GROUP has reached the shared-capability boundary in the
-[approved scope](xslt-data-table-parity.md). The proposed shared XPath extension
-has not been authorized or implemented. The native fixture
-[`xslt_grouping.rs`](../packages/cem_ql/tests/xslt_grouping.rs) records two passing
-prerequisite tests and four acceptance tests run red, then explicitly ignored
-pending the decision and implementation.
+The shared XPath group-context extension was approved on 2026-09-18.
+`xsl:for-each-group` currently supports non-composite `group-by`, with the default
+Unicode codepoint collation or its explicit literal URI. Composite, adjacent,
+starting/ending-pattern grouping, dynamic collations and `xsl:sort` children
+are rejected explicitly. This is the bounded viewer-required grouping slice.
 
-The existing XPath operations can compare supported atomic grouping keys:
-untyped atomic values compare as strings, NaN compares equal to NaN, unlike
-types stay distinct, and numeric promotion can be non-transitive. The fixture
-checks these cases with pairwise `distinct-values`, plus first-seen string keys
-and original node identity/parent axes through native arrays. This proves
-prerequisites, not a complete grouping algorithm. CEM-QL `seq:group_by` uses
-item identity, and XPath maps use transitive `op:same-key`; neither is a direct
-implementation of XSLT grouping equality. The future lowering must also obey
-the sequential group-assignment rules for non-transitive numeric equality.
-These requirements come from [XSLT 3.0 §14.1 and §14.5](https://www.w3.org/TR/xslt-30/#grouping).
+The compiler evaluates the population and each item's authored key expression
+once, with the item's population position and size. Keys are atomized and
+untyped atomic values become strings. Typed XPath macros use native arrays and
+first-seen `distinct-values` representatives, assigning each key to the first
+matching representative. This follows XSLT's sequential rule even when numeric
+promotion is non-transitive. NaNs group together and incomparable values stay
+separate. Multiple keys can place an item in several groups; repeated keys
+never duplicate that population position in one group. Empty keys omit the
+item. Repeated occurrences of the same node in the population remain distinct
+occurrences. CEM item identity and XPath map `op:same-key` do not replace this
+comparison contract. See [XSLT 3.0 §14.1 and §14.5](https://www.w3.org/TR/xslt-30/#grouping).
 
-The unresolved capability is the XPath **dynamic group context**.
-`current-group()` and `current-grouping-key()` inherit the active group through
-non-streaming template calls and remain independent of ordinary XPath focus.
-Nested groups restore the outer state. Initially, and inside invoked function
-bodies, group state is absent; evaluating these functions then raises
-`XTDE1061` or `XTDE1071`. An unevaluated branch raises nothing. Replacing calls
-with lexical variables would incorrectly capture group state in inline-function
-closures. An eager CEMT guard would incorrectly reject an unevaluated XPath
-branch. The shared evaluator currently has neither group-context fields nor
-these functions, and it has no `fn:error` capability for a pure XPath error
-lowering. See [XSLT 3.0 §14.2](https://www.w3.org/TR/xslt-30/#func-current-group).
+Each group body receives its first member as context item, its group position,
+and the total group count. The shared `XPathXsltGroupContext` carries native
+members and keys, separately from ordinary XPath focus. Non-streaming template
+calls preserve this state; nested grouping restores outer state. Invoked
+function bodies have absent group state, including inline functions created
+inside a group. Explicit lexical variables can retain group values normally.
+Absent `current-group()` / `current-grouping-key()` access raises
+`XTDE1061` / `XTDE1071` at the expression's original source location. An
+unevaluated branch raises nothing. The compiler rejects these functions in
+match patterns with `XTSE1060` / `XTSE1070`, including unreachable branches.
+See [XSLT 3.0 §14.2](https://www.w3.org/TR/xslt-30/#func-current-group).
 
-The proposed extension, requiring approval, is:
+Grouping runs through compiler-owned typed XPath and generic CEMT loops.
+Authored XPath nodes retain their namespaces and source ranges; macro variables
+cannot capture authored names. Native maps, array members and node owners
+survive grouping. There is no grouping algorithm or table projection in the
+Rust renderer. Repeated-row detection and first-seen heading unions are authored
+in the [native stylesheet fixture](../packages/cem_ql/tests/xslt_grouping.rs).
+The same grouping bundle consumes XML, JSON, YAML and CSV after shared import.
 
-1. Add optional native group and grouping-key values to the shared XPath host
-   context for XSLT invocation. Preserve absent versus present-empty values,
-   native owners, source frames, operation control and existing resource limits.
-2. Evaluate the two XSLT context functions at their actual call sites, preserving
-   laziness and standard error codes. Keep them scoped to the XSLT host. Clear
-   group state in invoked function bodies; do not capture it in closures. Reject
-   their use in match patterns with the specified static diagnostics.
-3. Carry explicit group bindings through the XSLT bundle adapter and generated
-   template calls, restoring outer groups. Keep group construction in XSLT-owned
-   lowering over generic query operations. Repeated-row detection and heading
-   selection remain authored stylesheet expressions.
-4. Enable and extend the native acceptance tests, then verify portable bundles
-   in WASM. No importer, browser data binding, or document serialization changes
-   are proposed. Named function references, streaming and unimplemented grouping
-   forms remain outside the documented bounded profile.
-
-An alternative is to defer GROUP. Do not substitute empty values or lexical
-capture, silently narrow standard behavior, or mark the viewer grouping fixture
-complete. After grouping passes, the next checklist task is XSLT-VIEW-SORT.
+This materialized implementation uses pairwise scans and existing XPath
+item/text/work limits, plus the caller's cancellation scope. Budget failures
+remain uncatchable and discard partial output. Named function references,
+streaming and the other unimplemented grouping forms remain outside this
+profile. The next viewer task is XSLT-VIEW-SORT.
 
 ## Native ownership and loading
 
