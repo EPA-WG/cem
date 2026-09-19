@@ -18,6 +18,11 @@ use crate::{
 use std::sync::Arc;
 
 pub mod documents;
+mod strings;
+pub use crate::validation::json_xml::{JsonXmlDuplicates, JsonXmlProjectionOptions};
+pub use strings::{
+    import_string, ImportFailure, ImportFailureKind, ImportStringProfile, ImportStringRequest,
+};
 
 pub const MAX_BYTES: usize = 32768;
 pub const MAX_DOCUMENT_BYTES: usize = 16 * 1024 * 1024;
@@ -268,12 +273,14 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
     if stack.len() != 1 {
         return Err("Unbalanced XML document.".into());
     }
-    Ok(XmlCemImport {
+    let mut imported = XmlCemImport {
         ast: b.ast,
         semantics,
         event_nodes,
         attribute_nodes,
-    })
+    };
+    strings::xml_base_uris(&mut imported, document, Some(&document.source.uri));
+    Ok(imported)
 }
 
 fn xml_range(range: xml::XmlSourceRange) -> CemTreeRange {
@@ -526,18 +533,22 @@ pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<Retaine
     project_native(native, "", "cem", &uri, &format, length)
 }
 
-fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), String> {
+fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), ImportFailure> {
+    use ImportFailureKind::*;
     match native {
         LoadedInputAstStream::JsonDocument(doc) => {
             if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
-                return Err(fact.message.clone());
+                return Err(ImportFailure::new(Malformed, fact.message.clone()));
             }
             let mut pending: Vec<_> = doc.root.iter().map(|value| (value, 0)).collect();
             let mut count = 0;
             while let Some((value, depth)) = pending.pop() {
                 count += 1;
                 if depth > MAX_DEPTH || count > MAX_VALUES {
-                    return Err("JSON exceeds the 64-level / 4096-value import limit.".into());
+                    return Err(ImportFailure::new(
+                        Limit,
+                        "JSON exceeds the 64-level / 4096-value import limit.",
+                    ));
                 }
                 match value {
                     json::JsonValueAst::Object { members, .. } => {
@@ -552,7 +563,7 @@ fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), String> {
         }
         LoadedInputAstStream::YamlDocument(doc) => {
             if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
-                return Err(fact.message.clone());
+                return Err(ImportFailure::new(Malformed, fact.message.clone()));
             }
             let mut pending: Vec<_> = doc
                 .documents
@@ -564,10 +575,16 @@ fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), String> {
             while let Some((node, depth)) = pending.pop() {
                 count += 1;
                 if depth > MAX_DEPTH || count > MAX_VALUES {
-                    return Err("YAML exceeds the 64-level / 4096-value import limit.".into());
+                    return Err(ImportFailure::new(
+                        Limit,
+                        "YAML exceeds the 64-level / 4096-value import limit.",
+                    ));
                 }
                 if node.alias.is_some() || node.anchor_id.is_some() || node.tag.is_some() {
-                    return Err("YAML aliases, anchors and explicit tags are not supported.".into());
+                    return Err(ImportFailure::new(
+                        Unsupported,
+                        "YAML aliases, anchors and explicit tags are not supported.",
+                    ));
                 }
                 pending.extend(node.sequence.iter().map(|n| (n, depth + 1)));
                 pending.extend(
@@ -579,7 +596,7 @@ fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), String> {
         }
         LoadedInputAstStream::CsvDocument(doc) => {
             if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
-                return Err(fact.message.clone());
+                return Err(ImportFailure::new(Malformed, fact.message.clone()));
             }
         }
         _ => {}
@@ -595,7 +612,7 @@ fn project_native(
     format: &str,
     byte_length: usize,
 ) -> Result<Arc<RetainedCemTree>, String> {
-    validate_data_ast(native.as_ref())?;
+    validate_data_ast(native.as_ref()).map_err(|e| e.to_string())?;
     let (ast, mut semantics) = match (projection, native.as_ref()) {
         ("json-to-xml", LoadedInputAstStream::JsonDocument(doc)) => (
             json_xml::project_json_to_xml(doc, &json_xml::JsonXmlProjectionOptions { max_depth: MAX_DEPTH, max_values: MAX_VALUES, ..Default::default() }).map_err(|e| e.to_string())?,

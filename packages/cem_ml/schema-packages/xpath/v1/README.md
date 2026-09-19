@@ -256,14 +256,23 @@ operand runs. Dynamic arrow specifiers use the typed postfix-call path: maps and
 accept one key argument. Retained native inline functions also support dynamic
 calls, as described below.
 
-The existing accessor/numeric dispatcher also executes these signatures:
+The native dispatcher also executes these signatures:
 
 | Functions | Arities | Native scope |
 | --- | --- | --- |
 | `fn:string`, `fn:data`, `fn:number` | 0, 1 | Context/default arguments, retained-node access and the supported atomic conversions |
+| `fn:parse-xml` | 1 | Typed string import into an untyped retained CEM document; empty sequence stays empty; malformed XML raises `FODC0006` |
+| `fn:json-to-xml` | 1, 2 | Native functions-namespace node projection, duplicate and escape options, and typed `FOJS` errors |
+| `fn:base-uri`, `fn:document-uri` | 0, 1 | Native URI metadata; parsed strings have the call's static base and no document URI |
+| `Q{urn:cem:import}parse-csv`, `Q{urn:cem:import}parse-yaml` | 1 | Explicit import extensions returning the same retained generic-data CEM trees |
 | `fn:abs`, `fn:ceiling`, `fn:floor` | 1 | Optional numeric arguments with typed results |
 | `fn:round`, `fn:round-half-to-even` | 1, 2 | Numeric rounding with optional integer precision |
 | `fn:format-integer`, `fn:format-number` | 2, 3 | Existing CEM numbering policy and typed static-context decimal formats |
+
+Parsing uses the [bounded string-import profile](../../../../../docs/xslt-runtime-lowering.md#standard-parsing-and-recovery):
+32 KiB input, 64 levels and 4096 values/events. XML DTD processing and custom
+JSON fallback callbacks are unsupported; JSON schema validation raises
+`FOJS0004`. Limits and unavailable capabilities remain uncatchable.
 
 Their native regression coverage does not imply a browser demo for every
 signature or every formatting policy. Demo coverage is recorded per slice in

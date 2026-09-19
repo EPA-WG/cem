@@ -713,7 +713,21 @@ pub fn validate_xml_source_bytes(request: XmlSourceValidationRequest<'_>) -> Vec
 pub fn xml_document_ast_from_source_bytes(
     request: XmlSourceValidationRequest<'_>,
 ) -> (Option<XmlDocumentAst>, Vec<Diagnostic>) {
-    let report = extract_xml_parse_report(request);
+    xml_document_ast(request, false)
+}
+
+/// Import of an already decoded string: declaration encoding is metadata.
+pub(crate) fn xml_document_ast_from_string(
+    request: XmlSourceValidationRequest<'_>,
+) -> (Option<XmlDocumentAst>, Vec<Diagnostic>) {
+    xml_document_ast(request, true)
+}
+
+fn xml_document_ast(
+    request: XmlSourceValidationRequest<'_>,
+    string_input: bool,
+) -> (Option<XmlDocumentAst>, Vec<Diagnostic>) {
+    let report = extract_xml_report(request, string_input);
     let contracts = XmlSchemaContractCatalog::from_builtin();
     let diagnostics = validate_xml_parse_report(&report, &contracts);
     let document = XmlDocumentAst {
@@ -722,12 +736,16 @@ pub fn xml_document_ast_from_source_bytes(
         encoding_report: XmlEncodingReportAst {
             mime_charset: report.parameters.get("charset").cloned(),
             declaration_encoding: report.declaration_encoding.clone(),
-            normalized_encoding: report
-                .declaration_encoding
-                .as_deref()
-                .or_else(|| report.parameters.get("charset").map(String::as_str))
-                .map(xml_normalized_encoding)
-                .unwrap_or_else(|| "utf-8".to_owned()),
+            normalized_encoding: if string_input {
+                "utf-8".to_owned()
+            } else {
+                report
+                    .declaration_encoding
+                    .as_deref()
+                    .or_else(|| report.parameters.get("charset").map(String::as_str))
+                    .map(xml_normalized_encoding)
+                    .unwrap_or_else(|| "utf-8".to_owned())
+            },
             decoder_status: if report
                 .facts
                 .iter()
@@ -772,6 +790,13 @@ fn xml_source_kind(request: &XmlSourceValidationRequest<'_>) -> XmlSourceKind {
 }
 
 pub fn extract_xml_parse_report(request: XmlSourceValidationRequest<'_>) -> XmlParseReport {
+    extract_xml_report(request, false)
+}
+
+fn extract_xml_report(
+    request: XmlSourceValidationRequest<'_>,
+    string_input: bool,
+) -> XmlParseReport {
     let kind = xml_source_kind(&request);
     let parameters = content_type_parameters(request.content_type);
     let mut report = XmlParseReport {
@@ -975,7 +1000,7 @@ pub fn extract_xml_parse_report(request: XmlSourceValidationRequest<'_>) -> XmlP
                         Ok(encoding) => {
                             let encoding = String::from_utf8_lossy(encoding.as_ref());
                             report.declaration_encoding = Some(encoding.to_string());
-                            if !xml_encoding_is_supported(&encoding) {
+                            if !string_input && !xml_encoding_is_supported(&encoding) {
                                 report.facts.push(xml_fact(
                                     source,
                                     Some(reader.error_position()),
@@ -984,7 +1009,8 @@ pub fn extract_xml_parse_report(request: XmlSourceValidationRequest<'_>) -> XmlP
                                         "XML declaration encoding `{encoding}` is not supported"
                                     ),
                                 ));
-                            } else if xml_normalized_encoding(&encoding) == "us-ascii"
+                            } else if !string_input
+                                && xml_normalized_encoding(&encoding) == "us-ascii"
                                 && !source.is_ascii()
                             {
                                 report.facts.push(xml_fact(
@@ -1417,10 +1443,7 @@ fn xml_entity_decode_attribute_value(
         let (scalar, source_end) = if lexical_value.as_bytes()[source_offset] == b'&' {
             let reference_end = lexical_value[source_offset + 1..].find(';')? + source_offset + 2;
             let reference = &lexical_value[source_offset + 1..reference_end - 1];
-            (
-                xml_decode_entity_reference(reference)?,
-                reference_end,
-            )
+            (xml_decode_entity_reference(reference)?, reference_end)
         } else {
             let scalar = lexical_value[source_offset..].chars().next()?;
             (scalar, source_offset + scalar.len_utf8())

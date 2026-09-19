@@ -35,6 +35,10 @@ fn query_consumers_do_not_interpret_external_document_formats() {
             include_str!("../src/validation/xpath/sort.rs"),
         ),
         (
+            "XPath string parsing",
+            include_str!("../src/validation/xpath/parsing.rs"),
+        ),
+        (
             "XPath regular expressions",
             include_str!("../src/validation/xpath/regular_expression.rs"),
         ),

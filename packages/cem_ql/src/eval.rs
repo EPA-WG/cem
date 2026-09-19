@@ -86,13 +86,81 @@ impl QueryItemView for DiagnosticView {
     }
     fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
         Some(
-            ["code", "message"]
-                .into_iter()
-                .map(|key| (key.into(), self.field(key).unwrap_or_default()))
-                .collect(),
+            [
+                "code",
+                "message",
+                "error_namespace",
+                "error_local",
+                "error_qname",
+                "uri",
+                "line",
+                "column",
+            ]
+            .into_iter()
+            .map(|key| (key.into(), self.field(key).unwrap_or_default()))
+            .collect(),
         )
     }
     fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let expanded = || {
+            self.0
+                .error_name()
+                .unwrap_or_else(|| cem_ml::diagnostics::DiagnosticErrorName {
+                    namespace_uri: "urn:cem:diagnostic".into(),
+                    local_name: self.0.code.clone(),
+                })
+        };
+        match name {
+            "error_namespace" => {
+                return Some(vec![Item::Atomic(AtomValue::String(
+                    expanded().namespace_uri,
+                ))])
+            }
+            "error_local" => {
+                return Some(vec![Item::Atomic(AtomValue::String(expanded().local_name))])
+            }
+            "error_qname" => {
+                let name = expanded();
+                let prefix = if name.namespace_uri == "http://www.w3.org/2005/xqt-errors" {
+                    "err"
+                } else {
+                    "cem"
+                };
+                return Some(vec![crate::xpath::functions::XPathQueryItem::wrap(
+                    cem_ml::validation::xpath::XPathResultItem::Atomic {
+                        value: cem_ml::validation::xpath::XPathAtomicValue {
+                            type_name: "xs:QName".into(),
+                            lexical_value: format!("{prefix}:{}", name.local_name),
+                            namespace_uri: Some(name.namespace_uri),
+                            local_name: Some(name.local_name),
+                        },
+                        source_map: self.0.source_map.clone().unwrap_or_default(),
+                    },
+                )]);
+            }
+            "uri" => {
+                return Some(
+                    self.0
+                        .uri
+                        .iter()
+                        .map(|v| Item::Atomic(AtomValue::String(v.clone())))
+                        .collect(),
+                )
+            }
+            "line" | "column" => {
+                return Some(
+                    if name == "line" {
+                        self.0.line
+                    } else {
+                        self.0.column
+                    }
+                    .into_iter()
+                    .map(|n| Item::Atomic(AtomValue::Integer(n.into())))
+                    .collect(),
+                )
+            }
+            _ => {}
+        }
         let value = match name {
             "code" => &self.0.code,
             "message" => &self.0.message,

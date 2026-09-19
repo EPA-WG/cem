@@ -218,6 +218,7 @@ pub(super) fn invoke(
         }
         for (parameter, values) in closure.parameters.iter().zip(arguments) {
             let items = convert(
+                &closure.expression,
                 values,
                 parameter.sequence_type.as_ref(),
                 runtime,
@@ -247,6 +248,7 @@ pub(super) fn invoke(
             Vec::new()
         };
         convert(
+            &closure.expression,
             items,
             closure.result_type.as_ref(),
             runtime,
@@ -274,6 +276,7 @@ fn atomic_type(ty: &XPathSequenceItemType) -> Option<&XPathName> {
 }
 
 fn convert(
+    expression: &XPathExpressionAst,
     mut items: Vec<XPathResultItem>,
     ty: Option<&XPathSequenceType>,
     runtime: &mut XPathEvaluationRuntime,
@@ -319,13 +322,7 @@ fn convert(
                         runtime,
                         range,
                     )
-                    .map_err(|error| {
-                        XPathEvaluationError::dynamic(
-                            error.diagnostic_code(),
-                            format!("err:FORG0001: {}", error.message),
-                            range,
-                        )
-                    })?;
+                    .map_err(|error| error.evaluation(expression, range))?;
                 }
             }
         }

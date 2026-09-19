@@ -21,7 +21,7 @@ introduce a second JSON/YAML/CSV/XML evaluation path.
 - XPath's shared node view owns logical navigation and XPath node semantics,
   using decoded names and values supplied by import. It does not test JSON
   element names to infer maps or apply XML decoding to YAML/CSV/JSON strings.
-- Standard parsing functions, when implemented, delegate source ingestion to
+- Standard parsing functions delegate source ingestion to
   import and enforce their specified result/error contracts at their API
   boundary. A tree mapping is not an implicit native map/array conversion.
 - Transport supplies bytes, media type, source identity and lifecycle control
@@ -42,6 +42,12 @@ the JSON wire protocol for compiler diagnostics or scalar host parameters.
 ## Current implementation and audit
 
 `cem_ml::import` owns the native XML/JSON/YAML/CSV data-reader parsing and mapping.
+Its typed `import_string` API also serves XPath `parse-xml`, `json-to-xml` and
+the explicit `urn:cem:import` CSV/YAML functions. The string profile owns BOMs,
+XML declaration handling, JSON codepoint/duplicate/escape policy and URI metadata.
+Typed import failures preserve categories and diagnostics; XPath maps them to
+standard function errors without decoding documents or reading error prose.
+See the [bounded parsing and recovery profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
 `parser::tree::RetainedCemTree` preserves source-oriented CEM nodes and provides
 a format-independent semantic view. CEM-QL retains that capability; named XPath
 functions accept imported native nodes, and XPath uses one node implementation.

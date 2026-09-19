@@ -18,8 +18,8 @@ Consumers declare template parameters explicitly and replace legacy EXSLT
 shortcuts with supported standard expressions over retained input documents.
 The migration fixture verifies that both public compilation APIs reject version
 1.0 and unbound `xsl` prefixes. This is a bounded runtime profile, not the
-completed data-table viewer or full XSLT 3.0 implementation. Standard parsing,
-output and browser component URL loading remain in [todo.md](todo.md).
+completed data-table viewer or full XSLT 3.0 implementation. Output construction
+and browser component URL loading remain in [todo.md](todo.md).
 
 ## Supported authoring profile
 
@@ -70,8 +70,8 @@ failures retain generated CEMT frames. Both discard the whole partial result
 through existing protected CEMT rendering. Cancellation and budget errors remain
 uncatchable. No substitute output is manufactured.
 
-Standard parsing functions, dynamic output, stylesheet
-sidecars and full namespace/output handling belong to the following fixtures.
+Standard parsing and recovery are documented below. Dynamic output, stylesheet
+sidecars and full namespace/output handling belong to the output fixture.
 Global variables/parameters, parameter constructors/types/tunnels, multiple
 mode tokens, `#all`, `xsl:mode`, `apply-imports` and `next-match` are also outside
 this bounded slice. Parameterized `element(name)`, `attribute(name)`,
@@ -187,7 +187,7 @@ stylesheet ranges. Compiler control checks use the existing `report:raise`
 capability: their messages identify the stylesheet location, while their source
 frames identify generated CEMT. Both paths discard partial output. Native item,
 text and work limits and host cancellation remain enforced; no error recovery
-can swallow budget/cancellation failures. The next viewer task is XSLT-VIEW-DATA.
+can swallow budget/cancellation failures. Parsing and recovery are described below.
 
 ### Shared call-depth accounting
 
@@ -208,80 +208,91 @@ one/four-worker policies, sequential named/native/lambda calls, completed and
 excessive recursion, recovered failures and total-call exhaustion. They run
 independently of sorting and host hardware.
 
-## Standard parsing and recovery: scope decision pending
+## Standard parsing and recovery
 
-XSLT-VIEW-DATA reached another shared-capability boundary on 2026-09-18.
-The [scope rule](xslt-data-table-parity.md#scope) requires approval before
-expanding the importer or shared evaluator. No production behavior changes in
-this checkpoint. Four native probes in
-[`xslt_data_prerequisites.rs`](../packages/cem_ql/tests/xslt_data_prerequisites.rs)
-establish the remaining gaps:
+The user approved the shared parsing and typed-error extension on 2026-09-18.
+The standard functions execute inside native XPath programs, including branches,
+predicates and inline functions. The compiler preserves authored expressions;
+parsing occurs only when their calls are evaluated.
 
-| Boundary | Observed behavior |
+| Function | Bounded native contract |
 | --- | --- |
-| Imported XML and JSON-to-XML trees | XPath returns distinct native nodes, including empty values, with the same retained tree owner and source maps. XML text/CDATA is normalized. |
-| Standard parsing within XPath | `parse-xml` and both arities of `json-to-xml` are unsupported, including empty-sequence arguments and calls in inline functions. Unselected conditional branches remain lazy. |
-| Import failures | Empty/multiple-root/unbound-prefix/malformed XML is rejected. Malformed JSON, input limits, unsupported DTDs and unknown projections all return only `String` errors. |
-| XSLT dynamic errors | An invalid integer cast rolls back output and preserves the stylesheet location, but exposes `cem.xpath.cast_invalid` without a structured standard error QName. |
+| `fn:parse-xml($text)` | Empty sequence stays empty. Otherwise import an untyped XML document with namespace validation, normalized text, native ownership and source maps. Malformed input raises `err:FODC0006`. |
+| `fn:json-to-xml($text [, $options])` | Import directly into the standard functions-namespace CEM node tree. Preserve null/empty values, member order and numeric spelling. Malformed JSON raises `err:FOJS0001`; duplicate rejection raises `err:FOJS0003`. |
+| `fn:base-uri` / `fn:document-uri` | New parsed documents use the calling program's source URI as their static base and have no document URI. Import resolves inherited `xml:base` metadata. Provenance remains a separate source identity. |
+| `import:parse-csv($text)` / `import:parse-yaml($text)` | With `xmlns:import="urn:cem:import"`, use the common generic-data CEM vocabulary and retained native owner. Malformed input raises `Q{urn:cem:import}invalid-source`. |
 
-The existing CEM-QL native-function registry sits outside an XPath program.
-It cannot supply missing functions inside that program's predicates, branches
-or closures. Hoisting calls into generated CEMT would change when and under
-which focus they execute. Likewise, reading error-message prose to decide
-whether a failure is catchable would make limits and capability failures
-unsafe to classify. Existing QName atomic values and buffered CEMT recovery
-are reusable; neither needs a replacement data model.
-
-### Proposed shared change
-
-1. Add a typed import request/result for string parsing, keeping existing
-   reader/loader entry points and report behavior compatible. Import retains
-   the format parser, decoding, projection options and original source owner.
-   Distinguish malformed input, projection/option failures, unsupported
-   capabilities and limits without parsing error prose; preserve source
-   diagnostics and bounded operation control.
-2. Implement shared native XPath `fn:parse-xml` and `fn:json-to-xml` by calling
-   that import API at expression evaluation time. Use the already selected
-   native JSON-to-XML tree route; no JSON document records, new CEM array
-   semantics, source-token rewrites or serialization/reparse handoff. A
-   standard function selects its import profile and validates its arguments;
-   it must not inspect XML/JSON parser ASTs or implement format decoding.
-3. Preserve standard error QName identity across the XPath/native-query
-   failure boundary for the supported parsing and recovery profile. XSLT
-   owns `xsl:try`/`xsl:catch` validation, expanded-name selection and error
-   variable bindings. Reuse existing QName atomics and buffered recovery;
-   keep cancellation and resource exhaustion uncatchable. Existing CEM
-   diagnostic identifiers and source frames remain available.
-
-The proposed bounded profile uses untyped XML and JSON-to-XML documents.
-Follow the specified empty-input, result-node, base-URI and error contracts of
+The result and option contracts follow
 [`fn:parse-xml`](https://www.w3.org/TR/xpath-functions-31/#func-parse-xml) and
-[`fn:json-to-xml`](https://www.w3.org/TR/xpath-functions-31/#func-json-to-xml).
-JSON options cover duplicate retain/use-first/reject and escaping. Required
-string-input handling, including BOM and invalid-XML escaped codepoints,
-belongs in import; the existing projection's surrogate limitation must not
-silently become a claim of standard conformance. XML string parsing likewise
-must not confuse a declaration's encoding with transport-byte decoding.
-Schema validation, custom JSON fallback callbacks, XML fragments and resource
-fetch functions remain outside this bounded profile with explicit diagnostics.
-`fn:parse-json` is not needed for the approved node-tree route. CSV/YAML use
-explicit CEM import extensions over the same native boundary.
+[`fn:json-to-xml`](https://www.w3.org/TR/xpath-functions-31/#func-json-to-xml)
+within this profile. JSON options support `escape` and duplicate
+`retain`/`use-first`/`reject`; unknown option keys are ignored. `validate` defaults
+to false; true raises `FOJS0004`. Invalid options raise `FOJS0005`. `liberal=true`
+accepts the same strict grammar: no additional deviations are provided. Custom
+fallback callbacks remain an explicit unsupported capability. BOMs, surrogate
+escapes, replacement/escape behavior and number lexemes resolve in import.
+XML declaration encoding is metadata for an already decoded string.
 
-### Acceptance after approval
+[`import_string`](../packages/cem_ml/src/import/strings.rs) returns a retained
+CEM tree or a typed failure distinguishing malformed input, duplicate keys,
+resource limits, unsupported capabilities and internal failures. Existing
+`import_data`, byte/HTTP loaders and reader reports keep their public contracts.
+All parsers, format decoding and AST projections stay at this import boundary;
+XPath sees only native CEM nodes. No JSON document records or serialized AST
+handoff are introduced. The default JSON reader retains its stricter existing
+input profile; the standard string profile is selected explicitly.
 
-- Replace the missing-function probes with native successes for both standard
-  functions: empty sequence versus empty text, XML namespaces/normalized text,
-  JSON null/empty slots/duplicates/escapes and retained owners/source maps.
-- Exercise calls in selected and unselected branches, predicates and inline
-  functions, plus changed inputs after portable bundle reload. Verify argument
-  errors, import limits and host cancellation without partial results.
-- Lower ordered catches by error QName and wildcard, preserve outer focus and
-  catch-variable scope, and test nested/template-call propagation and output
-  rollback under the [XSLT try/catch contract](https://www.w3.org/TR/xslt-30/#try-catch).
-  Prove that malformed input is recoverable and resource/control failures are
-  not, before native/WASM integration checks.
-- Keep the default data-reader/HTTP import contracts green and extend the
-  import-boundary guard for the new evaluator call site.
+String import keeps the 32 KiB input, 64-level and 4096-value/event caps.
+XPath also charges input text/work and checks host cancellation before and after
+import. XML DTD processing, custom JSON fallback, XML fragments and resource
+fetch functions remain unsupported; no parser performs external I/O.
+`fn:parse-json` is outside the approved node-tree route.
+
+### Catch clauses
+
+`xsl:try` with a contained sequence constructor lowers to buffered CEMT recovery.
+Ordered `xsl:catch` clauses match expanded QNames, EQNames, namespace/local-name
+wildcards or `*`. The first match runs; unmatched errors and failures inside a
+catch propagate outward. The protected output and local bindings roll back.
+Catch bodies retain outer focus, position/size and group context, including when
+the failed expression ran inside a called template.
+
+The six standard catch variables are lexically scoped: `$err:code` is a native
+`xs:QName`; description/module are optional strings; line/column are optional
+integers; `$err:value` is empty for the supported failures. QName string display
+and instance tests preserve its type. Existing CEM diagnostic identifiers and
+stylesheet source frames remain available, alongside structured error identity
+and parser diagnostic metadata. Names are never extracted from error prose.
+Parsing, supported cast failures and absent group-context failures carry their
+standard error names; other CEM failures retain implementation error names.
+
+The [XSLT recovery contract](https://www.w3.org/TR/xslt-30/#try-catch) permits
+buffering with `rollback-output="no"`; this runtime always buffers. Cancellation,
+import limits, evaluator budgets and unavailable capabilities remain uncatchable.
+Select-based `xsl:try`/`xsl:catch` result construction is explicitly rejected
+until the output-profile task; it is not approximated by stringification.
+
+### Verification
+
+Native importer and XPath tests cover decoded strings, namespace/character
+errors, BOMs, duplicate policies, escapes, large numeric lexemes, retained
+ownership, URI metadata, lazy invocation, typed errors, resource limits and
+cancellation. The original prerequisite probes now assert parsing successes
+and standard error identity while preserving the legacy reader error contract.
+XSLT tests reload portable bundles and cover changed inputs, ordered and nested
+catches, named-template propagation, QName variables, group focus, lexical scope,
+rollback, CSV/YAML imports and unsupported forms. The import-boundary source
+guard includes the new XPath parsing module. The native/WASM bundle gate adds
+changed XML/JSON inputs and parse-error recovery through both loading routes.
+
+Verification on 2026-09-18: 419 CEM-QL tests, 101 adapter tests, 297 CEM-ML
+integration tests, 118 native/WASM bundle checks, 17 XPath artifact checks and
+125 function-companion checks pass. The broad CEM-ML library run passed 2,027
+tests; its existing debugger pause/deadline timing test failed under load and
+passed in isolation. The integration audit also exposed a stale adapter source
+marker from the earlier strict-XSLT migration; updating that marker restored
+the original zero-serialization check. CEM-ML, CEM-QL and adapter Nx lint
+targets pass with existing warnings.
 
 ## Native ownership and loading
 

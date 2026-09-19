@@ -1,6 +1,4 @@
-//! XSLT-DATA-PREREQUISITES: characterize the remaining shared parsing boundary.
-//! Missing-function/error assertions document a scope gate, not conformance.
-//! Replace them with positive acceptance tests when that expansion is approved.
+//! XSLT-DATA-PREREQUISITES: approved parsing and typed-error integration.
 use cem_ml::{
     diagnostics::Diagnostic,
     import::{import_data, MAX_BYTES},
@@ -91,7 +89,7 @@ fn imported_xml_and_json_nodes_already_retain_owners_through_xpath() {
 }
 
 #[test]
-fn standard_string_parsers_are_currently_missing_inside_xpath_programs() {
+fn standard_string_parsers_execute_inside_xpath_programs() {
     for call in [
         "parse-xml('<r/>')",
         "parse-xml(())",
@@ -100,14 +98,12 @@ fn standard_string_parsers_are_currently_missing_inside_xpath_programs() {
         "json-to-xml(())",
         "(function($s) { parse-xml($s) })('<r/>')",
     ] {
-        let errors = evaluate(call, None).unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.code == "cem.xpath.evaluation_unsupported"),
-            "{call}: {errors:?}"
-        );
-        assert!(errors.iter().all(|d| d.source_map.is_some()));
+        let parsed = evaluate(call, None).unwrap();
+        assert!(parsed
+            .sequence
+            .items
+            .iter()
+            .all(|i| i.native_node().is_some()));
         // A compiler rewrite must not hoist parsing out of conditional branches.
         let skipped = evaluate(&format!("if (false()) then {call} else 'skipped'"), None).unwrap();
         assert!(matches!(
@@ -145,7 +141,7 @@ fn import_rejects_invalid_documents_but_erases_failure_categories() {
 }
 
 #[test]
-fn xslt_failure_retains_location_but_has_no_structured_standard_error_name() {
+fn xslt_failure_retains_location_and_standard_error_name() {
     let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
  xmlns:xs="http://www.w3.org/2001/XMLSchema" version="3.0">
  <xsl:template match="/">
@@ -172,7 +168,9 @@ fn xslt_failure_retains_location_but_has_no_structured_standard_error_name() {
         .iter()
         .find(|d| d.code == "cem.xpath.cast_invalid")
         .unwrap_or_else(|| panic!("{:?}", plan.diagnostics));
-    assert!(error.details.is_none());
+    let name = error.error_name().unwrap();
+    assert_eq!(name.namespace_uri, "http://www.w3.org/2005/xqt-errors");
+    assert_eq!(name.local_name, "FORG0001");
     assert_eq!(error.uri.as_deref(), Some("memory:data-error.xslt"));
     assert_eq!(error.line, Some(5));
     assert!(error.source_map.is_some());

@@ -209,6 +209,9 @@ impl XPathNativeNode {
     pub fn owner(&self) -> &Arc<RetainedCemTree> {
         &self.tree
     }
+    pub fn base_uri(&self) -> Option<&str> {
+        self.tree.node_base_uri(self.id)
+    }
     pub fn source_owner(&self) -> Option<Arc<LoadedInputAstStream>> {
         self.tree
             .native_owner()

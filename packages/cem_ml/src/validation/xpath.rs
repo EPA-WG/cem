@@ -3,6 +3,7 @@ pub mod artifact;
 mod containers;
 mod functions;
 mod grouping;
+mod parsing;
 pub use functions::XPathNativeFunctionItem;
 mod lexer;
 mod node;
@@ -1691,11 +1692,27 @@ impl XPathEvaluationError {
     }
 
     fn into_diagnostic(self, expression: &XPathExpressionAst) -> Diagnostic {
-        self.diagnostic
+        let diagnostic = self
+            .diagnostic
             .map(|diagnostic| *diagnostic)
             .unwrap_or_else(|| {
                 xpath_evaluation_diagnostic(expression, self.code, self.message, self.source_range)
-            })
+            });
+        if diagnostic.error_name().is_some() {
+            return diagnostic;
+        }
+        let local = match diagnostic.code.as_str() {
+            "cem.xpath.aggregate_cast_invalid" => "FORG0001",
+            "cem.xpath.cast_cardinality"
+            | "cem.xpath.text_argument_type"
+            | "cem.xpath.value_comparison_cardinality" => "XPTY0004",
+            "cem.xpath.context_item_missing" => "XPDY0002",
+            "cem.xpath.parse_function_item" => "FOTY0013",
+            "cem.xslt.current_group_absent" => "XTDE1061",
+            "cem.xslt.current_grouping_key_absent" => "XTDE1071",
+            _ => return diagnostic,
+        };
+        diagnostic.with_error_name(parsing::ERRORS, local)
     }
 }
 
@@ -1894,11 +1911,7 @@ fn xpath_evaluate_expression_node_inner(
                     value,
                 )]),
                 Ok(None) => Ok(Vec::new()),
-                Err(failure) => Err(XPathEvaluationError::dynamic(
-                    failure.diagnostic_code(),
-                    failure.message,
-                    node.source_range,
-                )),
+                Err(failure) => Err(failure.evaluation(expression, node.source_range)),
             }
         }
         XPathExpression::CastableAs {
@@ -2488,6 +2501,7 @@ enum XPathCastFailureKind {
 struct XPathCastFailure {
     kind: XPathCastFailureKind,
     message: String,
+    standard_code: &'static str,
 }
 
 impl XPathCastFailure {
@@ -2495,6 +2509,7 @@ impl XPathCastFailure {
         Self {
             kind: XPathCastFailureKind::Cardinality,
             message: message.into(),
+            standard_code: "XPTY0004",
         }
     }
 
@@ -2502,6 +2517,7 @@ impl XPathCastFailure {
         Self {
             kind: XPathCastFailureKind::Conversion,
             message: message.into(),
+            standard_code: "FORG0001",
         }
     }
 
@@ -2509,6 +2525,7 @@ impl XPathCastFailure {
         Self {
             kind: XPathCastFailureKind::Resource(error.code),
             message: error.message,
+            standard_code: "",
         }
     }
 
@@ -2517,6 +2534,23 @@ impl XPathCastFailure {
             XPathCastFailureKind::Cardinality => "cem.xpath.cast_cardinality",
             XPathCastFailureKind::Conversion => "cem.xpath.cast_invalid",
             XPathCastFailureKind::Resource(code) => code,
+        }
+    }
+    fn evaluation(
+        self,
+        expression: &XPathExpressionAst,
+        range: XPathSourceRange,
+    ) -> XPathEvaluationError {
+        if matches!(self.kind, XPathCastFailureKind::Resource(_)) {
+            XPathEvaluationError::dynamic(self.diagnostic_code(), self.message, range)
+        } else {
+            parsing::error(
+                expression,
+                self.diagnostic_code(),
+                self.standard_code,
+                self.message,
+                range,
+            )
         }
     }
 }
@@ -2846,9 +2880,11 @@ fn xpath_cast_atomic(
 }
 
 fn xpath_cast_unsupported_pair(source: &str, target: &str) -> XPathCastFailure {
-    XPathCastFailure::conversion(format!(
+    let mut failure = XPathCastFailure::conversion(format!(
         "XPath casting from `{source}` to `xs:{target}` is outside the supported primitive conversion matrix"
-    ))
+    ));
+    failure.standard_code = "XPTY0004";
+    failure
 }
 
 fn xpath_cast_invalid_lexical(source: &str, target: &str, lexical: &str) -> XPathCastFailure {
@@ -2858,9 +2894,11 @@ fn xpath_cast_invalid_lexical(source: &str, target: &str, lexical: &str) -> XPat
 }
 
 fn xpath_cast_non_finite(source: &str, target: &str) -> XPathCastFailure {
-    XPathCastFailure::conversion(format!(
+    let mut failure = XPathCastFailure::conversion(format!(
         "XPath non-finite `{source}` value cannot be cast to `xs:{target}`"
-    ))
+    ));
+    failure.standard_code = "FOCA0002";
+    failure
 }
 
 fn xpath_cast_numeric_overflow(source: &str, target: &str) -> XPathCastFailure {
@@ -2980,6 +3018,7 @@ fn xpath_validate_sequence_item_type_supported(
                 && matches!(
                     name.local_name.as_str(),
                     "anyAtomicType"
+                        | "QName"
                         | "numeric"
                         | "untypedAtomic"
                         | "string"
@@ -3098,6 +3137,7 @@ fn xpath_atomic_value_matches_type(value: &XPathAtomicValue, expected: &XPathNam
         "float" => value.type_name == "xs:float",
         "double" => value.type_name == "xs:double",
         "anyURI" => value.type_name == "xs:anyURI",
+        "QName" => value.type_name == "xs:QName",
         _ => false,
     }
 }
@@ -3439,6 +3479,12 @@ fn xpath_evaluate_primary(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum XPathNativeFunction {
+    ParseXml,
+    JsonToXml,
+    ParseCsv,
+    ParseYaml,
+    BaseUri,
+    DocumentUri,
     CurrentGroup,
     CurrentGroupingKey,
     MapContains,
@@ -3532,6 +3578,13 @@ impl XPathRoundFunctionContract {
 }
 
 fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFunction> {
+    if name.namespace_uri.as_deref() == Some("urn:cem:import") {
+        return match (name.local_name.as_str(), arity) {
+            ("parse-csv", 1) => Some(XPathNativeFunction::ParseCsv),
+            ("parse-yaml", 1) => Some(XPathNativeFunction::ParseYaml),
+            _ => None,
+        };
+    }
     if name.namespace_uri.as_deref() == Some(CEM_QL_XPATH_FUNCTION_NAMESPACE)
         && name.local_name == "module-url"
         && matches!(arity, 1 | 2)
@@ -3571,6 +3624,10 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         return None;
     }
     match (name.local_name.as_str(), arity) {
+        ("parse-xml", 1) => Some(XPathNativeFunction::ParseXml),
+        ("json-to-xml", 1 | 2) => Some(XPathNativeFunction::JsonToXml),
+        ("base-uri", 0 | 1) => Some(XPathNativeFunction::BaseUri),
+        ("document-uri", 0 | 1) => Some(XPathNativeFunction::DocumentUri),
         ("current-group", 0) => Some(XPathNativeFunction::CurrentGroup),
         ("current-grouping-key", 0) => Some(XPathNativeFunction::CurrentGroupingKey),
         ("position", 0) => Some(XPathNativeFunction::Position),
@@ -3769,6 +3826,25 @@ fn xpath_evaluate_function_call(
         ));
     };
 
+    if matches!(
+        function,
+        XPathNativeFunction::ParseXml
+            | XPathNativeFunction::JsonToXml
+            | XPathNativeFunction::ParseCsv
+            | XPathNativeFunction::ParseYaml
+            | XPathNativeFunction::BaseUri
+            | XPathNativeFunction::DocumentUri
+    ) {
+        return parsing::evaluate(
+            function,
+            expression,
+            arguments,
+            focus,
+            variable_bindings,
+            runtime,
+            source_range,
+        );
+    }
     if matches!(
         function,
         XPathNativeFunction::CurrentGroup | XPathNativeFunction::CurrentGroupingKey
@@ -4364,14 +4440,16 @@ fn xpath_evaluate_function_call(
                 value,
             )]),
             Ok(None) => Ok(Vec::new()),
-            Err(failure) => Err(XPathEvaluationError::dynamic(
-                failure.diagnostic_code(),
-                failure.message,
-                source_range,
-            )),
+            Err(failure) => Err(failure.evaluation(expression, source_range)),
         };
     }
     let result = match function {
+        XPathNativeFunction::ParseXml
+        | XPathNativeFunction::JsonToXml
+        | XPathNativeFunction::ParseCsv
+        | XPathNativeFunction::ParseYaml
+        | XPathNativeFunction::BaseUri
+        | XPathNativeFunction::DocumentUri => unreachable!("parsing dispatcher"),
         XPathNativeFunction::CurrentGroup | XPathNativeFunction::CurrentGroupingKey => {
             unreachable!("group functions return before argument evaluation")
         }
@@ -5030,6 +5108,9 @@ fn xpath_string_function_value(
         )),
         XPathResultItem::Atomic { value, .. } => {
             runtime.read_text(&value.lexical_value, source_range)?;
+            if value.type_name == "xs:QName" {
+                return runtime.copy_text(&value.lexical_value, source_range);
+            }
             text::atomic_string(xpath_comparable_atomic(value, source_range)?, runtime, source_range)
         },
         XPathResultItem::Map { .. }

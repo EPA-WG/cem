@@ -84,7 +84,7 @@ const JSON_BOUNDARY_ALLOWLIST: &[JsonBoundaryRegion] = &[
         class: "serializer-free-native-route",
         source: CEM_QL_ADAPTER_SOURCE,
         start: "impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter",
-        end: "impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter",
+        end: "mod xslt_runtime;",
         expected_operations: NO_JSON_OPERATIONS,
     },
     JsonBoundaryRegion {

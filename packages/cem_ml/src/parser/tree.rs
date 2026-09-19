@@ -29,6 +29,8 @@ pub struct CemTreeRange {
 /// Import-only overrides preserve the public source-oriented AST fields.
 #[derive(Debug, Default)]
 pub struct CemTreeSemantics {
+    pub document_metadata: Option<CemDocumentMetadata>,
+    pub base_uris: BTreeMap<AstNodeId, String>,
     pub sources: BTreeMap<AstNodeId, SourceMapStack>,
     pub values: BTreeMap<AstNodeId, String>,
     pub names: BTreeMap<AstNodeId, ExpandedName>,
@@ -36,8 +38,15 @@ pub struct CemTreeSemantics {
     pub ranges: BTreeMap<AstNodeId, CemTreeRange>,
 }
 
+#[derive(Debug, Default)]
+pub struct CemDocumentMetadata {
+    pub base_uri: Option<String>,
+    pub document_uri: Option<String>,
+}
+
 #[derive(Debug)]
 pub struct CemTreeNode {
+    pub base_uri: Option<String>,
     pub kind: CemTreeNodeKind,
     pub name: Option<ExpandedName>,
     pub value: String,
@@ -52,6 +61,7 @@ pub struct CemTreeNode {
 pub struct RetainedCemTree {
     ast: CemDocument,
     source_uri: String,
+    metadata: CemDocumentMetadata,
     native_owner: Option<Arc<dyn Any + Send + Sync>>,
     nodes: Vec<CemTreeNode>,
     canonical: Vec<Option<AstNodeId>>,
@@ -197,6 +207,7 @@ impl RetainedCemTree {
                 .copied()
                 .unwrap_or_else(|| source_range(source, &line_index));
             nodes.push(CemTreeNode {
+                base_uri: semantics.base_uris.get(&node_id).cloned(),
                 kind,
                 name: semantics.names.get(&node_id).cloned().or(name),
                 value: semantics
@@ -318,9 +329,17 @@ impl RetainedCemTree {
                 *canonical_id = None;
             }
         }
+        let source_uri = source_uri.into();
+        let metadata = semantics
+            .document_metadata
+            .unwrap_or_else(|| CemDocumentMetadata {
+                base_uri: Some(source_uri.clone()),
+                document_uri: Some(source_uri.clone()),
+            });
         Ok(Arc::new(Self {
             ast,
-            source_uri: source_uri.into(),
+            source_uri,
+            metadata,
             native_owner,
             nodes,
             canonical,
@@ -332,6 +351,24 @@ impl RetainedCemTree {
     }
     pub fn source_uri(&self) -> &str {
         &self.source_uri
+    }
+    pub fn base_uri(&self) -> Option<&str> {
+        self.metadata.base_uri.as_deref()
+    }
+    pub fn document_uri(&self) -> Option<&str> {
+        self.metadata.document_uri.as_deref()
+    }
+    pub fn node_base_uri(&self, mut id: AstNodeId) -> Option<&str> {
+        loop {
+            let node = self.node(id)?;
+            if let Some(uri) = node.base_uri.as_deref() {
+                return Some(uri);
+            }
+            match node.parent {
+                Some(parent) => id = parent,
+                None => return self.base_uri(),
+            }
+        }
     }
     pub fn native_owner(&self) -> Option<&Arc<dyn Any + Send + Sync>> {
         self.native_owner.as_ref()

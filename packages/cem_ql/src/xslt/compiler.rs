@@ -18,6 +18,7 @@ use cem_ml::{
 mod grouping;
 mod imports;
 mod patterns;
+mod recovery;
 mod sorting;
 mod templates;
 mod xpath;
@@ -693,6 +694,7 @@ impl<'a> Compiler<'a> {
                 ))
             }
             "choose" => self.choose(node, scope),
+            "try" => self.recover(node, scope),
             "for-each-group" => self.grouping(node, scope),
             "call-template" => self.named_call(node, scope),
             "apply-templates" => self.apply_templates(node, scope),

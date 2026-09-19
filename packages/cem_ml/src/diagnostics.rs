@@ -59,6 +59,36 @@ impl Default for Diagnostic {
     }
 }
 
+/// An expanded error name is diagnostic control metadata, never document data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticErrorName {
+    pub namespace_uri: String,
+    pub local_name: String,
+}
+
+impl Diagnostic {
+    pub fn with_error_name(mut self, namespace: &str, local: &str) -> Self {
+        let details = self.details.get_or_insert_with(|| json!({}));
+        if let Some(details) = details.as_object_mut() {
+            details.insert(
+                "errorQName".into(),
+                json!(DiagnosticErrorName {
+                    namespace_uri: namespace.into(),
+                    local_name: local.into(),
+                }),
+            );
+        }
+        self
+    }
+    pub fn error_name(&self) -> Option<DiagnosticErrorName> {
+        self.details
+            .as_ref()?
+            .get("errorQName")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+    }
+}
+
 pub fn project_diagnostics_for_source(diagnostics: &mut [Diagnostic], source_bytes: &[u8]) {
     let line_index = LineIndex::from_bytes_lossy(source_bytes);
     project_diagnostics_with_line_index(diagnostics, &line_index, SourceId(1));

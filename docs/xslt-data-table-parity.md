@@ -12,10 +12,10 @@ strict transform/CLI execution, bounded grouping and stable sorting are now
 implemented. Subsequent viewer stages remain open in [todo.md](todo.md).
 Explicit host position and sequence size are now supported by the shared XPath
 API. No equivalent XSLT stylesheet or browser sample is available yet.
-Standard parsing reached a new [shared-capability decision](xslt-runtime-lowering.md#standard-parsing-and-recovery-scope-decision-pending)
-on 2026-09-18: native trees are ready, but XPath parsing functions and typed
-import/error classification still need approval. Four native probes document
-the boundary; this checkpoint does not implement standard parsing or catches.
+The shared parsing and typed-error extension was approved on 2026-09-18 and is
+implemented through CEM import and native buffered recovery. The bounded
+contract and verification are recorded under XSLT-VIEW-DATA and in the
+[runtime profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
 
 ## Scope
 
@@ -37,7 +37,9 @@ loading on 2026-09-14. XPath must retain its own namespace and content types,
 as CEM-QL does. The shared XPath host position/size and XSLT dynamic group-context
 extensions were approved on 2026-09-18. The shared CEM-QL call-depth accounting
 correction was also approved on that date, preserving configured limits and
-cumulative function-call accounting. Other shared capability expansions still
+cumulative function-call accounting. Native standard parsing through CEM import,
+typed import errors and standard error identity for XSLT recovery were also
+approved on that date. Other shared capability expansions still
 require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
 or browser runtime behavior, stop and ask before implementing it. No table-
@@ -131,8 +133,14 @@ callbacks and liberal JSON parsing are not provided. In particular the existing
 JSON parser rejects unpaired-surrogate escapes; this projection does not change
 that input contract or claim complete `fn:json-to-xml` conformance.
 
-The XSLT layer still owns standard function lowering, validation and error
-semantics. The standard node-tree route avoids changing CEM array semantics or
+The subsequently approved standard string-import profile now handles BOMs and
+surrogate codepoints for native `fn:json-to-xml`, while leaving the default
+reader profile above intact. Its typed errors, options and XSLT catch lowering
+are documented in the [runtime profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
+
+The shared XPath layer owns standard parsing function contracts and error names;
+XSLT lowers catch selection and scope through generic recovery. The standard
+node-tree route avoids changing CEM array semantics or
 adding the full XDM map/array model solely for this viewer.
 
 Alternatives checked:
@@ -221,11 +229,11 @@ The initial broader adapter and CLI XSLT runs exposed the two failures below;
 the loader repair now resolves the adapter failure, while the stylesheet-export
 failure remains open.
 
-Runtime/template, bounded grouping and stable multi-key sorting lowering were
-completed in later milestones. Standard parsing and the equivalent gallery
-cases remain open. Shared
-recovery does not itself implement XSLT standard functions,
-QNames, catch-name matching or parsing/error-code translation.
+Runtime/template, bounded grouping, stable multi-key sorting and standard
+parsing/catch lowering were completed in later milestones. The equivalent
+gallery cases remain open. Generic recovery supplies buffering and failure
+propagation; shared XPath supplies parsing and structured error names, while
+XSLT supplies catch-name matching and standard variable scope.
 
 ## Document-loader regression discovered during verification
 
@@ -559,9 +567,11 @@ Stable multi-key sorting now uses compiler-owned typed XPath over retained
 native values, including common numeric promotion, dynamic controls and group
 sort context. Its WASM gate exposed cumulative depth charging in the shared
 evaluator; the approved correction now measures active nesting while preserving
-the total-call budget. Standard data parsing/error recovery is next under
-XSLT-VIEW-DATA; the complete output/viewer profile remains pending. See the
-[bounded sorting profile](xslt-runtime-lowering.md#sorting).
+the total-call budget. Standard data parsing now delegates to shared CEM import;
+ordered QName catches use structured errors and preserve native nodes, focus
+and lexical scope. The next task is XSLT-VIEW-OUTPUT; the complete viewer
+profile remains pending. See the
+[bounded runtime profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
 
 ## Acceptance and implementation order
 

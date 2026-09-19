@@ -1145,7 +1145,7 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       targets pass with existing warnings. The shared call-depth
       correction was approved on 2026-09-18; configured limits and cumulative
       function-call accounting remain unchanged. Standard parsing is next.
-- [ ] Fixture XSLT-VIEW-DATA: lower standard XML/JSON parsing and error
+- [x] Fixture XSLT-VIEW-DATA: lower standard XML/JSON parsing and error
       recovery to native data capabilities. Use CEM extensions only for
       CSV/YAML parsing and unavailable host/provenance capabilities. Preserve
       native owners; no serialized AST handoff or fake standard function names.
@@ -1154,12 +1154,36 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
           and standard error identity before requesting shared API expansion.
           Record the bounded proposal and stop for the required scope decision.
       Four native probes pass; all 413 CEM-QL tests pass with none ignored.
-      The [shared parsing/error proposal](xslt-runtime-lowering.md#standard-parsing-and-recovery-scope-decision-pending)
-      awaits approval before implementation. Standard parsing and XSLT catches
-      remain open; the existing native tree route and recovery are reusable.
+      The [shared parsing/error proposal](xslt-runtime-lowering.md#standard-parsing-and-recovery)
+      was approved on 2026-09-18. The existing native tree route and recovery
+      are reusable.
+    - [x] Fixture XSLT-DATA-IMPORT: add typed string-import errors/options and
+          test XML declarations, JSON BOM/escapes/duplicates, source retention,
+          default-reader compatibility and bounded failures at the importer.
+    - [x] Fixture XSLT-DATA-XPATH: replace missing-function probes with standard
+          parsing successes and typed errors; cover lazy/nested invocation,
+          native owners, base URI, empty inputs, limits and cancellation.
+    - [x] Fixture XSLT-DATA-RECOVERY: lower ordered QName/wildcard catches,
+          typed error variables and buffered rollback; verify nested calls,
+          scope/focus, CSV/YAML extensions and uncatchable resource failures.
+    - [x] Fixture XSLT-DATA-WASM: reload portable parsing/recovery bundles and
+          compare native/WASM compilation and changed-input rendering.
+    - [x] Fixture XSLT-DATA-BOUNDARY: repair the serialization audit's stale
+          adapter end marker after strict XSLT moved into its own module;
+          preserve the existing zero-serialization requirement.
+      Verification: 419 CEM-QL tests, 101 adapter tests, 297 CEM-ML integration
+      tests, 118 native/WASM bundle checks, 17 XPath artifact checks and 125
+      function-companion checks pass. The CEM-ML library run passed 2,027 tests
+      and failed the existing debugger pause/deadline timing test; that test
+      passed in isolation. The stale serialization-audit marker was repaired
+      without weakening its requirement. XML/JSON decoding and projection
+      remain in CEM-ML import; XPath and XSLT consume retained native trees.
+      All three Nx lint targets pass with existing warnings.
 - [ ] Fixture XSLT-VIEW-OUTPUT: preserve HTML, AVTs, whitespace, static styles
       and existing slice/event bindings. Document the bounded profile and
       source-located diagnostics without claiming full XSLT 3.0 support.
+      Include select-based `xsl:try`/`xsl:catch` result construction; the data
+      profile currently supports contained sequence constructors only.
       The previous legacy path failed the CLI style-export acceptance case
       because the page lacked its CSS link. Strict typed execution now rejects
       stylesheet style output explicitly. The migrated 3.0 test

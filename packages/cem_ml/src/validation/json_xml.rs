@@ -80,8 +80,9 @@ struct Pending<'a> {
 /// Build the standard map/array/keyed-value structure without a serializer,
 /// reparser, loss of member order, or any presentation-specific policy.
 ///
-/// The native JSON parser's accepted input profile is unchanged. This API does
-/// not provide schema validation, liberal parsing or a custom fallback callback.
+/// Import selects the default byte-parser profile or the standard string
+/// profile. Original string lexemes retain codepoints absent from Rust strings.
+/// This projection provides no schema validation or custom fallback callback.
 pub fn project_json_to_xml(
     json: &JsonDocumentAst,
     options: &JsonXmlProjectionOptions,
@@ -137,9 +138,10 @@ pub fn project_json_to_xml(
         let (name, scalar) = match value {
             JsonValueAst::Object { .. } => ("map", None),
             JsonValueAst::Array { .. } => ("array", None),
-            JsonValueAst::String { value, .. } => {
-                ("string", Some(xml_string(value, options.escape)))
-            }
+            JsonValueAst::String { lexeme, .. } => (
+                "string",
+                Some(xml_lexeme(lexeme, options.escape, value.range())?),
+            ),
             JsonValueAst::Number { lexeme, .. } => ("number", Some(lexeme.clone())),
             JsonValueAst::Boolean { value, .. } => ("boolean", Some(value.to_string())),
             JsonValueAst::Null { .. } => ("null", None),
@@ -158,7 +160,7 @@ pub fn project_json_to_xml(
             },
         );
         if let Some(member) = key {
-            let key = xml_string(&member.name, options.escape);
+            let key = xml_lexeme(&member.name_lexeme, options.escape, member.name_range)?;
             let escaped = options.escape && key.contains('\\');
             attribute(
                 &mut doc,
@@ -199,8 +201,15 @@ pub fn project_json_to_xml(
                 let mut keys = BTreeSet::new();
                 let mut selected = Vec::new();
                 for member in members {
-                    if options.duplicates != JsonXmlDuplicates::Retain && !keys.insert(&member.name)
-                    {
+                    let identity = if options.escape {
+                        xml_lexeme(&member.name_lexeme, true, member.name_range)?
+                            .chars()
+                            .map(|c| c as u32)
+                            .collect()
+                    } else {
+                        codepoints(&member.name_lexeme, member.name_range)?
+                    };
+                    if options.duplicates != JsonXmlDuplicates::Retain && !keys.insert(identity) {
                         if options.duplicates == JsonXmlDuplicates::Reject {
                             return Err(error(
                                 "cem.json.xml_projection.duplicate_key",
@@ -298,9 +307,31 @@ fn attribute(
     );
 }
 
-fn xml_string(value: &str, escape: bool) -> String {
+fn codepoints(lexeme: &str, range: JsonSourceRange) -> Result<Vec<u32>, JsonXmlProjectionError> {
+    super::json::json_string_codepoints(lexeme).map_err(|message| {
+        error(
+            "cem.json.xml_projection.invalid_source",
+            message,
+            range.source_map(),
+        )
+    })
+}
+
+fn xml_lexeme(
+    lexeme: &str,
+    escape: bool,
+    range: JsonSourceRange,
+) -> Result<String, JsonXmlProjectionError> {
     let mut out = String::new();
-    for c in value.chars() {
+    for cp in codepoints(lexeme, range)? {
+        let Some(c) = char::from_u32(cp) else {
+            if escape {
+                write!(out, "\\u{cp:04x}").expect("string write");
+            } else {
+                out.push('\u{fffd}');
+            }
+            continue;
+        };
         let valid = matches!(c, '\u{9}' | '\u{a}' | '\u{d}' | '\u{20}'..='\u{d7ff}' | '\u{e000}'..='\u{fffd}' | '\u{10000}'..='\u{10ffff}');
         if escape && (c <= '\u{1f}' || ('\u{7f}'..='\u{9f}').contains(&c) || !valid || c == '\\') {
             match c {
@@ -318,5 +349,5 @@ fn xml_string(value: &str, escape: bool) -> String {
             out.push(if valid { c } else { '\u{fffd}' });
         }
     }
-    out
+    Ok(out)
 }

@@ -548,6 +548,7 @@ pub struct JsonParseFact {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JsonParseFactKind {
     ParseError,
+    ResourceLimit,
     UnsupportedEncoding,
     DuplicateMemberName,
     SourceMapUnavailable,
@@ -557,6 +558,7 @@ impl JsonParseFactKind {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::ParseError => "parse-error",
+            Self::ResourceLimit => "resource-limit",
             Self::UnsupportedEncoding => "unsupported-encoding",
             Self::DuplicateMemberName => "duplicate-member-name",
             Self::SourceMapUnavailable => "source-map-unavailable",
@@ -664,6 +666,29 @@ pub fn json_document_ast_from_parse_report(
 }
 
 pub fn extract_json_parse_report(request: JsonSourceValidationRequest<'_>) -> JsonParseReport {
+    extract_json_report(request, None)
+}
+
+/// The import-only JSON-to-XML profile accepts all JSON string codepoints and
+/// number lexemes, retaining the original lexemes for semantic projection.
+pub(crate) fn json_document_ast_for_xml(
+    request: JsonSourceValidationRequest<'_>,
+    max_depth: usize,
+    max_values: usize,
+) -> (Option<JsonDocumentAst>, Vec<Diagnostic>) {
+    let report = extract_json_report(request, Some((max_depth, max_values)));
+    let diagnostics =
+        validate_json_parse_report(&report, &JsonSchemaContractCatalog::from_builtin());
+    (
+        json_document_ast_from_parse_report(request, &report),
+        diagnostics,
+    )
+}
+
+fn extract_json_report(
+    request: JsonSourceValidationRequest<'_>,
+    limits: Option<(usize, usize)>,
+) -> JsonParseReport {
     let parameters = content_type_parameters(request.content_type);
     let mut report = JsonParseReport {
         source_uri: request.source_uri.to_owned(),
@@ -693,6 +718,10 @@ pub fn extract_json_parse_report(request: JsonSourceValidationRequest<'_>) -> Js
 
     report.line_ending = json_detect_line_ending_style(source).map(str::to_owned);
     let mut parser = JsonParser::new(source);
+    parser.xml_limits = limits;
+    if limits.is_some() && source.starts_with('\u{feff}') {
+        parser.byte = '\u{feff}'.len_utf8();
+    }
     match parser.parse_document() {
         Ok(root) => {
             report.root = Some(root);
@@ -726,14 +755,15 @@ fn json_diagnostic_from_fact(
             JsonParseFactKind::DuplicateMemberName | JsonParseFactKind::SourceMapUnavailable => {
                 Severity::Warning
             }
-            JsonParseFactKind::ParseError | JsonParseFactKind::UnsupportedEncoding => {
-                Severity::Error
-            }
+            JsonParseFactKind::ParseError
+            | JsonParseFactKind::ResourceLimit
+            | JsonParseFactKind::UnsupportedEncoding => Severity::Error,
         });
     let code = binding
         .map(|binding| binding.diagnostic_code.clone())
         .unwrap_or_else(|| match fact.kind {
             JsonParseFactKind::ParseError => "cem.json.parse_error".to_owned(),
+            JsonParseFactKind::ResourceLimit => "cem.json.resource_limit".to_owned(),
             JsonParseFactKind::UnsupportedEncoding => "cem.json.unsupported_encoding".to_owned(),
             JsonParseFactKind::DuplicateMemberName => "cem.json.duplicate_member_name".to_owned(),
             JsonParseFactKind::SourceMapUnavailable => "cem.json.source_map_unavailable".to_owned(),
@@ -778,11 +808,70 @@ fn json_diagnostic_from_fact(
     }
 }
 
+/// Decode a validated JSON string without losing unpaired UTF-16 code units.
+/// Only the import/parser projection may use this source-format operation.
+pub(crate) fn json_string_codepoints(lexeme: &str) -> Result<Vec<u32>, &'static str> {
+    let source = lexeme
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .ok_or("expected JSON string")?;
+    let mut chars = source.chars().peekable();
+    let mut result = Vec::new();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            result.push(ch as u32);
+            continue;
+        }
+        let cp = match chars.next().ok_or("unterminated JSON escape")? {
+            '"' => '"' as u32,
+            '\\' => '\\' as u32,
+            '/' => '/' as u32,
+            'b' => 8,
+            'f' => 12,
+            'n' => 10,
+            'r' => 13,
+            't' => 9,
+            'u' => {
+                let mut cp = 0;
+                for _ in 0..4 {
+                    cp = cp * 16
+                        + chars
+                            .next()
+                            .and_then(|c| c.to_digit(16))
+                            .ok_or("invalid JSON Unicode escape")?;
+                }
+                if (0xd800..=0xdbff).contains(&cp) {
+                    let mut lookahead = chars.clone();
+                    if lookahead.next() == Some('\\') && lookahead.next() == Some('u') {
+                        let mut low = Some(0u32);
+                        for _ in 0..4 {
+                            low = low
+                                .zip(lookahead.next().and_then(|c| c.to_digit(16)))
+                                .map(|(v, d)| v * 16 + d);
+                        }
+                        if let Some(low) = low.filter(|v| (0xdc00..=0xdfff).contains(v)) {
+                            cp = 0x10000 + (cp - 0xd800) * 0x400 + low - 0xdc00;
+                            chars = lookahead;
+                        }
+                    }
+                }
+                cp
+            }
+            _ => return Err("invalid JSON escape"),
+        };
+        result.push(cp);
+    }
+    Ok(result)
+}
+
 struct JsonParser<'a> {
     source: &'a str,
     line_index: LineIndex,
     byte: usize,
     facts: Vec<JsonParseFact>,
+    xml_limits: Option<(usize, usize)>,
+    depth: usize,
+    values: usize,
 }
 
 impl<'a> JsonParser<'a> {
@@ -792,6 +881,9 @@ impl<'a> JsonParser<'a> {
             line_index: LineIndex::from_utf8(source),
             byte: 0,
             facts: Vec::new(),
+            xml_limits: None,
+            depth: 0,
+            values: 0,
         }
     }
 
@@ -806,6 +898,22 @@ impl<'a> JsonParser<'a> {
     }
 
     fn parse_value(&mut self) -> Result<JsonValueAst, JsonParseFact> {
+        self.values += 1;
+        if self
+            .xml_limits
+            .is_some_and(|(depth, values)| self.depth > depth || self.values > values)
+        {
+            let mut error = self.error_here("JSON import exceeds its depth/value limit");
+            error.kind = JsonParseFactKind::ResourceLimit;
+            return Err(error);
+        }
+        self.depth += 1;
+        let result = self.parse_value_inner();
+        self.depth -= 1;
+        result
+    }
+
+    fn parse_value_inner(&mut self) -> Result<JsonValueAst, JsonParseFact> {
         self.skip_whitespace();
         match self.peek() {
             Some(b'{') => self.parse_object(),
@@ -861,7 +969,14 @@ impl<'a> JsonParser<'a> {
             let value = self.parse_value()?;
             let member_range =
                 self.range(key.range.start.byte_offset as usize, value.range().end());
-            if !names.insert(key.value.clone()) {
+            let identity = if self.xml_limits.is_some() {
+                json_string_codepoints(&key.lexeme).map_err(|message| {
+                    self.error_at(key.range.start.byte_offset as usize, message)
+                })?
+            } else {
+                key.value.chars().map(|c| c as u32).collect()
+            };
+            if !names.insert(identity) {
                 self.facts.push(JsonParseFact {
                     kind: JsonParseFactKind::DuplicateMemberName,
                     member_name: Some(key.value.clone()),
@@ -937,9 +1052,17 @@ impl<'a> JsonParser<'a> {
                 b'"' => {
                     self.byte += 1;
                     let lexeme = &self.source[start..self.byte];
-                    let value = serde_json::from_str::<String>(lexeme).map_err(|error| {
-                        self.error_at(start, format!("JSON string parse error: {error}"))
-                    })?;
+                    let value = if self.xml_limits.is_some() {
+                        json_string_codepoints(lexeme)
+                            .map_err(|message| self.error_at(start, message))?
+                            .into_iter()
+                            .map(|cp| char::from_u32(cp).unwrap_or('\u{fffd}'))
+                            .collect()
+                    } else {
+                        serde_json::from_str::<String>(lexeme).map_err(|error| {
+                            self.error_at(start, format!("JSON string parse error: {error}"))
+                        })?
+                    };
                     return Ok(JsonStringToken {
                         value,
                         lexeme: lexeme.to_owned(),
@@ -1021,8 +1144,11 @@ impl<'a> JsonParser<'a> {
         }
 
         let lexeme = self.source[start..self.byte].to_owned();
-        serde_json::from_str::<Value>(&lexeme)
-            .map_err(|error| self.error_at(start, format!("JSON number parse error: {error}")))?;
+        if self.xml_limits.is_none() {
+            serde_json::from_str::<Value>(&lexeme).map_err(|error| {
+                self.error_at(start, format!("JSON number parse error: {error}"))
+            })?;
+        }
         Ok(JsonValueAst::Number {
             range: self.range(start, self.byte),
             lexeme,

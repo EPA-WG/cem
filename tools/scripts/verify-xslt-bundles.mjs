@@ -30,6 +30,9 @@ try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_sorting'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_SORT_FIXTURE_DIR: directory },
     });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_data_recovery'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_DATA_FIXTURE_DIR: directory },
+    });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
     // go straight to the common CEM import/retention boundary below.
@@ -254,6 +257,34 @@ try {
             } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
         }
     }
+    // XSLT-DATA-WASM: changed XML/JSON text is imported only inside the native
+    // evaluator. Both deployment routes retain trees and recover typed errors.
+    {
+        const name = 'parsed-recovered';
+        const manifest = JSON.parse(readFileSync(join(directory, `${name}.json`), 'utf8'));
+        const bytes = readFileSync(join(directory, `${name}.bin`));
+        const source = readFileSync(join(directory, `${name}.xslt`), 'utf8');
+        assert.deepEqual(Buffer.from(compileXsltBundle(source, 'memory:data-recovery.xslt')), bytes);
+        checks++;
+        for (const retained of [load(bytes, manifest.contentHash, manifest.sourceHash), JSON.parse(retainXsltStylesheet(source, 'memory:data-recovery.xslt'))]) {
+            try {
+                for (const [input, expected] of [
+                    ['<input><![CDATA[<r><x>A</x><x>B</x></r>]]></input>', 'beforeA|1|2B|2|2'],
+                    ['<input>bad XML</input>', 'err:FODC0006|true|input'],
+                    ['<input format="json">{"A":1,"B":2}</input>', 'before1|1|22|2|2'],
+                    ['<input format="json">[</input>', 'json error'],
+                ]) {
+                    const document = retainCemDocument(new TextEncoder().encode(input), 'application/xml', 'memory:data-input.xml');
+                    try {
+                        const output = render(document, '{}', retained.bundleId);
+                        assert.deepEqual(output.diagnostics, []);
+                        assert.equal(text(output.nodes), expected);
+                        checks++;
+                    } finally { assert.equal(disposeCemDocument(document), true); }
+                }
+            } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
+        }
+    }
     for (const [attributes, code] of [
         ['select="(1, 2)"', 'XTTE1020'],
         ['select="if (position() = 1) then 1 else &quot;a&quot;"', 'XTDE1030'],
@@ -291,7 +322,7 @@ try {
         disposeXsltBundle(failed.bundleId);
         disposeCemDocument(failedInput);
     }
-    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, ownership, focus, grouping, sorting, bounds and isolation).`);
+    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, ownership, focus, grouping, sorting, parsing, recovery, bounds and isolation).`);
 } finally {
     rmSync(directory, { recursive: true, force: true });
 }

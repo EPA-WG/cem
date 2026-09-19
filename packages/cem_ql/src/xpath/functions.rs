@@ -594,7 +594,7 @@ pub(crate) fn invocation_failure(
     // Resource/capability failures must not become catchable data errors.
     if diagnostics
         .iter()
-        .any(|d| d.code == "cem.xpath.sequence_item_limit_exceeded")
+        .any(|d| matches!(d.code.as_str(), "cem.xpath.sequence_item_limit_exceeded" | "cem.xpath.import_limit_exceeded"))
     {
         failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::ItemsPerStage));
     } else if diagnostics
