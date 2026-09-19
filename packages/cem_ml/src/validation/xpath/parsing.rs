@@ -1,7 +1,7 @@
 //! Standard function contracts; external syntax is resolved only by import.
 use super::*;
 use crate::import::{
-    import_string, ImportFailureKind, ImportStringProfile, ImportStringRequest, JsonXmlDuplicates,
+    import_string, CsvHeader, CsvImportOptions, ImportFailureKind, ImportStringProfile, ImportStringRequest, JsonXmlDuplicates,
     JsonXmlProjectionOptions,
 };
 
@@ -121,22 +121,26 @@ pub(super) fn evaluate(
         let [XPathResultItem::Map { entries, .. }] = items.as_slice() else {
             return Err(type_error());
         };
-        json_options(expression, entries, range)?
+        Some(entries.as_slice())
     } else {
-        JsonXmlProjectionOptions::default()
+        None
+    };
+    let profile = match function {
+        XPathNativeFunction::ParseXml => ImportStringProfile::Xml,
+        XPathNativeFunction::JsonToXml => ImportStringProfile::JsonXml(
+            options.map(|entries| json_options(expression, entries, range)).transpose()?.unwrap_or_default()
+        ),
+        XPathNativeFunction::ParseCsv => ImportStringProfile::CsvWithOptions(
+            options.map(|entries| csv_options(expression, entries, range)).transpose()?.unwrap_or_default()
+        ),
+        XPathNativeFunction::ParseYaml => ImportStringProfile::Yaml,
+        _ => unreachable!(),
     };
     let Some(source) = source else {
         return Ok(vec![]);
     };
     runtime.charge_work(source.len() as u64, range)?;
     runtime.force(range)?;
-    let profile = match function {
-        XPathNativeFunction::ParseXml => ImportStringProfile::Xml,
-        XPathNativeFunction::JsonToXml => ImportStringProfile::JsonXml(options),
-        XPathNativeFunction::ParseCsv => ImportStringProfile::Csv,
-        XPathNativeFunction::ParseYaml => ImportStringProfile::Yaml,
-        _ => unreachable!(),
-    };
     let uri = format!(
         "{}#parsed-{}",
         expression.source.uri, range.start.byte_offset
@@ -193,6 +197,36 @@ pub(super) fn evaluate(
     runtime.enforce_sequence_items(items.len(), range)?;
     runtime.check_items_text(&items, range)?;
     Ok(items)
+}
+
+fn csv_options(
+    expression: &XPathExpressionAst,
+    entries: &[XPathMapEntry],
+    range: XPathSourceRange,
+) -> Result<CsvImportOptions, XPathEvaluationError> {
+    let invalid = || {
+        let mut failure = error(expression, "cem.xpath.csv_options", "", "Invalid CSV import options", range);
+        if let Some(diagnostic) = failure.diagnostic.as_mut() {
+            **diagnostic = diagnostic.clone().with_error_name("urn:cem:import", "invalid-options");
+        }
+        failure
+    };
+    let mut options = CsvImportOptions::default();
+    for entry in entries {
+        if entry.key.type_name != "xs:string" || entry.key.lexical_value != "header" {
+            return Err(invalid());
+        }
+        let [XPathResultItem::Atomic { value, .. }] = entry.value.items.as_slice() else {
+            return Err(invalid());
+        };
+        if value.type_name != "xs:string" { return Err(invalid()); }
+        options.header = match value.lexical_value.as_str() {
+            "present" => CsvHeader::Present,
+            "absent" => CsvHeader::Absent,
+            _ => return Err(invalid()),
+        };
+    }
+    Ok(options)
 }
 
 fn json_options(

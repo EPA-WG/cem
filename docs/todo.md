@@ -1221,18 +1221,38 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
           across all four string imports, distinguish XDM node identity from
           selection keys across rerenders, and characterize stylesheet access
           to source metadata before choosing the viewer's selection contract.
-          Four native probes confirm retained provenance and CEMT's stable
-          keys, missing XPath metadata access, and CSV's header-profile mismatch.
+          The original four native probes confirmed retained provenance and
+          CEMT's stable keys, missing XPath metadata access, and CSV's
+          header-profile mismatch.
           The [shared proposal](xslt-runtime-lowering.md#viewer-selection-and-csv-parity-gate)
-          requires approval under the viewer scope rule; runtime code is unchanged.
+          was approved and implemented on 2026-09-19 in the items below.
           Verification: all 446 CEM-QL tests pass; Nx lint passes with its
           existing 23 warnings. No browser runtime or demo behavior changed.
-    - [ ] Fixture XSLT-VIEW-SOURCE-ACCESS: after approval, expose native source
+    - [x] Fixture XSLT-VIEW-SOURCE-ACCESS: expose native source
           keys and line numbers to XPath and CEM-QL; verify repeated parsing,
           same-line nodes, edits, projection separation and native/WASM parity.
-    - [ ] Fixture XSLT-VIEW-CSV-HEADERS: after approval, add explicit CSV header
+        - [x] Fixture SOURCE-PROVENANCE-IMPORT: test shared tree keys/locations,
+              byte/string imports, projection options and missing provenance.
+        - [x] Fixture SOURCE-PROVENANCE-QUERY: compare XPath and CEM-QL metadata,
+              typed errors, limits, retained ownership and binary/WASM reload.
+    - [x] Fixture XSLT-VIEW-CSV-HEADERS: add explicit CSV header
           options through CEM-ML string import, preserve the one-argument profile,
           and compare native rows/headers and typed failures with CEM-QL readers.
+          Verification for source access and CSV options: all 450 CEM-QL tests,
+          32 focused CEM-ML integration tests (including the import-boundary
+          audit), and 159 native/WASM compiled-bundle checks pass. CEM-ML and
+          CEM-QL Nx lint pass with existing warnings. Source keys and original
+          lines agree across native/WASM execution, sorting and binary reload;
+          edits invalidate selection. No browser viewer is claimed complete.
+    - [x] Fixture XSLT-VIEW-XMLNS-BOUNDARY: compare the CEMT viewer's
+          source-oriented namespace-declaration attributes with XPath's
+          semantic attribute axis. The native fixture confirms actual CEMT
+          rendering includes an XMLNS column, while XPath selects only regular
+          attributes. See the [presentation decision](xslt-runtime-lowering.md#namespace-declaration-parity).
+    - [ ] XSLT-VIEW-XMLNS-PARITY: settle whether namespace declarations belong
+          in the viewer's data columns before changing the CEMT parity
+          reference; implement and verify the selected presentation in both
+          viewers without changing generic `.attributes` or XPath semantics.
 - [ ] Fixture XSLT-VIEW-DEMO: add an independent XSLT viewer case and source
       display to data-table.html. Add an imported XSLT aspect case for notes
       as a tree and the IP-filter local-preview form; retain the CEMT cases.
@@ -1247,6 +1267,12 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       ownership, error behavior and limits, distinguishing native functions
       from optional XPath companions. Stop for a new contract
       decision or ambiguity, and keep external parsing in CEM-ML import.
+- [ ] Fixture XPATH-CEMQL-DEMO-PAIRS: after the function parity audit and gap
+      implementations, pair XPath examples on `xpath-functions.html` with
+      matching CEM-QL samples and links to detailed CEM-QL function use cases
+      (requested 2026-09-19). Update source guards, source-loaded stories and
+      relevant fixture inventories; verify the pairs use equivalent inputs,
+      results and documented limits.
 
 ## Immediate: Legacy Demo Case Coverage
 

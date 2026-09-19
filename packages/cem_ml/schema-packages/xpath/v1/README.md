@@ -264,7 +264,9 @@ The native dispatcher also executes these signatures:
 | `fn:parse-xml` | 1 | Typed string import into an untyped retained CEM document; empty sequence stays empty; malformed XML raises `FODC0006` |
 | `fn:json-to-xml` | 1, 2 | Native functions-namespace node projection, duplicate and escape options, and typed `FOJS` errors |
 | `fn:base-uri`, `fn:document-uri` | 0, 1 | Native URI metadata; parsed strings have the call's static base and no document URI |
-| `Q{urn:cem:import}parse-csv`, `Q{urn:cem:import}parse-yaml` | 1 | Explicit import extensions returning the same retained generic-data CEM trees |
+| `Q{urn:cem:import}parse-csv` | 1, 2 | Retained generic-data CEM tree; optional `map {'header':'present'}` or `absent`, with the one-argument profile defaulting to `absent` |
+| `Q{urn:cem:import}parse-yaml` | 1 | Explicit import extension returning a retained generic-data CEM tree |
+| `Q{urn:cem:source}node-key`, `Q{urn:cem:source}line-number` | 1 | Optional single native node to an opaque stable source key or one-based integer line; empty/missing provenance stays empty |
 | `fn:abs`, `fn:ceiling`, `fn:floor` | 1 | Optional numeric arguments with typed results |
 | `fn:round`, `fn:round-half-to-even` | 1, 2 | Numeric rounding with optional integer precision |
 | `fn:format-integer`, `fn:format-number` | 2, 3 | Existing CEM numbering policy and typed static-context decimal formats |
@@ -273,6 +275,21 @@ Parsing uses the [bounded string-import profile](../../../../../docs/xslt-runtim
 32 KiB input, 64 levels and 4096 values/events. XML DTD processing and custom
 JSON fallback callbacks are unsupported; JSON schema validation raises
 `FOJS0004`. Limits and unavailable capabilities remain uncatchable.
+
+CSV options reject unknown keys and non-string/invalid header values with
+`Q{urn:cem:import}invalid-options`; a non-map options argument raises `XPTY0004`.
+Options are validated even for empty input. Record/header mapping remains in
+CEM-ML import, and document roots retain source-map origins.
+
+Source metadata functions require native nodes and raise `XPTY0004` for other
+types/cardinalities. Their source keys are computed once by import from source
+identity, input bytes and mapping profile, then combined with canonical node
+IDs. They remain stable across rerenders and native/WASM hosts with the same
+inputs; edited source or changed profiles invalidate them. They are not XDM
+identity or edit-tracking IDs. Parser-only imports lacking original source
+fingerprints return no key. Metadata results retain source maps and obey XPath
+budgets/cancellation. Native CEM-QL counterparts are `data:node_key(node)` and
+`data:line_number(node)`; existing CEMT `.id` values remain unchanged.
 
 Their native regression coverage does not imply a browser demo for every
 signature or every formatting policy. Demo coverage is recorded per slice in

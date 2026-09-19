@@ -38,7 +38,36 @@ pub enum ImportStringProfile {
     Xml,
     JsonXml(JsonXmlProjectionOptions),
     Csv,
+    CsvWithOptions(CsvImportOptions),
     Yaml,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CsvHeader {
+    #[default]
+    Absent,
+    Present,
+}
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CsvImportOptions {
+    pub header: CsvHeader,
+}
+
+impl ImportStringProfile {
+    fn source_profile(self) -> String {
+        match self {
+            Self::Xml => "xml/string/1".into(),
+            Self::JsonXml(options) => format!("json/xml/string/1;escape={};duplicates={}",
+                options.escape, match options.duplicates {
+                    JsonXmlDuplicates::Retain => "retain",
+                    JsonXmlDuplicates::UseFirst => "use-first",
+                    JsonXmlDuplicates::Reject => "reject",
+                }),
+            Self::Csv | Self::CsvWithOptions(CsvImportOptions { header: CsvHeader::Absent }) => "csv/string/1;header=absent".into(),
+            Self::CsvWithOptions(CsvImportOptions { header: CsvHeader::Present }) => "csv/string/1;header=present".into(),
+            Self::Yaml => "yaml/string/1".into(),
+        }
+    }
 }
 pub struct ImportStringRequest<'a> {
     pub source: &'a str,
@@ -136,11 +165,13 @@ pub fn import_string(
                 options.max_values.min(MAX_VALUES),
             ))?)
         }
-        ImportStringProfile::Csv => LoadedInputAstStream::CsvDocument(parsed(
+        ImportStringProfile::Csv | ImportStringProfile::CsvWithOptions(_) => LoadedInputAstStream::CsvDocument(parsed(
             csv::csv_document_ast_from_source_bytes(csv::CsvSourceValidationRequest {
                 bytes,
                 source_uri,
-                content_type: Some("text/csv"),
+                content_type: Some(if matches!(request.profile,
+                    ImportStringProfile::CsvWithOptions(CsvImportOptions { header: CsvHeader::Present })
+                ) { "text/csv;header=present" } else { "text/csv;header=absent" }),
             }),
         )?),
         ImportStringProfile::Yaml => LoadedInputAstStream::YamlDocument(parsed(
@@ -164,7 +195,7 @@ pub fn import_string(
             };
             options.max_depth = options.max_depth.min(MAX_DEPTH);
             options.max_values = options.max_values.min(MAX_VALUES);
-            let ast = json_xml::project_json_to_xml(doc, &options).map_err(|e| ImportFailure {
+            json_xml::project_json_to_xml_with_semantics(doc, &options).map_err(|e| ImportFailure {
                 kind: match e.code {
                     "cem.json.xml_projection.duplicate_key" => DuplicateKey,
                     "cem.json.xml_projection.limit" => Limit,
@@ -179,8 +210,7 @@ pub fn import_string(
                     source_map: Some(e.source),
                     ..Default::default()
                 }],
-            })?;
-            (ast, CemTreeSemantics::default())
+            })?
         }
         owner => {
             let data = match owner {
@@ -198,6 +228,31 @@ pub fn import_string(
     semantics.document_metadata = Some(CemDocumentMetadata {
         base_uri: request.base_uri.map(str::to_owned),
         document_uri: None,
+    });
+    semantics.source_fingerprint = Some(source_fingerprint(source_uri, bytes, &[
+        &request.profile.source_profile(),
+        if request.base_uri.is_some() { "base" } else { "no-base" },
+        request.base_uri.unwrap_or(""),
+    ]));
+    // Generic CSV/YAML builders have no lexical document node. Its provenance
+    // still covers the original source, just as for byte and data:read imports.
+    semantics.sources.entry(0).or_insert_with(|| SourceMapStack {
+        frames: vec![SourceMapFrame {
+            source_id: SourceId(1),
+            span: FrameSpan::Single(ByteRange::new(0, bytes.len() as u32)),
+            transform: TransformKind::ContentTypeTransform {
+                content_type: match native.as_ref() {
+                    LoadedInputAstStream::XmlDocument(doc) => doc.source.media_type.clone(),
+                    LoadedInputAstStream::JsonDocument(doc) => doc.source.media_type.clone(),
+                    LoadedInputAstStream::CsvDocument(doc) => doc.source.media_type.clone(),
+                    LoadedInputAstStream::YamlDocument(doc) => doc.source.media_type.clone(),
+                    _ => unreachable!(),
+                },
+            },
+        }],
+    });
+    semantics.ranges.entry(0).or_insert(CemTreeRange {
+        line: 1, column: 1, offset: 0, length: bytes.len() as u64,
     });
     RetainedCemTree::new(ast, source_uri, request.source, semantics, Some(native))
         .map_err(|e| ImportFailure::new(Internal, e))

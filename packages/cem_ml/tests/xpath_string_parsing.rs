@@ -184,3 +184,72 @@ fn json_options_preserve_duplicates_escaping_and_standard_error_identity() {
         assert!(errors[0].source_map.is_some());
     }
 }
+
+#[test]
+fn csv_header_options_are_explicit_native_and_typed() {
+    for (options, expected) in [
+        ("map {}", vec!["label", "A"]),
+        ("map {'header':'absent'}", vec!["label", "A"]),
+        ("map {'header':'present'}", vec!["A"]),
+    ] {
+        assert_eq!(
+            values(&format!(
+                "Q{{urn:cem:import}}parse-csv('label\nA', {options})/*/*"
+            )),
+            expected
+        );
+    }
+    for options in [
+        "map {'header':'invalid'}",
+        "map {'header':true()}",
+        "map {'header':()}",
+        "map {'header':('present','absent')}",
+        "map {'typo':'present'}",
+        "map {1:'present'}",
+    ] {
+        let errors = run(&format!("Q{{urn:cem:import}}parse-csv((), {options})")).unwrap_err();
+        let name = errors[0].error_name().unwrap();
+        assert_eq!(name.namespace_uri, "urn:cem:import");
+        assert_eq!(name.local_name, "invalid-options");
+        assert!(errors[0].source_map.is_some());
+    }
+    let errors = run("Q{urn:cem:import}parse-csv('label', ())").unwrap_err();
+    assert_eq!(errors[0].error_name().unwrap().local_name, "XPTY0004");
+    assert!(values("Q{urn:cem:import}parse-csv((), map {'header':'present'})").is_empty());
+}
+
+#[test]
+fn source_metadata_is_stable_without_changing_xdm_identity_and_is_bounded() {
+    let query = "let $parse := function() { parse-xml('<r><x/><x/></r>') } return let $a := $parse() return let $b := $parse() return ($a is $b, Q{urn:cem:source}node-key($a) = Q{urn:cem:source}node-key($b), Q{urn:cem:source}node-key($a/r/x[1]) = Q{urn:cem:source}node-key($a/r/x[2]), Q{urn:cem:source}line-number($a/r/x[2]))";
+    assert_eq!(values(query), ["false", "true", "false", "1"]);
+    for function in ["node-key", "line-number"] {
+        assert!(values(&format!("Q{{urn:cem:source}}{function}(())")).is_empty());
+        for argument in [
+            "1",
+            "map {}",
+            "[1]",
+            "(parse-xml('<r/>'), parse-xml('<r/>'))",
+        ] {
+            let errors = run(&format!("Q{{urn:cem:source}}{function}({argument})")).unwrap_err();
+            assert_eq!(errors[0].error_name().unwrap().local_name, "XPTY0004");
+            assert!(errors[0].source_map.is_some());
+        }
+    }
+    let key = "Q{urn:cem:source}node-key(parse-xml('<r/>'))";
+    let errors = controlled(
+        key,
+        XPathEvaluationLimits {
+            max_text_bytes: Some(32),
+            ..Default::default()
+        },
+        None,
+    )
+    .unwrap_err();
+    assert_eq!(errors[0].code, "cem.xpath.text_byte_limit_exceeded");
+    let control = OperationControl::default();
+    control.cancel_root(None, None).unwrap();
+    assert!(controlled(key, Default::default(), Some(&control))
+        .unwrap_err()
+        .iter()
+        .any(|d| d.code == "cem.xpath.control_failure"));
+}

@@ -4,6 +4,7 @@ mod containers;
 mod functions;
 mod grouping;
 mod parsing;
+mod provenance;
 pub use functions::XPathNativeFunctionItem;
 mod lexer;
 mod node;
@@ -3508,6 +3509,8 @@ fn xpath_evaluate_primary(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum XPathNativeFunction {
+    SourceNodeKey,
+    SourceLineNumber,
     ParseXml,
     JsonToXml,
     ParseCsv,
@@ -3607,9 +3610,16 @@ impl XPathRoundFunctionContract {
 }
 
 fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFunction> {
+    if name.namespace_uri.as_deref() == Some("urn:cem:source") {
+        return match (name.local_name.as_str(), arity) {
+            ("node-key", 1) => Some(XPathNativeFunction::SourceNodeKey),
+            ("line-number", 1) => Some(XPathNativeFunction::SourceLineNumber),
+            _ => None,
+        };
+    }
     if name.namespace_uri.as_deref() == Some("urn:cem:import") {
         return match (name.local_name.as_str(), arity) {
-            ("parse-csv", 1) => Some(XPathNativeFunction::ParseCsv),
+            ("parse-csv", 1 | 2) => Some(XPathNativeFunction::ParseCsv),
             ("parse-yaml", 1) => Some(XPathNativeFunction::ParseYaml),
             _ => None,
         };
@@ -3855,6 +3865,10 @@ fn xpath_evaluate_function_call(
         ));
     };
 
+    if matches!(function, XPathNativeFunction::SourceNodeKey | XPathNativeFunction::SourceLineNumber) {
+        return provenance::evaluate(function, expression, &arguments[0], focus,
+            variable_bindings, runtime, source_range);
+    }
     if matches!(
         function,
         XPathNativeFunction::ParseXml
@@ -4479,6 +4493,9 @@ fn xpath_evaluate_function_call(
         | XPathNativeFunction::ParseYaml
         | XPathNativeFunction::BaseUri
         | XPathNativeFunction::DocumentUri => unreachable!("parsing dispatcher"),
+        XPathNativeFunction::SourceNodeKey | XPathNativeFunction::SourceLineNumber => {
+            unreachable!("source metadata dispatcher")
+        }
         XPathNativeFunction::CurrentGroup | XPathNativeFunction::CurrentGroupingKey => {
             unreachable!("group functions return before argument evaluation")
         }

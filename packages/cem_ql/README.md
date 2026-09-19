@@ -82,6 +82,32 @@ instructions. JSON/YAML/CSV use the `cem:generic-data` namespace with
 (`string`, `number`, `boolean`, `null`). CSV uses its first row as headings
 and retains string-valued fields. This is not a JSON AST handoff.
 
+`data:node_key(node)` and `data:line_number(node)` read source metadata from
+either an imported CEM node or a retained XPath node. They accept an optional
+single native node; empty input returns empty, and other types/cardinalities
+raise `cem.ql.type_error`. Keys are opaque versioned strings, and lines are
+one-based integers. Missing original provenance returns empty.
+
+```cem-ql
+for row in data:read(source, "csv").root.children.children {
+    (data:node_key(row), data:line_number(row))
+}
+```
+
+The matching XPath functions are `Q{urn:cem:source}node-key($node)` and
+`Q{urn:cem:source}line-number($node)`. Both languages use the same native tree
+accessors. Identical source identity, bytes and import/projection profile keep
+the key across rerenders; edits or profile changes invalidate it. Keys do not
+change XPath node identity and do not track nodes across edits. Existing `.id`
+values are unchanged. Parser-only lifecycle/compatibility imports without
+original input bytes have no source key, though retained locations remain usable.
+
+For CSV, `data:read(source, "text/csv;header=present")` explicitly selects named
+columns; `header=absent` retains every row as an array. XPath's
+`Q{urn:cem:import}parse-csv($text, map {'header':'present'})` selects the same
+header mapping; its one-argument profile continues to default to `absent`.
+All CSV parsing and header mapping are owned by CEM-ML import.
+
 The optional projection defaults to `"cem"`, preserving those existing shapes.
 For JSON input, `"json-to-xml"` selects the native `cem-ml` projection using the
 [standard JSON-to-XML structure](https://www.w3.org/TR/xpath-functions-31/#json-to-xml-mapping):

@@ -306,15 +306,15 @@ targets pass with existing warnings.
 
 The 2026-09-19 viewer prerequisite probes in
 [`xslt_viewer_selection_boundary.rs`](../packages/cem_ql/tests/xslt_viewer_selection_boundary.rs)
-establish two remaining shared contracts. The viewer stylesheet is still open;
-these probes are not evidence of full viewer parity.
+identified two shared contracts, now implemented after approval. The viewer
+stylesheet remains open; these fixtures establish its prerequisites.
 
 | Probe | Current result |
 | --- | --- |
 | CEMT `data:read` over XML/JSON/YAML/CSV | Row `.id` values survive fresh reads of identical source; changed source invalidates them. `.line` identifies the original source line. |
 | XPath string imports followed by sorting | Native rows, owners, source maps and original line numbers survive sorting. Separate parses create distinct XDM documents and pointer-based identities. |
-| Stylesheet calls to proposed `Q{urn:cem:source}node-key` / `line-number` | No installed capability; source-located `cem.xpath.evaluation_unsupported`, with buffered output discarded. Metadata exists in native values but is unavailable to expressions. |
-| CSV `label\nB\nA` | CEMT's reader defaults to a header and produces two object rows; `import:parse-csv` produces three array rows, including `label`. |
+| `Q{urn:cem:source}node-key` / `line-number` | Shared native access now survives binary reload and native/WASM execution. CEM-QL counterparts return the same values for the same retained nodes. |
+| CSV `label\nB\nA` | The one-argument XPath profile still returns three array rows. Explicit `map {'header':'present'}` returns two object rows with named fields, matching CEMT's reader. |
 
 Persisting the current XPath native identity into a selection slice would lose
 selection on the next parse. Using sorted row position would select a different
@@ -322,39 +322,81 @@ row after sorting. Source line numbers alone also cannot distinguish two rows
 on the same line. Existing metadata must remain attached to native nodes; no
 document-object projection or source serialization can repair this boundary.
 
-Proposed extension, **awaiting approval** under the viewer scope rule:
+Extension **approved and implemented on 2026-09-19**:
 
-- Add format-neutral provenance access to the retained CEM tree, exposed as
+- Format-neutral provenance access to the retained CEM tree is exposed as
   `Q{urn:cem:source}node-key($node)` and `line-number($node)` in XPath, with
   matching native CEM-QL `data:node_key(node)` / `data:line_number(node)` functions.
   Each accepts zero or one native node; empty input returns the empty sequence,
   other types/cardinalities fail explicitly. The key is an opaque string; the
   line is a one-based integer, or empty when original location is unavailable.
-- Compute the source-key fingerprint once at the shared tree/import boundary
-  from source identity, content and import/projection profile, then combine it
+- The source-key fingerprint is computed once at the shared tree/import boundary
+  from source identity, content and import/projection profile, then combined
   with the canonical node ID. Identical input under the same profile retains
   keys across rerenders and native/WASM execution; changed content or profile
   invalidates them. Keys are versioned source-selection tokens, not XDM identity
   or persistent edit tracking. Independently parsed trees remain distinct for
-  XPath `is` and document ordering. Do not change existing CEMT `.id` values.
+  XPath `is` and document ordering. Existing CEMT `.id` values are unchanged.
   For trees without an imported-source fingerprint, return no source key.
-- Extend `import:parse-csv($text, map {'header': 'present'})` through an explicit
-  option owned by CEM-ML string import. Accept `present` and `absent`; keep the
-  existing one-argument header-absent behavior and reject invalid options with
-  a typed import error. The viewer selects `present`, matching the existing
+- `import:parse-csv($text, map {'header': 'present'})` uses an explicit
+  option owned by CEM-ML string import. It accepts `present` and `absent`, keeps
+  the one-argument header-absent behavior, and rejects invalid option names,
+  values or cardinalities with `Q{urn:cem:import}invalid-options`. A non-map
+  options argument raises `XPTY0004`. The viewer will select `present`, matching
+  the existing
   `data:read($text, 'csv')` contract. CEM-QL already supports explicit header
   selection through `data:read($text, 'text/csv;header=present')` / `absent`.
   CSV record/header mapping stays exclusively in import.
-- Verify duplicate values and same-line nodes have distinct keys, sort/selection
-  survives repeated parsing, edits invalidate keys, profiles cannot alias, and
-  metadata/errors survive binary reload. Cover all four formats and both query
-  languages, with existing ownership, cancellation and resource limits.
+- Tests cover distinct keys for same-line nodes, sort/selection across repeated
+  parsing, edit invalidation, projection options and binary reload. All four
+  formats and both query languages retain native ownership and obey existing
+  cancellation/resource limits. JSON projection now retains parser line ranges
+  directly; CSV/YAML document roots retain source-map origins, so whole parsed
+  documents can cross an XSLT variable boundary.
+
+The key format is opaque and versioned (`cem-source:1:…`). The fingerprint uses
+length-framed source identity, original input and mapping-profile fields with
+BLAKE3. Standard string imports include the parsing call's source identity and
+base URI; distinct call sites/profiles are not interchangeable selection scopes.
+Byte and string CEM data-reader imports agree for the same bytes and profile.
+Parser-only lifecycle/compatibility imports cannot invent the missing original
+input fingerprint, and return empty keys. Their known original locations remain
+available. New formats must supply provenance in import, not in query adapters.
+
+Verification: 450 CEM-QL tests, 32 focused CEM-ML integration tests (including
+the import-boundary audit), and 159 native/WASM compiled-bundle checks pass.
+CEM-ML and CEM-QL Nx lint pass with existing warnings. The bundle checks
+compare native/WASM compiled bytes and source keys, original lines, sorted
+selection, edit invalidation and typed CSV option recovery for all four formats.
 
 Native named-entry parameters already support the viewer's scalar controls.
 This gate does not approve a new browser binding or claim browser interactions
 are complete; those remain in XSLT-VIEW-DEMO/VERIFY. After viewer completion,
 the user requested an audit and implementation of missing CEM-QL equivalents
 for the XPath functionality added during this work (XPATH-CEMQL-PARITY-AUDIT).
+After those gaps are implemented, the XPath functions demo will pair its
+examples with equivalent CEM-QL samples and links to detailed function use
+cases (XPATH-CEMQL-DEMO-PAIRS).
+
+## Namespace-declaration parity
+
+The next viewer probe uses two rows that each declare `xmlns:p="urn:rows"`.
+The existing CEMT viewer emits a column headed
+`@http://www.w3.org/2000/xmlns/|p`, alongside `@id`. Its reader intentionally
+exposes source-oriented attribute nodes. Native XPath `@*` exposes only `id`;
+the namespace declarations are correctly excluded from its attribute axis.
+`cemt_namespace_declarations_are_not_attributes_in_the_xpath_data_model` verifies
+both the actual CEMT output and the native XPath selection.
+
+This is a presentation-contract decision under the user's instruction to stop
+for ambiguity. The scope keeps direct CEMT examples as the parity reference;
+silently dropping a visible column would change that reference. The recommended
+resolution is to exclude XMLNS declarations from the CEMT viewer's column list,
+row cells and tree attribute details, then author XSLT against semantic `@*`.
+Keep existing generic CEM-QL `.attributes` behavior and native XPath semantics.
+The alternative, retaining declaration rows in both viewers, needs an explicit
+namespace-provenance display contract; it must not fabricate XPath attributes
+or inspect XML parser ASTs downstream. **Awaiting the presentation decision.**
 
 ## Native output construction
 

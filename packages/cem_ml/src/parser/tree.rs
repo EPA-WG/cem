@@ -29,6 +29,8 @@ pub struct CemTreeRange {
 /// Import-only overrides preserve the public source-oriented AST fields.
 #[derive(Debug, Default)]
 pub struct CemTreeSemantics {
+    /// Import-owned, versioned source/profile fingerprint. Synthetic trees omit it.
+    pub source_fingerprint: Option<[u8; 32]>,
     pub document_metadata: Option<CemDocumentMetadata>,
     pub base_uris: BTreeMap<AstNodeId, String>,
     pub sources: BTreeMap<AstNodeId, SourceMapStack>,
@@ -65,6 +67,8 @@ pub struct RetainedCemTree {
     native_owner: Option<Arc<dyn Any + Send + Sync>>,
     nodes: Vec<CemTreeNode>,
     canonical: Vec<Option<AstNodeId>>,
+    source_fingerprint: Option<[u8; 32]>,
+    source_lines_known: Vec<bool>,
 }
 
 impl std::fmt::Debug for RetainedCemTree {
@@ -89,6 +93,7 @@ impl RetainedCemTree {
         }
         let line_index = crate::source::line_index::LineIndex::from_utf8(source_text);
         let mut nodes = Vec::with_capacity(ast.nodes.len());
+        let mut source_lines_known = Vec::with_capacity(ast.nodes.len());
         for (id, node) in ast.nodes.iter().enumerate() {
             use CemAstNode::*;
             let (node_id, kind, name, value, children, attributes, source) = match node {
@@ -206,6 +211,9 @@ impl RetainedCemTree {
                 .get(&node_id)
                 .copied()
                 .unwrap_or_else(|| source_range(source, &line_index));
+            source_lines_known.push(
+                semantics.ranges.contains_key(&node_id) || !source_text.is_empty(),
+            );
             nodes.push(CemTreeNode {
                 base_uri: semantics.base_uris.get(&node_id).cloned(),
                 kind,
@@ -343,6 +351,8 @@ impl RetainedCemTree {
             native_owner,
             nodes,
             canonical,
+            source_fingerprint: semantics.source_fingerprint,
+            source_lines_known,
         }))
     }
 
@@ -351,6 +361,20 @@ impl RetainedCemTree {
     }
     pub fn source_uri(&self) -> &str {
         &self.source_uri
+    }
+    /// Opaque source-selection token; independent of per-document XDM identity.
+    pub fn source_key(&self, id: AstNodeId) -> Option<String> {
+        let id = self.canonical_id(id)?;
+        let hash = blake3::Hash::from_bytes(self.source_fingerprint?);
+        Some(format!("cem-source:1:{}:{id}", hash.to_hex()))
+    }
+    pub fn source_line_number(&self, id: AstNodeId) -> Option<u32> {
+        let id = self.canonical_id(id)?;
+        if !self.source_lines_known[id as usize] {
+            return None;
+        }
+        let node = self.node(id)?;
+        (node.source.origin().is_some() && node.range.line > 0).then_some(node.range.line)
     }
     pub fn base_uri(&self) -> Option<&str> {
         self.metadata.base_uri.as_deref()

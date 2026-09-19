@@ -330,6 +330,23 @@ pub(crate) fn apply_stdlib_call(
             ctx.raise(source, code, message)
         }
         ("cem:stdlib/report", "severity_floor") => ItemStream::empty(),
+        ("cem:stdlib/data", "node_key" | "line_number") => {
+            if let Err(error) = ctx.force_safe_point(source) {
+                return error;
+            }
+            let items = &arg_streams[0].items;
+            let item = match items.as_slice() {
+                [] => return ItemStream::empty(),
+                [item] => item,
+                _ => {
+                    return ctx.type_error(source, "source metadata requires zero or one native node")
+                }
+            };
+            match super::data::source_metadata(item, name.local == "line_number") {
+                Ok(value) => ItemStream::from_items(value.map(Item::Atomic).into_iter().collect()),
+                Err(()) => ctx.type_error(source, "source metadata requires zero or one native node"),
+            }
+        }
         ("cem:stdlib/cemml", "parse") => cemml_parse(arg_streams),
         ("cem:stdlib/data", "read") => {
             // Poll control before entering the bounded native parsers.

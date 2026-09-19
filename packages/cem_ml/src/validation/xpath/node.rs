@@ -247,6 +247,12 @@ impl XPathNativeNode {
     pub fn source_map(&self) -> SourceMapStack {
         self.data().source.clone()
     }
+    pub fn source_key(&self) -> Option<String> {
+        self.tree.source_key(self.id)
+    }
+    pub fn source_line_number(&self) -> Option<u32> {
+        self.tree.source_line_number(self.id)
+    }
     pub(super) fn at(&self, id: u32) -> Self {
         Self { id, ..self.clone() }
     }

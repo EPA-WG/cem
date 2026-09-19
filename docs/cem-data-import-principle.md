@@ -53,6 +53,16 @@ a format-independent semantic view. CEM-QL retains that capability; named XPath
 functions accept imported native nodes, and XPath uses one node implementation.
 The XML compatibility constructors delegate to import before evaluation.
 
+Import also computes versioned source-selection fingerprints from original
+input bytes, source identity and semantic profile. Common tree accessors expose
+opaque per-node keys and original line numbers to XPath and CEM-QL; consumers
+never scan external syntax to recreate provenance. Source keys are independent
+of XDM document identity and invalidate on edits/profile changes. Imports with
+no original source fingerprint return no key. JSON-to-XML projection retains
+parser coordinates directly, including byte-only input, and CSV/YAML document
+roots retain source origins. Explicit CSV header options belong to this import
+layer; they are not implemented by dropping or remapping rows in an evaluator.
+
 | Audited input | Import responsibility | Shared consumer behavior |
 | --- | --- | --- |
 | XML | Decode references and normalize literal text/attribute whitespace before merging; retain lexical nodes and namespace provenance. | CEM navigation, logical text, names, values and identity. |

@@ -5,7 +5,10 @@
 //! retains the JSON owner; nodes keep original JSON source frames. Standard
 //! function argument/error handling remains the responsibility of its adapter.
 use super::json::{JsonDocumentAst, JsonMemberAst, JsonSourceRange, JsonValueAst};
-use crate::parser::{document::CemDocument, AstNodeId, CemAstNode, ExpandedName};
+use crate::parser::{
+    document::CemDocument, tree::{CemTreeRange, CemTreeSemantics},
+    AstNodeId, CemAstNode, ExpandedName,
+};
 use crate::source_map::{SourceMapStack, TransformKind};
 use std::collections::BTreeSet;
 use std::fmt::{self, Write};
@@ -87,6 +90,15 @@ pub fn project_json_to_xml(
     json: &JsonDocumentAst,
     options: &JsonXmlProjectionOptions,
 ) -> Result<CemDocument, JsonXmlProjectionError> {
+    project_json_to_xml_with_semantics(json, options).map(|(ast, _)| ast)
+}
+
+/// Import retains original parser locations, including byte-only and non-UTF-8
+/// inputs. Consumers never reconstruct source lines from a serialized tree.
+pub fn project_json_to_xml_with_semantics(
+    json: &JsonDocumentAst,
+    options: &JsonXmlProjectionOptions,
+) -> Result<(CemDocument, CemTreeSemantics), JsonXmlProjectionError> {
     if let Some(fact) = json.parse_facts.iter().find(|f| f.fatal) {
         return Err(error(
             "cem.json.xml_projection.invalid_source",
@@ -105,6 +117,8 @@ pub fn project_json_to_xml(
         )
     })?;
     let mut doc = CemDocument::default();
+    let mut semantics = CemTreeSemantics::default();
+    semantics.ranges.insert(0, tree_range(root.range()));
     doc.nodes.push(CemAstNode::Document {
         node_id: 0,
         root_children: vec![],
@@ -159,33 +173,37 @@ pub fn project_json_to_xml(
                 source: source.clone(),
             },
         );
+        semantics.ranges.insert(id, tree_range(value.range()));
         if let Some(member) = key {
             let key = xml_lexeme(&member.name_lexeme, options.escape, member.name_range)?;
             let escaped = options.escape && key.contains('\\');
-            attribute(
+            let key_id = attribute(
                 &mut doc,
                 id,
                 "key",
                 key,
                 projected_source(member.name_range),
             );
+            semantics.ranges.insert(key_id, tree_range(member.name_range));
             if escaped {
-                attribute(
+                let escaped_id = attribute(
                     &mut doc,
                     id,
                     "escaped-key",
                     "true".into(),
                     projected_source(member.name_range),
                 );
+                semantics.ranges.insert(escaped_id, tree_range(member.name_range));
             }
         }
         if let Some(scalar) = scalar {
             if name == "string" && options.escape && scalar.contains('\\') {
-                attribute(&mut doc, id, "escaped", "true".into(), source.clone());
+                let escaped_id = attribute(&mut doc, id, "escaped", "true".into(), source.clone());
+                semantics.ranges.insert(escaped_id, tree_range(value.range()));
             }
             // XDM does not contain zero-length text nodes.
             if !scalar.is_empty() {
-                push(
+                let text_id = push(
                     &mut doc,
                     id,
                     CemAstNode::Text {
@@ -194,6 +212,7 @@ pub fn project_json_to_xml(
                         source,
                     },
                 );
+                semantics.ranges.insert(text_id, tree_range(value.range()));
             }
         }
         match value {
@@ -239,7 +258,16 @@ pub fn project_json_to_xml(
             _ => {}
         }
     }
-    Ok(doc)
+    Ok((doc, semantics))
+}
+
+fn tree_range(range: JsonSourceRange) -> CemTreeRange {
+    CemTreeRange {
+        line: range.start.line,
+        column: range.start.column,
+        offset: range.start.byte_offset,
+        length: range.byte_length,
+    }
 }
 
 fn projected_source(range: JsonSourceRange) -> SourceMapStack {
@@ -294,7 +322,7 @@ fn attribute(
     name: &str,
     value: String,
     source: SourceMapStack,
-) {
+) -> AstNodeId {
     push(
         doc,
         parent,
@@ -304,7 +332,7 @@ fn attribute(
             value: Some(value),
             source,
         },
-    );
+    )
 }
 
 fn codepoints(lexeme: &str, range: JsonSourceRange) -> Result<Vec<u32>, JsonXmlProjectionError> {

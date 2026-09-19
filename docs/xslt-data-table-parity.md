@@ -24,7 +24,10 @@ The viewer stylesheet and browser parity demonstration remain open.
 The 2026-09-19 native probes identified missing stylesheet access to stable
 source-selection keys/line numbers and a CSV header-profile mismatch. The
 [viewer selection and CSV proposal](xslt-runtime-lowering.md#viewer-selection-and-csv-parity-gate)
-is awaiting the shared-capability decision required by the scope rule below.
+was approved and implemented on 2026-09-19, including matching native CEM-QL
+provenance functions. The next [presentation decision](xslt-runtime-lowering.md#namespace-declaration-parity)
+concerns namespace declarations: the CEMT reference displays them as attribute
+columns, while native XPath correctly excludes them from its attribute axis.
 
 ## Scope
 
@@ -50,8 +53,10 @@ cumulative function-call accounting. Native standard parsing through CEM import,
 typed import errors and standard error identity for XSLT recovery were also
 approved on that date. Shared native result construction was also approved,
 including native copying, atomic/text normalization, attribute ordering, typed
-failures, bounded namespace fixup and portable output. Other shared capability
-expansions still require approval.
+failures, bounded namespace fixup and portable output. Shared source-selection
+keys, original line-number access in both query languages, and explicit CSV
+header options were approved on 2026-09-19. Other shared capability expansions
+still require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
 or browser runtime behavior, stop and ask before implementing it. No table-
 specific Rust rendering, demo-local JavaScript, browser XSLTProcessor, or opaque

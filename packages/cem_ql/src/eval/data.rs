@@ -15,6 +15,23 @@ use std::{
 mod xpath_view;
 pub use xpath_view::DataReaderCache;
 
+pub(super) fn source_metadata(item: &Item, line: bool) -> Result<Option<AtomValue>, ()> {
+    let node = if let Some(view) = item
+        .view()
+        .and_then(|v| v.downcast_ref::<crate::xpath::functions::XPathQueryItem>())
+    {
+        view.xpath_item().native_node().cloned().ok_or(())?
+    } else {
+        xpath_node(item).ok_or(())?.map_err(|_| ())?
+    };
+    Ok(if line {
+        node.source_line_number()
+            .map(|line| AtomValue::Integer(line.into()))
+    } else {
+        node.source_key().map(AtomValue::String)
+    })
+}
+
 /// A retained CEM document, shared by imports, lifecycle adapters and loaders.
 /// The native owner travels with every selected node; no document is serialized.
 pub fn imported_cem_tree(tree: Arc<RetainedCemTree>) -> Item {

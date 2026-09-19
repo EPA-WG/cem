@@ -38,6 +38,7 @@ fn query_consumers_do_not_interpret_external_document_formats() {
             "XPath string parsing",
             include_str!("../src/validation/xpath/parsing.rs"),
         ),
+        ("XPath source metadata", include_str!("../src/validation/xpath/provenance.rs")),
         (
             "XPath regular expressions",
             include_str!("../src/validation/xpath/regular_expression.rs"),

@@ -36,6 +36,9 @@ try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_output'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_OUTPUT_FIXTURE_DIR: directory },
     });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_viewer_selection_boundary'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_SOURCE_PROVENANCE_FIXTURE_DIR: directory },
+    });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
     // go straight to the common CEM import/retention boundary below.
@@ -295,6 +298,37 @@ try {
                 }
             } finally { assert.equal(disposeXsltBundle(retained.bundleId), true); }
         }
+    }
+    // SOURCE-PROVENANCE-QUERY: compare native and WASM source keys, locations,
+    // sorting/selection and CSV options. JSON here describes expected output;
+    // document inputs remain source strings imported by CEM-ML.
+    const selection = JSON.parse(readFileSync(join(directory, 'selection.json'), 'utf8'));
+    const selectionBytes = readFileSync(join(directory, 'selection.bin'));
+    const selectionSource = readFileSync(join(directory, 'selection.xslt'), 'utf8');
+    assert.deepEqual(Buffer.from(compileXsltBundle(selectionSource, 'memory:selection.xslt')), selectionBytes);
+    checks++;
+    for (const retained of [load(selectionBytes, selection.contentHash, selection.sourceHash), JSON.parse(retainXsltStylesheet(selectionSource, 'memory:selection.xslt'))]) {
+        try {
+            for (const test of selection.cases) {
+                const document = retainCemDocument(new TextEncoder().encode(test.input), 'application/xml', 'memory:selection-input');
+                try {
+                    const output = render(document, '{}', retained.bundleId);
+                    assert.deepEqual(output.diagnostics, []);
+                    assert.deepEqual(output.nodes.map(node => [
+                        ...['value', 'aria-label', 'aria-pressed'].map(name => node.attributes.find(attribute => attribute.name === name).value),
+                        text(node.children),
+                    ]), test.rows);
+                    checks++;
+                } finally { disposeCemDocument(document); }
+            }
+            const document = retainCemDocument(new TextEncoder().encode(selection.invalid), 'application/xml', 'memory:selection-input');
+            try {
+                const output = render(document, '{}', retained.bundleId);
+                assert.deepEqual(output.diagnostics, []);
+                assert.equal(text(output.nodes), 'Invalid CSV options');
+                checks++;
+            } finally { disposeCemDocument(document); }
+        } finally { disposeXsltBundle(retained.bundleId); }
     }
     // XSLT-OUTPUT-WASM: the JSON below is the explicit render-plan protocol.
     // XML/JSON document bytes are still imported and queried entirely in CEM-ML.

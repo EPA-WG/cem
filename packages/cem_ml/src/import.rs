@@ -21,7 +21,8 @@ pub mod documents;
 mod strings;
 pub use crate::validation::json_xml::{JsonXmlDuplicates, JsonXmlProjectionOptions};
 pub use strings::{
-    import_string, ImportFailure, ImportFailureKind, ImportStringProfile, ImportStringRequest,
+    import_string, CsvHeader, CsvImportOptions, ImportFailure, ImportFailureKind,
+    ImportStringProfile, ImportStringRequest,
 };
 
 pub const MAX_BYTES: usize = 32768;
@@ -29,6 +30,20 @@ pub const MAX_DOCUMENT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_DEPTH: usize = 64;
 const MAX_VALUES: usize = 4096;
 const DATA_NS: &str = "cem:generic-data";
+
+// Length-framed fields and fixed-width lengths make tokens deterministic on
+// native and WASM hosts. This hashes original input, never a serialized AST.
+fn source_fingerprint(source_uri: &str, bytes: &[u8], profile: &[&str]) -> [u8; 32] {
+    let mut hash = blake3::Hasher::new_derive_key("cem imported source selection/1");
+    for field in std::iter::once(source_uri.as_bytes())
+        .chain(profile.iter().map(|field| field.as_bytes()))
+        .chain(std::iter::once(bytes))
+    {
+        hash.update(&(field.len() as u64).to_le_bytes());
+        hash.update(field);
+    }
+    *hash.finalize().as_bytes()
+}
 
 /// Source-event correspondence exists only for compatibility import entrypoints.
 pub struct XmlCemImport {
@@ -481,6 +496,14 @@ pub fn import_data_bytes(
         let mut builder = ImportBuilder::new();
         builder.text(0, text.into(), source.clone());
         builder.semantics.sources.insert(0, source);
+        builder.semantics.ranges.insert(0, CemTreeRange {
+            line: 1, column: 1, offset: 0, length: bytes.len() as u64,
+        });
+        builder.semantics.source_fingerprint = Some(source_fingerprint(
+            source_uri,
+            bytes,
+            &["data/1", "text/plain;charset=utf-8", projection],
+        ));
         return RetainedCemTree::new(builder.ast, source_uri, text, builder.semantics, None);
     }
     let native = Arc::new(parse_bytes(bytes, content_type, source_uri)?);
@@ -491,6 +514,11 @@ pub fn import_data_bytes(
         source_uri,
         content_type,
         bytes.len(),
+        Some(source_fingerprint(
+            source_uri,
+            bytes,
+            &["data/1", &import_content_type(content_type)?.1, projection],
+        )),
     )
 }
 
@@ -502,7 +530,14 @@ pub fn import_data(
     source_uri: &str,
 ) -> Result<Arc<RetainedCemTree>, String> {
     let native = Arc::new(parse(source, format, source_uri)?);
-    project_native(native, source, projection, source_uri, format, source.len())
+    project_native(
+        native, source, projection, source_uri, format, source.len(),
+        Some(source_fingerprint(
+            source_uri,
+            source.as_bytes(),
+            &["data/1", &import_content_type(format)?.1, projection],
+        )),
+    )
 }
 
 /// Import a retained parser AST into the same tree used by the data reader.
@@ -530,7 +565,7 @@ pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<Retaine
         ),
         _ => return Err("The lifecycle owner has no registered CEM data import.".into()),
     };
-    project_native(native, "", "cem", &uri, &format, length)
+    project_native(native, "", "cem", &uri, &format, length, None)
 }
 
 fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), ImportFailure> {
@@ -611,13 +646,12 @@ fn project_native(
     source_uri: &str,
     format: &str,
     byte_length: usize,
+    fingerprint: Option<[u8; 32]>,
 ) -> Result<Arc<RetainedCemTree>, String> {
     validate_data_ast(native.as_ref()).map_err(|e| e.to_string())?;
     let (ast, mut semantics) = match (projection, native.as_ref()) {
-        ("json-to-xml", LoadedInputAstStream::JsonDocument(doc)) => (
-            json_xml::project_json_to_xml(doc, &json_xml::JsonXmlProjectionOptions { max_depth: MAX_DEPTH, max_values: MAX_VALUES, ..Default::default() }).map_err(|e| e.to_string())?,
-            CemTreeSemantics::default(),
-        ),
+        ("json-to-xml", LoadedInputAstStream::JsonDocument(doc)) =>
+            json_xml::project_json_to_xml_with_semantics(doc, &json_xml::JsonXmlProjectionOptions { max_depth: MAX_DEPTH, max_values: MAX_VALUES, ..Default::default() }).map_err(|e| e.to_string())?,
         ("json-to-xml", _) => return Err("The json-to-xml projection requires JSON input.".into()),
         ("cem" | "xpath", LoadedInputAstStream::XmlDocument(doc)) => { let imported = import_xml_ast(doc)?; (imported.ast, imported.semantics) },
         ("xpath", _) => return Err("The xpath projection requires XML input; use the ordinary CEM import for other formats.".into()),
@@ -634,6 +668,7 @@ fn project_native(
         },
         _ => return Err("Choose the cem, json-to-xml or xpath projection explicitly.".into()),
     };
+    semantics.source_fingerprint = fingerprint;
     semantics
         .sources
         .entry(0)
