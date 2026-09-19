@@ -307,10 +307,12 @@ fn cemt_namespace_declarations_are_not_attributes_in_the_xpath_data_model() {
         "{:?}",
         rendered.diagnostics
     );
-    assert!(rendered
+    assert!(!rendered
         .rendered
         .contains("<th scope=\"col\">@http://www.w3.org/2000/xmlns/|p</th>"));
-    // Do not silently change the CEMT reference or fabricate XPath attributes.
+    assert!(rendered.rendered.contains("<th scope=\"col\">@id</th>"));
+    // The approved presentation excludes declarations; generic data and XPath
+    // retain their respective source-oriented and semantic attribute contracts.
 }
 
 #[test]

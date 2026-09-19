@@ -426,6 +426,70 @@ pub(super) fn group_by(
     Ok(())
 }
 
+pub(super) fn sort_keys(
+    target: &mut XPathExpressionAst,
+    population: &XPathExpandedName,
+    keys: Vec<XPathExpressionAst>,
+) -> Result<(), String> {
+    let range = target
+        .syntax_ast
+        .as_ref()
+        .ok_or("missing compiler XPath")?
+        .root
+        .source_range;
+    let mut members = vec![primary(XPathPrimaryExpression::ContextItem, range)];
+    for key in keys {
+        let key = key.syntax_ast.ok_or("missing typed sort key")?.root;
+        let key_range = key.source_range;
+        members.push(primary(
+            XPathPrimaryExpression::FunctionCall {
+                name: XPathName {
+                    namespace_uri: Some(FN.into()),
+                    lexical: format!("Q{{{FN}}}data"),
+                    ..name("data", key_range)
+                },
+                arguments: vec![sequence_node(key)],
+            },
+            key_range,
+        ));
+    }
+    let input = primary(
+        XPathPrimaryExpression::VariableReference(XPathName {
+            namespace_uri: population.namespace_uri.clone(),
+            lexical: expanded(population),
+            ..name(&population.local_name, range)
+        }),
+        range,
+    );
+    let record = primary(
+        XPathPrimaryExpression::ArrayConstructor(XPathArrayConstructor::Square(
+            XPathExpressionSequence {
+                expressions: members,
+                source_range: range,
+            },
+        )),
+        range,
+    );
+    target.syntax_ast = Some(XPathSyntaxAst {
+        root: XPathExpressionSequence {
+            source_range: range,
+            expressions: vec![XPathExpressionNode {
+                source_range: range,
+                expression: XPathExpression::SimpleMap {
+                    input: Box::new(input),
+                    mappings: vec![record],
+                },
+            }],
+        },
+        events: vec![],
+    });
+    target.tokens.clear();
+    target.events.clear();
+    target.facts.clear();
+    target.source_text = None;
+    Ok(())
+}
+
 pub(super) fn adapt(expression: &mut XPathExpressionAst, kind: ResultKind) -> Result<(), String> {
     if matches!(kind, ResultKind::Sequence) {
         return Ok(());

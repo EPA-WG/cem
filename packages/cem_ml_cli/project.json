@@ -102,6 +102,11 @@
             "outputs": []
         },
         "test": {
+            "inputs": [
+                "default",
+                "^default",
+                "{workspaceRoot}/packages/cem-elements/demo/data-table-view.xslt"
+            ],
             "cache": true,
             "executor": "@monodon/rust:test",
             "dependsOn": [

@@ -1217,6 +1217,32 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
 - [ ] Fixture XSLT-VIEW-PARITY: author data-table-view.xslt and compare its
       CLI-translated rendering with direct CEMT across XML/CSV/YAML/JSON,
       heterogeneous/nested/empty data, sorting, selection and parse failures.
+    - [x] Fixture XSLT-VIEW-LIVE-VARIABLES: pass only referenced outer variables
+          to each compiled XPath slot. Verify expanded names, inline/local
+          shadowing, binary reload and normal viewer-sized collections without
+          changing shared argument, item or function-call budgets.
+    - [x] Fixture XSLT-VIEW-SORT-POPULATION: evaluate ordinary sort keys in
+          native population focus instead of repeated per-row host callbacks;
+          preserve cardinality errors, namespaces, original key locations,
+          group-context isolation, promotion and stable multi-key ordering.
+    - [x] Fixture XSLT-VIEW-BASE-NATIVE: compare the authored base stylesheet's
+          semantic DOM with CEMT; verify sorting, selection, malformed input,
+          namespace exclusion and all four import formats through the real CLI.
+    - [x] Fixture XSLT-VIEW-BASE-WASM: compare native/WASM stylesheet compilation
+          and native-produced named-entry bundles across sorting, source edits
+          and selection, retaining scalar controls and CEM document handles.
+          Verification: 457 CEM-QL tests, 13 real CLI parity tests and 172
+          native/WASM checks pass. The base stylesheet is ready for native/CLI
+          use; browser wiring, styling and imported XSLT aspects remain open.
+    - [ ] XSLT-VIEW-BROWSER-PARAMS-DECISION: choose the component's state-binding
+          contract before adding declaration/worker integration. Recommend
+          explicit scalar mappings to declared XSLT template parameters;
+          the alternative introduces a native control-document node contract.
+          See the [browser proposal](xslt-runtime-lowering.md#browser-state-binding-decision).
+          Native bundle delivery, import and provenance approval remain settled.
+    - [ ] Fixture XSLT-VIEW-ASPECTS-NATIVE: author an imported XSLT presentation
+          module for notes-as-tree and the local IP-filter form; compare enabled,
+          disabled and changed-draft outputs with the CEMT reference.
     - [x] Fixture XSLT-VIEW-SELECTION-BOUNDARY: verify retained row provenance
           across all four string imports, distinguish XDM node identity from
           selection keys across rerenders, and characterize stylesheet access
@@ -1246,13 +1272,21 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
           edits invalidate selection. No browser viewer is claimed complete.
     - [x] Fixture XSLT-VIEW-XMLNS-BOUNDARY: compare the CEMT viewer's
           source-oriented namespace-declaration attributes with XPath's
-          semantic attribute axis. The native fixture confirms actual CEMT
-          rendering includes an XMLNS column, while XPath selects only regular
-          attributes. See the [presentation decision](xslt-runtime-lowering.md#namespace-declaration-parity).
-    - [ ] XSLT-VIEW-XMLNS-PARITY: settle whether namespace declarations belong
-          in the viewer's data columns before changing the CEMT parity
-          reference; implement and verify the selected presentation in both
-          viewers without changing generic `.attributes` or XPath semantics.
+          semantic attribute axis. The original fixture confirmed CEMT emitted
+          an XMLNS column while XPath selected only regular attributes; it now
+          checks the approved exclusion while preserving the generic reader.
+          See the [presentation decision](xslt-runtime-lowering.md#namespace-declaration-parity).
+    - [x] Fixture XSLT-VIEW-XMLNS-PARITY: exclude namespace declarations from
+          viewer columns, cells and tree attribute details, as approved on
+          2026-09-19. Verify default and prefixed declarations, preserve real
+          namespaced attributes and grouping, and keep generic `.attributes`
+          and XPath semantics unchanged.
+          Five source-contract tests and three source-loaded browser stories
+          pass, including namespace edits/reset. The demo verifier passes all
+          25 standalone pages and 31 source-loaded documents. QL/browser lint
+          and typecheck pass; desktop (1440px, two-card row) and mobile (390px)
+          checks show no page overflow. The XPath/CEM-QL paired demo request
+          remains queued after full viewer parity and the function audit below.
 - [ ] Fixture XSLT-VIEW-DEMO: add an independent XSLT viewer case and source
       display to data-table.html. Add an imported XSLT aspect case for notes
       as a tree and the IP-filter local-preview form; retain the CEMT cases.

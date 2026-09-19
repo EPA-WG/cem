@@ -39,6 +39,9 @@ try {
     execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_viewer_selection_boundary'], {
         cwd: root, stdio: 'inherit', env: { ...process.env, CEM_SOURCE_PROVENANCE_FIXTURE_DIR: directory },
     });
+    execFileSync('cargo', ['test', '-p', 'cem-ql', '--test', 'xslt_data_view'], {
+        cwd: root, stdio: 'inherit', env: { ...process.env, CEM_XSLT_VIEW_FIXTURE_DIR: directory },
+    });
     await init({ module_or_path: readFileSync(join(root, 'packages/cem_ql/dist/wasm/cem_ql_bg.wasm')) });
     // Only deployment/control manifests are decoded in JS. All document bytes
     // go straight to the common CEM import/retention boundary below.
@@ -330,6 +333,48 @@ try {
             } finally { disposeCemDocument(document); }
         } finally { disposeXsltBundle(retained.bundleId); }
     }
+    // XSLT-VIEW-BASE-WASM: scalar controls and expected render protocol only;
+    // external source strings are parsed exclusively inside CEM-ML import.
+    const viewer = JSON.parse(readFileSync(join(directory, 'viewer.json'), 'utf8'));
+    assert.deepEqual(Buffer.from(compileXsltBundle(readFileSync(join(directory, 'viewer.xslt'), 'utf8'), 'memory:data-table-view.xslt')),
+        readFileSync(join(directory, 'viewer-default.bin')));
+    checks++;
+    const visible = nodes => {
+        const result = [];
+        let pending = '';
+        const flush = () => { if (pending.trim()) result.push({ Text: pending.trim() }); pending = ''; };
+        for (const node of nodes) {
+            if (node.kind === 'text') { pending += node.text; continue; }
+            assert.equal(node.kind, 'element');
+            flush();
+            if (node.tag === 'style') continue;
+            const selection = node.tag === 'button' && node.attributes.some(a => a.name === 'slice' && a.value === 'selected');
+            const attributes = node.attributes.filter(a => !(selection && a.name === 'value')
+                && !(node.tag === 'select' && a.name === 'value' && !a.value))
+                .map(a => [a.name, a.value]).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+            result.push({ Element: [node.tag, attributes, visible(node.children)] });
+        }
+        flush();
+        return result;
+    };
+    const selections = nodes => nodes.flatMap(node => {
+        if (node.kind !== 'element') return [];
+        const attr = name => node.attributes.find(a => a.name === name)?.value ?? '';
+        return [...(attr('slice') === 'selected' ? [[attr('value'), attr('aria-label'), attr('aria-pressed')]] : []), ...selections(node.children)];
+    });
+    const retainedViewer = load(readFileSync(join(directory, 'viewer.bin')), viewer.contentHash, viewer.sourceHash);
+    try {
+        const document = retainCemDocument(new TextEncoder().encode('<input/>'), 'application/xml', 'memory:viewer-input');
+        try {
+            for (const test of viewer.cases) {
+                const output = render(document, JSON.stringify(test.controls), retainedViewer.bundleId);
+                assert.deepEqual(output.diagnostics, []);
+                assert.deepEqual(visible(output.nodes), test.nodes);
+                assert.deepEqual(selections(output.nodes), test.selections);
+                checks++;
+            }
+        } finally { assert.equal(disposeCemDocument(document), true); }
+    } finally { assert.equal(disposeXsltBundle(retainedViewer.bundleId), true); }
     // XSLT-OUTPUT-WASM: the JSON below is the explicit render-plan protocol.
     // XML/JSON document bytes are still imported and queried entirely in CEM-ML.
     for (const name of ['native-output', 'avt-output']) {

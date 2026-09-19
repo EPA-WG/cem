@@ -36,6 +36,22 @@ export const EveryAuthoredSample: Story = {
             await select(controls.getByRole('combobox', { name: 'Compare' }), 'number');
             await waitFor(() => expect(quantities()).toEqual(['2', '3', '10']), { timeout: 10000 });
         }
+        const xml = canvasElement.querySelector('cem-data-table[format="xml"]') as HTMLElement;
+        const xmlControls = within(xml);
+        const xmlInput = xmlControls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
+        xmlInput.value = '<r xmlns="urn:root" xmlns:p="urn:rows"><p:row xmlns:q="urn:field" id="1" q:xmlns="first"/><p:row xmlns:q="urn:field" id="2" q:xmlns="second"/><single xmlns:s="urn:detail" s:xmlns="detail"/></r>';
+        xmlInput.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitFor(() => expect(xmlControls.getByRole('columnheader', { name: '@urn:field|xmlns' })).toBeVisible(), { timeout: 10000 });
+        expect(xml.querySelector('table')).toHaveTextContent('first');
+        expect(xml.querySelector('table')).toHaveTextContent('second');
+        expect(xml.querySelector('details')).toHaveTextContent('@xmlns: detail');
+        const headings = xmlControls.getAllByRole('columnheader').map((heading) => heading.textContent);
+        expect(headings.some((heading) => heading?.includes('http://www.w3.org/2000/xmlns/'))).toBe(false);
+        expect(xml.querySelector('details')).not.toHaveTextContent('@p:');
+        expect(xml.querySelector('details')).not.toHaveTextContent('@q:');
+        expect(xml.querySelector('details')).not.toHaveTextContent('@s:');
+        xmlControls.getByRole('button', { name: 'Reset source' }).click();
+
         const json = canvasElement.querySelector('cem-data-table[format="json"]') as HTMLElement;
         const controls = within(json);
         const input = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;

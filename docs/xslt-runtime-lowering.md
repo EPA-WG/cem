@@ -18,8 +18,9 @@ Consumers declare template parameters explicitly and replace legacy EXSLT
 shortcuts with supported standard expressions over retained input documents.
 The migration fixture verifies that both public compilation APIs reject version
 1.0 and unbound `xsl` prefixes. This is a bounded runtime profile, not the
-completed data-table viewer or full XSLT 3.0 implementation. Native output construction is implemented; viewer parity and browser component
-URL loading remain in [todo.md](todo.md).
+completed browser data-table viewer or full XSLT 3.0 implementation. Native
+output construction and the base viewer stylesheet are implemented; imported
+presentation aspects and browser component bindings remain in [todo.md](todo.md).
 
 ## Supported authoring profile
 
@@ -380,23 +381,90 @@ cases (XPATH-CEMQL-DEMO-PAIRS).
 
 ## Namespace-declaration parity
 
-The next viewer probe uses two rows that each declare `xmlns:p="urn:rows"`.
-The existing CEMT viewer emits a column headed
+The original viewer probe used two rows that each declare `xmlns:p="urn:rows"`.
+The CEMT viewer previously emitted a column headed
 `@http://www.w3.org/2000/xmlns/|p`, alongside `@id`. Its reader intentionally
 exposes source-oriented attribute nodes. Native XPath `@*` exposes only `id`;
 the namespace declarations are correctly excluded from its attribute axis.
 `cemt_namespace_declarations_are_not_attributes_in_the_xpath_data_model` verifies
 both the actual CEMT output and the native XPath selection.
 
-This is a presentation-contract decision under the user's instruction to stop
-for ambiguity. The scope keeps direct CEMT examples as the parity reference;
-silently dropping a visible column would change that reference. The recommended
-resolution is to exclude XMLNS declarations from the CEMT viewer's column list,
-row cells and tree attribute details, then author XSLT against semantic `@*`.
-Keep existing generic CEM-QL `.attributes` behavior and native XPath semantics.
-The alternative, retaining declaration rows in both viewers, needs an explicit
-namespace-provenance display contract; it must not fabricate XPath attributes
-or inspect XML parser ASTs downstream. **Awaiting the presentation decision.**
+**Approved and implemented on 2026-09-19:** exclude XMLNS declarations from the
+CEMT viewer's column list, row cells and tree attribute details. The XSLT viewer
+uses semantic `@*`. Generic CEM-QL `.attributes` and native XPath semantics are
+unchanged. Tests cover default and prefixed declarations, grouping by expanded
+name and ordinary namespaced attributes whose local name happens to be `xmlns`.
+The source editor still displays the original declarations.
+
+## Native base viewer and compiler reductions
+
+[`data-table-view.xslt`](../packages/cem-elements/demo/data-table-view.xslt) is a
+working native/CLI base viewer with the named entrypoint `viewer`. Its declared
+scalar parameters are `initial`, `source`, `format`, `column`, `direction`,
+`mode` and `selected`. XML/JSON/CSV/YAML source strings enter CEM-ML import; all
+navigation and presentation use retained CEM nodes. Presentation maps keep
+native source nodes and calculated cells, rather than replacing the input tree.
+
+[`xslt_data_view.rs`](../packages/cem_ql/tests/xslt_data_view.rs) compares semantic
+rendered structure with CEMT for namespaces, later columns, nested collections,
+empty/missing/null values and inert processing instructions. Comparison ignores
+formatting whitespace, per-language opaque selection keys, and empty versus
+absent select `value` attributes. Separate checks verify source keys/lines,
+selection after sorting, invalidation on edits and recoverable parse errors.
+Text/number sorting preserves stable ties and places missing, nonnumeric and
+nonfinite numeric keys last, matching CEMT, including exponent notation.
+
+The viewer exposed unnecessary compiler overhead under the existing 128-item
+CEMT expression budget. Each XPath slot now receives only referenced outer
+variables; a typed visitor respects inline-function and local binding scopes.
+Ordinary sort keys with matching static contexts run in native population
+focus as one typed XPath program, preserving per-key source locations and
+separate array members. Cardinality, conversion and comparison remain bounded
+native operations. Group-specific or distinct static contexts keep their
+individual invocation path. No shared evaluator or budget limits changed.
+The 50-row unused-binding regression and nine-row sorting parity case pass.
+
+Verification: 457 CEM-QL tests, 13 CLI parity tests and 172 native/WASM bundle
+checks pass. The CLI executes the actual stylesheet for all four formats;
+WASM reloads its native-produced named-entry bundle for twelve source/sort/
+selection cases and matches native compilation under default options. Native
+and browser namespace fixtures pass. Full browser viewer parity, styling and
+imported XSLT presentation aspects remain open.
+
+## Browser state-binding decision
+
+The native named-entry scalar contract works, but the component binding is
+unsettled. `cem-elements` currently routes XSLT URLs through
+`ensureLegacyConverted` and `convertLegacyTemplate`, then compiles the converted
+CEMT source. It does not retain the typed XSLT bundle. The public WASM
+`compileXsltBundle` / `retainXsltStylesheet` functions use default compiler
+options; native-produced bundles can already declare an entrypoint and scalar
+bindings and render through the tested import/render/dispose API.
+
+The recommended contract is **explicit scalar parameter bindings** for a
+strict XSLT component declaration. Reuse CEM-ML/CEM-QL expressions for state
+selection, map them to declared XSLT parameters, and retain the compiled bundle
+through the declaration/worker lifecycle. For this viewer the mapping is:
+
+| XSLT parameter | Existing component input |
+| --- | --- |
+| `initial` | Trimmed joined payload source text |
+| `source` | Source slice, falling back to `initial` |
+| `format` | Declared format attribute |
+| `column` | Column slice, default empty string |
+| `direction` | Direction slice, default `ascending` |
+| `mode` | Comparison slice, default `text` |
+| `selected` | Selection slice, default empty string |
+
+This keeps source text a scalar until CEM-ML imports it and keeps document
+handles native. It requires explicit declaration metadata, WASM compiler-option
+transport and worker retention/disposal; it must not silently infer parameter
+bindings, use the legacy converter for strict XSLT, or expose document records.
+An alternative is to expose a new native `datadom` CEM document to XPath and
+select state from that document, which introduces a different public node
+contract. **Awaiting the browser state-binding choice.** The already approved
+compiled-bundle delivery, imports and provenance functions are settled; this
+decision selects the new component binding contract under the viewer scope.
 
 ## Native output construction
 

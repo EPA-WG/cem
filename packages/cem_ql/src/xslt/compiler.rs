@@ -22,6 +22,7 @@ mod patterns;
 mod recovery;
 mod sorting;
 mod templates;
+mod variables;
 mod xpath;
 use templates::TemplateDeclaration;
 type CompileResult<T> = std::result::Result<T, Vec<Diagnostic>>;
@@ -213,7 +214,11 @@ pub fn compile_xslt_bundle_with_options(
         compiler.select_source(index);
         let mut cursor = 0;
         let nodes = author_nodes(
-            &stylesheet.xml_document.events, &mut cursor, 0, false, &compiler,
+            &stylesheet.xml_document.events,
+            &mut cursor,
+            0,
+            false,
+            &compiler,
         )?;
         let mut elements = nodes.into_iter().filter(|node| is_element(node.event));
         let root = elements.next().ok_or_else(|| {
@@ -891,6 +896,16 @@ impl<'a> Compiler<'a> {
                 "unsupported XPath syntax",
             ));
         }
+        let referenced = expression
+            .syntax_ast
+            .as_ref()
+            .map(|syntax| variables::referenced(&syntax.root))
+            .unwrap_or_default();
+        let bindings: BTreeMap<_, _> = scope
+            .variables
+            .iter()
+            .filter(|(name, _)| referenced.contains(*name))
+            .collect();
         let XPathAttachment::Host(host) = &mut expression.attachment else {
             return Err(self.error(
                 event,
@@ -898,8 +913,7 @@ impl<'a> Compiler<'a> {
                 "XPath slot lost its stylesheet owner",
             ));
         };
-        host.static_context.variable_bindings = scope
-            .variables
+        host.static_context.variable_bindings = bindings
             .keys()
             .map(|name| (xpath::expanded(name), "item()*".into()))
             .collect();
@@ -923,15 +937,14 @@ impl<'a> Compiler<'a> {
         if let Some(groups) = groups {
             arguments.extend(groups.iter().cloned());
         }
-        arguments.extend(scope.variables.values().cloned());
+        arguments.extend(bindings.values().map(|value| (*value).clone()));
         self.programs.push(BundleProgram {
             stylesheet: self.source_index,
             focus: BundleFocus::Sequence,
             group_context: groups.is_some(),
-            variables: scope
-                .variables
+            variables: bindings
                 .keys()
-                .cloned()
+                .map(|name| (*name).clone())
                 .map(|name| BundleVariable {
                     name,
                     kind: ParamType::Any,

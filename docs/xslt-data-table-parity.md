@@ -11,7 +11,8 @@ are implemented. Template dispatch, parameters, modes, imports/includes and
 strict transform/CLI execution, bounded grouping and stable sorting are now
 implemented. Subsequent viewer stages remain open in [todo.md](todo.md).
 Explicit host position and sequence size are now supported by the shared XPath
-API. No equivalent XSLT stylesheet or browser sample is available yet.
+API. A native/CLI base stylesheet is now available; its browser binding and
+imported presentation aspects remain open.
 The shared parsing and typed-error extension was approved on 2026-09-18 and is
 implemented through CEM import and native buffered recovery. The bounded
 contract and verification are recorded under XSLT-VIEW-DATA and in the
@@ -20,14 +21,15 @@ The shared [native output construction](xslt-runtime-lowering.md#native-output-c
 extension was approved on 2026-09-18 and is implemented. Native nodes and atomics
 remain distinct through calls/recovery; output AVTs, whitespace, expanded names,
 attribute ordering and static result-style exports use the shared renderer.
-The viewer stylesheet and browser parity demonstration remain open.
+The base viewer's native/CLI and WASM checks pass; full browser parity remains open.
 The 2026-09-19 native probes identified missing stylesheet access to stable
 source-selection keys/line numbers and a CSV header-profile mismatch. The
 [viewer selection and CSV proposal](xslt-runtime-lowering.md#viewer-selection-and-csv-parity-gate)
 was approved and implemented on 2026-09-19, including matching native CEM-QL
-provenance functions. The next [presentation decision](xslt-runtime-lowering.md#namespace-declaration-parity)
-concerns namespace declarations: the CEMT reference displays them as attribute
-columns, while native XPath correctly excludes them from its attribute axis.
+provenance functions. Namespace declarations are now excluded from both viewers'
+data presentation, as approved on 2026-09-19. The next
+[browser state-binding decision](xslt-runtime-lowering.md#browser-state-binding-decision)
+chooses explicit scalar parameters or a new native control-document contract.
 
 ## Scope
 
@@ -55,7 +57,8 @@ approved on that date. Shared native result construction was also approved,
 including native copying, atomic/text normalization, attribute ordering, typed
 failures, bounded namespace fixup and portable output. Shared source-selection
 keys, original line-number access in both query languages, and explicit CSV
-header options were approved on 2026-09-19. Other shared capability expansions
+header options and namespace-declaration exclusion were approved on 2026-09-19.
+Other shared capability expansions
 still require approval.
 If an essential operation needs a new CEMT/CEM-QL capability, importer behavior
 or browser runtime behavior, stop and ask before implementing it. No table-
@@ -585,8 +588,8 @@ sort context. Its WASM gate exposed cumulative depth charging in the shared
 evaluator; the approved correction now measures active nesting while preserving
 the total-call budget. Standard data parsing now delegates to shared CEM import;
 ordered QName catches use structured errors and preserve native nodes, focus
-and lexical scope. The next task is XSLT-VIEW-OUTPUT; the complete viewer
-profile remains pending. See the
+and lexical scope. Native output construction and the base viewer's native/CLI
+parity checks now pass; browser state bindings and imported aspects remain open. See the
 [bounded runtime profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
 
 ## Acceptance and implementation order

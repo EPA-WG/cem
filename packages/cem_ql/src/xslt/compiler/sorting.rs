@@ -211,6 +211,13 @@ impl Compiler<'_> {
         if sorts.is_empty() {
             return Ok((String::new(), select, body));
         }
+        let context = self.generated_xpath(node.event, "0")?;
+        let mut batch = !grouped;
+        for sort in &sorts {
+            let key_context = self.generated_xpath(sort.event, "0")?;
+            batch &= matches!((&context.attachment, &key_context.attachment),
+                (XPathAttachment::Host(a), XPathAttachment::Host(b)) if a.static_context == b.static_context);
+        }
         let population = self.fresh();
         let mut output = emit_variable(&population, &select);
         let record = self.fresh();
@@ -252,6 +259,8 @@ impl Compiler<'_> {
         let mut key_bindings = String::new();
         let mut keys = Vec::new();
         let mut orders = Vec::new();
+        let mut batched_keys = Vec::new();
+        let mut kinds = Vec::new();
         for (index, sort) in sorts.iter().enumerate() {
             let event = sort.event;
             self.attributes(
@@ -322,6 +331,11 @@ impl Compiler<'_> {
             } else {
                 self.generated_xpath(event, ".")?
             };
+            if batch {
+                batched_keys.push(expression);
+                kinds.push(kind);
+                continue;
+            }
             let selected =
                 self.program(event, expression, &key_scope, xpath::ResultKind::Sequence)?;
             let atomized =
@@ -338,30 +352,91 @@ impl Compiler<'_> {
             key_bindings.push_str(&format!("let {key} = {{ let {key} = {atomized}; if seq:count({key}) > 1 {{ {error} }} else {{ {converted} }} }}; "));
             keys.push(key);
         }
-        let mut bindings = vec![("item".to_owned(), item)];
-        bindings.extend(
-            keys.iter()
-                .enumerate()
-                .map(|(i, key)| (format!("key{i}"), key.clone())),
-        );
-        let constructor = format!(
-            "[{}]",
-            bindings
+        let records = if batch {
+            // Evaluate authored keys in population focus inside one native
+            // program. Repeated CEM-QL callback scaffolding is not row work.
+            let referenced: std::collections::BTreeSet<_> = batched_keys
                 .iter()
-                .map(|(name, _)| format!("${name}"))
-                .collect::<Vec<_>>()
-                .join(",")
-        );
-        let bindings: Vec<_> = bindings
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let constructed = self.macro_program(node.event, &constructor, scope, &bindings)?;
-        let records = self.fresh();
-        output.push_str(&emit_variable(
-            &records,
-            &format!("seq:map({indexed}, fn({record}) => {{ {key_bindings}{constructed} }})"),
-        ));
+                .filter_map(|key| key.syntax_ast.as_ref())
+                .flat_map(|syntax| variables::referenced(&syntax.root))
+                .collect();
+            let mut name = XPathExpandedName::unqualified(self.fresh());
+            while referenced.contains(&name) || scope.variables.contains_key(&name) {
+                name = XPathExpandedName::unqualified(self.fresh());
+            }
+            let mut key_scope = scope.clone();
+            key_scope.variables.insert(name.clone(), population.clone());
+            let mut expression = self.generated_xpath(node.event, "0")?;
+            xpath::sort_keys(&mut expression, &name, batched_keys)
+                .map_err(|message| self.error(node.event, "cem.xslt.compile_xpath", message))?;
+            let selected = self.program(
+                node.event,
+                expression,
+                &key_scope,
+                xpath::ResultKind::Sequence,
+            )?;
+            let mut records = self.fresh();
+            output.push_str(&emit_variable(&records, &selected));
+            for (index, sort) in sorts.iter().enumerate() {
+                let column = (index + 2).to_string();
+                let count = self.macro_program(
+                    sort.event,
+                    "empty($records[count(.?($index)) gt 1])",
+                    scope,
+                    &[("records", &records), ("index", &column)],
+                )?;
+                let members=(0..sorts.len()).map(|i| {
+                    let slot=i+2;
+                    if i == index {
+                        format!("(let $input := .?({slot}) return if ($kind = 'text') then string($input) else if ($kind = 'number') then number($input) else $input ! (if (. instance of xs:untypedAtomic or . instance of xs:anyURI) then string(.) else .))")
+                    } else {format!(".?({slot})")}
+                }).collect::<Vec<_>>().join(", ");
+                let converted = self.macro_program(
+                    sort.event,
+                    &format!("$records ! [.?(1), {members}]"),
+                    scope,
+                    &[("records", &records), ("kind", &kinds[index])],
+                )?;
+                let error = self.sort_error(
+                    sort.event,
+                    "XTTE1020",
+                    "sort key must atomize to zero or one value",
+                );
+                let next = self.fresh();
+                output.push_str(&emit_variable(
+                    &next,
+                    &format!("if {count} {{ {converted} }} else {{ {error} }}"),
+                ));
+                records = next;
+            }
+            records
+        } else {
+            let mut bindings = vec![("item".to_owned(), item)];
+            bindings.extend(
+                keys.iter()
+                    .enumerate()
+                    .map(|(i, key)| (format!("key{i}"), key.clone())),
+            );
+            let constructor = format!(
+                "[{}]",
+                bindings
+                    .iter()
+                    .map(|(name, _)| format!("${name}"))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            let bindings: Vec<_> = bindings
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect();
+            let constructed = self.macro_program(node.event, &constructor, scope, &bindings)?;
+            let records = self.fresh();
+            output.push_str(&emit_variable(
+                &records,
+                &format!("seq:map({indexed}, fn({record}) => {{ {key_bindings}{constructed} }})"),
+            ));
+            records
+        };
         // Stable minor-to-major passes implement mixed directions. Reverse on
         // BOTH sides of an ascending pass preserves equal-key order descending.
         let mut sorted = records;

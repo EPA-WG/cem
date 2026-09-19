@@ -53,6 +53,34 @@ fn has_diagnostic(report: &serde_json::Value, code: &str) -> bool {
 }
 
 #[test]
+fn direct_cli_runs_the_authored_data_viewer_over_all_import_formats() {
+    let root=fixture_root("authored-data-viewer");
+    let data=root.join("context.xml");
+    let template=root.join("data-table-view.xslt");
+    write(&data,"<input/>");
+    write(&template,include_str!("../../cem-elements/demo/data-table-view.xslt"));
+    for (format,source,column) in [
+        ("xml", "<r><p:row xmlns:p='urn:rows' qty='10'>🍒</p:row><p:row xmlns:p='urn:rows' qty='2'>🍋</p:row></r>","@qty"),
+        ("json",r#"[{"qty":10,"fruit":"🍒"},{"qty":2,"fruit":"🍋"}]"#,"qty"),
+        ("yaml","- qty: 10\n  fruit: 🍒\n- qty: 2\n  fruit: 🍋","qty"),
+        ("csv","qty,fruit\n10,🍒\n2,🍋","qty"),
+    ] {
+        let output=cem_ml(&["transform",data.to_str().unwrap(),"--data-content-type","application/xml",
+            "--template",template.to_str().unwrap(),"--template-content-type","application/xslt+xml",
+            "--template-entrypoint","viewer","--param",&format!("source={source}"),
+            "--param",&format!("initial={source}"),"--param",&format!("format={format}"),
+            "--param",&format!("column={column}"),"--param","mode=number","--to-content-type","text/html"]);
+        assert_eq!(output.status.code(),Some(EXIT_OK),"{format}: {}",stderr(&output));
+        let html=stdout(&output);
+        let table=html.split("<tbody>").nth(1).unwrap_or_else(||panic!("{format}: {html}"));
+        assert!(table.find('🍋')<table.find('🍒'),"{format}: {table}");
+        assert!(table.contains("Select source line"));
+        assert!(!html.split("</textarea>").nth(1).unwrap().contains("http://www.w3.org/2000/xmlns/"));
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn direct_cli_executes_xslt_parity_for_login_profile_shape() {
     let root = fixture_root("direct-login-profile");
     let data = root.join("login.cem");

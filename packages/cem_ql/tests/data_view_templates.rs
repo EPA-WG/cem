@@ -120,6 +120,24 @@ fn authored_xml_grouping_uses_expanded_names_and_unions_later_columns() {
 }
 
 #[test]
+fn viewer_excludes_namespace_declarations_but_keeps_real_namespaced_attributes() {
+    let source = r#"<r xmlns="urn:root" xmlns:p="urn:rows" code="root"><p:row xmlns:q="urn:field" id="1" q:xmlns="first">A</p:row><p:row xmlns:q="urn:field" id="2" q:xmlns="second">B</p:row><single xmlns:s="urn:detail" s:xmlns="detail"/></r>"#;
+    let result = render_template(VIEW, &data(source, "xml", ""));
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let rendered = result.rendered.split("</textarea>").nth(1).unwrap();
+    assert!(!rendered.contains("http://www.w3.org/2000/xmlns/"), "{rendered}");
+    assert!(!rendered.contains("@p:"), "{rendered}");
+    assert!(!rendered.contains("@q:"), "{rendered}");
+    assert!(!rendered.contains("@s:"), "{rendered}");
+    assert!(!rendered.contains("@xmlns: urn:root"), "{rendered}");
+    assert!(rendered.contains("@urn:field|xmlns</th>"), "{rendered}");
+    assert!(rendered.contains("@xmlns: detail"), "{rendered}");
+    assert!(rendered.contains("@code: root"), "{rendered}");
+    assert_eq!(rendered.matches("<table ").count(), 1);
+    assert!(rendered.contains("first") && rendered.contains("second"));
+}
+
+#[test]
 fn imported_aspects_replace_only_selected_presentations_and_can_be_disabled() {
     use cem_ql::render::{
         compile_template_module_closure, render_compiled_template, render_plan_to_html,

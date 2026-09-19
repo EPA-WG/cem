@@ -37,6 +37,19 @@ fn render(bundle: &XsltBundle, xml: &str) -> String {
 }
 
 #[test]
+fn unused_outer_collections_do_not_exhaust_xpath_call_arguments() {
+    let body=r#"<xsl:template match="/">
+<xsl:variable name="a" select="/*/*"/><xsl:variable name="b" select="/*/*"/>
+<xsl:variable name="c" select="/*/*"/><xsl:variable name="v:label" select="'outer'"/>
+<p><xsl:value-of select="(function($a) { $a || $v:label })('inner')"/></p>
+<b><xsl:value-of select="let $a := $v:label return $a"/></b>
+</xsl:template>"#;
+    let bundle=compile(body,&Default::default());
+    let xml=format!("<r>{}</r>","<row/>".repeat(50));
+    assert_eq!(render(&bundle,&xml),"<p>innerouter</p><b>outer</b>");
+}
+
+#[test]
 fn recursive_named_calls_preserve_native_parameters_defaults_and_focus() {
     let bundle = compile(
         r#"

@@ -80,8 +80,13 @@ bundles from a bounded stylesheet profile with recursive templates, parameters,
 modes and import/include precedence. WASM also provides `compileXsltBundle`
 and `retainXsltStylesheet` with default compiler options; native-built closures
 load through the binary bundle API. Non-composite grouping and its dynamic
-context also execute through this ABI. Sorting, broader output and the
-data-table viewer remain subsequent checklist items. Verification covers
+context also execute through this ABI. Sorting, native output and the base
+data-table viewer execute through native-produced bundles. Component state
+binding and imported viewer aspects remain subsequent checklist items. Verification covers
 explicitly composed bundles, native/WASM stylesheet compilation and compiled
 module closures with imported overrides, grouping over all shared import
-formats, and absent group-context errors without partial output.
+formats, absent group-context errors without partial output, and base viewer
+sorting/selection after source edits. The runtime compiler retains only
+referenced outer variables per XPath slot and batches ordinary sort-key
+evaluation when static contexts agree; existing version-1 bundles and budgets
+remain valid.

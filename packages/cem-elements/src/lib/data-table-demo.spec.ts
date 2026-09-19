@@ -39,6 +39,8 @@ describe('multi-format data table demo', () => {
         expect(source).toContain('See also');
         expect(helper).toContain('@role=alert');
         expect(helper).toContain('@aria-label="Reset source"');
+        expect(source).toMatch(/Namespace\s+declarations/u);
+        expect(source).toContain('are not data columns');
     });
 
     it('extends the unchanged imported viewer through matching presentation rules', () => {

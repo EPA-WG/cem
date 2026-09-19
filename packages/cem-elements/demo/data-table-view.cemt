@@ -34,7 +34,7 @@
                         else { if entry.name == "array" { "#value" } else { () } }
                     } else {
                         if entry.kind == "element" {
-                            (for attr in entry.attributes {
+                            (for attr in seq:where(entry.attributes, fn(attr) => attr.namespace != "http://www.w3.org/2000/xmlns/") {
                                 "@" + (if attr.namespace == "" { "" } else { attr.namespace + "|" }) + attr.name
                             }, "#text", (if entry.namespace == "" { "" } else { entry.namespace + "|" }) + entry.name)
                         } else { () }
@@ -99,7 +99,9 @@
                                             {cem:otherwise |
                                                 {apply-templates @select=child @mode=inspect @with:key="{$key}"}}}}}}
                                 {cem:otherwise |
-                                    {cem:for-each @select=node.attributes @as=attr | {li | @{$attr.name}: {$attr.value}}}
+                                    {cem:for-each @select='seq:where(node.attributes,
+                                        fn(attr) => attr.namespace != "http://www.w3.org/2000/xmlns/")' @as=attr |
+                                        {li | @{$attr.name}: {$attr.value}}}
                                     {cem:for-each @select='seq:where(node.children,
                                         fn(child) => child.kind != "element" && str:trim(child.value ?? "") != "")' @as=child |
                                         {li | {span @class=value | {$child.value}}}}
@@ -132,7 +134,7 @@
                                 )
                             } else { {key: "#value", value: str:concat(row.children.value, ""), subject: row} }
                         } else {
-                            (for attr in row.attributes {
+                            (for attr in seq:where(row.attributes, fn(attr) => attr.namespace != "http://www.w3.org/2000/xmlns/") {
                                 {key: "@" + (if attr.namespace == "" { "" } else { attr.namespace + "|" }) + attr.name,
                                  value: attr.value, subject: ()}
                             },
