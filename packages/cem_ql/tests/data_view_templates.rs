@@ -131,6 +131,68 @@ fn authored_xml_grouping_uses_expanded_names_and_unions_later_columns() {
 }
 
 #[test]
+fn xml_view_groups_within_parents_and_keeps_first_seen_columns_and_mixed_content() {
+    let source = r#"<r xmlns:a="urn:one" xmlns:b="urn:one" xmlns:c="urn:two"><left><a:row same="" id="one">pre<![CDATA[🍒]]><same>child</same>post<nest><v>red</v><v>green</v></nest></a:row><b:row id="two" later=""><c:same>other</c:same></b:row><c:row>different</c:row><c:row>namespace</c:row></left><right><a:row>ivysaur</a:row><b:row>venusaur</b:row></right></r>"#;
+    let result = render_template(VIEW, &data(source, "xml", ""));
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    // Inspect the explicit HTML output, never turn it into a runtime data tree.
+    let output = result.rendered.split("</textarea>").nth(1).unwrap();
+    let headings: Vec<Vec<_>> = output
+        .split("<thead>")
+        .skip(1)
+        .map(|table| {
+            table
+                .split("</thead>")
+                .next()
+                .unwrap()
+                .split("<th scope=\"col\">")
+                .skip(1)
+                .map(|cell| cell.split("</th>").next().unwrap())
+                .collect()
+        })
+        .collect();
+    assert_eq!(
+        headings,
+        [
+            vec![
+                "✓",
+                "@same",
+                "@id",
+                "#text",
+                "same",
+                "nest",
+                "@later",
+                "urn:two|same"
+            ],
+            vec!["✓", "#text"], // nested v siblings
+            vec!["✓", "#text"], // same local row name, different namespace
+            vec!["✓", "#text"], // same expanded row name, different parent
+        ]
+    );
+    assert!(output.contains("pre🍒post"), "{output}");
+    assert!(
+        output.contains("&quot;&quot;"),
+        "empty attribute stays present"
+    );
+    assert!(output.contains("∅"), "missing columns stay absent");
+    for value in [
+        "child",
+        "other",
+        "red",
+        "green",
+        "different",
+        "namespace",
+        "ivysaur",
+        "venusaur",
+    ] {
+        assert!(
+            output.contains(&format!("<span class=\"value\">{value}</span>")),
+            "{value}: {output}"
+        );
+    }
+}
+
+#[test]
 fn viewer_excludes_namespace_declarations_but_keeps_real_namespaced_attributes() {
     let source = r#"<r xmlns="urn:root" xmlns:p="urn:rows" code="root"><p:row xmlns:q="urn:field" id="1" q:xmlns="first">A</p:row><p:row xmlns:q="urn:field" id="2" q:xmlns="second">B</p:row><single xmlns:s="urn:detail" s:xmlns="detail"/></r>"#;
     let result = render_template(VIEW, &data(source, "xml", ""));

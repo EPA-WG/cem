@@ -142,12 +142,12 @@ describe('local legacy demo case map', () => {
         if (!review) return;
         const document = read(`../../../../${review.document}`);
         const todo = read('../../../../docs/todo.md');
-        expect(review.completedFixtures).toEqual(['XML-VIEW-1']);
+        expect(review.completedFixtures).toEqual(['XML-VIEW-1', 'XML-VIEW-2']);
         for (const id of review.completedFixtures) {
             expect(document, id).toContain(id);
             expect(todo, id).toContain(`- [x] Fixture ${id}:`);
         }
-        expect(review.openFixtures).toEqual(['XML-VIEW-2', 'XML-VIEW-3', 'XML-VIEW-4']);
+        expect(review.openFixtures).toEqual(['XML-VIEW-3', 'XML-VIEW-4']);
         for (const id of review.openFixtures) {
             expect(document, id).toContain(id);
             expect(todo, id).toContain(`- [ ] Fixture ${id}:`);

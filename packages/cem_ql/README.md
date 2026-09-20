@@ -236,6 +236,24 @@ identities:
   `ascending` and `text`; `descending` and finite `number` comparison are
   supported. Missing/nonnumeric keys stay last in either direction.
 
+Both evaluate the key once per item and return the original native nodes with
+their source owner, identity and provenance. Group order and member order follow
+first occurrence. Group keys use CEM atomic identity: an empty key, an empty
+string, integer `1` and string `"1"` are distinct. Grouping is over the supplied
+sequence; callers group each parent's children separately for sibling groups.
+
+Text sorting compares string values without locale collation. A present empty
+string sorts before nonempty strings ascending and after them descending; a
+missing key stays last. Number mode parses finite numbers; missing, empty,
+malformed and nonfinite keys share the last position, keeping their input order.
+Equal valid keys also keep input order in both directions. A failing key or
+exhausted scope budget returns no partial collection. Host policy supplies the
+limits; child scopes may constrain them further. The helpers consume common
+CEM nodes under the existing query budgets.
+
+The [XML-VIEW-2 audit](../cem-elements/docs/xml-viewer-migration.md#xml-view-2--grouping-and-stable-sorting)
+maps this bounded AC-QO-6 subset and its native tests to the viewer contract.
+
 CEMT `template @match='predicate' @mode=inspect @priority=10` declares a
 presentation rule. `apply-templates @select=items @mode=inspect` binds each
 native item as `node`, forwards `@with:...` parameters, and runs the first

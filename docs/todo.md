@@ -1548,12 +1548,26 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         colorizer and writer artifacts; common source ranges remain distinct
         from XPath coalescing. Public AST/tree text inspection uses this path
         and rejects failed imports. PI names/data are resolved only at import;
-        CEMT/XPath viewers retain matching visible output. XML-VIEW-2 is next.
-- [ ] Fixture XML-VIEW-2: specify and implement the smallest reusable native
+        CEMT/XPath viewers retain matching visible output. Grouping and sorting
+        are tracked by XML-VIEW-2.
+- [x] Fixture XML-VIEW-2: specify and implement the smallest reusable native
       grouping and stable-sort capabilities needed by the table inspector,
       aligned with the planned Tier B sequence helpers. Cover expanded-name
       grouping, text versus numeric keys, missing cells, stable ties, direction
       changes and evaluation budgets before using them in UI declarations.
+  - [x] Fixture XML-VIEW-2-AUDIT: verify the existing `seq:group_by`,
+        `seq:sorted` and first-seen column union against retained CEM nodes.
+        Cover parent-local expanded-name groups, attribute/element distinction,
+        original ownership/provenance, both sort directions, empty/missing and
+        invalid keys, lowered host-scope budgets and failures without partial
+        results. Strengthen native authored-view assertions and document the
+        shared contract before adding any new helper.
+        Completed 2026-09-20: DATA-QUERY-1 already supplies the required shared
+        helpers; no runtime extension was needed. Native tests now prove
+        source-owner retention, stable text/number sorting, strict group keys,
+        parent-local namespace grouping, first-seen columns and constrained
+        host policies. See the [contract audit](../packages/cem-elements/docs/xml-viewer-migration.md#xml-view-2--grouping-and-stable-sorting).
+        XML-VIEW-3 is next.
 - [ ] Fixture XML-VIEW-3: add a separate explicit-source CEM-ML tree viewer
       after XML-VIEW-1. Show editable/reloadable data, keyboard-operable
       disclosure, independent visible branch selection and parse failures;
