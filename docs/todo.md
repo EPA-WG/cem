@@ -1371,7 +1371,7 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       rerun in the five-story viewer file). All 25 standalone pages and 31
       source-loaded documents pass; lint/typecheck pass with existing QL
       warnings. Layout at 1440px and 390px has no page/card overflow.
-- [ ] XPATH-CEMQL-PARITY-AUDIT: after the data viewer is complete, inventory
+- [x] XPATH-CEMQL-PARITY-AUDIT: after the data viewer is complete, inventory
       the XPath capabilities added for it against native CEM-QL equivalents.
       Record each missing equivalent as an actionable checkitem and implement
       and verify each, as requested on 2026-09-19. Compare semantics, native
@@ -1379,12 +1379,48 @@ runtime. This is not authorization to implement a complete XSLT 3.0 processor.
       from optional XPath companions. For subsequent decisions, choose the
       recommended option and continue (user instruction, 2026-09-19). Keep
       external parsing in CEM-ML import.
-- [ ] Fixture XPATH-CEMQL-DEMO-PAIRS: after the function parity audit and gap
+    - [x] Fixture CEMQL-STRING-IMPORT-PARITY: add `data:parse(source, format,
+          options?)` over the shared string-import profiles, with format/options
+          resolution only in CEM-ML import. Verify XML/JSON/YAML/CSV, duplicate
+          and escape options, CSV headers, Unicode, retained ownership, typed
+          recovery, fatal limits and binary/WASM execution; preserve `data:read`.
+    - [x] Fixture CEMQL-URI-PARITY: add native `data:base_uri` and
+          `data:document_uri`; compare both query languages on the same retained
+          tree, inherited XML base URI, absent metadata and invalid arguments.
+    - [x] Fixture CEMQL-VIEWER-FUNCTION-AUDIT: record native counterparts for
+          grouping, sorting, focus, node access, parsing, provenance, recovery
+          and construction. Probe whitespace semantics and add an explicit XML
+          whitespace profile where the viewer needs it; preserve default string
+          helper semantics.
+      Completion 2026-09-19: the [audit](xpath-cem-ql-viewer-parity.md) maps
+      every shared viewer capability to native CEM-QL/CEMT, distinguishing
+      existing language semantics from interchangeable standard-library APIs.
+      Added direct string import with options and typed failures, URI metadata,
+      and explicit XML whitespace profiles. The native NBSP probe exposed and
+      fixed the CEMT viewer's previous trimming mismatch. All format/option
+      resolution remains in CEM-ML import; XML/JSON/YAML/CSV become retained
+      native CEM trees. `data:read` and its report/cache contract are unchanged.
+      Verification: 475 CEM-QL tests, five import/profile boundary checks,
+      13 CLI parity tests and 229 native/WASM checks pass. QL lint passes with
+      its existing 23 warnings; browser lint/typecheck pass.
+- [x] Fixture XPATH-CEMQL-DEMO-PAIRS: after the function parity audit and gap
       implementations, pair XPath examples on `xpath-functions.html` with
       matching CEM-QL samples and links to detailed CEM-QL function use cases
       (requested 2026-09-19). Update source guards, source-loaded stories and
       relevant fixture inventories; verify the pairs use equivalent inputs,
       results and documented limits.
+      Completion 2026-09-19: all three XPath samples have adjacent native
+      CEM-QL pairs and links to detailed use-case sections. Native fixtures run
+      the authored bodies with edited state and compare Unicode/empty labels,
+      predicates, numeric quantities, namespaces, descendant text and errors.
+      The demo explains explicit numeric conversion and language differences.
+      Verification: 390 browser unit tests plus a focused 16-test source rerun,
+      eight browser stories, all 25 standalone pages and 31 source-loaded
+      documents, lint and typecheck pass. The demo inventory now matches the
+      displayed pair order. Desktop (1440px) shows all three pairs side by side;
+      mobile (390px) has no page/card overflow. Native/WASM counts are above.
+      The next open viewer fixture is XML-VIEW-1, reviewing the remaining
+      lossless XML inspector projection and evidence against the shared tree.
 
 ## Immediate: Legacy Demo Case Coverage
 

@@ -50,6 +50,7 @@ fn query_consumers_do_not_interpret_external_document_formats() {
             "CEM-QL reader",
             include_str!("../../cem_ql/src/eval/data.rs"),
         ),
+        ("CEM-QL string import", include_str!("../../cem_ql/src/eval/data/string_import.rs")),
         (
             "CEM-QL reader retention",
             include_str!("../../cem_ql/src/eval/data/xpath_view.rs"),

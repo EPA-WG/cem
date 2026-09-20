@@ -15,7 +15,10 @@ use std::{
 mod xpath_view;
 pub use xpath_view::DataReaderCache;
 
-pub(super) fn source_metadata(item: &Item, line: bool) -> Result<Option<AtomValue>, ()> {
+mod string_import;
+pub(super) use string_import::parse;
+
+pub(super) fn source_metadata(item: &Item, name: &str) -> Result<Option<AtomValue>, ()> {
     let node = if let Some(view) = item
         .view()
         .and_then(|v| v.downcast_ref::<crate::xpath::functions::XPathQueryItem>())
@@ -24,11 +27,12 @@ pub(super) fn source_metadata(item: &Item, line: bool) -> Result<Option<AtomValu
     } else {
         xpath_node(item).ok_or(())?.map_err(|_| ())?
     };
-    Ok(if line {
-        node.source_line_number()
-            .map(|line| AtomValue::Integer(line.into()))
-    } else {
-        node.source_key().map(AtomValue::String)
+    Ok(match name {
+        "line_number" => node.source_line_number().map(|line| AtomValue::Integer(line.into())),
+        "node_key" => node.source_key().map(AtomValue::String),
+        "base_uri" => node.base_uri().map(|uri| AtomValue::AnyUri(uri.into())),
+        "document_uri" if node.result_node_kind() == cem_ml::validation::xpath::XPathResultNodeKind::Document => node.owner().document_uri().map(|uri| AtomValue::AnyUri(uri.into())),
+        _ => None,
     })
 }
 

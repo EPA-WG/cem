@@ -10,7 +10,7 @@ import init, {
     compileXsltBundle, retainXsltStylesheet,
     retainXsltComponent, renderXsltComponent, disposeXsltComponent, xsltStylesheetImports,
     retainCemDocument, disposeCemDocument,
-    compileTemplate, renderTemplate, disposeTemplate,
+    compileTemplate, renderTemplate, disposeTemplate, evaluateQuerySource,
 } from '../../packages/cem_ql/dist/wasm/cem_ql.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -627,7 +627,32 @@ try {
         disposeXsltBundle(failed.bundleId);
         disposeCemDocument(failedInput);
     }
-    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, native output, ownership, focus, grouping, sorting, parsing, recovery, bounds and isolation).`);
+    // Native CEM-QL counterparts consume scalar source text; no JS document
+    // objects or AST serialization are used to cross the import boundary.
+    for (const [query, input, expected] of [
+        ['data:parse(source, "xml").children.name', '<r/>', ['r']],
+        ['data:parse(source, "json").children.children.value', '"\\uDEAD"', ['�']],
+        ['data:parse(source, "json", {escape: true}).children.children.value', '"\\uDEAD"', ['\\udead']],
+        ['seq:count(data:parse(source, "json", {duplicates: "use-first"}).children.children)', '{"x":1,"x":2}', [1]],
+        ['seq:count(data:parse(source, "csv", {header: "present"}).children.children)', 'fruit\nCherry', [1]],
+        ['data:parse(source, "yaml").children.name', 'fruit: Cherry', ['object']],
+        ['data:base_uri(data:parse(source, "xml", {"base-uri": "https://example.test/base/"}))', '<r/>', ['https://example.test/base/']],
+        ['data:document_uri(data:parse(source, "xml"))', '<r/>', []],
+        ['try { data:parse(source, "xml") } catch (code, message) { code }', '<r>', ['cem.ql.import_malformed']],
+        ['str:normalize_space(source, "xml")', ' \t Cherry \n ', [' Cherry ']],
+    ]) {
+        const result = JSON.parse(evaluateQuerySource(query, JSON.stringify({source: input})));
+        assert.equal(result.error, null, query);
+        assert.deepEqual(result.diagnostics, []);
+        assert.deepEqual(result.items.map(item => item.value), expected);
+        checks++;
+    }
+    const excessive = JSON.parse(evaluateQuerySource('try { data:parse(source, "xml") } catch (code, message) { "hidden" }', JSON.stringify({source: ' '.repeat(32769)})));
+    assert.ok(excessive.error);
+    assert.deepEqual(excessive.items, []);
+    assert.ok(excessive.diagnostics.some(d => d.code === 'cem.ql.import_limit'));
+    checks++;
+    console.log(`XSLT bundle checks passed: ${checks} (native/WASM, shared CEM documents, native output, ownership, focus, grouping, sorting, parsing, recovery, bounds, CEM-QL parity and isolation).`);
 } finally {
     rmSync(directory, { recursive: true, force: true });
 }

@@ -1020,13 +1020,17 @@ impl<'a> EvalCtx<'a> {
     }
 
     pub(crate) fn raise(&mut self, source: IrId, code: String, message: String) -> ItemStream {
+        let diagnostic = self.diagnostic(source, code, message, Severity::Error);
+        self.raise_diagnostic(diagnostic)
+    }
+
+    pub(crate) fn raise_diagnostic(&mut self, diagnostic: Diagnostic) -> ItemStream {
         if self.error.is_some() {
             return self.pending_failure();
         }
-        let diagnostic = self.diagnostic(source, code.clone(), message.clone(), Severity::Error);
         let error = EvalError::Raised {
-            code: code.into_boxed_str(),
-            message: message.into_boxed_str(),
+            code: diagnostic.code.clone().into_boxed_str(),
+            message: diagnostic.message.clone().into_boxed_str(),
         };
         self.diagnostics.push(diagnostic.clone());
         self.error = Some(error.clone());

@@ -25,7 +25,9 @@
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-view.cemt",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-view.xslt",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-aspects.cemt",
-                "{workspaceRoot}/packages/cem-elements/demo/data-table-aspects.xslt"
+                "{workspaceRoot}/packages/cem-elements/demo/data-table-aspects.xslt",
+                "{workspaceRoot}/packages/cem-elements/demo/xpath-functions.html",
+                "{workspaceRoot}/packages/cem-elements/demo/xpath-functions.cemt"
             ],
             "outputs": ["{options.target-dir}"],
             "options": {

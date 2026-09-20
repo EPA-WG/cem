@@ -29,9 +29,9 @@ fn simple_string_methods_are_native_tier_a_with_exact_arities() {
     let registry = ModuleRegistry::tier_a();
     for (name, min, max) in [
         ("split", 2, 2),
-        ("trim", 1, 1),
-        ("trim_start", 1, 1),
-        ("trim_end", 1, 1),
+        ("trim", 1, 2),
+        ("trim_start", 1, 2),
+        ("trim_end", 1, 2),
         ("char_at", 2, 2),
         ("at", 2, 2),
         ("index_of", 2, 3),
@@ -180,4 +180,15 @@ fn split_composes_with_filter_count_and_native_template_loops() {
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert_eq!(result.rendered, "<ul><li>🍒</li><li>🍋</li></ul>");
+}
+
+// CEMQL-VIEWER-FUNCTION-AUDIT: opt in to XPath/XML whitespace semantics.
+#[test]
+fn xml_whitespace_profile_preserves_nonbreaking_space_without_changing_defaults() {
+    assert_eq!(eval("str:trim(\" \t 🍒 \n\", \"xml\")"), strings(&[" 🍒 "]));
+    assert_eq!(eval("str:trim(\" 🍒 \")"), strings(&["🍒"]));
+    assert_eq!(eval("str:normalize_space(\"  A\t  B\n  \" , \"xml\")"), strings(&["A   B"]));
+    assert_eq!(eval("str:normalize_space(\"  A\t  B\n  \")"), strings(&["A B"]));
+    let query = compile(r#"str:trim("a", "guess")"#, &CompileContext::default()).unwrap();
+    assert!(evaluate(&query, &EvaluationContext::default()).error.is_some());
 }

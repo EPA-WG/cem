@@ -36,7 +36,9 @@
             <a href="../xpath-text.cemt">a separate text-function library</a>.
             <code>normalize-space</code> and one-argument <code>tokenize</code>
             recognize only XML spaces, tabs, CR and LF. Non-breaking spaces
-            remain text, unlike CEM-QL's Unicode-whitespace normalizer.
+            remain text. Native <code>str:normalize_space(text, "xml")</code>
+            now provides the same whitespace profile; omitting it preserves
+            CEM-QL's Unicode-whitespace normalizer.
             <code>string-join</code> inserts a literal separator between tokens;
             repeated words remain, and blank input yields an empty string.</p>
         <h3>See also</h3>

@@ -208,6 +208,7 @@ fn native_viewer_dom_matches_cemt_for_namespaces_nested_missing_and_empty_values
         ("json", "[]", ""),
         ("json", "{}", ""),
         ("xml", "<r/>", ""),
+        ("xml", "<r>\u{a0}<row>\u{a0}A\u{a0}</row><row>\u{a0}B\u{a0}</row></r>", ""),
         ("csv", "label", ""),
     ] {
         let actual = visible(&render(&bundle, source, format, column).nodes);

@@ -715,7 +715,17 @@ const fixtureSpecs = [
                 fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
                 fillThenText('input', '', 'output', '🍒'),
             ]),
+            sampleContract('1a. CEM-QL string pair', [
+                normalizedText('output', 'Hello 🍒'),
+                fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
+                fillThenText('input', '', 'output', '🍒'),
+            ]),
             sampleContract('2. Shared XPath predicate', [
+                normalizedText('output', 'cherry 🍒'),
+                fillThenText('input', 'lemon', 'output', 'Try cherry'),
+                fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
+            ]),
+            sampleContract('2a. CEM-QL predicate pair', [
                 normalizedText('output', 'cherry 🍒'),
                 fillThenText('input', 'lemon', 'output', 'Try cherry'),
                 fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
@@ -724,6 +734,11 @@ const fixtureSpecs = [
                 normalizedText('li', 'Cherry : stocked'),
                 fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
                 fillThenText('textarea', '<r><item qty="3">Grape</item></r>', 'li', 'Grape : stocked'),
+            ]),
+            sampleContract('3a. CEM-QL native node pair', [
+                normalizedText('li', 'Cherry : stocked'),
+                fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
+                fillThenText('textarea', '<r><item qty=" 2.5 ">Grape</item></r>', 'li', 'Grape : stocked'),
             ]),
         ].flatMap((sample) => sample.checks.map((check) =>
             scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
@@ -1664,7 +1679,17 @@ const sourceDocumentSpecs = [
                 fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
                 fillThenText('input', '', 'output', '🍒'),
             ]),
+            sampleContract('1a. CEM-QL string pair', [
+                normalizedText('output', 'Hello 🍒'),
+                fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
+                fillThenText('input', '', 'output', '🍒'),
+            ]),
             sampleContract('2. Shared XPath predicate', [
+                normalizedText('output', 'cherry 🍒'),
+                fillThenText('input', 'lemon', 'output', 'Try cherry'),
+                fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
+            ]),
+            sampleContract('2a. CEM-QL predicate pair', [
                 normalizedText('output', 'cherry 🍒'),
                 fillThenText('input', 'lemon', 'output', 'Try cherry'),
                 fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
@@ -1673,6 +1698,11 @@ const sourceDocumentSpecs = [
                 normalizedText('li', 'Cherry : stocked'),
                 fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
                 fillThenText('textarea', '<r><item qty="3">Grape</item></r>', 'li', 'Grape : stocked'),
+            ]),
+            sampleContract('3a. CEM-QL native node pair', [
+                normalizedText('li', 'Cherry : stocked'),
+                fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
+                fillThenText('textarea', '<r><item qty=" 2.5 ">Grape</item></r>', 'li', 'Grape : stocked'),
             ]),
         ],
     },

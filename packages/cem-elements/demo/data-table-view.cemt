@@ -103,7 +103,7 @@
                                         fn(attr) => attr.namespace != "http://www.w3.org/2000/xmlns/")' @as=attr |
                                         {li | @{$attr.name}: {$attr.value}}}
                                     {cem:for-each @select='seq:where(node.children,
-                                        fn(child) => child.kind != "element" && str:trim(child.value ?? "") != "")' @as=child |
+                                        fn(child) => child.kind != "element" && str:trim(child.value ?? "", "xml") != "")' @as=child |
                                         {li | {span @class=value | {$child.value}}}}
                                     {cem:for-each @select='
                                         seq:group_by(seq:where(node.children, fn(child) => child.kind == "element"),
@@ -139,7 +139,7 @@
                                  value: attr.value, subject: ()}
                             },
                             {key: "#text", value: str:trim(str:concat(
-                                seq:where(row.children, fn(child) => child.kind == "text" || child.kind == "cdata").value, "")), subject: ()},
+                                seq:where(row.children, fn(child) => child.kind == "text" || child.kind == "cdata").value, ""), "xml"), subject: ()},
                             for child in seq:where(row.children, fn(child) => child.kind == "element") {
                                 {key: (if child.namespace == "" { "" } else { child.namespace + "|" }) + child.name,
                                  value: str:concat(child.children.value, ""), subject: child}

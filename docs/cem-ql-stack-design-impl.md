@@ -1062,6 +1062,15 @@ default data shape and CEM array semantics are unchanged. Native projection
 options and standard-function compatibility limits are documented in the public
 contract below; this selector does not itself implement an XSLT function.
 
+The additive `data:parse(source, format, options?)` uses CEM-ML's standard
+string-import profiles and returns native CEM nodes directly. Import alone
+resolves format/options, including JSON duplicate/escape and CSV header controls.
+`data:base_uri` / `data:document_uri` expose retained URI metadata. The older
+reader/report profile stays unchanged. Explicit `"xml"` profiles on `str:trim`
+and `str:normalize_space` provide the viewer's XML whitespace semantics.
+See the [function parity audit](xpath-cem-ql-viewer-parity.md) for error names,
+limits, ownership, semantic differences and verified native counterparts.
+
 `seq:group_by(items, keyFn)` groups by zero-or-one atomic keys in first-key
 order. `seq:sorted(items, keyFn, direction?, mode?)` preserves original items
 and stable ties; defaults are ascending/text, with descending/number options.

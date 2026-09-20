@@ -19,6 +19,8 @@ use std::sync::Arc;
 
 pub mod documents;
 mod strings;
+mod string_options;
+pub use string_options::{resolve_string_import, ImportStringConfig, ImportStringOption};
 pub use crate::validation::json_xml::{JsonXmlDuplicates, JsonXmlProjectionOptions};
 pub use strings::{
     import_string, CsvHeader, CsvImportOptions, ImportFailure, ImportFailureKind,

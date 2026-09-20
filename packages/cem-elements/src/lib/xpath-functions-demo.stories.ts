@@ -13,46 +13,65 @@ export const SeparateLibraryAndLiveSlices: Story = {
     play: async ({ canvasElement }) => {
         const root = canvasElement.querySelector(SOURCE_TAG);
         if (!root) throw new Error('source-loaded demo host is missing');
-        await waitFor(() => expect(root.querySelectorAll('output')).toHaveLength(2), { timeout: 20000 });
-        const outputs = () => Array.from(root.querySelectorAll('output'), (item) => item.textContent?.trim());
-        expect(outputs()).toEqual(['Hello 🍒', 'cherry 🍒']);
-        const inputs = root.querySelectorAll('input');
-        inputs[0].focus();
-        inputs[0].value = 'Changed';
-        inputs[0].setSelectionRange(3, 3);
-        inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-        await waitFor(() => expect(outputs()).toEqual(['Changed 🍒', 'cherry 🍒']));
-        expect(root.querySelector('input')).toBe(inputs[0]);
-        expect(document.activeElement).toBe(inputs[0]);
-        expect(inputs[0].selectionStart).toBe(3);
-        inputs[1].value = 'lemon';
-        inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-        await waitFor(() => expect(outputs()).toEqual(['Changed 🍒', 'Try cherry']));
-        inputs[1].value = 'cherry';
-        inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-        await waitFor(() => expect(outputs()).toEqual(['Changed 🍒', 'cherry 🍒']));
-        const xml = root.querySelector('textarea');
-        if (!xml) throw new Error('XML reader control is missing');
-        const sample = xml.closest('cem-demo-element');
-        const items = () => Array.from(sample?.querySelectorAll('li') ?? [], item => item.textContent?.trim());
-        await waitFor(() => expect(items()).toEqual(['Cherry: stocked']));
-        xml.focus();
-        xml.value = '<r><item qty="1">Lemon</item><item qty="3">Grape</item></r>';
-        xml.setSelectionRange(12, 12);
-        xml.dispatchEvent(new Event('input', { bubbles: true }));
-        await waitFor(() => expect(items()).toEqual(['Lemon: low stock', 'Grape: stocked']));
-        expect(sample?.querySelector('textarea')).toBe(xml);
-        expect(document.activeElement).toBe(xml);
-        expect(xml.selectionStart).toBe(12);
-        xml.value = '<r>';
-        xml.dispatchEvent(new Event('input', { bubbles: true }));
-        await waitFor(() => expect(sample?.querySelector('[role="alert"]')?.textContent).toBeTruthy());
-        expect(items()).toEqual([]);
-        xml.value = '<r><item qty="2">Recovered</item></r>';
-        xml.dispatchEvent(new Event('input', { bubbles: true }));
-        await waitFor(() => expect(items()).toEqual(['Recovered: stocked']));
-        expect(sample?.querySelector('[role="alert"]')).toBeNull();
-        expect(sample?.querySelector('textarea')).toBe(xml);
+        const sample = (legend: string) => {
+            const element = root.querySelector(`cem-demo-element[legend="${legend}"]`);
+            if (!element) throw new Error(`missing case: ${legend}`);
+            return element;
+        };
+        await waitFor(() => expect(root.querySelectorAll('output')).toHaveLength(4), { timeout: 20000 });
+        for (const legend of ['1. Named XPath function', '1a. CEM-QL string pair']) {
+            const card = sample(legend);
+            const input = card.querySelector('input');
+            if (!input) throw new Error('string input is missing');
+            expect(card.querySelector('output')?.textContent?.trim()).toBe('Hello 🍒');
+            input.focus();
+            input.value = 'Changed 🍋';
+            input.setSelectionRange(3, 3);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            await waitFor(() => expect(card.querySelector('output')?.textContent?.trim()).toBe('Changed 🍋 🍒'));
+            expect(card.querySelector('input')).toBe(input);
+            expect(document.activeElement).toBe(input);
+            expect(input.selectionStart).toBe(3);
+            if (legend.startsWith('1.')) expect(sample('1a. CEM-QL string pair').querySelector('output')?.textContent?.trim()).toBe('Hello 🍒');
+        }
+        for (const legend of ['2. Shared XPath predicate', '2a. CEM-QL predicate pair']) {
+            const card = sample(legend);
+            const input = card.querySelector('input');
+            if (!input) throw new Error('predicate input is missing');
+            for (const [value, expected] of [['lemon', 'Try cherry'], ['cherry', 'cherry 🍒']]) {
+                input.value = value;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                await waitFor(() => expect(card.querySelector('output')?.textContent?.trim()).toBe(expected));
+            }
+        }
+        for (const legend of ['3. XML nodes and matching', '3a. CEM-QL native node pair']) {
+            const card = sample(legend);
+            await waitFor(() => expect(card.querySelector('textarea')).not.toBeNull());
+            const xml = card.querySelector('textarea');
+            if (!xml) throw new Error('XML reader control is missing');
+            const items = () => Array.from(card.querySelectorAll('li'), item => item.textContent?.trim());
+            await waitFor(() => expect(items()).toEqual(['Cherry: stocked']));
+            xml.focus();
+            xml.value = '<r><item qty="1">Lemon</item><item qty=" 2.5 ">Grape</item></r>';
+            xml.setSelectionRange(12, 12);
+            xml.dispatchEvent(new Event('input', { bubbles: true }));
+            await waitFor(() => expect(items()).toEqual(['Lemon: low stock', 'Grape: stocked']));
+            expect(card.querySelector('textarea')).toBe(xml);
+            expect(document.activeElement).toBe(xml);
+            expect(xml.selectionStart).toBe(12);
+            if (legend.startsWith('3.')) expect(sample('3a. CEM-QL native node pair').querySelector('li')?.textContent?.trim()).toBe('Cherry: stocked');
+            xml.value = '<r>';
+            xml.dispatchEvent(new Event('input', { bubbles: true }));
+            await waitFor(() => expect(card.querySelector('[role="alert"]')?.textContent).toBeTruthy());
+            expect(items()).toEqual([]);
+            xml.value = '<r><item qty="2">Recovered</item></r>';
+            xml.dispatchEvent(new Event('input', { bubbles: true }));
+            await waitFor(() => expect(items()).toEqual(['Recovered: stocked']));
+            expect(card.querySelector('[role="alert"]')).toBeNull();
+            expect(card.querySelector('textarea')).toBe(xml);
+        }
+        expect(root.querySelector('a[href="#cem-ql-import"]')).not.toBeNull();
+        expect(root.querySelector('#cem-ql-import')?.textContent).toContain('source metadata');
     },
 };
 

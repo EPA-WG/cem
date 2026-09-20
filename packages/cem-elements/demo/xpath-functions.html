@@ -21,7 +21,9 @@
         <p>A template's <code>xpath-functions</code> reference loads a separate
             <a href="./xpath-functions.cemt">named function library</a>.
             CEM-QL passes declared scalars or explicitly selected XML nodes to XPath;
-            ordinary slice bindings and CEMT rules keep the page reactive. Edit an example to see the result change.</p>
+            ordinary slice bindings and CEMT rules keep the page reactive. Each XPath case
+            has an adjacent CEM-QL pair with the same input and result. Edit either
+            independently to compare them.</p>
         <p>The templates share the compiled library. Its URL resolves from the declaration
             document, and each input keeps its own state and focus. Libraries are limited to
             32 KiB and 64 functions; library imports are not supported yet.
@@ -31,6 +33,11 @@
             to the library. The reader reuses unchanged XML across renders, retains up to
             16 documents per compiled template, and reports invalid input without a partial result.
             Each XML source is limited to 32 KiB, 64 levels and 4096 events.</p>
+        <p>Read the <a href="#cem-ql-use-cases">CEM-QL function use cases</a> for
+            <a href="#cem-ql-label">string composition</a>,
+            <a href="#cem-ql-predicate">predicates</a>,
+            <a href="#cem-ql-nodes">native node queries</a>, and
+            <a href="#cem-ql-import">string import and source metadata</a>.</p>
         <h3>See also</h3>
         <p><a href="./xpath-nodes.html">XPath XML tables and trees</a> ·
             <a href="./dom-merge.html">DOM merge and live slices</a> ·
@@ -53,6 +60,23 @@
 </cem-element>
         </template>
     </cem-demo-element>
+    <cem-demo-element legend="1a. CEM-QL string pair"
+        description="The same string result using str:concat; edits keep this input's own state and focus">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | Hello}
+{article @class=demo-card |
+    {label | Text
+        {input @value="{$datadom.slices.text}"
+            @slice=text @slice-event=input @slice-value="$target.value"}
+    }
+    {p | {output | {$str:concat((datadom.slices.text, " 🍒"), "")}}}
+}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
     <cem-demo-element legend="2. Shared XPath predicate"
         description="Type cherry: a boolean XPath predicate selects a CEMT presentation rule; any other text selects the fallback">
         <template>
@@ -62,6 +86,29 @@
 {module |
     {template @mode=fruit @match='native:call("demo.accept", node)' |
         {body | {output | {$native:call("demo.label", node)}}}}
+    {template @mode=fruit @match=true @priority=-10 |
+        {body | {output | Try cherry}}}
+    {body |
+        {article @class=demo-card |
+            {label | Fruit
+                {input @value="{$datadom.slices.text}"
+                    @slice=text @slice-event=input @slice-value="$target.value"}
+            }
+            {p | {apply-templates @mode=fruit @select=datadom.slices.text}}
+}   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2a. CEM-QL predicate pair"
+        description="The same presentation rules using a native equality predicate and str:concat">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{slice @name=text | cherry}
+{module |
+    {template @mode=fruit @match='node == "cherry"' |
+        {body | {output | {$str:concat((node, " 🍒"), "")}}}}
     {template @mode=fruit @match=true @priority=-10 |
         {body | {output | Try cherry}}}
     {body |
@@ -109,6 +156,117 @@
 </cem-element>
         </template>
     </cem-demo-element>
+    <cem-demo-element legend="3a. CEM-QL native node pair"
+        description="The same XML item selection and numeric quantity rule using shared CEM nodes, seq:where and seq:any">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    textarea { box-sizing: border-box; width: 100%; min-height: 6rem; }
+```}
+{slice @name=source | &lt;r&gt;&lt;item qty="2"&gt;Cherry&lt;/item&gt;&lt;/r&gt;}
+{module |
+    {template @mode=stock @match='seq:any(node.attributes,
+            fn(attr) => attr.name == "qty" && attr.namespace == ""
+                && num:double(str:trim(attr.value, "xml"))
+                    &gt;= num:double(2))' |
+        {param @name=label}
+        {body | {li | {$label}: stocked}}}
+    {template @mode=stock @match=true @priority=-10 |
+        {param @name=label}
+        {body | {li | {$label}: low stock}}}
+    {body |
+        {cem-data @name=document @select=datadom.slices.source @type=xml}
+        {article @class=demo-card |
+            {label | XML source
+                {textarea @spellcheck=false @slice=source
+                    @slice-event=input @slice-value="$target.value"
+                    | {$datadom.slices.source}}}
+            {cem:choose |
+                {cem:when @test='document.error != ""' |
+                    {p @role=alert | {$document.error}}}
+                {cem:otherwise | {ul |
+                    {cem:for-each @as=item @select='seq:where(
+                        seq:where(document.root.children,
+                            fn(n) => n.kind == "element" && n.name == "r"
+                                && n.namespace == "").children,
+                        fn(n) => n.kind == "element" && n.name == "item"
+                            && n.namespace == "")' |
+                        {apply-templates @mode=stock @select=item
+                            @with:label='{str:concat(seq:where(item.descendants,
+                                fn(n) => n.kind == "text" || n.kind == "cdata"
+                                    || n.kind == "whitespace" || n.kind == "raw-text").value, "")}'}
+}   }   }   }   }   }   }
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <section id="cem-ql-use-cases">
+        <h2>CEM-QL function use cases</h2>
+        <h3 id="cem-ql-label">Compose a label from scalar values</h3>
+        <p><code>str:concat((text, " 🍒"), "")</code> joins a sequence with an empty
+            separator. It matches the library's <code>$text || ' 🍒'</code> for
+            these string inputs, including an empty string and Unicode emoji.
+            Use a nonempty separator when joining labels or tokens. This native
+            CEM-QL call needs no XPath library dependency.</p>
+        <h3 id="cem-ql-predicate">Choose presentation with a predicate</h3>
+        <p><code>node == "cherry"</code> matches the library's string equality
+            test. A CEMT rule consumes either boolean result; the lower-priority
+            fallback handles other text. Use <code>seq:any(items, fn(item) =&gt;
+            condition)</code> for an existential test over a sequence.</p>
+        <h3 id="cem-ql-nodes">Select native nodes and inspect attributes</h3>
+        <p><code>seq:where(nodes, fn(n) =&gt; n.kind == "element" &amp;&amp;
+            n.name == "item" &amp;&amp; n.namespace == "")</code> selects
+            unqualified item elements. Apply it at each level to match
+            <code>/r/item</code>. Filtering by kind and namespace avoids treating
+            comments or namespaced elements as matching data.</p>
+        <p>The quantity examples expect numeric <code>qty</code> values; a missing
+            quantity selects low stock. <code>num:double</code> converts both the quantity and threshold to the
+            same numeric type for CEM-QL comparison. Text comes from descendant text, CDATA and
+            whitespace nodes, excluding comments and processing instructions.
+            All selected nodes retain their CEM owner and source maps. XML,
+            JSON, YAML and CSV document syntax is decoded only by CEM-ML import.</p>
+        <h3 id="cem-ql-import">Parse a string and keep source metadata</h3>
+        <p><code>data:parse(source, "xml")</code> returns a native CEM document
+            directly. The format may also be <code>json</code>, <code>yaml</code>
+            or <code>csv</code>. JSON uses the same native XML-shaped projection
+            as XPath <code>json-to-xml</code>, without constructing or reparsing
+            XML text. An optional CEM-QL options record supports JSON
+            <code>{duplicates: "use-first", escape: true}</code>, CSV
+            <code>{header: "present"}</code>, and an explicit
+            <code>{"base-uri": "https://example.test/source"}</code>.</p>
+        <p><code>data:node_key(node)</code> and <code>data:line_number(node)</code>
+            expose selection provenance. <code>data:base_uri(node)</code> and
+            <code>data:document_uri(node)</code> read retained metadata;
+            parsed strings have no document URI. Import is limited to 32 KiB,
+            64 levels and 4096 values/events. Each parse produces a new owner;
+            stable source keys, rather than owner identity, track selection.</p>
+        <p>Use <code>try { data:parse(source, "xml") } catch (code, message) {
+            message }</code> to recover from malformed input. Query diagnostics
+            preserve the import error category and parser locations. Import
+            limits, cancellation and unsupported capabilities remain fatal.
+            <code>data:read</code> and <code>cem-data</code>, used by the paired
+            XML examples, keep their cached report contract with
+            <code>error</code> and <code>root</code>; their strict input profile
+            is unchanged.</p>
+        <h3 id="cem-ql-collections">Group, sort and normalize viewer values</h3>
+        <p><code>seq:group_by(rows, fn(row) =&gt; row.name)</code> returns groups
+            with <code>key</code> and native <code>items</code>. Pass those values
+            explicitly to templates in place of XPath's ambient group context.
+            CEM grouping accepts one atomic key and uses CEM identity equality;
+            it does not implement every XSLT grouping mode.</p>
+        <p><code>seq:sorted(rows, fn(row) =&gt; row.attributes.value,
+            "ascending", "number")</code> performs a stable numeric sort with
+            missing/invalid keys last. Supply a selector for the particular
+            attribute when a row has several. XPath sorting uses its own typed
+            comparison rules; the viewer authors the same missing-last policy.</p>
+        <p><code>str:trim(text, "xml")</code> and
+            <code>str:normalize_space(text, "xml")</code> recognize only space,
+            tab, CR and LF, matching the viewer's XPath whitespace expressions.
+            Nonbreaking spaces remain text. Omit the profile to retain the
+            original CEM-QL whitespace behavior. <code>str:replace</code> remains
+            literal replacement; it is not XPath's regular-expression function.</p>
+    </section>
 </main>
 <script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>

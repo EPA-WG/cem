@@ -48,7 +48,9 @@ apply equally to named, lambda and native calls.
 Tier A `str:` functions include literal `split(value, separator)`,
 `trim`/`trim_start`/`trim_end`, `char_at`/`at`, and `index_of`/`last_index_of`.
 They complement the existing case conversion, substring, containment,
-replacement, and joining functions. Indices use Unicode codepoints; split
+replacement, and joining functions. `trim`/`trim_start`/`trim_end` and
+`normalize_space` accept an optional `"xml"` profile for XML whitespace only
+(space, tab, CR and LF); omitted or `"default"` preserves the existing behavior. Indices use Unicode codepoints; split
 returns a sequence and preserves empty fields. For example, a whitespace word
 count that retains repeated words and treats blank input as zero is:
 
@@ -133,9 +135,11 @@ U+FFFD (`escape=false`). The underlying native Rust API
 `cem_ml::validation::json_xml::project_json_to_xml` additionally offers
 `JsonXmlProjectionOptions` for escape marking, retain/use-first/reject duplicate
 policies, and depth/value limits. This is a structural projection of the JSON
-parser's accepted input, not a claim that the XSLT standard function is already
-implemented. Schema-typed output, custom fallback functions, liberal JSON and
-unpaired-surrogate input are not added by this projection.
+parser's accepted input. The separate standard string-import profile now backs
+XPath `json-to-xml` and native `data:parse` below; it also handles unmatched
+surrogates according to its escape option. This existing reader projection
+keeps its stricter input profile. Schema-typed output, custom fallback functions
+and liberal JSON are not added.
 
 Import limits: 32 KiB, depth 64, 4096 events/values. DTDs, unresolved XML
 entities, YAML anchors/aliases/explicit tags and complex keys are rejected.
@@ -178,6 +182,42 @@ cached. Clear or drop the cache to release its references; returned nodes keep
 their owners alive independently. WASM retains this cache with each compiled or
 imported template and releases it through `disposeTemplate`. Native reader
 owners never cross JSON, and retention is not serialized in portable artifacts.
+
+### Native string parsing and URI metadata
+
+Tier B `data:parse(source, format, options?)` exposes the same CEM-ML string
+import profiles as XPath `parse-xml`, `json-to-xml`, and the CSV/YAML import
+functions. It returns a native CEM document directly, with ordinary
+`children`/`attributes` fields and native XPath interoperability. Every parse
+creates a new retained owner. `data:read` and its cached report remain unchanged.
+
+```cem-ql
+{ let document = data:parse(source, "csv", {header: "present"});
+  document.children.children }
+```
+
+Formats are `xml`, `json`, `yaml`, `csv`, or their media types. JSON selects the
+native XML-shaped projection; options are `duplicates` (`retain`, `use-first`,
+`reject`) and boolean `escape`. CSV defaults to `header: "absent"`. All formats
+accept a string `"base-uri"` option; no network access occurs. Invalid options
+fail explicitly. Format and option resolution stays inside CEM-ML import.
+
+`data:base_uri(node)` and `data:document_uri(node)` read retained URI metadata,
+returning an optional URI atom. Inherited XML base URI is respected; parsed
+strings have no document URI and no base URI unless supplied. Like
+`data:node_key` / `data:line_number`, these functions accept zero or one native
+node and reject ordinary records. Query values never replace the native owner.
+
+Recover malformed input with `try { data:parse(source, "xml") } catch (code,
+message) { message }`. Malformed and duplicate-key diagnostics retain typed
+import names and parser diagnostic metadata. Resource limits, unsupported
+capabilities and cancellation remain fatal. Source limits remain 32 KiB,
+depth 64 and 4096 values/events. See the
+[parity audit and exact error contract](../../docs/xpath-cem-ql-viewer-parity.md).
+The [paired demo's detailed use cases](../cem-elements/demo/xpath-functions.html#cem-ql-use-cases)
+cover imports, URI/provenance, predicates and native node selection.
+
+### Collections and presentation dispatch
 
 Two reusable Tier B collection operations preserve original items and native
 identities:

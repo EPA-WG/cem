@@ -240,7 +240,7 @@ pub(crate) fn apply_stdlib_call(
         }
         ("cem:stdlib/strings", "split") => string_split(arg_streams),
         ("cem:stdlib/strings", "trim" | "trim_start" | "trim_end") => {
-            string_trim(arg_streams, &name.local)
+            string_trim(arg_streams, &name.local, ctx, source)
         }
         ("cem:stdlib/strings", "char_at") => string_character(arg_streams, false),
         ("cem:stdlib/strings", "at") => string_character(arg_streams, true),
@@ -260,7 +260,13 @@ pub(crate) fn apply_stdlib_call(
         }
         ("cem:stdlib/strings", "normalize_space") => {
             let value = first_string(&arg_streams);
-            ItemStream::once(Item::Atomic(AtomValue::String(normalize_space(&value))))
+            let xml = match xml_whitespace_profile(&arg_streams) {
+                Ok(xml) => xml, Err(message) => return ctx.type_error(source, message),
+            };
+            let result = if xml {
+                value.split(is_xml_space).filter(|part| !part.is_empty()).collect::<Vec<_>>().join(" ")
+            } else { normalize_space(&value) };
+            ItemStream::once(Item::Atomic(AtomValue::String(result)))
         }
         ("cem:stdlib/strings", "replace") => string_replace(arg_streams),
         ("cem:stdlib/strings", "translate") => string_translate(arg_streams),
@@ -330,7 +336,7 @@ pub(crate) fn apply_stdlib_call(
             ctx.raise(source, code, message)
         }
         ("cem:stdlib/report", "severity_floor") => ItemStream::empty(),
-        ("cem:stdlib/data", "node_key" | "line_number") => {
+        ("cem:stdlib/data", "node_key" | "line_number" | "base_uri" | "document_uri") => {
             if let Err(error) = ctx.force_safe_point(source) {
                 return error;
             }
@@ -342,12 +348,13 @@ pub(crate) fn apply_stdlib_call(
                     return ctx.type_error(source, "source metadata requires zero or one native node")
                 }
             };
-            match super::data::source_metadata(item, name.local == "line_number") {
+            match super::data::source_metadata(item, &name.local) {
                 Ok(value) => ItemStream::from_items(value.map(Item::Atomic).into_iter().collect()),
                 Err(()) => ctx.type_error(source, "source metadata requires zero or one native node"),
             }
         }
         ("cem:stdlib/cemml", "parse") => cemml_parse(arg_streams),
+        ("cem:stdlib/data", "parse") => super::data::parse(arg_streams, ctx, source),
         ("cem:stdlib/data", "read") => {
             // Poll control before entering the bounded native parsers.
             let input = first_string(&arg_streams);
@@ -1252,9 +1259,8 @@ fn first_string(streams: &[ItemStream]) -> String {
         .unwrap_or_default()
 }
 
-/// XSLT `normalize-space`: trim leading/trailing whitespace and collapse internal runs of
-/// whitespace to a single space. Used by the converted cem-theme CSS generators to read token
-/// table cells. `split_whitespace` skips all Unicode whitespace runs, matching the semantics.
+/// Default CEM normalization uses Unicode whitespace. The explicit XML profile
+/// uses only XML whitespace; existing converted token-table consumers keep this default.
 fn normalize_space(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -1306,12 +1312,32 @@ fn is_string_trim_space(ch: char) -> bool {
     )
 }
 
-fn string_trim(streams: Vec<ItemStream>, method: &str) -> ItemStream {
+fn is_xml_space(ch: char) -> bool { matches!(ch, ' ' | '\t' | '\r' | '\n') }
+
+fn xml_whitespace_profile(streams: &[ItemStream]) -> Result<bool, &'static str> {
+    let Some(profile) = streams.get(1) else { return Ok(false) };
+    if let [item] = profile.items.as_slice() {
+        if let Some(AtomValue::String(profile)) = item.atom() {
+            match profile.as_str() {
+                "xml" => return Ok(true),
+                "default" => return Ok(false),
+                _ => {},
+            }
+        }
+    }
+    Err("whitespace profile must be xml or default")
+}
+
+fn string_trim(streams: Vec<ItemStream>, method: &str, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {
     let value = first_string(&streams);
+    let xml = match xml_whitespace_profile(&streams) {
+        Ok(xml) => xml, Err(message) => return ctx.type_error(source, message),
+    };
+    let space: fn(char) -> bool = if xml { is_xml_space } else { is_string_trim_space };
     let trimmed = match method {
-        "trim_start" => value.trim_start_matches(is_string_trim_space),
-        "trim_end" => value.trim_end_matches(is_string_trim_space),
-        _ => value.trim_matches(is_string_trim_space),
+        "trim_start" => value.trim_start_matches(space),
+        "trim_end" => value.trim_end_matches(space),
+        _ => value.trim_matches(space),
     };
     ItemStream::once(Item::Atomic(AtomValue::String(trimmed.to_owned())))
 }

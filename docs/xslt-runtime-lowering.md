@@ -610,7 +610,8 @@ page/card overflow at 1440px and 390px, with two-card desktop rows.
 
 XML and JSON still enter through CEM-ML import into retained CEM AST trees;
 YAML and CSV follow the same boundary. No JavaScript document objects were
-introduced. The next work is the XPath/CEM-QL function audit and paired samples.
+introduced. The [XPath/CEM-QL function audit](xpath-cem-ql-viewer-parity.md) records the
+implemented import, URI and whitespace gaps and the paired demo samples.
 
 ## Native output construction
 
