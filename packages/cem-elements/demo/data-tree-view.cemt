@@ -1,0 +1,99 @@
+{attribute @name=format | xml}
+{style |```
+    article, section, li { min-inline-size: 0; }
+    textarea { box-sizing: border-box; inline-size: 100%; min-block-size: 7rem;
+        font-family: monospace; resize: vertical; }
+    label { display: block; margin-block: .5rem; }
+    button, select { max-inline-size: 100%; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; max-block-size: 16rem;
+        overflow: auto; border: 1px solid #999; padding: .5rem; }
+    article pre code { white-space: pre-wrap; text-wrap: wrap;
+        font-weight: normal; color: inherit; }
+    ol { padding-inline-start: 1.25rem; }
+    .branch { border-inline-start: 2px solid #aaa; padding-inline-start: .5rem;
+        margin-block: .5rem; overflow-wrap: anywhere; }
+    .selected { border-color: #087546; background: #e5f5ec; color: #18251c; }
+    .value { white-space: pre-wrap; overflow-wrap: anywhere; }
+    summary { cursor: pointer; overflow-wrap: anywhere; }
+    [role=alert] { color: #a51d32; overflow-wrap: anywhere; }
+```}
+{module |
+    {template @name=viewer @visibility=public |
+        {body |
+            {cem:variable @name=initial @select='str:trim(str:concat(datadom.payload.nodes.text, ""))'}
+            {cem:variable @name=source @select='datadom.slices.source ?? initial'}
+            {cem:variable @name=revision @select='"edit-" + num:string(datadom.eventPayloads.source.revision ?? 0)'}
+            {cem-data @name=document @select=source @type="{$format}"}
+            {article |
+                {label | Source ({$str:upper(format)})
+                    {textarea @aria-label=Source @spellcheck=false
+                        @slice=source @slice-event=change
+                        @slice-value="$target.value" | {$source}}}
+                {button @type=button @slice=source @slice-event=click
+                    @value="{$initial}" | Reload original}
+                {p | Edit, then Tab out. Reloading also clears branch selections.}
+                {cem:choose |
+                    {cem:when @test='document.error != ""' |
+                        {p @role=alert | Source could not be imported: {$document.error}}}
+                    {cem:otherwise |
+                        {call @template=inspect @with:document="{$document.root}"
+                            @with:revision="{$revision}"}}}
+    }   }   }
+    {template @name=inspect @visibility=public |
+        {param @name=document}{param @name=revision}
+        {body |
+            {section |
+                {h3 | CEM-ML document}
+                {pre @tabindex=0 @aria-label="CEM-ML document" |
+                    {code | {$cemml:inspect(document)}}}}
+            {section |
+                {h3 | Branches}
+                {p | Branches selected: {output @aria-label="Selected branches" | {$seq:count(
+                    seq:where(record:entries(datadom.slices), fn(entry) =>
+                        str:starts_with(entry.key, "branch.") && entry.value == revision))}}}
+                {ol |
+                    {cem:for-each @select=document.children @as=child |
+                        {call @template=branch @with:node="{$child}"
+                            @with:path="{num:string(position)}"
+                            @with:revision="{$revision}"}}}
+    }   }   }
+    {template @name=branch |
+        {param @name=node}{param @name=path}{param @name=revision}
+        {body |
+            {cem:choose |
+                {cem:when @test='node.kind == "element"' |
+                    {cem:variable @name=key @select='"branch." + path'}
+                    {cem:variable @name=selected @select='seq:any(record:entries(datadom.slices),
+                        fn(entry) => entry.key == key && entry.value == revision)'}
+                    {li @class='{if selected { "branch selected" } else { "branch" }}' |
+                        {label |
+                            {input @type=checkbox @slice="{$key}" @slice-event=change
+                                @value="{$revision}"
+                                @aria-label='{"Select branch " + path + ": " + node.name}' |
+                                {cem:if @test=selected | {attribute @name=checked}}}
+                            Select branch {$path}: {$node.name}
+                            {cem:if @test=selected | {strong | Selected}}}
+                        {details @open=open |
+                            {summary | {$node.name}
+                                {cem:if @test='node.namespace != ""' | · {$node.namespace}}
+                                · line {$data:line_number(node)}}
+                            {ul |
+                                {cem:for-each @select='seq:where(node.attributes,
+                                    fn(attr) => attr.namespace != "http://www.w3.org/2000/xmlns/")' @as=attr |
+                                    {li | @{$attr.name}
+                                        {cem:if @test='attr.namespace != ""' | · {$attr.namespace}}
+                                        : {span @class=value | {$if (attr.value ?? "") == "" { "\"\"" } else { attr.value }}}}}}
+                            {cem:if @test='seq:count(node.children) == 0' | {p | Empty element}}
+                            {ol |
+                                {cem:for-each @select=node.children @as=child |
+                                    {call @template=branch @with:node="{$child}"
+                                        @with:path='{path + "." + num:string(position)}'
+                                        @with:revision="{$revision}"}}}
+                    }   }}
+                {cem:otherwise |
+                    {li | {$node.kind}
+                        {cem:if @test='node.kind == "processing-instruction"' | · {$node.name}}
+                        : {span @class=value | {$if (node.value ?? "") == "" { "\"\"" } else { node.value }}}}
+    }   }   }   }
+}
+{call @template=viewer}

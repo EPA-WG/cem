@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Retained CEM document trees — CEM demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav">
+    <a href="../index.html">cem-element demo</a>
+    <h1>🌳 Retained document trees</h1>
+</nav>
+<main>
+    <section>
+        <h2>Inspect source structure without executing it</h2>
+        <p>Edit source text and Tab out. CEM-ML imports it into a retained CEM
+            document; <code>cemml:inspect(document)</code> shows its structure as
+            tabular CEM-ML. The branch view reads that same document. XML, JSON,
+            YAML and CSV share this path; these examples focus on XML and JSON.</p>
+        <p>Check any branches independently. <strong>Selected</strong> and a total
+            show the selection without relying on color. Tab to a checkbox and
+            press Space; Tab to a summary and press Enter or Space to collapse it.
+            Collapsing preserves selection. Editing or reloading the source
+            clears selection, even when the source text is unchanged.</p>
+        <p>Branch numbers follow source order. Namespace URIs distinguish names;
+            <code>""</code> marks an empty value. Namespace declarations stay in
+            the CEM-ML source inspection but are excluded from branch attribute
+            details. Whitespace, comments, CDATA and processing instructions are
+            inspectable data. Scripts and <code>xml-stylesheet</code> instructions
+            never execute.</p>
+        <p>The local-file example uses the shared <code>http-request</code> loader.
+            It resolves URLs relative to the declaration and passes its retained
+            CEM document to the same viewer. Choose No source to release it and
+            select a file again to reload. Documents do not become JavaScript objects.</p>
+        <p>Keep this teaching sample small. Import currently permits 32 KiB,
+            64 levels and 4096 events/values; host and enclosing scope limits also
+            bound rendering. Invalid input replaces the display with an error.
+            Inspection is read-only; it does not edit the imported document.</p>
+        <cem-element tag="cem-data-tree" src="./data-tree-view.cemt"></cem-element>
+        <h3>See also</h3>
+        <p><a href="./data-table.html">Grouping and sorting tables</a> ·
+            <a href="./http-request.html">Request lifecycle</a> ·
+            <a href="./xpath-functions.html#cem-ql-use-cases">XPath and CEM-QL use cases</a> ·
+            <a href="./external-template.html">Data-island trees</a></p>
+    </section>
+
+    <cem-demo-element legend="1. XML branches: independent selection"
+        description="Select two fruit branches, collapse one, then reload; namespaces, empty attributes and mixed content remain inspectable">
+        <template>
+<cem-data-tree format="xml">
+&lt;orchard xmlns:f="urn:fruit"&gt;&lt;f:fruit color=""&gt;🍒&lt;/f:fruit&gt;&lt;f:fruit&gt;pre&lt;![CDATA[&lt;raw&gt;🍋]]&gt;&lt;?keep inert?&gt;post&lt;/f:fruit&gt;&lt;/orchard&gt;
+</cem-data-tree>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. JSON through the same CEM tree"
+        description="Inspect imported JSON nodes with the same writer and branch controls; an empty string remains present">
+        <template>
+<cem-data-tree format="json">
+{"fruit": "🍒", "note": "", "tags": ["red", "sweet"]}
+</cem-data-tree>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="3. Malformed source and repair"
+        description="Close the fruit element before orchard, then Tab out; the tree appears after successful import">
+        <template>
+<cem-data-tree format="xml">
+&lt;orchard&gt;&lt;fruit&gt;🍒&lt;/orchard&gt;
+</cem-data-tree>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="4. Load and release a local document"
+        description="Switch between XML and JSON files; No source releases the retained document, and selecting a file loads it again">
+        <template>
+<cem-element src="./data-tree-request.cemt"></cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

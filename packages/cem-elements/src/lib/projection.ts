@@ -2730,7 +2730,17 @@ export function setRenderPlanAttribute(element: Element, name: string, value: st
         element.setAttributeNS(XLINK_NAMESPACE, name, value);
         return;
     }
+    const addedChecked = name === 'checked' && !element.hasAttribute(name);
     element.setAttribute(name, value);
+    if (addedChecked) syncRenderedCheckedPresence(element, true);
+}
+
+// A changed authored checked presence also controls the dirty live state.
+// Unchanged attributes leave user edits alone, just like textarea text patches.
+function syncRenderedCheckedPresence(element: Element, checked: boolean): void {
+    if (element.namespaceURI === XHTML_NAMESPACE && element.localName === 'input') {
+        (element as HTMLInputElement).checked = checked;
+    }
 }
 
 function renderPlanAttributeValue(element: Element, name: string): string | null {
@@ -2752,7 +2762,9 @@ function removeRenderPlanAttribute(element: Element, name: string): void {
     if (xlinkLocalName) {
         element.removeAttributeNS(XLINK_NAMESPACE, xlinkLocalName);
     }
+    const removedChecked = name === 'checked' && element.hasAttribute(name);
     element.removeAttribute(name);
+    if (removedChecked) syncRenderedCheckedPresence(element, false);
 }
 
 function xlinkAttributeLocalName(name: string): string | null {

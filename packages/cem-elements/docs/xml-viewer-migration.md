@@ -1,11 +1,12 @@
 # Standalone XML viewer migration review
 
-Reviewed 2026-09-13 against `~/aWork/custom-element/demo/`. The subsequent
-user-requested **multi-format table view** implements part of the table lessons;
-the lossless XML tree/branch-selection migration remains open. `tree.xml` is
-still unported, while `table.xml` and `table.xsl` are partially migrated in
-[`legacy-demo-cases.json`](legacy-demo-cases.json). Their four source files,
-including `tree.xsl`, still match the audit's SHA-256 fingerprints.
+Reviewed 2026-09-13 against `~/aWork/custom-element/demo/`, updated 2026-09-20.
+The **multi-format table view** implements part of the table lessons.
+XML-VIEW-3 now supplies the separate retained-document tree viewer, including
+structural inspection and independent branch selection. `tree.xml` is migrated;
+`table.xml` and `table.xsl` remain partially migrated pending XML-VIEW-4 in
+[`legacy-demo-cases.json`](legacy-demo-cases.json). The four legacy source
+fingerprints, including `tree.xsl`, remain unchanged.
 
 Execution follows the XML-VIEW checkitems in
 [`docs/todo.md`](../../../docs/todo.md). The legacy files are functional
@@ -36,11 +37,12 @@ fallback receive content-hashed source modules, include them in cache identity,
 and return imported static styles for declaration-scoped installation. A
 source-only binary artifact cannot stand in for that dependency closure.
 
-These explicit **lossy UI views** do not replace the typed CEM-tree writer or
-claim XML-VIEW-3 branch-selection parity. XML source owners retain ordered events,
-comments and PIs; tree display keeps inert values but is not a lexical export.
+These explicit **lossy UI views** do not replace the typed CEM-tree writer.
+XML-VIEW-3 supplies branch selection in its separate tree lesson. XML source
+owners retain ordered events, comments and PIs; tree display keeps inert values
+but is not a lexical export.
 XML-VIEW-1 now supplies the separate typed inspection boundary described below.
-The standalone branch-selection checkitem remains open. Generic import, collection and dispatch contracts
+Generic import, collection and dispatch contracts
 are documented in the [CEM-QL README](../../cem_ql/README.md#native-data-import-and-presentation-dispatch).
 
 ## What the local sources actually demonstrate
@@ -220,9 +222,9 @@ Existing [`data_import.rs`](../../cem_ql/tests/data_import.rs) and
 import boundary and CEMT/XPath viewer parity. Downstream helpers still receive
 retained common CEM nodes; no external-format decoding is introduced.
 
-This closes the native helper prerequisite. It adds no demo cards or browser
-behavior; the standalone tree lesson remains XML-VIEW-3, followed by the
-focused table teaching points in XML-VIEW-4.
+This closes the native helper prerequisite. The audit itself added no demo
+cards or browser behavior. The standalone tree implementation follows below;
+focused table teaching points remain XML-VIEW-4.
 
 ### XML-VIEW-3 — standalone tree teaching points
 
@@ -253,8 +255,8 @@ promise to preserve the placeholder as the final formatting contract.
 The same retained owner already works with `cem_tree_inspection` and the shared
 tabular writer. The probe covers XML, JSON, YAML and CSV, verifies retained
 ownership through formatted output, and keeps source spans, CDATA and PI data.
-The missing step is exposing that native capability to authored CEMT. Re-reading
-the source with another browser API or spelling CEM-ML by concatenating strings
+The implemented query below exposes that native capability to authored CEMT.
+Re-reading the source with another browser API or spelling CEM-ML by concatenating strings
 inside the viewer would bypass this boundary.
 
 **Accepted public contract: `cemml:inspect(document)`.** This is a Tier B
@@ -301,10 +303,48 @@ after cancellation, limit exhaustion or writer failure. The
 [query reference](../../cem_ql/README.md#retained-document-inspection) describes
 these controls and diagnostics.
 
-XML-VIEW-3 remains open for the declarative tree viewer. Wire its escaped text
-output to this query and the same imported owner. Source editing/loading,
-branch selection, disclosure and error recovery are next; this API checkpoint
-does not change existing demo presentation.
+#### XML-VIEW-3 standalone viewer — implemented
+
+[`data-tree.html`](../demo/data-tree.html) has four separate lessons: editable
+XML, JSON through the same retained tree, malformed XML and repair, and local
+HTTP loading/release. The reusable [`data-tree-view.cemt`](../demo/data-tree-view.cemt)
+uses `cemml:inspect(document)` for escaped structural output. Its branch view
+traverses only common CEM node children and attributes. Namespace labels, empty
+values, Unicode and mixed content remain visible; namespace declarations stay
+in structural provenance and do not appear as data attributes. Script elements,
+CDATA and processing instructions remain inert inspection text.
+
+Visible labeled checkboxes allow independent branch selection; native
+`details`/`summary` controls provide keyboard disclosure. Collapsing a branch
+keeps its selection. The editable viewer uses the public source-event revision
+to invalidate selections after any edit or reload, including identical source
+text. Within one source revision, fixed child paths identify branches; they are
+not identities for reconciliation across documents. Slice keys stay bounded by
+the visited tree shape. Selection adds a visible word as well as color.
+
+The request lesson imports the same inspection template and passes
+`datadom.slices.resource.data` directly from the HTTP loader. CEM-ML imports
+response bytes once; the viewer never decodes an external format or rebuilds a
+JavaScript document. `resourceRevision` invalidates previous selections when
+switching or reloading files. Choosing No source removes the request directive
+and releases the retained document. The helper resolves repository XML/JSON
+files relative to its declaration and offers the resolved source as a download.
+No stylesheet is fetched or executed from an inspected `xml-stylesheet` PI.
+
+The viewer authors `checked` as a conditional boolean attribute. The shared
+browser patcher now synchronizes the live input property when this attribute
+is added or removed, including dirty inputs. Unchanged attributes preserve
+user edits, focus and unrelated controls. This is a shared HTML patch correction;
+there is no demo-local JavaScript behavior.
+
+Native [`data_tree_view.rs`](../../cem_ql/tests/data_tree_view.rs) covers all four
+import formats, namespaces, inert mixed content, source-generation selection,
+repair and retained HTTP documents. Browser stories exercise editing, selection,
+disclosure, release/reload and the checkbox patch. The gallery inventory covers
+all four lessons as standalone pages and source-loaded documents, including
+Space/Enter keyboard controls. The source contract and migration inventory track
+the new files and their Nx cache inputs. Existing host and scope import/query
+limits still apply; this viewer adds no format-specific limit policy.
 
 ### XML-VIEW-4 — table inspector teaching points
 
@@ -319,17 +359,17 @@ selected rows, equal-key sorts and sibling/instance isolation.
 Prove every authored case in native tests, source contracts, source-loaded
 Storybook and standalone fixture verification. Check desktop two-card layout
 and mobile containment. Update the inventories and Nx cache inputs as actual
-fixtures arrive; only then replace the `unported-xml-viewer` classifications.
+fixtures arrive; only then close the remaining partial table classifications.
 
 ## Review verification
 
-The case-map unit guard keeps this review marked `table-view-implemented-tree-open`,
+The case-map unit guard keeps this review marked `tree-view-implemented-table-lessons-open`,
 records legacy sorting as `scaffold-only`, and resolves completed and pending
 XML-VIEW items to this document and the TODO checklist. The review document is a unit-test
 cache input. CI uses the checked-in audit, not a developer's legacy checkout.
 The XML-VIEW-1 native contract tests are linked in the evidence inventory. They
 verify typed projection, writer output, retained ownership, import rejection
-and public inspection. The standalone tree viewer remains unported.
+and public inspection. XML-VIEW-3 adds the authored tree and request evidence.
 
 Verification 2026-09-13: all seven case-map tests and the full 341-test unit
 suite pass through Nx, as does lint. The four local source fingerprints,
@@ -358,4 +398,14 @@ inventory only; no browser templates, runtime code or demo layout changed.
 XML-VIEW-3 boundary verification 2026-09-20: both native boundary tests pass,
 including all four import formats. The 390-test unit suite and lint pass
 through Nx; the resolved unit target includes the new native evidence file.
-The inspection query decision remains pending and the viewer remains open.
+That probe preceded the subsequently implemented inspection query and viewer.
+
+XML-VIEW-3 viewer verification 2026-09-20: all five native viewer cases pass,
+along with 398 unit checks, four tree-viewer Storybook cases and five existing
+table-viewer cases. Build, lint and typecheck pass through Nx. The final gallery
+verifier passes 26 standalone pages and 32 source-loaded documents, including
+Space/Enter disclosure, independent selection/deselection, same-source reload,
+parse recovery, correct initial source choice and preserved CEM-ML indentation.
+The page fits two cards at 1440px and remains contained at 390px and 320px.
+The browser network audit confirms that the inspected stylesheet PI is not
+requested. XML-VIEW-4 remains the next open viewer fixture.

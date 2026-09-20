@@ -1,0 +1,34 @@
+{slice @name=sourceUrl | ./tree-source.xml}
+{module |
+    {import @as=view @src="./data-tree-view.cemt"}
+    {template @name=request-view @visibility=public |
+        {body |
+            {cem:variable @name=url @select='datadom.slices.sourceUrl ?? "./tree-source.xml"'}
+            {cem:if @test='url != ""' |
+                {http-request @slice=resource @url="{$url}" @method=GET}}
+            {article |
+                {label | Local source
+                    {select @aria-label="Local source" @slice=sourceUrl
+                        @slice-event=change @value="{$url}" |
+                        {option @value="" |
+                            {cem:if @test='url == ""' | {attribute @name=selected}}No source}
+                        {option @value="./tree-source.xml" |
+                            {cem:if @test='url == "./tree-source.xml"' | {attribute @name=selected}}XML orchard}
+                        {option @value="./tree-source.json" |
+                            {cem:if @test='url == "./tree-source.json"' | {attribute @name=selected}}JSON orchard}}}
+                {p | Choose No source to release the document, then select a file to load it again.}
+                {p | Request state: {output @aria-label="Request state" | {$if url == "" { "idle" }
+                    else { datadom.slices.resource.state ?? "scheduled" }}}}
+                {cem:if @test='url != ""' |
+                    {cem:choose |
+                        {cem:when @test='(datadom.slices.resource.state ?? "") == "failed"' |
+                            {p @role=alert | Source request failed. Choose another file to recover.}}
+                        {cem:when @test='(datadom.slices.resource.state ?? "") == "loaded"' |
+                            {p | {a @href="{$datadom.slices.resource.request.resolvedUrl}"
+                                @download="" | Download source file}}
+                            {call @from=view @template=inspect
+                                @with:document="{$datadom.slices.resource.data}"
+                                @with:revision='{"request-" + num:string(datadom.slices.resource.resourceRevision)}'}}}}
+    }   }   }
+}
+{call @template=request-view}

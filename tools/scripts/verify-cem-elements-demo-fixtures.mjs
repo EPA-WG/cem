@@ -492,7 +492,70 @@ const hexRowSample = sampleContract('9. Horizontal row with a current page', [
     computedStyle('nav a[aria-current="page"] .hex-label', 'transform', 'matrix(1, 0, 0, 1, 0, 0)'),
 ]);
 
+const dataTreeSamples = [
+    sampleContract('1. XML branches: independent selection', [
+        text('pre[aria-label="CEM-ML document"]', '{ast'),
+        computedStyle('pre[aria-label="CEM-ML document"] code', 'whiteSpace', 'pre-wrap'),
+        text('pre[aria-label="CEM-ML document"]', '<raw>🍋'),
+        normalizedText('output[aria-label="Selected branches"]', '0'),
+        pressThenProperty('input[aria-label="Select branch 1.1: fruit"]', 'Space',
+            'input[aria-label="Select branch 1.1: fruit"]', 'checked', true),
+        normalizedText('output[aria-label="Selected branches"]', '1'),
+        pressThenProperty('input[aria-label="Select branch 1.2: fruit"]', 'Space',
+            'input[aria-label="Select branch 1.2: fruit"]', 'checked', true),
+        normalizedText('output[aria-label="Selected branches"]', '2'),
+        pressThenProperty('li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details > summary', 'Enter',
+            'li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details', 'open', false),
+        normalizedText('output[aria-label="Selected branches"]', '2'),
+        propertyEquals('input[aria-label="Select branch 1.1: fruit"]', 'checked', true),
+        pressThenProperty('input[aria-label="Select branch 1.2: fruit"]', 'Space',
+            'input[aria-label="Select branch 1.2: fruit"]', 'checked', false),
+        normalizedText('output[aria-label="Selected branches"]', '1'),
+        propertyEquals('li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details', 'open', false),
+        pressThenProperty('li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details > summary', 'Space',
+            'li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details', 'open', true),
+        clickThenText('article > button', 'output[aria-label="Selected branches"]', '0'),
+        countExactly('input:checked', 0),
+        countExactly('script, raw', 0),
+    ]),
+    sampleContract('2. JSON through the same CEM tree', [
+        text('pre[aria-label="CEM-ML document"]', '🍒'),
+        text('pre[aria-label="CEM-ML document"]', 'sweet'),
+        normalizedText('output[aria-label="Selected branches"]', '0'),
+        countExactly('input:checked', 0),
+    ]),
+    sampleContract('3. Malformed source and repair', [
+        text('[role="alert"]', 'could not be imported'),
+        countExactly('pre[aria-label="CEM-ML document"]', 0),
+        fillBlurThenText('textarea', '<orchard><fruit>🍒</fruit></orchard>', 'pre[aria-label="CEM-ML document"]', '{ast'),
+        countExactly('[role="alert"]', 0),
+        clickThenText('article > button', '[role="alert"]', 'could not be imported'),
+        countExactly('input[type="checkbox"]', 0),
+        fillBlurThenText('textarea', '<orchard><fruit>🍋</fruit></orchard>', 'pre[aria-label="CEM-ML document"]', '🍋'),
+        normalizedText('output[aria-label="Selected branches"]', '0'),
+    ]),
+    sampleContract('4. Load and release a local document', [
+        text('pre[aria-label="CEM-ML document"]', 'xml-stylesheet'),
+        propertyEquals('select[aria-label="Local source"]', 'value', './tree-source.xml'),
+        attributeContains('article a', 'href', '/demo/tree-source.xml'),
+        attributeEquals('article a', 'download', ''),
+        selectThenText('select[aria-label="Local source"]', './tree-source.json',
+            'pre[aria-label="CEM-ML document"]', 'tree-source.json'),
+        normalizedText('output[aria-label="Selected branches"]', '0'),
+        selectThenText('select[aria-label="Local source"]', '', 'output[aria-label="Request state"]', 'idle'),
+        countExactly('pre[aria-label="CEM-ML document"]', 0),
+        selectThenText('select[aria-label="Local source"]', './tree-source.xml',
+            'pre[aria-label="CEM-ML document"]', 'xml-stylesheet'),
+        countExactly('input:checked', 0),
+    ]),
+];
+
 const fixtureSpecs = [
+    {
+        path: '/packages/cem-elements/demo/data-tree.html',
+        checks: dataTreeSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
     {
         path: '/packages/cem-elements/demo/data-table.html',
         checks: dataTableSamples.flatMap((sample) => sample.checks.map((check) =>
@@ -1460,6 +1523,7 @@ const fixtureSpecs = [
 ];
 
 const sourceDocumentSpecs = [
+    { path: '/packages/cem-elements/demo/data-tree.html', samples: dataTreeSamples },
     { path: '/packages/cem-elements/demo/data-table.html', samples: dataTableSamples },
     {
         path: '/packages/cem-elements/index.html',

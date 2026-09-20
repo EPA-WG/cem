@@ -1311,7 +1311,7 @@
       "kind": "partially-migrated-xml-viewer",
       "unwrapped": [],
       "currentFiles": ["data-table.html", "data-table-view.cemt"],
-      "note": "Native multi-format tables restore row text and grouping and add working sorting. The combined lossless tree and independent branch selection remain open; row selection is an intentional new presentation. See standaloneViewerReview."
+      "note": "Native multi-format tables restore row text and grouping and add working sorting. The separate retained-tree viewer now covers structural inspection and independent branch selection; focused table lessons remain XML-VIEW-4. See standaloneViewerReview."
     },
     {
       "file": "table.xsl",
@@ -1338,10 +1338,10 @@
       "sha256": "499f010fdb0b33fb0ce821021a6ccea420a341f87161a8ee1d91f7e79b842c3a",
       "cases": [],
       "commentedLegends": [],
-      "kind": "unported-xml-viewer",
+      "kind": "migrated-xml-viewer",
       "unwrapped": [],
-      "currentFiles": [],
-      "note": "Standalone xml-stylesheet entry point remains unported. Recursive disclosure exists in external-template, but arbitrary XML inspection, lossless mixed content and a safe explicit loading boundary require the standaloneViewerReview follow-up."
+      "currentFiles": ["data-tree.html", "data-tree-view.cemt", "data-tree-request.cemt"],
+      "note": "XML-VIEW-3 replaces the stylesheet entry point with explicit native import, typed CEM-ML inspection, keyboard disclosure, independent branch selection, editable-source recovery and retained HTTP documents. Processing instructions remain inert."
     },
     {
       "file": "tree.xsl",
@@ -1353,7 +1353,8 @@
       "currentFiles": [
         "tree.cemt",
         "data-island-tree.cemt",
-        "data-island-tree.xsl"
+        "data-island-tree.xsl",
+        "data-tree-view.cemt"
       ],
       "note": "Canonical full-context CEM-ML tree and bounded compatibility payload-tree examples replace legacy datadom structure."
     },
@@ -1382,7 +1383,7 @@
   ],
   "standaloneViewerReview": {
     "document": "packages/cem-elements/docs/xml-viewer-migration.md",
-    "status": "table-view-implemented-tree-open",
+    "status": "tree-view-implemented-table-lessons-open",
     "tableDemo": "data-table.html",
     "tableLegends": [
       "1. XML table: attributes and text",
@@ -1390,6 +1391,13 @@
       "3. YAML table: nested collections",
       "4. JSON table: empty and missing",
       "5. Presentation aspects: tree and IP-filter form"
+    ],
+    "treeDemo": "data-tree.html",
+    "treeLegends": [
+      "1. XML branches: independent selection",
+      "2. JSON through the same CEM tree",
+      "3. Malformed source and repair",
+      "4. Load and release a local document"
     ],
     "sources": [
       "tree.xml",
@@ -1399,11 +1407,8 @@
     ],
     "sorting": "scaffold-only",
     "selection": "independent-branch-checkboxes",
-    "completedFixtures": ["XML-VIEW-1", "XML-VIEW-2"],
-    "openFixtures": [
-      "XML-VIEW-3",
-      "XML-VIEW-4"
-    ]
+    "completedFixtures": ["XML-VIEW-1", "XML-VIEW-2", "XML-VIEW-3"],
+    "openFixtures": ["XML-VIEW-4"]
   },
   "evidence": {
     "gallery": "tools/scripts/verify-cem-elements-demo-fixtures.mjs",
@@ -1415,6 +1420,7 @@
       "packages/cem_ql/tests/template_matching.rs",
       "packages/cem_ql/tests/data_view_templates.rs",
       "packages/cem_ql/tests/tree_inspection_boundary.rs",
+      "packages/cem_ql/tests/data_tree_view.rs",
       "packages/cem_ml/tests/module_url_demo.rs"
     ],
     "wasm": [

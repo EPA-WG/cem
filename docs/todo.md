@@ -1568,7 +1568,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         parent-local namespace grouping, first-seen columns and constrained
         host policies. See the [contract audit](../packages/cem-elements/docs/xml-viewer-migration.md#xml-view-2--grouping-and-stable-sorting).
         XML-VIEW-3 is next.
-- [ ] Fixture XML-VIEW-3: add a separate explicit-source CEM-ML tree viewer
+- [x] Fixture XML-VIEW-3: add a separate explicit-source CEM-ML tree viewer
       after XML-VIEW-1. Show editable/reloadable data, keyboard-operable
       disclosure, independent visible branch selection and parse failures;
       keep inspected content inert and CEM-ML the default structural view.
@@ -1595,8 +1595,33 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         covers XML/JSON/YAML/CSV in `tree-inspection.spec.ts`. Verified 98 native
         checks, the WASM build and all 394 unit checks. Limits cover payload
         sizes; cooperative checks surround the synchronous shared writer.
-        XML-VIEW-3's source editing, disclosure, selection and error recovery
-        remain next.
+        The following viewer fixtures complete source editing, disclosure,
+        selection and error recovery.
+  - [x] Fixture XML-VIEW-3-EDIT: native and browser checks for editable XML
+        and JSON sources, typed CEM-ML output, namespace labels, empty values,
+        keyboard disclosure and independent branch selections. Use source event
+        revisions so edits and reloads clear selections even for identical text.
+  - [x] Fixture XML-VIEW-3-CHECKED: verify conditional native checked
+        attributes and shared browser patch handling. Adding/removing checked
+        must update dirty live checkbox state, retain focus and leave unrelated
+        rerenders and controls unchanged.
+  - [x] Fixture XML-VIEW-3-ERROR: a separate malformed XML lesson, with repair
+        and reload recovery and no stale tree or executable source content.
+  - [x] Fixture XML-VIEW-3-REQUEST: resolve repository XML/JSON files relative
+        to the declaration and display the loader's retained CEM document with
+        the same helper, including lifecycle state and source-change isolation.
+  - [x] Fixture XML-VIEW-3-GALLERY: add source contracts, source-loaded stories,
+        standalone fixture checks, inventory links, Nx inputs and desktop/two-card
+        plus 390px/320px containment checks for `data-tree.html`.
+        Completed 2026-09-20: four separate lessons use retained CEM nodes and
+        `cemml:inspect`, including direct HTTP document consumption. XML/JSON
+        never become JavaScript document objects. Native fixtures also cover
+        YAML/CSV through the identical viewer. Source/request revisions clear
+        selections, and shared boolean-attribute patches handle dirty checkboxes.
+        Native, source-loaded and standalone checks cover repair, independent
+        selection, keyboard disclosure, relative URLs and inert processing
+        instructions. Desktop two-card and 390px/320px containment checks pass.
+        XML-VIEW-4's focused table-inspector lessons are next.
 - [ ] Fixture XML-VIEW-4: add the native table-inspector cases after XML-VIEW-1
       and XML-VIEW-2. Union columns across heterogeneous sibling rows, retain
       text-only rows and nested groups, and show real ascending/descending

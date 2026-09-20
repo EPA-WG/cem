@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="./tree-inert-stylesheet.xsl"?>
+<orchard xmlns:f="urn:fruit">
+  <f:fruit color="">🍒</f:fruit>
+  <f:fruit>🍋</f:fruit>
+</orchard>

@@ -35,6 +35,8 @@ const manifest = JSON.parse(read('../../docs/legacy-demo-cases.json')) as {
         openFixtures: string[];
         tableDemo: string;
         tableLegends: string[];
+        treeDemo: string;
+        treeLegends: string[];
     };
 };
 const gallery = read(`../../../../${manifest.evidence.gallery}`);
@@ -94,12 +96,13 @@ describe('local legacy demo case map', () => {
         }
     });
 
-    it('does not count commented prototypes or unported XML viewers as covered cases', () => {
+    it('keeps standalone tree migration separate from the legacy card count', () => {
         expect(manifest.sources.flatMap((source) => source.commentedLegends)).toHaveLength(4);
-        const viewers = manifest.sources.filter((source) => source.kind === 'unported-xml-viewer');
+        expect(manifest.sources.filter((source) => source.kind === 'unported-xml-viewer')).toEqual([]);
+        const viewers = manifest.sources.filter((source) => source.kind === 'migrated-xml-viewer');
         expect(viewers.map((source) => source.file)).toEqual(['tree.xml']);
         for (const source of viewers) {
-            expect(source.currentFiles).toEqual([]);
+            expect(source.currentFiles).toContain('data-tree.html');
             expect(source.cases).toEqual([]);
             expect(source.unwrapped).toEqual([]);
         }
@@ -117,10 +120,16 @@ describe('local legacy demo case map', () => {
     it('records the standalone review without claiming executable legacy sorting', () => {
         const review = manifest.standaloneViewerReview;
         expect(review).toBeDefined();
-        expect(review?.status).toBe('table-view-implemented-tree-open');
+        expect(review?.status).toBe('tree-view-implemented-table-lessons-open');
         expect(review?.sources).toEqual(['tree.xml', 'tree.xsl', 'table.xml', 'table.xsl']);
         expect(review?.sorting).toBe('scaffold-only');
         expect(review?.selection).toBe('independent-branch-checkboxes');
+        expect(review?.treeDemo).toBe('data-tree.html');
+        expect(review?.treeLegends).toHaveLength(4);
+        for (const legend of review?.treeLegends ?? []) {
+            expect(read(`../../demo/${review?.treeDemo}`)).toContain(`legend="${legend}"`);
+            expect(executableLegends.has(legend)).toBe(true);
+        }
         for (const file of review?.sources ?? []) {
             expect(manifest.sources.some((source) => source.file === file), file).toBe(true);
         }
@@ -145,12 +154,12 @@ describe('local legacy demo case map', () => {
         if (!review) return;
         const document = read(`../../../../${review.document}`);
         const todo = read('../../../../docs/todo.md');
-        expect(review.completedFixtures).toEqual(['XML-VIEW-1', 'XML-VIEW-2']);
+        expect(review.completedFixtures).toEqual(['XML-VIEW-1', 'XML-VIEW-2', 'XML-VIEW-3']);
         for (const id of review.completedFixtures) {
             expect(document, id).toContain(id);
             expect(todo, id).toContain(`- [x] Fixture ${id}:`);
         }
-        expect(review.openFixtures).toEqual(['XML-VIEW-3', 'XML-VIEW-4']);
+        expect(review.openFixtures).toEqual(['XML-VIEW-4']);
         for (const id of review.openFixtures) {
             expect(document, id).toContain(id);
             expect(todo, id).toContain(`- [ ] Fixture ${id}:`);
