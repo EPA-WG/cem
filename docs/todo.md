@@ -1529,6 +1529,16 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       identities/ranges, ordered mixed content, empty attributes, comments and
       inert processing instructions; cover malformed XML, entity rejection
       and resource/depth limits. No browser DOM-to-record or JSON handoff.
+  - [x] Fixture XML-VIEW-1-BOUNDARY: verify retained source CEM nodes and typed
+        writer output with namespaces, empty attributes, ordered mixed content,
+        CDATA, inert processing instructions, source ranges and rejected input.
+        Record any presentation gaps and the concrete shared-contract decision
+        before changing the writer or source-node fields.
+        Native probes preserve import/source evidence and reproduce the typed
+        writer's CDATA/PI payload loss. The review's
+        [presentation decision](../packages/cem-elements/docs/xml-viewer-migration.md#xml-view-1-presentation-decision--pending)
+        recommends shared typed inspection and an import-owned PI field
+        migration. Paused for that decision; XML-VIEW-1 remains open.
 - [ ] Fixture XML-VIEW-2: specify and implement the smallest reusable native
       grouping and stable-sort capabilities needed by the table inspector,
       aligned with the planned Tier B sequence helpers. Cover expanded-name

@@ -248,6 +248,7 @@
                 "{workspaceRoot}/tools/scripts/verify-cem-elements-demo-fixtures.mjs",
                 "{workspaceRoot}/packages/cem_ql/tests/external_xslt_demos.rs",
                 "{workspaceRoot}/packages/cem_ql/tests/data_import.rs",
+                "{workspaceRoot}/packages/cem_ml/tests/xml_inspection_boundary.rs",
                 "{workspaceRoot}/packages/cem_ql/tests/sequence_collections.rs",
                 "{workspaceRoot}/packages/cem_ql/tests/template_matching.rs",
                 "{workspaceRoot}/packages/cem_ql/tests/data_view_templates.rs",

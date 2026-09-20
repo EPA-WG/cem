@@ -78,17 +78,18 @@ attribute, or use a generated display path as mutable selection identity.
 - [`for-each.html`](../demo/for-each.html) covers authored rows and a checkbox
   that inserts/removes the entire table. It does not discover heterogeneous
   columns, sort records, or maintain selected source rows across sorting.
-- The native [`XmlDocumentAst`](../../cem_ml/src/validation/xml.rs) already
-  owns ordered events, names/namespaces, attributes, values/lexemes and source
-  ranges. [`XmlFamilyDocumentCemtSubjectRef`](../../cem_ml/src/transform_artifact.rs)
-  provides a borrowed native evaluator view. Reuse these owners and the typed
-  formatter/writer path; this is not a request for another XML parser.
-- The browser runtime's `xmlElementToRecord` in
-  [`cem-elements.ts`](../src/lib/cem-elements.ts) normalizes descendant
-  `textContent` and retains only element children. It cannot be a lossless
-  viewer input: mixed text order, comments and processing instructions are
-  absent from that shape. Do not change the established HTTP record contract
-  incidentally while adding a separately declared inspection boundary.
+- [`cem_ml::import`](../../cem_ml/src/import.rs) maps the native XML parser
+  owner into a retained common CEM tree. Its source-oriented arena keeps mixed
+  content, CDATA, whitespace, comments, PI bodies and source ranges; the
+  separate semantic view supplies XPath text coalescing and decoded values.
+  CEM-QL and XPath consume this same retained tree. The original XML events
+  remain provenance owned by import, never a downstream evaluator interface.
+- The HTTP and lifecycle migrations retired `xmlElementToRecord` and the
+  document-record binding. The browser transports bytes and request metadata
+  to CEM-ML import; HTTP consumers retain native CEM nodes. The normative
+  [import boundary](../../../docs/cem-data-import-principle.md) also applies to
+  inspection: do not revive parser-AST traversal or source decoding in a
+  viewer, query or formatter.
 - [`sequence.rs`](../../cem_ql/src/stdlib/sequence.rs) now registers bounded
   generic Tier B `group_by` and `sorted` primitives. Other operators in
   [AC-QO-6](../../../docs/cem-ql-ac.md) remain separate planned work.
@@ -133,6 +134,76 @@ resolution stays forbidden; depth/size/expansion limits remain bounded.
 Prove the typed writer output before adding a standalone UI. Add any missing
 shared browser/WASM loading boundary only after its native contract is green.
 Keep inspected markup, scripts and stylesheet instructions inert.
+
+#### XML-VIEW-1 presentation decision — pending
+
+The 2026-09-19 native boundary audit is recorded in
+[`xml_inspection_boundary.rs`](../../cem_ml/tests/xml_inspection_boundary.rs).
+It verifies expanded names (including aliases for one namespace), separate
+attribute/element identities, empty versus missing values, Unicode, ordered
+mixed content, unnormalized source whitespace, comments, CDATA and original
+byte ranges. The retained parser owner preserves the complete ordered lexical
+input. Malformed XML has line/column diagnostics; DTDs and unresolved entities
+are rejected. The current reader's 32 KiB, 64-level and 4096-event boundaries
+are tested at and immediately above their limits. This audit does not
+introduce new resource-limit policy.
+
+The final typed presentation remains incomplete. This input:
+
+```xml
+<r empty=''>before<![CDATA[<raw>🍒]]><!--note--><?keep inert?>after</r>
+```
+
+reaches `cem_tree_nodes` with every payload, but its current tabular writer
+output is:
+
+```cem
+{r @empty="" |
+    before
+    {node}
+    {comment @value=note}
+    {xml}
+    after
+}
+```
+
+CDATA content and PI target/data disappear. Formatting also inserts whitespace,
+and an ordinary source element named `comment` is not distinguished from the
+comment presentation by a dedicated inspection vocabulary. The source-oriented
+CEM PI currently has `target="xml"`, `data="keep inert"`; the shared semantic
+node correctly has target `keep`, value `inert`. The existing
+[`xslt_xml_model_boundary.rs`](../../cem_ql/tests/xslt_xml_model_boundary.rs)
+records that split. A viewer must not split the lexical PI body itself.
+
+**Recommendation:** add a shared, format-independent typed CEM inspection
+projection over `RetainedCemTree`, using explicit node-kind, source-node ID,
+expanded-name and payload fields in the existing AST presentation vocabulary.
+Keep the source arena order and source-map stacks, including separate CDATA,
+empty CDATA and whitespace nodes that XPath coalesces or omits. Carry source
+identity/ranges through the projection and writer output spans, retaining the
+original owner. Source-node IDs address the source arena; do not reuse XPath's
+coalesced text identity for separate CDATA or whitespace nodes. Escape source
+values as data so inspected elements or PIs cannot become execution directives.
+Keep namespace declarations as retained provenance; exclude them from viewer
+data attributes as already decided. This is a presentation of the original
+owner, never a new query document or an XML/JSON handoff. Use the shared tabular
+writer and the terminal colorizer where applicable.
+
+In the same change, correct XML PI target/data fields **at import**, retain the
+original lexical body/range in the source owner, and migrate the source-view
+consumers/tests. Preserve XPath's existing decoded PI behavior. This is an
+explicit source-view contract migration; format-specific decoding remains
+confined to import. Cover the shared inspection projection with XML, JSON,
+YAML and CSV imports so it cannot become an XML-only evaluator.
+
+The alternative is to change the ordinary CEM writer's canonical encoding of
+CDATA/PI/source nodes, affecting all serialization callers. The recommended
+dedicated inspection projection makes the node-kind and exact-value contract
+explicit and follows the existing typed AST presentation approach. It requires
+a decision because the current inspection API uses ordinary tree formatting,
+and the PI source fields are an existing public CEM-QL contract. Execution is
+paused here under the user's stop-at-decisions instruction. XML-VIEW-1 stays
+open; no standalone tree UI is claimed complete by these boundary probes.
 
 ### XML-VIEW-2 — grouping and stable sorting
 
@@ -182,13 +253,20 @@ fixtures arrive; only then replace the `unported-xml-viewer` classifications.
 
 ## Review verification
 
-The case-map unit guard keeps this review marked `reviewed-not-implemented`,
+The case-map unit guard keeps this review marked `table-view-implemented-tree-open`,
 records sorting as `scaffold-only`, and resolves each pending XML-VIEW item to
 this document and the open TODO checklist. The review document is a unit-test
 cache input. CI uses the checked-in audit, not a developer's legacy checkout.
-This review adds no runtime capability or browser viewer and needs no new
-browser-layout assertion of its own.
+The XML-VIEW-1 boundary probe is linked in the native evidence inventory. It
+characterizes the current writer gap; it does not make that lossy output the
+future acceptance contract. This checkpoint adds no runtime capability or
+browser viewer and needs no new browser-layout assertion of its own.
 
 Verification 2026-09-13: all seven case-map tests and the full 341-test unit
 suite pass through Nx, as does lint. The four local source fingerprints,
 review links and resolved Nx cache input were also checked.
+
+Verification 2026-09-19: 20 native tests pass across `xml_inspection_boundary`,
+`cem_import_boundary`, `import_strings` and `xpath_xml_view`; all eight case-map
+checks pass through `cem-elements:test:unit`. The probe is included in that
+target's Nx cache inputs. XML-VIEW-1 remains open at the presentation decision.

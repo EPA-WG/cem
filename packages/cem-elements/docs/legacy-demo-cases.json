@@ -1411,6 +1411,7 @@
     "native": [
       "packages/cem_ql/tests/external_xslt_demos.rs",
       "packages/cem_ql/tests/data_import.rs",
+      "packages/cem_ml/tests/xml_inspection_boundary.rs",
       "packages/cem_ql/tests/sequence_collections.rs",
       "packages/cem_ql/tests/template_matching.rs",
       "packages/cem_ql/tests/data_view_templates.rs",
