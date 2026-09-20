@@ -405,6 +405,53 @@ add dirty-input reconciliation, actual editing, captions, active sort headings,
 and sibling/identical-source instance isolation. The standalone/source-loaded
 inventory exercises Space on checkboxes and Enter on a sort button.
 
+## Cell presentation overrides
+
+The follow-up [cell-overrides.html](../demo/cell-overrides.html) contains two
+separate `cem-element` lessons. Each owns a small CEMT module, imports the
+unchanged data viewer, adds one priority-10 `inspect` match rule, and calls
+`base.viewer`. The viewer's existing `apply-templates` dispatch selects the
+local rule for matching cells and imported rules for all other values.
+
+- The first sample inlines its entire template. Its primitive predicate is
+  `(node.name ?? "") == "name"`; the empty default handles nameless text nodes.
+  It renders a 32px image beside the original name, using the matched node's
+  `pokemon-id` attribute as in the index's Pokémon example. The rule matches
+  that local name at any path; other field names retain the imported view.
+  The sample uses IDs 2 and 3, whose SVGs and upstream notice are bundled with
+  [source attribution](../demo/pokemon/README.md). `cem-module-url` resolves the
+  image directory relative to the declaration for source-loaded documents too.
+- [stock-cell.cemt](../demo/stock-cell.cemt) matches
+  `/catalog/product/stock` only when its trimmed text is `0`. Its replacement is
+  a visible “Out of stock (0)” warning. Positive values, edited values and a
+  reference branch's zero stock use the imported renderer.
+
+The stock path describes selected XML data; `@match` itself is a CEM-QL
+predicate. That module declares the inherited `document` parameter, queries
+the retained document for the intended source path, and compares opaque
+`data:node_key` values with the current `node`. Namespace and source identity
+checks constrain the stock rule; the inline name rule stays deliberately
+simple. The templates never reparse the source or query
+rendered HTML. `cem-data` in the base viewer remains the single import point.
+The module-URL slice contains scalar resource metadata only.
+
+Child-element cells already pass their retained subjects through match
+dispatch. Attribute cells and direct row text currently render inline; extending
+those remains separate work. No table shell extraction, cell API, new evaluator
+function, or base CEMT/XSLT/tree implementation change is needed for these lessons.
+The earlier table-collapse idea was not selected: the current table already has
+native disclosure, while the legacy table caption only records `todo collapsible`.
+No other legacy XmlView features are part of this increment. Storybook startup
+stabilization follows DATA-CELL-MATCH-1 in `docs/todo.md`.
+
+[Native fixtures](../../cem_ql/tests/cell_overrides.rs) extract the first sample's
+actual inline template and verify name matching, the stock rule's path/namespace
+isolation, fallback for other field names, retained source text, stable sorting
+and source-based row selection, conditional fallback and malformed-source
+recovery. Browser fixtures verify actual local images, unchanged columns and
+names, edits, resets and source-loaded URL resolution. The same two lessons
+are included in the standalone/source-loaded gallery inventory.
+
 ## Review verification
 
 The case-map unit guard keeps this review marked `tree-and-table-lessons-implemented`,

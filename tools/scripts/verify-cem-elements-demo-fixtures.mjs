@@ -492,6 +492,39 @@ const hexRowSample = sampleContract('9. Horizontal row with a current page', [
     computedStyle('nav a[aria-current="page"] .hex-label', 'transform', 'matrix(1, 0, 0, 1, 0, 0)'),
 ]);
 
+const cellOverrideSamples = [
+    sampleContract('1. Name cells become Pokémon pictures', [
+        countExactly('img', 2),
+        imageLoaded('img[alt="ivysaur"]'),
+        imageLoaded('img[alt="venusaur"]'),
+        attributeContains('img[alt="ivysaur"]', 'src', '/demo/pokemon/2.svg'),
+        text('table > tbody > tr:first-child', 'venusaur'),
+        selectThenText('select[aria-label="Sort column"]', 'name',
+            'table > tbody > tr:first-child', 'ivysaur'),
+        attributeEquals('table > tbody > tr:first-child img', 'alt', 'ivysaur'),
+        countExactly('img', 2),
+        fillBlurThenText('textarea', '<catalog><pokemon><title pokemon-id="3">venusaur</title></pokemon><pokemon><name pokemon-id="2">ivysaur</name></pokemon></catalog>',
+            'table', 'venusaur'),
+        countExactly('img', 1),
+        fillBlurThenText('textarea', '<broken>', '[role="alert"]', 'XML'),
+        countExactly('img', 0),
+        countExactly('table', 0),
+        clickThenText('button[aria-label="Reset source"]', 'table', 'venusaur'),
+        countExactly('img', 2),
+        imageLoaded('img[alt="venusaur"]'),
+    ]),
+    sampleContract('2. Zero-stock cells get a warning', [
+        countExactly('strong', 1),
+        normalizedText('table strong', 'Out of stock (0)'),
+        text('table > tbody > tr:last-child', '5'),
+        fillBlurThenText('textarea', '<catalog><product><name>Cherry</name><stock>7</stock></product><product><name>Lemon</name><stock>5</stock></product><reference><stock>0</stock></reference></catalog>',
+            'table > tbody > tr:first-child', '7'),
+        countExactly('strong', 0),
+        clickThenText('button[aria-label="Reset source"]', 'table strong', 'Out of stock (0)'),
+        countExactly('strong', 1),
+    ]),
+];
+
 const tableInspectorSamples = [
     sampleContract('1. Columns from every row', [
         text('table caption', 'document/row'),
@@ -614,6 +647,11 @@ const dataTreeSamples = [
 ];
 
 const fixtureSpecs = [
+    {
+        path: '/packages/cem-elements/demo/cell-overrides.html',
+        checks: cellOverrideSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
     {
         path: '/packages/cem-elements/demo/table-inspector.html',
         checks: tableInspectorSamples.flatMap((sample) => sample.checks.map((check) =>
@@ -1591,6 +1629,7 @@ const fixtureSpecs = [
 ];
 
 const sourceDocumentSpecs = [
+    { path: '/packages/cem-elements/demo/cell-overrides.html', samples: cellOverrideSamples },
     {
         path: '/packages/cem-elements/demo/table-inspector.html',
         samples: tableInspectorSamples,
@@ -2933,6 +2972,12 @@ async function runCheck(page, check) {
             case 'propertyEquals':
                 await waitForExactProperty(page, check.selector, check.name, check.expected);
                 return;
+            case 'imageLoaded':
+                await page.waitForFunction((selector) => {
+                    const image = document.querySelector(selector);
+                    return image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0;
+                }, check.selector, { timeout });
+                return;
             case 'pressThenProperty':
                 await page.locator(check.actionSelector).press(check.key);
                 await waitForExactProperty(page, check.selector, check.name, check.expected);
@@ -3155,6 +3200,10 @@ function attributeEquals(selector, name, expected) {
 
 function propertyEquals(selector, name, expected) {
     return { kind: 'propertyEquals', selector, name, expected };
+}
+
+function imageLoaded(selector) {
+    return { kind: 'imageLoaded', selector };
 }
 
 function pressThenProperty(actionSelector, key, selector, name, expected) {
@@ -3507,6 +3556,8 @@ function describeCheck(check) {
             return `attributeEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'propertyEquals':
             return `propertyEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
+        case 'imageLoaded':
+            return `imageLoaded(${check.selector})`;
         case 'pressThenProperty':
             return `pressThenProperty(${check.actionSelector}, ${check.key}, ${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'removeElement':

@@ -298,6 +298,10 @@ discovery, headings, cells, tree/table rendering and sort-key selection in
 [CEMT](../cem-elements/demo/data-table-view.cemt). There is no Rust table-view
 API. An [imported extension](../cem-elements/demo/data-table-aspects.cemt)
 changes notes to a tree and an IP-filter record to a local preview form.
+The [cell override lessons](../cem-elements/demo/cell-overrides.html) import
+the same viewer unchanged: an inline name match renders Pokémon images beside
+their names, and a value predicate replaces zero stock with a warning. Unmatched
+cells retain the imported presentation; source values and sort keys stay intact.
 Two independent XSLT cases use the same native import and rendering lifecycle
 through explicit scalar parameters, including an imported presentation module.
 These are explicit lossy UI views, not the default typed CEM-tree writer.

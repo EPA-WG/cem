@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Override a data cell with template matching — CEM demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav">
+    <a href="../index.html">cem-element demo</a>
+    <h1>Override a data cell with template matching</h1>
+</nav>
+<main>
+    <section>
+        <h2>Import the viewer, replace one presentation</h2>
+        <p>Each example owns a small template that imports the existing
+            <a href="./data-table-view.cemt">data viewer</a>, declares one
+            <code>template @match</code> rule, and calls <code>base.viewer</code>.
+            The viewer dispatches each column heading through
+            <code>apply-templates @mode=cell</code>, passing that row's values as
+            <code>cells</code>. Its <code>@match=true</code> rule produces the
+            default <code>td</code>; a matching local rule can replace the whole cell.</p>
+        <p>The first sample includes its entire template inline. Its rule is
+            simply <code>node == "name"</code> in <code>cell</code> mode:
+            <code>node</code> is the column heading. The replacement cell contains
+            an image plus the original name. The name's <code>pokemon-id</code>
+            attribute supplies the image ID, as in the index's Pokémon example.
+            Other fields keep the imported presentation.</p>
+        <p>The separate <a href="./stock-cell.cemt">stock rule</a> demonstrates
+            a content override in <code>inspect</code> mode, keeping the default
+            cell. It uses a narrower condition: <code>/catalog/product/stock</code> with
+            trimmed text <code>0</code>. Its CEM-QL predicate checks namespaces
+            and <code>data:node_key</code> membership in that source path, so a
+            reference branch's stock stays ordinary.</p>
+        <p>Editing, table discovery, columns, sorting and row selection all come
+            from the base viewer. The first sample replaces cell generation;
+            the second replaces matching content within a cell.
+            CEM-ML imports the source into a retained CEM tree; presentation
+            leaves that source intact. Edit the source, then Tab out to rerender.</p>
+        <p>Cell mode also receives attribute headings such as <code>@id</code>
+            and direct-text headings such as <code>#text</code>. It runs once
+            per column even when that row has no value. The default rule shows
+            <code>∅</code> for missing values, <code>""</code> for empty values,
+            and delegates retained child nodes to <code>inspect</code> mode.
+            The existing viewer's import and query limits apply.</p>
+        <p>The Pokémon sample supplies an ID on each name and uses the two
+            bundled images, IDs 2 and 3. These local SVGs come from the same pinned sprite
+            package used by the HTTP demo; see the
+            <a href="./pokemon/README.md">image sources and attribution</a>.
+            <code>cem-module-url</code> resolves their directory relative to the
+            declaration, including when this page is source-loaded.</p>
+        <h3>See also</h3>
+        <p><a href="./data-table.html">Data tables and imported presentation aspects</a> ·
+            <a href="./http-request.html">HTTP data and Pokémon images</a> ·
+            <a href="./table-inspector.html">Table inspector controls</a></p>
+    </section>
+
+    <cem-demo-element legend="1. Name cells become Pokémon pictures"
+        description="An inline template matches name and renders an image plus the name. Sort by name; type cells keep the imported view">
+        <template>
+<cem-element tag="cem-pokemon-cells">
+    <template type="text/cem-ml">
+{attribute @name=format | xml}
+{style |```
+    .pokemon-name { display: inline-flex; align-items: center;
+        gap: .35rem; }
+    .pokemon-name img { width: 2rem; height: 2rem;
+        object-fit: contain; }
+```}
+{module |
+    {import @as=base @src="./data-table-view.cemt"}
+    {template @name=pokemon-name @mode=cell @priority=10
+        @match='node == "name"' |
+        {param @name=node}{param @name=cells}
+        {body |
+            {td |
+                {cem:if @test='seq:count(cells) == 0' | ∅}
+                {cem:for-each @select=cells.subject @as=pokemon |
+                    {cem:variable @name=id
+                        @select='seq:where(pokemon.attributes,
+                            fn(a) => a.name == "pokemon-id").value'}
+                    {cem:variable @name=name @select=pokemon.children.value}
+                    {span @class=pokemon-name |
+                        {cem:if @test='datadom.slices.images ?? false' |
+                            {img @src="{$datadom.slices.images}{$id}.svg"
+                                @alt="{$name}" @width=32 @height=32}}
+                        {$name}}}}}}
+    {body |
+        {cem-module-url @slice=images @src="./pokemon/"}
+        {call @from=base @template=viewer}}
+}
+    </template>
+</cem-element>
+<cem-pokemon-cells format="xml">
+&lt;catalog&gt;
+  &lt;pokemon&gt;
+    &lt;name pokemon-id="3"&gt;venusaur&lt;/name&gt;
+    &lt;type&gt;grass&lt;/type&gt;
+  &lt;/pokemon&gt;
+  &lt;pokemon&gt;
+    &lt;name pokemon-id="2"&gt;ivysaur&lt;/name&gt;
+    &lt;type&gt;grass&lt;/type&gt;
+  &lt;/pokemon&gt;
+&lt;/catalog&gt;
+</cem-pokemon-cells>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. Zero-stock cells get a warning"
+        description="Only product stock of 0 becomes a warning. Change it to 7 and Tab out to restore the base view; reference stock stays ordinary">
+        <template>
+<cem-element tag="cem-stock-cells"
+    src="./stock-cell.cemt"></cem-element>
+<cem-stock-cells format="xml">
+&lt;catalog&gt;
+  &lt;product&gt;
+    &lt;name&gt;Cherry&lt;/name&gt;&lt;stock&gt;0&lt;/stock&gt;
+  &lt;/product&gt;
+  &lt;product&gt;
+    &lt;name&gt;Lemon&lt;/name&gt;&lt;stock&gt;5&lt;/stock&gt;
+  &lt;/product&gt;
+  &lt;reference&gt;&lt;stock&gt;0&lt;/stock&gt;&lt;/reference&gt;
+&lt;/catalog&gt;
+</cem-stock-cells>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

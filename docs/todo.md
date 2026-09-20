@@ -1652,10 +1652,48 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         27 standalone pages and 33 source-loaded documents. Desktop two-card
         and 390px/320px containment checks, all 401 unit checks, build, lint
         and typecheck pass.
-- [ ] Stabilize browser startup waits under parallel Storybook load: the
-      unchanged scoped-CSS and legacy icon-link stories intermittently exhaust
-      their short frame/two-second waits, although isolated and earlier full
-      runs pass. Prefer declaration/render readiness over incidental delays.
+- [ ] Fixture DATA-CELL-MATCH-1: add separate `cem-element` samples whose
+      own CEMT modules import the existing data-view template and override
+      a particular cell's data presentation through CEM-QL template matching.
+      This is the immediate task, ahead of Storybook stabilization. Preserve
+      the current data-table, table-inspector and XML/tree viewer behavior;
+      change their implementation only for the agreed minimum reuse hook.
+      Do not implement other legacy XmlView features in this increment.
+  - [x] Inspect current dispatch and local legacy collapse code; record the
+        findings in the [presentation override discussion](../packages/cem-elements/docs/xml-viewer-migration.md#cell-presentation-overrides).
+        Current tables already use native disclosure. Legacy tree branches
+        implement collapse, while the table caption still says `todo collapsible`.
+        Child-element cells already dispatch their retained source nodes through
+        `inspect`; those can demonstrate overrides without changing the base.
+  - [x] Discuss small cell features before implementation. Approved: Pokémon
+        image plus name, followed by a separate zero-stock warning/fallback
+        lesson. The follow-up requires the first template inline and a primitive
+        name match. Use child-element cells and the existing imported rules;
+        leave the base viewer unchanged. Other candidate features stay deferred.
+  - [x] Prove the agreed import/match/delegation contract in native tests:
+        the selected cell uses the local rule, unmatched and nested content
+        retain base rendering, and rows stay attached to the imported CEM tree.
+        Preserve default viewer output and CEMT/XSLT parity if a hook is needed.
+  - [ ] Author the isolated samples and their own importing templates. Verify
+        the chosen cell output, match scope and fallback, source-loaded and
+        standalone operation, compact layout, source contracts and inventory/cache
+        inputs. Table collapse remains an alternative, not an approved refactor.
+  - [ ] Fixture DATA-CELL-MATCH-POKEMON: inline the sample's template and
+        match only the local name `name` (default absent names to empty text).
+        Render an image plus name using that node's `pokemon-id` attribute,
+        as in the index example. Other field names use the imported renderer.
+        Verify image loading, name sorting, nested matches and source repair.
+  - [ ] Fixture DATA-CELL-MATCH-STOCK: override only zero stock in catalog
+        product rows; verify positive values, unrelated fields and edited values
+        use the imported fallback, without changing the retained source.
+- [ ] Stabilize browser startup waits under parallel Storybook load, after
+      DATA-CELL-MATCH-1: the unchanged scoped-CSS and legacy icon-link stories
+      intermittently exhaust their short frame/two-second waits, although
+      isolated and earlier full runs pass. Prefer declaration/render readiness
+      over incidental delays. Also diagnose the source-loaded cell-overrides
+      stock sample's initial-warning timeout seen once in the full gallery;
+      six focused standalone/source-loaded runs passed without reproducing it.
+      Establish its cause before treating it as the same startup issue.
 - [ ] Fixture: check declaration-owned stylesheet lifecycle across repeated
       source-loaded gallery mounts in one document. A second hex-grid story
       using the same source registration rendered unstyled links; isolate

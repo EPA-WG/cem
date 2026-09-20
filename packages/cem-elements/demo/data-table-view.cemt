@@ -227,7 +227,7 @@
                                                 entry.key == rowSlice && entry.value == sourceRevision)
                                             } else { selected == record.source.id }'}
                                         {tr @aria-selected="{$isSelected}" |
-                                            {td | {cem:choose |
+                                            {th | {cem:choose |
                                                 {cem:when @test=inspection |
                                                     {label |
                                                         {input @type=checkbox @slice="{$rowSlice}" @slice-event=change
@@ -242,15 +242,24 @@
                                                         {cem:choose | {cem:when @test='selected == record.source.id' | ✓}{cem:otherwise | ○}}}}}}
                                             {cem:for-each @select=headings @as=heading |
                                                 {cem:variable @name=cells @select='seq:where(record.cells, fn(cell) => cell.key == heading)'}
-                                                {td | {cem:choose |
-                                                    {cem:when @test='seq:count(cells) == 0' | ∅}
-                                                    {cem:otherwise |
-                                                        {cem:for-each @select=cells @as=cell |
-                                                            {cem:choose |
-                                                                {cem:when @test='seq:count(cell.subject) > 0' |
-                                                                    {apply-templates @select=cell.subject @mode=inspect @with:key="{$heading}"}}
-                                                                {cem:when @test='cell.value == ""' | ""}
-                                                                {cem:otherwise | {span @class=value | {$cell.value}}}}}}}}}}}}}}}}
-    }   }   }
+                                                {apply-templates @select=heading @mode=cell
+                                                    @with:cells="{$cells}"}}
+                                        }   }   }
+                            }   }   }
+                }   }   }   }
+
+    {template @name=cell @mode=cell @match=true @priority=-20 |
+        {param @name=node}{param @name=cells}
+        {body |
+            {td | {cem:choose |
+                {cem:when @test='seq:count(cells) == 0' | ∅}
+                {cem:otherwise |
+                    {cem:for-each @select=cells @as=cell |
+                        {cem:choose |
+                            {cem:when @test='seq:count(cell.subject) > 0' |
+                                {apply-templates @select=cell.subject @mode=inspect @with:key="{$node}"}}
+                            {cem:when @test='cell.value == ""' | ""}
+                            {cem:otherwise | {span @class=value | {$cell.value}}}
+            }   }   }   }   }   }   }
     {body | {call @template=viewer}}
 }
