@@ -110,10 +110,9 @@ fn cem_xml_keeps_declaration_and_xmlns_source_nodes_without_navigation_metadata(
         ]
     );
     assert_eq!(text(&children[0], "target"), "xml");
-    // Current import also falls back to "xml" for a real PI's target; its
-    // retained data still contains the original lexical target and content.
-    assert_eq!(text(&children[1], "target"), "xml");
-    assert_eq!(text(&children[1], "value"), "keep yes");
+    // Import resolves the PI target and data for both source and XPath views.
+    assert_eq!(text(&children[1], "target"), "keep");
+    assert_eq!(text(&children[1], "value"), "yes");
     let element = &children[2];
     assert_eq!(text(element, "name"), "r");
     assert_eq!(text(element, "namespace"), "urn:p");

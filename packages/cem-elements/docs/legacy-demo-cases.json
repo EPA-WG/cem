@@ -1399,8 +1399,8 @@
     ],
     "sorting": "scaffold-only",
     "selection": "independent-branch-checkboxes",
+    "completedFixtures": ["XML-VIEW-1"],
     "openFixtures": [
-      "XML-VIEW-1",
       "XML-VIEW-2",
       "XML-VIEW-3",
       "XML-VIEW-4"

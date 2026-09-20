@@ -85,6 +85,14 @@ instructions. JSON/YAML/CSV use the `cem:generic-data` namespace with
 (`string`, `number`, `boolean`, `null`). CSV uses its first row as headings
 and retains string-valued fields. This is not a JSON AST handoff.
 
+Processing instructions expose their target as `name` and their data through
+`value` (`data` is an alias). For `<?keep inert?>`, these are `keep` and `inert`;
+consumers must not split the value to recover the target. Native Rust views also
+expose `target`, but CEM-QL's `.target` pipeline step is reserved for reference
+resolution; use `node.name` to query the PI target. CEM-ML import resolves
+these fields and retains the original lexical PI and ranges. Source values keep
+literal line endings; XPath's semantic view applies its existing normalization.
+
 `data:node_key(node)` and `data:line_number(node)` read source metadata from
 either an imported CEM node or a retained XPath node. They accept an optional
 single native node; empty input returns empty, and other types/cardinalities

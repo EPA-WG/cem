@@ -1424,18 +1424,45 @@ fn inspect_cem_presentation_stream(
     diagnostics: &[Diagnostic],
     element_count: usize,
     attribute_count: usize,
-) -> (projection::CemTreeAstStream, &'static str) {
-    match show {
+) -> EngineResult<(projection::CemTreeAstStream, &'static str)> {
+    if matches!(show, InspectView::Ast | InspectView::Tree) {
+        if let Some(error) = loaded
+            .diagnostics
+            .iter()
+            .find(|d| d.severity.is_hard_violation())
+        {
+            return Err(EngineError::Internal(format!(
+                "Cannot inspect imported document {display_uri}: {} at {}:{}: {}",
+                error.code,
+                error.line.unwrap_or(1),
+                error.column.unwrap_or(1),
+                error.message
+            )));
+        }
+        if let Some(native) = loaded.ast_stream.as_ref() {
+            let imported = crate::import::try_retain_lifecycle(Arc::new(native.clone())).map_err(
+                |message| {
+                    EngineError::Internal(format!(
+                        "Cannot inspect imported document {display_uri}: {message}"
+                    ))
+                },
+            )?;
+            if let Some(owner) = imported {
+                return Ok((
+                    projection::cem_tree_inspection(owner),
+                    CEM_AST_PROJECTION_SCHEMA_URI,
+                ));
+            }
+        }
+    }
+    Ok(match show {
         InspectView::Ast => match loaded.ast_stream.as_ref() {
             Some(LoadedInputAstStream::CssDocument(css)) => (
                 projection::css_ast_cem_presentation_stream(css),
                 CEM_AST_PROJECTION_SCHEMA_URI,
             ),
             _ => (
-                projection::ast_stream(
-                    document,
-                    Some(input_format_content_type(loaded.from_format)),
-                ),
+                projection::cem_document_inspection(document, display_uri),
                 CEM_AST_PROJECTION_SCHEMA_URI,
             ),
         },
@@ -1462,11 +1489,8 @@ fn inspect_cem_presentation_stream(
                 CEM_AST_PROJECTION_SCHEMA_URI,
             ),
             _ => (
-                projection::ast_stream(
-                    document,
-                    Some(input_format_content_type(loaded.from_format)),
-                ),
-                CEM_DOM_PROJECTION_SCHEMA_URI,
+                projection::cem_document_inspection(document, display_uri),
+                CEM_AST_PROJECTION_SCHEMA_URI,
             ),
         },
         InspectView::Summary => (
@@ -1521,7 +1545,7 @@ fn inspect_cem_presentation_stream(
             ),
             CEM_AST_PROJECTION_SCHEMA_URI,
         ),
-    }
+    })
 }
 
 fn inspect_records_presentation_stream(
@@ -10611,7 +10635,7 @@ fn observe_pipeline_with_scope(
 impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
         request.context.ensure_active()?;
-        let mut loaded = load_document_input(&request.input, &request.context);
+        let loaded = load_document_input(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
@@ -10633,7 +10657,7 @@ impl CemMlEngine for RealCemMlEngine {
             &request.input.root_scope,
             "input",
         );
-        diagnostics.append(&mut loaded.diagnostics);
+        diagnostics.extend(loaded.diagnostics.iter().cloned());
         diagnostics.extend(run.diagnostics);
         project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
@@ -10673,7 +10697,7 @@ impl CemMlEngine for RealCemMlEngine {
                     &diagnostics,
                     element_count,
                     attribute_count,
-                );
+                )?;
                 cem_presentation_primary_bytes(
                     &request.context,
                     stream,
@@ -10735,7 +10759,7 @@ impl CemMlEngine for RealCemMlEngine {
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
         request.context.ensure_active()?;
         let started_at = Instant::now();
-        let mut loaded = load_document_input(&request.input, &request.context);
+        let loaded = load_document_input(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
@@ -10749,7 +10773,7 @@ impl CemMlEngine for RealCemMlEngine {
             &request.input.root_scope,
             "input",
         );
-        diagnostics.append(&mut loaded.diagnostics);
+        diagnostics.extend(loaded.diagnostics.iter().cloned());
         diagnostics.extend(run.diagnostics);
         diagnostics.extend(time_budget_diagnostics(
             &request.input.root_scope,
@@ -10781,7 +10805,7 @@ impl CemMlEngine for RealCemMlEngine {
                     &diagnostics,
                     element_count,
                     attribute_count,
-                );
+                )?;
                 cem_presentation_primary_bytes(
                     &request.context,
                     stream,

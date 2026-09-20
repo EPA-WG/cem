@@ -1524,7 +1524,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       sibling isolation, source edits and reset in native/browser tests.
       Also synchronize a textarea's dirty live value when its authored body
       changes, without resetting edits during unrelated renders.
-- [ ] Fixture XML-VIEW-1: define and verify a lossless, namespace-aware native
+- [x] Fixture XML-VIEW-1: define and verify a lossless, namespace-aware native
       XML viewer projection from the existing typed XML AST. Retain source
       identities/ranges, ordered mixed content, empty attributes, comments and
       inert processing instructions; cover malformed XML, entity rejection
@@ -1536,9 +1536,19 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         before changing the writer or source-node fields.
         Native probes preserve import/source evidence and reproduce the typed
         writer's CDATA/PI payload loss. The review's
-        [presentation decision](../packages/cem-elements/docs/xml-viewer-migration.md#xml-view-1-presentation-decision--pending)
-        recommends shared typed inspection and an import-owned PI field
-        migration. Paused for that decision; XML-VIEW-1 remains open.
+        [presentation decision](../packages/cem-elements/docs/xml-viewer-migration.md#xml-view-1-typed-inspection--implemented)
+        led to the approved shared typed inspection and import-owned PI field
+        migration implemented below.
+  - [x] Fixture XML-VIEW-1-INSPECT: implement the approved shared typed CEM
+        inspection projection and import-owned PI field migration. Preserve
+        source arena IDs, exact values, mixed-content order, ranges and owners
+        through tabular/terminal writing; verify XML/JSON/YAML/CSV, inert source
+        directives, native AST/tree inspection and query-consumer compatibility.
+        `cem_tree_inspection` retains the original CEM owner through formatter,
+        colorizer and writer artifacts; common source ranges remain distinct
+        from XPath coalescing. Public AST/tree text inspection uses this path
+        and rejects failed imports. PI names/data are resolved only at import;
+        CEMT/XPath viewers retain matching visible output. XML-VIEW-2 is next.
 - [ ] Fixture XML-VIEW-2: specify and implement the smallest reusable native
       grouping and stable-sort capabilities needed by the table inspector,
       aligned with the planned Tier B sequence helpers. Cover expanded-name

@@ -39,7 +39,7 @@ export const EveryAuthoredSample: Story = {
         const xml = canvasElement.querySelector('cem-data-table[format="xml"]') as HTMLElement;
         const xmlControls = within(xml);
         const xmlInput = xmlControls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
-        xmlInput.value = '<r xmlns="urn:root" xmlns:p="urn:rows"><p:row xmlns:q="urn:field" id="1" q:xmlns="first"/><p:row xmlns:q="urn:field" id="2" q:xmlns="second"/><single xmlns:s="urn:detail" s:xmlns="detail"/></r>';
+        xmlInput.value = '<r xmlns="urn:root" xmlns:p="urn:rows"><p:row xmlns:q="urn:field" id="1" q:xmlns="first"/><p:row xmlns:q="urn:field" id="2" q:xmlns="second"/><single xmlns:s="urn:detail" s:xmlns="detail"><?keep inert?></single></r>';
         xmlInput.dispatchEvent(new Event('change', { bubbles: true }));
         await waitFor(() => expect(xmlControls.getByRole('columnheader', { name: '@urn:field|xmlns' })).toBeVisible(), { timeout: 10000 });
         expect(xml.querySelector('table')).toHaveTextContent('first');
@@ -50,6 +50,7 @@ export const EveryAuthoredSample: Story = {
         expect(xml.querySelector('details')).not.toHaveTextContent('@p:');
         expect(xml.querySelector('details')).not.toHaveTextContent('@q:');
         expect(xml.querySelector('details')).not.toHaveTextContent('@s:');
+        expect(xml.querySelector('details')).toHaveTextContent('keep inert');
         xmlControls.getByRole('button', { name: 'Reset source' }).click();
 
         const json = canvasElement.querySelector('cem-data-table[format="json"]') as HTMLElement;

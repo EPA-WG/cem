@@ -73,7 +73,10 @@
         {body | {call @template=tree @with:node="{$node}" @with:key="{$key}"}}}
     {template @name=leaf @mode=inspect @match=true @priority=-20 |
         {param @name=node}
-        {body | {span @class=value | {$node.value}}}}
+        {body | {span @class=value | {cem:choose |
+            {cem:when @test='node.kind == "processing-instruction"' |
+                {$node.name}{cem:if @test='node.value != ""' | {$str:concat((" ", node.value), "")}}}
+            {cem:otherwise | {$node.value}}}}}}
 
     {template @name=tree @visibility=public |
         {param @name=node}{param @name=key}
@@ -104,7 +107,7 @@
                                         {li | @{$attr.name}: {$attr.value}}}
                                     {cem:for-each @select='seq:where(node.children,
                                         fn(child) => child.kind != "element" && str:trim(child.value ?? "", "xml") != "")' @as=child |
-                                        {li | {span @class=value | {$child.value}}}}
+                                        {li | {apply-templates @select=child @mode=inspect @with:key="{$key}"}}}
                                     {cem:for-each @select='
                                         seq:group_by(seq:where(node.children, fn(child) => child.kind == "element"),
                                             fn(child) => child.namespace + "|" + child.name)' @as=group |

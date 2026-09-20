@@ -1320,22 +1320,42 @@ pub fn dom_json(doc: &CemDocument) -> Value {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+mod inspection;
+pub use inspection::{cem_document_inspection, cem_tree_inspection};
+
+#[derive(Debug, Clone)]
 pub struct CemTreeAstStream {
     nodes: Vec<CemTreeAstNode>,
+    source_owner: Option<Arc<crate::parser::tree::RetainedCemTree>>,
+}
+
+// Presentation equality remains structural; retaining an original source owner
+// is a lifetime guarantee, not an additional serialized field.
+impl PartialEq for CemTreeAstStream {
+    fn eq(&self, other: &Self) -> bool {
+        self.nodes == other.nodes
+    }
 }
 
 impl CemTreeAstStream {
     pub fn new(nodes: Vec<CemTreeAstNode>) -> Self {
-        Self { nodes }
+        Self {
+            nodes,
+            source_owner: None,
+        }
     }
 
     pub fn empty() -> Self {
-        Self { nodes: Vec::new() }
+        Self::new(Vec::new())
     }
 
     pub fn as_nodes(&self) -> &[CemTreeAstNode] {
         &self.nodes
+    }
+
+    /// Source capability retained by structural inspection through writer stages.
+    pub fn source_owner(&self) -> Option<&Arc<crate::parser::tree::RetainedCemTree>> {
+        self.source_owner.as_ref()
     }
 
     pub fn retain_non_directive_nodes(&mut self) {

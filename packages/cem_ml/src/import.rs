@@ -259,23 +259,33 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
             }
             ProcessingInstruction | Declaration => {
                 let id = b.ast.nodes.len() as AstNodeId;
+                // The XML parser retains the complete PI body. Resolve its
+                // target here once for both source inspection and XPath.
+                // Declarations carry a full lexeme rather than a PI value.
+                let body = if event.kind == Declaration {
+                    data.strip_prefix("<?")
+                        .and_then(|value| value.strip_suffix("?>"))
+                        .ok_or("Invalid XML declaration lexeme.")?
+                } else {
+                    &data
+                };
+                let target = body.split([' ', '\t', '\r', '\n']).next().unwrap_or("");
+                let value = body
+                    .get(target.len()..)
+                    .unwrap_or("")
+                    .trim_start_matches([' ', '\t', '\r', '\n']);
                 b.push(
                     parent,
                     CemAstNode::ProcessingInstruction {
                         node_id: id,
-                        target: event.qualified_name.clone().unwrap_or_else(|| "xml".into()),
-                        data: data.clone(),
+                        target: target.into(),
+                        data: value.into(),
                         source: source.clone(),
                     },
                 );
                 if event.kind == Declaration {
                     semantics.omitted.insert(id);
                 } else {
-                    let target = data.split([' ', '\t', '\r', '\n']).next().unwrap_or("");
-                    let value = data
-                        .get(target.len()..)
-                        .unwrap_or("")
-                        .trim_start_matches([' ', '\t', '\r', '\n']);
                     semantics.names.insert(id, expanded("", target));
                     semantics.values.insert(id, xml_line_endings(value));
                 }
@@ -298,6 +308,25 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
     };
     strings::xml_base_uris(&mut imported, document, Some(&document.source.uri));
     Ok(imported)
+}
+
+fn validate_xml_limits(document: &xml::XmlDocumentAst) -> Result<(), ImportFailure> {
+    if document.events.len() > MAX_VALUES
+        || document.events.iter().any(|event| {
+            event.depth > MAX_DEPTH
+                || (event.depth == MAX_DEPTH
+                    && matches!(
+                        event.kind,
+                        xml::XmlEventKind::StartElement | xml::XmlEventKind::EmptyElement
+                    ))
+        })
+    {
+        return Err(ImportFailure::new(
+            ImportFailureKind::Limit,
+            "XML exceeds the 64-level / 4096-event import limit.",
+        ));
+    }
+    Ok(())
 }
 
 fn xml_range(range: xml::XmlSourceRange) -> CemTreeRange {
@@ -377,18 +406,7 @@ fn parse_bytes(
                     content_type: Some(&content_type),
                 },
             ))?;
-            if doc.events.len() > MAX_VALUES
-                || doc.events.iter().any(|e| {
-                    e.depth > MAX_DEPTH
-                        || (e.depth == MAX_DEPTH
-                            && matches!(
-                                e.kind,
-                                xml::XmlEventKind::StartElement | xml::XmlEventKind::EmptyElement
-                            ))
-                })
-            {
-                return Err("XML exceeds the 64-level / 4096-event import limit.".into());
-            }
+            validate_xml_limits(&doc).map_err(|error| error.to_string())?;
             if doc.events.iter().any(|e| {
                 e.kind == xml::XmlEventKind::Doctype
                     || (e.kind == xml::XmlEventKind::EntityReference
@@ -543,6 +561,25 @@ pub fn import_data(
 }
 
 /// Import a retained parser AST into the same tree used by the data reader.
+/// `None` identifies an unrelated lifecycle representation, never a failed
+/// external import. Consumers must not fall back to a partial tree on errors.
+pub fn try_retain_lifecycle(
+    native: Arc<LoadedInputAstStream>,
+) -> Result<Option<Arc<RetainedCemTree>>, String> {
+    if matches!(
+        native.as_ref(),
+        LoadedInputAstStream::XmlDocument(_)
+            | LoadedInputAstStream::JsonDocument(_)
+            | LoadedInputAstStream::CsvDocument(_)
+            | LoadedInputAstStream::YamlDocument(_)
+    ) {
+        retain_lifecycle(native).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+/// Import a retained parser AST into the same tree used by the data reader.
 pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<RetainedCemTree>, String> {
     let (uri, format, length) = match native.as_ref() {
         LoadedInputAstStream::XmlDocument(doc) => (
@@ -573,6 +610,7 @@ pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<Retaine
 fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), ImportFailure> {
     use ImportFailureKind::*;
     match native {
+        LoadedInputAstStream::XmlDocument(doc) => validate_xml_limits(doc)?,
         LoadedInputAstStream::JsonDocument(doc) => {
             if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
                 return Err(ImportFailure::new(Malformed, fact.message.clone()));

@@ -46,6 +46,7 @@ fn query_consumers_do_not_interpret_external_document_formats() {
         ("native result construction", include_str!("../../cem_ql/src/render/construction.rs")),
         ("query runtime", include_str!("../src/query/runtime.rs")),
         ("semantic CEM tree", include_str!("../src/parser/tree.rs")),
+        ("typed source inspection", include_str!("../src/projection/inspection.rs")),
         (
             "CEM-QL reader",
             include_str!("../../cem_ql/src/eval/data.rs"),

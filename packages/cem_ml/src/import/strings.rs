@@ -127,21 +127,7 @@ pub fn import_string(
             }
             let doc = parsed((document, diagnostics))?;
             validate_xml_string(&doc, request.source)?;
-            if doc.events.len() > MAX_VALUES
-                || doc.events.iter().any(|e| {
-                    e.depth > MAX_DEPTH
-                        || (e.depth == MAX_DEPTH
-                            && matches!(
-                                e.kind,
-                                xml::XmlEventKind::StartElement | xml::XmlEventKind::EmptyElement
-                            ))
-                })
-            {
-                return Err(ImportFailure::new(
-                    Limit,
-                    "XML exceeds the 64-level / 4096-event import limit.",
-                ));
-            }
+            validate_xml_limits(&doc)?;
             if doc
                 .events
                 .iter()

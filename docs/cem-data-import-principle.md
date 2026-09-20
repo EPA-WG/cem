@@ -53,6 +53,24 @@ a format-independent semantic view. CEM-QL retains that capability; named XPath
 functions accept imported native nodes, and XPath uses one node implementation.
 The XML compatibility constructors delegate to import before evaluation.
 
+Structural inspection uses `projection::cem_tree_inspection` over the same
+`Arc<RetainedCemTree>`. Its typed AST-vocabulary rows preserve source arena IDs,
+node kinds, expanded names, exact source CEM values and source-map stacks; the
+stream retains its owner through formatter/colorizer/writer stages. Inspection
+does not traverse external parser ASTs or decode source syntax. CDATA, empty
+CDATA and whitespace remain separate source nodes even where XPath coalesces
+or omits them. `source_node_range` exposes their original coordinates without
+semantic canonicalization. This is structural presentation, not a second query
+tree or an implicit JSON export. Original lexical XML spelling stays in the
+import-owned provenance.
+
+XML PI target/data fields are resolved at import for both inspection and
+CEM-QL. Consumers use the imported target (`node.name` in CEM-QL) and `value`
+directly, never split a raw PI body.
+The source data preserves literal line endings while XPath uses the existing
+normalized semantic value. AST/tree inspection delegates lifecycle ownership
+to import and reports invalid input instead of presenting a partial fallback.
+
 Import also computes versioned source-selection fingerprints from original
 input bytes, source identity and semantic profile. Common tree accessors expose
 opaque per-node keys and original line numbers to XPath and CEM-QL; consumers

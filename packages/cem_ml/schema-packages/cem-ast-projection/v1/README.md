@@ -70,10 +70,21 @@ profiles `compact`, `pretty`, and `tabular`, colorizer profiles `terminal`,
 `html`, and `md`, and generic `lineEnding=lf|crlf|preserve` behavior are
 therefore not package-owned output surfaces yet.
 
-If AST projection formatting becomes user-facing, formatter/colorizer assets
-must follow the common package contract: formatters produce formatted CEM trees,
-colorizers enrich those trees, and the generic writer emits target-native
-terminal, HTML, Markdown, or byte output.
+Native structural inspection uses the shared CEM-ML tabular formatter and
+terminal colorizer. `cem_ml::projection::cem_tree_inspection` accepts a retained
+CEM tree and directly emits typed rows in this vocabulary. The stream retains
+the input owner through writer stages. Each `node` has its source arena `id`,
+`kind`, `parent-id` and `order`; names and namespaces are separate fields.
+`target` identifies a PI, while optional `value` preserves exact payloads,
+including empty strings, CDATA and whitespace. Source URI, byte range and known
+line/column coordinates supplement the retained source-map stacks.
+
+Node rows are in source preorder, with ordered attributes before children.
+IDs address the original arena within its retained owner, independently of
+XPath's text coalescing. Formatters may rearrange metadata attributes but never
+the source-node rows or their values. All external formats enter CEM-ML import
+before inspection; source names and values are inert data. Ordinary content
+serialization and explicit binary/JSON debug exports keep their own contracts.
 
 ## Safety Notes
 

@@ -182,7 +182,7 @@ fn native_viewer_dom_matches_cemt_for_namespaces_nested_missing_and_empty_values
         ),
         (
             "xml",
-            r#"<r><row n="10">A<a>x</a></row><row n="2" later="">B<a>y</a><a>z</a></row><single><!--note--><?pi value?></single></r>"#,
+            r#"<r><row n="10">A<a>x</a></row><row n="2" later="">B<a>y</a><a>z</a></row><single><!--note--><?pi value?><?empty?></single></r>"#,
             "@n",
         ),
         (

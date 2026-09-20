@@ -4,6 +4,17 @@ use cem_ql::render::{render_template, TemplateData};
 
 const VIEW: &str = include_str!("../../cem-elements/demo/data-table-view.cemt");
 
+#[test]
+fn authored_view_keeps_processing_instruction_target_and_data() {
+    let result = render_template(VIEW, &data("<r><!--note--><?keep inert?></r>", "xml", ""));
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let output = result.rendered.split("</textarea>").nth(1).unwrap();
+    assert!(
+        output.contains("<span class=\"value\">keep inert</span>"),
+        "{output}"
+    );
+}
+
 fn string(value: &str) -> Item {
     Item::Atomic(AtomValue::String(value.into()))
 }
@@ -125,7 +136,10 @@ fn viewer_excludes_namespace_declarations_but_keeps_real_namespaced_attributes()
     let result = render_template(VIEW, &data(source, "xml", ""));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     let rendered = result.rendered.split("</textarea>").nth(1).unwrap();
-    assert!(!rendered.contains("http://www.w3.org/2000/xmlns/"), "{rendered}");
+    assert!(
+        !rendered.contains("http://www.w3.org/2000/xmlns/"),
+        "{rendered}"
+    );
     assert!(!rendered.contains("@p:"), "{rendered}");
     assert!(!rendered.contains("@q:"), "{rendered}");
     assert!(!rendered.contains("@s:"), "{rendered}");

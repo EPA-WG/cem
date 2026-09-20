@@ -13,7 +13,7 @@ use cem_ml::{
     },
     lifecycle::LoadedInputAstStream,
     parser::{document::CemDocument, tree::RetainedCemTree, AstNodeId, CemAstNode},
-    projection::{cem_tree_nodes, CemTreeAstNode},
+    projection::{cem_tree_inspection, cem_tree_nodes, CemTreeAstNode, CemTreeAstStream},
     schema::SchemaRegistry,
     source_map::{FrameSpan, SourceMapStack},
 };
@@ -54,6 +54,10 @@ fn source_cem_tree_retains_namespace_identity_order_empty_values_and_lexical_own
         panic!("XML parser owner stays retained at import");
     };
     assert_eq!(xml.source.uri, URI);
+    assert!(
+        matches!(doc.get(children(doc, 0)[0]), Some(CemAstNode::ProcessingInstruction { target, data, .. })
+        if target == "xml" && data == "version='1.0'")
+    );
     assert_eq!(
         xml.events
             .iter()
@@ -161,10 +165,9 @@ fn typed_projection_retains_payloads_before_the_writer() {
     assert!(
         matches!(&projected_children[2], CemTreeAstNode::Comment { data, .. } if data == "note")
     );
-    // Existing source-view contract: full lexical PI body, fallback target.
-    // XML-VIEW-1 must decide how to expose its decoded target without parsing it here.
+    // Import supplies the actual PI target and its unnormalized source data.
     assert!(
-        matches!(&projected_children[3], CemTreeAstNode::ProcessingInstruction { target, data, source, .. } if target == "xml" && data == "keep inert" && origin_text(input, source) == "<?keep inert?>")
+        matches!(&projected_children[3], CemTreeAstNode::ProcessingInstruction { target, data, source, .. } if target == "keep" && data == "inert" && origin_text(input, source) == "<?keep inert?>")
     );
     assert!(
         matches!(&projected_children[4], CemTreeAstNode::Text { value, .. } if value == "after")
@@ -187,9 +190,31 @@ fn typed_projection_retains_payloads_before_the_writer() {
 }
 
 #[test]
-fn tabular_writer_probe_exposes_the_remaining_payload_gap() {
-    let tree = imported("<r empty=''>before<![CDATA[<raw>🍒]]><!--note--><?keep inert?>after</r>");
-    let stream = Arc::new(cem_tree_nodes(tree.ast()));
+fn inspection_writer_preserves_payloads_and_owner_in_file_and_terminal_output() {
+    let input = "<r empty=''>before<![CDATA[<raw>🍒]]><!--note--><?keep inert?>after</r>";
+    let tree = imported(input);
+    let stream = Arc::new(cem_tree_inspection(tree.clone()));
+    let rows = inspection_rows(&stream);
+    assert_eq!(
+        rows.iter()
+            .map(|n| attr(n, "kind").unwrap())
+            .collect::<Vec<_>>(),
+        [
+            "document",
+            "element",
+            "attribute",
+            "text",
+            "cdata",
+            "comment",
+            "processing-instruction",
+            "text"
+        ]
+    );
+    assert_eq!(attr(rows[2], "value"), Some(""));
+    assert_eq!(attr(rows[4], "value"), Some("<raw>🍒"));
+    assert_eq!(attr(rows[6], "target"), Some("keep"));
+    assert_eq!(attr(rows[6], "value"), Some("inert"));
+    assert!(Arc::ptr_eq(stream.source_owner().unwrap(), &tree));
     let registry = SchemaRegistry::with_builtin_schemas();
     let conversions = ConversionRegistry::with_builtin_converters();
     let environment = ConversionOutputPipelineEnvironment {
@@ -202,32 +227,249 @@ fn tabular_writer_probe_exposes_the_remaining_payload_gap() {
     pipeline.cemt_options.formatter_profile = Some("tabular".into());
     pipeline.cemt_insertion_context.formatter_profile = Some("tabular".into());
     pipeline.writer_insertion_context.formatter_profile = Some("tabular".into());
-    let result = execute_conversion_output_pipeline_from_cem_tree_with_environment(
-        &environment,
-        &pipeline,
-        stream,
-        Some(tree.node(0).unwrap().source.clone()),
-        vec![],
-        "xml-inspection-boundary",
-        None,
-        Some(URI),
-    );
-    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    // This is the named public text-output envelope after all typed stages.
-    let output = result
-        .output
-        .as_ref()
-        .and_then(|value| value.as_str())
-        .unwrap();
-    // Characterization of the open XML-VIEW-1 gap, not an acceptance contract.
-    // Replace this assertion with lossless inspection assertions when the
-    // shared presentation decision is implemented. The typed input above
-    // proves these payloads were available without reading XML again.
+    for terminal in [false, true] {
+        if terminal {
+            pipeline.cemt_options.color_profile = Some("terminal".into());
+            pipeline.cemt_insertion_context.color_profile = Some("terminal".into());
+            pipeline.writer_insertion_context.color_profile = Some("terminal".into());
+            pipeline.writer_insertion_context.output_color_type = Some("ansi-256".into());
+        }
+        let result = execute_conversion_output_pipeline_from_cem_tree_with_environment(
+            &environment,
+            &pipeline,
+            stream.clone(),
+            Some(tree.node(0).unwrap().source.clone()),
+            vec![],
+            "xml-inspection-boundary",
+            None,
+            Some(URI),
+        );
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        // This is the named public text-output envelope after all typed stages.
+        let output = result
+            .output
+            .as_ref()
+            .and_then(|value| value.as_str())
+            .unwrap();
+        assert!(output.contains("<raw>🍒"), "{output}");
+        assert!(
+            output.contains("keep") && output.contains("inert"),
+            "{output}"
+        );
+        assert_eq!(output.contains('\u{1b}'), terminal);
+        let raw = result.raw_cem_tree.as_ref().unwrap();
+        assert!(Arc::ptr_eq(raw.owner().source_owner().unwrap(), &tree));
+        let formatted = result.formatted_cemt_tree.as_ref().unwrap();
+        assert!(Arc::ptr_eq(
+            formatted.owner().source_owner().unwrap(),
+            &tree
+        ));
+        if terminal {
+            let colored = result.colored_cemt_tree.as_ref().unwrap();
+            assert!(Arc::ptr_eq(colored.owner().source_owner().unwrap(), &tree));
+        }
+        for row in &rows {
+            assert!(result
+                .output_spans
+                .iter()
+                .any(|span| span.origin.origin() == row.source_map().origin()));
+        }
+    }
+}
+
+fn attr<'a>(node: &'a CemTreeAstNode, name: &str) -> Option<&'a str> {
+    node.attributes()
+        .iter()
+        .find(|a| a.name == name)
+        .and_then(|a| a.value.as_deref())
+}
+
+fn inspection_rows(stream: &CemTreeAstStream) -> Vec<&CemTreeAstNode> {
+    stream
+        .as_nodes()
+        .iter()
+        .find(|node| node.name() == Some("ast"))
+        .unwrap()
+        .children()
+        .iter()
+        .collect()
+}
+
+#[test]
+fn inspection_uses_source_ids_ranges_and_order_without_xpath_coalescing() {
+    let input = "<r a=''><![CDATA[]]>\r\n<![CDATA[🍒]]>tail<x/><?keep \r\n data?></r>";
+    let tree = imported(input);
+    let stream = cem_tree_inspection(tree.clone());
+    let rows = inspection_rows(&stream);
+    assert_eq!(rows.len(), tree.ast().nodes.len());
+    for (id, row) in rows.iter().enumerate() {
+        assert_eq!(attr(row, "id"), Some(format!("node-{id}").as_str()));
+        assert_eq!(attr(row, "source-id"), Some(URI));
+        assert_eq!(
+            attr(row, "byte-offset"),
+            Some(
+                tree.source_node_range(id as u32)
+                    .unwrap()
+                    .offset
+                    .to_string()
+                    .as_str()
+            )
+        );
+    }
     assert_eq!(
-        output,
-        "{r @empty=\"\" |\n    before\n    {node}\n    {comment @value=note}\n    {xml}\n    after\n}\n"
+        rows.iter()
+            .map(|n| attr(n, "kind").unwrap())
+            .collect::<Vec<_>>(),
+        [
+            "document",
+            "element",
+            "attribute",
+            "cdata",
+            "whitespace",
+            "cdata",
+            "text",
+            "element",
+            "processing-instruction"
+        ]
     );
-    assert!(!result.output_spans.is_empty());
+    assert_eq!(attr(rows[3], "value"), Some(""));
+    assert_eq!(attr(rows[4], "value"), Some("\r\n"));
+    assert_eq!(attr(rows[5], "value"), Some("🍒"));
+    assert_eq!(attr(rows[8], "value"), Some("data"));
+    assert_eq!(attr(rows[5], "line"), Some("2"));
+    assert_eq!(attr(rows[5], "byte-length"), Some("16"));
+    assert_eq!(tree.canonical_id(3), Some(3));
+    assert_eq!(tree.canonical_id(5), Some(3));
+    assert_ne!(attr(rows[3], "id"), attr(rows[5], "id"));
+    assert_ne!(
+        tree.source_node_range(3).unwrap().length,
+        tree.node(3).unwrap().range.length
+    );
+}
+
+#[test]
+fn all_import_formats_use_the_same_inert_inspection_vocabulary() {
+    for (format, input) in [
+        (
+            "xml",
+            "<node xmlns='urn:example' name='@include'>@include bad.cem</node>",
+        ),
+        ("json", "{\"node\":\"@include bad.cem\"}"),
+        ("yaml", "node: '@include bad.cem'"),
+        ("csv", "node\n@include bad.cem\n"),
+    ] {
+        let tree = import_data(input, format, "cem", URI).unwrap();
+        let stream = cem_tree_inspection(tree.clone());
+        let rows = inspection_rows(&stream);
+        assert_eq!(rows.len(), tree.ast().nodes.len(), "{format}");
+        assert!(rows
+            .iter()
+            .all(|n| n.name() == Some("node") && n.children().is_empty()));
+        assert!(rows
+            .iter()
+            .any(|n| attr(n, "value") == Some("@include bad.cem")));
+        assert_eq!(
+            stream
+                .as_nodes()
+                .iter()
+                .filter(|n| n.name().is_some_and(|s| s.starts_with('@')))
+                .count(),
+            3
+        );
+        assert!(Arc::ptr_eq(stream.source_owner().unwrap(), &tree));
+        assert!(
+            rows.iter().all(|row| row.source_map().origin().is_some()),
+            "{format}"
+        );
+    }
+}
+
+#[test]
+fn public_ast_and_tree_inspection_use_import_and_the_shared_projection() {
+    use cem_ml::{
+        engine::{
+            CemMlEngine, EngineContext, EngineInput, FormatIdentity, InspectRequest, InspectView,
+        },
+        real::RealCemMlEngine,
+        run_config::ScopeConfig,
+    };
+    for (content_type, input, expected) in [
+        ("application/xml", "<?xml-stylesheet href='https://invalid.test/no.xsl'?><r><![CDATA[🍒]]><?keep inert?></r>", "@kind=cdata"),
+        ("application/json", "{\"fruit\":\"🍒\"}", "@name=property"),
+        ("application/yaml", "fruit: 🍒\n", "@name=property"),
+        ("text/csv", "fruit\n🍒\n", "@name=array"),
+        ("application/cem", "{fruit | 🍒}", "@name=fruit"),
+    ] {
+        for show in [InspectView::Ast, InspectView::Tree] {
+            let response = RealCemMlEngine::new().inspect(InspectRequest {
+                input: EngineInput {
+                    uri: URI.into(), bytes: input.as_bytes().to_vec(), from_format: None,
+                    identity: Some(FormatIdentity { content_type: Some(content_type.into()), ..Default::default() }),
+                    root_scope: Default::default(),
+                },
+                show,
+                presentation_scope: Some(ScopeConfig { cemt_formatter_profile: Some("tabular".into()), output_color_type: Some("none".into()), ..Default::default() }),
+                context: EngineContext::default(),
+            }).unwrap();
+            let primary = response.primary_bytes.unwrap();
+            let output = std::str::from_utf8(&primary.bytes).unwrap();
+            assert_eq!(primary.schema.as_deref(), Some("https://cem.dev/ns/projection/ast/1"));
+            assert!(output.contains(expected), "{content_type}, {show:?}: {output}");
+            assert!(output.contains("🍒"), "{content_type}: {output}");
+            assert!(!output.contains('\u{1b}'));
+            if content_type == "application/xml" {
+                assert!(output.contains("@target=xml-stylesheet"));
+                assert!(output.contains("@target=keep"));
+                assert!(output.contains("@value=inert"));
+            }
+        }
+    }
+}
+
+#[test]
+fn public_inspection_rejects_invalid_external_input_without_a_partial_tree() {
+    use cem_ml::{
+        engine::{
+            CemMlEngine, EngineContext, EngineInput, FormatIdentity, InspectRequest, InspectView,
+        },
+        real::RealCemMlEngine,
+        run_config::ScopeConfig,
+    };
+    for (content_type, input) in [
+        ("application/xml", "<r>\n<x></r>".to_string()),
+        (
+            "application/xml",
+            "<!DOCTYPE r SYSTEM 'https://invalid.test/no.dtd'><r/>".into(),
+        ),
+        (
+            "application/xml",
+            format!("{}x{}", "<r>".repeat(65), "</r>".repeat(65)),
+        ),
+        ("application/json", "[oops]".into()),
+        ("application/yaml", "x: [oops".into()),
+        ("text/csv", "a,b\n\"oops".into()),
+    ] {
+        let result = RealCemMlEngine::new().inspect(InspectRequest {
+            input: EngineInput {
+                uri: URI.into(),
+                bytes: input.into_bytes(),
+                from_format: None,
+                identity: Some(FormatIdentity {
+                    content_type: Some(content_type.into()),
+                    ..Default::default()
+                }),
+                root_scope: Default::default(),
+            },
+            show: InspectView::Tree,
+            presentation_scope: Some(ScopeConfig {
+                cemt_formatter_profile: Some("tabular".into()),
+                ..Default::default()
+            }),
+            context: EngineContext::default(),
+        });
+        assert!(result.is_err(), "{content_type}: {result:?}");
+        assert!(result.unwrap_err().to_string().contains(URI));
+    }
 }
 
 #[test]

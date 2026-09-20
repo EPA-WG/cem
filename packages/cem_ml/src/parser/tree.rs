@@ -69,6 +69,7 @@ pub struct RetainedCemTree {
     canonical: Vec<Option<AstNodeId>>,
     source_fingerprint: Option<[u8; 32]>,
     source_lines_known: Vec<bool>,
+    source_ranges: Vec<CemTreeRange>,
 }
 
 impl std::fmt::Debug for RetainedCemTree {
@@ -274,6 +275,9 @@ impl RetainedCemTree {
         if semantics.omitted.contains(&0) {
             return Err("The CEM document root cannot be omitted.".into());
         }
+        // Inspection addresses source arena nodes, including nodes that the
+        // semantic view will coalesce or omit. Keep their original ranges.
+        let source_ranges = nodes.iter().map(|node| node.range).collect();
         let mut canonical: Vec<_> = (0..nodes.len())
             .map(|id| (!semantics.omitted.contains(&(id as u32))).then_some(id as u32))
             .collect();
@@ -353,6 +357,7 @@ impl RetainedCemTree {
             canonical,
             source_fingerprint: semantics.source_fingerprint,
             source_lines_known,
+            source_ranges,
         }))
     }
 
@@ -361,6 +366,16 @@ impl RetainedCemTree {
     }
     pub fn source_uri(&self) -> &str {
         &self.source_uri
+    }
+    /// Original range without XPath canonicalization or text coalescing.
+    /// Unknown line/column coordinates are zero; byte coordinates remain intact.
+    pub fn source_node_range(&self, id: AstNodeId) -> Option<CemTreeRange> {
+        let mut range = *self.source_ranges.get(id as usize)?;
+        if !self.source_lines_known[id as usize] {
+            range.line = 0;
+            range.column = 0;
+        }
+        Some(range)
     }
     /// Opaque source-selection token; independent of per-document XDM identity.
     pub fn source_key(&self, id: AstNodeId) -> Option<String> {
