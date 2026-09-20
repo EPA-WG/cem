@@ -1572,6 +1572,23 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       after XML-VIEW-1. Show editable/reloadable data, keyboard-operable
       disclosure, independent visible branch selection and parse failures;
       keep inspected content inert and CEM-ML the default structural view.
+  - [x] Fixture XML-VIEW-3-BOUNDARY: verify whether CEMT can request tabular
+        inspection text from its retained CEM owner. Compare the current
+        `cemml:format` query surface with the shared typed inspection writer
+        for XML/JSON/YAML/CSV, retaining source maps and inert values. Record
+        the shared query API decision before implementing the browser viewer.
+        Completed 2026-09-20: native CEMT receives the document, but
+        `cemml:format(document)` silently returns an empty string. The same
+        retained owner produces complete CEM-ML through the shared typed
+        inspection writer. The two native probes cover all four formats and
+        the existing string pass-through; they characterize the gap, not the
+        future contract.
+  - [ ] Fixture XML-VIEW-3-INSPECTION-API: decide the shared retained-document
+        inspection query surface before browser implementation. Recommended:
+        `cemml:inspect(document)` returns tabular CEM-ML through the existing
+        typed projection/writer, with host/scope controls and no source reparse.
+        Keep source formatting separate; see the [API proposal](../packages/cem-elements/docs/xml-viewer-migration.md#xml-view-3-inspection-query-decision--pending).
+        Paused here under the user's stop-at-decisions instruction.
 - [ ] Fixture XML-VIEW-4: add the native table-inspector cases after XML-VIEW-1
       and XML-VIEW-2. Union columns across heterogeneous sibling rows, retain
       text-only rows and nested groups, and show real ascending/descending

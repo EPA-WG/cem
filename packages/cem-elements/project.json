@@ -252,6 +252,7 @@
                 "{workspaceRoot}/packages/cem_ql/tests/sequence_collections.rs",
                 "{workspaceRoot}/packages/cem_ql/tests/template_matching.rs",
                 "{workspaceRoot}/packages/cem_ql/tests/data_view_templates.rs",
+                "{workspaceRoot}/packages/cem_ql/tests/tree_inspection_boundary.rs",
                 "{workspaceRoot}/packages/cem_ml/tests/module_url_demo.rs",
                 "{projectRoot}/vitest.unit.config.mts",
                 "{projectRoot}/package.json",

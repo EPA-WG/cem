@@ -1414,6 +1414,7 @@
       "packages/cem_ql/tests/sequence_collections.rs",
       "packages/cem_ql/tests/template_matching.rs",
       "packages/cem_ql/tests/data_view_templates.rs",
+      "packages/cem_ql/tests/tree_inspection_boundary.rs",
       "packages/cem_ml/tests/module_url_demo.rs"
     ],
     "meaning": "The gallery gate asserts each mapped current legend in source-loaded documents and runs standalone checks. It does not execute the legacy sources or prove general-purpose XSLT parity."

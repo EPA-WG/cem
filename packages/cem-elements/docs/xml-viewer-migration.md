@@ -239,6 +239,60 @@ control behavior, source-relative loading, namespace labels, empty values,
 and recovery from malformed input. Neither a copied legacy XML URL nor a
 processing instruction is the new viewer's execution entry point.
 
+#### XML-VIEW-3 inspection query decision — pending
+
+The 2026-09-20 boundary probe in
+[`tree_inspection_boundary.rs`](../../cem_ql/tests/tree_inspection_boundary.rs)
+found a missing CEMT query surface. An imported native document is available to
+the template (`document.kind` is `document`), but `cemml:format(document)` emits
+an empty string. Its current implementation takes the first string-like value
+and passes it through; it does not call the typed writer. It also leaves an
+input CEM-ML string unchanged. These are characterization assertions, not a
+promise to preserve the placeholder as the final formatting contract.
+
+The same retained owner already works with `cem_tree_inspection` and the shared
+tabular writer. The probe covers XML, JSON, YAML and CSV, verifies retained
+ownership through formatted output, and keeps source spans, CDATA and PI data.
+The missing step is exposing that native capability to authored CEMT. Re-reading
+the source with another browser API or spelling CEM-ML by concatenating strings
+inside the viewer would bypass this boundary.
+
+**Recommended public contract: `cemml:inspect(document)`.** This is a Tier B
+structural presentation operation in `cem:stdlib/cemml`, available through
+ordinary CEM-QL and CEMT calls:
+
+- Accept zero or one retained native CEM document. A retained XPath document
+  backed by the same CEM owner is also accepted; use the source arena for
+  inspection, without XPath coalescing. Empty input returns empty sequence.
+- Return one display string produced by `cem_tree_inspection` and the shared
+  tabular CEM-ML writer, with no terminal color escapes. This is final text
+  presentation, not an AST handoff or text to execute as a template.
+- Reject strings, ordinary records, multiple items and non-document nodes with
+  a typed query diagnostic. The viewer needs whole-document inspection; a new
+  subtree projection contract is outside this proposal.
+- Preserve the original owner and source maps through native writer stages.
+  Do not reparse source, serialize a runtime AST, traverse external parser ASTs
+  or add format-specific query branches. Import remains solely in CEM-ML.
+- Use the enclosing operation control and environment-defined scope budgets;
+  child scopes may lower limits. Cancellation, limit exhaustion or writer
+  failure must not return partial text. Add native acceptance tests for these
+  cases before WASM/browser wiring.
+
+The alternative is extending `cemml:format` to accept retained documents, but
+that combines formatting CEM source/content with the distinct inert AST
+inspection vocabulary. The named `inspect` operation makes the requested output
+explicit. Neither option requires a viewer-specific native function.
+
+After this decision, replace the gap assertions with the approved API tests,
+verify both native-node representations and all four formats, and wire the
+declarative tree viewer to the same imported owner. Its text output belongs in
+ordinary escaped CEMT text content. Source editing/loading, branch selection,
+disclosure and error recovery remain the XML-VIEW-3 UI work.
+
+No query API or browser behavior is changed by this checkpoint. XML-VIEW-3 stays
+open, and implementation pauses here under the user's stop-at-decisions
+instruction.
+
 ### XML-VIEW-4 — table inspector teaching points
 
 After XML-VIEW-1 and XML-VIEW-2, add focused cases for heterogeneous repeated
@@ -287,3 +341,8 @@ XML-VIEW-2 verification 2026-09-20: all 31 focused native tests pass across
 and `xslt_data_view`. The 390-test browser unit suite, lint and typecheck pass
 through Nx. This audit changes tests, contract documentation and completion
 inventory only; no browser templates, runtime code or demo layout changed.
+
+XML-VIEW-3 boundary verification 2026-09-20: both native boundary tests pass,
+including all four import formats. The 390-test unit suite and lint pass
+through Nx; the resolved unit target includes the new native evidence file.
+The inspection query decision remains pending and the viewer remains open.
