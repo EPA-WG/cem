@@ -24,7 +24,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 const manifest = JSON.parse(read('../../docs/legacy-demo-cases.json')) as {
     formatVersion: number;
     sources: LegacySource[];
-    evidence: { gallery: string; native: string[] };
+    evidence: { gallery: string; native: string[]; wasm: string[] };
     standaloneViewerReview?: {
         document: string;
         status: string;
@@ -105,9 +105,12 @@ describe('local legacy demo case map', () => {
         }
     });
 
-    it('retains the native loader fixture evidence', () => {
+    it('retains the native and WASM fixture evidence', () => {
         for (const file of manifest.evidence.native) {
             expect(read(`../../../../${file}`), file).toContain('#[test]');
+        }
+        for (const file of manifest.evidence.wasm) {
+            expect(read(`../../../../${file}`), file).toContain('renderCemMlTemplate');
         }
     });
 

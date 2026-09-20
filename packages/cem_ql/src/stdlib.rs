@@ -207,6 +207,7 @@ pub fn all_known_functions() -> Vec<StdlibFunction> {
     functions.extend_from_slice(native::FUNCTIONS);
     functions.extend_from_slice(sequence::TIER_B_FUNCTIONS);
     functions.extend_from_slice(report::TIER_B_FUNCTIONS);
+    functions.extend_from_slice(cemml::TIER_B_FUNCTIONS);
     functions.extend_from_slice(user::FUNCTIONS);
     functions
 }

@@ -24,6 +24,7 @@ use crate::resolve::BindingId;
 use crate::types::Type;
 
 mod data;
+mod inspection;
 pub(crate) use data::xpath_node as imported_xpath_node;
 pub use data::{imported_cem_tree, DataReaderCache};
 pub(crate) use data::xpath_node as result_native_node;
@@ -523,6 +524,7 @@ pub(crate) struct EvalCtx<'a> {
     current_items: Vec<Item>,
     counters: HashMap<BudgetAxis, u64>,
     limits: HashMap<BudgetAxis, u64>,
+    scope_policy: ScopePolicy,
     call_depth: u64,
     diagnostics: Vec<Diagnostic>,
     error: Option<EvalError>,
@@ -550,6 +552,7 @@ impl<'a> EvalCtx<'a> {
             current_items: context.current_item.clone().into_iter().collect(),
             counters: HashMap::new(),
             limits: limits_from_policy(context.scope_policy),
+            scope_policy: context.scope_policy,
             call_depth: 0,
             diagnostics: context.diagnostics.clone(),
             error: None,

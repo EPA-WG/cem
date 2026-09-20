@@ -1417,6 +1417,9 @@
       "packages/cem_ql/tests/tree_inspection_boundary.rs",
       "packages/cem_ml/tests/module_url_demo.rs"
     ],
+    "wasm": [
+      "packages/cem-elements/src/lib/tree-inspection.spec.ts"
+    ],
     "meaning": "The gallery gate asserts each mapped current legend in source-loaded documents and runs standalone checks. It does not execute the legacy sources or prove general-purpose XSLT parity."
   }
 }

@@ -90,6 +90,21 @@ pub(crate) fn xpath_node(item: &Item) -> Option<Result<XPathNativeNode, String>>
     Some(XPathNativeNode::cem_node(tree, id).map_err(|error| error.to_string()))
 }
 
+/// Whole-document source owner for inert structural inspection. In particular,
+/// XPath's semantic text coalescing must not replace the original source arena.
+pub(super) fn retained_document(item: &Item) -> Option<Arc<RetainedCemTree>> {
+    let view = item.view()?;
+    if let Some(view) = view.downcast_ref::<CemAstView>() {
+        return (view.node == Some(0)).then(|| view.owner.tree.clone()).flatten();
+    }
+    let node = view
+        .downcast_ref::<crate::xpath::functions::XPathQueryItem>()?
+        .xpath_item()
+        .native_node()?;
+    (node.result_node_kind() == cem_ml::validation::xpath::XPathResultNodeKind::Document)
+        .then(|| node.owner().clone())
+}
+
 fn string(value: impl Into<String>) -> Vec<Item> {
     vec![Item::Atomic(AtomValue::String(value.into()))]
 }

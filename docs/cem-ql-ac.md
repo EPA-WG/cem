@@ -431,6 +431,13 @@ function inventory that makes those obligations executable.
   `dom:attribute`, `dom:resolve_ref`, `dom:tainted`, `report:emit`,
   `report:severity_floor`, `state:read`, `state:keys`, `tpl:lookup`,
   `tpl:names`, `cemml:parse`, and `cemml:format`.
+- **Tier B retained inspection:** `cemml:inspect(document)` accepts zero or
+  one retained CEM/XPath document and returns inert tabular CEM-ML from the
+  common typed inspection writer. Empty input stays empty; strings, records,
+  multiple items and non-document nodes are type errors. Preserve source
+  ownership and provenance without reparsing, apply enclosing scope budgets
+  and operation control, and expose no partial text on failure. See the
+  [payload and cooperative-control contract](../packages/cem_ql/README.md#retained-document-inspection).
 - **Tier B sequence helpers:** `unique`, `distinct_by`, `flatten`, `zip`,
   `enumerate`, `chunked`, `windowed`, `sliding`, `group_by`, `count_by`,
   `partition`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`,

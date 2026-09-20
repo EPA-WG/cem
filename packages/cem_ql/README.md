@@ -225,6 +225,36 @@ depth 64 and 4096 values/events. See the
 The [paired demo's detailed use cases](../cem-elements/demo/xpath-functions.html#cem-ql-use-cases)
 cover imports, URI/provenance, predicates and native node selection.
 
+### Retained document inspection
+
+Tier B `cemml:inspect(document)` returns an inert, tabular CEM-ML display string
+through the shared typed inspection projection and writer. Pass a retained CEM
+document or an XPath document backed by that same owner. Inspection visits the
+original CEM source arena, preserving separate whitespace/CDATA, PI targets and
+data, source ranges and namespace provenance. It does not re-import source or
+traverse an external parser tree. XML, JSON, YAML and CSV all use this same path.
+
+```cem-ml
+{cem-data @name=document @select=source @type="{$format}"}
+{pre | {code | {$cemml:inspect(document.root)}}}
+```
+
+CEMT emits the string as escaped text. It contains no terminal coloring and is
+not executable template content. Empty input returns an empty sequence;
+strings, records, multiple items and non-document nodes produce
+`cem.ql.type_error`. `cemml:format` remains the separate source-formatting
+surface; its current string pass-through is not a structural inspection API.
+
+Inspection charges source nodes against the enclosing query's item budget.
+The effective scope's `memory_bytes` bounds source payload and final display
+bytes, and operation-control memory permits also respect ancestor limits and
+existing charges. These are payload limits, not a bound on every temporary
+allocation in the shared formatter. Child scopes can lower environment limits.
+Cancellation is cooperative: checks run during arena preflight and surround the
+existing synchronous projection/writer. Cancellation, `cem.ql.inspect_limit`,
+control exhaustion and `cem.ql.inspect_writer` failures discard the whole
+result and cannot be converted to partial output by `try`/`catch`.
+
 ### Collections and presentation dispatch
 
 Two reusable Tier B collection operations preserve original items and native

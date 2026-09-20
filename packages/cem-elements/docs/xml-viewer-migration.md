@@ -239,7 +239,7 @@ control behavior, source-relative loading, namespace labels, empty values,
 and recovery from malformed input. Neither a copied legacy XML URL nor a
 processing instruction is the new viewer's execution entry point.
 
-#### XML-VIEW-3 inspection query decision — pending
+#### XML-VIEW-3 inspection query — implemented
 
 The 2026-09-20 boundary probe in
 [`tree_inspection_boundary.rs`](../../cem_ql/tests/tree_inspection_boundary.rs)
@@ -257,7 +257,7 @@ The missing step is exposing that native capability to authored CEMT. Re-reading
 the source with another browser API or spelling CEM-ML by concatenating strings
 inside the viewer would bypass this boundary.
 
-**Recommended public contract: `cemml:inspect(document)`.** This is a Tier B
+**Accepted public contract: `cemml:inspect(document)`.** This is a Tier B
 structural presentation operation in `cem:stdlib/cemml`, available through
 ordinary CEM-QL and CEMT calls:
 
@@ -283,15 +283,28 @@ that combines formatting CEM source/content with the distinct inert AST
 inspection vocabulary. The named `inspect` operation makes the requested output
 explicit. Neither option requires a viewer-specific native function.
 
-After this decision, replace the gap assertions with the approved API tests,
-verify both native-node representations and all four formats, and wire the
-declarative tree viewer to the same imported owner. Its text output belongs in
-ordinary escaped CEMT text content. Source editing/loading, branch selection,
-disclosure and error recovery remain the XML-VIEW-3 UI work.
+Implemented 2026-09-20 under the user's standing instruction to proceed with
+recommended options. The native acceptance fixture now calls `cemml:inspect`
+through both retained document representations for all four import formats,
+compares exact shared-writer output, and verifies escaped CEMT text, invalid
+input, lowered budgets, cancellation and discarded writer failures. The WASM
+adapter fixture is
+[`tree-inspection.spec.ts`](../src/lib/tree-inspection.spec.ts).
 
-No query API or browser behavior is changed by this checkpoint. XML-VIEW-3 stays
-open, and implementation pauses here under the user's stop-at-decisions
-instruction.
+Source nodes charge the query item budget; source payload and completed display
+bytes are bounded by the effective `memory_bytes` policy. Enclosing
+operation-control permits also honor ancestor memory limits and existing
+charges. These payload limits do not account for every temporary formatter
+allocation. Cooperative checks run during arena preflight and before/after
+the existing synchronous projection/writer. No completed text is accepted
+after cancellation, limit exhaustion or writer failure. The
+[query reference](../../cem_ql/README.md#retained-document-inspection) describes
+these controls and diagnostics.
+
+XML-VIEW-3 remains open for the declarative tree viewer. Wire its escaped text
+output to this query and the same imported owner. Source editing/loading,
+branch selection, disclosure and error recovery are next; this API checkpoint
+does not change existing demo presentation.
 
 ### XML-VIEW-4 — table inspector teaching points
 

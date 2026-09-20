@@ -354,6 +354,7 @@ pub(crate) fn apply_stdlib_call(
             }
         }
         ("cem:stdlib/cemml", "parse") => cemml_parse(arg_streams),
+        ("cem:stdlib/cemml", "inspect") => super::inspection::inspect(arg_streams, ctx, source),
         ("cem:stdlib/data", "parse") => super::data::parse(arg_streams, ctx, source),
         ("cem:stdlib/data", "read") => {
             // Poll control before entering the bounded native parsers.

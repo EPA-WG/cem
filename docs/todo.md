@@ -1583,12 +1583,20 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         inspection writer. The two native probes cover all four formats and
         the existing string pass-through; they characterize the gap, not the
         future contract.
-  - [ ] Fixture XML-VIEW-3-INSPECTION-API: decide the shared retained-document
-        inspection query surface before browser implementation. Recommended:
+  - [x] Fixture XML-VIEW-3-INSPECTION-API: implement the recommended shared
+        retained-document inspection query before browser implementation:
         `cemml:inspect(document)` returns tabular CEM-ML through the existing
         typed projection/writer, with host/scope controls and no source reparse.
-        Keep source formatting separate; see the [API proposal](../packages/cem-elements/docs/xml-viewer-migration.md#xml-view-3-inspection-query-decision--pending).
-        Paused here under the user's stop-at-decisions instruction.
+        Keep source formatting separate; see the [implemented API](../packages/cem-elements/docs/xml-viewer-migration.md#xml-view-3-inspection-query--implemented).
+        Completed 2026-09-20 under the user's recommended-option default.
+        Native acceptance covers both retained document views, all four imports,
+        escaped CEMT output, invalid input, lowered scope budgets, cancellation
+        and discarded writer failures. The production WASM render adapter
+        covers XML/JSON/YAML/CSV in `tree-inspection.spec.ts`. Verified 98 native
+        checks, the WASM build and all 394 unit checks. Limits cover payload
+        sizes; cooperative checks surround the synchronous shared writer.
+        XML-VIEW-3's source editing, disclosure, selection and error recovery
+        remain next.
 - [ ] Fixture XML-VIEW-4: add the native table-inspector cases after XML-VIEW-1
       and XML-VIEW-2. Union columns across heterogeneous sibling rows, retain
       text-only rows and nested groups, and show real ascending/descending
