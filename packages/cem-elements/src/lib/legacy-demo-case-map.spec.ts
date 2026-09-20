@@ -35,6 +35,8 @@ const manifest = JSON.parse(read('../../docs/legacy-demo-cases.json')) as {
         openFixtures: string[];
         tableDemo: string;
         tableLegends: string[];
+        inspectorDemo: string;
+        inspectorLegends: string[];
         treeDemo: string;
         treeLegends: string[];
     };
@@ -96,13 +98,13 @@ describe('local legacy demo case map', () => {
         }
     });
 
-    it('keeps standalone tree migration separate from the legacy card count', () => {
+    it('keeps standalone viewer migrations separate from the legacy card count', () => {
         expect(manifest.sources.flatMap((source) => source.commentedLegends)).toHaveLength(4);
         expect(manifest.sources.filter((source) => source.kind === 'unported-xml-viewer')).toEqual([]);
         const viewers = manifest.sources.filter((source) => source.kind === 'migrated-xml-viewer');
-        expect(viewers.map((source) => source.file)).toEqual(['tree.xml']);
+        expect(viewers.map((source) => source.file)).toEqual(['table.xml', 'table.xsl', 'tree.xml']);
         for (const source of viewers) {
-            expect(source.currentFiles).toContain('data-tree.html');
+            expect(source.currentFiles).toContain(source.file === 'tree.xml' ? 'data-tree.html' : 'table-inspector.html');
             expect(source.cases).toEqual([]);
             expect(source.unwrapped).toEqual([]);
         }
@@ -120,7 +122,7 @@ describe('local legacy demo case map', () => {
     it('records the standalone review without claiming executable legacy sorting', () => {
         const review = manifest.standaloneViewerReview;
         expect(review).toBeDefined();
-        expect(review?.status).toBe('tree-view-implemented-table-lessons-open');
+        expect(review?.status).toBe('tree-and-table-lessons-implemented');
         expect(review?.sources).toEqual(['tree.xml', 'tree.xsl', 'table.xml', 'table.xsl']);
         expect(review?.sorting).toBe('scaffold-only');
         expect(review?.selection).toBe('independent-branch-checkboxes');
@@ -135,10 +137,16 @@ describe('local legacy demo case map', () => {
         }
     });
 
-    it('maps the partial native table migration without declaring full XML viewer parity', () => {
+    it('maps focused table lessons alongside the existing format comparison', () => {
         expect(manifest.sources.filter((source) => source.kind === 'partially-migrated-xml-viewer')
-            .map((source) => source.file)).toEqual(['table.xml', 'table.xsl']);
+            .map((source) => source.file)).toEqual([]);
         const review = manifest.standaloneViewerReview;
+        expect(review?.inspectorDemo).toBe('table-inspector.html');
+        expect(review?.inspectorLegends).toHaveLength(4);
+        for (const legend of review?.inspectorLegends ?? []) {
+            expect(read(`../../demo/${review?.inspectorDemo}`)).toContain(`legend="${legend}"`);
+            expect(executableLegends.has(legend)).toBe(true);
+        }
         expect(review?.tableDemo).toBe('data-table.html');
         const document = read(`../../demo/${review?.tableDemo}`);
         expect(review?.tableLegends).toHaveLength(5);
@@ -154,12 +162,12 @@ describe('local legacy demo case map', () => {
         if (!review) return;
         const document = read(`../../../../${review.document}`);
         const todo = read('../../../../docs/todo.md');
-        expect(review.completedFixtures).toEqual(['XML-VIEW-1', 'XML-VIEW-2', 'XML-VIEW-3']);
+        expect(review.completedFixtures).toEqual(['XML-VIEW-1', 'XML-VIEW-2', 'XML-VIEW-3', 'XML-VIEW-4']);
         for (const id of review.completedFixtures) {
             expect(document, id).toContain(id);
             expect(todo, id).toContain(`- [x] Fixture ${id}:`);
         }
-        expect(review.openFixtures).toEqual(['XML-VIEW-4']);
+        expect(review.openFixtures).toEqual([]);
         for (const id of review.openFixtures) {
             expect(document, id).toContain(id);
             expect(todo, id).toContain(`- [ ] Fixture ${id}:`);

@@ -1,12 +1,12 @@
 # Standalone XML viewer migration review
 
 Reviewed 2026-09-13 against `~/aWork/custom-element/demo/`, updated 2026-09-20.
-The **multi-format table view** implements part of the table lessons.
-XML-VIEW-3 now supplies the separate retained-document tree viewer, including
-structural inspection and independent branch selection. `tree.xml` is migrated;
-`table.xml` and `table.xsl` remain partially migrated pending XML-VIEW-4 in
+The **multi-format table view**, XML-VIEW-3 retained-document tree and
+XML-VIEW-4 table inspector now cover the reviewed teaching points. `tree.xml`,
+`table.xml` and `table.xsl` are mapped to their native replacements in
 [`legacy-demo-cases.json`](legacy-demo-cases.json). The four legacy source
-fingerprints, including `tree.xsl`, remain unchanged.
+fingerprints, including `tree.xsl`, remain unchanged. This mapping describes
+working replacement lessons, not execution of legacy scripts or sort scaffolds.
 
 Execution follows the XML-VIEW checkitems in
 [`docs/todo.md`](../../../docs/todo.md). The legacy files are functional
@@ -224,7 +224,7 @@ retained common CEM nodes; no external-format decoding is introduced.
 
 This closes the native helper prerequisite. The audit itself added no demo
 cards or browser behavior. The standalone tree implementation follows below;
-focused table teaching points remain XML-VIEW-4.
+the focused table teaching points are implemented under XML-VIEW-4 below.
 
 ### XML-VIEW-3 — standalone tree teaching points
 
@@ -361,9 +361,53 @@ Storybook and standalone fixture verification. Check desktop two-card layout
 and mobile containment. Update the inventories and Nx cache inputs as actual
 fixtures arrive; only then close the remaining partial table classifications.
 
+#### XML-VIEW-4 focused inspector — implemented
+
+[`table-inspector.html`](../demo/table-inspector.html) separates four lessons:
+first-seen columns from heterogeneous rows, text-only rows, independent nested
+tables, and multiple selection through stable sorting. The existing
+[`data-table-view.cemt`](../demo/data-table-view.cemt) enables this presentation
+with `inspector="true"`. Row discovery and cell projection remain shared; the
+original CEMT and XSLT format-comparison examples retain their default controls
+and pass the same native semantic-DOM parity tests.
+
+Each inspector table has a caption, column-scoped headings, Text/Number
+comparison, named ascending/descending buttons and an active heading's
+`aria-sort`. Source order removes that active sort. Equal keys remain stable;
+missing or invalid numeric keys stay last in either direction. These are
+existing `seq:sorted` semantics, with no browser-local sorting or new native
+viewer functions. Namespace declarations remain excluded from data columns.
+
+Row checkbox slices use the shared opaque `data:node_key` provenance key, never
+a display index. Each table's sort/comparison slices use its first original
+member's key, before sorting; siblings and nested collections therefore keep
+independent controls even when their display labels match. Instances own their
+slice state, including two instances with identical source bytes. Source event
+revisions invalidate selections on edits and resets, including identical-source
+reloads. Captions count only their own rows; selected text and checked controls
+make the state visible without color. Collapsing keeps selection intact.
+
+The browser probe also exposed a shared patch bug: a dirty checkbox can be
+reused for a different row before its previous selection render commits, while
+both plans omit `checked`. Merely patching changed attribute presence leaves
+the previous live value on the new row. Patch application and full render-plan
+reconciliation now apply the authored checked state when a checkbox/radio's
+slice binding changes. The comparison uses retained authored attributes even
+after the adapter consumes directive attributes. Unchanged bindings keep user
+edits, focus and unrelated controls. No new binding API or demo-local behavior
+is introduced.
+
+[`table_inspector.rs`](../../cem_ql/tests/table_inspector.rs) proves the authored
+mode over all four imports, union columns, mixed and text-only content, source
+selection, stable ties, independent nested controls, source resets and parse
+recovery. External decoding stays exclusively in CEM-ML import. Browser stories
+add dirty-input reconciliation, actual editing, captions, active sort headings,
+and sibling/identical-source instance isolation. The standalone/source-loaded
+inventory exercises Space on checkboxes and Enter on a sort button.
+
 ## Review verification
 
-The case-map unit guard keeps this review marked `tree-view-implemented-table-lessons-open`,
+The case-map unit guard keeps this review marked `tree-and-table-lessons-implemented`,
 records legacy sorting as `scaffold-only`, and resolves completed and pending
 XML-VIEW items to this document and the TODO checklist. The review document is a unit-test
 cache input. CI uses the checked-in audit, not a developer's legacy checkout.
@@ -408,4 +452,15 @@ Space/Enter disclosure, independent selection/deselection, same-source reload,
 parse recovery, correct initial source choice and preserved CEM-ML indentation.
 The page fits two cards at 1440px and remains contained at 390px and 320px.
 The browser network audit confirms that the inspected stylesheet PI is not
-requested. XML-VIEW-4 remains the next open viewer fixture.
+requested. The XML-VIEW-4 implementation follows that checkpoint.
+
+XML-VIEW-4 verification 2026-09-20: all 18 native cases pass across
+`table_inspector`, `data_view_templates` and `xslt_data_view`, preserving the
+default CEMT/XSLT semantic-DOM comparison. All 401 unit checks and 13 focused
+Storybook cases pass, including four inspector cases and the existing table
+and tree viewers. The inspector stories also pass after adding identical-source
+instance isolation. Build, lint and typecheck pass through Nx. The full gallery
+verifier passes 27 standalone pages and 33 source-loaded documents. The page
+fits two cards at 1440px and stays contained at 390px and 320px. All reviewed
+XML-VIEW teaching-point fixtures are now complete; the separate browser startup
+wait and repeated-mount stylesheet lifecycle work remains in `docs/todo.md`.

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Table inspector lessons — CEM demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav">
+    <a href="../index.html">cem-element demo</a>
+    <h1>Table inspector lessons</h1>
+</nav>
+<main>
+    <section>
+        <h2>Inspect rows without losing source identity</h2>
+        <p>Repeated sibling names become tables. Columns come from every row in
+            first-seen order: attributes use <code>@name</code>, direct text uses
+            <code>#text</code>, and child elements keep their names. Namespace
+            URIs distinguish names; namespace declarations are excluded from data
+            columns. <code>∅</code> means missing and <code>""</code> means present but empty.</p>
+        <p>Each table has its own Text/Number comparison and ↑/↓ sort buttons.
+            Missing or invalid numeric keys stay last in both directions; equal
+            keys keep source order. The active heading exposes its sort direction
+            to assistive technology. Source order restores the original order.</p>
+        <p>Select several rows with their visible checkboxes. Selection stays
+            attached to native source keys through sorting, including in nested
+            tables. It does not follow screen positions or spread to siblings or
+            other examples. Tab and Space operate checkboxes; Enter activates sort
+            buttons, and Enter/Space toggles a disclosure summary.</p>
+        <p>Edit a source and Tab out, or use Reset source (↺). Every source change
+            or reset clears selection, even for identical text. Invalid source
+            replaces the tables with an error; repair restores the view.
+            These small examples use XML, but the same inspector consumes XML,
+            JSON, YAML and CSV after CEM-ML imports a retained CEM tree. The viewer
+            never builds JavaScript document objects.</p>
+        <p>This is an explicit table presentation. Use the tree viewer for full
+            structural inspection. Import is bounded to 32 KiB, 64 levels and
+            4096 events/values; host and enclosing scope budgets also apply.</p>
+        <p>The reusable <a href="./data-table-view.cemt">table template</a> enables
+            these controls with <code>inspector="true"</code>. The format-comparison
+            and XSLT examples keep their existing single-selection controls.</p>
+        <cem-element tag="cem-table-inspector" src="./data-table-view.cemt"></cem-element>
+        <h3>See also</h3>
+        <p><a href="./data-table.html">Multi-format tables and XSLT comparison</a> ·
+            <a href="./data-tree.html">Retained document trees</a> ·
+            <a href="./xpath-sort.html">Stable sorting in XPath and CEM-QL</a></p>
+    </section>
+
+    <cem-demo-element legend="1. Columns from every row"
+        description="The second row adds a column; distinguish an empty first-row attribute from a missing cell">
+        <template>
+<cem-table-inspector format="xml" inspector="true">
+&lt;basket&gt;
+  &lt;row early=""&gt;🍒&lt;/row&gt;
+  &lt;row later="ripe"&gt;🍋&lt;/row&gt;
+&lt;/basket&gt;
+</cem-table-inspector>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="2. Text-only rows stay visible"
+        description="Names remain in the #text column; sort them without adding artificial source attributes">
+        <template>
+<cem-table-inspector format="xml" inspector="true">
+&lt;pokemon&gt;
+  &lt;name&gt;ivysaur&lt;/name&gt;
+  &lt;name&gt;venusaur&lt;/name&gt;
+&lt;/pokemon&gt;
+</cem-table-inspector>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="3. Nested tables keep their own state"
+        description="Sort or select inside the first tag group; the second group and outer rows stay independent">
+        <template>
+<cem-table-inspector format="xml" inspector="true">
+&lt;basket&gt;
+  &lt;row&gt;&lt;tags&gt;&lt;tag&gt;red&lt;/tag&gt;&lt;tag&gt;sweet&lt;/tag&gt;&lt;/tags&gt;&lt;/row&gt;
+  &lt;row&gt;&lt;tags&gt;&lt;tag&gt;yellow&lt;/tag&gt;&lt;tag&gt;tart&lt;/tag&gt;&lt;/tags&gt;&lt;/row&gt;
+&lt;/basket&gt;
+</cem-table-inspector>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="4. Multiple selections survive sorting"
+        description="Select Lemon and Apple, choose Number, then sort @qty both ways; equal 2/02 keys stay stable and the missing key stays last">
+        <template>
+<cem-table-inspector format="xml" inspector="true">
+&lt;fruit&gt;
+  &lt;row qty="2"&gt;Cherry 🍒&lt;/row&gt;
+  &lt;row qty="10"&gt;Lemon 🍋&lt;/row&gt;
+  &lt;row qty="02"&gt;Apple 🍏&lt;/row&gt;
+  &lt;row&gt;Banana 🍌&lt;/row&gt;
+&lt;/fruit&gt;
+</cem-table-inspector>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

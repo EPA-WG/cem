@@ -1,4 +1,5 @@
 {attribute @name=format | xml}
+{attribute @name=inspector | false}
 {style |```
     article { min-width: 0; }
     label { display: block; margin-block: .5rem; }
@@ -11,6 +12,10 @@
     th, td { padding: .35rem; border: 1px solid var(--cem-table-border, #999);
         text-align: start; overflow-wrap: anywhere; }
     .value { white-space: pre-wrap; }
+    caption { text-align: start; overflow-wrap: anywhere; }
+    caption .toolbar { margin-block: .5rem; }
+    th button { padding: .15rem .35rem; margin-inline: .1rem; }
+    td label { margin: 0; }
     tr[aria-selected=true] { background: var(--cem-table-selected, #d3f5dd); color: #18251c; }
     summary { cursor: pointer; overflow-wrap: anywhere; }
     details { margin-block: .5rem; }
@@ -25,6 +30,8 @@
             {cem:variable @name=column @select='datadom.slices.column ?? ""'}
             {cem:variable @name=direction @select='datadom.slices.direction ?? "ascending"'}
             {cem:variable @name=mode @select='datadom.slices.mode ?? "text"'}
+            {cem:variable @name=inspection @select='(datadom.attributes.inspector ?? "false") == "true"'}
+            {cem:variable @name=sourceRevision @select='"edit-" + num:string(datadom.eventPayloads.source.revision ?? 0)'}
             {cem:variable @name=selected @select='datadom.slices.selected ?? ""'}
             {cem-data @name=document @select=source @type="{$format}"}
             {cem:variable @name=columns @select='
@@ -48,6 +55,7 @@
                 {div @class=toolbar |
                     {button @type=button @aria-label="Reset source" @title="Reset source"
                         @slice=source @slice-event=click @value="{$initial}" | ↺}
+                    {cem:if @test='!inspection' |
                     {label | Sort column
                         {select @aria-label="Sort column" @slice=column @slice-event=change @value="{$column}" |
                             {option @value="" | Source order}
@@ -57,7 +65,7 @@
                             {option @value=text | A–Z}{option @value=number | 1–9}}}
                     {label | Direction
                         {select @aria-label="Direction" @slice=direction @slice-event=change @value="{$direction}" |
-                            {option @value=ascending | ↑}{option @value=descending | ↓}}}}
+                            {option @value=ascending | ↑}{option @value=descending | ↓}}}}}
                 {cem:choose |
                     {cem:when @test='document.error != ""' | {p @role=alert | ⚠ {$document.error}}}
                     {cem:otherwise |
@@ -123,6 +131,7 @@
     {template @name=table @visibility=public |
         {param @name=rows}{param @name=key}
         {param @name=column}{param @name=direction}{param @name=mode}{param @name=selected}
+        {param @name=inspection}{param @name=sourceRevision}
         {body |
             {cem:variable @name=records @select='
                 for row in rows {
@@ -151,12 +160,27 @@
                     }
                 }'}
             {cem:variable @name=headings @select='seq:union(records.cells.key, ())'}
+            {cem:variable @name=tableKey @select='data:node_key(seq:first(rows)) ?? key'}
+            {cem:variable @name=sortSlice @select='"table.sort." + tableKey'}
+            {cem:variable @name=modeSlice @select='"table.mode." + tableKey'}
+            {cem:variable @name=sort @select='seq:first(seq:where(record:entries(datadom.slices),
+                fn(entry) => entry.key == sortSlice)).value ?? ""'}
+            {cem:variable @name=sortColumn @select='if inspection {
+                seq:first(seq:where(headings, fn(heading) =>
+                    sort == "ascending:" + heading || sort == "descending:" + heading)) ?? ""
+                } else { column }'}
+            {cem:variable @name=sortDirection @select='if inspection {
+                if str:starts_with(sort, "descending:") { "descending" } else { "ascending" }
+                } else { direction }'}
+            {cem:variable @name=sortMode @select='if inspection {
+                seq:first(seq:where(record:entries(datadom.slices), fn(entry) => entry.key == modeSlice)).value ?? "text"
+                } else { mode }'}
             {cem:variable @name=ordered @select='
-                if column == "" { records } else {
+                if sortColumn == "" { records } else {
                     seq:sorted(records, fn(record) =>
-                        if seq:count(seq:where(record.cells, fn(cell) => cell.key == column)) == 0 { () }
-                        else { str:concat(seq:where(record.cells, fn(cell) => cell.key == column).value, " ") },
-                        direction, mode)
+                        if seq:count(seq:where(record.cells, fn(cell) => cell.key == sortColumn)) == 0 { () }
+                        else { str:concat(seq:where(record.cells, fn(cell) => cell.key == sortColumn).value, " ") },
+                        sortDirection, sortMode)
                 }'}
             {details @open=open |
                 {summary | 🧮 {$key} · {$seq:count(rows)} rows}
@@ -165,15 +189,57 @@
                     {cem:otherwise |
                         {div @class=table-scroll @tabindex=0 @role=region @aria-label="{$key}" |
                             {table @aria-label="{$key}" |
+                                {cem:if @test=inspection |
+                                    {caption | {$key} · {output @aria-label="Selected rows in {$key}" | {$seq:count(
+                                        seq:where(rows, fn(row) => seq:any(record:entries(datadom.slices),
+                                            fn(entry) => entry.key == "row." + data:node_key(row)
+                                                && entry.value == sourceRevision)))}} selected
+                                        {div @class=toolbar |
+                                            {label | Compare
+                                                {select @aria-label="Compare {$key}" @slice="{$modeSlice}" @slice-event=change |
+                                                    {option @value=text |
+                                                        {cem:if @test='sortMode == "text"' | {attribute @name=selected}}Text}
+                                                    {option @value=number |
+                                                        {cem:if @test='sortMode == "number"' | {attribute @name=selected}}Number}}}
+                                            {button @type=button @slice="{$sortSlice}" @slice-event=click @value=""
+                                                @aria-label="Restore source order in {$key}" | Source order}}}}
                                 {thead | {tr | {th @scope=col | ✓}
-                                    {cem:for-each @select=headings @as=heading | {th @scope=col | {$heading}}}}}
+                                    {cem:for-each @select=headings @as=heading |
+                                        {cem:choose |
+                                            {cem:when @test='!inspection' | {th @scope=col | {$heading}}}
+                                            {cem:otherwise |
+                                        {th @scope=col |
+                                            {cem:if @test='inspection && heading == sortColumn' |
+                                                {attribute @name=aria-sort | {$sortDirection}}}
+                                            {$heading}
+                                            {cem:if @test=inspection |
+                                                {button @type=button @slice="{$sortSlice}" @slice-event=click
+                                                    @value='{"ascending:" + heading}'
+                                                    @aria-label="Sort {$heading} ascending in {$key}" | ↑}
+                                                {button @type=button @slice="{$sortSlice}" @slice-event=click
+                                                    @value='{"descending:" + heading}'
+                                                    @aria-label="Sort {$heading} descending in {$key}" | ↓}}}}}}}}
                                 {tbody |
                                     {cem:for-each @select=ordered @as=record |
-                                        {tr @aria-selected="{selected == record.source.id}" |
-                                            {td | {button @type=button @slice=selected @slice-event=click
-                                                @value="{$record.source.id}" @aria-label="Select source line {$record.source.line}"
-                                                @aria-pressed="{selected == record.source.id}" |
-                                                {cem:choose | {cem:when @test='selected == record.source.id' | ✓}{cem:otherwise | ○}}}}
+                                        {cem:variable @name=rowSlice @select='"row." + data:node_key(record.source)'}
+                                        {cem:variable @name=isSelected @select='if inspection {
+                                            seq:any(record:entries(datadom.slices), fn(entry) =>
+                                                entry.key == rowSlice && entry.value == sourceRevision)
+                                            } else { selected == record.source.id }'}
+                                        {tr @aria-selected="{$isSelected}" |
+                                            {td | {cem:choose |
+                                                {cem:when @test=inspection |
+                                                    {label |
+                                                        {input @type=checkbox @slice="{$rowSlice}" @slice-event=change
+                                                            @value="{$sourceRevision}"
+                                                            @aria-label="Select source line {$record.source.line} in {$key}" |
+                                                            {cem:if @test=isSelected | {attribute @name=checked}}}
+                                                        {$if isSelected { "Selected" } else { "Select" }}}}
+                                                {cem:otherwise |
+                                                    {button @type=button @slice=selected @slice-event=click
+                                                        @value="{$record.source.id}" @aria-label="Select source line {$record.source.line}"
+                                                        @aria-pressed="{selected == record.source.id}" |
+                                                        {cem:choose | {cem:when @test='selected == record.source.id' | ✓}{cem:otherwise | ○}}}}}}
                                             {cem:for-each @select=headings @as=heading |
                                                 {cem:variable @name=cells @select='seq:where(record.cells, fn(cell) => cell.key == heading)'}
                                                 {td | {cem:choose |

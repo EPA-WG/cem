@@ -1621,12 +1621,37 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         Native, source-loaded and standalone checks cover repair, independent
         selection, keyboard disclosure, relative URLs and inert processing
         instructions. Desktop two-card and 390px/320px containment checks pass.
-        XML-VIEW-4's focused table-inspector lessons are next.
-- [ ] Fixture XML-VIEW-4: add the native table-inspector cases after XML-VIEW-1
+        XML-VIEW-4's focused table-inspector lessons follow below.
+- [x] Fixture XML-VIEW-4: add the native table-inspector cases after XML-VIEW-1
       and XML-VIEW-2. Union columns across heterogeneous sibling rows, retain
       text-only rows and nested groups, and show real ascending/descending
       sorting with selection keyed to source identity. Verify native results,
       standalone/source-loaded interaction, compact layout and inventory links.
+  - [x] Fixture XML-VIEW-4-NATIVE: prove the opt-in CEMT inspector over common
+        retained nodes: first-seen heterogeneous columns, text-only rows, nested
+        groups, source-keyed multiple selection, stable text/numeric sorting and
+        independent table state. Keep the existing CEMT/XSLT comparison behavior.
+  - [x] Fixture XML-VIEW-4-CONTROLS: add captions, scoped headings, named sort
+        buttons with active `aria-sort`, visible checkbox selection and source
+        revision resets using existing declarative slice bindings.
+  - [x] Fixture XML-VIEW-4-REBIND: reproduce a dirty checkbox reused for a
+        different slice before its prior selection render commits. Patch and
+        full reconciliation must apply the new binding's checked state, preserve
+        focus and leave unchanged bindings and unrelated dirty controls alone.
+  - [x] Fixture XML-VIEW-4-GALLERY: isolate the four inspector lessons on a
+        linked page; verify source contracts, source-loaded stories, standalone
+        keyboard interaction, sibling/instance isolation, 1440px two-card layout
+        and 390px/320px containment. Update migration evidence and Nx inputs.
+        Completed 2026-09-20: four lessons use the shared retained CEM table
+        projection with opt-in inspector controls. Native source keys preserve
+        multiple selections through stable per-table sorting; source revisions
+        clear them on edits and identical-source reloads. A shared patch and
+        reconciliation fix clears dirty checkbox state when its binding changes.
+        All 18 focused native tests and 13 viewer stories pass, including the
+        existing CEMT/XSLT parity and tree-viewer regressions. The gallery passes
+        27 standalone pages and 33 source-loaded documents. Desktop two-card
+        and 390px/320px containment checks, all 401 unit checks, build, lint
+        and typecheck pass.
 - [ ] Stabilize browser startup waits under parallel Storybook load: the
       unchanged scoped-CSS and legacy icon-link stories intermittently exhaust
       their short frame/two-second waits, although isolated and earlier full

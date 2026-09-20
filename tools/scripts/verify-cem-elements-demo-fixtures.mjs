@@ -492,6 +492,69 @@ const hexRowSample = sampleContract('9. Horizontal row with a current page', [
     computedStyle('nav a[aria-current="page"] .hex-label', 'transform', 'matrix(1, 0, 0, 1, 0, 0)'),
 ]);
 
+const tableInspectorSamples = [
+    sampleContract('1. Columns from every row', [
+        text('table caption', 'document/row'),
+        normalizedText('table > tbody > tr:first-child > td:nth-child(2)', '""'),
+        normalizedText('table > tbody > tr:first-child > td:last-child', '∅'),
+        normalizedText('table > tbody > tr:last-child > td:nth-child(2)', '∅'),
+        normalizedText('table > tbody > tr:last-child > td:last-child', 'ripe'),
+        countExactly('th[scope="col"]', 4),
+    ]),
+    sampleContract('2. Text-only rows stay visible', [
+        normalizedText('table > tbody > tr:first-child > td:last-child', 'ivysaur'),
+        normalizedText('table > tbody > tr:last-child > td:last-child', 'venusaur'),
+        pressThenProperty('button[aria-label="Sort #text descending in document/name"]', 'Enter',
+            'th[aria-sort]', 'ariaSort', 'descending'),
+        normalizedText('table > tbody > tr:first-child > td:last-child', 'venusaur'),
+        normalizedText('table > tbody > tr:last-child > td:last-child', 'ivysaur'),
+    ]),
+    sampleContract('3. Nested tables keep their own state', [
+        countExactly('table', 3),
+        checkThenText('table[aria-label="document/row"] > tbody > tr:first-child table > tbody > tr:first-child input',
+            'table[aria-label="document/row"] > tbody > tr:first-child table caption output', '1'),
+        clickThenText('table[aria-label="document/row"] > tbody > tr:first-child button[aria-label="Sort #text descending in tags/tag"]',
+            'table[aria-label="document/row"] > tbody > tr:first-child table > tbody > tr:first-child > td:last-child', 'sweet'),
+        normalizedText('table[aria-label="document/row"] > tbody > tr:last-child table > tbody > tr:first-child > td:last-child', 'yellow'),
+        normalizedText('table[aria-label="document/row"] > tbody > tr:last-child table caption output', '0'),
+        propertyEquals('table[aria-label="document/row"] > tbody > tr:first-child table > tbody > tr:last-child input', 'checked', true),
+        countExactly('table[aria-label="document/row"] > tbody > tr[aria-selected="true"]', 0),
+    ]),
+    sampleContract('4. Multiple selections survive sorting', [
+        pressThenProperty('table > tbody > tr:nth-child(2) input', 'Space',
+            'table > tbody > tr:nth-child(2) input', 'checked', true),
+        normalizedText('caption output', '1'),
+        pressThenProperty('table > tbody > tr:nth-child(3) input', 'Space',
+            'table > tbody > tr:nth-child(3) input', 'checked', true),
+        normalizedText('caption output', '2'),
+        clickThenText('button[aria-label="Sort @qty ascending in document/row"]',
+            'table > tbody > tr:first-child > td:last-child', 'Apple 🍏'),
+        selectThenText('select[aria-label="Compare document/row"]', 'number',
+            'table > tbody > tr:first-child > td:last-child', 'Cherry 🍒'),
+        normalizedText('table > tbody > tr:nth-child(2) > td:last-child', 'Apple 🍏'),
+        attributeEquals('th[aria-sort]', 'aria-sort', 'ascending'),
+        propertyEquals('table > tbody > tr:nth-child(2) input', 'checked', true),
+        propertyEquals('table > tbody > tr:nth-child(3) input', 'checked', true),
+        clickThenText('button[aria-label="Sort @qty descending in document/row"]',
+            'table > tbody > tr:first-child > td:last-child', 'Lemon 🍋'),
+        normalizedText('table > tbody > tr:nth-child(2) > td:last-child', 'Cherry 🍒'),
+        normalizedText('table > tbody > tr:nth-child(3) > td:last-child', 'Apple 🍏'),
+        normalizedText('table > tbody > tr:last-child > td:last-child', 'Banana 🍌'),
+        normalizedText('caption output', '2'),
+        countExactly('input:checked', 2),
+        clickThenText('button[aria-label="Restore source order in document/row"]',
+            'table > tbody > tr:first-child > td:last-child', 'Cherry 🍒'),
+        countExactly('th[aria-sort]', 0),
+        countExactly('input:checked', 2),
+        clickThenText('button[aria-label="Reset source"]', 'caption output', '0'),
+        countExactly('input:checked', 0),
+        fillBlurThenText('textarea', '<broken>', '[role="alert"]', 'XML'),
+        countExactly('table', 0),
+        clickThenText('button[aria-label="Reset source"]', 'table > tbody > tr:first-child > td:last-child', 'Cherry 🍒'),
+        countExactly('input:checked', 0),
+    ]),
+];
+
 const dataTreeSamples = [
     sampleContract('1. XML branches: independent selection', [
         text('pre[aria-label="CEM-ML document"]', '{ast'),
@@ -551,6 +614,11 @@ const dataTreeSamples = [
 ];
 
 const fixtureSpecs = [
+    {
+        path: '/packages/cem-elements/demo/table-inspector.html',
+        checks: tableInspectorSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
     {
         path: '/packages/cem-elements/demo/data-tree.html',
         checks: dataTreeSamples.flatMap((sample) => sample.checks.map((check) =>
@@ -1523,6 +1591,10 @@ const fixtureSpecs = [
 ];
 
 const sourceDocumentSpecs = [
+    {
+        path: '/packages/cem-elements/demo/table-inspector.html',
+        samples: tableInspectorSamples,
+    },
     { path: '/packages/cem-elements/demo/data-tree.html', samples: dataTreeSamples },
     { path: '/packages/cem-elements/demo/data-table.html', samples: dataTableSamples },
     {

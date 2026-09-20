@@ -1973,6 +1973,7 @@ export function applyPatchFramesToRange(
         resolved.push({ operation, target });
     }
     const focus = captureRenderRangeFocus(bounds);
+    const previousCheckboxBindings = new Map<Element, string>();
     try {
         for (const { operation, target } of resolved) {
             if (operation.op === 'setText') {
@@ -1980,6 +1981,10 @@ export function applyPatchFramesToRange(
             } else if (operation.op === 'setAttribute') {
                 const element = target as Element;
                 const attributes = renderedAttributeValues.get(element) ?? authoredAttributes(element);
+                if (operation.name === 'slice' && !previousCheckboxBindings.has(element)) {
+                    const previous = attributes.get('slice');
+                    if (previous !== undefined) previousCheckboxBindings.set(element, previous);
+                }
                 if (operation.value === null) {
                     attributes.delete(operation.name);
                     const currentAttribute = renderPlanAttributeNode(element, operation.name);
@@ -2009,6 +2014,9 @@ export function applyPatchFramesToRange(
                     target,
                 );
             }
+        }
+        for (const [element, previousSlice] of previousCheckboxBindings) {
+            syncReboundCheckedControl(element, previousSlice, renderedAttributeValues.get(element));
         }
         if (parsed.ops.length > 0) {
             reconcileRenderedAttributes(bounds, options);
@@ -2439,6 +2447,7 @@ function mergeRenderPlanNode(
     }
 
     const element = match.first as Element;
+    const previousSlice = renderedAttributeValues.get(element)?.get('slice');
     renderedAttributeValues.set(
         element,
         new Map(desired.attributes.map((attribute) => [attribute.name, attribute.value])),
@@ -2455,6 +2464,7 @@ function mergeRenderPlanNode(
             ? (attribute) => preserveElementAttribute(element, desiredElement, attribute)
             : undefined,
     );
+    syncReboundCheckedControl(element, previousSlice, renderedAttributeValues.get(element));
     if (desiredElement && preserveElementChildren?.(element, desiredElement)) {
         return;
     }
@@ -2741,6 +2751,20 @@ function syncRenderedCheckedPresence(element: Element, checked: boolean): void {
     if (element.namespaceURI === XHTML_NAMESPACE && element.localName === 'input') {
         (element as HTMLInputElement).checked = checked;
     }
+}
+
+// Dirty input state belongs to its logical binding. A reused DOM slot may now
+// represent another row even when neither plan authors a checked attribute.
+function syncReboundCheckedControl(
+    element: Element,
+    previousSlice: string | undefined,
+    attributes: ReadonlyMap<string, string> | undefined,
+): void {
+    const nextSlice = attributes?.get('slice');
+    if (previousSlice === undefined || nextSlice === undefined || previousSlice === nextSlice) return;
+    if (element.namespaceURI !== XHTML_NAMESPACE || element.localName !== 'input') return;
+    const input = element as HTMLInputElement;
+    if (input.type === 'checkbox' || input.type === 'radio') input.checked = attributes?.has('checked') ?? false;
 }
 
 function renderPlanAttributeValue(element: Element, name: string): string | null {

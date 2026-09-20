@@ -1308,20 +1308,20 @@
       "sha256": "acbed20c59be03701503731da38f866d1730292642ce6e2886ffcd67219b0ac7",
       "cases": [],
       "commentedLegends": [],
-      "kind": "partially-migrated-xml-viewer",
+      "kind": "migrated-xml-viewer",
       "unwrapped": [],
-      "currentFiles": ["data-table.html", "data-table-view.cemt"],
-      "note": "Native multi-format tables restore row text and grouping and add working sorting. The separate retained-tree viewer now covers structural inspection and independent branch selection; focused table lessons remain XML-VIEW-4. See standaloneViewerReview."
+      "currentFiles": ["data-table.html", "table-inspector.html", "data-table-view.cemt"],
+      "note": "Native multi-format tables restore row text and grouping and add working sorting. The separate retained-tree viewer covers structural inspection and branch selection; XML-VIEW-4 adds focused column, text, nesting and persistent multiple-selection lessons. See standaloneViewerReview."
     },
     {
       "file": "table.xsl",
       "sha256": "893045c9b259ef398a0517b56f583fbc5f5371a37d4f2e68af24bb40da0c3863",
       "cases": [],
       "commentedLegends": [],
-      "kind": "partially-migrated-xml-viewer",
+      "kind": "migrated-xml-viewer",
       "unwrapped": [],
-      "currentFiles": ["data-table.html", "data-table-view.cemt"],
-      "note": "Legacy grouping, branch selection and collapse use first-row headers and hidden checkboxes. Sorting has a placeholder key and annotations but no local handler. MSXML JScript/EXSLT machinery is outside bounded XSLT; standaloneViewerReview records the native migration prerequisites."
+      "currentFiles": ["data-table.html", "table-inspector.html", "data-table-view.cemt"],
+      "note": "XML-VIEW-4 replaces the legacy first-row headers, hidden checkboxes and placeholder sort controls with first-seen column union, native disclosures, visible multiple selection and working per-table sorting. MSXML JScript/EXSLT execution is not part of this migration; see standaloneViewerReview."
     },
     {
       "file": "template.xsl",
@@ -1383,7 +1383,7 @@
   ],
   "standaloneViewerReview": {
     "document": "packages/cem-elements/docs/xml-viewer-migration.md",
-    "status": "tree-view-implemented-table-lessons-open",
+    "status": "tree-and-table-lessons-implemented",
     "tableDemo": "data-table.html",
     "tableLegends": [
       "1. XML table: attributes and text",
@@ -1391,6 +1391,13 @@
       "3. YAML table: nested collections",
       "4. JSON table: empty and missing",
       "5. Presentation aspects: tree and IP-filter form"
+    ],
+    "inspectorDemo": "table-inspector.html",
+    "inspectorLegends": [
+      "1. Columns from every row",
+      "2. Text-only rows stay visible",
+      "3. Nested tables keep their own state",
+      "4. Multiple selections survive sorting"
     ],
     "treeDemo": "data-tree.html",
     "treeLegends": [
@@ -1407,8 +1414,8 @@
     ],
     "sorting": "scaffold-only",
     "selection": "independent-branch-checkboxes",
-    "completedFixtures": ["XML-VIEW-1", "XML-VIEW-2", "XML-VIEW-3"],
-    "openFixtures": ["XML-VIEW-4"]
+    "completedFixtures": ["XML-VIEW-1", "XML-VIEW-2", "XML-VIEW-3", "XML-VIEW-4"],
+    "openFixtures": []
   },
   "evidence": {
     "gallery": "tools/scripts/verify-cem-elements-demo-fixtures.mjs",
@@ -1421,6 +1428,7 @@
       "packages/cem_ql/tests/data_view_templates.rs",
       "packages/cem_ql/tests/tree_inspection_boundary.rs",
       "packages/cem_ql/tests/data_tree_view.rs",
+      "packages/cem_ql/tests/table_inspector.rs",
       "packages/cem_ml/tests/module_url_demo.rs"
     ],
     "wasm": [
