@@ -668,9 +668,9 @@ function hostFunctionRows(): ParityRow[] {
         {
             id: 'function-dom-children',
             sourceCategory: 'function/host',
-            query: 'dom:children(cemml:parse("{main | {p | Hi}}"))',
+            query: 'dom:children(data:read("<main><p>Hi</p></main>", "xml").root).name',
             bindings: {},
-            expectedItems: [],
+            expectedItems: [string('main')],
             expectedDiagnosticCodes: [],
         },
         {
@@ -684,11 +684,20 @@ function hostFunctionRows(): ParityRow[] {
         {
             id: 'function-dom-parent',
             sourceCategory: 'function/host',
-            query: 'dom:parent(cemml:parse("{main | {p | Hi}}"))',
+            query: 'dom:parent(data:read("<main><p>Hi</p></main>", "xml").root.children.children).name',
             bindings: {},
-            expectedItems: [],
+            expectedItems: [string('main')],
             expectedDiagnosticCodes: [],
         },
+        ...['children', 'parent'].map((operation): ParityRow => ({
+            id: `function-dom-${operation}-opaque-node-rejected`,
+            sourceCategory: 'function/host',
+            query: `dom:${operation}(cemml:parse("{main | {p | Hi}}"))`,
+            bindings: {},
+            expectedItems: [],
+            expectedDiagnosticCodes: evalDiagnosticCodes('cem.ql.type_error'),
+            expectedErrorKind: 'eval',
+        })),
         {
             id: 'function-dom-attribute',
             sourceCategory: 'function/host',

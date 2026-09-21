@@ -2049,19 +2049,53 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         and the original live/inert nodes.
   - [x] Fixture: compare all three real source-loaded cell-overrides previews
         with their authored DOM serialization and retain working live examples.
-- [ ] Fixture: diagnose the standalone local-storage JSON sample's missing
+- [x] Fixture: diagnose the standalone local-storage JSON sample's missing
       list in the full gallery verifier. The 2026-09-21 run advanced past the
       repaired table selectors, then timed out on
       `cem-demo-element[legend="3e. JSON validation"] ul` expecting `b : B`.
       Isolate this from startup and stylesheet ownership before changing runtime
       behavior; preserve the CEM-ML import boundary for stored JSON.
-- [ ] Fixture: reconcile the broad Storybook CEM-QL boundary/parity cases with
+      Diagnosed 2026-09-21 in standalone and source-loaded pages after explicit
+      declaration/render settlement: the slice already contains the parsed
+      record, but inserting that record in the summary reports
+      `cem.ql.render.expression_type`. The invalid render is discarded, leaving
+      the initial null output and no list. This is independent of startup and
+      stylesheet ownership; the native renderer reproduces record rejection.
+  - [x] Reproduce the JSON record insertion failure after browser resource
+        settlement; document native storage read/write migration options before
+        changing its public two-way binding contract.
+- [ ] Migrate JSON local-storage and both JSON samples to native CEM trees,
+      removing JavaScript document parsing and record mutation. Native reads
+      follow shared CEM-ML import. Pending write-back decision: preserve two-way
+      binding with native JSON export (recommended), or make the JSON view
+      read-only and write through a text slice. The diagnosis, proposed contract
+      and tradeoffs are in [browser stabilization review](browser-stabilization-review.tmp.md#pending-decision-native-json-storage-write-back).
+      Cover null versus removal, invalid sources, lexical/order retention,
+      native edits, stale completion, worker fallback, reconnect/disposal and
+      standalone/source-loaded interactions before closing the remaining failure.
+- [x] Fixture: reconcile the broad Storybook CEM-QL boundary/parity cases with
       native node values. The 2026-09-21 full run reports one diagnostic when
       `CemQlDataDocumentBoundary` inserts a slot bucket of JavaScript records,
       and two `cem.ql.type_error` diagnostics for the Rust-first table's
       `dom:children(cemml:parse(...))` case. Check the supported node/import
       contracts before updating the old empty-output expectations; add native
       reproductions first if runtime behavior needs repair.
+      Completed 2026-09-21: explicit slot text renders and record insertion is
+      rejected consistently in native/browser fixtures. Children/parent cases
+      navigate imported CEM nodes and reject legacy opaque node identifiers.
+      Both focused native fixtures pass. The full browser suite passes 188/189,
+      leaving only the diagnosed storage migration failure; typecheck/lint pass
+      with two existing lint warnings. No runtime semantics changed.
+  - [x] Fixture: align native and browser structured-data cases on explicit
+        slot text selection and rejection of direct record insertion.
+  - [x] Fixture: exercise children/parent navigation on imported native nodes
+        and assert typed rejection of opaque legacy node identifiers.
+- [ ] Audit the remaining `dom:descendants` and `dom:attribute` host stubs:
+      their default evaluator branches still return an empty sequence, and the
+      old parity rows use opaque `cemml:parse` identifiers. Define native node
+      behavior, add native fixtures, and replace empty-output coverage when
+      implementing those capabilities; do not count these rows as native DOM
+      function parity.
 - [x] Fixture: add an independent anonymous whole-file XSLT example, proving
       the existing bounded native transform path before browser wiring and
       testing rendered payload, disclosure interaction, and source resolution.

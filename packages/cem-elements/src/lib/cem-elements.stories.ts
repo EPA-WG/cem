@@ -1689,35 +1689,48 @@ export const CemQlDataDocumentBoundary: Story = {
         assertEqual(absent.diagnostics.length, 0, 'absent selection coalesces without diagnostics');
         assertEqual(textOfNodes(absent.nodes), 'Anonymous', 'absent selection falls back through `??`');
 
-        const structured = await renderCemMlTemplate(
-            '{button | {$datadom.dataset.variant}-{$datadom.payload.text}-{$datadom.slots.leading}}',
-            {
-                datadom: {
-                    attributes: {},
-                    dataset: { variant: 'compact' },
-                    payload: {
-                        text: 'Payload',
-                        childCount: 1,
-                        nodes: [],
-                        slots: { leading: [{ text: 'Lead' }] },
-                        data: [],
-                        options: [],
-                        dataByValue: {},
-                        optionsByValue: {},
-                    },
+        const structuredData = {
+            datadom: {
+                attributes: {},
+                dataset: { variant: 'compact' },
+                payload: {
+                    text: 'Payload',
+                    childCount: 1,
+                    nodes: [],
                     slots: { leading: [{ text: 'Lead' }] },
-                    slices: {},
-                    validationState: {},
-                    eventPayloads: {},
+                    data: [],
+                    options: [],
+                    dataByValue: {},
+                    optionsByValue: {},
                 },
+                slots: { leading: [{ text: 'Lead' }] },
+                slices: {},
+                validationState: {},
+                eventPayloads: {},
             },
+        };
+        const structured = await renderCemMlTemplate(
+            '{button | {$datadom.dataset.variant}-{$datadom.payload.text}-{$datadom.slots.leading.text}}',
+            structuredData,
             { renderNodeIdPrefix: 'cem-dd-structured' }
         );
         assertEqual(structured.diagnostics.length, 0, 'structured datadom renders without diagnostics');
         assertEqual(
             textOfNodes(structured.nodes),
-            'compact-Payload-',
-            'structured datadom exposes dataset, payload, and slot buckets'
+            'compact-Payload-Lead',
+            'structured datadom exposes explicit scalar fields from slot metadata'
+        );
+        const unsupported = await renderCemMlTemplate(
+            '{button | {$datadom.slots.leading}}',
+            structuredData,
+            { renderNodeIdPrefix: 'cem-dd-unsupported-record' }
+        );
+        assertEqual(unsupported.nodes.length, 0, 'slot metadata records are not content nodes');
+        assertEqual(unsupported.diagnostics.length, 1, 'one record-insertion diagnostic is reported');
+        assertEqual(
+            unsupported.diagnostics[0]?.code,
+            'cem.ql.render.expression_type',
+            'direct record insertion reports the same typed error as native CEMT'
         );
     },
 };

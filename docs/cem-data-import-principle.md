@@ -139,6 +139,14 @@ its JSON decoder as an external-document importer. Authored slice values,
 hydration envelopes and scalar host parameters likewise retain their explicit
 value-protocol boundary.
 
+The local-storage document binding is migration debt, not a precedent for new
+JSON data consumers. The 2026-09-21 stabilization audit reproduced record content
+rejection in its demo and found JavaScript document mutation in its basket.
+Native reads must use shared CEM-ML import. The remaining decision is whether to
+preserve two-way binding with native JSON export or require a separate text
+writer; see the concrete
+[storage migration proposal](browser-stabilization-review.tmp.md#pending-decision-native-json-storage-write-back).
+
 For implementation details and parity cases, see
 [the shared XPath view design](cem-tree-xpath-view.md). The loader first publishes
 a materialized CEM tree; progressive consumption of a CEM-ML AST stream is an

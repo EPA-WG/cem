@@ -306,6 +306,8 @@ fn navigation_checks_cardinality_and_pipeline_steps_preserve_order() {
         "dom:children((node, node))",
         "dom:parent((node, node))",
         "dom:children({kind: \"element\"})",
+        "dom:children(cemml:parse(\"{main | {p | Hi}}\"))",
+        "dom:parent(cemml:parse(\"{main | {p | Hi}}\"))",
         "dom:text({value: \"text\"})",
     ] {
         let compiled = compile(

@@ -199,3 +199,98 @@ errors. Both packages pass typecheck and lint; lint retains only the runtime's
 two existing warnings. The demo-element build passes as part of its test target.
 The intermittent stock startup finding and the three reproducible failures remain
 open; clean source presentation does not resolve those separate issues.
+
+## Pending decision: native JSON storage write-back
+
+The JSON validation failure is a render-contract mismatch, reproduced in both
+standalone and source-loaded pages after declaration/render settlement:
+
+- The storage key contains `{"a":1,"b":"B"}`. The slice contains the host record
+  with fields `a` and `b`, so the read has completed.
+- The sample inserts the entire record with `{$datadom.slices.json}` in its
+  summary. Rendering reports `cem.ql.render.expression_type`:
+  `Expression content requires native nodes or atomic values`.
+- No replacement output is published. The initial `null` outputs remain and
+  the `ul` never appears. Longer startup waits cannot repair this failure.
+- The native structured-data fixture already requires rejection of direct
+  record insertion. Selecting an explicit scalar field renders successfully.
+
+`localStorageStringToValue` still uses JavaScript `JSON.parse`, and its inverse
+uses `JSON.stringify`. Both JSON demos also use JavaScript document records;
+the basket's buttons parse and mutate one. The
+[import principle](cem-data-import-principle.md) records this older typed-value
+protocol separately from document ingestion. It must migrate to satisfy the
+user's instruction that JSON data stays in native CEM trees. Merely guarding the
+record interpolation would repair the visible symptom while retaining that debt.
+
+Native reads have a clear direction: retain the imported CEM document using
+shared CEM-ML import and the processing-host lifecycle. Publish a document node
+as the JSON slice, so CEM-QL/XPath use the same node APIs as loaded HTTP data.
+Preserve source order and lexical values. Distinguish a valid JSON `null` node
+from an absent key or invalid source; preserve invalid raw storage text and
+publish diagnostics without a partial tree. Scalar storage types keep their
+existing behavior. Remove JavaScript parsing/record mutation from samples and
+their fixture adapters.
+
+The remaining choice concerns the existing two-way slice contract. HTTP's
+retained-document operation imports and releases documents but does not export
+edited native slices back to storage. Portable native attribute values already
+cross worker boundaries; native slice transport/write-back needs explicit wiring.
+The existing CEM-ML generic-data JSON output pipeline is a useful export boundary,
+but this audit does not establish a direct retained-CEM-node writer API.
+
+### Recommended: preserve two-way binding with native CEM export
+
+Keep `local-storage @type=json` readable and writable. Reads yield a retained
+document; writes accept a native generic-data document/value node and serialize
+it to JSON through a shared CEM-ML export capability. A host null/empty write
+removes the key; a native JSON-null node writes `null`. Reject invalid or
+nonrepresentable trees without changing storage. Construct new values through
+CEMT/CEM-QL; never mutate imported input trees or decode them in JavaScript.
+
+Retain unchanged input bytes through read-only refreshes. An explicit native
+write uses the documented JSON exporter, preserving property order and valid
+numeric lexical values rather than promising original whitespace. Revision
+checks must prevent a stale asynchronous import/export from overwriting a newer
+storage event. Release retained documents on replacement/disconnect/disposal and
+cover worker fallback, reconnect and saved state with the native transport.
+
+Benefit: preserves the advertised two-way behavior and supports native editing
+without another representation. Cost: adds shared native slice transport and
+JSON export wiring; requires lifecycle and write-failure coverage beyond a demo
+fix. Consumer field selections and order assertions must migrate to CEM nodes.
+
+### Alternative: native read view, writes through an explicit text slice
+
+Make the JSON slice a read-only native document. Authors edit a companion
+`local-storage @type=text` slice containing explicit JSON source; the JSON
+reader imports subsequent storage events. No JavaScript object decoder is needed.
+
+Benefit: smaller migration that reuses string write-back. Cost: removes the old
+JSON slice's two-way write contract, forces native editors to choose an explicit
+export path, and makes the basket less representative of typed editing. This is
+a public contract choice, not an implementation shortcut to apply silently.
+
+Implementation of storage migration is paused for this choice under the user's
+stop-at-decisions instruction. Both options retain the CEM-ML import boundary;
+neither restores record insertion into CEMT content.
+
+### Independent fixture corrections
+
+The structured browser boundary now selects `datadom.slots.leading.text` for
+metadata text and checks that direct slot-record insertion fails, matching the
+native renderer fixture. The navigation parity rows call `dom:children` and
+`dom:parent` on imported nodes and check actual names. Separate negative cases
+require typed errors for the opaque identifiers produced by legacy `cemml:parse`.
+No evaluator or renderer behavior changes are needed for these corrections.
+
+The nearby `dom:descendants` and `dom:attribute` default evaluator branches still
+return empty sequences. Their old rows do not establish native-node support;
+the capability audit is now explicitly in TODO, separate from this fixture repair.
+
+Verification: both updated native fixtures pass (`template_render`'s structured
+data-document case and `retained_node_values`' navigation/cardinality case).
+The full parallel browser suite now passes 188 of 189 stories; only the diagnosed
+local-storage JSON sample remains failing. Typecheck and lint pass, with the same
+two existing lint warnings. This change repairs fixtures and records the migration
+decision; it does not change storage, rendering, evaluator semantics or base viewers.
