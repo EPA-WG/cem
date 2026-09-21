@@ -96,7 +96,7 @@ export type RenderPlanNode =
       };
 
 /** Render-engine / patch-transport schema version (FF-6 SemVer axis, BR-VC-5). */
-export const RENDER_ENGINE_VERSION = '1.5.1';
+export const RENDER_ENGINE_VERSION = '1.5.2';
 
 /** Edge render-state record schema version (FF-6 SemVer axis, BR-VC-5). */
 export const EDGE_RENDER_STATE_VERSION = '1.0.0';

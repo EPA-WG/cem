@@ -1,6 +1,33 @@
 # CEMT expression insertion — temporary proposal review
 
-## Pending decision: expression hooks in attribute bodies (R05/R07/R12)
+## Expression hooks in attribute bodies (R05/R07/R12)
+
+**Selected by the user on 2026-09-21: attribute insertion scope (option 1).**
+The renderer now tracks the insertion destination independently of lexical
+nesting and direct expression-hook returns. Attribute bodies, transparent
+controls and named/matching/imported calls inherit the attribute destination
+and its metadata. Constructed node content resets to the content destination;
+nested attributes establish their own destination. Scope exit restores the
+enclosing destination. Native atomics and node references survive module calls
+without flattening. Final destination conversion and constraints still apply.
+Native result attributes preserve their scalar construction and text adjacency;
+explicit `result-sequence` continues to return native values directly.
+
+The maintained contract and migration note are in
+[Native CEMT values](cemt-native-values.md#expression-hooks-and-attributes).
+The third `cell-overrides.html` lesson now demonstrates a conditional attribute
+body with a count hook and a retained label subtree. Data-table, inspector and
+tree viewer implementations remain unchanged. Verification is tracked under
+`CEMT-HOOK-ATTRIBUTE-BODY` in [TODO](todo.md).
+
+Verification passed: 242 focused CEM-QL tests (including nine new scope cases),
+96 adapter tests and workspace test compilation; WASM/component build,
+typecheck, lint (two existing warnings), 408 runtime unit tests, both native
+worker/file/fallback fixtures, three cell-demo browser stories and all standalone
+and source-loaded cell lessons. Render engine 1.5.2 invalidates older previews.
+The broader attribute-type/pipeline matrix and DX review remain open in TODO.
+
+Original review and reproduction, preserved below:
 
 The hook audit on 2026-09-20 found that equivalent attribute expressions take
 different hook paths depending on how their body is written. The accepted
@@ -27,7 +54,7 @@ Two temporary native Rust probes used these hooks:
 
 Observed final attribute values (markup shown before HTML escaping):
 
-| Attribute | Current value | Recommended value |
+| Attribute | Value before implementation | Selected value |
 | --- | --- | --- |
 | `via-value` | `attribute:one` | `attribute:one` |
 | `via-body` | `two` | `attribute:two` |
@@ -62,13 +89,14 @@ For the recommended direction:
    `cell-overrides.html` where it clarifies the distinction. Keep data-table,
    inspector and tree viewer implementations unchanged.
 
-The two probes failed against the recommended outputs above; they are design
-evidence, not an approved runtime contract. Their temporary test target was
+The two probes originally failed against the recommended outputs above. The
+user's selection supersedes the original decision pause. Their temporary test target was
 removed after recording the results. Five independent, passing native cases in
 `packages/cem_ql/tests/expression_hooks.rs` cover mixed attribute expression
 sequences/literals, lexical loop captures, nested query focus, active-hook
 fallback and restoration of attribute context and reserved bindings. The
-pending implementation is tracked as `CEMT-HOOK-ATTRIBUTE-BODY` in TODO.
+implementation and permanent regression coverage are tracked as
+`CEMT-HOOK-ATTRIBUTE-BODY` in TODO.
 
 ## Named attribute constraints (R06/R07)
 

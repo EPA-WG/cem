@@ -1712,28 +1712,37 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
     - [x] Fixture CEMT-VALUES: `dom:text` explicit/implicit focus, retained
           references and repeated occurrences, explicit deep clone and empty
           element construction, source identity/provenance and all import formats.
-    - [ ] Fixture CEMT-HOOKS: whole-sequence content/attribute hooks, compact
+    - [x] Fixture CEMT-HOOKS: whole-sequence content/attribute hooks, compact
           declarations, lexical scope, caller/import inheritance, precedence,
           focus restoration, empty versus missing focus and bounded recursion.
       - [x] Fixture CEMT-HOOK-FOCUS: add native cases for mixed attribute
             expression segments, lexical loop bindings, nested query focus,
             fallback while a hook is active and attribute-context restoration.
             Five native cases pass. The rich attribute-body audit exposed the
-            pending output-context choice below; the parent fixture remains open.
+            output-context choice resolved by the fixture below.
             Verified 54 focused native hook/value, named-constraint, template
             reload/matching and error-recovery tests. This increment changes
             fixtures and documentation only; renderer/viewer behavior is unchanged.
-      - [ ] Fixture CEMT-HOOK-ATTRIBUTE-BODY: decide whether attribute bodies
-            establish attribute insertion scope (recommended) or return native
-            values directly. Two native probes show `@value` applying attribute
-            hooks, direct body expressions bypassing hooks, and `if`-wrapped
-            expressions applying content hooks. The reproduction, alternatives
-            and bounded implementation plan are in the proposal review under
-            [Pending decision: expression hooks in attribute bodies](./cemt-expression-review.tmp.md#pending-decision-expression-hooks-in-attribute-bodies-r05r07r12).
-            After the decision, cover transparent controls/calls, nested markup,
-            attribute metadata, native result preservation, errors/control and
-            reload, then update maintained docs/demo and verify WASM/browser
-            consumers. Do not change renderer semantics before this decision.
+      - [x] Fixture CEMT-HOOK-ATTRIBUTE-BODY: implement the user's selected
+            attribute insertion scope (2026-09-21). Direct bodies, transparent
+            controls and named/matching/imported calls now use attribute hooks;
+            constructed content and nested attributes establish their own
+            destinations. Native atomics, node identity, metadata, constraints
+            and hook-return capture remain intact. Native result attributes
+            retain their scalar/text-spacing semantics. The original probes,
+            alternatives and accepted implementation are in the proposal under
+            [Expression hooks in attribute bodies](./cemt-expression-review.tmp.md#expression-hooks-in-attribute-bodies-r05r07r12).
+            Nine new native cases cover controls/calls, nested constructors,
+            destination restoration, artifact reload, errors, recursion and
+            cancellation; the real imported-module adapter also exercises a
+            typed attribute body. Updated the maintained contract, package
+            reference and third cell-override lesson; render engine is 1.5.2.
+            Verified 242 focused CEM-QL and 96 adapter tests, workspace test
+            compilation, build/typecheck/lint (two existing warnings), 408 unit
+            tests, both WASM worker/file/fallback fixtures, all 3 cell-demo
+            browser stories and standalone/source-loaded cell lessons. Viewer
+            implementations remain unchanged. Deferred gallery/Storybook
+            stabilization stays after the immediate expression/value work.
     - [ ] Fixture CEMT-ATTRIBUTE-TYPES: shared conversion then validation for
           numeric, temporal, regex-constrained string and rich native values;
           preserve mixed attribute content, destination constraints, native

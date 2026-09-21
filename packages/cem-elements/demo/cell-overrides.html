@@ -141,7 +141,10 @@
     <p>The child below uses <code>cemt:apply_templates(label, "label")</code>
         to select its label rule from an expression. The function returns native
         content, so the result can feed another query or attribute without a
-        string round trip. The text-only section demonstrates a scoped hook.</p>
+        string round trip. The parent's attribute hook adds one to the count,
+        including through the conditional attribute body. The child receives
+        that integer and the retained name subtree. Its text-only section
+        demonstrates a content hook.</p>
     <cem-demo-element legend="3. Native values pass into another component"
         description="The parent passes a number, a date and a name subtree. The child calculates with the number and selects a matching template for the retained subtree">
         <template>
@@ -163,10 +166,14 @@
 <cem-element tag="cem-native-value-parent">
     <template type="text/cem-ml">
 {cem:variable @name=name @select='data:read("&lt;name&gt;ivy&lt;em&gt;saur&lt;/em&gt;&lt;/name&gt;", "xml").root.children'}
+{template @on=expression @into=attribute @match='context.attribute.name == "count"' @returns=integer |
+    {$value + 1}}
 {cem-native-value-card |
-    {attribute @name=count @type=integer @value=002}
+    {attribute @name=count @type=integer |
+        {cem:if @test=true | {$1}}}
     {attribute @name=day @type=date @value=2024-02-29}
-    {attribute @name=label @type=node @content-type=text/html @value="{$name}"}}
+    {attribute @name=label @type=node @content-type=text/html |
+        {cem:if @test=true | {$name}}}}
     </template>
 </cem-element>
 <cem-native-value-parent></cem-native-value-parent>

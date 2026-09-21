@@ -998,7 +998,7 @@ fn render_compiled_template_internal(
         render_scope_depth: 0,
         value_types: data.value_types.clone(),
         attribute_contracts: data.attribute_contracts.clone(),
-        active_attribute_contract: None,
+        expression_target: data.expression_scope.target.clone(),
         calls,
     };
     let mut nodes = ResultBuffer::default();
@@ -2669,7 +2669,7 @@ struct PlanRenderer<'a> {
     render_scope_depth: usize,
     value_types: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
     attribute_contracts: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
-    active_attribute_contract: Option<std::sync::Arc<cem_ml::schema::document_model::AttributeValueContract>>,
+    expression_target: hooks::ExpressionTarget,
 }
 
 impl PlanRenderer<'_> {
@@ -2874,7 +2874,7 @@ impl PlanRenderer<'_> {
                             value_types: self.value_types.clone(),
                             attribute_contracts: self.attribute_contracts.clone(),
                             input_attribute_contracts: BTreeMap::new(),
-                            expression_scope: ExpressionScope { scopes: self.hook_scopes.clone(), active: self.active_hooks.clone(), focus: self.evaluation_context.current_item.clone(), call_depth: self.call_depth + 1 },
+                            expression_scope: ExpressionScope { scopes: self.hook_scopes.clone(), active: self.active_hooks.clone(), focus: self.evaluation_context.current_item.clone(), call_depth: self.call_depth + 1, target: self.expression_target.clone() },
                         },
                         self.recovery_depth > 0,
                     );
@@ -2960,7 +2960,7 @@ impl PlanRenderer<'_> {
                     .filter_map(|attribute| self.render_attribute(attribute))
                     .collect::<Vec<_>>();
                 let mut child_nodes = ResultBuffer::default();
-                self.render_nodes_scoped(children, &mut child_nodes, &mut attributes);
+                self.render_content_nodes(children, &mut child_nodes, &mut attributes);
                 out.push(RenderPlanNode::Element {
                     qualified_name: None,
                     tag: tag.clone(),
@@ -2983,8 +2983,7 @@ impl PlanRenderer<'_> {
                 if self.capture_depth == Some(self.render_scope_depth) {
                     out.values(stream, &expression.source_map);
                 } else {
-                    let stream = self.apply_expression_hook(stream, "content", None, &expression.source_map);
-                    self.insert_values(stream, &expression.source_map, out);
+                    self.insert_expression_values(stream, &expression.source_map, out);
                 }
             }
             TemplateNode::Variable { name, select, .. } => {
@@ -3340,14 +3339,16 @@ impl PlanRenderer<'_> {
 
     fn render_attribute(&mut self, attribute: &TemplateAttribute) -> Option<RenderPlanAttribute> {
         let contract = self.attribute_contracts.get(&attribute.name).cloned().map(std::sync::Arc::new);
-        let old = std::mem::replace(&mut self.active_attribute_contract, contract.clone());
+        let old = std::mem::replace(&mut self.expression_target, hooks::ExpressionTarget::Attribute {
+            name: attribute.name.clone(), contract: contract.clone(),
+        });
         let mut value_stream = self.output_attribute_stream(attribute);
         if let Some(contract) = &contract {
             value_stream = self.convert_values(value_stream, contract, &attribute.source_map);
         }
         let has_nodes = value_stream.items.iter().any(|item| item.view().is_some_and(|v| v.kind() == crate::eval::QueryItemViewKind::Node));
         let value = if has_nodes { String::new() } else { self.render_stream_text(&value_stream, &attribute.source_map) };
-        self.active_attribute_contract = old;
+        self.expression_target = old;
         let preserves_empty_value = match &attribute.value {
             None => true,
             Some(TemplateAttributeValue::Literal(value)) => value.is_empty(),
@@ -3413,9 +3414,7 @@ impl PlanRenderer<'_> {
         let namespace = self.render_constructor_optional_text(attributes, "namespace");
         let mut rendered_attributes = Vec::new();
         let mut rendered_children = ResultBuffer::default();
-        for child in children {
-            self.render_into(child, &mut rendered_children, &mut rendered_attributes);
-        }
+        self.render_content_nodes(children, &mut rendered_children, &mut rendered_attributes);
         sort_render_plan_attributes(&mut rendered_attributes);
         out.push(RenderPlanNode::Element {
             qualified_name: None,
@@ -3451,9 +3450,7 @@ impl PlanRenderer<'_> {
         }
         let mut ignored_attributes = Vec::new();
         let mut rendered_children = ResultBuffer::default();
-        for child in children {
-            self.render_into(child, &mut rendered_children, &mut ignored_attributes);
-        }
+        self.render_content_nodes(children, &mut rendered_children, &mut ignored_attributes);
         render_plan_nodes_to_text(&self.finish_result_buffer(rendered_children, &SourceMapStack::default()))
     }
 

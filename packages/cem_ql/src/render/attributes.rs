@@ -347,9 +347,13 @@ impl PlanRenderer<'_> {
             destination.restrict_with(&contract);
             contract = destination;
         }
-        let previous_contract = self
-            .active_attribute_contract
-            .replace(std::sync::Arc::new(contract.clone()));
+        let previous_target = std::mem::replace(
+            &mut self.expression_target,
+            hooks::ExpressionTarget::Attribute {
+                name: name.clone(),
+                contract: Some(std::sync::Arc::new(contract.clone())),
+            },
+        );
         let mut values = if let Some(value) = attributes.iter().find(|a| a.name == "value") {
             self.output_attribute_stream(&TemplateAttribute {
                 name: name.clone(),
@@ -357,9 +361,7 @@ impl PlanRenderer<'_> {
             })
         } else {
             let mut buffer = ResultBuffer::default();
-            let capture = self.capture_depth.replace(self.render_scope_depth + 1);
             self.render_nodes_scoped(children, &mut buffer, &mut Vec::new());
-            self.capture_depth = capture;
             self.hook_result_values(buffer, source)
         };
         // Rich values retain their sequence; ordinary string attributes retain
@@ -367,7 +369,7 @@ impl PlanRenderer<'_> {
         if contract.model.value_type.is_some() || has_facets(&contract) {
             values = self.convert_values(values, &contract, source);
         }
-        self.active_attribute_contract = previous_contract;
+        self.expression_target = previous_target;
         let value = if values.items.iter().any(|item| {
             item.view()
                 .is_some_and(|v| v.kind() == crate::eval::QueryItemViewKind::Node)

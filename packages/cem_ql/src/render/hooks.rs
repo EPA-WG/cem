@@ -2,6 +2,26 @@
 use super::*;
 use construction::ResultItem;
 
+/// Output destination is independent of lexical scopes and direct hook returns.
+#[derive(Debug, Clone, Default)]
+pub(super) enum ExpressionTarget {
+    #[default]
+    Content,
+    Attribute {
+        name: String,
+        contract: Option<std::sync::Arc<cem_ml::schema::document_model::AttributeValueContract>>,
+    },
+}
+
+impl ExpressionTarget {
+    fn contract(&self) -> Option<&cem_ml::schema::document_model::AttributeValueContract> {
+        match self {
+            Self::Attribute { contract, .. } => contract.as_deref(),
+            Self::Content => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct ExpressionHook {
     id: String,
@@ -20,6 +40,7 @@ pub struct ExpressionScope {
     pub(super) active: Vec<String>,
     pub(super) focus: Option<Item>,
     pub(super) call_depth: usize,
+    pub(super) target: ExpressionTarget,
 }
 
 pub(super) fn module_hook_nodes(nodes: &[TemplateNode]) -> Vec<TemplateNode> {
@@ -64,6 +85,44 @@ pub(super) fn is_expression_hook(node: &TemplateNode) -> bool {
 }
 
 impl PlanRenderer<'_> {
+    /// Constructed nodes own their content destination, including when built
+    /// inside an attribute payload or an expression hook's return body.
+    pub(super) fn render_content_nodes(
+        &mut self,
+        nodes: &[TemplateNode],
+        out: &mut ResultBuffer,
+        attributes: &mut Vec<RenderPlanAttribute>,
+    ) {
+        let previous = std::mem::take(&mut self.expression_target);
+        let capture = self.capture_depth.take();
+        self.render_nodes_scoped(nodes, out, attributes);
+        self.capture_depth = capture;
+        self.expression_target = previous;
+    }
+
+    pub(super) fn insert_expression_values(
+        &mut self,
+        input: ItemStream,
+        source: &SourceMapStack,
+        out: &mut ResultBuffer,
+    ) {
+        match self.expression_target.clone() {
+            ExpressionTarget::Content => {
+                let values = self.apply_expression_hook(input, "content", None, source);
+                self.insert_values(values, source, out);
+            }
+            ExpressionTarget::Attribute { name, .. } => {
+                let values = self.apply_expression_hook(input, "attribute", Some(&name), source);
+                // A reference preserves atomic types as well as native nodes,
+                // even across a callee's RenderPlan boundary.
+                out.push(RenderPlanNode::Reference {
+                    reference: cem_ml::value::CemReference::new(values.items),
+                    source_map: source.clone(),
+                });
+            }
+        }
+    }
+
     pub(super) fn register_module_hooks(&mut self, nodes: &[TemplateNode]) {
         for node in nodes {
             if let TemplateNode::Element {
@@ -176,8 +235,8 @@ impl PlanRenderer<'_> {
                                         ("name".into(), string_stream(name.into()).items),
                                         (
                                             "type".into(),
-                                            self.active_attribute_contract
-                                                .as_ref()
+                                            self.expression_target
+                                                .contract()
                                                 .and_then(|c| c.model.value_type.clone())
                                                 .map(string_stream)
                                                 .unwrap_or_default()
@@ -185,8 +244,8 @@ impl PlanRenderer<'_> {
                                         ),
                                         (
                                             "content_type".into(),
-                                            self.active_attribute_contract
-                                                .as_ref()
+                                            self.expression_target
+                                                .contract()
                                                 .and_then(|c| c.content_type.clone())
                                                 .map(string_stream)
                                                 .unwrap_or_default()
@@ -194,8 +253,8 @@ impl PlanRenderer<'_> {
                                         ),
                                         (
                                             "pattern".into(),
-                                            self.active_attribute_contract
-                                                .as_ref()
+                                            self.expression_target
+                                                .contract()
                                                 .map(|c| ItemStream::from_items(c.models().filter_map(|m| m.pattern.clone())
                                                     .map(|pattern| Item::Atomic(AtomValue::String(pattern))).collect()))
                                                 .unwrap_or_default()

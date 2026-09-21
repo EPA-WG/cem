@@ -113,6 +113,12 @@ focus is an error. For example:
 {template @on=expression @into=attribute | {$dom:text()}}
 ```
 
+Attribute bodies and `@value` interpolation both use attribute hooks. Controls
+and template calls retain that destination and its metadata; constructed node
+content uses content hooks, and nested attributes use their own attribute hooks.
+Direct hook returns bypass redispatch. Native types and node identities survive
+until the destination applies its conversion and validation.
+
 Scalar types, regex/range constraints and final representations are distinct
 attribute contracts. Portable native CEM artifacts preserve them across workers
 and saved pipelines. JavaScript carries artifact bytes and control metadata;

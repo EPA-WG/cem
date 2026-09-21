@@ -9842,7 +9842,8 @@ count + 1"#,
             uri: "template.cem".to_owned(),
             bytes: br#"{@doc cem-ml 1}
 {module |
-  {body | {div | {call @from="ui" @template="icon"}{section | {template @on=expression @into=content | {$"caller"}}{call @from="ui" @template="icon"}}}}
+  {body |
+    {template @on=expression @into=attribute @match='context.attribute.name == "count" && context.attribute.type == "integer"' | {$value + 1}}{div | {attribute @name=count @type=integer | {call @from="ui" @template="count"}}{call @from="ui" @template="icon"}{section | {template @on=expression @into=content | {$"caller"}}{call @from="ui" @template="icon"}}}}
 }"#
             .to_vec(),
             identity: Some(identity.clone()),
@@ -9871,6 +9872,7 @@ count + 1"#,
                         bytes: br#"{@doc cem-ml 1}
 {module |
   {template @on=expression @into=content @priority=100 | {$"default"}}
+  {template @name="count" @visibility="public" | {body | {$2}}}
   {template @name=label @mode=label @match=true | {param @name=node}{body | {span | {$node}}}}
   {template @name="icon" @visibility="public" | {body | {$cemt:apply_templates("value", "label")}}}
 }"#
@@ -9898,7 +9900,7 @@ count + 1"#,
 
         assert_eq!(
             test_output_value(&rendered.output),
-            Value::String("<div>default<section>caller</section></div>".to_owned())
+            Value::String("<div count=\"3\">default<section>caller</section></div>".to_owned())
         );
         assert!(
             rendered.diagnostics.is_empty(),

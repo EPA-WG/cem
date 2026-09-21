@@ -55,11 +55,37 @@ expressions bypass redispatch, and active declarations cannot invoke themselves
 implicitly. Stable declaration identities survive compiled artifact reloads.
 
 Attribute interpolation applies the hook to each expression's complete sequence,
-preserving literal segments between expressions. Native attribute-body handling
-is awaiting an [output-context decision](cemt-expression-review.tmp.md#pending-decision-expression-hooks-in-attribute-bodies-r05r07r12):
-direct body expressions currently bypass hooks, while expressions wrapped in
-`if` currently invoke content hooks. These body forms are not yet equivalent to
-the `@value` interpolation form.
+preserving literal segments between expressions. An attribute body establishes
+the same attribute insertion destination as `@value`. Direct expressions and
+expressions reached through conditionals, loops, named/matching templates and
+imported calls use attribute hooks with that destination's metadata. Atomic
+types and native node identities survive these calls until the destination
+applies conversion and validation.
+
+Constructed nodes establish their own content destination: expressions inside
+an element payload use content hooks, and its attributes use their own attribute
+hooks. This also applies to native result constructors and bodies of comments,
+CDATA and processing instructions. Returning to the enclosing attribute restores
+its destination. Direct expressions in an expression hook still return native
+values without redispatch; lexical scopes and active-hook exclusion are unchanged.
+Explicit `result-sequence` retains its native return semantics.
+
+For example, both attributes below become `attribute:ivy`; the rich payload
+becomes `<b>content:ivy</b>` before final attribute escaping:
+
+```cem
+{template @on=expression @into=attribute | {$"attribute:" + dom:text()}}
+{template @on=expression @into=content | {$"content:" + dom:text()}}
+{p |
+    {attribute @name=direct @value='{"ivy"}'}
+    {attribute @name=conditional | {cem:if @test=true | {$"ivy"}}}
+    {attribute @name=rich @content-type=text/html | {b | {$"ivy"}}}}
+```
+
+Migration: attribute-body expressions previously bypassed hooks when direct,
+or invoked content hooks when wrapped in a control statement. They now
+consistently use attribute hooks. The accepted decision and original evidence
+are retained in the [proposal review](cemt-expression-review.tmp.md#expression-hooks-in-attribute-bodies-r05r07r12).
 
 An attribute retains an ordered native value sequence independently of its
 browser string projection. `type`, constraints and representation are separate:

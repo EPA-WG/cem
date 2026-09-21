@@ -180,18 +180,48 @@ impl PlanRenderer<'_> {
                     );
                     return;
                 }
+                let previous_target = std::mem::replace(
+                    &mut self.expression_target,
+                    hooks::ExpressionTarget::Attribute {
+                        name: qualified_name.clone(),
+                        contract: None,
+                    },
+                );
                 let value = if let Some(value) = attributes.iter().find(|a| a.name == "value") {
-                    self.render_attribute_value(value).0
+                    let stream = self.output_attribute_stream(&TemplateAttribute {
+                        name: qualified_name.clone(),
+                        ..value.clone()
+                    });
+                    self.render_stream_text(&stream, &value.source_map)
                 } else {
                     let mut buffer = ResultBuffer::default();
                     let mut ignored = Vec::new();
                     self.render_nodes_scoped(children, &mut buffer, &mut ignored);
                     let mut content = SimpleContent::default();
                     for item in buffer.0 {
-                        self.simple_result(item, &mut content, &policy, 0);
+                        if let ResultItem::Node(RenderPlanNode::Reference {
+                            reference,
+                            source_map,
+                        }) = item {
+                            // Attribute-scope expressions retain their native sequence.
+                            // This scalar constructor consumes it using the usual
+                            // expression text/node rules, preserving text adjacency.
+                            let mut projected = ResultBuffer::default();
+                            self.insert_values(
+                                ItemStream::from_items(reference.values().to_vec()),
+                                &source_map,
+                                &mut projected,
+                            );
+                            for item in projected.0 {
+                                self.simple_result(item, &mut content, &policy, 0);
+                            }
+                        } else {
+                            self.simple_result(item, &mut content, &policy, 0);
+                        }
                     }
                     content.parts.join(" ")
                 };
+                self.expression_target = previous_target;
                 if !self.charge_result(value.len(), 0, source) {
                     return;
                 }
@@ -227,7 +257,7 @@ impl PlanRenderer<'_> {
                 let namespace = self.render_constructor_optional_text(attributes, "namespace");
                 let mut buffer = ResultBuffer::default();
                 let mut legacy_attributes = Vec::new();
-                self.render_nodes_scoped(children, &mut buffer, &mut legacy_attributes);
+                self.render_content_nodes(children, &mut buffer, &mut legacy_attributes);
                 if !legacy_attributes.is_empty() {
                     self.result_failure(
                         "legacy_attribute",
