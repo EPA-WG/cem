@@ -107,6 +107,15 @@ HTML, XML and plain text are final representation choices; strings containing
 markup never become nodes by implicit parsing. Native child components receive
 the original sequence rather than parsing the projected DOM attribute.
 
+Integers outside `i64` currently retain their digits and `integer` metadata but
+have inconsistent query behavior: direct values expose a string atom, while
+portable values expose a decimal atom. An integer receiver declaration also
+returns to the string-backed representation. Until the
+[large-integer decision](cemt-expression-review.tmp.md#pending-decision-large-integer-query-representation-r06r08)
+is resolved, do not assume arithmetic or query type checks on these values are
+independent of transport. This limitation does not affect ordinary `i64` values,
+lexical preservation or final text projection.
+
 Named types supplied by `TemplateData.value_types` retain their base model.
 Local facets add independent restrictions; every restriction must hold. For
 example, a named integer minimum of `3` plus a local minimum of `1` still rejects
@@ -294,6 +303,11 @@ test inherited and local constraints independently; JavaScript never reconstruct
 the document or native value graph.
 
 The [implementation checklist](todo.md) tracks remaining coverage and DX work.
+The `native_value_contract`, `attribute_value_matrix` and `portable_values`
+fixtures cover scalar lexical profiles, precision, temporal zone validation,
+numeric/string facets, invalid contracts and mixed native segments through
+direct/portable handoff and text/HTML/XML projection. Their passing lexical
+cases do not resolve the large-integer query inconsistency described above.
 The [temporary review](cemt-expression-review.tmp.md) retains the discussion;
 R08's portable artifact choice is settled.
 

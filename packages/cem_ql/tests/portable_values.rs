@@ -148,8 +148,13 @@ fn portable_graph_rejects_invalid_typed_lexical_values() {
     use cem_ml::value::artifact::{CemValueGraph, CemValueRecord};
     for (datatype, lexical) in [
         ("integer", "bad"),
+        ("decimal", "NaN"),
+        ("number", "Infinity"),
         ("boolean", "maybe"),
         ("date", "2023-02-29"),
+        ("time", "24:00:00"),
+        ("dateTime", "2024-02-29T12:00:00+14:01"),
+        ("datetime", "2023-02-29T12:00:00"),
     ] {
         let graph = CemValueGraph {
             roots: vec![0],

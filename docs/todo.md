@@ -1747,6 +1747,27 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           numeric, temporal, regex-constrained string and rich native values;
           preserve mixed attribute content, destination constraints, native
           component handoff and final-boundary serialization.
+      - [x] Fixture CEMT-ATTRIBUTE-MATRIX: verify the documented scalar lexical
+            profiles (including large integers, decimal facets, booleans and
+            temporal zones), invalid conversion without partial output, and
+            mixed native segments through direct and portable component handoff.
+            Check final text/HTML/XML projection without changing source values.
+            Three shared conversion cases and three native handoff/projection
+            cases pass, alongside expanded invalid portable scalar coverage.
+            Verified 8 shared-contract and 70 focused CEM-QL tests plus workspace
+            test compilation. This increment changes tests and documentation;
+            production code and viewer templates are unchanged.
+            The query-behavior audit found the separate pending decision below;
+            the parent attribute-type fixture remains open.
+      - [ ] Fixture CEMT-LARGE-INTEGER: settle query semantics for integers
+            outside `i64`, then align direct typed values, portable values,
+            receiver conversion and hook returns. Direct values currently expose
+            string atoms while portable values expose decimal atoms; arithmetic
+            changes after transport. The reproduction and recommended bounded
+            decimal-adapter correction are in
+            [Large integer query representation](./cemt-expression-review.tmp.md#pending-decision-large-integer-query-representation-r06r08).
+            Add type/arithmetic, signed boundary, overflow, artifact and worker
+            regressions after the decision. Runtime behavior remains unchanged.
       - [x] Fixture CEMT-NAMED-CONSTRAINTS: compose inherited and local named-type
             restrictions in the shared native contract. CEMV version 3 preserves
             every constraint, retains version-1/version-2 reads, and rejects

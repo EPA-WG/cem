@@ -1,5 +1,61 @@
 # CEMT expression insertion — temporary proposal review
 
+## Pending decision: large integer query representation (R06/R08)
+
+The 2026-09-21 attribute-type audit confirmed that scalar conversion, lexical
+precision and declared datatype survive native and portable component handoff,
+but query behavior for integers outside `i64` depends on transport. The
+maintained contract requires typed native values across that boundary; it does
+not specify how those integers participate in CEM-QL's numeric types.
+
+The native producer is:
+
+```cem
+{child |
+    {attribute @name=value @type=integer @value=922337203685477580812345}}
+```
+
+A receiver that queries the binding without declaring a conversion produces:
+
+| Probe | Direct native handoff | After CEMV encode/decode |
+| --- | --- | --- |
+| Query atom | `String("922337203685477580812345")` | `Decimal("922337203685477580812345")` |
+| `{p \| {$value * 0.0}}` | `<p></p>` with numeric-operand errors | `<p>0</p>` |
+| `{p \| {$value + 1.0}}` | `<p></p>` with numeric-operand errors | `<p>922337203685477580812346</p>` |
+| Native datatype / lexical value | `integer`, unchanged digits | `integer`, unchanged digits |
+
+`render/attributes.rs::TypedValue::atom` exposes every wrapped typed value as a
+string, including an integer too large for `AtomValue::Integer(i64)`.
+`eval/portable.rs::GraphView::atom` instead uses a decimal atom for those
+integers. A receiver declaring `@type=integer` converts the restored value back
+through `TypedValue` and returns to string-like query behavior. These paths
+must agree; choosing their shared numeric behavior affects type checks,
+arithmetic and callers that currently see strings.
+
+| Direction | Benefits | Costs |
+| --- | --- | --- |
+| **Recommended: consistently use the existing decimal evaluator for integers outside `i64`, retaining `integer` datatype metadata.** | Preserves already accepted values and the portable path's numeric behavior; requires a bounded adapter correction, without a new artifact format. | Query type checks see a decimal atom for larger integers. Existing matching-numeric-operand and decimal arithmetic limits still apply; this does not add arbitrary-precision arithmetic. |
+| Reject integers outside `i64` at shared conversion/import. | Every accepted integer fits the current integer evaluator. | Rejects previously valid values and portable artifacts; narrows the shared schema contract. |
+| Extend the shared CEM-QL integer representation and evaluator. | Larger integers can remain integers in query type checks and arithmetic. | Expands evaluator, operators, casts, budgets and public value APIs; needs a separately bounded design and precision policy. |
+
+Under the user's stop-at-decisions instruction, runtime changes are paused.
+For the recommended direction, share or align the typed-atomic adapters,
+preserve datatype/provenance and existing operator rules, then add permanent
+tests for direct handoff, receiver conversion, hook returns, positive/negative
+boundary values and portable reload. Cover arithmetic and type checks, including
+expected overflow and mixed-numeric errors, followed by worker/fallback checks.
+Do not modify the data-viewer templates or external-format import boundary.
+
+Evidence: a temporary `large_integer_query_behavior` test failed the direct vs
+portable atom comparison and printed both arithmetic reproductions above.
+It was removed after recording the results. The committed passing matrix covers
+scalar lexical conversion and precision, numeric/string facets, temporal zones,
+invalid contracts, mixed native segments and final text/HTML/XML projection.
+The pending change is tracked as `CEMT-LARGE-INTEGER` in [TODO](todo.md).
+Verification of the independent matrix passed: 8 shared-contract tests,
+70 focused CEM-QL tests and workspace test compilation. No runtime or browser
+assets changed in this increment.
+
 ## Expression hooks in attribute bodies (R05/R07/R12)
 
 **Selected by the user on 2026-09-21: attribute insertion scope (option 1).**
