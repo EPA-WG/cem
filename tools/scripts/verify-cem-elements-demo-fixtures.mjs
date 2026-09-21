@@ -503,7 +503,7 @@ const cellOverrideSamples = [
             'table > tbody > tr:first-child', 'ivysaur'),
         attributeEquals('table > tbody > tr:first-child img', 'alt', 'ivysaur'),
         countExactly('img', 2),
-        fillBlurThenText('textarea', '<catalog><pokemon><title pokemon-id="3">venusaur</title></pokemon><pokemon><name pokemon-id="2">ivysaur</name></pokemon></catalog>',
+        fillBlurThenText('textarea', '<catalog><pokemon><id>3</id><title>venusaur</title></pokemon><pokemon><id>2</id><name>ivysaur</name></pokemon></catalog>',
             'table', 'venusaur'),
         countExactly('img', 1),
         fillBlurThenText('textarea', '<broken>', '[role="alert"]', 'XML'),
@@ -522,6 +522,14 @@ const cellOverrideSamples = [
         countExactly('strong', 0),
         clickThenText('button[aria-label="Reset source"]', 'table strong', 'Out of stock (0)'),
         countExactly('strong', 1),
+    ]),
+    sampleContract('3. Native values pass into another component', [
+        text('cem-native-value-card article', 'Next count: 3'),
+        text('cem-native-value-card article', 'Date: 2024-02-29'),
+        propertyEquals('cem-native-value-card .value-label > name', 'textContent', 'ivysaur'),
+        normalizedText('cem-native-value-card .value-label > name > em', 'saur'),
+        normalizedText('cem-native-value-card article > section > p', 'Text-only label: ivysaur'),
+        countExactly('cem-native-value-card article > section name', 0),
     ]),
 ];
 

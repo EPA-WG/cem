@@ -20,7 +20,7 @@ use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKin
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
 
-use crate::api::{compile, evaluate, evaluate_with_control, CompileContext, EvaluationContext};
+use crate::api::{compile, CompileContext, EvaluationContext};
 use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
@@ -28,6 +28,9 @@ mod construction;
 mod interpolation;
 mod references;
 mod hooks;
+mod dispatch;
+mod projection;
+pub use projection::{project_attribute_value_with_control, project_render_plan_with_control};
 pub use hooks::ExpressionScope;
 mod attributes;
 pub use attributes::project_attribute_value;
@@ -953,6 +956,10 @@ fn render_compiled_template_internal(
     calls: Option<&dyn TemplateCallHandler>,
     protected: bool,
 ) -> TemplateCallResult {
+    let owned_control = OperationControl::with_root_policy(Default::default(), ScopePolicy::host_root().with_queue_size(128)).expect("valid renderer default policy");
+    let control = Some(control.unwrap_or((&owned_control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)));
+    let policy = control.and_then(|(c, s)| c.scope_tree().scope(s).map(|s| s.effective_policy))
+        .unwrap_or_else(ScopePolicy::host_root);
     let mut policy_bindings = data.bindings.clone();
     let datadom = data_document_with_host_bindings(&data.bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
@@ -963,7 +970,7 @@ fn render_compiled_template_internal(
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
             scope: QueryContextScope(0),
-            scope_policy: ScopePolicy::host_root().with_queue_size(128),
+            scope_policy: policy,
             diagnostics: Vec::new(),
             policy_bindings,
             current_item: data.expression_scope.focus.clone(),
@@ -975,7 +982,7 @@ fn render_compiled_template_internal(
         templates,
         match_rules,
         call_depth: data.expression_scope.call_depth,
-        max_call_depth: MAX_TEMPLATE_CALL_DEPTH,
+        max_call_depth: MAX_TEMPLATE_CALL_DEPTH.min(policy.stack_depth as usize),
         safe_points: control.map(|(control, scope)| SafePointPoller::new(control.clone(), scope)),
         control: control.map(|(control, scope)| (control.clone(), scope)),
         control_failed: false,
@@ -1168,28 +1175,18 @@ fn set_current_data_document_slice(
 }
 
 pub fn render_plan_to_html(plan: &RenderPlan) -> String {
-    let mut renderer = RenderPlanHtmlRenderer::default();
-    renderer.render_plan(plan);
-    renderer.out
+    render_plan_to_html_with_source_map(plan).rendered
 }
 
 pub fn render_plan_to_html_with_source_map(plan: &RenderPlan) -> TransformOutput {
-    let mut renderer = RenderPlanHtmlRenderer::default();
-    renderer.render_plan(plan);
-    let rendered_len = renderer.out.len() as u32;
-    TransformOutput {
-        target: OutputTarget::LightDomCustomElements,
-        rendered: renderer.out,
-        diagnostics: plan.diagnostics.clone(),
-        source_map: SourceMapStack {
-            frames: vec![SourceMapFrame {
-                source_id: SourceId(0),
-                span: FrameSpan::Single(ByteRange::new(0, rendered_len)),
-                transform: TransformKind::InterpreterRender,
-            }],
-        },
-        output_spans: renderer.spans,
-    }
+    render_plan_to_html_with_control(plan, &OperationControl::default(), cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
+        .unwrap_or_else(|error| projection_failure(plan, OutputTarget::LightDomCustomElements, error))
+}
+
+fn projection_failure(plan: &RenderPlan, target: OutputTarget, error: cem_ml::operation_control::ControlError) -> TransformOutput {
+    let mut diagnostics = plan.diagnostics.clone();
+    diagnostics.push(render_diagnostic(error.code(), error.to_string(), 0, Default::default()));
+    TransformOutput { target, rendered: String::new(), diagnostics, source_map: Default::default(), output_spans: vec![] }
 }
 
 pub fn render_plan_to_html_with_control(
@@ -1197,6 +1194,8 @@ pub fn render_plan_to_html_with_control(
     control: &OperationControl,
     scope: ExecutionScopeId,
 ) -> Result<TransformOutput, cem_ml::operation_control::ControlError> {
+    let projected = project_render_plan_with_control(plan, QueryContextScope(0), &cem_ml::value::artifact::CemValueArtifactLimits::default(), control, scope)?;
+    let plan = &projected;
     let mut renderer = RenderPlanHtmlRenderer::controlled(control, scope);
     renderer.force()?;
     renderer.render_plan(plan);
@@ -1221,22 +1220,8 @@ pub fn render_plan_to_html_with_control(
 }
 
 pub fn render_plan_to_xml_with_source_map(plan: &RenderPlan) -> TransformOutput {
-    let mut renderer = RenderPlanXmlRenderer::default();
-    renderer.render_plan(plan);
-    let rendered_len = renderer.out.len() as u32;
-    TransformOutput {
-        target: OutputTarget::Xml,
-        rendered: renderer.out,
-        diagnostics: plan.diagnostics.clone(),
-        source_map: SourceMapStack {
-            frames: vec![SourceMapFrame {
-                source_id: SourceId(0),
-                span: FrameSpan::Single(ByteRange::new(0, rendered_len)),
-                transform: TransformKind::InterpreterRender,
-            }],
-        },
-        output_spans: renderer.spans,
-    }
+    render_plan_to_xml_with_control(plan, &OperationControl::default(), cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
+        .unwrap_or_else(|error| projection_failure(plan, OutputTarget::Xml, error))
 }
 
 pub fn render_plan_to_xml_with_control(
@@ -1244,6 +1229,8 @@ pub fn render_plan_to_xml_with_control(
     control: &OperationControl,
     scope: ExecutionScopeId,
 ) -> Result<TransformOutput, cem_ml::operation_control::ControlError> {
+    let projected = project_render_plan_with_control(plan, QueryContextScope(0), &cem_ml::value::artifact::CemValueArtifactLimits::default(), control, scope)?;
+    let plan = &projected;
     let mut renderer = RenderPlanXmlRenderer::controlled(control, scope);
     renderer.force()?;
     renderer.render_plan(plan);
@@ -1273,17 +1260,34 @@ struct RenderPlanHtmlRenderer {
     spans: Vec<OutputSpan>,
     safe_points: Option<SafePointPoller>,
     control_error: Option<cem_ml::operation_control::ControlError>,
+    control: Option<(OperationControl, ExecutionScopeId)>,
+    output_memory: Vec<cem_ml::operation_control::MemoryPermit>,
+    accounted_bytes: usize,
 }
 
 impl RenderPlanHtmlRenderer {
     fn controlled(control: &OperationControl, scope: ExecutionScopeId) -> Self {
         Self {
             safe_points: Some(SafePointPoller::new(control.clone(), scope)),
+            control: Some((control.clone(), scope)),
             ..Self::default()
         }
     }
 
+    fn account_output(&mut self) -> Result<(), cem_ml::operation_control::ControlError> {
+        if let Some((control, scope)) = &self.control {
+            let bytes = self.out.len().saturating_sub(self.accounted_bytes);
+            if bytes > 0 {
+                self.output_memory.push(control.charge_memory(*scope, bytes as u64, None)?);
+                self.accounted_bytes = self.out.len();
+            }
+        }
+        Ok(())
+    }
     fn poll(&mut self) -> bool {
+        if self.out.len().saturating_sub(self.accounted_bytes) >= 1024 {
+            if let Err(error) = self.account_output() { self.control_error = Some(error); }
+        }
         if self.control_error.is_some() {
             return false;
         }
@@ -1300,6 +1304,7 @@ impl RenderPlanHtmlRenderer {
     }
 
     fn force(&mut self) -> Result<(), cem_ml::operation_control::ControlError> {
+        self.account_output()?;
         if let Some(error) = self.control_error.clone() {
             return Err(error);
         }
@@ -1418,7 +1423,7 @@ impl RenderPlanHtmlRenderer {
     }
 
     fn render_attribute(&mut self, attribute: &RenderPlanAttribute) {
-        let value = project_attribute_value(attribute);
+        let value = &attribute.value;
         let start = self.out.len() as u64;
         self.out.push(' ');
         if let Some(namespace) = attribute
@@ -1495,17 +1500,34 @@ struct RenderPlanXmlRenderer {
     spans: Vec<OutputSpan>,
     safe_points: Option<SafePointPoller>,
     control_error: Option<cem_ml::operation_control::ControlError>,
+    control: Option<(OperationControl, ExecutionScopeId)>,
+    output_memory: Vec<cem_ml::operation_control::MemoryPermit>,
+    accounted_bytes: usize,
 }
 
 impl RenderPlanXmlRenderer {
     fn controlled(control: &OperationControl, scope: ExecutionScopeId) -> Self {
         Self {
             safe_points: Some(SafePointPoller::new(control.clone(), scope)),
+            control: Some((control.clone(), scope)),
             ..Self::default()
         }
     }
 
+    fn account_output(&mut self) -> Result<(), cem_ml::operation_control::ControlError> {
+        if let Some((control, scope)) = &self.control {
+            let bytes = self.out.len().saturating_sub(self.accounted_bytes);
+            if bytes > 0 {
+                self.output_memory.push(control.charge_memory(*scope, bytes as u64, None)?);
+                self.accounted_bytes = self.out.len();
+            }
+        }
+        Ok(())
+    }
     fn poll(&mut self) -> bool {
+        if self.out.len().saturating_sub(self.accounted_bytes) >= 1024 {
+            if let Err(error) = self.account_output() { self.control_error = Some(error); }
+        }
         if self.control_error.is_some() {
             return false;
         }
@@ -1522,6 +1544,7 @@ impl RenderPlanXmlRenderer {
     }
 
     fn force(&mut self) -> Result<(), cem_ml::operation_control::ControlError> {
+        self.account_output()?;
         if let Some(error) = self.control_error.clone() {
             return Err(error);
         }
@@ -3119,10 +3142,30 @@ impl PlanRenderer<'_> {
                     .insert(name, attribute.value_stream.clone()),
             );
         }
-        previous.insert(
-            "node".into(),
-            self.evaluation_context.policy_bindings.get("node").cloned(),
-        );
+        self.dispatch_values(selected, mode, source_map, out, parent_attributes);
+        for (name, value) in previous {
+            if let Some(value) = value {
+                self.evaluation_context.policy_bindings.insert(name, value);
+            } else {
+                self.evaluation_context.policy_bindings.remove(&name);
+            }
+        }
+    }
+
+    fn dispatch_values(
+        &mut self, selected: ItemStream, mode: &str, source_map: &SourceMapStack,
+        out: &mut ResultBuffer, parent_attributes: &mut Vec<RenderPlanAttribute>,
+    ) {
+        if self.call_depth >= self.max_call_depth {
+            self.control_failed = true;
+            self.diagnostics.push(render_diagnostic(
+                "cem.transform_template.recursion_limit",
+                "native template match recursion limit exceeded".into(),
+                source_map_start(source_map), source_map.clone(),
+            ));
+            return;
+        }
+        let previous_node = self.evaluation_context.policy_bindings.get("node").cloned();
         let rules = self.match_rules.clone();
         let previous_focus = self.evaluation_context.current_item.clone();
         for item in selected
@@ -3147,12 +3190,10 @@ impl PlanRenderer<'_> {
             }
         }
         self.evaluation_context.current_item = previous_focus;
-        for (name, value) in previous {
-            if let Some(value) = value {
-                self.evaluation_context.policy_bindings.insert(name, value);
-            } else {
-                self.evaluation_context.policy_bindings.remove(&name);
-            }
+        if let Some(previous) = previous_node {
+            self.evaluation_context.policy_bindings.insert("node".into(), previous);
+        } else {
+            self.evaluation_context.policy_bindings.remove("node");
         }
     }
 
@@ -3527,27 +3568,12 @@ impl PlanRenderer<'_> {
         if self.failure.is_some() || self.control_failed {
             return ItemStream::empty();
         }
-        let stream = if self.recovery_depth > 0 {
-            let (control, scope) = self.control.clone().unwrap_or_else(|| {
-                (
-                    OperationControl::default(),
-                    cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
-                )
-            });
-            crate::eval::Evaluator::evaluate_protected(
-                query,
-                &self.evaluation_context,
-                &control,
-                scope,
-            )
-        } else {
-            match &self.control {
-                Some((control, scope)) => {
-                    evaluate_with_control(query, &self.evaluation_context, control, *scope)
-                }
-                None => evaluate(query, &self.evaluation_context),
-            }
-        };
+        let (control, scope) = self.control.clone().unwrap_or_else(|| (OperationControl::default(), cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID));
+        let context = self.evaluation_context.clone();
+        let protected = self.recovery_depth > 0;
+        let stream = crate::eval::Evaluator::evaluate_internal(
+            query, &context, &control, scope, protected, Some(self),
+        );
         if self.recovery_depth > 0 {
             if let Some(error) = &stream.error {
                 if let Some(diagnostic) = stream

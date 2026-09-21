@@ -17,6 +17,7 @@ describe('imported cell presentation lessons', () => {
         expect(inline).toContain('@mode=cell');
         expect(page).toContain('href="./stock-cell.cemt"');
         expect(page).toContain('src="./stock-cell.cemt"');
+        expect(page).toContain('cemt:apply_templates(label, "label")');
         for (const template of [inline, read('../../demo/stock-cell.cemt')]) {
             expect(template).toContain('{import @as=base @src="./data-table-view.cemt"}');
             expect(template).toContain('{call @from=base @template=viewer}');

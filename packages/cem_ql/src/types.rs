@@ -1052,6 +1052,7 @@ impl TypeChecker {
             ("num", "cem:stdlib/numbers"),
             ("dt", "cem:stdlib/datetime"),
             ("dom", "cem:stdlib/dom"),
+        ("cemt", "cem:stdlib/cemt"),
             ("item", "cem:stdlib/items"),
             ("module", "cem:stdlib/modules"),
             ("record", "cem:stdlib/records"),

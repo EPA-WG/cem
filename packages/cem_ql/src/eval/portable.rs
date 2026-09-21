@@ -2,23 +2,49 @@
 use super::*;
 use cem_ml::value::artifact::{CemValueArtifactLimits, CemValueGraph, CemValueRecord};
 
+/// Export under the caller's node capability scope and execution control.
+pub fn encode_values_with_control(
+    values: &ItemStream, limits: &CemValueArtifactLimits, query_scope: QueryContextScope,
+    control: &OperationControl, scope: ExecutionScopeId,
+) -> Result<Vec<u8>, cem_ml::operation_control::ControlError> {
+    let mut budget = value_control::ValueControl::new(control, scope, query_scope, *limits)?;
+    let limits = budget.limits;
+    let mut failure = None;
+    let graph = encode_graph(values, &limits, true, query_scope, &mut || {
+        budget.charge(0, 0).map_err(|error| { let message = error.to_string(); failure = Some(error); message })
+    });
+    if let Some(error) = failure { return Err(error); }
+    let (graph, _) = graph.map_err(|_| budget.failure("cem.value.artifact"))?;
+    budget.charge(graph.accounted_bytes(), 0)?;
+    let bytes = graph.encode_with_check(&limits, &mut || control.check_scope(scope).map_err(|e| e.to_string())).map_err(|_| budget.failure("cem.value.artifact"))?;
+    budget.charge(bytes.len(), 0)?;
+    control.check_scope(scope)?;
+    Ok(bytes)
+}
+
+pub fn decode_values_with_control(
+    bytes: &[u8], limits: &CemValueArtifactLimits, control: &OperationControl, scope: ExecutionScopeId,
+) -> Result<ItemStream, cem_ml::operation_control::ControlError> {
+    let mut budget = value_control::ValueControl::new(control, scope, QueryContextScope(0), *limits)?;
+    budget.charge(bytes.len(), 0)?;
+    let graph = CemValueGraph::decode_with_check(bytes, &budget.limits, &mut || control.check_scope(scope).map_err(|e| e.to_string())).map_err(|_| budget.failure("cem.value.artifact"))?;
+    budget.charge(graph.accounted_bytes(), 0)?;
+    let owner = xpath_values::GraphOwner::retained(graph, budget.limits, budget.into_permits());
+    let result = ItemStream::from_items(owner.roots.iter().map(|&id| graph_item(owner.clone(), id)).collect());
+    control.check_scope(scope)?;
+    Ok(result)
+}
+
 pub fn encode_values(
     values: &ItemStream,
     limits: &CemValueArtifactLimits,
 ) -> Result<Vec<u8>, String> {
-    let (graph, _) = encode_graph(values, limits, true, QueryContextScope(0), &mut || Ok(()))?;
-    graph.encode(limits)
+    encode_values_with_control(values, limits, QueryContextScope(0), &OperationControl::default(), ROOT_EXECUTION_SCOPE_ID)
+        .map_err(|error| error.to_string())
 }
 
 pub fn decode_values(bytes: &[u8], limits: &CemValueArtifactLimits) -> Result<ItemStream, String> {
-    let owner = xpath_values::GraphOwner::new(CemValueGraph::decode(bytes, limits)?, *limits);
-    Ok(ItemStream::from_items(
-        owner
-            .roots
-            .iter()
-            .map(|&id| graph_item(owner.clone(), id))
-            .collect(),
-    ))
+    decode_values_with_control(bytes, limits, &OperationControl::default(), ROOT_EXECUTION_SCOPE_ID).map_err(|e| e.to_string())
 }
 
 fn graph_item(owner: Arc<xpath_values::GraphOwner>, id: u32) -> Item {
@@ -64,6 +90,7 @@ pub(super) fn encode_graph(
             Ok(id)
         }
         fn add_all(&mut self, items: Vec<Item>) -> Result<Vec<u32>, String> {
+            if items.len() > self.limits.max_values { return Err("Native CEM reference count limit exceeded".into()); }
             items.into_iter().map(|item| self.add(item)).collect()
         }
     }
@@ -74,6 +101,7 @@ pub(super) fn encode_graph(
     };
     let roots = encoder.add_all(values.items.clone())?;
     let mut records = Vec::new();
+    let mut bytes = 0usize;
     while records.len() < encoder.items.len() {
         check()?;
         let item = encoder.items[records.len()].clone();
@@ -117,22 +145,27 @@ pub(super) fn encode_graph(
                     .transpose()?
             };
             let children = if matches!(kind.as_str(), "element" | "document") {
-                view.children(scope)
-                    .map_err(|e| format!("Native CEM child access denied: {e:?}"))?
-                    .map(|v| v.map_err(|e| format!("Native CEM child access denied: {e:?}")))
-                    .collect::<Result<Vec<_>, _>>()?
+                let mut children = Vec::new();
+                for child in view.children(scope).map_err(|e| format!("Native CEM child access denied: {e:?}"))? {
+                    check()?;
+                    if children.len() >= limits.max_values { return Err("Native CEM reference count limit exceeded".into()); }
+                    children.push(child.map_err(|e| format!("Native CEM child access denied: {e:?}"))?);
+                }
+                children
             } else {
                 Vec::new()
             };
             let native_values = view.field("values");
             let native_content = kind == "attribute" && native_values.is_some();
             CemValueRecord {
+                lexical: if matches!(kind.as_str(), "element" | "document" | "reference") || native_content {
+                    String::new()
+                } else { lexical_field(view, "value") },
                 kind,
                 parent,
                 native_content,
                 name: lexical_field(view, "name"),
                 namespace: lexical_field(view, "namespace"),
-                lexical: lexical_field(view, "value"),
                 datatype: String::new(),
                 children: encoder.add_all(children)?,
                 attributes: encoder.add_all(view.field("attributes").unwrap_or_default())?,
@@ -146,6 +179,10 @@ pub(super) fn encode_graph(
                 provenance: view.provenance(),
             }
         };
+        bytes = bytes.saturating_add(record.name.len()).saturating_add(record.namespace.len())
+            .saturating_add(record.lexical.len()).saturating_add(record.datatype.len())
+            .saturating_add(std::mem::size_of::<CemValueRecord>());
+        if bytes > limits.max_bytes { return Err("Native CEM value byte limit exceeded".into()); }
         records.push(record);
     }
     if !include_parents {
@@ -171,22 +208,22 @@ pub struct GraphView {
 impl GraphView {
     pub(crate) fn xpath_items(
         &self,
+        control: &OperationControl, execution_scope: ExecutionScopeId,
         check: &mut impl FnMut() -> Result<(), String>,
     ) -> Result<Vec<cem_ml::validation::xpath::XPathResultItem>, String> {
         check()?;
         if self.owner.xpath.get().is_none() {
-            let projection = cem_ml::value::xpath::CemValueXPathProjection::build(
-                self.owner.graph.clone(),
-                &self.owner.limits,
-                check,
+            let limits = value_control::ValueControl::new(control, execution_scope, QueryContextScope(0), self.owner.limits).map_err(|e| e.to_string())?.limits;
+            let projection = cem_ml::value::xpath::CemValueXPathProjection::build_with_owner(
+                self.owner.graph.clone(), &limits, check,
+                |bytes, _| control.charge_memory(execution_scope, bytes as u64, None)
+                    .map(|permit| Some(Arc::new(permit) as Arc<dyn Any + Send + Sync>)).map_err(|e| e.to_string()),
             )?;
             let _ = self.owner.xpath.set(Arc::new(projection));
         }
-        self.owner
-            .xpath
-            .get()
-            .expect("initialized projection")
-            .items(self.id)
+        let projection = self.owner.xpath.get().expect("initialized projection");
+        let _admission = control.charge_memory(execution_scope, projection.accounted_bytes as u64, None).map_err(|e| e.to_string())?;
+        projection.items_with_check(self.id, check)
     }
 
     pub fn record(&self) -> &CemValueRecord {
@@ -352,7 +389,8 @@ pub(super) fn clone_native(
             .copied()
             .unwrap_or(100_000)
             .min(100_000) as usize,
-        ..Default::default()
+        max_bytes: CemValueArtifactLimits::default().max_bytes.min(ctx.scope_policy.memory_bytes as usize),
+        max_depth: CemValueArtifactLimits::default().max_depth.min(ctx.scope_policy.stack_depth as usize),
     };
     let scope = ctx.query_scope;
     let mut failure = None;

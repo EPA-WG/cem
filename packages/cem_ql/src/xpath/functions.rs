@@ -319,7 +319,17 @@ impl NativeQueryFunction for InstalledFunction {
             }
             let values = match bind_argument(parameter, argument, &request) {
                 Ok(values) => values,
-                Err(message) => return request.raise("cem.ql.xpath_function_argument", message),
+                Err(message) => {
+                    if let Err(error) = request.control.check_scope(request.scope) {
+                        let mut failed = request.raise("cem.ql.xpath_function_control", error.to_string());
+                        failed.error = Some(match error {
+                            cem_ml::operation_control::ControlError::Triggered(failure) => EvalError::Control(failure),
+                            _ => EvalError::Unsupported("XPath projection control failed"),
+                        });
+                        return failed;
+                    }
+                    return request.raise("cem.ql.xpath_function_argument", message);
+                },
             };
             item_count = item_count.saturating_add(values.len().saturating_sub(argument.items.len()) as u64);
             if item_count > request.max_result_items {
@@ -428,7 +438,7 @@ pub(crate) fn bind_argument(
                 }
             }
             if let Some(values) =
-                crate::eval::xpath_values::native_items(item, request.query_scope, &mut || {
+                crate::eval::xpath_values::native_items(item, request.query_scope, request.control, request.scope, &mut || {
                     request
                         .control
                         .check_scope(request.scope)

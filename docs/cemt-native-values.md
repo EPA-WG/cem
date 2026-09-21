@@ -99,6 +99,39 @@ Namespaces, source-selection keys, origin URIs and line numbers survive the
 projection. The native projection checks graph, expansion, depth and byte limits
 and polls execution control while constructing its index.
 
+The output owner retains at most its most recently used query scope's index.
+Changing scope rebuilds the index under that scope's access checks. Cache eviction
+never invalidates returned XPath nodes: their tree owner retains its memory permit
+until the last reference is released. Cached access is checked against the current
+execution scope's memory allowance, including when another operation built it.
+Portable graphs retain one scope-independent index after validated import.
+
+## Explicit template dispatch from CEM-QL
+
+`cemt:apply_templates(values, mode)` invokes the active renderer's match rules and
+returns native result content. Both arguments are required; `""` selects the default
+mode. It shares mode selection, priority, declaration order, imported rules, caller
+hooks and focus restoration with `{apply-templates}`. Unmatched values produce an
+empty sequence. It does not inherit query-local variable names as template parameters;
+template lexical bindings remain available and the selected item becomes `node`.
+
+```cem
+{template @mode=label @match='node.name == "name"' | {$node}}
+{p | {$cemt:apply_templates(label, "label")}}
+```
+
+The result can feed `dom:text`, a native attribute or another query before insertion.
+The containing expression applies its normal hook to the returned whole sequence;
+active hook declarations still cannot invoke themselves implicitly. This distinction
+allows a caller's text hook to flatten the complete result of a matching template.
+Query recovery can catch data errors raised by a called template. Recursion,
+resource failures and cancellation remain terminal. An ordinary standalone query
+without a CEMT host reports `cem.ql.template_context_missing`.
+
+The host is borrowed only during evaluation. Compiled artifacts store the call,
+without serializing renderer state or acquiring a browser dependency. Native module
+entrypoints retain their match declarations when their body is selected.
+
 ## Portable artifacts: accepted R08 transport
 
 CEM-ML owns the `CEMV` version-2 binary value artifact. It contains a flat native
@@ -145,6 +178,25 @@ and depth 128. `CemDeclarationScopeOptions.nativeValueLimits` follows ordinary
 CEM ancestry: descendants inherit limits and may only lower them. Native Rust
 callers supply `CemValueArtifactLimits` at import/export boundaries.
 
+Controlled Rust boundaries are `encode_values_with_control`,
+`decode_values_with_control`, `project_attribute_value_with_control` and
+`project_render_plan_with_control`. Projection/export receive a query capability
+scope separately from the execution scope. Each uses the supplied native value
+limits, capped by the execution scope's memory and logical-depth policy. Child
+scopes can only lower these ceilings. HTML/XML serializers and the WASM DOM patch
+boundary use this path; failed projection publishes no prefix or artifact handle.
+
+`dom:text` charges both visited work and lexical bytes against the query policy's
+memory-derived ceilings, and reserves extracted bytes against operation memory.
+Final text extraction accepts borrowed source fragments and owned atomic lexical
+segments through `QueryItemView::text_segments`; the existing borrowed-only
+`text_fragments` API remains available. Neither API permits fallback around denied
+node access. Artifact graph validation and cached XPath reference expansion poll
+execution control. Binary codecs run between checked boundaries on size-bounded
+input. Memory permits account retained graph records, edges, lexical payloads, source
+frames, provenance, schema metadata and conservative semantic-index storage; this is explicit resource accounting, not a
+measurement of every allocator overhead byte.
+
 XML, JSON, YAML and CSV continue to enter through the shared CEM-ML import
 layer. There are no format-specific evaluator or renderer branches. See the
 [import principle](cem-data-import-principle.md).
@@ -163,3 +215,10 @@ handle disposal. Browser stories check the declarative demo.
 The [implementation checklist](todo.md) tracks remaining coverage and DX work.
 The [temporary review](cemt-expression-review.tmp.md) retains the discussion;
 R08's portable artifact choice is settled.
+
+An open named-type inheritance issue affects output attributes: local facets
+currently replace a named type's facets. Receiver inputs check their named type
+independently. Two native probes reproduce the output gap for numeric bounds
+and regex patterns. The [constraint proposal](cemt-expression-review.tmp.md#pending-decision-named-attribute-constraints-r06r07)
+compares retaining all inherited/local constraints with rejecting local overrides;
+the contract/portable representation decision remains pending.

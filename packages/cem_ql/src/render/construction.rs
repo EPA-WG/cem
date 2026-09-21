@@ -332,9 +332,9 @@ impl PlanRenderer<'_> {
         self.result_work = self.result_work.saturating_add(1);
         self.result_bytes = self.result_bytes.saturating_add(bytes as u64);
         let limits = XPathEvaluationLimits::default();
-        if depth > 128
+        if depth > 128.min(self.evaluation_context.scope_policy.stack_depth as usize)
             || self.result_work > limits.max_work_units.unwrap_or(u64::MAX).min(100_000)
-            || self.result_bytes > limits.max_text_bytes.unwrap_or(u64::MAX)
+            || self.result_bytes > limits.max_text_bytes.unwrap_or(u64::MAX).min(self.evaluation_context.scope_policy.memory_bytes)
         {
             let diagnostic = render_diagnostic(
                 "cem.ql.result.limit",

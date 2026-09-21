@@ -138,16 +138,21 @@
 </cem-stock-cells>
         </template>
     </cem-demo-element>
+    <p>The child below uses <code>cemt:apply_templates(label, "label")</code>
+        to select its label rule from an expression. The function returns native
+        content, so the result can feed another query or attribute without a
+        string round trip. The text-only section demonstrates a scoped hook.</p>
     <cem-demo-element legend="3. Native values pass into another component"
-        description="The parent passes a number, a date and a name subtree. The child calculates with the number and renders the retained subtree">
+        description="The parent passes a number, a date and a name subtree. The child calculates with the number and selects a matching template for the retained subtree">
         <template>
 <cem-element tag="cem-native-value-card">
     <template type="text/cem-ml">
 {attribute @name=count @type=integer @minInclusive=1 @required=true}
 {attribute @name=day @type=date @required=true}
 {attribute @name=label @type=node @required=true}
+{template @mode=label @match='node.name == "name"' | {$node}}
 {article |
-    {p @class=value-label | {$label}}
+    {p @class=value-label | {$cemt:apply_templates(label, "label")}}
     {p | Next count: {$count + 1}}
     {p | Date: {$day}}
     {section |

@@ -3875,8 +3875,8 @@ fn template_body_nodes(children: &[TemplateNode]) -> Vec<TemplateNode> {
 fn artifact_from_nodes(source: &TemplateArtifact, mut nodes: Vec<TemplateNode>) -> TemplateArtifact {
     fn defaults(nodes: &[TemplateNode], out: &mut Vec<TemplateNode>) {
         for node in nodes {
-            if let TemplateNode::Element { tag, attributes, children, .. } = node {
-                if local_name(tag) == "template" && literal_attribute(attributes, "on").as_deref() == Some("expression") { out.push(node.clone()); }
+            if let TemplateNode::Element { tag, children, .. } = node {
+                if local_name(tag) == "template" { out.push(node.clone()); }
                 else if local_name(tag) == "module" { defaults(children, out); }
             }
         }
@@ -9871,7 +9871,8 @@ count + 1"#,
                         bytes: br#"{@doc cem-ml 1}
 {module |
   {template @on=expression @into=content @priority=100 | {$"default"}}
-  {template @name="icon" @visibility="public" | {body | {span | {$"value"}}}}
+  {template @name=label @mode=label @match=true | {param @name=node}{body | {span | {$node}}}}
+  {template @name="icon" @visibility="public" | {body | {$cemt:apply_templates("value", "label")}}}
 }"#
                         .to_vec(),
                     }],
@@ -9897,7 +9898,7 @@ count + 1"#,
 
         assert_eq!(
             test_output_value(&rendered.output),
-            Value::String("<div><span>default</span><section><span>caller</span></section></div>".to_owned())
+            Value::String("<div>default<section>caller</section></div>".to_owned())
         );
         assert!(
             rendered.diagnostics.is_empty(),

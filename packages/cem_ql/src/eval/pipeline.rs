@@ -182,6 +182,7 @@ pub(crate) fn apply_stdlib_call(
         return ctx.unknown_function(source, "unknown stdlib call");
     }
     match (module.0.as_str(), name.local.as_str()) {
+        ("cem:stdlib/cemt", "apply_templates") => super::template_dispatch::apply(arg_streams, ctx, source),
         ("cem:stdlib/dom", "text") => super::values::text(arg_streams, ctx, source),
         ("cem:stdlib/dom", "reference") => ItemStream::once(super::values::reference(
             arg_streams.into_iter().next().unwrap_or_default().items)),

@@ -386,3 +386,37 @@ fn receiver_cannot_relax_a_named_schema_type_or_host_input_contract() {
     assert!(invalid.rendered.is_empty());
     assert!(!invalid.diagnostics.is_empty());
 }
+
+#[test]
+fn query_template_dispatch_returns_native_content_and_restores_focus() {
+    assert_eq!(rendered(r#"
+        {template @mode=label @match=true | {b | {$dom:text()}}}
+        {template @mode=cell @match='node.name == "name"' |
+            {i | {$dom:text(cemt:apply_templates(seq:where(dom:children(dom:parent(node)), fn(sibling) => sibling.name == "id"), "label"))}}
+            {span | {$dom:text()}}}
+        {$cemt:apply_templates(data.root.children.children, "cell")}
+        {$cemt:apply_templates((), "cell")}
+    "#), "<i>2</i><span>ivysaur</span>");
+}
+
+#[test]
+fn query_template_dispatch_is_explicitly_hosted_and_bounded() {
+    use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
+    let query = compile(r#"cemt:apply_templates((), "cell")"#, &CompileContext::default()).unwrap();
+    let values = evaluate(&query, &EvaluationContext::default());
+    assert!(values.items.is_empty());
+    assert!(values.diagnostics.iter().any(|d| d.code == "cem.ql.template_context_missing"), "{:?}", values);
+    let result = render_template(r#"
+        {template @match=true | {$cemt:apply_templates(node, "")}}
+        {p | before}{$cemt:apply_templates("loop", "")}{p | after}
+    "#, &TemplateData::default());
+    assert!(result.diagnostics.iter().any(|d| d.code == "cem.transform_template.recursion_limit"), "{:?}", result.diagnostics);
+    assert!(result.rendered.trim().is_empty(), "{}", result.rendered);
+}
+
+#[test]
+fn query_template_errors_use_query_recovery_without_leaking_renderer_failure() {
+    assert_eq!(rendered(r#"{template @mode=bad @match=true | {$1 / 0}}
+        {$try { cemt:apply_templates("value", "bad") } catch (code, message) { "recovered" }}
+        {p | after}"#), "recovered<p>after</p>");
+}

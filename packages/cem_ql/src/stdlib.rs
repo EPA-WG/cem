@@ -1,6 +1,7 @@
 //! Tier A standard-library registry.
 
 pub mod cemml;
+pub mod cemt;
 pub mod content_types;
 pub mod data;
 pub mod datetime;
@@ -193,6 +194,7 @@ pub fn tier_a_functions() -> Vec<StdlibFunction> {
         state::FUNCTIONS,
         template::FUNCTIONS,
         cemml::FUNCTIONS,
+        cemt::FUNCTIONS,
     ]
     .into_iter()
     .flatten()

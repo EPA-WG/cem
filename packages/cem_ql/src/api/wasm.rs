@@ -372,9 +372,15 @@ fn plan_json(plan: &RenderPlan) -> Value {
     plan_json_with_limits(plan, &cem_ml::value::artifact::CemValueArtifactLimits::default())
 }
 fn plan_json_with_limits(plan: &RenderPlan, limits: &cem_ml::value::artifact::CemValueArtifactLimits) -> Value {
+    let control = cem_ml::operation_control::OperationControl::default();
+    let scope = cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID;
+    let plan = match crate::render::project_render_plan_with_control(plan, crate::eval::QueryContextScope(0), limits, &control, scope) {
+        Ok(plan) => plan,
+        Err(error) => { values::clear_output(); return serde_json::from_str(&error_json("cem.value.projection", error.to_string())).expect("error control metadata"); }
+    };
     let mut values = crate::eval::ItemStream::empty();
     let nodes = nodes_json(&plan.nodes, &mut values);
-    let artifact = match values::publish(&values, limits) {
+    let artifact = match values::publish(&values, limits, &control, scope) {
         Ok(artifact) => artifact,
         Err(error) => return serde_json::from_str(&error_json("cem.value.artifact", error)).expect("error control metadata"),
     };
@@ -433,7 +439,7 @@ fn node_json(node: &RenderPlanNode, values: &mut crate::eval::ItemStream) -> Val
                     "name": attribute.qualified_name.as_ref().unwrap_or(&attribute.name),
                     "nativeValueIndex": values::attribute(attribute, values),
                     "namespace": attribute.namespace,
-                    "value": crate::render::project_attribute_value(attribute),
+                    "value": attribute.value,
                     "byteOffset": source_map_offset(&attribute.source_map),
                     "sourceMap": source_map_json(&attribute.source_map)
                 });

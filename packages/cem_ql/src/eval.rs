@@ -26,6 +26,8 @@ use crate::types::Type;
 mod data;
 mod inspection;
 pub mod values;
+pub mod value_control;
+mod template_dispatch;
 pub mod output;
 pub mod portable;
 pub(crate) mod xpath_values;
@@ -57,6 +59,8 @@ pub enum QueryNodeAccessError {
 }
 
 pub type QueryNodeIterator<'a> = Box<dyn Iterator<Item = Result<Item, QueryNodeAccessError>> + 'a>;
+
+pub type QueryTextSegments<'a> = Box<dyn Iterator<Item = Result<std::borrow::Cow<'a, str>, QueryNodeAccessError>> + 'a>;
 
 pub type QueryNodeTextIterator<'a> =
     Box<dyn Iterator<Item = Result<&'a str, QueryNodeAccessError>> + 'a>;
@@ -98,6 +102,9 @@ pub trait QueryItemView: fmt::Debug + Send + Sync {
     /// String-value fragments for text-context rendering, separate from query
     /// atomization. Enforce scope before exposing each fragment. Yield an empty
     /// fragment for non-text visits so consumers can bound traversal work.
+    fn text_segments(&self, scope: QueryContextScope) -> Result<QueryTextSegments<'_>, QueryNodeAccessError> {
+        Ok(Box::new(self.text_fragments(scope)?.map(|v| v.map(std::borrow::Cow::Borrowed))))
+    }
     fn text_fragments(
         &self,
         _scope: QueryContextScope,
@@ -275,6 +282,9 @@ impl NativeItemView {
         scope: QueryContextScope,
     ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
         self.view.children(scope)
+    }
+    pub fn text_segments(&self, scope: QueryContextScope) -> Result<QueryTextSegments<'_>, QueryNodeAccessError> {
+        self.view.text_segments(scope)
     }
     pub fn text_fragments(
         &self,
@@ -538,7 +548,7 @@ impl Evaluator {
         control: &OperationControl,
         scope: ExecutionScopeId,
     ) -> ItemStream {
-        Self::evaluate_internal(query, context, control, scope, false)
+        Self::evaluate_internal(query, context, control, scope, false, None)
     }
 
     /// Evaluate a call within an enclosing recovery region. Stop at the first
@@ -549,17 +559,19 @@ impl Evaluator {
         control: &OperationControl,
         scope: ExecutionScopeId,
     ) -> ItemStream {
-        Self::evaluate_internal(query, context, control, scope, true)
+        Self::evaluate_internal(query, context, control, scope, true, None)
     }
 
-    fn evaluate_internal(
-        query: &CompiledQuery,
+    pub(crate) fn evaluate_internal<'a>(
+        query: &'a CompiledQuery,
         context: &EvaluationContext,
         control: &OperationControl,
         scope: ExecutionScopeId,
         protected: bool,
+        template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
     ) -> ItemStream {
         let mut ctx = EvalCtx::new(query, context, control, scope);
+        ctx.template_host = template_host;
         ctx.recovery_depth = usize::from(protected);
         let mut stream = match ctx.force_safe_point(query.tree.root) {
             Ok(()) => ctx.eval_id(query.tree.root),
@@ -577,11 +589,13 @@ impl Evaluator {
 
 pub(crate) struct EvalCtx<'a> {
     query: &'a CompiledQuery,
+    template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
     safe_points: SafePointPoller,
     scopes: Vec<HashMap<BindingId, ItemStream>>,
     globals: HashMap<BindingId, IrId>,
     functions: HashMap<BindingId, IrId>,
     current_items: Vec<Item>,
+    text_memory: Vec<cem_ml::operation_control::MemoryPermit>,
     counters: HashMap<BudgetAxis, u64>,
     limits: HashMap<BudgetAxis, u64>,
     scope_policy: ScopePolicy,
@@ -603,16 +617,23 @@ impl<'a> EvalCtx<'a> {
         control: &OperationControl,
         scope: ExecutionScopeId,
     ) -> Self {
+        let mut policy = context.scope_policy;
+        if let Some(scope) = control.scope_tree().scope(scope) {
+            policy.memory_bytes = policy.memory_bytes.min(scope.effective_policy.memory_bytes);
+            policy.stack_depth = policy.stack_depth.min(scope.effective_policy.stack_depth);
+        }
         let mut ctx = Self {
             query,
+            template_host: None,
             safe_points: SafePointPoller::new(control.clone(), scope),
             scopes: vec![HashMap::new()],
             globals: HashMap::new(),
             functions: HashMap::new(),
             current_items: context.current_item.clone().into_iter().collect(),
+            text_memory: Vec::new(),
             counters: HashMap::new(),
-            limits: limits_from_policy(context.scope_policy),
-            scope_policy: context.scope_policy,
+            limits: limits_from_policy(policy),
+            scope_policy: policy,
             call_depth: 0,
             diagnostics: context.diagnostics.clone(),
             error: None,
@@ -1662,6 +1683,8 @@ fn limits_from_policy(policy: ScopePolicy) -> HashMap<BudgetAxis, u64> {
             (policy.queue_size.max(1) as u64) * 16,
         ),
         (BudgetAxis::ClosureSize, policy.memory_bytes.max(1)),
+        (BudgetAxis::XPathTextBytes, policy.memory_bytes),
+        (BudgetAxis::XPathWorkUnits, policy.memory_bytes),
         (BudgetAxis::RegexBacktrack, u64::MAX),
         (BudgetAxis::ExternalFetches, policy.io_streams.max(1) as u64),
     ]

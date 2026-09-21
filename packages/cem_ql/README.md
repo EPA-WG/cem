@@ -94,6 +94,9 @@ keeps its ordered literal and native segments between transformation phases.
 Sources remain immutable; only `dom:clone(values)` requests independent node
 storage. `dom:element(elements)` creates empty named element shells, and
 `dom:reference(values)` constructs an explicit native reference.
+`cemt:apply_templates(values, mode)` calls matching templates through the active
+CEMT host and returns native content for further querying or insertion. It requires
+both arguments and reports a missing-host error in standalone query evaluation.
 
 `dom:text()` reads the active matching-template focus. In an expression hook,
 the focus is the entire expression sequence, including empty input. Missing

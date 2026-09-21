@@ -17,6 +17,7 @@ pub struct CemValueXPathProjection {
     graph: Arc<CemValueGraph>,
     tree: Arc<RetainedCemTree>,
     selections: Vec<Vec<u32>>,
+    pub accounted_bytes: usize,
 }
 
 impl CemValueXPathProjection {
@@ -25,7 +26,16 @@ impl CemValueXPathProjection {
         limits: &CemValueArtifactLimits,
         check: &mut impl FnMut() -> Result<(), String>,
     ) -> Result<Self, String> {
-        graph.validate(limits)?;
+        Self::build_with_owner(graph, limits, check, |_, _| Ok(None))
+    }
+
+    pub fn build_with_owner(
+        graph: Arc<CemValueGraph>, limits: &CemValueArtifactLimits,
+        check: &mut impl FnMut() -> Result<(), String>,
+        retain: impl FnOnce(usize, usize) -> Result<Option<Arc<dyn std::any::Any + Send + Sync>>, String>,
+    ) -> Result<Self, String> {
+        check()?;
+        graph.validate_with_check(limits, check)?;
         let mut builder = Builder {
             graph: &graph,
             limits,
@@ -60,15 +70,27 @@ impl CemValueXPathProjection {
             selections,
             ..
         } = builder;
-        let tree = RetainedCemTree::native_forest(ast, roots, semantics, graph.clone())?;
+        // Both the native graph and the semantic index can own source frames,
+        // names and provenance. Include those retained copies in the permit.
+        let accounted_bytes = graph.accounted_bytes().saturating_mul(2).saturating_add(builder_cost(&ast));
+        let retained = retain(accounted_bytes, ast.nodes.len())?;
+        (check)()?;
+        let owner: Arc<dyn std::any::Any + Send + Sync> = Arc::new((graph.clone(), retained));
+        let tree = RetainedCemTree::native_forest(ast, roots, semantics, owner)?;
         Ok(Self {
             graph,
             tree,
             selections,
+            accounted_bytes,
         })
     }
 
     pub fn items(&self, id: u32) -> Result<Vec<XPathResultItem>, String> {
+        self.items_with_check(id, &mut || Ok(()))
+    }
+
+    pub fn items_with_check(&self, id: u32, check: &mut impl FnMut() -> Result<(), String>) -> Result<Vec<XPathResultItem>, String> {
+        check()?;
         let record = self
             .graph
             .records
@@ -96,7 +118,7 @@ impl CemValueXPathProjection {
         if record.kind == "reference" && record.parent.is_none() && !record.occurrence {
             let mut result = Vec::new();
             for &target in &record.targets {
-                result.extend(self.items(target)?);
+                result.extend(self.items_with_check(target, check)?);
             }
             return Ok(result);
         }
@@ -111,6 +133,13 @@ impl CemValueXPathProjection {
             })
             .collect())
     }
+}
+
+fn builder_cost(ast: &CemDocument) -> usize {
+    // Node arena plus semantic/index slots and source/name/text allocations.
+    // The input graph already accounts for lexical payloads; allow a second
+    // copy for the semantic representation and index maps.
+    ast.nodes.len().saturating_mul(std::mem::size_of::<CemAstNode>() + 256)
 }
 
 struct Builder<'a, F> {

@@ -250,3 +250,19 @@ fn template_data() -> TemplateData {
         ]),
     }
 }
+
+#[test]
+fn explicit_query_dispatch_survives_artifact_reload_with_scoped_hooks() {
+    let source = r#"{template @mode=label @match=true | {b | {$node}}}
+        {div | {template @on=expression @into=content | {$dom:text()}}
+            {$cemt:apply_templates(("ivy", "saur"), "label")}}
+        {$cemt:apply_templates("outside", "label")}"#;
+    let source = source.lines().map(str::trim).collect::<String>();
+    let source = source.as_str();
+    let options = CompileTemplateOptions::default();
+    let artifact = compile_template_artifact(source, &options, TemplateArtifactSourceMapMode::Dev);
+    let loaded = artifact.reload(&TemplateArtifactLoadContext { host_bindings: vec![], expected_source_hash: Some(ContentHash::from_blake3(source.as_bytes())), source_map_mode: TemplateArtifactSourceMapMode::Dev }).unwrap();
+    let result = render_compiled_template(&loaded, &TemplateData::default());
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(render_plan_to_html(&result), "<div>ivysaur</div><b>outside</b>");
+}

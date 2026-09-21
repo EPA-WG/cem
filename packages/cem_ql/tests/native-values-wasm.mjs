@@ -7,7 +7,7 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import * as wasm from '../dist/wasm/cem_ql.js';
 const limits = JSON.stringify({ maxBytes: 16 * 1024 * 1024, maxValues: 100000, maxDepth: 128 });
 const ready = () => readFile(new URL('../dist/wasm/cem_ql_bg.wasm', import.meta.url)).then(bytes => wasm.default({ module_or_path: bytes }));
-const source = `{child | {attribute @name=count @type=integer @value=002}{attribute @name=day @type=date @value=2024-02-29}{attribute @name=label @type=node @content-type=text/html @value='{data:read("<name>ivy<em>saur</em></name>", "xml").root.children}'}{attribute @name=empty @type=any @value='{()}'}}`;
+const source = `{template @mode=label @match=true | {$node}}{child | {attribute @name=count @type=integer @value=002}{attribute @name=day @type=date @value=2024-02-29}{attribute @name=label @type=node @content-type=text/html @value='{cemt:apply_templates(data:read("<name>ivy<em>saur</em></name>", "xml").root.children, "label")}'}{attribute @name=empty @type=any @value='{()}'}}`;
 function produce() {
     const plan = JSON.parse(wasm.renderTemplateSource(source, '{}'));
     assert.deepEqual(plan.diagnostics, []);

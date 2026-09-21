@@ -79,11 +79,17 @@ pub(crate) fn text(args: Vec<ItemStream>, ctx: &mut EvalCtx<'_>, source: IrId) -
         let mut append = |fragment: &str| -> Result<(), ItemStream> {
             ctx.charge(BudgetAxis::XPathWorkUnits, 1, source)?;
             ctx.charge(BudgetAxis::XPathTextBytes, fragment.len() as u64, source)?;
+            if !fragment.is_empty() {
+                match ctx.control.charge_memory(ctx.safe_points.scope(), fragment.len() as u64, Some(ctx.source_map(source))) {
+                    Ok(permit) => ctx.text_memory.push(permit),
+                    Err(error) => { ctx.map_control_result(source, Err(error))?; }
+                }
+            }
             value.push_str(fragment);
             Ok(())
         };
         if let Some(view) = item.view().filter(|v| v.kind() == QueryItemViewKind::Node) {
-            let fragments = view.text_fragments(query_scope);
+            let fragments = view.text_segments(query_scope);
             let fragments = match fragments {
                 Ok(f) => f,
                 Err(e) => return super::pipeline::node_access_error(e, ctx, source),
@@ -93,7 +99,7 @@ pub(crate) fn text(args: Vec<ItemStream>, ctx: &mut EvalCtx<'_>, source: IrId) -
                     Ok(f) => f,
                     Err(e) => return super::pipeline::node_access_error(e, ctx, source),
                 };
-                if let Err(error) = append(fragment) {
+                if let Err(error) = append(&fragment) {
                     return error;
                 }
             }
@@ -161,26 +167,18 @@ fn clone_item(
         .view()
         .filter(|view| view.kind() == QueryItemViewKind::Node)
         .ok_or_else(|| ctx.type_error(source, "DOM construction requires native nodes"))?;
-    // Capability check precedes resolving any retained native owner.
-    drop(
-        view.children(ctx.query_scope)
-            .map_err(|error| super::pipeline::node_access_error(error, ctx, source))?,
-    );
-    let mut nodes = crate::render::expand_reference(&CemReference::new(vec![item.clone()]));
-    if !deep {
-        if nodes.len() != 1 {
-            return Err(ctx.type_error(source, "dom:element requires element nodes"));
-        }
-        let RenderPlanNode::Element {
-            attributes,
-            children,
-            ..
-        } = &mut nodes[0]
-        else {
-            return Err(ctx.type_error(source, "dom:element requires element nodes"));
-        };
-        attributes.clear();
-        children.clear();
+    view.parent(ctx.query_scope).map_err(|error| super::pipeline::node_access_error(error, ctx, source))?;
+    let kind = view.field("kind").and_then(|v| v.first().and_then(Item::atom));
+    if kind != Some(AtomValue::String("element".into())) {
+        return Err(ctx.type_error(source, "dom:element requires element nodes"));
     }
-    Ok(output::output_nodes(nodes).items)
+    let lexical = |name| view.field(name).and_then(|v| v.first().and_then(Item::atom))
+        .map(|atom| crate::render::item_to_string(&Item::Atomic(atom))).unwrap_or_default();
+    let tag = lexical("name");
+    let namespace = lexical("namespace");
+    Ok(output::output_nodes(vec![RenderPlanNode::Element {
+        qualified_name: Some(tag.clone()), tag,
+        namespace: (!namespace.is_empty()).then_some(namespace),
+        attributes: vec![], children: vec![], source_map: item.source_map().unwrap_or_default(),
+    }]).items)
 }

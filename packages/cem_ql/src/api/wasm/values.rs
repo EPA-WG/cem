@@ -2,7 +2,7 @@
 use super::*;
 use crate::eval::{
     output::output_attribute,
-    portable::{decode_values, encode_values},
+    portable::{decode_values, encode_values_with_control},
     ItemStream,
 };
 use cem_ml::value::artifact::CemValueArtifactLimits;
@@ -111,12 +111,14 @@ pub(super) fn attribute(
 pub(super) fn publish(
     values: &ItemStream,
     limits: &CemValueArtifactLimits,
+    control: &cem_ml::operation_control::OperationControl,
+    scope: cem_ml::operation_control::ExecutionScopeId,
 ) -> Result<Option<(u32, String)>, String> {
     OUTPUT.with(|output| output.borrow_mut().take());
     if values.items.is_empty() {
         return Ok(None);
     }
-    let bytes = encode_values(values, limits)?;
+    let bytes = encode_values_with_control(values, limits, crate::eval::QueryContextScope(0), control, scope).map_err(|e| e.to_string())?;
     let hash = cem_ml::content_cache::ContentHash::from_blake3(&bytes).header_value();
     let id = next_id()?;
     OUTPUT.with(|output| *output.borrow_mut() = Some((id, bytes)));
@@ -129,3 +131,5 @@ pub(super) fn limits(input: &str) -> Result<CemValueArtifactLimits, String> {
     }
     serde_json::from_str(input).map_err(|e| e.to_string())
 }
+
+pub(super) fn clear_output() { OUTPUT.with(|output| output.borrow_mut().take()); }

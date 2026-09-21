@@ -9,6 +9,13 @@ use cem_ml::{
 };
 use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 
+/// A borrowed capability available only during an active template expression.
+/// Keeping this scoped avoids serializing renderer state or locking it across
+/// nested query/template calls.
+pub(crate) trait TemplateQueryHost {
+    fn apply_templates(&mut self, values: ItemStream, mode: &str, source: &SourceMapStack) -> ItemStream;
+}
+
 /// Implementations own their domain semantics. Long-running implementations
 /// must poll the supplied operation control and bound their work/allocations;
 /// the evaluator checks control before/after invocation and caps returned items.

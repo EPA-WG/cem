@@ -256,6 +256,37 @@ pub fn expand_reference(reference: &CemReference<Item>) -> Vec<RenderPlanNode> {
     result
 }
 
+pub(super) fn expand_reference_scoped(
+    reference: &CemReference<Item>, budget: &mut crate::eval::value_control::ValueControl<'_>,
+) -> Result<Vec<RenderPlanNode>, cem_ml::operation_control::ControlError> {
+    let mut result = Vec::new();
+    for item in reference.values() {
+        budget.charge(0, 0)?;
+        if let Some(view) = item.view().filter(|v| v.kind() == crate::eval::QueryItemViewKind::Node) {
+            if reference_values(item).is_none() {
+                view.parent(budget.query_scope).map_err(|e| budget.access_error(e))?;
+                let kind = view.field("kind").and_then(|v| v.first().and_then(Item::atom));
+                if matches!(kind, Some(AtomValue::String(ref k)) if k == "element" || k == "document") {
+                    for child in view.children(budget.query_scope).map_err(|e| budget.access_error(e))? {
+                        budget.charge(0, 0)?;
+                        child.map_err(|e| budget.access_error(e))?;
+                    }
+                }
+                if native(item).is_none()
+                    && view.downcast_ref::<crate::eval::output::OutputView>().is_none()
+                    && view.downcast_ref::<crate::eval::portable::GraphView>().is_none()
+                {
+                    return Err(budget.failure("cem.value.projection_unsupported"));
+                }
+            }
+        } else if item.atom().is_none() {
+            return Err(budget.failure("cem.value.projection_unsupported"));
+        }
+        result.extend(expand_reference(&CemReference::new(vec![item.clone()])));
+    }
+    Ok(result)
+}
+
 fn expand_graph(view: &crate::eval::portable::GraphView) -> Vec<RenderPlanNode> {
     let record = view.record();
     let source_map = record.source.clone();

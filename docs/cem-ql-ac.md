@@ -1345,3 +1345,16 @@ Receiver input declarations MUST validate native values independently of sender
 contracts before rendering. Constructed and portable values MUST enter XPath
 through shared CEM-ML native projection, retaining source targets separately
 from output occurrences without any XML/JSON serialization and re-import.
+
+`cemt:apply_templates(values, mode)` MUST share the active CEMT renderer's match
+rules, lexical hooks, focus restoration and recursion controls. Its result MUST
+remain native through query composition and artifact reload. Missing host context
+MUST fail explicitly. Query recovery MAY catch template data failures, but MUST NOT
+suppress cancellation or budget failures.
+
+Deferred text, markup and native artifact boundaries MUST reject denied scope or
+terminal control without publishing a partial result. Numeric/boolean attribute
+segments MUST retain their lexical values during text extraction. XPath index
+retention MUST remain bounded across query scopes, and retained result owners MUST
+keep their index memory accounted until release. CEMT-QUERY-DISPATCH and
+CEMT-VALUE-CONTROL in TODO track this coverage.

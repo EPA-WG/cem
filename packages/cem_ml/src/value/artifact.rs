@@ -93,7 +93,28 @@ pub struct CemValueGraph {
 }
 
 impl CemValueGraph {
+    /// Account retained records, edges, lexical payloads and metadata. This is
+    /// explicit storage accounting, not a measurement of allocator overhead.
+    pub fn accounted_bytes(&self) -> usize {
+        self.records.iter().fold(self.roots.len().saturating_mul(4), |bytes, r| {
+            bytes.saturating_add(std::mem::size_of::<CemValueRecord>())
+                .saturating_add(r.kind.len())
+                .saturating_add(r.name.len()).saturating_add(r.namespace.len())
+                .saturating_add(r.lexical.len()).saturating_add(r.datatype.len())
+                .saturating_add((r.children.len() + r.attributes.len() + r.targets.len() + r.values.len()).saturating_mul(4))
+                .saturating_add(metadata_bytes(&(r.contract.as_ref(), r.provenance.as_ref(), &r.source)))
+                .saturating_add(r.source.frames.len().saturating_mul(std::mem::size_of::<crate::source_map::SourceMapFrame>()))
+                .saturating_add(r.source.frames.iter().map(|frame| match &frame.span {
+                    crate::source_map::FrameSpan::Single(_) => 0,
+                    crate::source_map::FrameSpan::Multi(ranges) => ranges.len().saturating_mul(std::mem::size_of::<crate::source::ByteRange>()),
+                }).fold(0usize, usize::saturating_add))
+        })
+    }
     pub fn validate(&self, limits: &CemValueArtifactLimits) -> Result<(), String> {
+        self.validate_with_check(limits, &mut || Ok(()))
+    }
+    pub fn validate_with_check(&self, limits: &CemValueArtifactLimits, check: &mut impl FnMut() -> Result<(), String>) -> Result<(), String> {
+        check()?;
         if self.records.len() > limits.max_values || self.roots.len() > limits.max_values {
             return Err("Native CEM value count limit exceeded".into());
         }
@@ -108,6 +129,7 @@ impl CemValueGraph {
         let mut bytes = 0usize;
         let mut edges = 0usize;
         for (index, record) in self.records.iter().enumerate() {
+            check()?;
             if !matches!(
                 record.kind.as_str(),
                 "atomic"
@@ -236,6 +258,7 @@ impl CemValueGraph {
             }
             let mut pending = vec![(start, false, 0usize)];
             while let Some((id, leave, depth)) = pending.pop() {
+                check()?;
                 if leave {
                     let record = &self.records[id];
                     let mut height = 0;
@@ -286,6 +309,7 @@ impl CemValueGraph {
             }
         }
         for (id, record) in self.records.iter().enumerate() {
+            check()?;
             let Some(contract) = &record.contract else {
                 continue;
             };
@@ -355,7 +379,10 @@ impl CemValueGraph {
     }
 
     pub fn encode(&self, limits: &CemValueArtifactLimits) -> Result<Vec<u8>, String> {
-        self.validate(limits)?;
+        self.encode_with_check(limits, &mut || Ok(()))
+    }
+    pub fn encode_with_check(&self, limits: &CemValueArtifactLimits, check: &mut impl FnMut() -> Result<(), String>) -> Result<Vec<u8>, String> {
+        self.validate_with_check(limits, check)?;
         let body = rmp_serde::to_vec_named(self).map_err(|e| e.to_string())?;
         if MAGIC.len() + body.len() + 32 > limits.max_bytes {
             return Err("Native CEM artifact byte limit exceeded".into());
@@ -363,10 +390,15 @@ impl CemValueGraph {
         let mut bytes = MAGIC.to_vec();
         bytes.extend_from_slice(blake3::hash(&body).as_bytes());
         bytes.extend(body);
+        check()?;
         Ok(bytes)
     }
 
     pub fn decode(bytes: &[u8], limits: &CemValueArtifactLimits) -> Result<Self, String> {
+        Self::decode_with_check(bytes, limits, &mut || Ok(()))
+    }
+    pub fn decode_with_check(bytes: &[u8], limits: &CemValueArtifactLimits, check: &mut impl FnMut() -> Result<(), String>) -> Result<Self, String> {
+        check()?;
         if bytes.len() > limits.max_bytes {
             return Err("Native CEM artifact byte limit exceeded".into());
         }
@@ -396,7 +428,26 @@ impl CemValueGraph {
         {
             return Err("Version-1 artifacts cannot declare version-2 value markers".into());
         }
-        graph.validate(limits)?;
+        graph.validate_with_check(limits, check)?;
         Ok(graph)
     }
+}
+
+/// Measure the already-typed schema/source metadata with a counting sink. No
+/// artifact bytes or alternate document tree are allocated or used for handoff.
+fn metadata_bytes(value: &impl Serialize) -> usize {
+    #[derive(Default)]
+    struct Counter(usize);
+    impl std::io::Write for Counter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 = self.0.saturating_add(bytes.len());
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+    }
+    let mut counter = Counter::default();
+    if value.serialize(&mut rmp_serde::Serializer::new(&mut counter)).is_err() {
+        return usize::MAX;
+    }
+    counter.0
 }

@@ -550,3 +550,44 @@ fn constructed_xpath_cache_does_not_reuse_a_broader_scope_grant() {
     assert!(denied.error.is_some());
     assert!(denied.items.is_empty());
 }
+
+#[test]
+fn xpath_index_cache_is_bounded_across_scopes_and_releases_memory_with_owners() {
+    use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
+    use cem_ql::api::evaluate_with_control;
+    use cem_ql::render::*;
+    let plan = render_compiled_template(&compile_template("{r | {name | ivy}}", &CompileTemplateOptions::default()), &TemplateData::default());
+    let mut context = context("");
+    context.policy_bindings.insert("values".into(), cem_ql::eval::output::output_nodes(plan.nodes));
+    let query = compile(r#"native:call("tree.text", values)"#, &CompileContext { policy_bindings: context.policy_bindings.clone(), ..Default::default() }).unwrap();
+    let control = OperationControl::default();
+    let mut last_charge = 0;
+    for scope in 0..20 {
+        context.scope = cem_ql::eval::QueryContextScope(scope);
+        let result = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
+        assert!(result.error.is_none(), "{:?}", result.diagnostics);
+        let charge = control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap();
+        assert!(charge > 0);
+        if scope > 0 { assert_eq!(charge, last_charge); }
+        last_charge = charge;
+    }
+    drop(query);
+    drop(context);
+    assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+}
+
+#[test]
+fn cached_xpath_index_respects_lowered_memory_and_control_errors_are_not_caught() {
+    use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
+    use cem_ql::api::evaluate_with_control;
+    use cem_ql::render::*;
+    let plan = render_compiled_template(&compile_template("{r | {name | ivy}}", &CompileTemplateOptions::default()), &TemplateData::default());
+    let mut context = context("");
+    context.policy_bindings.insert("values".into(), cem_ql::eval::output::output_nodes(plan.nodes));
+    run(r#"native:call("tree.text", values)"#, &context);
+    let query = compile(r#"try { native:call("tree.text", values) } catch (code, message) { "caught" }"#, &CompileContext { policy_bindings: context.policy_bindings.clone(), ..Default::default() }).unwrap();
+    let control = OperationControl::with_root_policy(Default::default(), cem_ml::scheduler::ScopePolicy::host_root().with_memory_bytes(64)).unwrap();
+    let result = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
+    assert!(result.error.is_some(), "{result:?}");
+    assert!(result.items.is_empty());
+}

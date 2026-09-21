@@ -7,52 +7,10 @@ use cem_ml::schema::document_model::{
 /// Final string projection. The authoritative sequence stays available to
 /// native consumers; strings containing markup are never parsed as structure.
 pub fn project_attribute_value(attribute: &RenderPlanAttribute) -> String {
-    if let Some(content_type) = attribute
-        .contract
-        .as_ref()
-        .and_then(|c| c.content_type.as_deref())
-    {
-        if matches!(content_type, "text/html" | "application/xml" | "text/xml") {
-            let plan = RenderPlan {
-                nodes: vec![RenderPlanNode::Reference {
-                    reference: cem_ml::value::CemReference::new(
-                        attribute.value_stream.items.clone(),
-                    ),
-                    source_map: attribute.source_map.clone(),
-                }],
-                host_attribute_updates: Vec::new(),
-                diagnostics: Vec::new(),
-            };
-            return if content_type == "text/html" {
-                render_plan_to_html(&plan)
-            } else {
-                render_plan_to_xml_with_source_map(&plan).rendered
-            };
-        }
-    }
-    fn append(items: &[Item], result: &mut String) {
-        for item in items {
-            if let Some(targets) = crate::eval::values::reference_values(item) {
-                append(targets, result);
-            } else if let Some(view) = item
-                .view()
-                .filter(|v| v.kind() == crate::eval::QueryItemViewKind::Node)
-            {
-                if let Ok(fragments) = view.text_fragments(QueryContextScope(0)) {
-                    for fragment in fragments {
-                        if let Ok(fragment) = fragment {
-                            result.push_str(fragment);
-                        }
-                    }
-                }
-            } else {
-                result.push_str(&item_to_string(item));
-            }
-        }
-    }
-    let mut result = String::new();
-    append(&attribute.value_stream.items, &mut result);
-    result
+    project_attribute_value_with_control(attribute, QueryContextScope(0),
+        &cem_ml::value::artifact::CemValueArtifactLimits::default(),
+        &OperationControl::default(), cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone)]

@@ -16,7 +16,7 @@ pub fn output_nodes(nodes: Vec<RenderPlanNode>) -> ItemStream {
 }
 
 pub fn shared_output_nodes(owner: Arc<Vec<RenderPlanNode>>) -> ItemStream {
-    let xpath = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
+    let xpath = Arc::new(std::sync::Mutex::new(None));
     ItemStream::from_items(
         (0..owner.len())
             .map(|index| {
@@ -42,7 +42,7 @@ pub fn output_attribute(attribute: RenderPlanAttribute) -> Item {
             children: Vec::new(),
             source_map,
         }]),
-        xpath: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+        xpath: Arc::new(std::sync::Mutex::new(None)),
         path: vec![0],
         attribute: Some(0),
     })
@@ -203,19 +203,80 @@ impl QueryItemView for OutputView {
         scope: QueryContextScope,
     ) -> Result<QueryNodeTextIterator<'_>, QueryNodeAccessError> {
         if let Some(attribute) = self.attribute() {
+            return Ok(borrowed_item_text(&attribute.value_stream.items, scope));
+        }
+        Ok(borrowed_node_text(self.node(), scope, true))
+    }
+    fn text_segments(
+        &self,
+        scope: QueryContextScope,
+    ) -> Result<QueryTextSegments<'_>, QueryNodeAccessError> {
+        if let Some(attribute) = self.attribute() {
             return Ok(item_text(&attribute.value_stream.items, scope));
         }
         Ok(node_text(self.node(), scope, true))
     }
 }
 
-fn item_text(items: &[Item], scope: QueryContextScope) -> QueryNodeTextIterator<'_> {
+fn item_text(items: &[Item], scope: QueryContextScope) -> QueryTextSegments<'_> {
+    Box::new(
+        items
+            .iter()
+            .flat_map(move |item| -> QueryTextSegments<'_> {
+                if let Some(values) = values::reference_values(item) {
+                    return item_text(values, scope);
+                }
+                if let Some(view) = item.view().filter(|v| v.kind() == QueryItemViewKind::Node) {
+                    return view
+                        .text_segments(scope)
+                        .unwrap_or_else(|error| Box::new(std::iter::once(Err(error))));
+                }
+                match item {
+                    Item::Atomic(
+                        AtomValue::String(s) | AtomValue::Decimal(s) | AtomValue::AnyUri(s),
+                    ) => Box::new(std::iter::once(Ok(std::borrow::Cow::Borrowed(s.as_str())))),
+                    _ => Box::new(std::iter::once(item.atom()
+                        .map(|atom| std::borrow::Cow::Owned(crate::render::item_to_string(&Item::Atomic(atom))))
+                        .ok_or(QueryNodeAccessError::Unsupported))),
+                }
+            }),
+    )
+}
+
+fn node_text(
+    node: &RenderPlanNode,
+    scope: QueryContextScope,
+    root: bool,
+) -> QueryTextSegments<'_> {
+    match node {
+        RenderPlanNode::Element { children, .. } => Box::new(
+            std::iter::once(Ok(std::borrow::Cow::Borrowed(""))).chain(
+                children
+                    .iter()
+                    .flat_map(move |child| node_text(child, scope, false)),
+            ),
+        ),
+        RenderPlanNode::Reference { reference, .. } => item_text(reference.values(), scope),
+        RenderPlanNode::Text { text, .. } | RenderPlanNode::Cdata { text, .. } => {
+            Box::new(std::iter::once(Ok(std::borrow::Cow::Borrowed(text.as_str()))))
+        }
+        RenderPlanNode::Comment { text, .. } if root => {
+            Box::new(std::iter::once(Ok(std::borrow::Cow::Borrowed(text.as_str()))))
+        }
+        RenderPlanNode::ProcessingInstruction { data, .. } if root => {
+            Box::new(std::iter::once(Ok(std::borrow::Cow::Borrowed(data.as_str()))))
+        }
+        _ => Box::new(std::iter::once(Ok(std::borrow::Cow::Borrowed("")))),
+    }
+}
+
+fn borrowed_item_text(items: &[Item], scope: QueryContextScope) -> QueryNodeTextIterator<'_> {
     Box::new(
         items
             .iter()
             .flat_map(move |item| -> QueryNodeTextIterator<'_> {
                 if let Some(values) = values::reference_values(item) {
-                    return item_text(values, scope);
+                    return borrowed_item_text(values, scope);
                 }
                 if let Some(view) = item.view() {
                     return view
@@ -232,7 +293,7 @@ fn item_text(items: &[Item], scope: QueryContextScope) -> QueryNodeTextIterator<
     )
 }
 
-fn node_text(
+fn borrowed_node_text(
     node: &RenderPlanNode,
     scope: QueryContextScope,
     root: bool,
@@ -242,10 +303,10 @@ fn node_text(
             std::iter::once(Ok("")).chain(
                 children
                     .iter()
-                    .flat_map(move |child| node_text(child, scope, false)),
+                    .flat_map(move |child| borrowed_node_text(child, scope, false)),
             ),
         ),
-        RenderPlanNode::Reference { reference, .. } => item_text(reference.values(), scope),
+        RenderPlanNode::Reference { reference, .. } => borrowed_item_text(reference.values(), scope),
         RenderPlanNode::Text { text, .. } | RenderPlanNode::Cdata { text, .. } => {
             Box::new(std::iter::once(Ok(text.as_str())))
         }

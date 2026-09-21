@@ -1698,6 +1698,14 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           numeric, temporal, regex-constrained string and rich native values;
           preserve mixed attribute content, destination constraints, native
           component handoff and final-boundary serialization.
+      - [ ] Fixture CEMT-NAMED-CONSTRAINTS: reproduce output attributes weakening
+            named-type facets; settle how inherited and local constraints are
+            retained together, then verify native rendering and portable artifact
+            validation preserve both numeric bounds and regex restrictions.
+            Two temporary native probes reproduce invalid numeric/pattern output.
+            Paused at the [R06/R07 constraint decision](cemt-expression-review.tmp.md#pending-decision-named-attribute-constraints-r06r07):
+            recommend composing retained constraints with a versioned artifact;
+            the alternative rejects local overrides. No contract change yet.
     - [ ] Fixture CEMT-VALUE-PIPELINE: native intermediate output, reference
           navigation and lifetime, artifact round trips, cancellation and
           environment-defined limits with scope overrides that only lower them.
@@ -1711,8 +1719,12 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           `packages/cem_ql/tests/native-values-wasm.mjs`; native scalar, reference,
           source-key and graph-limit cases are in `tests/portable_values.rs`.
           Browser patch and saved-envelope cases are in `native-values.spec.ts`.
-    - [ ] Complete explicit CEM-QL template dispatch; keep this distinct from the
+    - [x] Complete explicit CEM-QL template dispatch; keep this distinct from the
           settled R08 transport and the completed contract cases below.
+      - [x] Fixture CEMT-QUERY-DISPATCH: native results from
+            `cemt:apply_templates(values, mode)`, shared match precedence, imported
+            rules and hooks, focus restoration, artifact reload, missing host,
+            error propagation and bounded recursive query/template calls.
       - [x] Fixture CEMT-HOOK-INHERITANCE: imported defaults, caller overrides,
             local priority/ties, native module calls, reload and failing predicates.
       - [x] Fixture CEMT-RECEIVER-CONTRACT: receiver declarations validate native
@@ -1722,9 +1734,23 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             directly through shared CEM projection, preserving occurrence parents,
             repeated identity, namespaces, attribute values and bounded expansion.
             Migrate the native XPath callback integration to the shared node adapter.
-    - [ ] Finish scope/cancellation accounting for deferred text/markup projection
+    - [x] Finish scope/cancellation accounting for deferred text/markup projection
           and native artifact export; cover denied host views without partial text
           and account for retained XPath indexes across query scopes.
+      - [x] Fixture CEMT-VALUE-CONTROL: lowered text/memory budgets, scoped denied
+            text and export, cancellation without partial projections/artifacts,
+            and bounded retained XPath indexes with released memory permits.
+      - [x] Fixture CEMT-VALUE-METADATA: include retained source/provenance and
+            attribute-contract payloads in graph/index memory estimates.
+      - [x] Fixture CEMT-DEMO-VERIFIER: migrate the stale Pokémon edit fixture
+            from `pokemon-id` attributes to sibling IDs and include the native
+            attribute handoff lesson in standalone/source-loaded verification.
+          Shared checked projection now feeds HTML/XML and browser DOM patch
+          export; native intermediate values remain retained. Graph validation
+          polls control, text accepts owned atomic segments, and query recovery
+          cannot suppress projection control failures. The output owner retains
+          only its latest query scope's XPath index; live result nodes retain its
+          memory permit after eviction. `dom:element` constructs a shell directly.
     - [x] Update maintained syntax, acceptance criteria, package references and
           cell-overrides lessons; verify focused native then WASM/browser cases.
           Verified after the contract follow-up: 142 focused CEM-QL tests,
@@ -1733,6 +1759,15 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           WASM/element build, the real worker/file/fallback fixture (including
           receiver rejection, XPath and empty sequences), 408 runtime unit tests
           and 3 cell-override browser stories.
+          The follow-up adds explicit dispatch in the third cell-override lesson
+          and the worker/file/fallback native-value fixture. Native checks cover
+          155 focused CEM-QL tests, 96 adapter tests and workspace compilation.
+          Final WASM worker/file/fallback, all three focused browser stories,
+          and all three standalone/source-loaded cell-override lessons pass.
+          All 408 runtime unit tests, build, typecheck and lint also pass
+          (lint retains its two existing non-null-assertion warnings).
+          The full gallery verifier stops at the pre-existing data-table selector
+          issue recorded under DATA-TABLE-VERIFIER-SELECTORS below.
           The full expression proposal remains open at the cases listed above.
     - [ ] Polish DX for text, reference, clone, element and explicit template
           dispatch operations; consider matching compact forms for other template
@@ -1766,6 +1801,12 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
   - [ ] Fixture DATA-CELL-MATCH-STOCK: override only zero stock in catalog
         product rows; verify positive values, unrelated fields and edited values
         use the imported fallback, without changing the retained source.
+- [ ] Fixture DATA-TABLE-VERIFIER-SELECTORS: during the deferred browser
+      stabilization, migrate the gallery verifier's `tableInteractions` selectors
+      from `td > button` to the existing `th > button` row-selection controls.
+      The full gallery run stopped on this stale selector in `data-table.html`;
+      both the selector and the viewer's `th` predate this follow-up. Keep the
+      current data-table/XML viewer implementation unchanged.
 - [ ] Stabilize browser startup waits under parallel Storybook load, after
       DATA-CELL-MATCH-1: the unchanged scoped-CSS and legacy icon-link stories
       intermittently exhaust their short frame/two-second waits, although
