@@ -1,7 +1,10 @@
 # Browser stabilization review
 
-Status: pending lifecycle decision, 2026-09-21. This is a review proposal,
-not a replacement for the accepted registration or CSS contracts.
+Status: option 1 accepted and implemented, 2026-09-21.
+The user selected identical remounts with live stylesheet ownership. The updated
+[registration](cem-element-design.md) and
+[CSS ownership](cem-ml-uid-and-scoped-css-design.md) contracts are normative;
+the original reproduction and alternatives below remain review history.
 
 ## Completed fixture corrections
 
@@ -40,9 +43,9 @@ The final full parallel run passes 179 of 182 stories, including every modified
 story; only those three separate cases fail. The table's invalid-input alert now
 uses the same ten-second interaction budget as its sorting and reset checks.
 
-## Pending decision: declaration ownership across remounts
+## Accepted decision: declaration ownership across remounts
 
-Two existing rules interact:
+Before this change, two rules interacted:
 
 - [Registration](cem-element-design.md): a second declaration for a tag in the
   same logical scope is an error even when its identity matches. Inherited and
@@ -132,5 +135,33 @@ outer page tags does not solve nested ownership.
 - Investigate the separate stock-warning timeout and authored-source preview
   contamination in real source-loaded `cem-demo-element` cards.
 
-The implementation is paused here under the user's stop-at-decisions instruction.
-The runtime and base viewers are unchanged by this stabilization increment.
+The runtime now records accepted owners separately from its retained processing
+declaration. New same-scope registrations require proof that earlier owners
+mounted and disconnected; a declaration awaiting its first mount still reserves
+the binding. Weak owner references avoid retaining every removed gallery tree.
+One document mutation observer handles custom-element and manually registered
+owners, including queued connection evidence consumed during registration.
+Scope disposal triggers immediate cleanup, and compatible aliases cannot revive
+the original processing scope after its disposal. The base viewers are unchanged.
+Registration identity also includes the resolved named CSS scope. The identity
+fixture reproduced equal identities for differently scoped declarations before
+this correction; remounts and aliases now reject that mismatch. Unnamed/private
+declarations retain their previous identity encoding.
+
+
+## Implementation verification
+
+The pure registration cases first reproduced the rejected-remount failure, and
+all three initial browser regressions failed before implementation. The completed
+suite covers six lifecycle cases, including delayed source completion, batched
+manual connection/removal, document adoption, CSS-scope incompatibility, original
+owner reconnection and scope disposal. The source-loaded hex gallery mounts three
+times with the same four stylesheet nodes, the same browser constructor, expected
+computed styles and no declaration diagnostics.
+
+Build, typecheck, all 410 runtime unit tests and lint pass (two existing lint
+warnings). All 12 focused CSS/registration/lifecycle stories pass. The final full
+parallel run passes 185 of 188 stories; the three CEM-QL/local-storage failures
+listed above remain unchanged. The packaged hex gallery passes its standalone
+and source-loaded interaction checks. Authored-source preview cleanup and the remaining
+stabilization findings stay in TODO. No base viewer template changes were needed.

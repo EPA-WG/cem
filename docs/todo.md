@@ -1992,16 +1992,44 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       budget under parallel load. Final full result: 179 passed, three separate
       CEM-QL/local-storage failures tracked below. Stock-warning checks pass in
       both focused gallery modes; its earlier intermittent cause remains open.
-- [ ] Fixture: check declaration-owned stylesheet lifecycle across repeated
+- [x] Fixture: check declaration-owned stylesheet lifecycle across repeated
       source-loaded gallery mounts in one document. A second hex-grid story
       using the same source registration rendered unstyled links; isolate
       registration reuse and unmount/remount cleanup from startup timing.
       2026-09-21: reproduced after explicit render/declaration settlement and
       with the real source-loaded hex gallery (four styles on first mount, zero
       on second). Same-scope remounts reject as duplicates; compatible fresh
-      scopes still attach styles to the detached original owner. Paused for the
-      lifecycle decision in
+      scopes still attach styles to the detached original owner. Accepted on
+      2026-09-21: restore live stylesheet ownership on identical remounts, as in
       [browser stabilization review](browser-stabilization-review.tmp.md).
+      Completed 2026-09-21: one stylesheet set moves between accepted live
+      owners and detaches after the last owner leaves. Six browser lifecycle
+      cases cover repeated source-loaded mounts, strict node identity, compatible
+      aliases, reconnect, concurrent/incompatible declarations, scope/ancestor
+      disposal, delayed loading, batched manual connections and document adoption.
+      Named CSS scope now participates in registration identity. Build, typecheck,
+      all 410 unit tests and lint pass (two existing warnings). The 12 focused
+      CSS/registration/lifecycle stories pass; the final full suite passes 185/188,
+      with the same three CEM-QL/local-storage failures tracked below. Base data
+      table and XML/tree viewer templates remain unchanged. The packaged hex
+      gallery also passes its standalone and source-loaded interaction checks.
+  - [x] Fixture: prove the identical detached-remount exception in the pure
+        registration decision core; preserve concurrent duplicates, incompatible
+        identities and browser collisions.
+  - [x] Fixture: cover stylesheet identity and handoff on remount, original-owner
+        reconnect, cross-scope aliases, last-owner removal, manual registration,
+        and scope/ancestor disposal without restoring disposed processing scopes.
+  - [x] Fixture: mount the source-loaded hex gallery repeatedly in one document
+        and assert computed styles, a single stylesheet set, and clean diagnostics.
+  - [x] Fixture: retain mount evidence when external source loading finishes
+        after removal, and when a manually registered owner mounts and unmounts
+        before the mutation-observer checkpoint.
+  - [x] Fixture: adopting a retained declaration into another document must
+        release its styles, reject cross-document ownership, and allow a valid
+        identical remount in the original document.
+  - [x] Fixture: include the declaration's named CSS scope in registration
+        identity so a remount or cross-scope alias cannot reuse differently
+        scoped styles under otherwise identical template bytes.
 - [ ] Fixture: during Storybook stabilization, preserve authored source in real
       source-loaded `cem-demo-element` cards. The cell layout audit shows runtime
       `data-cem-render-node-id` and artifact/revision attributes in displayed source,

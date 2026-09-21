@@ -84,12 +84,17 @@ Phase 3 separates two registries that have different scopes:
 
 Every resolved declaration has a stable **registration identity** that binds the
 produced tag, optional declaration version, resolved template source identity,
-template language, browser behavior contract, and effective processing policy. Registration is decided before
-calling `CustomElementRegistry#define`:
+template language, browser behavior contract, named CSS scope, and effective
+processing policy. Registration is decided before calling `CustomElementRegistry#define`:
 
-1. A second declaration for the same tag in the same logical scope is an error,
-   even when both registration identities match
-   (`cem-element.registry_same_scope_duplicate`).
+1. A second declaration for the same tag in the same logical scope is an error
+   (`cem-element.registry_same_scope_duplicate`) while an accepted owner is
+   connected or has not yet mounted. An identical declaration may reuse the
+   retained binding after all its same-scope owners have mounted and disconnected.
+   This explicit detached-remount exception preserves the existing constructor,
+   compiled declaration and processing scope. Different identities still fail.
+   An already accepted original owner may reconnect after replacement and join
+   the retained ownership; it does not register a second definition.
 2. A child scope may repeat an inherited tag only when its registration identity
    is identical. The child aliases the inherited declaration and does not define
    the browser tag again.
@@ -141,6 +146,14 @@ The logical-scope host API is `CemDeclarationScope` plus
   for future lookup or registration. It does not and cannot remove a constructor
   from the document-global `customElements` registry; already-defined constructors
   and upgraded instances retain normal browser lifetime.
+- Static styles have one managed node set per effective registration and follow
+  connected, compatible declaration owners. Removing an owner hands that set to
+  another live owner, including an accepted alias in another scope. Removing the
+  last owner detaches the styles; an identical remount reuses them. A scope or
+  ancestor disposal removes its owners from this handoff. Disposing the original
+  processing scope invalidates all its stylesheet ownership and prevents a fresh
+  scope or reconnecting declaration from reviving that retained registration.
+  Ownership changes never replace its processing policy, limits or scope.
 - `controlInputBytes` is an optional positive local ceiling inherited through
   explicit parents; it may only lower the parent and environment limit. The
   environment supplies `CemElementRuntimeOptions.controlInputBytes` (default

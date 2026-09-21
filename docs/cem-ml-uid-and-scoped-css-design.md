@@ -67,8 +67,19 @@ declaration:
     </cem-element>
 
 `cem-elements` statically extracts each declaration style, removes it from the
-instance render plan, and installs it once beside the effective declaration.
-Removing the declaration removes its managed styles. A component MUST NOT clone
+instance render plan, and installs one managed stylesheet set for the effective
+registration. The set lives beside a connected accepted declaration. On removal
+it moves to another connected compatible owner, including an accepted alias in
+another logical scope. With no live owner, the styles detach; an identical
+remount reuses the same style nodes. Reconnecting an accepted original owner
+does not duplicate them or displace the current live owner. Ownership changes
+settle with the DOM mutation checkpoint; registration checks also consume queued
+connection records before deciding whether a same-scope remount is allowed.
+Declarations registered before their first mount still reserve their binding.
+Scope and ancestor disposal release their owners. Disposal of the original
+processing scope invalidates the registration's stylesheet set; remounting must
+not revive that scope. See the [registration contract](cem-element-design.md).
+A component MUST NOT clone
 static CSS into instances, inject CSS from component JavaScript, add selectors
 to package-global CSS, or own a standalone `<cem-tag>.css` file.
 
@@ -422,7 +433,8 @@ The implementation includes executable evidence for:
 - complete removal of `data-cem-scope` and `data-cem-instance-scope` from the
   target styling path;
 - SSR/hydration reuse without CSS use of render identity;
-- once-per-declaration ownership and declaration removal;
+- one stylesheet set per registration, live-owner handoff, identical remounts,
+  last-owner removal and scope disposal;
 - anonymous declaration scope roots;
 - no generated layers or library `!important`; and
 - computed specificity, scoping proximity, and source-order behavior.

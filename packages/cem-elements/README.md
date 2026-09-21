@@ -20,6 +20,14 @@ collision-safe introspection. Hydration adopts caret-compatible versions. A
 missing, malformed, or incompatible declaration version rerenders from an
 understood island, while an unsupported island schema still fails closed.
 
+An identical declaration can remount after its previous same-scope owners have
+disconnected. It reuses the browser constructor, processing scope and managed
+stylesheet nodes. Styles move to another live compatible declaration when their
+owner disconnects, and detach when the last owner leaves. Concurrent new
+same-scope duplicates and incompatible replacements still fail; remounts cannot
+revive disposed processing scopes. See the
+[registration lifecycle](../../docs/cem-element-design.md).
+
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
 resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) as the base contract and
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements

@@ -179,6 +179,7 @@ describe('cem-element declaration registration contract', () => {
         expect(identity.diagnostics).toEqual([]);
         expect(identity.registrationIdentity).toMatch(/^cem-registration-v1:/);
         expect(analyzeDeclarationRegistrationIdentity(base)).toEqual(identity);
+        expect(analyzeDeclarationRegistrationIdentity({ ...base, sharedStyleScope: null })).toEqual(identity);
 
         const identities = [
             identity.registrationIdentity,
@@ -189,6 +190,8 @@ describe('cem-element declaration registration contract', () => {
                 resolvedTemplateSource: '{button | Delete}',
             }).registrationIdentity,
             analyzeDeclarationRegistrationIdentity({ ...base, templateLanguage: 'dom' }).registrationIdentity,
+            analyzeDeclarationRegistrationIdentity({ ...base, sharedStyleScope: 'first-library' }).registrationIdentity,
+            analyzeDeclarationRegistrationIdentity({ ...base, sharedStyleScope: 'second-library' }).registrationIdentity,
             analyzeDeclarationRegistrationIdentity({
                 ...base,
                 hasBehavior: true,
@@ -231,6 +234,7 @@ describe('cem-element declaration registration contract', () => {
             scopedBrowserRegistryRequired: false,
             publicTagUniqueness: 'document-global',
             sameScopeDuplicate: 'error',
+            identicalDetachedRemount: 'reuse',
             compatibleInheritedDeclaration: 'reuse',
             incompatibleInheritedDeclaration: 'error',
             incompatibleBrowserDefinition: 'error',
@@ -282,6 +286,28 @@ describe('cem-element declaration registration contract', () => {
             action: 'reuse-inherited',
             diagnostics: [],
         });
+    });
+
+    it('reuses an identical same-scope registration only with detached-owner evidence', () => {
+        expect(analyzeDeclarationRegistration({
+            tag: 'cem-button', registrationIdentity: 'button-v1',
+            sameScope: { registrationIdentity: 'button-v1' },
+            sameScopeRemount: true,
+            browser: { owner: 'cem-element', registrationIdentity: 'button-v1' },
+        })).toEqual({ action: 'reuse-same-scope', diagnostics: [] });
+    });
+
+    it('keeps incompatible remounts and browser collisions fail-closed', () => {
+        const base = {
+            tag: 'cem-button', registrationIdentity: 'button-v1',
+            sameScope: { registrationIdentity: 'button-v1' }, sameScopeRemount: true,
+        };
+        expect(codes(analyzeDeclarationRegistration({
+            ...base, registrationIdentity: 'button-v2',
+        }))).toEqual(['cem-element.registry_same_scope_duplicate']);
+        expect(codes(analyzeDeclarationRegistration({
+            ...base, browser: { owner: 'foreign' },
+        }))).toEqual(['cem-element.browser_tag_collision']);
     });
 
     it('rejects incompatible inherited shadowing before browser mutation', () => {

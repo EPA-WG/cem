@@ -90,6 +90,7 @@ import {
     type CemDeclarationScope,
     type CemControlInputPolicy,
 } from './declaration-scope.js';
+import { DeclarationStyleOwnership } from './declaration-style-ownership.js';
 import {
     createCemEdgeSsrHostRequestEnvelope,
     type CemEdgeSsrHostOperation,
@@ -179,6 +180,7 @@ export const CEM_DECLARATION_REGISTRATION_CONTRACT = Object.freeze({
     scopedBrowserRegistryRequired: false,
     publicTagUniqueness: 'document-global',
     sameScopeDuplicate: 'error',
+    identicalDetachedRemount: 'reuse',
     compatibleInheritedDeclaration: 'reuse',
     incompatibleInheritedDeclaration: 'error',
     incompatibleBrowserDefinition: 'error',
@@ -203,6 +205,8 @@ export interface DeclarationRegistrationIdentityInput {
     behaviorIdentity?: string;
     /** A document-global constructor retains its owner's processing policy. */
     scopePolicyStamp?: string;
+    /** Resolved named CSS scope; distinct from the logical processing scope. */
+    sharedStyleScope?: string | null;
 }
 
 export interface DeclarationRegistrationIdentityResult {
@@ -218,12 +222,14 @@ export interface CemBrowserTagRegistration {
 export interface DeclarationRegistrationContractInput extends CemDeclarationRegistrationIdentity {
     tag: string;
     sameScope?: CemDeclarationRegistrationIdentity;
+    /** Host evidence that the same-scope owners previously mounted and are now detached. */
+    sameScopeRemount?: boolean;
     inherited?: CemDeclarationRegistrationIdentity;
     browser?: CemBrowserTagRegistration;
 }
 
 export interface DeclarationRegistrationContractResult {
-    action: 'define-browser-tag' | 'reuse-inherited' | 'reuse-browser-tag' | 'reject';
+    action: 'define-browser-tag' | 'reuse-same-scope' | 'reuse-inherited' | 'reuse-browser-tag' | 'reject';
     diagnostics: CemElementDiagnostic[];
 }
 
@@ -1122,7 +1128,16 @@ const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
 ]);
 
 let artifactSequence = 0;
-const installedDeclarationStyles = new WeakMap<CompiledDeclaration, HTMLStyleElement[]>();
+const declarationStyleOwners = new WeakMap<CompiledDeclaration, DeclarationStyleOwnership>();
+
+function styleOwnership(compiled: CompiledDeclaration): DeclarationStyleOwnership {
+    let ownership = declarationStyleOwners.get(compiled);
+    if (!ownership) {
+        ownership = new DeclarationStyleOwnership(compiled.declarationElement.ownerDocument, compiled.declarationScope);
+        declarationStyleOwners.set(compiled, ownership);
+    }
+    return ownership;
+}
 let runtimeUidSeedSequence = 0;
 const localStorageTrackers = new WeakSet<Window>();
 const locationTrackers = new WeakSet<Window>();
@@ -1352,7 +1367,8 @@ export function analyzeDeclarationRegistration(
         );
     }
 
-    if (input.sameScope) {
+    if (input.sameScope && !(input.sameScopeRemount
+        && input.sameScope.registrationIdentity === input.registrationIdentity)) {
         return registrationRejection(
             'cem-element.registry_same_scope_duplicate',
             `declaration tag \`${tag}\` is already declared in this CEM scope`,
@@ -1379,6 +1395,9 @@ export function analyzeDeclarationRegistration(
         );
     }
 
+    if (input.sameScope) {
+        return { action: 'reuse-same-scope', diagnostics: [] };
+    }
     if (input.inherited) {
         return { action: 'reuse-inherited', diagnostics: [] };
     }
@@ -1417,6 +1436,7 @@ export function analyzeDeclarationRegistrationIdentity(
         resolvedTemplateSource: input.resolvedTemplateSource,
         templateLanguage: input.templateLanguage,
         behaviorIdentity: input.hasBehavior ? behaviorIdentity : null,
+        ...(input.sharedStyleScope == null ? {} : { sharedStyleScope: input.sharedStyleScope }),
         ...(input.scopePolicyStamp && input.scopePolicyStamp !== DEFAULT_SCOPE_POLICY_STAMP
             ? { scopePolicyStamp: input.scopePolicyStamp } : {}),
     }).digest;
@@ -1560,6 +1580,8 @@ export class CemElementRuntime {
     private readonly invalidInstancePayloads = new WeakSet<HTMLElement>();
     private readonly frozenSerializedInstances = new WeakSet<HTMLElement>();
     private readonly registeredDeclarationElements = new WeakSet<object>();
+    private readonly connectedDeclarations = new WeakSet<HTMLElement>();
+    private readonly declarationOwners = new WeakMap<HTMLElement, { compiled: CompiledDeclaration; scope: CemDeclarationScope }>();
     private readonly anonymousDeclarationElements = new WeakSet<HTMLElement>();
     private readonly anonymousInstances = new WeakMap<HTMLElement, HTMLElement>();
     private readonly anonymousSrcPayloads = new WeakMap<HTMLElement, readonly Node[]>();
@@ -1701,7 +1723,26 @@ export class CemElementRuntime {
     }
 
     registerDeclaration(declarationElement: HTMLElement, options: CemDeclarationRegistrationOptions = {}): boolean {
+        if (declarationElement.isConnected) this.connectedDeclarations.add(declarationElement);
         if (this.registeredDeclarationElements.has(declarationElement)) {
+            const owner = this.declarationOwners.get(declarationElement);
+            if (owner) {
+                try {
+                    assertCemDeclarationScopeActive(owner.scope);
+                    assertCemDeclarationScopeActive(owner.compiled.declarationScope);
+                    if (declarationElement.ownerDocument !== owner.scope.document) {
+                        this.recordDiagnostics(declarationElement, [declarationDiagnostic(
+                            'cem-element.scope_document_mismatch',
+                            'a retained declaration cannot move to another Document', owner.compiled.producedTag,
+                        )]);
+                        return false;
+                    }
+                    styleOwnership(owner.compiled).add(declarationElement, owner.scope);
+                } catch (error) {
+                    this.recordDiagnostics(declarationElement, [declarationScopeDiagnostic(error, owner.compiled.producedTag)]);
+                    return false;
+                }
+            }
             return true;
         }
 
@@ -1921,6 +1962,8 @@ export class CemElementRuntime {
             tag,
             registrationIdentity: compiled.registrationIdentity,
             sameScope: logicalLookup.sameScope,
+            sameScopeRemount: logicalLookup.sameScope
+                ? styleOwnership(logicalLookup.sameScope.declaration).canRemount(declarationScope) : false,
             inherited: logicalLookup.inherited,
             browser: browserLookup?.registration,
         });
@@ -1930,10 +1973,19 @@ export class CemElementRuntime {
         }
 
         let effectiveDeclaration = compiled;
-        if (decision.action === 'reuse-inherited') {
+        if (decision.action === 'reuse-same-scope') {
+            effectiveDeclaration = logicalLookup.sameScope?.declaration ?? compiled;
+        } else if (decision.action === 'reuse-inherited') {
             effectiveDeclaration = logicalLookup.inherited?.declaration ?? compiled;
         } else if (decision.action === 'reuse-browser-tag') {
             effectiveDeclaration = browserLookup?.declaration ?? compiled;
+        }
+
+        try {
+            assertCemDeclarationScopeActive(effectiveDeclaration.declarationScope);
+        } catch (error) {
+            this.recordDiagnostics(declarationElement, [declarationScopeDiagnostic(error, tag)]);
+            return;
         }
 
         if (decision.action === 'define-browser-tag' && !this.validateGeneratedDeclarationIds(compiled)) {
@@ -1945,13 +1997,18 @@ export class CemElementRuntime {
             declaration: effectiveDeclaration,
         };
         try {
-            bindCemDeclarationScopeRegistration(declarationScope, tag, scopeRegistration);
+            if (decision.action !== 'reuse-same-scope') {
+                bindCemDeclarationScopeRegistration(declarationScope, tag, scopeRegistration);
+            }
         } catch (error) {
             this.recordDiagnostics(declarationElement, [declarationScopeDiagnostic(error, tag)]);
             return Promise.resolve();
         }
         const documentDeclarations = this.declarationsForDocument(declarationElement.ownerDocument);
         documentDeclarations.set(tag, effectiveDeclaration);
+        styleOwnership(effectiveDeclaration).add(declarationElement, declarationScope,
+            this.connectedDeclarations.has(declarationElement));
+        this.declarationOwners.set(declarationElement, { compiled: effectiveDeclaration, scope: declarationScope });
 
         if (decision.action === 'define-browser-tag' && !this.defineProducedElement(declarationElement, compiled)) {
             try {
@@ -1963,6 +2020,8 @@ export class CemElementRuntime {
                 documentDeclarations.delete(tag);
             }
             this.releaseGeneratedDeclarationIds(compiled);
+            styleOwnership(effectiveDeclaration).remove(declarationElement);
+            this.declarationOwners.delete(declarationElement);
             return Promise.resolve();
         }
         this.installDeclarationStylesheets(effectiveDeclaration);
@@ -5454,13 +5513,10 @@ export class CemElementRuntime {
         if (!compiled.stylesheetsReady) {
             return;
         }
-        const installed = installedDeclarationStyles.get(compiled);
+        const ownership = styleOwnership(compiled);
+        const installed = ownership.styles;
         if (installed) {
-            for (const style of installed) {
-                if (style.parentElement !== compiled.declarationElement) {
-                    compiled.declarationElement.append(style);
-                }
-            }
+            ownership.reconcile();
             return;
         }
 
@@ -5503,8 +5559,7 @@ export class CemElementRuntime {
             style.textContent = rewritten.css;
             managed.push(style);
         });
-        installedDeclarationStyles.set(compiled, managed);
-        compiled.declarationElement.append(...managed);
+        ownership.setStyles(managed);
         if (diagnostics.length > 0) {
             this.recordDiagnostics(compiled.declarationElement, diagnostics);
         }
@@ -5975,6 +6030,7 @@ function compileInlineDeclaration(
         hasBehavior: options.behavior !== undefined,
         behaviorIdentity: options.behaviorIdentity,
         scopePolicyStamp: options.scopePolicyStamp,
+        sharedStyleScope: sharedStyleScope.value,
     });
     diagnostics.push(...registration.diagnostics);
     const uidSeedResolution = resolveDeclarationUidSeed(
