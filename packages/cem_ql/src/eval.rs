@@ -396,6 +396,18 @@ pub enum AtomValue {
     Null,
 }
 
+impl AtomValue {
+    /// Adapt a validated integer lexical value to the existing numeric engine.
+    /// Wider integers use decimal evaluation; the native view retains their
+    /// integer datatype metadata independently of this query atom.
+    pub(crate) fn from_integer_lexical(value: &str) -> Self {
+        value
+            .parse()
+            .map(Self::Integer)
+            .unwrap_or_else(|_| Self::Decimal(value.to_owned()))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ItemStream {
     pub items: Vec<Item>,

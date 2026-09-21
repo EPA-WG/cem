@@ -175,3 +175,215 @@ fn mixed_native_attributes_retain_segments_until_the_requested_projection() {
         assert_eq!(values[1].identity(), node.items[0].identity());
     }
 }
+
+// CEMT-LARGE-INTEGER: query representation must not depend on transport.
+#[test]
+fn integer_boundaries_keep_atoms_query_types_and_metadata_across_handoff() {
+    for (lexical, small) in [
+        ("9223372036854775807", true),
+        ("-9223372036854775808", true),
+        ("9223372036854775808", false),
+        ("-9223372036854775809", false),
+        ("922337203685477580812345", false),
+        ("-922337203685477580812345", false),
+    ] {
+        let sender = attributes(
+            &format!("{{child | {{attribute @name=value @type=integer @value='{lexical}'}}}}"),
+            &TemplateData::default(),
+        );
+        let atom = if small {
+            AtomValue::Integer(lexical.parse().unwrap())
+        } else {
+            AtomValue::Decimal(lexical.into())
+        };
+        let expected = if small {
+            "<p>true|false|false</p>"
+        } else {
+            "<p>false|true|false</p>"
+        };
+        for portable in [false, true] {
+            let data = transport(sender.clone(), portable);
+            assert_eq!(
+                data.bindings["value"].items[0].atom(),
+                Some(atom.clone()),
+                "{lexical} portable={portable}"
+            );
+            for declaration in ["", "{attribute @name=value @type=integer @required=true}"] {
+                let result = render_template(&format!("{declaration}{{p | {{$value is integer}}|{{$value is decimal}}|{{$value is string}}}}"), &data);
+                assert!(
+                    result.diagnostics.is_empty(),
+                    "{lexical}: {:?}",
+                    result.diagnostics
+                );
+                assert_eq!(result.rendered, expected);
+                // Export again after optional receiver conversion: query atoms
+                // may be decimal while the retained datatype remains integer.
+                let output =
+                    attributes(&format!("{declaration}{{child @value='{{value}}'}}"), &data);
+                let limits = CemValueArtifactLimits::default();
+                let graph = CemValueGraph::decode(
+                    &encode_values(&output[0].value_stream, &limits).unwrap(),
+                    &limits,
+                )
+                .unwrap();
+                let value = &graph.records[graph.roots[0] as usize];
+                assert_eq!(value.datatype, "integer");
+                assert_eq!(value.lexical, lexical);
+            }
+        }
+        let original = output_attribute(sender[0].clone());
+        let source = original.source_map().unwrap();
+        assert!(!source.frames.is_empty());
+        let limits = CemValueArtifactLimits::default();
+        let restored = decode_values(
+            &encode_values(&ItemStream::once(original), &limits).unwrap(),
+            &limits,
+        )
+        .unwrap();
+        assert_eq!(restored.items[0].source_map().unwrap(), source);
+        assert_eq!(
+            restored.items[0].view().unwrap().value_contract(),
+            sender[0].contract.as_deref().cloned()
+        );
+    }
+}
+
+#[test]
+fn large_integer_arithmetic_is_exact_before_and_after_receiver_conversion() {
+    for lexical in [
+        "9223372036854775808",
+        "-9223372036854775809",
+        "922337203685477580812345",
+        "-922337203685477580812345",
+    ] {
+        let sender = attributes(
+            &format!("{{child | {{attribute @name=value @type=integer @value='{lexical}'}}}}"),
+            &TemplateData::default(),
+        );
+        for portable in [false, true] {
+            let data = transport(sender.clone(), portable);
+            for declaration in ["", "{attribute @name=value @type=integer}"] {
+                let result = render_template(
+                    &format!("{declaration}{{p | {{$value * 0.0}}|{{$value + 1.0}}}}"),
+                    &data,
+                );
+                assert!(
+                    result.diagnostics.is_empty(),
+                    "{lexical}: {:?}",
+                    result.diagnostics
+                );
+                assert_eq!(
+                    result.rendered,
+                    format!("<p>0|{}</p>", lexical.parse::<i128>().unwrap() + 1)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn integer_hook_returns_and_reloaded_templates_use_numeric_atoms() {
+    use cem_ql::template_artifact::{
+        compile_template_artifact, TemplateArtifactLoadContext, TemplateArtifactSourceMapMode,
+    };
+    let source = concat!(
+        "{template @on=expression @into=attribute @returns=integer | {$value}}",
+        "{child @value='{\"922337203685477580812345\"}'}"
+    );
+    let options = CompileTemplateOptions::default();
+    let artifact = compile_template_artifact(source, &options, TemplateArtifactSourceMapMode::Dev);
+    let compiled = artifact
+        .reload(&TemplateArtifactLoadContext {
+            expected_source_hash: Some(cem_ml::content_cache::ContentHash::from_blake3(
+                source.as_bytes(),
+            )),
+            host_bindings: vec![],
+            source_map_mode: TemplateArtifactSourceMapMode::Dev,
+        })
+        .unwrap();
+    let plan = render_compiled_template(&compiled, &TemplateData::default());
+    assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    let RenderPlanNode::Element {
+        attributes: sender, ..
+    } = &plan.nodes[0]
+    else {
+        panic!()
+    };
+    assert_eq!(
+        sender[0].value_stream.items[0].atom(),
+        Some(AtomValue::Decimal("922337203685477580812345".into()))
+    );
+    assert_eq!(
+        sender[0].value_stream.items[0]
+            .view()
+            .unwrap()
+            .field("datatype")
+            .unwrap()[0]
+            .atom(),
+        Some(AtomValue::String("integer".into()))
+    );
+    let data = transport(sender.clone(), false);
+    let result = render_template("{p | {$value + 1.0}}", &data);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(result.rendered, "<p>922337203685477580812346</p>");
+}
+
+#[test]
+fn large_integer_transport_preserves_existing_arithmetic_errors() {
+    use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
+    for (lexical, expression, message) in [
+        (
+            "9223372036854775808",
+            "value + 1",
+            "matching numeric operand types",
+        ),
+        (
+            "9223372036854775808",
+            "value / 0.0",
+            "divide decimal by zero",
+        ),
+        (
+            "170141183460469231731687303715884105727",
+            "value + 1.0",
+            "overflowed decimal",
+        ),
+        (
+            "170141183460469231731687303715884105728",
+            "value + 0.0",
+            "finite decimal operands",
+        ),
+    ] {
+        let sender = attributes(
+            &format!("{{child | {{attribute @name=value @type=integer @value='{lexical}'}}}}"),
+            &TemplateData::default(),
+        );
+        for portable in [false, true] {
+            let data = transport(sender.clone(), portable);
+            let query = compile(
+                expression,
+                &CompileContext {
+                    policy_bindings: data.bindings.clone(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let result = evaluate(
+                &query,
+                &EvaluationContext {
+                    policy_bindings: data.bindings,
+                    ..Default::default()
+                },
+            );
+            assert!(result.error.is_some(), "{lexical}: {expression}");
+            assert!(result.items.is_empty());
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains(message)),
+                "{lexical}: {:?}",
+                result.diagnostics
+            );
+        }
+    }
+}

@@ -126,6 +126,12 @@ CEM-ML owns graph import, and CEM-QL consumes native views. See
 [the complete native-value contract](../../docs/cemt-native-values.md) and
 [the cell override examples](../cem-elements/demo/cell-overrides.html).
 
+Native integers outside `i64` keep integer datatype metadata and use the
+existing decimal evaluator before and after transport. Query type checks see
+decimal atoms for those values. Matching numeric operands and existing decimal
+limits still apply: use `value + 1.0` for decimal addition, with no implicit
+floating-point conversion.
+
 Receiver `{attribute @name=count @type=integer @minInclusive=1}` declarations
 validate incoming native values before rendering. Imported expression hooks
 provide module defaults below caller overrides. XPath functions also consume

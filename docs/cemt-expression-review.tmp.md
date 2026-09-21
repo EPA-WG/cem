@@ -1,6 +1,26 @@
 # CEMT expression insertion — temporary proposal review
 
-## Pending decision: large integer query representation (R06/R08)
+## Large integer query representation (R06/R08)
+
+**Selected by the user on 2026-09-21: use decimal evaluation consistently.**
+Direct typed values and portable values now share the integer-to-query-atom
+mapping. Values within `i64` remain integer atoms; larger integers use decimal
+atoms while retaining their integer datatype metadata and exact lexical value.
+Receiver conversion and hook returns follow the same mapping. Artifact format,
+numeric operator rules and decimal arithmetic limits are unchanged. The
+maintained behavior is documented in [Native CEMT values](cemt-native-values.md).
+Permanent regressions cover signed boundaries, query type checks and arithmetic,
+receiver/hook conversion, metadata, template reload and existing failures.
+The worker/file/fallback fixture now includes a larger integer and direct
+evaluation checks. Verification is tracked as `CEMT-LARGE-INTEGER` in TODO.
+
+Verification passed: 175 focused CEM-QL tests, 96 adapter tests and workspace
+test compilation; WASM/component build, typecheck, lint (two existing warnings),
+408 runtime unit tests, both worker/file/fallback fixtures and three cell-demo
+browser stories. Render engine 1.5.3 invalidates older previews. The attribute-type
+matrix is complete; native-value pipeline coverage and DX review remain in TODO.
+
+Original review and reproduction, preserved below:
 
 The 2026-09-21 attribute-type audit confirmed that scalar conversion, lexical
 precision and declared datatype survive native and portable component handoff,
@@ -38,8 +58,8 @@ arithmetic and callers that currently see strings.
 | Reject integers outside `i64` at shared conversion/import. | Every accepted integer fits the current integer evaluator. | Rejects previously valid values and portable artifacts; narrows the shared schema contract. |
 | Extend the shared CEM-QL integer representation and evaluator. | Larger integers can remain integers in query type checks and arithmetic. | Expands evaluator, operators, casts, budgets and public value APIs; needs a separately bounded design and precision policy. |
 
-Under the user's stop-at-decisions instruction, runtime changes are paused.
-For the recommended direction, share or align the typed-atomic adapters,
+The user's selection supersedes the original stop-at-decisions pause.
+The approved implementation plan was to share or align the typed-atomic adapters,
 preserve datatype/provenance and existing operator rules, then add permanent
 tests for direct handoff, receiver conversion, hook returns, positive/negative
 boundary values and portable reload. Cover arithmetic and type checks, including
@@ -51,7 +71,7 @@ portable atom comparison and printed both arithmetic reproductions above.
 It was removed after recording the results. The committed passing matrix covers
 scalar lexical conversion and precision, numeric/string facets, temporal zones,
 invalid contracts, mixed native segments and final text/HTML/XML projection.
-The pending change is tracked as `CEMT-LARGE-INTEGER` in [TODO](todo.md).
+The implementation is tracked as `CEMT-LARGE-INTEGER` in [TODO](todo.md).
 Verification of the independent matrix passed: 8 shared-contract tests,
 70 focused CEM-QL tests and workspace test compilation. No runtime or browser
 assets changed in this increment.

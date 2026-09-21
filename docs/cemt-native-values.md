@@ -107,14 +107,24 @@ HTML, XML and plain text are final representation choices; strings containing
 markup never become nodes by implicit parsing. Native child components receive
 the original sequence rather than parsing the projected DOM attribute.
 
-Integers outside `i64` currently retain their digits and `integer` metadata but
-have inconsistent query behavior: direct values expose a string atom, while
-portable values expose a decimal atom. An integer receiver declaration also
-returns to the string-backed representation. Until the
-[large-integer decision](cemt-expression-review.tmp.md#pending-decision-large-integer-query-representation-r06r08)
-is resolved, do not assume arithmetic or query type checks on these values are
-independent of transport. This limitation does not affect ordinary `i64` values,
-lexical preservation or final text projection.
+Integer values within `i64` use the integer evaluator. Larger positive or
+negative integers use the existing decimal evaluator, consistently in direct
+native values, hook returns, receiver conversion and portable values. Their
+lexical digits and `integer` datatype metadata remain intact: for a larger
+value, `value is decimal` is true while the native value and artifact retain
+the `integer` datatype metadata.
+Portable artifacts keep the integer datatype; no artifact version change is
+needed.
+
+The existing numeric rules still apply. For a larger integer, `value + 1.0`
+uses exact decimal arithmetic, while `value + 1` requires an explicit numeric
+conversion because the operand types differ. Decimal evaluation remains bounded
+by its checked `i128` coefficient and scale operations; preserving a larger
+lexical integer does not guarantee every arithmetic operation can represent it.
+Overflow, unrepresentable decimal operands and division by zero remain errors.
+No implicit conversion to floating point occurs. The
+[accepted large-integer decision](cemt-expression-review.tmp.md#large-integer-query-representation-r06r08)
+retains the original transport inconsistency and alternatives.
 
 Named types supplied by `TemplateData.value_types` retain their base model.
 Local facets add independent restrictions; every restriction must hold. For
@@ -306,8 +316,11 @@ The [implementation checklist](todo.md) tracks remaining coverage and DX work.
 The `native_value_contract`, `attribute_value_matrix` and `portable_values`
 fixtures cover scalar lexical profiles, precision, temporal zone validation,
 numeric/string facets, invalid contracts and mixed native segments through
-direct/portable handoff and text/HTML/XML projection. Their passing lexical
-cases do not resolve the large-integer query inconsistency described above.
+direct/portable handoff and text/HTML/XML projection. The large-integer cases
+also cover signed `i64` boundaries, query type checks, exact decimal arithmetic,
+receiver/hook conversion, retained metadata, template reload and unchanged
+arithmetic errors. The native-value WASM fixture checks the same larger integer
+before transport and after saved-file, worker and fallback handoff.
 The [temporary review](cemt-expression-review.tmp.md) retains the discussion;
 R08's portable artifact choice is settled.
 

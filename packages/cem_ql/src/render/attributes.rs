@@ -34,7 +34,10 @@ impl crate::eval::QueryItemView for TypedValue {
         crate::eval::QueryItemViewKind::Atomic
     }
     fn atom(&self) -> Option<AtomValue> {
-        Some(AtomValue::String(self.0.lexical.clone()))
+        Some(match self.0.datatype.as_str() {
+            "integer" => AtomValue::from_integer_lexical(&self.0.lexical),
+            _ => AtomValue::String(self.0.lexical.clone()),
+        })
     }
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         match name {

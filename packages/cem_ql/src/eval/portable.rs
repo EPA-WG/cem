@@ -259,11 +259,7 @@ impl QueryItemView for GraphView {
             return None;
         }
         Some(match record.datatype.as_str() {
-            "integer" => record
-                .lexical
-                .parse()
-                .map(AtomValue::Integer)
-                .unwrap_or_else(|_| AtomValue::Decimal(record.lexical.clone())),
+            "integer" => AtomValue::from_integer_lexical(&record.lexical),
             "decimal" | "number" => AtomValue::Decimal(record.lexical.clone()),
             "double" => AtomValue::Double(record.lexical.parse().ok()?),
             "boolean" => AtomValue::Boolean(record.lexical == "true"),

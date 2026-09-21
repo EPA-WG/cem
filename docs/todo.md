@@ -1743,7 +1743,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             browser stories and standalone/source-loaded cell lessons. Viewer
             implementations remain unchanged. Deferred gallery/Storybook
             stabilization stays after the immediate expression/value work.
-    - [ ] Fixture CEMT-ATTRIBUTE-TYPES: shared conversion then validation for
+    - [x] Fixture CEMT-ATTRIBUTE-TYPES: shared conversion then validation for
           numeric, temporal, regex-constrained string and rich native values;
           preserve mixed attribute content, destination constraints, native
           component handoff and final-boundary serialization.
@@ -1757,17 +1757,26 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             Verified 8 shared-contract and 70 focused CEM-QL tests plus workspace
             test compilation. This increment changes tests and documentation;
             production code and viewer templates are unchanged.
-            The query-behavior audit found the separate pending decision below;
-            the parent attribute-type fixture remains open.
-      - [ ] Fixture CEMT-LARGE-INTEGER: settle query semantics for integers
-            outside `i64`, then align direct typed values, portable values,
-            receiver conversion and hook returns. Direct values currently expose
-            string atoms while portable values expose decimal atoms; arithmetic
-            changes after transport. The reproduction and recommended bounded
+            The query-behavior audit found the separate decision resolved by
+            the large-integer fixture below.
+      - [x] Fixture CEMT-LARGE-INTEGER: implement the user's selected decimal
+            evaluation for integers outside `i64`, preserving integer datatype
+            metadata (2026-09-21). Align direct typed values, portable values,
+            receiver conversion and hook returns. The reproduction and bounded
             decimal-adapter correction are in
-            [Large integer query representation](./cemt-expression-review.tmp.md#pending-decision-large-integer-query-representation-r06r08).
+            [Large integer query representation](./cemt-expression-review.tmp.md#large-integer-query-representation-r06r08).
             Add type/arithmetic, signed boundary, overflow, artifact and worker
-            regressions after the decision. Runtime behavior remains unchanged.
+            regressions. Direct typed values and portable values now share the
+            integer-to-atom mapping. Four new native cases verify both signed
+            `i64` boundaries, exact decimal arithmetic, query type checks,
+            receiver/hook conversion, retained datatype/source metadata,
+            template reload, mixed-type errors and unchanged decimal limits.
+            The WASM fixture checks direct evaluation plus larger integers
+            across separate workers, saved files and fallback. Verified 175
+            focused CEM-QL and 96 adapter tests, workspace test compilation,
+            build/typecheck/lint (two existing warnings), 408 runtime unit tests,
+            both WASM fixtures and all 3 cell-demo browser stories. Render engine
+            is 1.5.3; the artifact format and viewer implementations are unchanged.
       - [x] Fixture CEMT-NAMED-CONSTRAINTS: compose inherited and local named-type
             restrictions in the shared native contract. CEMV version 3 preserves
             every constraint, retains version-1/version-2 reads, and rejects
