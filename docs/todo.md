@@ -1666,29 +1666,50 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         the Pokémon cell and read its sibling `id`. Keep missing/multiple
         values in one table cell. Imported views expose the whole retained
         document; host-restricted views must enforce their scope themselves.
-  - [ ] Fixture DATA-CELL-NAVIGATION: testing resumed for this implementation; cover
+  - [x] Fixture DATA-CELL-NAVIGATION: cover
         parent/children identity and source maps, root/attribute/text/CDATA
         behavior, namespaces, all import formats and XPath views, type errors,
         host scope rejection, budgets and cancellation. Update the earlier
         cell fixtures for node dispatch, sibling IDs, grouped-value fallback
         and the row-selection `th`.
-  - [x] Implement `{$node}` text-context conversion through shared retained-node
-        access and use it for the Pokémon label and image alternative. Preserve
+    - [x] Repair `cell_overrides.rs` for sibling IDs and retained output; add
+          grouped/missing-cell and source-node identity assertions. Add
+          `retained_node_values.rs` for navigation/text/reference/clone across
+          XML, JSON, YAML and CSV, XPath views and restricted host failures.
+    - [x] Fixture DATA-CELL-SCOPE-CAPS: enforce execution-scope ceilings on
+          the evaluator's queue-, CPU- and I/O-derived budgets. A child queue
+          cap of four previously permitted twenty navigation results. Preserve
+          standalone context configuration, test parent/sibling isolation and
+          verify native, WASM and cell-demo consumers after the correction.
+          Verified 2026-09-20: 219 focused CEM-QL tests (including 9 revised cell
+          cases, 9 retained-node cases and 5 call-budget cases), 96 adapter tests,
+          workspace test compilation, WASM/element build, typecheck, lint (two
+          existing warnings), 408 runtime unit tests, both native-value WASM
+          worker/file/fallback fixtures, and all three cell browser stories.
+          All three standalone/source-loaded cell lessons pass. The broader
+          viewer run passed 14 of 16 stories; its two stale test selectors are
+          recorded under DATA-TABLE-VERIFIER-SELECTORS. Viewer implementations
+          remain unchanged. The unit checks passed when Nx asset-dependent
+          targets ran serially; overlapping cache restores caused an earlier
+          generated-module lookup failure.
+  - [x] Implement shared retained-node text conversion for attribute projection
+        and explicit `dom:text`; the Pokémon body now reuses its node through
+        `{$node}` under the accepted native-value contract below. Preserve
         node-valued selections/parameters and query operators; keep decoded
         source text distinct from XPath's coalesced text. Bound extraction and
         propagate scope, cancellation and budget failures without partial output.
-  - [ ] Fixture DATA-CELL-NODE-TEXT: testing resumed; verify explicit node text
+  - [x] Fixture DATA-CELL-NODE-TEXT: verify explicit node text
         and attribute interpolation, nested text/CDATA/whitespace, decoded entities
         and escaping, empty nodes and sequences, selected attributes/comments/PIs,
         CEM source versus XPath text boundaries, and XML/JSON/YAML/CSV imports.
-        Cover unchanged native parameter passing and result copying, unsupported
+        Cover unchanged native parameter passing and retained results, unsupported
         views, denied scope, cancellation, extraction budgets and lower child-scope
         memory limits; update the Pokémon fixtures for typed `{$node}` insertion
         and explicit `dom:text` extraction.
   - [ ] Implement the accepted expression/value direction recorded in
         [the proposal review](./cemt-expression-review.tmp.md), using the shared
         CEM value model and immutable retained source owners.
-    - [ ] Fixture CEMT-VALUES: `dom:text` explicit/implicit focus, retained
+    - [x] Fixture CEMT-VALUES: `dom:text` explicit/implicit focus, retained
           references and repeated occurrences, explicit deep clone and empty
           element construction, source identity/provenance and all import formats.
     - [ ] Fixture CEMT-HOOKS: whole-sequence content/attribute hooks, compact
@@ -1790,7 +1811,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         name match. The later approved cell-generation hook dispatches the
         retained source node and uses shared parent navigation for sibling IDs.
         Other candidate features stay deferred.
-  - [ ] Prove the revised import/match/delegation contract in native tests:
+  - [x] Prove the revised import/match/delegation contract in native tests:
         the selected cell uses the local rule, unmatched and nested content
         retain base rendering, and rows stay attached to the imported CEM tree.
         Preserve default viewer output and CEMT/XSLT parity if a hook is needed.
@@ -1798,13 +1819,14 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         the chosen cell output, match scope and fallback, source-loaded and
         standalone operation, compact layout, source contracts and inventory/cache
         inputs. Table collapse remains an alternative, not an approved refactor.
-  - [ ] Fixture DATA-CELL-MATCH-POKEMON: inline the sample's template and
+        Source contracts, source-loaded and standalone interactions now pass;
+        the explicit compact-layout audit remains before closing this item.
+  - [x] Fixture DATA-CELL-MATCH-POKEMON: inline the sample's template and
         match only the local name `name` in `cell` mode, without an explicit
         priority. Render an image plus name using the sibling `id` element.
-        Other field names use the imported renderer. Implementation is present;
-        image loading, sorting, node dispatch and source repair need updated
-        fixtures when the user resumes testing.
-  - [ ] Fixture DATA-CELL-MATCH-STOCK: override only zero stock in catalog
+        Other field names use the imported renderer. Revised native fixtures,
+        image loading, sorting, node dispatch and source repair checks pass.
+  - [x] Fixture DATA-CELL-MATCH-STOCK: override only zero stock in catalog
         product rows; verify positive values, unrelated fields and edited values
         use the imported fallback, without changing the retained source.
 - [ ] Fixture DATA-TABLE-VERIFIER-SELECTORS: during the deferred browser
@@ -1813,6 +1835,14 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       The full gallery run stopped on this stale selector in `data-table.html`;
       both the selector and the viewer's `th` predate this follow-up. Keep the
       current data-table/XML viewer implementation unchanged.
+      The 2026-09-20 value audit also ran the 16 cell/table/tree/inspector stories:
+      14 passed, including all three cell stories and both native-XSLT stories.
+      Fix the two additional stale row-heading assumptions in the same cleanup:
+      `data-table-demo.stories.ts` / EveryAuthoredSample indexes `:scope > td`
+      with an index that still counts the selection cell (reads names as IDs);
+      `table-inspector-demo.stories.ts` / ColumnsAndText queries all `th` instead
+      of `thead th` (includes two row-selection headings). These are fixture
+      migrations, not requests to change the viewer's output.
 - [ ] Stabilize browser startup waits under parallel Storybook load, after
       DATA-CELL-MATCH-1: the unchanged scoped-CSS and legacy icon-link stories
       intermittently exhaust their short frame/two-second waits, although

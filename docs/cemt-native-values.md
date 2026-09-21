@@ -19,6 +19,16 @@ Named calls inherit focus. A parameter called `node` does not itself rebind
 focus. Explicit selection and variable bindings retain native values.
 Records and arrays are not inferred to be document nodes.
 
+`dom:text` reads values decoded by CEM-ML import, including XML entity and
+line-ending normalization. It extracts each selected CEM text/CDATA node
+independently; XPath can expose those same neighbours as one coalesced text node.
+Original lexical fields and source ranges remain available for source inspection.
+Selected attributes, comments and processing instructions yield their own
+text; element/document text excludes descendant attributes, comments and
+processing instructions. Empty nodes and sequences yield an empty string.
+XML, JSON, YAML and CSV use the same downstream operations; formats are
+interpreted only by the CEM-ML importer.
+
 ## Expression hooks and attributes
 
 A scoped expression template receives the complete expression result as `value`
@@ -208,6 +218,12 @@ scope separately from the execution scope. Each uses the supplied native value
 limits, capped by the execution scope's memory and logical-depth policy. Child
 scopes can only lower these ceilings. HTML/XML serializers and the WASM DOM patch
 boundary use this path; failed projection publishes no prefix or artifact handle.
+
+CEM-QL item and call budgets use the tighter of the evaluation context and the
+effective execution-scope policy. A context cannot raise a supplied host or child
+scope's ceilings. Standalone evaluation keeps its context-configured item and
+call limits. Exhausting a child query's budget does not cancel its parent or
+sibling queries; a failed query returns no partial node sequence.
 
 `dom:text` charges both visited work and lexical bytes against the query policy's
 memory-derived ceilings, and reserves extracted bytes against operation memory.

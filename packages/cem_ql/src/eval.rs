@@ -538,7 +538,14 @@ impl Evaluator {
         context: &EvaluationContext,
         abort_signal: &'a AbortSignal,
     ) -> ItemStream {
-        let control = OperationControl::new(abort_signal.clone());
+        // With no supplied execution scope, the standalone host owns these
+        // query budgets. Explicit controls remain ceilings on the context below.
+        let policy = ScopePolicy::host_root()
+            .with_queue_size(context.scope_policy.queue_size)
+            .with_cpu_workers(context.scope_policy.cpu_workers)
+            .with_io_streams(context.scope_policy.io_streams);
+        let control = OperationControl::with_root_policy(abort_signal.clone(), policy)
+            .expect("standalone control policy has valid bounded defaults");
         Self::evaluate_with_control(query, context, &control, ROOT_EXECUTION_SCOPE_ID)
     }
 
@@ -619,6 +626,9 @@ impl<'a> EvalCtx<'a> {
     ) -> Self {
         let mut policy = context.scope_policy;
         if let Some(scope) = control.scope_tree().scope(scope) {
+            policy.queue_size = policy.queue_size.min(scope.effective_policy.queue_size);
+            policy.cpu_workers = policy.cpu_workers.min(scope.effective_policy.cpu_workers);
+            policy.io_streams = policy.io_streams.min(scope.effective_policy.io_streams);
             policy.memory_bytes = policy.memory_bytes.min(scope.effective_policy.memory_bytes);
             policy.stack_depth = policy.stack_depth.min(scope.effective_policy.stack_depth);
         }

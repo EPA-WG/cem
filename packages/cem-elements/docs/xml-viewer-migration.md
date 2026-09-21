@@ -454,13 +454,15 @@ native disclosure, while the legacy table caption only records `todo collapsible
 No other legacy XmlView features are part of this increment. Storybook startup
 stabilization follows DATA-CELL-MATCH-1 in `docs/todo.md`.
 
-[Native fixtures](../../cem_ql/tests/cell_overrides.rs), browser stories and
-source contracts were authored for the earlier content-only override and
-attribute-based image ID. The user deferred test changes and execution before
-the cell-mode, sibling-ID and node-text revisions. Updating those fixtures, the
-gallery checks, shared-navigation and text-conversion coverage remains pending
-in `docs/todo.md`;
-the earlier passing results do not verify this revision.
+The revised [native cell fixtures](../../cem_ql/tests/cell_overrides.rs) now
+verify sibling IDs, primitive matching, native label/attribute identity, final
+projection, grouped/missing-value fallback, nested collections, source repair
+and selection through the existing row-heading button. The shared
+[node-value fixtures](../../cem_ql/tests/retained_node_values.rs) cover XML,
+JSON, YAML and CSV imports, source/XPath navigation, text, references, clones,
+restricted hosts, cancellation and scope ceilings. No viewer-template change
+was needed during this verification follow-up. Browser and standalone evidence
+and the remaining expression-value work are tracked in `docs/todo.md`.
 
 ## Review verification
 

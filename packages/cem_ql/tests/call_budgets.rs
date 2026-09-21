@@ -1,7 +1,10 @@
 //! CEMQL-SORT-CALL-BUDGET: shared prerequisite exposed by portable XSLT sorting.
+use cem_ml::operation_control::{
+    ExecutionScopeKind, ExecutionScopeRegistration, OperationControl, ROOT_EXECUTION_SCOPE_ID,
+};
 use cem_ml::scheduler::ScopePolicy;
 use cem_ql::{
-    api::{compile, evaluate, CompileContext, EvaluationContext},
+    api::{compile, evaluate, evaluate_with_control, CompileContext, EvaluationContext},
     eval::{BudgetAxis, EvalError, ItemStream},
     native::{NativeQueryFunction, NativeQueryRequest},
 };
@@ -109,4 +112,69 @@ fn repeated_native_calls_inside_lambdas_release_depth() {
     );
     assert!(result.error.is_none(), "{result:?}");
     assert_eq!(result.items.len(), 100);
+}
+
+#[test]
+fn explicit_execution_scopes_bound_context_call_budgets_and_isolate_siblings() {
+    let root_policy = ScopePolicy::host_root()
+        .with_cpu_workers(2)
+        .with_queue_size(128);
+    let control = OperationControl::with_root_policy(Default::default(), root_policy).unwrap();
+    let context = EvaluationContext {
+        scope_policy: root_policy,
+        ..Default::default()
+    };
+    for (source, policy, axis) in [
+        (
+            "declare function down(n) { if n == 0 { 1 } else { down(n - 1) } } down(17)".to_owned(),
+            root_policy.with_cpu_workers(1),
+            BudgetAxis::CallDepth,
+        ),
+        (
+            format!(
+                "declare function tick() {{ () }} ({})",
+                vec!["tick()"; 20].join(",")
+            ),
+            root_policy.with_queue_size(1),
+            BudgetAxis::FunctionCalls,
+        ),
+    ] {
+        let query = compile(&source, &CompileContext::default()).unwrap();
+        let child = control
+            .register_scope(
+                ROOT_EXECUTION_SCOPE_ID,
+                ExecutionScopeRegistration::inherited(
+                    ExecutionScopeKind::Template,
+                    "limited",
+                    policy,
+                ),
+            )
+            .unwrap();
+        let sibling = control
+            .register_scope(
+                ROOT_EXECUTION_SCOPE_ID,
+                ExecutionScopeRegistration::inherited(
+                    ExecutionScopeKind::Template,
+                    "ordinary",
+                    root_policy,
+                ),
+            )
+            .unwrap();
+        let result = evaluate_with_control(&query, &context, &control, child);
+        assert_eq!(result.error, Some(EvalError::BudgetExceeded(axis)));
+        assert!(result.items.is_empty());
+        for scope in [ROOT_EXECUTION_SCOPE_ID, sibling] {
+            let result = evaluate_with_control(&query, &context, &control, scope);
+            assert!(result.error.is_none(), "{result:?}");
+        }
+        // A stricter context also stays stricter beneath a broader host scope.
+        let smaller = EvaluationContext {
+            scope_policy: policy,
+            ..context.clone()
+        };
+        assert_eq!(
+            evaluate_with_control(&query, &smaller, &control, sibling).error,
+            Some(EvalError::BudgetExceeded(axis))
+        );
+    }
 }

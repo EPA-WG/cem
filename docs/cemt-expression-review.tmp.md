@@ -535,3 +535,28 @@ After the review is complete:
 Unrelated viewer features remain outside this increment. Storybook stabilization
 remains after the immediate cell/expression work. The temporary review document
 does not authorize implementation of unresolved design choices.
+
+## 8. Navigation and value verification follow-up (2026-09-20)
+
+The native cell fixtures now exercise the agreed inline local-name match,
+sibling `id`, immutable label references and final attribute text projection.
+They cover repeated/missing fields, nameless siblings, namespace-independent
+ID lookup, nested tables, source repair and selection through sorting. The
+shared `retained_node_values.rs` fixture exercises navigation, source metadata,
+text, references, clones and empty element construction after XML, JSON, YAML
+and CSV import, including XPath views and restricted hosts.
+
+This audit reproduced an R10 enforcement gap: a child execution scope with a
+queue cap of four allowed twenty navigation results because the evaluator
+only combined execution memory/stack caps with the query context. The correction
+also combines the existing queue-, CPU- and I/O-derived ceilings. Standalone
+query entrypoints retain their context-configured budgets; supplied operation
+scopes cannot be relaxed by a query context. Native cases verify item limits,
+active call depth, cumulative call counts and parent/sibling isolation. This
+enforces the accepted scope rule without adding a new capability or changing
+the viewer templates. Current verification evidence is tracked in `docs/todo.md`.
+
+`dom:text` consumes import-decoded values; XML line-ending normalization belongs
+to CEM-ML import. Source lexical fields/ranges remain available separately, and
+selected source text/CDATA nodes remain distinct from XPath's coalesced view.
+No external-format branches were added to CEM-QL or rendering.
