@@ -1,5 +1,75 @@
 # CEMT expression insertion — temporary proposal review
 
+## Pending decision: expression hooks in attribute bodies (R05/R07/R12)
+
+The hook audit on 2026-09-20 found that equivalent attribute expressions take
+different hook paths depending on how their body is written. The accepted
+contract describes expression destinations and native attribute values, but
+does not settle whether an attribute body is an attribute insertion scope or
+a block that returns native values directly. Changing this affects authored
+templates, so implementation is paused under the user's stop-at-ambiguity rule.
+
+Two temporary native Rust probes used these hooks:
+
+```cem
+{template @on=expression @into=attribute |
+    {$"attribute:" + dom:text()}}
+{template @on=expression @into=content |
+    {$"content:" + dom:text()}}
+{p |
+    {attribute @name=via-value @value='{"one"}'}
+    {attribute @name=via-body | {$"two"}}
+    {attribute @name=conditional |
+        {cem:if @test=true | {$"four"}}}
+    {attribute @name=rich @content-type=text/html |
+        {b | {$"three"}}}}
+```
+
+Observed final attribute values (markup shown before HTML escaping):
+
+| Attribute | Current value | Recommended value |
+| --- | --- | --- |
+| `via-value` | `attribute:one` | `attribute:one` |
+| `via-body` | `two` | `attribute:two` |
+| `conditional` | `content:four` | `attribute:four` |
+| `rich` | `<b>content:three</b>` | `<b>content:three</b>` |
+
+`constructed_attribute_value` captures direct body expressions as native return
+values, bypassing expression hooks. An `if` creates another render scope, so
+its expression falls outside the capture depth and runs a content hook instead.
+The actual destination remains the same attribute. Nested element content also
+runs content hooks, which is appropriate for the `<b>` payload in this example.
+
+| Direction | Benefits | Costs |
+| --- | --- | --- |
+| **Recommended: attribute bodies establish an attribute insertion scope.** Direct expressions and expressions reached through `if`, loops and named calls use attribute hooks. Constructed elements establish content scope for their own children and attribute scope for their own attributes. | Equivalent authoring forms behave consistently; control statements do not change the output destination; rich payloads retain their native structure. | Existing bodies that relied on bypassing attribute hooks change behavior. The renderer must track insertion context separately from direct hook-return capture. |
+| Keep attribute bodies as native return blocks; only `@value` interpolation invokes attribute hooks. Preserve that direct-return behavior through control statements and named calls, while constructed elements establish their own content scope. | Retains an explicit authoring distinction between interpolated attributes and native body construction. | Authors must learn two attribute expression contracts. Wrapping a value in an attribute body bypasses scoped attribute hooks; the current conditional path still needs correction. |
+
+For the recommended direction:
+
+1. Carry the insertion target and destination attribute metadata through
+   control statements and template calls. Keep lexical hook precedence,
+   active-hook exclusion, whole-sequence focus and scope restoration unchanged.
+2. Separate direct expression-hook returns from the attribute body's insertion
+   context, so a hook does not redispatch its own returned sequence.
+3. Preserve literal/native segments and apply shared destination conversion
+   and validation after construction. Do not flatten nodes or parse string
+   payloads to implement hooks. Imported data still enters only through CEM-ML.
+4. Add native cases for both probes, loops/calls, nested element attributes,
+   rich values, empty input, metadata restoration, recursion/cancellation and
+   artifact reload; then verify the existing worker and browser consumers.
+5. Update the maintained contract and the native-value lesson in
+   `cell-overrides.html` where it clarifies the distinction. Keep data-table,
+   inspector and tree viewer implementations unchanged.
+
+The two probes failed against the recommended outputs above; they are design
+evidence, not an approved runtime contract. Their temporary test target was
+removed after recording the results. Five independent, passing native cases in
+`packages/cem_ql/tests/expression_hooks.rs` cover mixed attribute expression
+sequences/literals, lexical loop captures, nested query focus, active-hook
+fallback and restoration of attribute context and reserved bindings. The
+pending implementation is tracked as `CEMT-HOOK-ATTRIBUTE-BODY` in TODO.
+
 ## Named attribute constraints (R06/R07)
 
 **Selected by the user: compose constraints and version the artifact.** The

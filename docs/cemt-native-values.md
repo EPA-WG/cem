@@ -54,6 +54,13 @@ Hook predicates and bodies fail the render on evaluation errors. Direct return
 expressions bypass redispatch, and active declarations cannot invoke themselves
 implicitly. Stable declaration identities survive compiled artifact reloads.
 
+Attribute interpolation applies the hook to each expression's complete sequence,
+preserving literal segments between expressions. Native attribute-body handling
+is awaiting an [output-context decision](cemt-expression-review.tmp.md#pending-decision-expression-hooks-in-attribute-bodies-r05r07r12):
+direct body expressions currently bypass hooks, while expressions wrapped in
+`if` currently invoke content hooks. These body forms are not yet equivalent to
+the `@value` interpolation form.
+
 An attribute retains an ordered native value sequence independently of its
 browser string projection. `type`, constraints and representation are separate:
 

@@ -1715,6 +1715,25 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
     - [ ] Fixture CEMT-HOOKS: whole-sequence content/attribute hooks, compact
           declarations, lexical scope, caller/import inheritance, precedence,
           focus restoration, empty versus missing focus and bounded recursion.
+      - [x] Fixture CEMT-HOOK-FOCUS: add native cases for mixed attribute
+            expression segments, lexical loop bindings, nested query focus,
+            fallback while a hook is active and attribute-context restoration.
+            Five native cases pass. The rich attribute-body audit exposed the
+            pending output-context choice below; the parent fixture remains open.
+            Verified 54 focused native hook/value, named-constraint, template
+            reload/matching and error-recovery tests. This increment changes
+            fixtures and documentation only; renderer/viewer behavior is unchanged.
+      - [ ] Fixture CEMT-HOOK-ATTRIBUTE-BODY: decide whether attribute bodies
+            establish attribute insertion scope (recommended) or return native
+            values directly. Two native probes show `@value` applying attribute
+            hooks, direct body expressions bypassing hooks, and `if`-wrapped
+            expressions applying content hooks. The reproduction, alternatives
+            and bounded implementation plan are in the proposal review under
+            [Pending decision: expression hooks in attribute bodies](./cemt-expression-review.tmp.md#pending-decision-expression-hooks-in-attribute-bodies-r05r07r12).
+            After the decision, cover transparent controls/calls, nested markup,
+            attribute metadata, native result preservation, errors/control and
+            reload, then update maintained docs/demo and verify WASM/browser
+            consumers. Do not change renderer semantics before this decision.
     - [ ] Fixture CEMT-ATTRIBUTE-TYPES: shared conversion then validation for
           numeric, temporal, regex-constrained string and rich native values;
           preserve mixed attribute content, destination constraints, native
