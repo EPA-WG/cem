@@ -64,6 +64,23 @@ HTML, XML and plain text are final representation choices; strings containing
 markup never become nodes by implicit parsing. Native child components receive
 the original sequence rather than parsing the projected DOM attribute.
 
+Named types supplied by `TemplateData.value_types` retain their base model.
+Local facets add independent restrictions; every restriction must hold. For
+example, a named integer minimum of `3` plus a local minimum of `1` still rejects
+`2`, while a local minimum of `5` narrows the accepted values further. Regex
+patterns intersect by separate validation, without rewriting either regex.
+
+The shared `AttributeValueContract` stores `model`, `restrictions` and
+`content_type`. Conversion and whitespace normalization precede validation of
+the final value against every model. Whitespace uses the strongest requested
+normalization (`preserve`, then `replace`, then `collapse`); a local declaration
+cannot weaken an inherited setting. Malformed bounds, patterns and other facet
+definitions are errors. Native `node`/`any` content does not silently accept scalar
+facets. A host destination owns final scalar conversion, and both its constraints
+and the template's constraints validate that result. Receiver and hook conversion
+use the same shared implementation. In an expression hook,
+`context.attribute.pattern` is the ordered sequence of applicable regex patterns.
+
 The receiving component declares its input contract in its template prelude:
 
 ```cem
@@ -98,6 +115,9 @@ from native segments, while CEM-QL retains those segments and their contracts.
 Namespaces, source-selection keys, origin URIs and line numbers survive the
 projection. The native projection checks graph, expansion, depth and byte limits
 and polls execution control while constructing its index.
+Selected native XPath attributes retain their full value contract as metadata;
+their XPath string-value semantics stay unchanged. Cloning, explicit native result
+construction and portable export preserve these constraints.
 
 The output owner retains at most its most recently used query scope's index.
 Changing scope rebuilds the index under that scope's access checks. Cache eviction
@@ -134,7 +154,7 @@ entrypoints retain their match declarations when their body is selected.
 
 ## Portable artifacts: accepted R08 transport
 
-CEM-ML owns the `CEMV` version-2 binary value artifact. It contains a flat native
+CEM-ML owns the `CEMV` version-3 binary value artifact. It contains a flat native
 value graph with ordered roots, children, attributes, reference targets and
 native attribute segments. Scalars keep their datatype; attributes keep their
 shared schema contract and representation. Records retain source frames and
@@ -142,9 +162,12 @@ available origin URI, source-selection key and line metadata.
 Version 2 additionally distinguishes output occurrences from standalone target
 references, including root insertions, and preserves an explicitly empty native
 attribute sequence separately from an imported attribute's lexical value.
-Version-1 artifacts remain readable with
-their original reference interpretation. The named browser transport envelope
-is unchanged; the binary artifact carries its own version.
+Version 3 adds composed attribute restrictions. The importer revalidates the base
+model and every restriction, including when no named-type registry exists in the
+receiving worker. Version-1 and version-2 artifacts remain readable with their
+original semantics; they cannot declare version-3 restrictions. Unknown newer
+versions are rejected. The named browser transport envelope is unchanged; the
+binary artifact carries its own version.
 
 Repeated references within one artifact address the same target record. A
 receiving worker creates a new local owner and identities, preserving those
@@ -196,6 +219,10 @@ execution control. Binary codecs run between checked boundaries on size-bounded
 input. Memory permits account retained graph records, edges, lexical payloads, source
 frames, provenance, schema metadata and conservative semantic-index storage; this is explicit resource accounting, not a
 measurement of every allocator overhead byte.
+Restrictions contribute to retained metadata bytes and artifact work limits.
+`convert_attribute_value_with_check` polls between models and separates invalid
+data from interrupted execution. Cancellation and lowered child-scope budgets
+discard the result.
 
 XML, JSON, YAML and CSV continue to enter through the shared CEM-ML import
 layer. There are no format-specific evaluator or renderer branches. See the
@@ -211,14 +238,15 @@ Native fixtures cover expression focus, reference identity, construction,
 contracts and artifact round trips. `packages/cem_ql/tests/native-values-wasm.mjs`
 checks separate WASM workers, saved artifact bytes, fallback, lowered limits and
 handle disposal. Browser stories check the declarative demo.
+`packages/cem_ql/tests/native-constraints-wasm.mjs` generates its binary fixtures
+through the Rust `named_attribute_constraints` test, then verifies saved-file
+reads, separate WASM workers and fallback. Correctly hashed invalid artifacts
+test inherited and local constraints independently; JavaScript never reconstructs
+the document or native value graph.
 
 The [implementation checklist](todo.md) tracks remaining coverage and DX work.
 The [temporary review](cemt-expression-review.tmp.md) retains the discussion;
 R08's portable artifact choice is settled.
 
-An open named-type inheritance issue affects output attributes: local facets
-currently replace a named type's facets. Receiver inputs check their named type
-independently. Two native probes reproduce the output gap for numeric bounds
-and regex patterns. The [constraint proposal](cemt-expression-review.tmp.md#pending-decision-named-attribute-constraints-r06r07)
-compares retaining all inherited/local constraints with rejecting local overrides;
-the contract/portable representation decision remains pending.
+The [constraint review](cemt-expression-review.tmp.md#named-attribute-constraints-r06r07)
+records the selected composition direction and its original failing probes.

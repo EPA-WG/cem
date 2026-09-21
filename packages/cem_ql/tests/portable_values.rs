@@ -220,17 +220,17 @@ fn all_document_formats_round_trip_through_the_same_native_graph() {
 }
 
 #[test]
-fn native_artifact_v2_keeps_occurrences_and_reads_v1_values() {
+fn native_artifact_v3_keeps_occurrences_and_reads_legacy_values() {
     use cem_ql::{eval::output::output_nodes, render::*};
     let limits = CemValueArtifactLimits::default();
     let scalar = eval("2", ItemStream::empty());
     let mut legacy = encode_values(&scalar, &limits).unwrap();
-    assert_eq!(legacy[4], 2);
-    legacy[4] = 1; // Non-occurrence v2 records retain the v1 body layout.
-    assert_eq!(
-        decode_values(&legacy, &limits).unwrap().items[0].atom(),
-        scalar.items[0].atom()
-    );
+    assert_eq!(legacy[4], 3);
+    // Records without new fields retain the legacy body layout.
+    for version in [1, 2] {
+        legacy[4] = version;
+        assert_eq!(decode_values(&legacy, &limits).unwrap().items[0].atom(), scalar.items[0].atom());
+    }
     let artifact = compile_template(
         r#"{$data:read("<r/>", "xml").root.children}"#,
         &CompileTemplateOptions::default(),
@@ -248,6 +248,8 @@ fn native_artifact_v2_keeps_occurrences_and_reads_v1_values() {
         Some(cem_ql::eval::AtomValue::Boolean(true))
     );
     let mut downgraded = bytes;
+    downgraded[4] = 2;
+    assert!(decode_values(&downgraded, &limits).is_ok());
     downgraded[4] = 1;
     assert!(decode_values(&downgraded, &limits).is_err());
 }

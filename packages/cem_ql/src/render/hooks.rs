@@ -196,8 +196,8 @@ impl PlanRenderer<'_> {
                                             "pattern".into(),
                                             self.active_attribute_contract
                                                 .as_ref()
-                                                .and_then(|c| c.model.pattern.clone())
-                                                .map(string_stream)
+                                                .map(|c| ItemStream::from_items(c.models().filter_map(|m| m.pattern.clone())
+                                                    .map(|pattern| Item::Atomic(AtomValue::String(pattern))).collect()))
                                                 .unwrap_or_default()
                                                 .items,
                                         ),

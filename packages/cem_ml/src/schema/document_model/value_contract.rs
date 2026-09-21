@@ -5,6 +5,42 @@ use super::*;
 pub struct AttributeValueContract {
     pub model: AttributeModel,
     pub content_type: Option<String>,
+    /// Additional constraints intersect the base model; they never replace it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub restrictions: Vec<AttributeModel>,
+}
+
+impl AttributeValueContract {
+    pub fn models(&self) -> impl Iterator<Item = &AttributeModel> {
+        std::iter::once(&self.model).chain(&self.restrictions)
+    }
+
+    /// Retain another contract's constraints without changing this contract's
+    /// conversion type or final representation.
+    pub fn restrict_with(&mut self, other: &Self) {
+        self.restrictions.extend(other.models().cloned());
+    }
+
+    pub fn has_constraints(&self) -> bool {
+        self.models().any(|model| {
+            let mut facets = model.clone();
+            facets.name.clear();
+            facets.value_type = None;
+            facets.default_value = None;
+            facets.source_map = Default::default();
+            facets != AttributeModel::default()
+        })
+    }
+
+    pub fn accounted_bytes(&self) -> usize {
+        crate::value::artifact::metadata_bytes(self)
+            .saturating_add(std::mem::size_of::<Self>())
+            .saturating_add(
+                self.restrictions
+                    .len()
+                    .saturating_mul(std::mem::size_of::<AttributeModel>()),
+            )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -18,27 +54,99 @@ pub fn convert_attribute_value(
     contract: &AttributeValueContract,
     source: &SourceMapStack,
 ) -> Result<TypedAttributeValue, Vec<Diagnostic>> {
-    let mut model = contract.model.clone();
+    match convert_attribute_value_with_check(value, contract, source, &mut || {
+        Ok::<_, std::convert::Infallible>(())
+    }) {
+        Ok(value) => Ok(value),
+        Err(AttributeValueConversionError::Invalid(diagnostics)) => Err(diagnostics),
+        Err(AttributeValueConversionError::Interrupted(never)) => match never {},
+    }
+}
+
+#[derive(Debug)]
+pub enum AttributeValueConversionError<E> {
+    Invalid(Vec<Diagnostic>),
+    Interrupted(E),
+}
+
+/// Poll between constraint models, preserving control failures separately from
+/// ordinary (potentially recoverable) invalid input diagnostics.
+pub fn convert_attribute_value_with_check<E>(
+    value: &str,
+    contract: &AttributeValueContract,
+    source: &SourceMapStack,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<TypedAttributeValue, AttributeValueConversionError<E>> {
+    use AttributeValueConversionError::{Interrupted, Invalid};
+    let mut normalization = None;
+    for model in contract.models() {
+        check().map_err(Interrupted)?;
+        let rank = match model.white_space.as_deref() {
+            None => continue,
+            Some("preserve") => 0,
+            Some("replace") => 1,
+            Some("collapse") => 2,
+            Some(_) => {
+                return Err(Invalid(contract_failure(
+                    "Invalid whitespace constraint",
+                    source,
+                )))
+            }
+        };
+        normalization = Some(normalization.map_or(rank, |previous: usize| previous.max(rank)));
+    }
+    // Conversion happens once. Validation of every model sees the same final
+    // value, without independently normalizing it into a different value.
+    let mut base = contract.model.clone();
+    base.white_space = normalization.map(|rank| ["preserve", "replace", "collapse"][rank].into());
+    let converted = convert_model(value, &base, source).map_err(Invalid)?;
+    for restriction in &contract.restrictions {
+        check().map_err(Interrupted)?;
+        let mut model = restriction.clone();
+        model.value_type = model
+            .value_type
+            .or_else(|| Some(converted.datatype.clone()));
+        model.white_space = Some("preserve".into());
+        let validated = convert_model(&converted.lexical, &model, source).map_err(Invalid)?;
+        if validated.lexical != converted.lexical {
+            return Err(Invalid(contract_failure(
+                "A restriction cannot change the final typed value",
+                source,
+            )));
+        }
+    }
+    check().map_err(Interrupted)?;
+    Ok(converted)
+}
+
+fn contract_failure(message: &str, source: &SourceMapStack) -> Vec<Diagnostic> {
+    vec![Diagnostic {
+        uri: None,
+        line: None,
+        column: None,
+        byte_offset: None,
+        code: "cem.value.contract".into(),
+        severity: Severity::Error,
+        message: message.into(),
+        node: None,
+        details: None,
+        source_map: Some(source.clone()),
+    }]
+}
+
+fn convert_model(
+    value: &str,
+    model: &AttributeModel,
+    source: &SourceMapStack,
+) -> Result<TypedAttributeValue, Vec<Diagnostic>> {
+    let mut model = model.clone();
     let datatype = model
         .value_type
         .as_deref()
         .unwrap_or("string")
         .trim_start_matches("schema:")
         .to_owned();
-    let fail = |message: String| {
-        vec![Diagnostic {
-            uri: None,
-            line: None,
-            column: None,
-            byte_offset: None,
-            code: "cem.value.contract".into(),
-            severity: Severity::Error,
-            message,
-            node: None,
-            details: None,
-            source_map: Some(source.clone()),
-        }]
-    };
+    let fail = |message: String| contract_failure(&message, source);
     if let Some(pattern) = &model.pattern {
         if compile_full_value_pattern(pattern).is_err() {
             return Err(fail("Invalid full-value regex constraint".into()));
@@ -86,6 +194,20 @@ pub fn convert_attribute_value(
         "string" => model.value_type = Some("schema:string".into()),
         _ => return Err(fail(format!("Unresolved attribute datatype `{datatype}`"))),
     }
+    // Validate facet definitions too: a malformed bound is not an absent bound.
+    let mut definition = model.clone();
+    if datatype != "string" {
+        // Internal preservation below is not a schema whitespace declaration.
+        definition.white_space = None;
+    }
+    let mut definitions = Vec::new();
+    validate_attribute_datatype_param_definition("cem:value", &definition, &mut definitions);
+    if definitions.iter().any(|d| d.severity == Severity::Error) {
+        return Err(definitions);
+    }
+    // The lexical value has already been normalized. Shared schema validation
+    // must check that exact value, including leading/trailing string whitespace.
+    model.white_space = Some("preserve".into());
     let node = CemAstNode::Attribute {
         node_id: 0,
         expanded_name: ExpandedName {

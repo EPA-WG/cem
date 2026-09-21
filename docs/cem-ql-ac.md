@@ -1358,3 +1358,13 @@ segments MUST retain their lexical values during text extraction. XPath index
 retention MUST remain bounded across query scopes, and retained result owners MUST
 keep their index memory accounted until release. CEMT-QUERY-DISPATCH and
 CEMT-VALUE-CONTROL in TODO track this coverage.
+
+Named attribute type constraints and local restrictions MUST compose rather
+than replace one another. Shared conversion MUST validate the final normalized
+value against every model, including receiver/host and hook contracts. Native
+attributes, clones and XPath-selected attributes MUST retain the full contract.
+CEMV version 3 MUST transport and revalidate these restrictions; version-1 and
+version-2 reads MUST retain their original semantics and MUST reject new
+restrictions under legacy headers. Constraint metadata MUST consume the native
+resource budget, and validation MUST poll execution control between models.
+`CEMT-NAMED-CONSTRAINTS` tracks native and worker/file/fallback verification.

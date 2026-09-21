@@ -10,7 +10,14 @@ use crate::{
     },
     validation::xpath::{XPathAtomicValue, XPathNativeNode, XPathResultItem},
 };
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
+
+#[derive(Debug)]
+struct ProjectionOwner {
+    graph: Arc<CemValueGraph>,
+    attributes: BTreeMap<u32, u32>,
+    _retained: Option<Arc<dyn std::any::Any + Send + Sync>>,
+}
 
 #[derive(Debug)]
 pub struct CemValueXPathProjection {
@@ -21,6 +28,14 @@ pub struct CemValueXPathProjection {
 }
 
 impl CemValueXPathProjection {
+    /// Attribute metadata survives XPath selection without becoming XPath data
+    /// or changing the attribute's standard string-value semantics.
+    pub fn attribute_contract(node: &XPathNativeNode) -> Option<&crate::schema::document_model::AttributeValueContract> {
+        let crate::validation::xpath::XPathNativeNodeHandle::CemNode { node_id } = node.handle() else { return None; };
+        let owner = node.owner().native_owner()?.downcast_ref::<ProjectionOwner>()?;
+        owner.graph.records[*owner.attributes.get(&node_id)? as usize].contract.as_ref()
+    }
+
     pub fn build(
         graph: Arc<CemValueGraph>,
         limits: &CemValueArtifactLimits,
@@ -46,6 +61,7 @@ impl CemValueXPathProjection {
                 ..Default::default()
             },
             selections: vec![Vec::new(); graph.records.len()],
+            attributes: BTreeMap::new(),
             bytes: 0,
         };
         // Arena zero is an inaccessible storage sentinel, never a fabricated
@@ -68,6 +84,7 @@ impl CemValueXPathProjection {
             ast,
             semantics,
             selections,
+            attributes,
             ..
         } = builder;
         // Both the native graph and the semantic index can own source frames,
@@ -75,7 +92,7 @@ impl CemValueXPathProjection {
         let accounted_bytes = graph.accounted_bytes().saturating_mul(2).saturating_add(builder_cost(&ast));
         let retained = retain(accounted_bytes, ast.nodes.len())?;
         (check)()?;
-        let owner: Arc<dyn std::any::Any + Send + Sync> = Arc::new((graph.clone(), retained));
+        let owner: Arc<dyn std::any::Any + Send + Sync> = Arc::new(ProjectionOwner { graph: graph.clone(), attributes, _retained: retained });
         let tree = RetainedCemTree::native_forest(ast, roots, semantics, owner)?;
         Ok(Self {
             graph,
@@ -149,6 +166,7 @@ struct Builder<'a, F> {
     ast: CemDocument,
     semantics: CemTreeSemantics,
     selections: Vec<Vec<u32>>,
+    attributes: BTreeMap<u32, u32>,
     bytes: usize,
 }
 impl<F: FnMut() -> Result<(), String>> Builder<'_, F> {
@@ -267,6 +285,9 @@ impl<F: FnMut() -> Result<(), String>> Builder<'_, F> {
             },
         };
         self.ast.nodes[id as usize] = node;
+        if record.kind == "attribute" {
+            self.attributes.insert(id, record_id);
+        }
         if let Some(origin) = &record.provenance {
             self.semantics.provenance.insert(id, origin.clone());
             if let Some(uri) = &origin.source_uri {

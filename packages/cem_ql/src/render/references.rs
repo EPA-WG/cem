@@ -217,7 +217,7 @@ pub fn expand_reference(reference: &CemReference<Item>) -> Vec<RenderPlanNode> {
                         }
                     };
                     attributes.push(RenderPlanAttribute {
-                        contract: None,
+                        contract: cem_ml::value::xpath::CemValueXPathProjection::attribute_contract(&attribute).cloned().map(std::sync::Arc::new),
                         name,
                         qualified_name: Some(qualified_name),
                         namespace,

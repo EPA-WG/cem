@@ -1,11 +1,22 @@
 # CEMT expression insertion — temporary proposal review
 
-## Pending decision: named attribute constraints (R06/R07)
+## Named attribute constraints (R06/R07)
+
+**Selected by the user: compose constraints and version the artifact.** The
+implementation adds flat `AttributeValueContract.restrictions`, writes CEMV
+version 3, and reads versions 1 and 2 without accepting new restrictions under
+old headers. Output, receiver and hook conversion share validation of every
+constraint against the final normalized value. The strongest requested
+whitespace normalization applies. Clones, XPath attribute selection and native
+result construction retain the complete contract. The maintained behavior is
+documented in [Native CEMT values](cemt-native-values.md).
+
+Original review and reproduction, preserved below:
 
 The follow-up audit reproduced an existing output-attribute gap with two native
 Rust probes. A host-defined `positive-count` type has `value_type=integer` and
 `minInclusive=3`; a host-defined `uppercase-code` type has `value_type=string`
-and `pattern=[A-Z]+`. These declarations currently publish invalid values:
+and `pattern=[A-Z]+`. Before the fix, these declarations published invalid values:
 
 ```cem
 {output |
@@ -15,14 +26,14 @@ and `pattern=[A-Z]+`. These declarations currently publish invalid values:
 ```
 
 The probes expected no output, but observed `<output count="2"></output>` and
-`<output code="abc"></output>`. `constructed_attribute_value` clones the named
-contract and then replaces individual facets with local ones. Receiver
-declarations already check the named type independently; constructed output
-does not. This behavior predates the explicit-dispatch follow-up.
+`<output code="abc"></output>`. `constructed_attribute_value` cloned the named
+contract and then replaced individual facets with local ones. Receiver
+declarations already checked the named type independently; constructed output
+did not. This behavior predated the explicit-dispatch follow-up.
 
 Checking both contracts during rendering alone would leave the transported
-contract incomplete: `AttributeValueContract` currently stores only one model,
-and the portable graph validator rechecks that model. A pair of regex constraints
+contract incomplete: `AttributeValueContract` stored only one model,
+and the portable graph validator rechecked that model. A pair of regex constraints
 cannot generally be reduced to the single supported regex field. The decision
 therefore covers retained contracts as well as initial validation.
 
@@ -31,7 +42,7 @@ therefore covers retained contracts as well as initial validation.
 | **Recommended: compose inherited and local constraints.** Preserve the resolved base contract and additional restrictions in the shared native value contract; require the value to satisfy all of them. | Named types remain authoritative while templates can add restrictions; workers and saved pipelines retain the same validation rules. | Extend the public contract shape and version the portable artifact so older readers cannot silently ignore restrictions. |
 | Reject local facet overrides on named types. | Keeps the existing portable contract shape and makes unsupported overrides explicit. | Template authors must define another named type to change an inherited facet; it removes useful local narrowing. |
 
-Proposed implementation for the recommended direction, pending selection:
+Implementation proposed during review, now approved:
 
 1. Add a flat collection of additional constraint models to the shared contract.
    Keep type conversion/normalization distinct from validation: the final typed
@@ -52,8 +63,16 @@ Verification evidence: a temporary `named_constraints_review` Rust integration
 target ran two tests and both failed on the invalid output above. The temporary
 target was removed after reproducing the issue; it is not part of the passing
 regression suite. Implementation and permanent fixtures are tracked by
-`CEMT-NAMED-CONSTRAINTS` in [TODO](todo.md). This decision is open; the proposal
-does not authorize a new contract shape by itself.
+`CEMT-NAMED-CONSTRAINTS` in [TODO](todo.md). The user's selection supersedes the
+original decision pause. Permanent native tests now cover both reproductions,
+accepted narrowing, conflicting/invalid patterns, normalized final values,
+host/receiver/hooks, clone/XPath preservation, version compatibility, tampered
+artifacts and resource controls. The separate WASM fixture uses binary artifacts
+produced by these Rust tests. Verification passed: 5 shared-contract tests,
+162 focused CEM-QL tests, 96 adapter tests, workspace test compilation, both
+WASM native-value fixtures, 408 runtime unit tests and 3 cell-demo browser stories.
+Build, typecheck and lint pass, with the two existing lint warnings. The viewer
+templates remain unchanged; deferred gallery/Storybook stabilization stays in TODO.
 
 ## Implementation updates
 
@@ -64,10 +83,10 @@ retain bounded scope caches and owner memory permits. The maintained contract is
 [Native CEMT values](cemt-native-values.md). Earlier review notes below remain as
 discussion history; the remaining matrix and DX work are tracked in TODO.
 
-Implementation update: module hook defaults/caller inheritance, receiver input
+Earlier implementation update: module hook defaults/caller inheritance, receiver input
 contracts and native XPath projection are implemented. The maintained
 [contract](cemt-native-values.md) describes their behavior. Portable artifacts
-now write version 2 to distinguish root output occurrences from source-target
+wrote version 2 to distinguish root output occurrences from source-target
 references, while retaining version-1 reads. The follow-up above completes
 explicit dispatch and its resource controls; broader DX review continues in TODO.
 

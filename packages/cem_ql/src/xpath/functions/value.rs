@@ -31,6 +31,10 @@ impl XPathQueryItem {
 }
 
 impl QueryItemView for XPathQueryItem {
+    fn value_contract(&self) -> Option<cem_ml::schema::document_model::AttributeValueContract> {
+        cem_ml::value::xpath::CemValueXPathProjection::attribute_contract(self.value.native_node()?).cloned()
+    }
+
     fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
         let node = self.xpath_item().native_node()?;
         Some(cem_ml::value::artifact::CemValueProvenance {

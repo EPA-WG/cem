@@ -1698,14 +1698,20 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           numeric, temporal, regex-constrained string and rich native values;
           preserve mixed attribute content, destination constraints, native
           component handoff and final-boundary serialization.
-      - [ ] Fixture CEMT-NAMED-CONSTRAINTS: reproduce output attributes weakening
-            named-type facets; settle how inherited and local constraints are
-            retained together, then verify native rendering and portable artifact
-            validation preserve both numeric bounds and regex restrictions.
-            Two temporary native probes reproduce invalid numeric/pattern output.
-            Paused at the [R06/R07 constraint decision](cemt-expression-review.tmp.md#pending-decision-named-attribute-constraints-r06r07):
-            recommend composing retained constraints with a versioned artifact;
-            the alternative rejects local overrides. No contract change yet.
+      - [x] Fixture CEMT-NAMED-CONSTRAINTS: compose inherited and local named-type
+            restrictions in the shared native contract. CEMV version 3 preserves
+            every constraint, retains version-1/version-2 reads, and rejects
+            restrictions under old headers. Native coverage includes the two
+            original regressions, accepted narrowing, conflicting/malformed
+            facets, strongest whitespace normalization, final-value validation
+            across host/receiver/hooks, clone/XPath/result preservation, tampered
+            graphs and cancellation/metadata limits. Verified 5 shared-contract,
+            162 focused CEM-QL (including 7 new constraint cases) and 96 adapter
+            tests, workspace test compilation, build, typecheck, lint (two existing
+            warnings), 408 runtime unit tests and 3 cell-demo browser stories.
+            Both WASM fixtures pass; `native-constraints-wasm.mjs` generates
+            its binary fixtures in Rust and checks saved-file, separate-worker
+            and fallback validation without JavaScript document objects.
     - [ ] Fixture CEMT-VALUE-PIPELINE: native intermediate output, reference
           navigation and lifetime, artifact round trips, cancellation and
           environment-defined limits with scope overrides that only lower them.

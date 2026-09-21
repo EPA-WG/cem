@@ -3,7 +3,8 @@
 use crate::{schema::document_model::AttributeValueContract, source_map::SourceMapStack};
 use serde::{Deserialize, Serialize};
 
-const MAGIC: &[u8] = b"CEMV\x02";
+const MAGIC: &[u8] = b"CEMV\x03";
+const VERSION_2_MAGIC: &[u8] = b"CEMV\x02";
 const LEGACY_MAGIC: &[u8] = b"CEMV\x01";
 fn is_false(value: &bool) -> bool {
     !*value
@@ -103,6 +104,7 @@ impl CemValueGraph {
                 .saturating_add(r.lexical.len()).saturating_add(r.datatype.len())
                 .saturating_add((r.children.len() + r.attributes.len() + r.targets.len() + r.values.len()).saturating_mul(4))
                 .saturating_add(metadata_bytes(&(r.contract.as_ref(), r.provenance.as_ref(), &r.source)))
+                .saturating_add(r.contract.as_ref().map_or(0, |c| c.restrictions.len().saturating_mul(std::mem::size_of::<crate::schema::document_model::AttributeModel>())))
                 .saturating_add(r.source.frames.len().saturating_mul(std::mem::size_of::<crate::source_map::SourceMapFrame>()))
                 .saturating_add(r.source.frames.iter().map(|frame| match &frame.span {
                     crate::source_map::FrameSpan::Single(_) => 0,
@@ -162,9 +164,16 @@ impl CemValueGraph {
                 .saturating_add(record.children.len())
                 .saturating_add(record.attributes.len())
                 .saturating_add(record.values.len())
-                .saturating_add(record.targets.len());
+                .saturating_add(record.targets.len())
+                .saturating_add(record.contract.as_ref().map_or(0, |c| c.restrictions.len()));
             if edges > limits.max_values {
                 return Err("Native CEM reference count limit exceeded".into());
+            }
+            if let Some(contract) = &record.contract {
+                bytes = bytes.saturating_add(contract.accounted_bytes());
+                if bytes > limits.max_bytes {
+                    return Err("Native CEM contract byte limit exceeded".into());
+                }
             }
             if record.kind == "atomic" {
                 use crate::schema::document_model::{convert_attribute_value, AttributeModel};
@@ -317,7 +326,11 @@ impl CemValueGraph {
                 contract.model.value_type.as_deref(),
                 Some("node") | Some("any")
             ) {
-                if contract.model.value_type.as_deref() == Some("node")
+                if contract.has_constraints() || contract.models().any(|model|
+                    model.value_type.as_deref().is_some_and(|kind| !matches!(kind, "node" | "any"))) {
+                    return Err("Scalar restrictions require a scalar attribute type".into());
+                }
+                if contract.models().any(|model| model.value_type.as_deref() == Some("node"))
                     && record
                         .values
                         .iter()
@@ -328,12 +341,16 @@ impl CemValueGraph {
                 continue;
             }
             let lexical = self.string_value(id as u32, limits.max_bytes)?;
-            crate::schema::document_model::convert_attribute_value(
+            crate::schema::document_model::convert_attribute_value_with_check(
                 &lexical,
                 contract,
                 &record.source,
+                check,
             )
-            .map_err(|_| "Native CEM attribute violates its value contract")?;
+            .map_err(|error| match error {
+                crate::schema::document_model::AttributeValueConversionError::Invalid(_) => "Native CEM attribute violates its value contract".into(),
+                crate::schema::document_model::AttributeValueConversionError::Interrupted(error) => error,
+            })?;
         }
         if self
             .roots
@@ -403,7 +420,7 @@ impl CemValueGraph {
             return Err("Native CEM artifact byte limit exceeded".into());
         }
         if bytes.len() < MAGIC.len() + 32
-            || !(bytes.starts_with(MAGIC) || bytes.starts_with(LEGACY_MAGIC))
+            || !(bytes.starts_with(MAGIC) || bytes.starts_with(VERSION_2_MAGIC) || bytes.starts_with(LEGACY_MAGIC))
         {
             return Err("Unsupported native CEM value artifact version".into());
         }
@@ -428,6 +445,10 @@ impl CemValueGraph {
         {
             return Err("Version-1 artifacts cannot declare version-2 value markers".into());
         }
+        if !bytes.starts_with(MAGIC) && graph.records.iter().any(|r|
+            r.contract.as_ref().is_some_and(|c| !c.restrictions.is_empty())) {
+            return Err("Legacy artifacts cannot declare version-3 value restrictions".into());
+        }
         graph.validate_with_check(limits, check)?;
         Ok(graph)
     }
@@ -435,7 +456,7 @@ impl CemValueGraph {
 
 /// Measure the already-typed schema/source metadata with a counting sink. No
 /// artifact bytes or alternate document tree are allocated or used for handoff.
-fn metadata_bytes(value: &impl Serialize) -> usize {
+pub(crate) fn metadata_bytes(value: &impl Serialize) -> usize {
     #[derive(Default)]
     struct Counter(usize);
     impl std::io::Write for Counter {

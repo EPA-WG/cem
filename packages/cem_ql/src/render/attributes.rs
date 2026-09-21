@@ -1,16 +1,21 @@
 //! Native attribute content and shared schema conversion/validation.
 use super::*;
 use cem_ml::schema::document_model::{
-    convert_attribute_value, AttributeValueContract, TypedAttributeValue,
+    convert_attribute_value_with_check, AttributeModel, AttributeValueContract,
+    AttributeValueConversionError, TypedAttributeValue,
 };
 
 /// Final string projection. The authoritative sequence stays available to
 /// native consumers; strings containing markup are never parsed as structure.
 pub fn project_attribute_value(attribute: &RenderPlanAttribute) -> String {
-    project_attribute_value_with_control(attribute, QueryContextScope(0),
+    project_attribute_value_with_control(
+        attribute,
+        QueryContextScope(0),
         &cem_ml::value::artifact::CemValueArtifactLimits::default(),
-        &OperationControl::default(), cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
-        .unwrap_or_default()
+        &OperationControl::default(),
+        cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    )
+    .unwrap_or_default()
 }
 
 #[derive(Debug, Clone)]
@@ -81,12 +86,6 @@ impl PlanRenderer<'_> {
                 continue;
             };
             let type_name = literal_template_attribute(attributes, "type");
-            if let Some(base) = type_name
-                .as_ref()
-                .and_then(|name| self.value_types.get(name))
-            {
-                contracts.push((name.clone(), base.clone(), false, source_map.clone()));
-            }
             let mut contract = type_name
                 .map(|name| self.value_contract(&name))
                 .unwrap_or_default();
@@ -109,7 +108,23 @@ impl PlanRenderer<'_> {
                 SourceMapStack::default(),
             ));
         }
-        for (name, contract, required, source) in contracts {
+        let mut composed =
+            BTreeMap::<String, (AttributeValueContract, bool, SourceMapStack)>::new();
+        for (name, mut contract, mut required, mut source) in contracts {
+            if let Some((previous, was_required, previous_source)) = composed.remove(&name) {
+                contract.model.value_type = contract
+                    .model
+                    .value_type
+                    .or_else(|| previous.model.value_type.clone());
+                contract.restrict_with(&previous);
+                required |= was_required;
+                if source.frames.is_empty() {
+                    source = previous_source;
+                }
+            }
+            composed.insert(name, (contract, required, source));
+        }
+        for (name, (contract, required, source)) in composed {
             let values = self
                 .evaluation_context
                 .policy_bindings
@@ -197,11 +212,30 @@ impl PlanRenderer<'_> {
         contract: &AttributeValueContract,
         source: &SourceMapStack,
     ) -> ItemStream {
+        let (control, scope) = self.control.clone().expect("renderer owns control");
+        // Account the retained contract and the temporary model used by shared
+        // conversion; restrictions remain flat and consume the result budget.
+        if !self.charge_result(contract.accounted_bytes(), 0, source) {
+            return ItemStream::empty();
+        }
+        let _memory = match control.charge_memory(
+            scope,
+            contract.accounted_bytes() as u64,
+            Some(source.clone()),
+        ) {
+            Ok(memory) => memory,
+            Err(error) => {
+                self.accept_control_check(Err(error), source);
+                return ItemStream::empty();
+            }
+        };
         if matches!(
             contract.model.value_type.as_deref(),
             Some("any") | Some("node")
         ) {
-            if contract.model.value_type.as_deref() == Some("node")
+            if contract
+                .models()
+                .any(|model| model.value_type.as_deref() == Some("node"))
                 && values.items.iter().any(|item| {
                     !item
                         .view()
@@ -211,10 +245,26 @@ impl PlanRenderer<'_> {
                 self.attribute_contract_failure("Node content requires native nodes", source);
                 return ItemStream::empty();
             }
+            if contract.has_constraints()
+                || contract.models().any(|model| {
+                    model
+                        .value_type
+                        .as_deref()
+                        .is_some_and(|kind| !matches!(kind, "any" | "node"))
+                })
+            {
+                self.attribute_contract_failure(
+                    "Scalar restrictions require a scalar attribute type",
+                    source,
+                );
+                return ItemStream::empty();
+            }
             return values;
         }
         let lexical = self.render_stream_text(&values, source);
-        match convert_attribute_value(&lexical, contract, source) {
+        match convert_attribute_value_with_check(&lexical, contract, source, &mut || {
+            control.check_scope(scope)
+        }) {
             Ok(value) => {
                 let item = match value.datatype.as_str() {
                     "integer" => match value.lexical.parse::<i64>() {
@@ -228,7 +278,11 @@ impl PlanRenderer<'_> {
                 };
                 ItemStream::once(item)
             }
-            Err(diagnostics) => {
+            Err(AttributeValueConversionError::Interrupted(error)) => {
+                self.accept_control_check(Err(error), source);
+                ItemStream::empty()
+            }
+            Err(AttributeValueConversionError::Invalid(diagnostics)) => {
                 self.recovery_depth += 1;
                 for diagnostic in diagnostics {
                     self.template_failure(diagnostic);
@@ -259,14 +313,13 @@ impl PlanRenderer<'_> {
         let (name, name_source_map) =
             self.render_constructor_name(attributes, "name", source, "attribute")?;
         let namespace = self.render_constructor_optional_text(attributes, "namespace");
-        let mut contract = self
-            .attribute_contracts
-            .get(&name)
-            .cloned()
+        let destination = self.attribute_contracts.get(&name).cloned();
+        let declared =
+            literal_template_attribute(attributes, "type").map(|name| self.value_contract(&name));
+        let mut contract = declared
+            .clone()
+            .or_else(|| destination.clone())
             .unwrap_or_default();
-        if let Some(type_name) = literal_template_attribute(attributes, "type") {
-            contract = self.value_contract(&type_name);
-        }
         contract.model.name = name.clone();
         contract.content_type =
             literal_template_attribute(attributes, "content-type").or(contract.content_type);
@@ -283,6 +336,17 @@ impl PlanRenderer<'_> {
             return None;
         }
         apply_contract_facets(&mut contract, attributes);
+        if let Some(mut destination) = destination.filter(|_| declared.is_some()) {
+            // The destination owns final conversion. Both local/named and host
+            // restrictions validate that final value and travel with the output.
+            destination.content_type = contract.content_type.clone();
+            destination.model.name = name.clone();
+            if destination.model.value_type.is_none() {
+                destination.model.value_type = contract.model.value_type.clone();
+            }
+            destination.restrict_with(&contract);
+            contract = destination;
+        }
         let previous_contract = self
             .active_attribute_contract
             .replace(std::sync::Arc::new(contract.clone()));
@@ -302,10 +366,6 @@ impl PlanRenderer<'_> {
         // it too unless a scalar type/constraint explicitly requests conversion.
         if contract.model.value_type.is_some() || has_facets(&contract) {
             values = self.convert_values(values, &contract, source);
-        }
-        // A local conversion never relaxes a destination supplied by the host.
-        if let Some(destination) = self.attribute_contracts.get(&name).cloned() {
-            values = self.convert_values(values, &destination, source);
         }
         self.active_attribute_contract = previous_contract;
         let value = if values.items.iter().any(|item| {
@@ -329,30 +389,40 @@ impl PlanRenderer<'_> {
 }
 
 fn apply_contract_facets(contract: &mut AttributeValueContract, attributes: &[TemplateAttribute]) {
+    let mut local = AttributeModel {
+        name: contract.model.name.clone(),
+        ..Default::default()
+    };
     for attribute in attributes {
         let Some(value) = literal_template_attribute(attributes, &attribute.name) else {
             continue;
         };
         let field = match attribute.name.as_str() {
-            "pattern" => &mut contract.model.pattern,
-            "minInclusive" => &mut contract.model.min_inclusive,
-            "maxInclusive" => &mut contract.model.max_inclusive,
-            "minExclusive" => &mut contract.model.min_exclusive,
-            "maxExclusive" => &mut contract.model.max_exclusive,
-            "minLength" => &mut contract.model.min_length,
-            "maxLength" => &mut contract.model.max_length,
-            "length" => &mut contract.model.length,
-            "totalDigits" => &mut contract.model.total_digits,
-            "fractionDigits" => &mut contract.model.fraction_digits,
-            "whiteSpace" => &mut contract.model.white_space,
+            "pattern" => &mut local.pattern,
+            "minInclusive" => &mut local.min_inclusive,
+            "maxInclusive" => &mut local.max_inclusive,
+            "minExclusive" => &mut local.min_exclusive,
+            "maxExclusive" => &mut local.max_exclusive,
+            "minLength" => &mut local.min_length,
+            "maxLength" => &mut local.max_length,
+            "length" => &mut local.length,
+            "totalDigits" => &mut local.total_digits,
+            "fractionDigits" => &mut local.fraction_digits,
+            "whiteSpace" => &mut local.white_space,
             _ => continue,
         };
         *field = Some(value);
     }
+    if model_has_facets(&local) {
+        contract.restrictions.push(local);
+    }
 }
 
 fn has_facets(contract: &AttributeValueContract) -> bool {
-    let m = &contract.model;
+    contract.has_constraints()
+}
+
+fn model_has_facets(m: &AttributeModel) -> bool {
     [
         &m.pattern,
         &m.min_inclusive,

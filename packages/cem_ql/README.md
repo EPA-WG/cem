@@ -87,6 +87,13 @@ and retains string-valued fields. This is not a JSON AST handoff.
 
 ### Native values in templates
 
+Named attribute types compose with local restrictions; bounds and regex patterns
+must all hold after final conversion. CEMV version 3 preserves the complete
+contract through clones, XPath-selected attributes, workers and saved pipelines,
+while retaining reads of versions 1 and 2. See the
+[native value contract](../../docs/cemt-native-values.md) for normalization,
+receiver constraints and resource controls.
+
 `{$node}` reuses a retained node subtree in body content. Use
 `{$dom:text(node)}` for text alone. `@alt="{$node}"` retains the native value
 until the final attribute projection extracts text. Mixed attribute content

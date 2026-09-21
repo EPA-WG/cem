@@ -62,7 +62,7 @@ use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 use crate::tokenizer::cem::CemTokenizer;
 
 mod value_contract;
-pub use value_contract::{convert_attribute_value, AttributeValueContract, TypedAttributeValue};
+pub use value_contract::{convert_attribute_value, convert_attribute_value_with_check, AttributeValueContract, AttributeValueConversionError, TypedAttributeValue};
 
 pub const UNKNOWN_ELEMENT_CODE: &str = "cem.schema_model.unknown_element";
 pub const UNKNOWN_ATTRIBUTE_CODE: &str = "cem.schema_model.unknown_attribute";

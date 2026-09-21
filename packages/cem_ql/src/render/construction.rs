@@ -573,7 +573,7 @@ impl PlanRenderer<'_> {
                 }
             }
             XPathResultNodeKind::Attribute => ResultItem::Attribute(RenderPlanAttribute {
-                contract: None,
+                contract: cem_ml::value::xpath::CemValueXPathProjection::attribute_contract(&node).cloned().map(std::sync::Arc::new),
                 name: name.clone(),
                 qualified_name: Some(name),
                 namespace,
