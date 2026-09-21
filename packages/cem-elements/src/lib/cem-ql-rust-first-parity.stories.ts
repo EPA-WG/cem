@@ -676,9 +676,9 @@ function hostFunctionRows(): ParityRow[] {
         {
             id: 'function-dom-descendants',
             sourceCategory: 'function/host',
-            query: 'dom:descendants(cemml:parse("{main | {p | Hi}}"))',
+            query: 'dom:descendants(data:read("<main><p>Hi</p><b/></main>", "xml").root).kind',
             bindings: {},
-            expectedItems: [],
+            expectedItems: [string('element'), string('element'), string('text'), string('element')],
             expectedDiagnosticCodes: [],
         },
         {
@@ -689,10 +689,10 @@ function hostFunctionRows(): ParityRow[] {
             expectedItems: [string('main')],
             expectedDiagnosticCodes: [],
         },
-        ...['children', 'parent'].map((operation): ParityRow => ({
+        ...['children', 'parent', 'descendants', 'attribute'].map((operation): ParityRow => ({
             id: `function-dom-${operation}-opaque-node-rejected`,
             sourceCategory: 'function/host',
-            query: `dom:${operation}(cemml:parse("{main | {p | Hi}}"))`,
+            query: `dom:${operation}(cemml:parse("{main | {p | Hi}}")${operation === 'attribute' ? ', "id"' : ''})`,
             bindings: {},
             expectedItems: [],
             expectedDiagnosticCodes: evalDiagnosticCodes('cem.ql.type_error'),
@@ -701,11 +701,36 @@ function hostFunctionRows(): ParityRow[] {
         {
             id: 'function-dom-attribute',
             sourceCategory: 'function/host',
-            query: 'dom:attribute(cemml:parse("{input @id=email}"), "id")',
+            query: 'dom:text(dom:attribute(data:read("<input xmlns:p=\'urn:catalog\' id=\'email\' p:id=\'qualified\'/>", "xml").root.children, "id"))',
             bindings: {},
-            expectedItems: [],
+            expectedItems: [string('email')],
             expectedDiagnosticCodes: [],
         },
+        {
+            id: 'function-dom-attribute-namespace-descriptor',
+            sourceCategory: 'function/host',
+            query: 'dom:text(data:read("<input xmlns:p=\'urn:catalog\' id=\'email\' p:id=\'qualified\'/>", "xml").root.children.dom:attribute({namespace: "urn:catalog", name: "id"}))',
+            bindings: {},
+            expectedItems: [string('qualified')],
+            expectedDiagnosticCodes: [],
+        },
+        {
+            id: 'function-dom-descendants-pipeline',
+            sourceCategory: 'function/host',
+            query: 'data:read("<r><a/><b/></r>", "xml").root.dom:descendants().name',
+            bindings: {},
+            expectedItems: [string('r'), string('a'), string('b')],
+            expectedDiagnosticCodes: [],
+        },
+        ...['"p:id"', '"*"', '{name: "id"}'].map((selector, index): ParityRow => ({
+            id: `function-dom-attribute-invalid-selector-${index}`,
+            sourceCategory: 'function/host',
+            query: `dom:attribute(data:read("<r id='a'/>", "xml").root.children, ${selector})`,
+            bindings: {},
+            expectedItems: [],
+            expectedDiagnosticCodes: evalDiagnosticCodes('cem.ql.type_error'),
+            expectedErrorKind: 'eval',
+        })),
         {
             id: 'function-dom-resolve-ref',
             sourceCategory: 'function/host',

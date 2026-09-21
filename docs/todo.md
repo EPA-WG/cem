@@ -2146,20 +2146,38 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       stringification to explicit `dom:text`, and assert ordinary expression
       insertion retains XML and JSON-to-XML subtrees under the accepted CEMT
       reference contract.
-- [ ] Audit the remaining `dom:descendants` and `dom:attribute` host stubs:
-      their default evaluator branches still return an empty sequence, and the
-      old parity rows use opaque `cemml:parse` identifiers. Define native node
-      behavior, add native fixtures, and replace empty-output coverage when
-      implementing those capabilities; do not count these rows as native DOM
-      function parity.
+- [x] Audit the remaining `dom:descendants` and `dom:attribute` host stubs:
+      replace empty-result placeholders with native traversal. The user approved
+      exact unqualified strings, explicit namespace/name descriptors and scoped
+      native attribute access on 2026-09-21. Keep base viewers unchanged.
+      Completed 2026-09-21: scoped native helpers and their pipeline forms retain
+      node identity, provenance and typed values across imported, constructed,
+      XPath and portable views. Native verification passes 615 tests; only the
+      three existing viewer parity failures below remain. Both WASM builds,
+      runtime build, 413 unit tests, 191 browser stories, typecheck and lint pass
+      (two existing warnings). The gallery passes all 28 standalone pages and
+      34 source-loaded documents; the XPath demo also passes 1440px two-card
+      layout and 390px/320px containment checks. See the
+      [implementation review](dom-helper-native-review.tmp.md#implemented-result).
+  - [x] Fixture DOM-NATIVE-AXES: implement the approved unqualified-string and
+        exact `{namespace, name}` selectors with scoped native attribute access.
+        Start with failing native cases for traversal order, empty/cardinality
+        errors, namespaces, identity/provenance, all imports and native views,
+        typed attributes, references, restricted hosts, cancellation and lowered
+        limits. Cover both direct calls and pipeline forms.
+  - [x] Fixture DOM-NATIVE-AXES-BROWSER: replace opaque empty-result parity rows
+        with native descendant/attribute examples and invalid-input assertions;
+        update the function reference and XPath/CEM-QL companion use cases.
+        Verify native, WASM and browser paths and compact desktop/mobile demo
+        presentation; keep base viewers unchanged.
   - [x] Fixture: reproduce both stubs on native imported nodes and record the
         attribute-name and scoped-host-access decisions before implementation.
         A Rust-native probe finds three descendants and one attribute through
         native fields, versus empty results from both helpers, without errors.
-        [The proposed contract](dom-helper-native-review.tmp.md) recommends exact
+        [The accepted contract](dom-helper-native-review.tmp.md) specifies exact
         unqualified strings, explicit namespace/name descriptors and scoped
-        native attribute access. Await that name-selection decision before
-        implementing the helpers; empty stub results are not parity coverage.
+        native attribute access. The subsequent user approval covers both the
+        selectors and shared host capability; empty stub results are not parity.
 - [ ] Resolve existing native XSLT/CEMT viewer parity differences after agreeing
       the viewer scope: the full native run on 2026-09-21 fails three
       `xslt_data_view` comparisons because XSLT emits a selection `td` while

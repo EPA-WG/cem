@@ -141,16 +141,36 @@ fn apply_stdlib_step(
         return apply_builtin_step(input, name, args, ctx);
     }
     if module.0 == "cem:stdlib/dom"
-        && matches!(name.local.as_str(), "parent" | "children")
-        && args.is_empty()
+        && ((matches!(name.local.as_str(), "parent" | "children" | "descendants")
+            && args.is_empty())
+            || (name.local == "attribute" && args.len() == 1))
     {
         if input.error.is_some() {
             return input;
         }
+        let source = args.first().copied().unwrap_or(IrId(0));
+        let selector = if name.local == "attribute" {
+            let value = ctx.eval_id(args[0]);
+            if value.error.is_some() {
+                return value;
+            }
+            match attribute_selector(&value, ctx, source) {
+                Ok(selector) => Some(selector),
+                Err(error) => return error,
+            }
+        } else {
+            None
+        };
         let mut out = ItemStream::empty();
         out.diagnostics = input.diagnostics;
         for item in input.items {
-            let next = navigate_node(&ItemStream::once(item), &name.local, ctx, IrId(0));
+            let next = navigate_node(
+                &ItemStream::once(item),
+                &name.local,
+                selector.as_ref(),
+                ctx,
+                source,
+            );
             if next.error.is_some() {
                 return next;
             }
@@ -323,12 +343,16 @@ pub(crate) fn apply_stdlib_call(
             item_kind(arg_streams.into_iter().next().unwrap_or_default())
         }
         ("cem:stdlib/dom", "tainted") => ItemStream::once(Item::Atomic(AtomValue::Boolean(false))),
-        ("cem:stdlib/dom", "parent" | "children") => {
-            navigate_node(&arg_streams[0], &name.local, ctx, source)
+        ("cem:stdlib/dom", "parent" | "children" | "descendants") => {
+            navigate_node(&arg_streams[0], &name.local, None, ctx, source)
         }
-        ("cem:stdlib/dom", "descendants")
-        | ("cem:stdlib/dom", "attribute")
-        | ("cem:stdlib/state", "read")
+        ("cem:stdlib/dom", "attribute") => {
+            match attribute_selector(&arg_streams[1], ctx, source) {
+                Ok(selector) => navigate_node(&arg_streams[0], "attribute", Some(&selector), ctx, source),
+                Err(error) => error,
+            }
+        }
+        ("cem:stdlib/state", "read")
         | ("cem:stdlib/state", "keys")
         | ("cem:stdlib/template", "lookup")
         | ("cem:stdlib/template", "names") => ItemStream::empty(),
@@ -714,7 +738,71 @@ fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
     Some(out)
 }
 
-fn navigate_node(input: &ItemStream, name: &str, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {
+struct AttributeName {
+    namespace: String,
+    name: String,
+}
+
+fn selector_string(items: &[Item]) -> Option<String> {
+    let [item] = items else {
+        return None;
+    };
+    if !matches!(item, Item::Atomic(_) | Item::Native(_))
+        || item
+            .view()
+            .is_some_and(|view| view.kind() != QueryItemViewKind::Atomic)
+    {
+        return None;
+    }
+    match item.atom()? {
+        AtomValue::String(value) => Some(value),
+        _ => None,
+    }
+}
+
+fn attribute_selector(
+    input: &ItemStream,
+    ctx: &mut EvalCtx<'_>,
+    source: IrId,
+) -> Result<AttributeName, ItemStream> {
+    let parse = || {
+        if let Some(name) = selector_string(&input.items) {
+            return Some(AttributeName {
+                namespace: String::new(),
+                name,
+            });
+        }
+        let [item] = input.items.as_slice() else {
+            return None;
+        };
+        let fields = match item {
+            Item::Record(fields) => fields.clone(),
+            Item::Native(view) if view.kind() == QueryItemViewKind::Record => {
+                view.fields()?.into_iter().collect()
+            }
+            _ => return None,
+        };
+        if fields.len() != 2 {
+            return None;
+        }
+        Some(AttributeName {
+            namespace: selector_string(fields.get("namespace")?)?,
+            name: selector_string(fields.get("name")?)?,
+        })
+    };
+    parse().filter(|selector| !selector.name.contains(':')
+        && cem_ml::validation::xpath::xpath_is_qname(&selector.name))
+        .ok_or_else(|| ctx.type_error(source,
+            "dom:attribute requires an unqualified name string or exactly {namespace: string, name: string}; prefixes and wildcards are not selectors"))
+}
+
+fn navigate_node(
+    input: &ItemStream,
+    name: &str,
+    selector: Option<&AttributeName>,
+    ctx: &mut EvalCtx<'_>,
+    source: IrId,
+) -> ItemStream {
     if let Err(error) = ctx.force_safe_point(source) {
         return error;
     }
@@ -723,9 +811,38 @@ fn navigate_node(input: &ItemStream, name: &str, ctx: &mut EvalCtx<'_>, source: 
         [Item::Native(view)] if view.kind() == QueryItemViewKind::Node => view,
         _ => return ctx.type_error(source, "DOM navigation requires zero or one native node"),
     };
+    if name == "descendants" {
+        // Every queued node is charged by the children operation before being
+        // retained. Iterative depth-first traversal also bounds cyclic hosts
+        // without relying on the Rust call stack or walking reference targets.
+        let children = navigate_node(input, "children", None, ctx, source);
+        if children.error.is_some() {
+            return children;
+        }
+        let mut pending = children.items;
+        pending.reverse();
+        let mut out = ItemStream::empty();
+        while let Some(node) = pending.pop() {
+            let children = navigate_node(
+                &ItemStream::once(node.clone()),
+                "children",
+                None,
+                ctx,
+                source,
+            );
+            if children.error.is_some() {
+                return children;
+            }
+            out.items.push(node);
+            pending.extend(children.items.into_iter().rev());
+        }
+        return out;
+    }
     let nodes: Result<QueryNodeIterator<'_>, QueryNodeAccessError> = if name == "parent" {
         view.parent(ctx.query_scope)
             .map(|node| Box::new(node.into_iter().map(Ok)) as QueryNodeIterator<'_>)
+    } else if name == "attribute" {
+        view.attributes(ctx.query_scope)
     } else {
         view.children(ctx.query_scope)
     };
@@ -735,10 +852,12 @@ fn navigate_node(input: &ItemStream, name: &str, ctx: &mut EvalCtx<'_>, source: 
     };
     let mut out = ItemStream::empty();
     loop {
-        if let Err(error) = ctx.poll_work(source) {
+        if let Err(error) = ctx.charge(super::BudgetAxis::XPathWorkUnits, 1, source) {
             return error;
         }
-        let Some(node) = nodes.next() else { break; };
+        let Some(node) = nodes.next() else {
+            break;
+        };
         let node = match node {
             Ok(node) => node,
             Err(error) => return node_access_error(error, ctx, source),
@@ -748,6 +867,24 @@ fn navigate_node(input: &ItemStream, name: &str, ctx: &mut EvalCtx<'_>, source: 
             .is_some_and(|view| view.kind() == QueryItemViewKind::Node)
         {
             return ctx.type_error(source, "DOM navigation returned a non-node value");
+        }
+        if let Some(selector) = selector {
+            let view = node.view().expect("validated native node");
+            let lexical = |name| view.field(name).and_then(|items| selector_string(&items));
+            let (Some(kind), Some(name), Some(namespace)) =
+                (lexical("kind"), lexical("name"), lexical("namespace"))
+            else {
+                return ctx.type_error(
+                    source,
+                    "attribute access returned a node without an expanded name",
+                );
+            };
+            if kind != "attribute" {
+                return ctx.type_error(source, "attribute access returned a non-attribute node");
+            }
+            if name != selector.name || namespace != selector.namespace {
+                continue;
+            }
         }
         if let Err(error) = ctx.charge_items(1, source) {
             return error;

@@ -84,6 +84,19 @@ impl QueryItemView for XPathQueryItem {
                 .map(|node| Ok(Self::from_node(node))),
         ))
     }
+    fn attributes(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        let node = self
+            .value
+            .native_node()
+            .ok_or(QueryNodeAccessError::Unsupported)?;
+        Ok(Box::new(
+            node.attribute_nodes_iter()
+                .map(|node| Ok(Self::from_node(node))),
+        ))
+    }
     fn text_fragments(
         &self,
         _scope: QueryContextScope,

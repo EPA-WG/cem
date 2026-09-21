@@ -166,9 +166,8 @@
 ```}
 {slice @name=source | &lt;r&gt;&lt;item qty="2"&gt;Cherry&lt;/item&gt;&lt;/r&gt;}
 {module |
-    {template @mode=stock @match='seq:any(node.attributes,
-            fn(attr) => attr.name == "qty" && attr.namespace == ""
-                && num:double(str:trim(attr.value, "xml"))
+    {template @mode=stock @match='seq:any(dom:attribute(node, "qty"),
+            fn(attr) => num:double(str:trim(dom:text(attr), "xml"))
                     &gt;= num:double(2))' |
         {param @name=label}
         {body | {li | {$label}: stocked}}}
@@ -193,9 +192,7 @@
                         fn(n) => n.kind == "element" && n.name == "item"
                             && n.namespace == "")' |
                         {apply-templates @mode=stock @select=item
-                            @with:label='{str:concat(seq:where(item.descendants,
-                                fn(n) => n.kind == "text" || n.kind == "cdata"
-                                    || n.kind == "whitespace" || n.kind == "raw-text").value, "")}'}
+                            @with:label='{dom:text(item)}'}
 }   }   }   }   }   }   }
     </template>
 </cem-element>
@@ -221,11 +218,25 @@
             <code>/r/item</code>. Filtering by kind and namespace avoids treating
             comments or namespaced elements as matching data.</p>
         <p>The quantity examples expect numeric <code>qty</code> values; a missing
-            quantity selects low stock. <code>num:double</code> converts both the quantity and threshold to the
-            same numeric type for CEM-QL comparison. Text comes from descendant text, CDATA and
+            quantity selects low stock. <code>dom:attribute(node, "qty")</code>
+            selects only the unqualified attribute, like XPath <code>@qty</code>.
+            Use <code>dom:attribute(node, {namespace: "urn:catalog", name: "qty"})</code>
+            for a qualified attribute; prefixes and wildcards are not selectors.
+            Both forms retain the native attribute and its typed values.
+            <code>num:double</code> converts both the quantity and threshold to the
+            same numeric type for CEM-QL comparison. <code>dom:text(item)</code>
+            extracts descendant text, CDATA and
             whitespace nodes, excluding comments and processing instructions.
             All selected nodes retain their CEM owner and source maps. XML,
             JSON, YAML and CSV document syntax is decoded only by CEM-ML import.</p>
+        <p>For a search at any depth, <code>dom:descendants(node)</code> is the
+            CEM-QL pair of XPath <code>descendant::node()</code>. It excludes the
+            starting node and returns children in depth-first source order.
+            Filter by kind, namespace and name for <code>descendant::item</code>.
+            The pipeline <code>nodes.dom:descendants()</code> preserves input
+            order and duplicates. Attributes and reference targets are separate
+            from children; use <code>dom:attribute</code> and <code>.targets</code>
+            explicitly. Unsupported node views and denied access raise errors.</p>
         <h3 id="cem-ql-import">Parse a string and keep source metadata</h3>
         <p><code>data:parse(source, "xml")</code> returns a native CEM document
             directly. The format may also be <code>json</code>, <code>yaml</code>

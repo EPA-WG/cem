@@ -109,6 +109,7 @@ fn node_pairs_share_numeric_matching_namespaces_and_descendant_text_rules() {
         "<r><item qty=' 2.5 '>Cherry</item><item qty='1.5'>Lemon</item></r>",
         "<r><item qty='1'>Lemon</item><item qty='3'>Grape</item><item>Unknown</item></r>",
         "<r xmlns:p='urn:other'><p:item qty='2'>Skip</p:item><item p:qty='4'>Low</item><item qty='2'>A<b>B</b><![CDATA[C]]><!--skip--> D</item></r>",
+        "<r xmlns:p='urn:other'><item p:qty='9' qty='1'>Low</item><item p:qty='0' qty='3'>Stocked</item></r>",
     ] {
         let xpath = texts(&render("3. XML nodes and matching", "source", source), "li");
         let native = texts(&render("3a. CEM-QL native node pair", "source", source), "li");

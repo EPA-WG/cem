@@ -38,6 +38,22 @@ impl QueryItemView for ReferenceView {
     fn kind(&self) -> QueryItemViewKind {
         QueryItemViewKind::Node
     }
+    fn parent(&self, _: QueryContextScope) -> Result<Option<Item>, QueryNodeAccessError> {
+        Ok(None)
+    }
+    fn children(
+        &self,
+        _: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        // Targets are explicit references, not structural children.
+        Ok(Box::new(std::iter::empty()))
+    }
+    fn attributes(
+        &self,
+        _: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        Ok(Box::new(std::iter::empty()))
+    }
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         match name {
             "kind" => Some(vec![Item::Atomic(AtomValue::String("reference".into()))]),

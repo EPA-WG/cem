@@ -271,11 +271,11 @@ impl XPathNativeNode {
         self.data().children.iter().map(|&id| self.at(id))
     }
     pub fn attribute_nodes(&self) -> Vec<Self> {
-        self.data()
-            .attributes
-            .iter()
-            .map(|&id| self.at(id))
-            .collect()
+        self.attribute_nodes_iter().collect()
+    }
+    /// Iterate native attributes without eagerly allocating a second node list.
+    pub fn attribute_nodes_iter(&self) -> impl Iterator<Item = Self> + '_ {
+        self.data().attributes.iter().map(|&id| self.at(id))
     }
     pub fn parent_node(&self) -> Option<Self> {
         self.data().parent.map(|id| self.at(id))

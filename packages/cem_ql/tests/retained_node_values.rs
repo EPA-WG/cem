@@ -391,12 +391,14 @@ fn template_parameters_and_results_retain_nodes_until_final_escaped_projection()
 #[derive(Debug, Clone)]
 enum Behavior {
     Leaf,
+    Attribute,
     Children,
     DenyAfterFirst,
     Unsupported,
     WrongKind,
     Cancel(OperationControl),
     Wide,
+    Cycle,
 }
 #[derive(Debug, Clone)]
 struct HostNode(Behavior);
@@ -420,7 +422,14 @@ impl QueryItemView for HostNode {
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         match name {
             "value" => Some(vec![string("private")]),
-            "children" => Some(vec![Item::native(HostNode(Behavior::Leaf))]),
+            "children" | "attributes" => Some(vec![Item::native(HostNode(Behavior::Leaf))]),
+            "kind" => Some(vec![string(if matches!(self.0, Behavior::Attribute) {
+                "attribute"
+            } else {
+                "element"
+            })]),
+            "name" => Some(vec![string("id")]),
+            "namespace" => Some(vec![string("")]),
             _ => None,
         }
     }
@@ -445,8 +454,9 @@ impl QueryItemView for HostNode {
             return Err(QueryNodeAccessError::Unsupported);
         }
         let count = match self.0 {
-            Behavior::Leaf => 0,
+            Behavior::Leaf | Behavior::Attribute => 0,
             Behavior::Wide => 20,
+            Behavior::Cycle => 1,
             _ => 2,
         };
         Ok(Box::new((0..count).map(move |index| {
@@ -458,7 +468,27 @@ impl QueryItemView for HostNode {
                     _ => (),
                 }
             }
-            Ok(Item::native(HostNode(Behavior::Leaf)))
+            Ok(Item::native(HostNode(
+                if matches!(self.0, Behavior::Cycle) {
+                    Behavior::Cycle
+                } else {
+                    Behavior::Leaf
+                },
+            )))
+        })))
+    }
+    fn attributes(
+        &self,
+        scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        Ok(Box::new(self.children(scope)?.map(|node| {
+            node.map(|node| {
+                if node.view().is_some() {
+                    Item::native(HostNode(Behavior::Attribute))
+                } else {
+                    node
+                }
+            })
         })))
     }
     fn text_fragments(
@@ -507,7 +537,13 @@ fn host_result(
 
 #[test]
 fn restricted_and_unsupported_views_fail_without_field_or_atom_fallback() {
-    for query in ["dom:parent(node)", "dom:children(node)", "dom:text(node)"] {
+    for query in [
+        "dom:parent(node)",
+        "dom:children(node)",
+        "dom:descendants(node)",
+        r#"dom:attribute(node, "id")"#,
+        "dom:text(node)",
+    ] {
         for (behavior, scope, code) in [
             (Behavior::Children, 0, "cem.ql.scope_violation"),
             (Behavior::Unsupported, 7, "cem.ql.type_error"),
@@ -535,6 +571,10 @@ fn restricted_and_unsupported_views_fail_without_field_or_atom_fallback() {
     for query in [
         "dom:children(node)",
         "node.dom:children()",
+        "dom:descendants(node)",
+        "node.dom:descendants()",
+        r#"dom:attribute(node, "id")"#,
+        r#"node.dom:attribute("id")"#,
         "dom:text(node)",
     ] {
         let result = host_result(
@@ -549,43 +589,62 @@ fn restricted_and_unsupported_views_fail_without_field_or_atom_fallback() {
             "{query}: {result:?}"
         );
     }
-    let result = host_result(
+    for query in [
         "dom:children(node)",
-        Behavior::WrongKind,
-        7,
-        ScopePolicy::host_root(),
-        &OperationControl::default(),
-    );
-    assert!(
-        result.items.is_empty()
-            && result
-                .diagnostics
-                .iter()
-                .any(|d| d.code == "cem.ql.type_error")
-    );
-    let result = host_result(
-        "dom:children(node)",
-        Behavior::Children,
-        7,
-        ScopePolicy::host_root(),
-        &OperationControl::default(),
-    );
-    assert_eq!(result.items.len(), 2);
-    for child in result.items {
-        assert_eq!(
-            child
-                .view()
-                .unwrap()
-                .text_fragments(QueryContextScope(0))
-                .err(),
-            Some(QueryNodeAccessError::ScopeViolation)
+        "dom:descendants(node)",
+        r#"dom:attribute(node, "id")"#,
+    ] {
+        let result = host_result(
+            query,
+            Behavior::WrongKind,
+            7,
+            ScopePolicy::host_root(),
+            &OperationControl::default(),
         );
+        assert!(
+            result.items.is_empty()
+                && result
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == "cem.ql.type_error")
+        );
+    }
+    for query in [
+        "dom:children(node)",
+        "dom:descendants(node)",
+        r#"dom:attribute(node, "id")"#,
+    ] {
+        let result = host_result(
+            query,
+            Behavior::Children,
+            7,
+            ScopePolicy::host_root(),
+            &OperationControl::default(),
+        );
+        assert_eq!(result.items.len(), 2);
+        for child in result.items {
+            assert_eq!(
+                child
+                    .view()
+                    .unwrap()
+                    .text_fragments(QueryContextScope(0))
+                    .err(),
+                Some(QueryNodeAccessError::ScopeViolation)
+            );
+        }
     }
 }
 
 #[test]
 fn navigation_and_text_work_are_bounded_and_discard_prefix_on_cancellation() {
-    for query in ["dom:children(node)", "node.dom:children()"] {
+    for query in [
+        "dom:children(node)",
+        "node.dom:children()",
+        "dom:descendants(node)",
+        "node.dom:descendants()",
+        r#"dom:attribute(node, "id")"#,
+        r#"node.dom:attribute("id")"#,
+    ] {
         let control = OperationControl::default();
         let result = host_result(
             query,
@@ -614,22 +673,24 @@ fn navigation_and_text_work_are_bounded_and_discard_prefix_on_cancellation() {
             Some(EvalError::BudgetExceeded(BudgetAxis::ItemsPerStage))
         ));
     }
-    // Even visits that yield no text consume traversal work.
-    let result = host_result(
-        "dom:text(node)",
-        Behavior::Wide,
-        7,
-        ScopePolicy::host_root().with_memory_bytes(32),
-        &OperationControl::default(),
-    );
-    assert!(
-        result.error.is_some() && result.items.is_empty(),
-        "{result:?}"
-    );
-    assert!(matches!(
-        result.error,
-        Some(EvalError::BudgetExceeded(BudgetAxis::XPathWorkUnits))
-    ));
+    // Even visits that yield no text or matching attributes consume work.
+    for query in ["dom:text(node)", r#"dom:attribute(node, "missing")"#] {
+        let result = host_result(
+            query,
+            Behavior::Wide,
+            7,
+            ScopePolicy::host_root().with_memory_bytes(16),
+            &OperationControl::default(),
+        );
+        assert!(
+            result.error.is_some() && result.items.is_empty(),
+            "{result:?}"
+        );
+        assert!(matches!(
+            result.error,
+            Some(EvalError::BudgetExceeded(BudgetAxis::XPathWorkUnits))
+        ));
+    }
     let control = OperationControl::default();
     control.abort_signal().abort();
     let result = host_result(
@@ -663,21 +724,274 @@ fn execution_child_can_lower_navigation_limit_without_cancelling_its_parent() {
             &Item::native(HostNode(Behavior::Wide)),
         )
     };
-    let query = compile(
+    for source in [
         "dom:children(node)",
-        &CompileContext {
-            policy_bindings: context.policy_bindings.clone(),
-            ..Default::default()
-        },
-    )
-    .unwrap();
-    let result = evaluate_with_control(&query, &context, &control, child);
+        "dom:descendants(node)",
+        r#"dom:attribute(node, "id")"#,
+    ] {
+        let query = compile(
+            source,
+            &CompileContext {
+                policy_bindings: context.policy_bindings.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let result = evaluate_with_control(&query, &context, &control, child);
+        assert!(result.items.is_empty());
+        assert!(matches!(
+            result.error,
+            Some(EvalError::BudgetExceeded(BudgetAxis::ItemsPerStage))
+        ));
+        let result = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
+        assert!(result.error.is_none(), "{result:?}");
+        assert_eq!(result.items.len(), 20);
+    }
+}
+
+#[test]
+fn cyclic_host_descendants_are_bounded_without_recursion_or_partial_results() {
+    let result = host_result(
+        "dom:descendants(node)",
+        Behavior::Cycle,
+        7,
+        ScopePolicy::host_root().with_queue_size(64),
+        &OperationControl::default(),
+    );
     assert!(result.items.is_empty());
     assert!(matches!(
         result.error,
         Some(EvalError::BudgetExceeded(BudgetAxis::ItemsPerStage))
     ));
-    let result = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
-    assert!(result.error.is_none(), "{result:?}");
-    assert_eq!(result.items.len(), 20);
+}
+
+fn transported(node: &Item) -> Item {
+    use cem_ml::value::artifact::CemValueArtifactLimits;
+    use cem_ql::eval::portable::{decode_values, encode_values};
+    let limits = CemValueArtifactLimits::default();
+    decode_values(
+        &encode_values(&ItemStream::once(node.clone()), &limits).unwrap(),
+        &limits,
+    )
+    .unwrap()
+    .items
+    .remove(0)
+}
+
+#[test]
+fn descendants_preserve_depth_first_order_identity_and_each_native_view() {
+    for (format, source) in IMPORTS {
+        let (mut context, root) = import(format, source);
+        xpath(&mut context);
+        let semantic = run(r#"native:call("tree.keep", node)"#, &bound(&context, &root))
+            .items
+            .remove(0);
+        let cloned = run("dom:clone(node)", &bound(&context, &root))
+            .items
+            .remove(0);
+        for node in [root, semantic, cloned] {
+            for node in [node.clone(), transported(&node)] {
+                let context = bound(&context, &node);
+                let mut expected = Vec::new();
+                fn collect(node: &Item, out: &mut Vec<Item>) {
+                    for child in field(node, "children") {
+                        out.push(child.clone());
+                        collect(&child, out);
+                    }
+                }
+                collect(&node, &mut expected);
+                let actual = run("dom:descendants(node)", &context).items;
+                assert!(!actual.is_empty(), "{format}");
+                assert_eq!(actual.len(), expected.len());
+                for (actual, expected) in actual.iter().zip(&expected) {
+                    assert_eq!(actual.identity(), expected.identity());
+                    assert_eq!(actual.source_map(), expected.source_map());
+                    assert_eq!(provenance(actual), provenance(expected));
+                    assert_ne!(actual.identity(), node.identity());
+                }
+                let repeated = run("(node, node).dom:descendants()", &context).items;
+                assert_eq!(repeated, [actual.clone(), actual].concat());
+            }
+        }
+    }
+}
+
+#[test]
+fn attribute_selectors_are_exact_and_keep_native_identity_and_provenance() {
+    let (mut context, root) = import(
+        "xml",
+        "<r xmlns='urn:default' xmlns:p='urn:catalog' id='local' p:id='qualified'><child/></r>",
+    );
+    xpath(&mut context);
+    let source = field(&root, "children").remove(0);
+    let semantic = run(
+        r#"native:call("tree.keep", node)"#,
+        &bound(&context, &source),
+    )
+    .items
+    .remove(0);
+    let cloned = run("dom:clone(node)", &bound(&context, &source))
+        .items
+        .remove(0);
+    for node in [source, semantic, cloned] {
+        for node in [node.clone(), transported(&node)] {
+            let context = bound(&context, &node);
+            for (selector, namespace, value) in [
+                (r#""id""#, "", "local"),
+                (r#"{namespace: "", name: "id"}"#, "", "local"),
+                (
+                    r#"{namespace: "urn:catalog", name: "id"}"#,
+                    "urn:catalog",
+                    "qualified",
+                ),
+            ] {
+                let selected = run(&format!("dom:attribute(node, {selector})"), &context).items;
+                assert_eq!(selected.len(), 1);
+                let attribute = &selected[0];
+                let expected = field(&node, "attributes")
+                    .into_iter()
+                    .find(|a| lexical(a, "name") == "id" && lexical(a, "namespace") == namespace)
+                    .unwrap();
+                assert_eq!(attribute.identity(), expected.identity());
+                assert_eq!(attribute.source_map(), expected.source_map());
+                assert_eq!(provenance(attribute), provenance(&expected));
+                assert_eq!(text(&context, attribute), value);
+                assert_eq!(
+                    run("dom:parent(node)", &bound(&context, attribute)).items[0].identity(),
+                    node.identity()
+                );
+                assert!(run("dom:descendants(node)", &bound(&context, attribute))
+                    .items
+                    .is_empty());
+                assert_eq!(
+                    run(&format!("(node, node).dom:attribute({selector})"), &context).items,
+                    [selected.clone(), selected].concat()
+                );
+            }
+            assert!(run(r#"dom:attribute(node, "missing")"#, &context)
+                .items
+                .is_empty());
+            assert!(run(
+                r#"dom:attribute(node, {namespace: "urn:other", name: "id"})"#,
+                &context
+            )
+            .items
+            .is_empty());
+            // Namespace declarations retain the semantics of each source/XPath view.
+            let declarations = field(&node, "attributes")
+                .into_iter()
+                .filter(|a| {
+                    lexical(a, "namespace") == "http://www.w3.org/2000/xmlns/"
+                        && lexical(a, "name") == "p"
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(run(r#"dom:attribute(node, {namespace: "http://www.w3.org/2000/xmlns/", name: "p"})"#, &context).items, declarations);
+        }
+    }
+}
+
+#[test]
+fn constructed_attributes_retain_types_and_references_without_extra_axes() {
+    use cem_ql::{eval::output::output_nodes, render::*};
+    let template = compile_template(
+        r#"{child | {attribute @name=count @type=integer @value='002'}{attribute @name=label @type=node @content-type=text/html @value='{data:read("<name>ivy</name>", "xml").root.children}'}{$data:read("<content><b>body</b></content>", "xml").root.children}}"#,
+        &CompileTemplateOptions::default(),
+    );
+    let plan = render_compiled_template(&template, &TemplateData::default());
+    assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    let node = output_nodes(plan.nodes).items.remove(0);
+    for node in [node.clone(), transported(&node)] {
+        let context = bound(&EvaluationContext::default(), &node);
+        let count = run(r#"dom:attribute(node, "count")"#, &context)
+            .items
+            .remove(0);
+        assert_eq!(
+            count
+                .view()
+                .unwrap()
+                .value_contract()
+                .unwrap()
+                .model
+                .value_type
+                .as_deref(),
+            Some("integer")
+        );
+        assert_eq!(
+            field(&count, "values")[0].atom(),
+            Some(AtomValue::Integer(2))
+        );
+        assert!(count.view().unwrap().value_contract().is_some());
+        let label = run(r#"dom:attribute(node, "label")"#, &context)
+            .items
+            .remove(0);
+        assert_eq!(text(&context, &label), "ivy");
+        assert_eq!(
+            field(&label, "values")[0].view().unwrap().kind(),
+            QueryItemViewKind::Node
+        );
+        let descendants = run("dom:descendants(node)", &context).items;
+        assert_eq!(descendants.len(), 1);
+        assert_eq!(lexical(&descendants[0], "kind"), "reference");
+        assert!(!field(&descendants[0], "targets").is_empty());
+        let reference = run("dom:reference(node)", &context).items.remove(0);
+        for reference in [reference.clone(), transported(&reference)] {
+            let context = bound(&context, &reference);
+            assert!(run("dom:descendants(node)", &context).items.is_empty());
+            assert!(run(r#"dom:attribute(node, "count")"#, &context)
+                .items
+                .is_empty());
+        }
+    }
+}
+
+#[test]
+fn native_axes_reject_invalid_nodes_and_selectors_even_on_empty_input() {
+    let (context, root) = import("xml", "<r id='a'/>");
+    let context = bound(&context, &root);
+    assert!(run("dom:descendants(())", &context).items.is_empty());
+    assert!(run(r#"dom:attribute((), "id")"#, &context).items.is_empty());
+    for query in [
+        "dom:descendants(1)",
+        "dom:descendants({})",
+        "dom:descendants((node, node))",
+        r#"dom:descendants(cemml:parse("{r}"))"#,
+        r#"dom:attribute(1, "id")"#,
+        r#"dom:attribute({}, "id")"#,
+        r#"dom:attribute((node, node), "id")"#,
+        r#"dom:attribute(cemml:parse("{r}"), "id")"#,
+        r#"dom:attribute(node, ())"#,
+        r#"dom:attribute(node, ("id", "name"))"#,
+        r#"dom:attribute(node, 1)"#,
+        r#"dom:attribute(node, "")"#,
+        r#"dom:attribute(node, "p:id")"#,
+        r#"dom:attribute(node, "*")"#,
+        r#"dom:attribute(node, {name: "id"})"#,
+        r#"dom:attribute(node, {namespace: ""})"#,
+        r#"dom:attribute(node, {namespace: "", name: 1})"#,
+        r#"dom:attribute(node, {namespace: (), name: "id"})"#,
+        r#"dom:attribute(node, {namespace: "", name: "id", extra: true})"#,
+        r#"dom:attribute((), "p:id")"#,
+        r#"().dom:attribute("p:id")"#,
+    ] {
+        let compiled = compile(
+            query,
+            &CompileContext {
+                policy_bindings: context.policy_bindings.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let result = evaluate(&compiled, &context);
+        assert!(
+            result.error.is_some() && result.items.is_empty(),
+            "{query}: {result:?}"
+        );
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "cem.ql.type_error"),
+            "{query}: {result:?}"
+        );
+    }
 }

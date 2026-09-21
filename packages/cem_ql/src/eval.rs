@@ -99,6 +99,14 @@ pub trait QueryItemView: fmt::Debug + Send + Sync {
     ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
         Err(QueryNodeAccessError::Unsupported)
     }
+    /// Yield native attributes in source order, preserving their values, owner
+    /// and access restrictions. An unavailable axis must fail closed.
+    fn attributes(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        Err(QueryNodeAccessError::Unsupported)
+    }
     /// String-value fragments for text-context rendering, separate from query
     /// atomization. Enforce scope before exposing each fragment. Yield an empty
     /// fragment for non-text visits so consumers can bound traversal work.
@@ -282,6 +290,12 @@ impl NativeItemView {
         scope: QueryContextScope,
     ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
         self.view.children(scope)
+    }
+    pub fn attributes(
+        &self,
+        scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        self.view.attributes(scope)
     }
     pub fn text_segments(&self, scope: QueryContextScope) -> Result<QueryTextSegments<'_>, QueryNodeAccessError> {
         self.view.text_segments(scope)

@@ -149,7 +149,8 @@ they preserve output occurrence parents separately from reference targets.
 
 ### Retained-node navigation
 
-`dom:parent(node)` and `dom:children(node)` navigate the retained tree without
+`dom:parent(node)`, `dom:children(node)`, `dom:descendants(node)` and
+`dom:attribute(node, selector)` navigate the retained tree without
 copying or re-importing it. Direct calls accept zero or one native node; empty
 input returns empty, the document root has no parent, and other types or
 multiple items produce `cem.ql.type_error`. Named pipeline steps apply these
@@ -157,6 +158,29 @@ helpers to each input node. Returned nodes retain the same owner, identity and
 source maps. Imported CEM views navigate the original source arena, including
 separate text/CDATA nodes; XPath views retain their existing semantic projection.
 The `.children` field remains unchanged; `.parent` is not a new record field.
+
+Descendants exclude the starting node and follow children in depth-first source
+order. Attributes and reference targets are separate axes; references have no
+structural children. Use `.targets` explicitly to navigate their original nodes.
+Pipeline calls such as `nodes.dom:descendants()` preserve input order and
+duplicates, without sorting or deduplication.
+
+Attribute strings select an exact **unqualified** name. Qualified attributes use
+an exact two-field CEM-QL control record:
+
+```cem-ql
+dom:attribute(node, "id")
+dom:attribute(node, {namespace: "urn:catalog", name: "id"})
+nodes.dom:attribute({namespace: "urn:catalog", name: "id"})
+```
+
+The descriptor requires exactly one string in each field. Local names must be
+unqualified lexical names; prefixes, wildcards and malformed selectors raise
+`cem.ql.type_error`, including with empty node input. Missing attributes return
+empty. Matching values remain native attributes with their typed contents and
+contracts; use `dom:text(attribute)` for text or `.values` for native contents.
+CEM source views retain source namespace declarations; XPath views retain their
+existing namespace-node exclusion. No namespace bindings are inferred.
 
 For a retained `<name>` element, select sibling `<id>` elements with ordinary
 CEM-QL filtering, without a separate sibling-selector language:
@@ -170,7 +194,7 @@ seq:where(dom:children(dom:parent(node)), fn(sibling) =>
 This returns all matching siblings in source order. A caller chooses explicitly
 whether to take the first result. Sorting a sequence does not reparent its nodes.
 Host `QueryItemView` implementations receive the active `QueryContextScope`
-through the new `parent`/`children` capabilities and must preserve restrictions
+through the `parent`/`children`/`attributes` capabilities and must preserve restrictions
 on returned views. Denied navigation raises fatal `cem.ql.scope_violation`;
 unsupported views fail explicitly rather than reporting a missing parent.
 The built-in imported/XPath views grant access to their complete retained
@@ -178,8 +202,9 @@ document; this does not add subtree grants or a general host access-control
 registry. Restricted hosts must supply restricted views instead of unwrapping
 them into unrestricted native documents.
 
-Navigation polls cancellation and charges each returned node to the inherited
-item budget, discarding partial results on failure. Children are collected from
+Navigation polls cancellation, charges traversal work (including unmatched
+attributes) and charges each returned node to the inherited item budget,
+discarding partial results on failure. Children are collected from
 an iterator under that budget. This is bounded navigation of a materialized
 tree, not a claim that the full query pipeline or an incoming AST stream can
 execute with no buffering. An ID arriving after a streamed name requires

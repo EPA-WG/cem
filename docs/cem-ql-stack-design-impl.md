@@ -974,9 +974,26 @@ empty marker is valid.
 | `dom:children`     | `(node) -> stream<node>` | A |
 | `dom:descendants`  | `(node) -> stream<node>` | A |
 | `dom:parent`       | `(node) -> stream<node>` | A |
-| `dom:attribute`    | `(node, QName) -> stream<attribute>` | A |
+| `dom:attribute`    | `(node, string or {namespace: string, name: string}) -> stream<attribute>` | A |
 | `dom:resolve_ref`  | `(node) -> stream<node>` | A — follows id/for/aria-* per AC-QD-4 |
 | `dom:tainted`      | `(node) -> boolean` | A — AC-QD-6 |
+
+Native navigation accepts zero or one node per direct call; named pipeline
+steps apply it per input node in order, retaining duplicates. Descendants
+exclude self and follow structural children depth-first; attributes and
+reference targets are not implicit descendants. `dom:attribute(node, "id")`
+selects only an attribute with local name `id` and empty namespace. A two-field
+descriptor matches namespace URI and local name exactly, independently of
+prefixes. Prefix/wildcard strings, malformed descriptors and non-node input
+are type errors. Empty or absent results remain empty; matches retain native
+identity, owner, provenance, typed values and contracts.
+
+The shared `QueryItemView::attributes(scope)` capability defaults to unsupported,
+like `children(scope)`. Implementations enforce restrictions on every yielded
+view. Navigation never substitutes unscoped node fields for a missing capability;
+it charges work/items against environment and lowered scope limits and discards
+partial results on failure. Source CEM and XPath views keep their established
+namespace and text-node semantics; all document parsing remains in CEM-ML import.
 
 ### 11.6 `cem:stdlib/report`
 

@@ -29,7 +29,7 @@ describe('external XPath library demo source contract', () => {
             expect(source).toContain(`href="#${id}"`);
             expect(source).toContain(`id="${id}"`);
         }
-        for (const query of ['str:concat', 'seq:any', 'seq:where', 'num:double(2)', 'data:parse', 'data:base_uri', 'data:document_uri']) {
+        for (const query of ['str:concat', 'seq:any', 'seq:where', 'num:double(2)', 'dom:attribute(node, "qty")', 'dom:text(item)', 'dom:descendants(node)', '{namespace: "urn:catalog", name: "qty"}', 'data:parse', 'data:base_uri', 'data:document_uri']) {
             expect(source).toContain(query);
         }
         expect(source).not.toMatch(/JSON\.parse|DOMParser|response\.json/);

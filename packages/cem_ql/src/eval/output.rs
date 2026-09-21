@@ -119,6 +119,23 @@ impl QueryItemView for OutputView {
         };
         Ok(Box::new((0..count).map(|i| Ok(self.child(i)))))
     }
+    fn attributes(
+        &self,
+        _: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        let count = match self.node() {
+            RenderPlanNode::Element { attributes, .. } if self.attribute.is_none() => {
+                attributes.len()
+            }
+            _ => 0,
+        };
+        Ok(Box::new((0..count).map(|i| {
+            Ok(Item::native(Self {
+                attribute: Some(i),
+                ..self.clone()
+            }))
+        })))
+    }
     fn source_map(&self) -> Option<SourceMapStack> {
         if let Some(attribute) = self.attribute() {
             return Some(attribute.source_map.clone());

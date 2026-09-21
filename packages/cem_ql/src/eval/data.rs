@@ -205,6 +205,26 @@ impl QueryItemView for CemAstView {
         let node = tree.ast().get(id).ok_or(QueryNodeAccessError::Unsupported)?;
         Ok(Box::new(children(node).iter().map(|id| Ok(self.item(*id)))))
     }
+    fn attributes(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        let id = self.node.ok_or(QueryNodeAccessError::Unsupported)?;
+        let tree = self
+            .owner
+            .tree
+            .as_ref()
+            .ok_or(QueryNodeAccessError::Unsupported)?;
+        let node = tree
+            .ast()
+            .get(id)
+            .ok_or(QueryNodeAccessError::Unsupported)?;
+        let attributes = match node {
+            CemAstNode::Element { attributes, .. } => attributes.as_slice(),
+            _ => &[],
+        };
+        Ok(Box::new(attributes.iter().map(|&id| Ok(self.item(id)))))
+    }
     fn text_fragments(
         &self,
         _scope: QueryContextScope,

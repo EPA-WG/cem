@@ -316,6 +316,14 @@ impl QueryItemView for GraphView {
             self.record().children.iter().map(|&id| Ok(self.item(id))),
         ))
     }
+    fn attributes(
+        &self,
+        _: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        Ok(Box::new(
+            self.record().attributes.iter().map(|&id| Ok(self.item(id))),
+        ))
+    }
     fn source_map(&self) -> Option<SourceMapStack> {
         Some(self.record().source.clone())
     }

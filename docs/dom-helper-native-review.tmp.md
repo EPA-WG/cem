@@ -1,16 +1,17 @@
 # Native DOM helper review
 
-Status: audit complete; attribute-name matching awaits a decision, 2026-09-21.
-This is a proposal, not an implemented query contract. The active work item is
-in [TODO](todo.md); existing node fields and viewer templates are unchanged.
+Status: implemented and verified, 2026-09-21. The user
+approved unqualified strings plus namespace descriptors, including scoped native
+attribute access. The active work item is in [TODO](todo.md); existing node fields
+and base viewer templates are unchanged.
 
-## Reproduced gap
+## Reproduced gap before implementation
 
-The registry declares `dom:descendants(node)` and `dom:attribute(node, QName)`.
-Both default evaluator branches return an empty sequence without validating
-their arguments. The design table names `QName` but does not define how an
-author supplies one to this helper. CEM-QL's ordinary atomic values do not
-include a QName constructor.
+The registry declared `dom:descendants(node)` and `dom:attribute(node, QName)`.
+Both default evaluator branches returned an empty sequence without validating
+their arguments. The design table named `QName` without defining how an author
+supplies one to this helper. CEM-QL's ordinary atomic values do not include a
+QName constructor.
 
 A Rust-native probe using `compile` and `evaluate`, with no browser or host
 override, produced these results for `<r id='a'><child>text</child></r>`:
@@ -22,11 +23,11 @@ override, produced these results for `<r id='a'><child>text</child></r>`:
 | `data:read(source, "xml").root.children.attributes` | 1: the `id` attribute |
 | `dom:attribute(data:read(source, "xml").root.children, "id")` | 0 |
 
-Every query compiled and completed without errors. The zero counts demonstrate
-missing implementation; they are not accepted parity expectations. The earlier
+Every query compiled and completed without errors. The zero counts demonstrated
+missing implementation; they were not accepted parity expectations. The earlier
 opaque `cemml:parse` fixtures cannot establish native behavior.
 
-## Recommended contract
+## Accepted contract
 
 `dom:descendants(node)` accepts zero or one native node, excludes that node,
 and traverses its children in depth-first source order. Empty input stays empty.
@@ -43,7 +44,7 @@ dom:attribute(node, "id")
 dom:attribute(node, {namespace: "urn:catalog", name: "id"})
 ```
 
-The recommended meaning of a bare string is an exact **unqualified** name:
+The accepted meaning of a bare string is an exact **unqualified** name:
 `"id"` matches local name `id` with an empty namespace. The descriptor matches
 both namespace and local name exactly. This descriptor is query control
 metadata, not a JavaScript representation of an imported document.
@@ -92,7 +93,7 @@ Poll cancellation during traversal, charge work and emitted items against the
 environment and lowered CEM scope limits, and discard partial output on failure.
 Preserve the current restriction and unsupported-view diagnostics.
 
-## Implementation after the decision
+## Implementation and verification
 
 1. Add native tests for order, cardinality, empty/missing values, namespaces,
    imported/constructed/portable values, references, identity and provenance.
@@ -104,6 +105,37 @@ Preserve the current restriction and unsupported-view diagnostics.
 4. Verify native tests first, then WASM and browser integration. Leave the base
    data-table and XML viewer implementations untouched.
 
-Approve the name-selection contract together with the scoped attribute access
-extension before implementing these changes. The latest user instruction is to
-stop at decisions or ambiguity.
+The selector and shared access extension are approved together. Stop only for
+new decisions or ambiguity outside this contract.
+
+## Implemented result
+
+The evaluator now uses scoped native child and attribute iterators. Descendant
+traversal is iterative, charges each queued node before retaining it, and stays
+bounded even for a cyclic host view. Attribute scans charge work even when no
+name matches; both helpers discard partial output on cancellation, denial or
+budget failure. Native attributes preserve identity, provenance, contracts and
+typed contents through lookup. Reference targets remain explicit; references
+have no structural children or attributes.
+
+The 14 retained-node tests cover the four imports, original and XPath views,
+constructed/portable values, namespace selection, invalid selectors, repeated
+pipeline inputs, source maps, references, restricted hosts, lowered environment
+and child-scope limits, cyclic hosts and cancellation. Constructor/portable
+regressions and the authored XPath/CEM-QL pairs pass. The broader native run has
+615 passing tests and the same three pre-existing `xslt_data_view` failures:
+XSLT's selection cell is `td`, while CEMT's is `th`. Those failures remain in the
+separate viewer-scope TODO; neither viewer was changed or its parity weakened.
+
+The XPath functions page now uses `dom:attribute(node, "qty")` and
+`dom:text(item)` in its CEM-QL pair, and explains qualified selectors and the
+`descendant::node()` pair. Browser parity rows use native imported nodes and
+explicitly reject opaque nodes and malformed selectors. XML, JSON, YAML and CSV
+still resolve exclusively through shared CEM-ML import.
+
+Both WASM builds and the runtime build pass, along with 413 runtime unit tests,
+191 browser stories, typecheck and lint (two existing warnings). The complete
+gallery passes for 28 standalone pages and 34 source-loaded documents. The
+authored XPath functions page fits two cards per row at 1440px and has no page
+overflow at 390px or 320px. The remaining decision is the separately tracked
+XSLT/CEMT selection-cell parity scope, not a blocker for these native helpers.
