@@ -408,15 +408,20 @@ inventory exercises Space on checkboxes and Enter on a sort button.
 ## Cell presentation overrides
 
 The follow-up [cell-overrides.html](../demo/cell-overrides.html) contains three
-separate `cem-element` lessons. Each owns a small CEMT module, imports the
-data viewer, adds one match rule, and calls `base.viewer`. Single-node data
+separate `cem-element` lessons. The first two own small CEMT modules, import the
+data viewer, add one match rule, and call `base.viewer`. The third demonstrates
+typed native values and expression hooks across a component boundary. Single-node data
 cells dispatch their original retained subjects through `cell` mode. The base
 `@match=true @priority=-20` rule generates a `td` and delegates content to
 `inspect`; a local cell rule can replace that entire cell.
 
 - The first sample inlines its entire template. Its primitive predicate is
   `node.name == "name"` in `cell` mode, with no explicit priority. The template
-  receives only the retained `name` node. `dom:parent` and `dom:children` find
+  receives the retained `name` node through the implicit `node` binding, without
+  a redundant parameter declaration. The module retains its explicit `body`
+  wrapper for native import preflight; compact module bodies remain
+  [under review](../../../docs/cemt-expression-review.tmp.md#pending-decision-compact-module-template-bodies-r11r12).
+  `dom:parent` and `dom:children` find
   its sibling `id`, selecting the first match in source order with
   `(sibling.name ?? "") == "id"`. The fallback skips nameless whitespace;
   this simple demo compares only local names. It renders a 32px image beside

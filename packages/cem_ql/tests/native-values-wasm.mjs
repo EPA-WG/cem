@@ -7,7 +7,21 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import * as wasm from '../dist/wasm/cem_ql.js';
 const limits = JSON.stringify({ maxBytes: 16 * 1024 * 1024, maxValues: 100000, maxDepth: 128 });
 const ready = () => readFile(new URL('../dist/wasm/cem_ql_bg.wasm', import.meta.url)).then(bytes => wasm.default({ module_or_path: bytes }));
-const source = `{template @mode=label @match=true | {$node}}{template @on=expression @into=attribute @match='context.attribute.name == "count"' @returns=integer | {$value + 1}}{child | {attribute @name=count @type=integer | {cem:if @test=true | {$1}}}{attribute @name=day @type=date @value=2024-02-29}{attribute @name=label @type=node @content-type=text/html | {cem:if @test=true | {$cemt:apply_templates(data:read("<name>ivy<em>saur</em></name>", "xml").root.children, "label")}}}{attribute @name=empty @type=any | {cem:if @test=true | {$()}}}{attribute @name=large @type=integer @value=922337203685477580812345}}`;
+const referenceInput = `{cem:variable @name=n @select='data:read("<name>ivy</name>", "xml").root.children'}{cem:variable @name=refs @select='dom:reference((n, n))'}`;
+const source = referenceInput + `{template @mode=label @match=true | {$node}}{template @on=expression @into=attribute @match='context.attribute.name == "count"' @returns=integer | {$value + 1}}{child | {attribute @name=count @type=integer | {cem:if @test=true | {$1}}}{attribute @name=day @type=date @value=2024-02-29}{attribute @name=label @type=node @content-type=text/html | {cem:if @test=true | {$cemt:apply_templates(data:read("<name>ivy<em>saur</em></name>", "xml").root.children, "label")}}}{attribute @name=empty @type=any | {cem:if @test=true | {$()}}}{attribute @name=large @type=integer @value=922337203685477580812345}{attribute @name=refs @type=node @value='{refs}'}}`;
+function verifyReferenceConstructors(render) {
+    const plan = render(`{cem:variable @name=copy @select=dom:clone(refs)}{p | {$seq:count(copy)}|{$copy.kind}|{$seq:count(copy.targets)}|{$seq:first(copy.targets).id == seq:last(copy.targets).id}|{$seq:first(copy.targets).id == seq:first(refs.targets).id}}{b | {$dom:element(refs.targets)}}{i | {$seq:count(dom:clone(refs.targets))}}`);
+    assert.deepEqual(plan.diagnostics, []);
+    assert.equal(plan.nodes[0].children.map(node => node.text).join(''), '1|reference|2|true|false');
+    assert.deepEqual(plan.nodes[1].children.map(node => [node.tag, node.children.length]), [['name', 0], ['name', 0]]);
+    assert.equal(plan.nodes[2].children[0].text, '2');
+    const rejected = render('{$dom:element(refs)}');
+    assert.deepEqual(rejected.nodes, []);
+    assert.ok(rejected.diagnostics.some(d => d.code === 'cem.ql.type_error'));
+}
+function verifyDirectReferences() {
+    verifyReferenceConstructors(template => JSON.parse(wasm.renderTemplateSource(referenceInput + template, '{}')));
+}
 function verifyDirectInteger() {
     const plan = JSON.parse(wasm.renderTemplateSource('{attribute @name=large @type=integer | 922337203685477580812345}{p | {$large + 1.0}|{$large is decimal}}', '{}'));
     assert.deepEqual(plan.diagnostics, []);
@@ -50,6 +64,12 @@ function consume({ bytes, bindings }) {
         assert.equal(children[3].children[0].text, 'ivysaur');
         assert.equal(children[4].children[0].text, '0');
         assert.equal(children[5].children.map(node => node.text).join(''), '922337203685477580812346|true');
+        verifyReferenceConstructors(source => {
+            const probe = JSON.parse(wasm.compileTemplate('{attribute @name=refs @type=node @required=true}' + source, '["refs"]'));
+            try {
+                return JSON.parse(wasm.renderTemplateWithNativeValues(probe.artifactId, 0, '{}', '[]', native, limits));
+            } finally { wasm.disposeTemplate(probe.artifactId); }
+        });
         assert.equal(wasm.disposeNativeValueArtifact(id), true);
         const stale = JSON.parse(wasm.renderTemplateWithNativeValues(template.artifactId, companion.companionId, '{}', '[]', native, limits));
         assert.ok(stale.diagnostics.some(d => d.code === 'cem.value.binding'));
@@ -73,11 +93,13 @@ if (isMainThread) {
         assert.equal(await runWorker({ operation: 'consume', artifact: restored }), true);
         await ready();
         verifyDirectInteger();
+        verifyDirectReferences();
         assert.equal(consume(restored), true);
         console.log('Native CEM values: separate workers, saved pipeline, fallback and disposal passed.');
     } finally { await rm(directory, { recursive: true, force: true }); }
 } else {
     await ready();
     verifyDirectInteger();
+    verifyDirectReferences();
     parentPort.postMessage(workerData.operation === 'produce' ? produce() : consume(workerData.artifact));
 }

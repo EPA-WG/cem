@@ -1,10 +1,75 @@
 # CEMT expression insertion — temporary proposal review
 
-## Pending decision: constructor reference inputs (R01/R09/R11)
+## Pending decision: compact module template bodies (R11/R12)
+
+The 2026-09-21 DX audit found a parser/renderer disagreement while simplifying
+the inline Pokémon rule. Removing its redundant `param @name=node` works.
+Removing its `body` wrapper also passes the nine native cell-rendering tests,
+but the browser's shared native module preflight rejects the declaration before
+rendering. Restoring only the wrapper restores both Pokémon images. The demo
+keeps that working form while this syntax choice is reviewed.
+
+The minimal form under review is:
+
+```cem
+{module |
+    {template @name=label @mode=cell @match=true |
+        {td | {$node}}}
+    {body | {apply-templates @select=node @mode=cell}}}
+```
+
+`compile_template_module_closure` accepts direct template content.
+`templateModuleImports`, which calls CEM-ML's
+`parse_cem_native_template_module_options`, reports fatal
+`cem.transform_template.declaration_unsupported` for `td`; the real Pokémon
+rule also reports it for `variable`. `lower_template` currently accepts only
+`param` and `body` children of named module templates. Expression hooks are
+already excluded from named-entrypoint validation and support direct bodies.
+This is a shared declaration grammar choice, not a viewer presentation change.
+
+| Direction | Benefits | Costs |
+| --- | --- | --- |
+| **Recommended: align shared module preflight with the renderer's compact named/matching template bodies.** Keep explicit `body` valid, separate `param` declarations from direct content, preserve entrypoint visibility and expression collection. Define and reject ambiguous mixtures of direct content and explicit bodies. | One template-body convention works with and without imports; the Pokémon rule can use its implicit `node` and a direct body. | Extends the shared module declaration grammar and requires native parser, adapter, WASM preflight and browser regressions. |
+| Keep explicit `body` mandatory in named module templates. | Retains the strict declaration/content boundary and needs no new syntax. | The compact form remains context-dependent; direct module compilation must also reject it so native and browser behavior agree. |
+
+No grammar change is included in the reference-constructor increment. The
+operation guide now documents the current boundary. `CEMT-COMPACT-TEMPLATES`
+in [TODO](todo.md) tracks the decision and verification. Storybook stabilization
+remains after the immediate cell/expression work.
+
+## Constructor reference inputs (R01/R09/R11)
+
+**Selected by the user on 2026-09-21: preserve reference nodes.**
+`dom:clone` now preserves the selected reference node and shared target graph;
+`dom:element` requires explicit `.targets` selection. The concrete-reference
+unwrapping path has been removed, so direct, constructed and portable values use
+the same graph constructor. Cloning also checks host access before detaching
+ancestors; a new native fixture reproduced and closes the prior scope bypass.
+
+Six native cases cover reference kinds, repeated target aliases, empty/nested
+references, scalar and invalid shell inputs, detached ownership, internal
+parents, provenance, XML/JSON/YAML/CSV imports, lowered child limits and
+cancellation. Worker, saved-artifact and fallback checks verify the same
+constructor results before and after transport. Render engine 1.5.5 invalidates
+older previews. The maintained [operation guide](cemt-native-values.md#choosing-a-native-value-operation)
+explains explicit target selection without introducing copy aliases or overloads.
+
+Verification passed: 120 focused CEM-QL tests, 96 adapter tests and workspace
+compilation; build, typecheck, lint (two existing warnings), 408 runtime unit
+tests, both WASM transport fixtures, all three cell browser stories and focused
+standalone/source-loaded interactions. The three real demo cards also pass
+1440px two-column and 390px/320px containment checks. Base viewers are unchanged.
+The compact module-body choice above is the remaining DX item.
+
+The original reproduction and alternatives below remain as review history.
+Implementation and verification are tracked by `CEMT-CONSTRUCTOR-REFERENCES`
+in TODO.
+
+Original decision review:
 
 The 2026-09-21 DX audit reproduced a transport-dependent public result in
-`dom:clone` and `dom:element`. Implementation is paused under the user's
-stop-at-decisions instruction: the existing signatures describe nodes and
+`dom:clone` and `dom:element`. Implementation was paused under the user's
+stop-at-decisions instruction: the existing signatures described nodes and
 element inputs, but do not settle whether these constructors follow a reference
 or operate on that first-class node itself.
 
@@ -59,8 +124,9 @@ The two temporary failing probes were removed after recording their exact
 outcomes here. The existing constructor, expression and portable-value suites
 remain the baseline: all 39 tests in `expression_values`, `portable_values`
 and `retained_node_values` pass. They do not cover the reproduced reference
-transport mismatch. No runtime or demo changes are authorized by this note.
-The pending work is tracked as `CEMT-CONSTRUCTOR-REFERENCES` in [TODO](todo.md).
+transport mismatch. That original note did not authorize runtime or demo changes; the user's
+selection above supersedes the pause. Verification is tracked as
+`CEMT-CONSTRUCTOR-REFERENCES` in [TODO](todo.md).
 
 ## Native pipeline lifetime and cached scope limits (R03/R08/R10)
 

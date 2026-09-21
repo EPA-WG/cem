@@ -21,15 +21,17 @@
 <main>
     <section>
         <h2>Import the viewer, replace one presentation</h2>
-        <p>Each example owns a small template that imports the existing
-            <a href="./data-table-view.cemt">data viewer</a>, declares one
-            <code>template @match</code> rule, and calls <code>base.viewer</code>.
+        <p>The first two examples own small templates that import the existing
+            <a href="./data-table-view.cemt">data viewer</a>, declare one
+            <code>template @match</code> rule, and call <code>base.viewer</code>.
             The viewer dispatches a cell's retained source node through
             <code>apply-templates @mode=cell</code>. Its <code>@match=true</code> rule produces the
             default <code>td</code>; a matching local rule can replace the whole cell.</p>
         <p>The first sample includes its entire template inline. Its rule is
             simply <code>node.name == "name"</code> in <code>cell</code> mode:
             <code>node</code> is the original <code>&lt;name&gt;</code> element.
+            Matching supplies <code>node</code> automatically; it needs no
+            parameter declaration. The imported module uses an explicit body.
             The replacement cell contains an image plus the original name.
             <code>{$node}</code> reuses the name subtree in the label.
             The image attribute projects that same native value to text.
@@ -88,13 +90,13 @@
     {import @as=base @src="./data-table-view.cemt"}
     {template @name=pokemon-name @mode=cell
         @match='node.name == "name"' |
-        {param @name=node}
         {body |
             {cem:variable @name=id @select='seq:first(seq:where(
                 dom:children(dom:parent(node)), fn(sibling) =>
                     (sibling.name ?? "") == "id")).children.value'}
             {td | {span @class=pokemon-name |
-                {cem:if @test='(datadom.slices.images ?? false) && (id ?? "") != ""' |
+                {cem:if @test='(datadom.slices.images ?? false)
+                    && (id ?? "") != ""' |
                     {img @src="{$datadom.slices.images}{$id}.svg"
                         @alt="{$node}" @width=32 @height=32}}
                 {$node}}}}}

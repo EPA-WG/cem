@@ -1875,7 +1875,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
     - [ ] Polish DX for text, reference, clone, element and explicit template
           dispatch operations; consider matching compact forms for other template
           types as requested during review. Do not add confusing copy/copy-of aliases.
-      - [ ] Fixture CEMT-CONSTRUCTOR-REFERENCES: audit `dom:clone` and
+      - [x] Fixture CEMT-CONSTRUCTOR-REFERENCES: audit `dom:clone` and
             `dom:element` with explicit reference inputs before and after CEMV
             transport. Resolve target-following versus reference-node behavior
             before changing result kind, cardinality or repeated-target identity;
@@ -1883,10 +1883,28 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             The 2026-09-21 audit reproduced two failures: direct `clone` returns
             two independent elements where portable `clone` returns one reference
             retaining target aliases; direct `element` accepts the reference
-            where portable `element` raises a type error. Pause for the decision
-            in [Constructor reference inputs](./cemt-expression-review.tmp.md#pending-decision-constructor-reference-inputs-r01r09r11).
-            Recommended: preserve reference nodes in `clone` and require an
-            explicit `.targets` selection for constructing element shells.
+            where portable `element` raises a type error. The user selected
+            preserving reference nodes in `clone` and requiring explicit
+            `.targets` selection for element shells. Implement the selected
+            [constructor contract](./cemt-expression-review.tmp.md#constructor-reference-inputs-r01r09r11),
+            including scope checks without retaining source ancestors.
+            Completed 2026-09-21: six native cases cover direct/constructed/CEMV
+            references, aliasing, detached roots, provenance, scalar/empty/nested
+            targets, all four imports, scope denial, lowered limits and cancellation.
+            Both WASM worker/file/fallback fixtures pass with constructor parity.
+            The operation guide documents `.targets` selection and migration;
+            no aliases or new element-construction overloads were introduced.
+      - [ ] Fixture CEMT-COMPACT-TEMPLATES: resolve the shared module-body
+            grammar decision, then align native compile and browser preflight
+            with the selected syntax. The native renderer accepts compact named
+            template bodies, but CEM-ML module preflight rejects their direct
+            `variable`/`td` content. Recommended: accept compact named/matching
+            bodies in shared module parsing, preserving explicit bodies and
+            rejecting ambiguous mixtures. The tested alternatives are in the
+            [review](./cemt-expression-review.tmp.md#pending-decision-compact-module-template-bodies-r11r12).
+            Current docs explain the boundary; the Pokémon sample uses implicit
+            `node` and keeps its working `body` wrapper. Verify parser/adapter,
+            WASM preflight, imported fallback and browser rendering after selection.
   - [x] Inspect current dispatch and local legacy collapse code; record the
         findings in the [presentation override discussion](../packages/cem-elements/docs/xml-viewer-migration.md#cell-presentation-overrides).
         Current tables already use native disclosure. Legacy tree branches
@@ -1903,12 +1921,23 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         the selected cell uses the local rule, unmatched and nested content
         retain base rendering, and rows stay attached to the imported CEM tree.
         Preserve default viewer output and CEMT/XSLT parity if a hook is needed.
-  - [ ] Author the isolated samples and their own importing templates. Verify
+  - [x] Author the isolated samples and their own importing templates. Verify
         the chosen cell output, match scope and fallback, source-loaded and
         standalone operation, compact layout, source contracts and inventory/cache
         inputs. Table collapse remains an alternative, not an approved refactor.
-        Source contracts, source-loaded and standalone interactions now pass;
-        the explicit compact-layout audit remains before closing this item.
+        Source contracts, source-loaded/standalone interactions and the real
+        demo-card layout checks pass.
+    - [x] Fixture DATA-CELL-COMPACT-LAYOUT: check the real demo cards at 1440px
+          for two-column presentation and at 390px/320px for containment, in both
+          standalone and source-loaded pages. Keep viewer implementations intact.
+          Verified 2026-09-21: all three real demo cards render, the first two
+          share a 1440px row, and 390px/320px pages have no horizontal overflow.
+          All three cell stories and standalone/source-loaded interaction checks
+          pass. The final native run covers 120 focused CEM-QL tests, 96 adapter
+          tests and workspace test compilation. Build, typecheck, 408 runtime
+          unit tests, both WASM transport fixtures and lint pass (two existing
+          warnings). The full gallery's stale selectors remain deferred below.
+          No base viewer implementation changes were needed.
   - [x] Fixture DATA-CELL-MATCH-POKEMON: inline the sample's template and
         match only the local name `name` in `cell` mode, without an explicit
         priority. Render an image plus name using the sibling `id` element.

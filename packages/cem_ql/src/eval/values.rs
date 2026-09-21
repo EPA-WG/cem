@@ -142,13 +142,8 @@ fn clone_item(
 ) -> Result<Vec<Item>, ItemStream> {
     use crate::render::RenderPlanNode;
     ctx.charge_items(1, source)?;
-    if let Some(targets) = reference_values(item) {
-        let mut result = Vec::new();
-        for item in targets {
-            result.extend(clone_item(item, deep, ctx, source)?);
-        }
-        return Ok(result);
-    }
+    // References are native nodes. Clone their graph just like portable and
+    // constructed references; selecting targets is an explicit query step.
     if item.atom().is_some()
         && !item
             .view()
@@ -167,11 +162,11 @@ fn clone_item(
         .view()
         .filter(|view| view.kind() == QueryItemViewKind::Node)
         .ok_or_else(|| ctx.type_error(source, "DOM construction requires native nodes"))?;
-    view.parent(ctx.query_scope).map_err(|error| super::pipeline::node_access_error(error, ctx, source))?;
     let kind = view.field("kind").and_then(|v| v.first().and_then(Item::atom));
     if kind != Some(AtomValue::String("element".into())) {
         return Err(ctx.type_error(source, "dom:element requires element nodes"));
     }
+    view.parent(ctx.query_scope).map_err(|error| super::pipeline::node_access_error(error, ctx, source))?;
     let lexical = |name| view.field(name).and_then(|v| v.first().and_then(Item::atom))
         .map(|atom| crate::render::item_to_string(&Item::Atomic(atom))).unwrap_or_default();
     let tag = lexical("name");

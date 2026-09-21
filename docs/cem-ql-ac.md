@@ -1339,6 +1339,14 @@ JSON document objects; and MUST enforce environment ceilings with CEM scope
 restrictions that can only lower them. Verification is tracked by CEMT-VALUES,
 CEMT-HOOKS, CEMT-ATTRIBUTE-TYPES, CEMT-VALUE-PIPELINE and CEMT-VALUE-TRANSPORT in TODO.
 
+`dom:clone` MUST preserve selected reference nodes and aliases within each cloned
+graph. Separate input items MUST be cloned independently. `dom:element` MUST
+accept elements only; reference targets require explicit `.targets` selection.
+Direct, constructed and portable references MUST have the same constructor
+behavior, including empty/nested references. Detached clones MUST still enforce
+source access checks and resource limits. `CEMT-CONSTRUCTOR-REFERENCES` tracks
+this contract and its worker/fallback verification.
+
 Imported expression-hook defaults MUST remain below active caller scopes;
 local declarations, priority and order resolve the remaining candidates.
 Receiver input declarations MUST validate native values independently of sender

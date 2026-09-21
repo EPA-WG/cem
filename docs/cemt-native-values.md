@@ -11,13 +11,69 @@ and source-parent navigation. `{node}` still constructs a literal element.
 | `dom:text(values)` | Concatenate node string values and atomic lexical values, without separators. |
 | `dom:text()` | Read the nearest established focus. A matching template establishes its processed node; an expression hook establishes the whole expression sequence, including an empty sequence. Missing focus is an error. |
 | `dom:reference(values)` | Explicit reference to an ordered native sequence, retaining repeated targets. |
-| `dom:clone(values)` | Create independent native node storage and identities, retaining origin metadata. |
-| `dom:element(elements)` | Construct empty element shells with the selected names and namespaces. |
+| `dom:clone(values)` | Clone each selected node and its reachable graph, preserving node kinds and internal target sharing with fresh identities. Atomic values stay values. |
+| `dom:element(elements)` | Construct empty element shells with the selected names and namespaces; ordinary attributes and children are not inherited. |
 | `dom:children(node)` / `dom:parent(node)` | Navigate retained nodes without copying or importing them again. |
 
 Named calls inherit focus. A parameter called `node` does not itself rebind
 focus. Explicit selection and variable bindings retain native values.
 Records and arrays are not inferred to be document nodes.
+
+### Choosing a native-value operation
+
+Use `{$node}` to insert a retained subtree, `{$dom:text(node)}` for its text,
+and `{$dom:children(node)}` to insert its children without the parent element.
+`dom:reference(values)` makes the retained reference explicit in a query;
+`.targets` selects its ordered values. `dom:clone` is for independent node
+storage and identities. `cemt:apply_templates(values, mode)` instead invokes
+the active renderer's match rules; pass `""` for the default mode.
+Construction and insertion do not implicitly dispatch templates.
+
+A reference is a node in its own right. Given `r = dom:reference((name, name))`:
+
+| Expression | Result |
+| --- | --- |
+| `dom:clone(r)` | One new reference whose two links share one cloned target. |
+| `dom:clone(r.targets)` | Two independently cloned elements. |
+| `dom:element(r.targets)` | Two new empty elements with the targets' names and namespaces. |
+| `dom:element(r)` | Type error: a reference is not an element. |
+| `dom:text(r)` | The target text twice, in order. |
+
+These rules hold for direct references, output occurrences and portable values.
+Cloning preserves nested and empty reference nodes. Selected clone roots are
+detached, internal child parents are rebuilt, and source provenance survives.
+Cloning checks host access restrictions even though source ancestors are omitted.
+The source tree remains unchanged. Migration: direct references previously
+unwrapped in both constructors; explicitly select `.targets` for that behavior.
+
+Only `dom:text()` offers an implicit-focus overload. The other operations require
+the arguments shown above. `dom:reference` is the supported full spelling;
+`dom:ref`, `dom:copy` and `dom:copy_of` are not aliases. `dom:element` accepts
+existing element nodes, not a name string or a name/content overload. Use
+ordinary CEMT construction, such as `{name | ...}`, to author a named element.
+
+### Compact template bodies
+
+Outside an explicit CEMT module, matching templates, named templates and
+expression hooks accept direct content without a `{body | ...}` wrapper. Matching supplies `node`; hooks supply
+`value` and `context`. Declare parameters when a named call needs additional
+inputs, not merely to repeat those implicit bindings:
+
+```cem
+{template @name=label | {strong | {$dom:text()}}}
+{template @mode=cell @match='node.name == "name"' |
+    {td | {call @template=label}}}
+{template @on=expression @into=attribute | {$dom:text()}}
+```
+
+The named call inherits its caller's focus. Wrapping the same content in `body`
+does not change that focus or the insertion rules. Inside an explicit `{module}`,
+named template declarations currently require `{body | ...}` for import
+preflight. Expression hooks already accept direct bodies there. The inline
+[Pokémon cell example](../packages/cem-elements/demo/cell-overrides.html) therefore
+keeps its module body wrapper and uses the implicit `node` binding. Aligning
+compact named/matching bodies across module preflight and rendering remains
+[under review](cemt-expression-review.tmp.md#pending-decision-compact-module-template-bodies-r11r12).
 
 `dom:text` reads values decoded by CEM-ML import, including XML entity and
 line-ending normalization. It extracts each selected CEM text/CDATA node

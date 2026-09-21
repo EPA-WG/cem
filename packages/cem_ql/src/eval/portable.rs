@@ -134,15 +134,18 @@ pub(super) fn encode_graph(
         } else {
             let view = view.expect("native node");
             let kind = lexical_field(view, "kind");
-            let parent = if !include_parents
-                || kind == "reference" && view.downcast_ref::<values::ReferenceView>().is_some()
-            {
+            let source_parent = if kind == "reference" && view.downcast_ref::<values::ReferenceView>().is_some() {
                 None
             } else {
                 view.parent(scope)
                     .map_err(|e| format!("Native CEM parent access denied: {e:?}"))?
-                    .map(|p| encoder.add(p))
-                    .transpose()?
+            };
+            // Detaching a clone omits its ancestors, not its source access
+            // check. Host restrictions must hold before reading native fields.
+            let parent = if include_parents {
+                source_parent.map(|p| encoder.add(p)).transpose()?
+            } else {
+                None
             };
             let children = if matches!(kind.as_str(), "element" | "document") {
                 let mut children = Vec::new();

@@ -101,6 +101,10 @@ keeps its ordered literal and native segments between transformation phases.
 Sources remain immutable; only `dom:clone(values)` requests independent node
 storage. `dom:element(elements)` creates empty named element shells, and
 `dom:reference(values)` constructs an explicit native reference.
+Cloning a reference preserves its node kind and shared target relationships.
+Select `.targets` explicitly to clone each target independently or to pass its
+elements to `dom:element`. This behavior is identical after portable transport;
+see the [operation guide](../../docs/cemt-native-values.md#choosing-a-native-value-operation).
 `cemt:apply_templates(values, mode)` calls matching templates through the active
 CEMT host and returns native content for further querying or insertion. It requires
 both arguments and reports a missing-host error in standalone query evaluation.
@@ -112,6 +116,11 @@ focus is an error. For example:
 ```cem
 {template @on=expression @into=attribute | {$dom:text()}}
 ```
+
+Matching supplies `node` without a redundant parameter declaration. Direct
+bodies are available outside explicit modules and in expression hooks; named
+module templates still require a `body` wrapper for import preflight. See the
+[compact forms and current boundary](../../docs/cemt-native-values.md#compact-template-bodies).
 
 Attribute bodies and `@value` interpolation both use attribute hooks. Controls
 and template calls retain that destination and its metadata; constructed node
