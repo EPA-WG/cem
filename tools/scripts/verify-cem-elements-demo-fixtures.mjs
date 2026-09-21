@@ -2447,7 +2447,7 @@ const sourceHarnessHtml = `<!doctype html>
     </script>
     <script type="module">
         import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';
-        installCemElementRuntime(window);
+        window.__cemFixtureRuntime = installCemElementRuntime(window);
     </script>
 </head>
 <body></body>
@@ -3161,6 +3161,30 @@ async function collectDebugSnapshot(page, check) {
                           html: element.outerHTML.slice(0, 1000),
                       }))
                     : [],
+                samples: Array.from(document.querySelectorAll('cem-demo-element')).map((sample) => ({
+                    legend: sample.getAttribute('legend'),
+                    marker: sample.getAttribute('data-cem-fixture-sample'),
+                    state: sample.getAttribute('data-state'),
+                    helperMounted: sample.__cemDemoMounted ?? null,
+                    hasTemplate: !!sample.querySelector(':scope > template'),
+                    hasDemo: !!sample.querySelector(':scope > [slot="demo"]'),
+                    warnings: sample.querySelectorAll('[slot="demo"] strong').length,
+                })),
+                declarations: Array.from(document.querySelectorAll('cem-element[tag]')).map((declaration) => {
+                    const tag = declaration.getAttribute('tag');
+                    return {
+                        tag,
+                        src: declaration.getAttribute('src'),
+                        defined: !!customElements.get(tag),
+                        styles: declaration.querySelectorAll('style[data-cem-declaration-style]').length,
+                        diagnostics: window.__cemFixtureRuntime?.diagnosticsFor(declaration) ?? null,
+                        instances: Array.from(document.querySelectorAll(CSS.escape(tag))).map((instance) => ({
+                            artifact: instance.getAttribute('data-cem-template-artifact-id'),
+                            diagnostics: window.__cemFixtureRuntime?.diagnosticsFor(instance) ?? null,
+                            text: globalThis.__cemFixtureNormalizeText(globalThis.__cemFixtureVisibleText(instance)).slice(0, 200),
+                        })),
+                    };
+                }),
                 elements: customElementTags
                     .flatMap((tag) => Array.from(document.querySelectorAll(tag)))
                     .map((element) => ({

@@ -1995,6 +1995,21 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       After native storage migration, all 190 browser stories and the full
       gallery (28 standalone pages, 34 source-loaded documents) pass. The
       original intermittent stock-warning cause still needs investigation.
+  - [x] Fixture: trace source-loaded stock startup with controlled declaration
+        and sample-mount timing. Distinguish missing sample mounting, lost test
+        selectors and failed declaration loading; retain a delayed-load
+        regression and useful failure evidence without changing base viewers.
+        Completed 2026-09-21: twelve controlled source-loaded runs pass, including
+        delayed stock loading during Pokémon edits. A permanent story with the
+        real demo cards verifies pending registration, stylesheet installation,
+        initial warning, retained input and subsequent editing. All 191 browser
+        stories and all 28 standalone/34 source-loaded gallery checks pass.
+        Failure snapshots now include sample mount state, fixture
+        markers, declaration registration/styles and runtime diagnostics. An
+        injected 503 confirms that the missing-warning snapshot reports the
+        actual source-load failure. The historical timeout remains unreproduced;
+        no runtime/viewer fix is claimed. Evidence is recorded in the
+        [stabilization review](browser-stabilization-review.tmp.md#stock-startup-follow-up).
 - [x] Fixture: check declaration-owned stylesheet lifecycle across repeated
       source-loaded gallery mounts in one document. A second hex-grid story
       using the same source registration rendered unstyled links; isolate
@@ -2137,6 +2152,14 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       behavior, add native fixtures, and replace empty-output coverage when
       implementing those capabilities; do not count these rows as native DOM
       function parity.
+  - [x] Fixture: reproduce both stubs on native imported nodes and record the
+        attribute-name and scoped-host-access decisions before implementation.
+        A Rust-native probe finds three descendants and one attribute through
+        native fields, versus empty results from both helpers, without errors.
+        [The proposed contract](dom-helper-native-review.tmp.md) recommends exact
+        unqualified strings, explicit namespace/name descriptors and scoped
+        native attribute access. Await that name-selection decision before
+        implementing the helpers; empty stub results are not parity coverage.
 - [ ] Resolve existing native XSLT/CEMT viewer parity differences after agreeing
       the viewer scope: the full native run on 2026-09-21 fails three
       `xslt_data_view` comparisons because XSLT emits a selection `td` while

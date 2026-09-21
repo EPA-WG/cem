@@ -345,3 +345,43 @@ output prerequisite now checks retained references and explicit `dom:text`.
 Those fixtures now assert the existing contracts. Three strict `xslt_data_view` comparisons
 still fail because XSLT uses selection `td` and CEMT uses `th`. Both implementations
 predate this migration and remain untouched; TODO tracks the parity decision.
+
+## Stock startup follow-up
+
+On 2026-09-21, the remaining historical stock-warning failure was investigated
+separately from the corrected storage and stylesheet-remount failures.
+
+The original 2026-09-20 snapshot timed out on the second source-loaded card's
+first warning-count check. Only Pokémon styles were listed. It did not record
+whether the stock sample had mounted, its marker survived, the declaration
+loaded or registered, or a diagnostic was attached to that declaration.
+Consequently it cannot establish that the stock matching rule failed.
+
+Twelve fresh-page probes using the gallery helper all passed. They released
+the stock declaration immediately, after the first viewer became ready, or
+after editing that viewer. Every card mounted with its authored template,
+the stock fixture marker remained present, the declaration was requested,
+and exactly one warning appeared without runtime diagnostics or browser errors.
+
+The permanent `DelayedStockDeclaration` story uses the real demo cards and
+separate registrations, withholding the stock declaration while the Pokémon
+sample renders and changes. It verifies that stock registration/styles are
+absent while loading, then checks declaration/render settlement, the single
+warning, stylesheet presence, preserved source and a subsequent stock edit.
+It passes with all 191 runtime browser stories. Typecheck and lint pass, with
+the same two existing lint warnings.
+The full packaged gallery also passes all 28 standalone pages and 34
+source-loaded documents on this revision.
+
+Gallery failure snapshots now report each card's legend, marker, mount/template
+state and warning count, plus each declaration's source, browser registration,
+stylesheets, instances and diagnostics. The source-loaded harness retains its
+own runtime for read-only diagnostic access. An injected 503 for `stock-cell.cemt`
+reproduces the missing-warning/missing-styles pattern; the new snapshot identifies
+`cem-element.src_load_failed`, the unregistered tag and the still-mounted card.
+This validates the evidence capture, not the cause of the original failure.
+
+The historical timeout remains open pending reproduction with this evidence.
+No stock predicate, base viewer, runtime behavior or startup timeout was changed.
+The independent native DOM-helper audit can proceed to its explicit
+[name-selection decision](dom-helper-native-review.tmp.md).

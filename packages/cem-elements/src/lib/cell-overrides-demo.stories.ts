@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import authoredPage from '../../demo/cell-overrides.html?raw';
+import { CemElementRuntime } from './cem-elements.js';
+import { createCemDeclarationScope } from './declaration-scope.js';
 
 const meta: Meta = { title: 'CEM Elements/Cell Template Overrides', tags: ['test'] };
 export default meta;
@@ -122,6 +124,79 @@ export const ConditionalStockFallback: Story = {
         await userEvent.click(controls.getByRole('button', { name: 'Reset source' }));
         await waitFor(() => expect(viewer.querySelectorAll('strong')).toHaveLength(1), { timeout: 10000 });
         expect(input.value).toBe(original);
+    },
+};
+
+export const DelayedStockDeclaration: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => { release = resolve; });
+        let requested = false;
+        const scope = createCemDeclarationScope({ document });
+        // Give this fixture its own registrations so an earlier story cannot
+        // satisfy readiness while this declaration is deliberately withheld.
+        const pageSource = authoredPage
+            .replaceAll('cem-element', 'cem-delayed-cell-declaration')
+            .replaceAll('cem-pokemon-cells', 'story-delayed-pokemon-cells')
+            .replaceAll('cem-stock-cells', 'story-delayed-stock-cells')
+            .replaceAll('cem-native-value-parent', 'story-delayed-native-value-parent')
+            .replaceAll('cem-native-value-card', 'story-delayed-native-value-card');
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-delayed-cell-declaration', declarationScope: scope,
+            loadSrcDocument: async (path, baseDocument) => {
+                const url = new URL(path, baseDocument.baseURI);
+                if (url.href === SOURCE_URL.href) return pageSource;
+                if (url.pathname.endsWith('/stock-cell.cemt')) {
+                    requested = true;
+                    await gate;
+                }
+                const response = await fetch(url);
+                if (!response.ok || !response.body) throw new Error(`Cannot load ${url}: ${response.status}`);
+                return { body: response.body, resolvedUrl: response.url,
+                    resolverIdentity: 'delayed-cell-fixture', contentType: response.headers.get('content-type') ?? undefined };
+            },
+        });
+        runtime.install(window);
+        const declaration = document.createElement(runtime.declarationTag);
+        declaration.setAttribute('tag', 'story-delayed-cell-page');
+        declaration.setAttribute('src', SOURCE_URL.href);
+        const page = document.createElement('story-delayed-cell-page');
+        canvasElement.append(declaration, page);
+        try {
+            await waitFor(() => expect(requested).toBe(true), { timeout: 10000 });
+            const pokemon = await ready(page, 'story-delayed-pokemon-cells');
+            const source = pokemon.querySelector('textarea') as HTMLTextAreaElement;
+            change(source, '<catalog><pokemon><id>3</id><title>venusaur</title></pokemon><pokemon><id>2</id><name>ivysaur</name></pokemon></catalog>');
+            await waitFor(() => expect(pokemon.querySelectorAll('img')).toHaveLength(1), { timeout: 10000 });
+            const owner = page.querySelector(`${runtime.declarationTag}[tag="story-delayed-stock-cells"]`) as HTMLElement;
+            const stock = page.querySelector('story-delayed-stock-cells') as HTMLElement;
+            expect(owner).not.toBeNull();
+            expect(customElements.get(stock.localName)).toBeUndefined();
+            expect(stock.querySelector('strong')).toBeNull();
+            expect(owner.querySelector('style[data-cem-declaration-style]')).toBeNull();
+
+            release();
+            await runtime.whenDeclarationSettled(owner);
+            await runtime.whenRenderSettled(stock);
+            await waitFor(() => expect(stock.querySelector('strong')).toHaveTextContent('Out of stock (0)'), { timeout: 10000 });
+            expect(stock.querySelectorAll('strong')).toHaveLength(1);
+            expect(owner.querySelector('style[data-cem-declaration-style]')).not.toBeNull();
+            expect(runtime.diagnosticsFor(owner)).toEqual([]);
+            expect(runtime.diagnosticsFor(stock)).toEqual([]);
+            const stockSource = stock.querySelector('textarea') as HTMLTextAreaElement;
+            expect(stockSource.value).toContain('<name>Cherry</name><stock>0</stock>');
+            change(stockSource, stockSource.value.replace('<stock>0</stock>', '<stock>7</stock>'));
+            await waitFor(() => {
+                expect(stock.querySelector('table')).toHaveTextContent('7');
+                expect(stock.querySelector('strong')).toBeNull();
+            }, { timeout: 10000 });
+        } finally {
+            release();
+            page.remove();
+            declaration.remove();
+            scope.dispose();
+        }
     },
 };
 
