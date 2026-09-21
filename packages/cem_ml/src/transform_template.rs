@@ -105,7 +105,7 @@ pub const CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS: &[TransformTemplateNativeElementS
         local_name: "template",
         required_attributes: &["name"],
         optional_attributes: &["visibility"],
-        child_elements: &["param", "body"],
+        child_elements: &["param", "body", "*"],
     },
     TransformTemplateNativeElementSchema {
         local_name: "body",
@@ -24056,6 +24056,18 @@ impl TransformTemplateModuleOptions {
     }
 }
 
+/// Shared declaration rule for native module preflight and template compilation.
+/// Parameters and formatting whitespace are excluded from direct content.
+pub fn template_body_layout_error(body_count: usize, has_direct_content: bool) -> Option<&'static str> {
+    if body_count > 1 {
+        Some("a template may declare at most one explicit `body`")
+    } else if body_count == 1 && has_direct_content {
+        Some("a template must use either direct content or an explicit `body`, not both")
+    } else {
+        None
+    }
+}
+
 pub fn parse_cem_native_template_module_options(
     request: TransformTemplateModuleParseRequest,
 ) -> TransformTemplateModuleParseResponse {
@@ -24348,6 +24360,27 @@ impl NativeTemplateModuleLowerer<'_> {
 
     fn lower_template(&mut self, template_id: AstNodeId) {
         let attrs = template_collect_attrs(self.document, template_id);
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(template_id) else {
+            return;
+        };
+        let body_count = children.iter().filter(|child| {
+            template_element_name(self.document, **child) == Some("body")
+        }).count();
+        let has_direct_content = children.iter().any(|child| {
+            if matches!(template_element_name(self.document, *child), Some("param" | "body")) {
+                return false;
+            }
+            match self.document.get(*child) {
+                Some(CemAstNode::Whitespace { .. }) => false,
+                Some(CemAstNode::Text { data, .. } | CemAstNode::RawText { data, .. }) if data.trim().is_empty() => false,
+                _ => true,
+            }
+        });
+        if let Some(message) = template_body_layout_error(body_count, has_direct_content) {
+            self.push_call_diag(template_node_source_map(self.document, template_id).as_ref(),
+                TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
+            return;
+        }
         // Expression hooks are renderer declarations, not named module entrypoints.
         if attr_value(&attrs, "", "on").as_deref() == Some("expression") {
             return;
@@ -24365,22 +24398,11 @@ impl NativeTemplateModuleLowerer<'_> {
                 visibility,
             });
 
-        let Some(CemAstNode::Element { children, .. }) = self.document.get(template_id) else {
-            return;
-        };
         for child in children {
-            let Some(child_name) = template_element_name(self.document, *child) else {
-                continue;
-            };
-            match child_name {
-                "param" => self.lower_param(*child, Some(&name)),
-                "body" => self.collect_body_expressions(*child, Some(&name)),
-                other => self.push_diag(
-                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
-                    format!(
-                        "`{other}` is not valid inside CEM-native template declaration `{name}`"
-                    ),
-                ),
+            match template_element_name(self.document, *child) {
+                Some("param") => self.lower_param(*child, Some(&name)),
+                Some("body") => self.collect_body_expressions(*child, Some(&name)),
+                _ => self.collect_expressions_in_subtree(*child, Some(&name)),
             }
         }
     }

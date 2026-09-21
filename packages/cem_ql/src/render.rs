@@ -2074,7 +2074,7 @@ impl TemplateCompiler<'_> {
                 frame_for(&start),
             ));
         }
-        let children = if self.should_skip_cemt_function_body(&tag) {
+        let mut children = if self.should_skip_cemt_function_body(&tag) {
             self.skip_children(&tag);
             Vec::new()
         } else {
@@ -2083,6 +2083,26 @@ impl TemplateCompiler<'_> {
             self.element_stack.pop();
             children
         };
+        if local_template_name(&tag) == "template"
+            && attributes.iter().any(|attribute| matches!(attribute.name.as_str(), "name" | "match" | "on"))
+        {
+            let body_count = children.iter().filter(|child| {
+                matches!(child, TemplateNode::Element { tag, .. } if local_template_name(tag) == "body")
+            }).count();
+            let has_direct_content = children.iter().any(|child| match child {
+                TemplateNode::Element { tag, .. } if matches!(local_template_name(tag), "param" | "body") => false,
+                TemplateNode::Text { text, .. } if text.trim().is_empty() => false,
+                _ => true,
+            });
+            if let Some(message) = cem_ml::transform_template::template_body_layout_error(body_count, has_direct_content) {
+                self.diagnostics.push(render_diagnostic(
+                    cem_ml::transform_template::TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+                    message.into(), start.byte_range.start, frame_for(&start),
+                ));
+                // Do not silently render only the first body from an invalid declaration.
+                children.clear();
+            }
+        }
         let instruction = match local_template_name(&tag) {
             "result-sequence" => Some(ResultInstruction::Sequence),
             "result-element" => Some(ResultInstruction::Element),
@@ -4537,7 +4557,7 @@ mod tests {
                     name: "title".to_owned(),
                     namespace: None,
                     value: "A&B".to_owned(),
-                    value_stream: ItemStream::empty(),
+                    value_stream: ItemStream::once(Item::Atomic(AtomValue::String("A&B".into()))),
                     source_map: stack(3, 12),
                 }],
                 children: vec![RenderPlanNode::Text {
@@ -4689,7 +4709,7 @@ mod tests {
                         name: "id".to_owned(),
                         namespace: None,
                         value: "a&b".to_owned(),
-                        value_stream: ItemStream::empty(),
+                        value_stream: ItemStream::once(Item::Atomic(AtomValue::String("a&b".into()))),
                         source_map: stack(8, 8),
                     }],
                     children: vec![

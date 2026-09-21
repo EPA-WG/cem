@@ -39,6 +39,22 @@ namespace binding, text model, and Linux-style LF (`\n`) formatter output by
 default. `lineEnding` is a generic formatter option; package-specific template
 options must only be added for template-specific semantics.
 
+## Template bodies
+
+Named templates accept direct output content or one explicit `{body | ...}`.
+For example, `{template @name=label | {strong | Label}}` and
+`{template @name=label | {body | {strong | Label}}}` have the same body.
+Both forms support `param` declarations, public/private visibility, calls and
+expression collection. Imports use the same native parsing rule as direct
+rendering. Named module entrypoints still require `@name`; the module's default
+entrypoint and transform functions retain their explicit `body` syntax.
+
+Mixing direct output with an explicit body, or supplying multiple bodies,
+produces `cem.transform_template.declaration_invalid`. Formatting whitespace
+and parameters may surround the explicit body; output comments belong inside it.
+See [CEMT compact templates](../../../../../docs/cemt-native-values.md#compact-template-bodies)
+for matching templates and expression hooks.
+
 ## Parser Facts And Diagnostics
 
 Native parsing extracts the byte-accurate CEM-ML tree, namespace bindings,
@@ -56,6 +72,7 @@ attribute contracts and the diagnostic codes for template-specific policy:
 - `cem.template.call_unknown`
 - `cem.template.param_default_expr_reserved`
 - `cem.transform_template.let_expr_invalid`
+- `cem.transform_template.declaration_invalid`
 
 Current incomplete boundary: some parser and semantic diagnostics are still
 selected by Rust after extracting template facts. The target shape is the same

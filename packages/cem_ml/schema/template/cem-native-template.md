@@ -19,7 +19,7 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 | `module` | none | `version` | `import`, `param`, `template`, `body` |
 | `import` | `as`, `src` | `content-type`, `contentType`, `schema` | none |
 | `param` | `name` | `default`, `default-expr`, `defaultExpr`, `nullable`, `required`, `type`, `visibility` | none |
-| `template` | `name` | `visibility` | `param`, `body` |
+| `template` | `name` | `visibility` | `param`, `body`, ordinary output content |
 | `body` | none | none | `*` |
 | `call` | `template` | `from`, `with:*` | none |
 
@@ -30,7 +30,10 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 - `module` may declare imports, module params, named templates, and one default
   `body`.
 - The module-level `body` is the implicit render entrypoint.
-- `template @name="NAME"` declares an explicit named entrypoint.
+- `template @name="NAME"` declares an explicit named entrypoint. Its output may
+  be direct content or one explicit `body`. Mixed direct content and `body`,
+  or multiple bodies, are invalid. Params and formatting whitespace may
+  accompany either form; output comments belong inside the selected body.
 - Declarations are private by default. `@visibility="public"` is required for
   cross-module template entrypoints.
 - `param` declarations are immutable for a render call. `@type` may be `any`,

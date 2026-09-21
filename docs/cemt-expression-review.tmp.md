@@ -1,6 +1,32 @@
 # CEMT expression insertion — temporary proposal review
 
-## Pending decision: compact module template bodies (R11/R12)
+## Compact module template bodies (R11/R12)
+
+**Selected by the user on 2026-09-21: align shared module preflight with compact
+named/matching template bodies.** CEM-ML now collects parameters, calls, let
+bindings and encoding expressions from direct bodies using the existing subtree
+walker. Entrypoint visibility, module defaults and transform-function bodies
+retain their existing rules. A shared layout check rejects mixed direct output
+and explicit bodies, and duplicate bodies. Parameters and whitespace are allowed
+beside a wrapper; output comments count as content. Invalid declarations do not
+render an arbitrarily selected body.
+
+The inline Pokémon rule now uses its implicit `node` and direct content. The
+maintained [contract](cemt-native-values.md#compact-template-bodies), native schema
+and CEM transform schema describe both forms. Native parser, renderer, adapter,
+WASM preflight and browser verification are tracked by `CEMT-COMPACT-TEMPLATES`.
+Render engine 1.5.6 invalidates earlier previews.
+
+Verification passed: 23 focused CEM-ML tests, 133 CEM-QL tests, 96 adapter tests
+and workspace test compilation; build, typecheck, lint (two existing warnings),
+408 runtime unit tests, the compact-body WASM fixture and both portable-value
+transport fixtures. All three browser stories and focused standalone/source-loaded
+interactions pass, together with real-card checks at 1440px, 390px and 320px.
+Two older manual render-plan fixtures now populate native attribute streams;
+their expected output and source-map assertions are unchanged. The immediate
+cell/expression/DX work is complete. Deferred Storybook stabilization is next.
+
+Original review and reproduction:
 
 The 2026-09-21 DX audit found a parser/renderer disagreement while simplifying
 the inline Pokémon rule. Removing its redundant `param @name=node` works.
@@ -32,9 +58,9 @@ This is a shared declaration grammar choice, not a viewer presentation change.
 | **Recommended: align shared module preflight with the renderer's compact named/matching template bodies.** Keep explicit `body` valid, separate `param` declarations from direct content, preserve entrypoint visibility and expression collection. Define and reject ambiguous mixtures of direct content and explicit bodies. | One template-body convention works with and without imports; the Pokémon rule can use its implicit `node` and a direct body. | Extends the shared module declaration grammar and requires native parser, adapter, WASM preflight and browser regressions. |
 | Keep explicit `body` mandatory in named module templates. | Retains the strict declaration/content boundary and needs no new syntax. | The compact form remains context-dependent; direct module compilation must also reject it so native and browser behavior agree. |
 
-No grammar change is included in the reference-constructor increment. The
-operation guide now documents the current boundary. `CEMT-COMPACT-TEMPLATES`
-in [TODO](todo.md) tracks the decision and verification. Storybook stabilization
+The reference-constructor increment kept the explicit wrapper. The user's
+selection above authorizes the grammar alignment; `CEMT-COMPACT-TEMPLATES`
+in [TODO](todo.md) tracks implementation and verification. Storybook stabilization
 remains after the immediate cell/expression work.
 
 ## Constructor reference inputs (R01/R09/R11)
@@ -59,7 +85,7 @@ compilation; build, typecheck, lint (two existing warnings), 408 runtime unit
 tests, both WASM transport fixtures, all three cell browser stories and focused
 standalone/source-loaded interactions. The three real demo cards also pass
 1440px two-column and 390px/320px containment checks. Base viewers are unchanged.
-The compact module-body choice above is the remaining DX item.
+At that checkpoint, the compact module-body choice above was the remaining DX item.
 
 The original reproduction and alternatives below remain as review history.
 Implementation and verification are tracked by `CEMT-CONSTRUCTOR-REFERENCES`

@@ -117,10 +117,10 @@ focus is an error. For example:
 {template @on=expression @into=attribute | {$dom:text()}}
 ```
 
-Matching supplies `node` without a redundant parameter declaration. Direct
-bodies are available outside explicit modules and in expression hooks; named
-module templates still require a `body` wrapper for import preflight. See the
-[compact forms and current boundary](../../docs/cemt-native-values.md#compact-template-bodies).
+Matching supplies `node` without a redundant parameter declaration. Matching,
+named and expression-hook templates accept direct bodies, including imported
+module templates. Use direct content or one explicit `body`; mixed and duplicate
+bodies are errors. See the [compact forms](../../docs/cemt-native-values.md#compact-template-bodies).
 
 Attribute bodies and `@value` interpolation both use attribute hooks. Controls
 and template calls retain that destination and its metadata; constructed node

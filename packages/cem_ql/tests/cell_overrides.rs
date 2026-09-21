@@ -55,6 +55,18 @@ fn render_native(template: &str, source: &str, mut slices: Vec<(&str, Item)>) ->
                 ("slices", record(slices)),
             ])),
         );
+    // Browser import discovery runs this shared preflight before compiling the closure.
+    let preflight = cem_ml::transform_template::parse_cem_native_template_module_options(
+        cem_ml::transform_template::TransformTemplateModuleParseRequest {
+            template: cem_ml::engine::TemplateInput {
+                uri: "https://example.test/demo/cell.cemt".into(),
+                bytes: template.as_bytes().to_vec(),
+                identity: None,
+                root_scope: Default::default(),
+            },
+        },
+    );
+    assert!(preflight.diagnostics.is_empty(), "{:?}", preflight.diagnostics);
     let artifact = compile_template_module_closure(
         template,
         &TemplateModuleClosure {

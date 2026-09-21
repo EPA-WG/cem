@@ -1652,7 +1652,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         27 standalone pages and 33 source-loaded documents. Desktop two-card
         and 390px/320px containment checks, all 401 unit checks, build, lint
         and typecheck pass.
-- [ ] Fixture DATA-CELL-MATCH-1: add separate `cem-element` samples whose
+- [x] Fixture DATA-CELL-MATCH-1: add separate `cem-element` samples whose
       own CEMT modules import the existing data-view template and override
       a particular cell's data presentation through CEM-QL template matching.
       This is the immediate task, ahead of Storybook stabilization. Preserve
@@ -1706,7 +1706,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         views, denied scope, cancellation, extraction budgets and lower child-scope
         memory limits; update the Pokémon fixtures for typed `{$node}` insertion
         and explicit `dom:text` extraction.
-  - [ ] Implement the accepted expression/value direction recorded in
+  - [x] Implement the accepted expression/value direction recorded in
         [the proposal review](./cemt-expression-review.tmp.md), using the shared
         CEM value model and immutable retained source owners.
     - [x] Fixture CEMT-VALUES: `dom:text` explicit/implicit focus, retained
@@ -1872,7 +1872,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           The full gallery verifier stops at the pre-existing data-table selector
           issue recorded under DATA-TABLE-VERIFIER-SELECTORS below.
           The full expression proposal remains open at the cases listed above.
-    - [ ] Polish DX for text, reference, clone, element and explicit template
+    - [x] Polish DX for text, reference, clone, element and explicit template
           dispatch operations; consider matching compact forms for other template
           types as requested during review. Do not add confusing copy/copy-of aliases.
       - [x] Fixture CEMT-CONSTRUCTOR-REFERENCES: audit `dom:clone` and
@@ -1894,17 +1894,29 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             Both WASM worker/file/fallback fixtures pass with constructor parity.
             The operation guide documents `.targets` selection and migration;
             no aliases or new element-construction overloads were introduced.
-      - [ ] Fixture CEMT-COMPACT-TEMPLATES: resolve the shared module-body
-            grammar decision, then align native compile and browser preflight
-            with the selected syntax. The native renderer accepts compact named
-            template bodies, but CEM-ML module preflight rejects their direct
-            `variable`/`td` content. Recommended: accept compact named/matching
-            bodies in shared module parsing, preserving explicit bodies and
-            rejecting ambiguous mixtures. The tested alternatives are in the
-            [review](./cemt-expression-review.tmp.md#pending-decision-compact-module-template-bodies-r11r12).
-            Current docs explain the boundary; the Pokémon sample uses implicit
-            `node` and keeps its working `body` wrapper. Verify parser/adapter,
-            WASM preflight, imported fallback and browser rendering after selection.
+      - [x] Fixture CEMT-COMPACT-TEMPLATES: implement the user-approved compact
+            module-body grammar (2026-09-21). Align shared module preflight and
+            direct compilation, preserve parameters and visibility, and reject
+            mixed/duplicate bodies. Native parser/renderer fixtures now cover
+            text, comments, call/encoding collection, source positions, private
+            imports and unchanged transform-function syntax. The real adapter
+            uses compact imported entrypoints; the Pokémon demo uses implicit
+            `node` and direct content. Downstream WASM preflight and browser
+            checks pass. The selected contract is recorded in
+            [the review](./cemt-expression-review.tmp.md#compact-module-template-bodies-r11r12).
+        - [x] Migrate the two hand-built source-map renderer fixtures to populate
+              native attribute value streams. They set only the final text field,
+              so native projection emitted empty attributes. Their expected
+              HTML/XML and source-map assertions are unchanged and pass.
+            Completed 2026-09-21: 23 focused CEM-ML tests, 133 CEM-QL tests,
+            96 adapter tests and workspace test compilation pass. Build,
+            typecheck, all 408 runtime unit tests and lint pass (two existing
+            warnings). The new compact-body WASM fixture and both worker/file/
+            fallback fixtures pass, as do all three browser stories and focused
+            standalone/source-loaded interactions. The real cards pass 1440px
+            two-column and 390px/320px containment checks. Base viewer code is
+            unchanged. DATA-CELL-MATCH-1 and its expression/DX work are complete;
+            proceed to the deferred Storybook stabilization below.
   - [x] Inspect current dispatch and local legacy collapse code; record the
         findings in the [presentation override discussion](../packages/cem-elements/docs/xml-viewer-migration.md#cell-presentation-overrides).
         Current tables already use native disclosure. Legacy tree branches
@@ -1972,6 +1984,11 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       source-loaded gallery mounts in one document. A second hex-grid story
       using the same source registration rendered unstyled links; isolate
       registration reuse and unmount/remount cleanup from startup timing.
+- [ ] Fixture: during Storybook stabilization, preserve authored source in real
+      source-loaded `cem-demo-element` cards. The cell layout audit shows runtime
+      `data-cem-render-node-id` and artifact/revision attributes in displayed source,
+      while the standalone cards show authored markup. Trace source/provenance
+      capture and add a source-loaded regression without changing viewer behavior.
 - [x] Fixture: add an independent anonymous whole-file XSLT example, proving
       the existing bounded native transform path before browser wiring and
       testing rendered payload, disclosure interaction, and source resolution.

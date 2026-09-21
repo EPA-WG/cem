@@ -418,9 +418,9 @@ cells dispatch their original retained subjects through `cell` mode. The base
 - The first sample inlines its entire template. Its primitive predicate is
   `node.name == "name"` in `cell` mode, with no explicit priority. The template
   receives the retained `name` node through the implicit `node` binding, without
-  a redundant parameter declaration. The module retains its explicit `body`
-  wrapper for native import preflight; compact module bodies remain
-  [under review](../../../docs/cemt-expression-review.tmp.md#pending-decision-compact-module-template-bodies-r11r12).
+  a redundant parameter declaration. Its direct body works through shared
+  native module preflight and browser imports; the optional `body` wrapper is
+  omitted. See the [compact body contract](../../../docs/cemt-native-values.md#compact-template-bodies).
   `dom:parent` and `dom:children` find
   its sibling `id`, selecting the first match in source order with
   `(sibling.name ?? "") == "id"`. The fallback skips nameless whitespace;

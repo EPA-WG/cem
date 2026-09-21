@@ -54,9 +54,9 @@ ordinary CEMT construction, such as `{name | ...}`, to author a named element.
 
 ### Compact template bodies
 
-Outside an explicit CEMT module, matching templates, named templates and
-expression hooks accept direct content without a `{body | ...}` wrapper. Matching supplies `node`; hooks supply
-`value` and `context`. Declare parameters when a named call needs additional
+Matching templates, named templates and expression hooks accept direct content
+without a `{body | ...}` wrapper, including inside imported CEMT modules.
+Matching supplies `node`; hooks supply `value` and `context`. Declare parameters when a named call needs additional
 inputs, not merely to repeat those implicit bindings:
 
 ```cem
@@ -67,13 +67,19 @@ inputs, not merely to repeat those implicit bindings:
 ```
 
 The named call inherits its caller's focus. Wrapping the same content in `body`
-does not change that focus or the insertion rules. Inside an explicit `{module}`,
-named template declarations currently require `{body | ...}` for import
-preflight. Expression hooks already accept direct bodies there. The inline
-[Pokémon cell example](../packages/cem-elements/demo/cell-overrides.html) therefore
-keeps its module body wrapper and uses the implicit `node` binding. Aligning
-compact named/matching bodies across module preflight and rendering remains
-[under review](cemt-expression-review.tmp.md#pending-decision-compact-module-template-bodies-r11r12).
+does not change that focus or the insertion rules. Use direct content or one
+explicit `body`; combining them, or declaring multiple bodies, is a compile
+error. Parameter declarations and formatting whitespace may accompany either
+form. Output comments count as content and belong inside the chosen body.
+Named and matching declarations inside a module still require `@name`;
+expression hooks are exempt. Visibility and function-body syntax are unchanged. The module's own default entrypoint still uses `body`.
+
+The inline [Pokémon cell example](../packages/cem-elements/demo/cell-overrides.html)
+uses the compact matching form and its implicit `node` binding. Module import
+preflight and direct compilation enforce the same body rule. Previously,
+preflight rejected compact named bodies and direct compilation silently chose
+the first explicit body when declarations were mixed. Move all output into one
+body, or remove the wrapper and use direct content.
 
 `dom:text` reads values decoded by CEM-ML import, including XML entity and
 line-ending normalization. It extracts each selected CEM text/CDATA node

@@ -1347,6 +1347,12 @@ behavior, including empty/nested references. Detached clones MUST still enforce
 source access checks and resource limits. `CEMT-CONSTRUCTOR-REFERENCES` tracks
 this contract and its worker/fallback verification.
 
+Native CEMT module preflight and rendering MUST accept compact named/matching
+template bodies as well as one explicit `body`, preserving parameters, call
+metadata, visibility and source provenance. Mixed direct output and an explicit
+body, or duplicate bodies, MUST be diagnosed without selecting an arbitrary
+body. `CEMT-COMPACT-TEMPLATES` tracks parser, adapter and browser parity.
+
 Imported expression-hook defaults MUST remain below active caller scopes;
 local declarations, priority and order resolve the remaining candidates.
 Receiver input declarations MUST validate native values independently of sender

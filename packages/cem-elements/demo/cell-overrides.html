@@ -31,7 +31,8 @@
             simply <code>node.name == "name"</code> in <code>cell</code> mode:
             <code>node</code> is the original <code>&lt;name&gt;</code> element.
             Matching supplies <code>node</code> automatically; it needs no
-            parameter declaration. The imported module uses an explicit body.
+            parameter declaration. Direct template content is its body, including
+            in an importing module; no body wrapper is needed.
             The replacement cell contains an image plus the original name.
             <code>{$node}</code> reuses the name subtree in the label.
             The image attribute projects that same native value to text.
@@ -90,16 +91,15 @@
     {import @as=base @src="./data-table-view.cemt"}
     {template @name=pokemon-name @mode=cell
         @match='node.name == "name"' |
-        {body |
-            {cem:variable @name=id @select='seq:first(seq:where(
-                dom:children(dom:parent(node)), fn(sibling) =>
-                    (sibling.name ?? "") == "id")).children.value'}
-            {td | {span @class=pokemon-name |
-                {cem:if @test='(datadom.slices.images ?? false)
-                    && (id ?? "") != ""' |
-                    {img @src="{$datadom.slices.images}{$id}.svg"
-                        @alt="{$node}" @width=32 @height=32}}
-                {$node}}}}}
+        {cem:variable @name=id @select='seq:first(seq:where(
+            dom:children(dom:parent(node)), fn(sibling) =>
+                (sibling.name ?? "") == "id")).children.value'}
+        {td | {span @class=pokemon-name |
+            {cem:if @test='(datadom.slices.images ?? false)
+                && (id ?? "") != ""' |
+                {img @src="{$datadom.slices.images}{$id}.svg"
+                    @alt="{$node}" @width=32 @height=32}}
+            {$node}}}}
     {body |
         {cem-module-url @slice=images @src="./pokemon/"}
         {call @from=base @template=viewer}}

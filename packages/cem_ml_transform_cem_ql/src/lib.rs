@@ -9920,7 +9920,7 @@ count + 1"#,
             uri: "template.cem".to_owned(),
             bytes: br#"{@doc cem-ml 1}
 {module |
-  {template @name="helper" | {body | {i | Root}}}
+  {template @name="helper" | {i | Root}}
   {body | {div | {call @from="ui" @template="icon"}}}
 }"#
             .to_vec(),
@@ -9950,9 +9950,8 @@ count + 1"#,
                         bytes: br#"{@doc cem-ml 1}
 {module |
   {template @name="icon" @visibility="public" |
-    {body | {span | Icon {call @template="helper"}}}
-  }
-  {template @name="helper" | {body | {i | Imported}}}
+    {span | Icon {call @template="helper"}}}
+  {template @name="helper" | {i | Imported}}
 }"#
                         .to_vec(),
                     }],

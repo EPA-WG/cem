@@ -29,7 +29,7 @@
         {element @name="module" @optional-attributes="version" @children="import param template body"}
         {element @name="import" @required-attributes="as src" @optional-attributes="content-type contentType schema"}
         {element @name="param" @required-attributes="name" @optional-attributes="default default-expr defaultExpr nullable required type visibility"}
-        {element @name="template" @required-attributes="name" @optional-attributes="visibility" @children="param body"}
+        {element @name="template" @required-attributes="name" @optional-attributes="visibility" @children="param body *"}
         {element @name="body" @children="*"}
         {element @name="let" @required-attributes="name" @optional-attributes="value expr expression nullable type"}
         {element @name="call" @required-attributes="template" @optional-attributes="from with:*"}
@@ -62,6 +62,7 @@
         {constraint @kind="single-module-root" @target="module" @policy="required"}
         {constraint @kind="single-implicit-body" @target="module" @policy="required"}
         {constraint @kind="unique-import-alias" @target="import" @policy="required"}
+        {constraint @kind="template-body-form" @target="template" @policy="direct content or one explicit body; param declarations and formatting whitespace may accompany either form"}
         {constraint @kind="unique-template-entrypoint" @target="template" @policy="required"}
         {constraint @kind="unique-param-name-per-scope" @target="param" @policy="required"}
         {constraint @kind="default-expr-reserved" @target="param" @policy="fatal in v1"}
@@ -82,6 +83,7 @@
         {diagnostic @code="cem.template.let_duplicate" @severity="error"}
         {diagnostic @code="cem.template.call_unknown" @severity="error"}
         {diagnostic @code="cem.template.param_default_expr_reserved" @severity="fatal"}
+        {diagnostic @code="cem.transform_template.declaration_invalid" @severity="fatal"}
         {diagnostic @code="cem.transform_template.let_expr_invalid" @severity="fatal"}
     }
 

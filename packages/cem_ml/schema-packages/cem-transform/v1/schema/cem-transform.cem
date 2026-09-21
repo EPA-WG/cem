@@ -27,7 +27,7 @@
         {element @name="module" @base="template:module" @children="import param template body function encoding-function format-function color-function"}
         {element @name="import" @base="template:import"}
         {element @name="param" @base="template:param"}
-        {element @name="template" @base="template:template" @children="param body"}
+        {element @name="template" @base="template:template" @children="param body *"}
         {element @name="body" @base="template:body" @children="*"}
         {element @name="let" @base="template:let"}
         {element @name="call" @base="template:call"}
