@@ -1338,3 +1338,10 @@ attribute content, reference relationships and origin metadata; MUST NOT use
 JSON document objects; and MUST enforce environment ceilings with CEM scope
 restrictions that can only lower them. Verification is tracked by CEMT-VALUES,
 CEMT-HOOKS, CEMT-ATTRIBUTE-TYPES, CEMT-VALUE-PIPELINE and CEMT-VALUE-TRANSPORT in TODO.
+
+Imported expression-hook defaults MUST remain below active caller scopes;
+local declarations, priority and order resolve the remaining candidates.
+Receiver input declarations MUST validate native values independently of sender
+contracts before rendering. Constructed and portable values MUST enter XPath
+through shared CEM-ML native projection, retaining source targets separately
+from output occurrences without any XML/JSON serialization and re-import.

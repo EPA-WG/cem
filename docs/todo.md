@@ -1711,17 +1711,28 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           `packages/cem_ql/tests/native-values-wasm.mjs`; native scalar, reference,
           source-key and graph-limit cases are in `tests/portable_values.rs`.
           Browser patch and saved-envelope cases are in `native-values.spec.ts`.
-    - [ ] Complete the remaining expression review cases: imported-module hook
-          defaults and caller precedence, explicit CEM-QL template dispatch,
-          destination schema binding for native inputs, and portable constructed
-          nodes as XPath inputs. Keep this distinct from the settled R08 transport.
+    - [ ] Complete explicit CEM-QL template dispatch; keep this distinct from the
+          settled R08 transport and the completed contract cases below.
+      - [x] Fixture CEMT-HOOK-INHERITANCE: imported defaults, caller overrides,
+            local priority/ties, native module calls, reload and failing predicates.
+      - [x] Fixture CEMT-RECEIVER-CONTRACT: receiver declarations validate native
+            and scalar inputs, preserve rich nodes, reject weaker sender contracts,
+            and behave identically after worker/file/fallback transport.
+      - [x] Fixture CEMT-CONSTRUCTED-XPATH: query constructed and portable values
+            directly through shared CEM projection, preserving occurrence parents,
+            repeated identity, namespaces, attribute values and bounded expansion.
+            Migrate the native XPath callback integration to the shared node adapter.
     - [ ] Finish scope/cancellation accounting for deferred text/markup projection
-          and native artifact export; cover denied host views without partial text.
+          and native artifact export; cover denied host views without partial text
+          and account for retained XPath indexes across query scopes.
     - [x] Update maintained syntax, acceptance criteria, package references and
           cell-overrides lessons; verify focused native then WASM/browser cases.
-          Verified: 93 focused CEM-QL tests, 95 transformation-adapter tests,
-          Rust workspace check, WASM/element build, the real worker/file/fallback
-          fixture, 408 runtime unit tests and 3 cell-override browser stories.
+          Verified after the contract follow-up: 142 focused CEM-QL tests,
+          96 transformation-adapter tests, the shared projection limit/cancellation
+          fixture and native XPath callback integration; workspace test compilation,
+          WASM/element build, the real worker/file/fallback fixture (including
+          receiver rejection, XPath and empty sequences), 408 runtime unit tests
+          and 3 cell-override browser stories.
           The full expression proposal remains open at the cases listed above.
     - [ ] Polish DX for text, reference, clone, element and explicit template
           dispatch operations; consider matching compact forms for other template

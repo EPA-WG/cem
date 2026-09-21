@@ -34,6 +34,16 @@ descendants. Scope exit restores the previous behavior. `@match` can inspect
 `context.attribute.name`, and `@returns` requests shared conversion and validation.
 A receiver's declared contract cannot be relaxed by an expression hook.
 
+Within a scope, higher priority wins, then the later declaration. A nearer
+lexical scope wins over every outer priority. Plain top-level hooks activate
+when encountered and capture the bindings available there. Module-level hooks
+are defaults for that module's entrypoints; caller scopes override those
+defaults across named calls, imported calls and the native transformation
+adapter. A declaration inside the called body establishes a nearer scope.
+Hook predicates and bodies fail the render on evaluation errors. Direct return
+expressions bypass redispatch, and active declarations cannot invoke themselves
+implicitly. Stable declaration identities survive compiled artifact reloads.
+
 An attribute retains an ordered native value sequence independently of its
 browser string projection. `type`, constraints and representation are separate:
 
@@ -54,13 +64,54 @@ HTML, XML and plain text are final representation choices; strings containing
 markup never become nodes by implicit parsing. Native child components receive
 the original sequence rather than parsing the projected DOM attribute.
 
+The receiving component declares its input contract in its template prelude:
+
+```cem
+{attribute @name=count @type=integer @minInclusive=1 @required=true}
+{attribute @name=day @type=date @required=true}
+{attribute @name=label @type=node @required=true}
+{article | {$label}{p | Next count: {$count + 1}}}
+```
+
+The native renderer validates inputs before evaluating the body. Receiver
+constraints apply independently of the sender's contract, including after
+worker transport or saved-artifact loading. Scalar conversion updates both the
+named binding and `datadom.attributes`; node inputs retain their identities.
+Missing optional inputs remain absent. `@required=true` rejects missing inputs.
+Native hosts can additionally supply `TemplateData.input_attribute_contracts`;
+these constraints also apply and are separate from output attribute contracts.
+An input error publishes no partial result.
+
+## XPath over constructed values
+
+XPath functions accept constructed CEM output and portable CEM values through
+a shared CEM-ML semantic projection. It builds a cached native index on first
+use, without exporting XML, JSON or reparsing text. The original values remain
+immutable and retain their owners; subsequent queries reuse the index.
+
+XPath sees inserted references as their content at the output location. Repeated
+insertions have distinct occurrence identities and output parents. Detached
+roots have no fabricated document parent. Explicit reference targets keep
+source parents and identity; CEM-QL accesses them through `.targets`. Adjacent
+text is coalesced according to XPath semantics. Attribute string values derive
+from native segments, while CEM-QL retains those segments and their contracts.
+Namespaces, source-selection keys, origin URIs and line numbers survive the
+projection. The native projection checks graph, expansion, depth and byte limits
+and polls execution control while constructing its index.
+
 ## Portable artifacts: accepted R08 transport
 
-CEM-ML owns the `CEMV` version-1 binary value artifact. It contains a flat native
+CEM-ML owns the `CEMV` version-2 binary value artifact. It contains a flat native
 value graph with ordered roots, children, attributes, reference targets and
 native attribute segments. Scalars keep their datatype; attributes keep their
 shared schema contract and representation. Records retain source frames and
 available origin URI, source-selection key and line metadata.
+Version 2 additionally distinguishes output occurrences from standalone target
+references, including root insertions, and preserves an explicitly empty native
+attribute sequence separately from an imported attribute's lexical value.
+Version-1 artifacts remain readable with
+their original reference interpretation. The named browser transport envelope
+is unchanged; the binary artifact carries its own version.
 
 Repeated references within one artifact address the same target record. A
 receiving worker creates a new local owner and identities, preserving those

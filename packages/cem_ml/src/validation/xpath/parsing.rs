@@ -77,7 +77,7 @@ pub(super) fn evaluate(
             if node.result_node_kind() != XPathResultNodeKind::Document {
                 None
             } else {
-                node.owner().document_uri()
+                node.document_uri()
             }
         } else {
             node.base_uri()

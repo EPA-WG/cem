@@ -28,6 +28,7 @@ mod construction;
 mod interpolation;
 mod references;
 mod hooks;
+pub use hooks::ExpressionScope;
 mod attributes;
 pub use attributes::project_attribute_value;
 pub use references::expand_reference;
@@ -69,6 +70,10 @@ pub struct TemplateData {
     /// Resolved schema types and destination attribute contracts supplied by the host.
     pub value_types: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
     pub attribute_contracts: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
+    /// Runtime-only caller scope, carried by native template calls.
+    pub expression_scope: ExpressionScope,
+    /// Receiver input schema; independent of output attribute construction.
+    pub input_attribute_contracts: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
 }
 
 impl TemplateData {
@@ -82,26 +87,9 @@ impl TemplateData {
             return Err("A native CEM attribute is required".into());
         }
         let name = string_field("name").filter(|name| !name.is_empty()).ok_or("A native attribute needs a name")?;
-        let mut values = view.field("values").unwrap_or_default();
-        if values.is_empty() {
-            values = view.field("value").unwrap_or_default();
-        }
-        self.bindings.insert(name.clone(), ItemStream::from_items(values.clone()));
-        // Control records are host envelopes, never substitutes for the native
-        // document values they contain.
-        fn fields(stream: &mut ItemStream) -> Option<&mut BTreeMap<String, Vec<Item>>> {
-            match stream.items.as_mut_slice() { [Item::Record(fields)] => Some(fields), _ => None }
-        }
-        if let Some(attributes) = self.bindings.get_mut("attributes").and_then(fields) {
-            attributes.insert(name.clone(), values.clone());
-        }
-        if let Some(datadom) = self.bindings.get_mut("datadom").and_then(fields) {
-            if let Some(attributes) = datadom.get_mut("attributes") {
-                if let [Item::Record(attributes)] = attributes.as_mut_slice() {
-                    attributes.insert(name, values);
-                }
-            }
-        }
+        let values = view.field("values").unwrap_or_else(|| view.field("value").unwrap_or_default());
+
+        bind_attribute_values(&mut self.bindings, &name, values);
         Ok(())
     }
 
@@ -353,6 +341,7 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     };
     let mut compiler = TemplateCompiler {
         tokens: &tokens,
+        source_identity: cem_ml::content_cache::ContentHash::from_blake3(source.as_bytes()).header_value(),
         index: 0,
         compile_context,
         diagnostics: tokenizer.take_diagnostics(),
@@ -558,6 +547,7 @@ pub fn compile_template_module_closure(
         );
         root.diagnostics.extend(artifact.diagnostics);
         root.stylesheets.extend(artifact.stylesheets);
+        let mut declarations = hooks::module_hook_nodes(&artifact.nodes);
         for (index, mut declaration) in collect_template_declarations(&artifact.nodes)
             .into_iter()
             .enumerate()
@@ -581,8 +571,9 @@ pub fn compile_template_module_closure(
                     });
                 }
             }
-            imported_templates.push(declaration);
+            declarations.push(declaration);
         }
+        imported_templates.push(TemplateNode::Element { tag: "module".into(), attributes: vec![TemplateAttribute { name: "__cem-module-uri".into(), value: Some(TemplateAttributeValue::Literal(module_uri.into())), source_map: SourceMapStack::default() }], children: declarations, source_map: SourceMapStack::default() });
     }
     root.nodes.extend(imported_templates);
     root
@@ -975,7 +966,7 @@ fn render_compiled_template_internal(
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),
             policy_bindings,
-            current_item: None,
+            current_item: data.expression_scope.focus.clone(),
             module_resolution: None,
             native_functions: data.native_functions.clone(),
             data_readers: data.data_readers.clone(),
@@ -983,7 +974,7 @@ fn render_compiled_template_internal(
         diagnostics: artifact.diagnostics.clone(),
         templates,
         match_rules,
-        call_depth: 0,
+        call_depth: data.expression_scope.call_depth,
         max_call_depth: MAX_TEMPLATE_CALL_DEPTH,
         safe_points: control.map(|(control, scope)| SafePointPoller::new(control.clone(), scope)),
         control: control.map(|(control, scope)| (control.clone(), scope)),
@@ -995,7 +986,7 @@ fn render_compiled_template_internal(
         result_depth: 0,
         text_memory: Vec::new(),
         hook_scopes: vec![Vec::new()],
-        active_hooks: Vec::new(),
+        active_hooks: data.expression_scope.active.clone(),
         capture_depth: None,
         render_scope_depth: 0,
         value_types: data.value_types.clone(),
@@ -1005,6 +996,7 @@ fn render_compiled_template_internal(
     };
     let mut nodes = ResultBuffer::default();
     renderer.apply_attribute_declaration_selects(&artifact.nodes, &mut host_attribute_updates);
+    renderer.validate_receiver_inputs(&artifact.nodes, &data.input_attribute_contracts);
     let boundary_source = artifact
         .nodes
         .first()
@@ -1013,6 +1005,7 @@ fn render_compiled_template_internal(
         .unwrap_or_default();
     if renderer.force_render(&boundary_source) {
         renderer.register_module_hooks(&artifact.nodes);
+        renderer.hook_scopes.extend(data.expression_scope.scopes.clone());
         for node in root_render_nodes(&artifact.nodes) {
             let mut ignored_attributes = Vec::new();
             renderer.render_into(node, &mut nodes, &mut ignored_attributes);
@@ -1104,6 +1097,20 @@ fn merge_data_documents(mut explicit: ItemStream, synthesized: ItemStream) -> It
         }
     }
     explicit
+}
+
+fn bind_attribute_values(bindings: &mut BTreeMap<String, ItemStream>, name: &str, values: Vec<Item>) {
+    bindings.insert(name.into(), ItemStream::from_items(values.clone()));
+    fn fields(stream: &mut ItemStream) -> Option<&mut BTreeMap<String, Vec<Item>>> {
+        match stream.items.as_mut_slice() { [Item::Record(fields)] => Some(fields), _ => None }
+    }
+    if let Some(attributes) = bindings.get_mut("attributes").and_then(fields) {
+        attributes.insert(name.into(), values.clone());
+    }
+    if let Some(datadom) = bindings.get_mut("datadom").and_then(fields) {
+        let attributes = datadom.entry("attributes".into()).or_insert_with(|| vec![Item::Record(BTreeMap::new())]);
+        if let [Item::Record(attributes)] = attributes.as_mut_slice() { attributes.insert(name.into(), values); }
+    }
 }
 
 fn set_current_data_document_attribute(
@@ -1694,6 +1701,7 @@ impl RenderPlanXmlRenderer {
 }
 
 struct TemplateCompiler<'a> {
+    source_identity: String,
     tokens: &'a [SchemaToken],
     index: usize,
     compile_context: CompileContext,
@@ -2004,12 +2012,17 @@ impl TemplateCompiler<'_> {
         };
         let tag = name.clone();
         self.index += 1;
-        let attributes = self.parse_attributes(&tag);
+        let mut attributes = self.parse_attributes(&tag);
+        if local_template_name(&tag) == "template" && literal_template_attribute(&attributes, "on").as_deref() == Some("expression") {
+            attributes.push(TemplateAttribute { name: "__cem-hook-id".into(), value: Some(TemplateAttributeValue::Literal(format!("{}:{}", self.source_identity, start.byte_range.start))), source_map: frame_for(&start) });
+        }
         if local_template_name(&tag) == "template"
-            && attributes.iter().any(|attribute| attribute.name == "match")
+            && attributes.iter().any(|attribute| attribute.name == "match" || attribute.name == "on")
         {
             for attribute in &attributes {
                 let valid = match attribute.name.as_str() {
+                    "on" => matches!(&attribute.value, Some(TemplateAttributeValue::Literal(value)) if value == "expression"),
+                    "into" => matches!(&attribute.value, Some(TemplateAttributeValue::Literal(value)) if value == "content" || value == "attribute"),
                     "match" => attribute.value.is_some(),
                     "mode" => matches!(attribute.value, Some(TemplateAttributeValue::Literal(_))),
                     "priority" => {
@@ -2611,7 +2624,7 @@ impl TemplateCompiler<'_> {
 struct PlanRenderer<'a> {
     evaluation_context: EvaluationContext,
     diagnostics: Vec<Diagnostic>,
-    templates: BTreeMap<String, Vec<TemplateNode>>,
+    templates: BTreeMap<String, TemplateBody>,
     match_rules: Vec<MatchRule>,
     call_depth: usize,
     max_call_depth: usize,
@@ -2628,7 +2641,7 @@ struct PlanRenderer<'a> {
     // not total heap accounting or ownership of the returned render plan.
     text_memory: Vec<cem_ml::operation_control::MemoryPermit>,
     hook_scopes: Vec<Vec<hooks::ExpressionHook>>,
-    active_hooks: Vec<usize>,
+    active_hooks: Vec<String>,
     capture_depth: Option<usize>,
     render_scope_depth: usize,
     value_types: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
@@ -2837,6 +2850,8 @@ impl PlanRenderer<'_> {
                             data_readers: self.evaluation_context.data_readers.clone(),
                             value_types: self.value_types.clone(),
                             attribute_contracts: self.attribute_contracts.clone(),
+                            input_attribute_contracts: BTreeMap::new(),
+                            expression_scope: ExpressionScope { scopes: self.hook_scopes.clone(), active: self.active_hooks.clone(), focus: self.evaluation_context.current_item.clone(), call_depth: self.call_depth + 1 },
                         },
                         self.recovery_depth > 0,
                     );
@@ -3125,7 +3140,7 @@ impl PlanRenderer<'_> {
             for rule in rules.iter().filter(|rule| rule.mode == mode) {
                 if self.test_is_truthy(Some(&rule.test)) {
                     self.call_depth += 1;
-                    self.render_nodes_scoped(&rule.body, out, parent_attributes);
+                    self.render_template_body(&rule.body, out, parent_attributes);
                     self.call_depth -= 1;
                     break;
                 }
@@ -3210,7 +3225,7 @@ impl PlanRenderer<'_> {
         }
 
         self.call_depth += 1;
-        self.render_nodes_scoped(&template_nodes, out, parent_attributes);
+        self.render_template_body(&template_nodes, out, parent_attributes);
         self.call_depth -= 1;
 
         for (name, value) in previous {
@@ -3271,7 +3286,7 @@ impl PlanRenderer<'_> {
         let stream = self.evaluate_query(query);
         self.diagnostics.extend(stream.diagnostics.clone());
         if let Some(error) = stream.error {
-            self.diagnostics.push(render_diagnostic(
+            self.template_failure(render_diagnostic(
                 "cem.ql.render.test_failed",
                 format!("conditional test `{}` failed: {error:?}", test.source),
                 test.byte_offset,
@@ -3494,7 +3509,7 @@ impl PlanRenderer<'_> {
         let stream = self.evaluate_query(query);
         self.diagnostics.extend(stream.diagnostics.clone());
         if let Some(error) = stream.error {
-            self.diagnostics.push(render_diagnostic(
+            self.template_failure(render_diagnostic(
                 "cem.ql.render.eval_failed",
                 format!(
                     "template expression `{}` failed: {error:?}",
@@ -3780,7 +3795,7 @@ fn is_top_level_declaration(node: &TemplateNode) -> bool {
             "attribute" | "slice" | "param" => true,
             "template" => {
                 declaration_name(attributes).is_some()
-                    || attributes.iter().any(|a| a.name == "match")
+                    || attributes.iter().any(|a| a.name == "match" || a.name == "on")
             }
             _ => false,
         },
@@ -3905,7 +3920,7 @@ fn root_render_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
                 continue;
             }
         }
-        if !is_top_level_declaration(node) {
+        if !is_top_level_declaration(node) || hooks::is_expression_hook(node) {
             roots.push(node);
         }
     }
@@ -3940,17 +3955,23 @@ fn module_body_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
 }
 
 #[derive(Debug, Clone)]
+struct TemplateBody {
+    defaults: Vec<TemplateNode>,
+    nodes: Vec<TemplateNode>,
+}
+
+#[derive(Debug, Clone)]
 struct MatchRule {
     test: CompiledTemplateExpression,
     mode: String,
     priority: i64,
     local: bool,
     order: usize,
-    body: Vec<TemplateNode>,
+    body: TemplateBody,
 }
 
 fn collect_match_rules(nodes: &[TemplateNode]) -> Vec<MatchRule> {
-    fn visit(nodes: &[TemplateNode], rules: &mut Vec<MatchRule>) {
+    fn visit(nodes: &[TemplateNode], defaults: &[TemplateNode], rules: &mut Vec<MatchRule>) {
         for node in nodes {
             let TemplateNode::Element {
                 tag,
@@ -3976,46 +3997,36 @@ fn collect_match_rules(nodes: &[TemplateNode]) -> Vec<MatchRule> {
                         local: !declaration_name(attributes)
                             .is_some_and(|name| name.starts_with("__cem_module:")),
                         order: rules.len(),
-                        body: template_body_nodes(children),
+                        body: TemplateBody { defaults: defaults.to_vec(), nodes: template_body_nodes(children) },
                     });
                 }
             }
-            visit(children, rules);
+            let module_defaults = hooks::imported_module_defaults(node);
+            visit(children, module_defaults.as_deref().unwrap_or(defaults), rules);
         }
     }
     let mut rules = Vec::new();
-    visit(nodes, &mut rules);
+    visit(nodes, &[], &mut rules);
     rules.sort_by_key(|rule| std::cmp::Reverse((rule.priority, rule.local, rule.order)));
     rules
 }
 
-fn collect_named_templates(nodes: &[TemplateNode]) -> BTreeMap<String, Vec<TemplateNode>> {
-    let mut templates = BTreeMap::new();
-    collect_named_templates_into(nodes, &mut templates);
-    templates
-}
-
-fn collect_named_templates_into(
-    nodes: &[TemplateNode],
-    templates: &mut BTreeMap<String, Vec<TemplateNode>>,
-) {
-    for node in nodes {
-        let TemplateNode::Element {
-            tag,
-            attributes,
-            children,
-            ..
-        } = node
-        else {
-            continue;
-        };
-        if local_template_name(tag) == "template" {
-            if let Some(name) = declaration_name(attributes) {
-                templates.insert(name, template_body_nodes(children));
+fn collect_named_templates(nodes: &[TemplateNode]) -> BTreeMap<String, TemplateBody> {
+    fn visit(nodes: &[TemplateNode], defaults: &[TemplateNode], templates: &mut BTreeMap<String, TemplateBody>) {
+        for node in nodes {
+            let TemplateNode::Element { tag, attributes, children, .. } = node else { continue };
+            if local_template_name(tag) == "template" && !hooks::is_expression_hook(node) {
+                if let Some(name) = declaration_name(attributes) {
+                    templates.insert(name, TemplateBody { defaults: defaults.to_vec(), nodes: template_body_nodes(children) });
+                }
             }
+            let module_defaults = hooks::imported_module_defaults(node);
+            visit(children, module_defaults.as_deref().unwrap_or(defaults), templates);
         }
-        collect_named_templates_into(children, templates);
     }
+    let mut templates = BTreeMap::new();
+    visit(nodes, &[], &mut templates);
+    templates
 }
 
 fn module_template_name(uri: &str, name: &str) -> String {
@@ -4025,7 +4036,7 @@ fn module_template_name(uri: &str, name: &str) -> String {
 fn collect_template_declarations(nodes: &[TemplateNode]) -> Vec<TemplateNode> {
     let mut declarations = Vec::new();
     for node in nodes {
-        if is_named_template_declaration(node) {
+        if is_named_template_declaration(node) && !hooks::is_expression_hook(node) {
             declarations.push(node.clone());
         }
         if let TemplateNode::Element { children, .. } = node {

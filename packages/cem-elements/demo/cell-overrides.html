@@ -143,6 +143,9 @@
         <template>
 <cem-element tag="cem-native-value-card">
     <template type="text/cem-ml">
+{attribute @name=count @type=integer @minInclusive=1 @required=true}
+{attribute @name=day @type=date @required=true}
+{attribute @name=label @type=node @required=true}
 {article |
     {p @class=value-label | {$label}}
     {p | Next count: {$count + 1}}

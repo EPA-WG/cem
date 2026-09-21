@@ -128,7 +128,7 @@ fn authored_function_uses_declared_scalar_and_source_free_program() {
                 ItemStream::once(Item::Atomic(AtomValue::String(text.into()))),
             )]),
             native_functions: functions.clone(),
-            data_readers: Default::default(),
+            ..Default::default()
         };
         let plan = render_compiled_template(&artifact, &data);
         assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
@@ -168,9 +168,9 @@ fn same_xpath_predicate_filters_in_ql_and_matches_in_cemt_without_losing_nodes()
     for (source, expected) in [
         (
             "<r><item qty='1'>🍋</item><item qty='2'>🍒</item></r>",
-            "<i>🍋</i><b>🍒</b>",
+            "<i><item qty=\"1\">🍋</item></i><b><item qty=\"2\">🍒</item></b>",
         ),
-        ("<r><item qty='3'>🍇</item></r>", "<b>🍇</b>"),
+        ("<r><item qty='3'>🍇</item></r>", "<b><item qty=\"3\">🍇</item></b>"),
     ] {
         let (input, owner) = xml(source);
         let bindings = BTreeMap::from([("input".into(), ItemStream::once(input))]);
@@ -195,7 +195,7 @@ fn same_xpath_predicate_filters_in_ql_and_matches_in_cemt_without_losing_nodes()
             &TemplateData {
                 bindings,
                 native_functions: functions.clone(),
-                data_readers: Default::default(),
+                ..Default::default()
             },
         );
         assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);

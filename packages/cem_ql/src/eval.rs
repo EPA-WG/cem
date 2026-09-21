@@ -28,6 +28,7 @@ mod inspection;
 pub mod values;
 pub mod output;
 pub mod portable;
+pub(crate) mod xpath_values;
 pub(crate) use data::xpath_node as imported_xpath_node;
 pub(crate) use data::source_node as imported_source_node;
 pub use data::{imported_cem_tree, DataReaderCache};

@@ -29,6 +29,7 @@ pub struct CemTreeRange {
 /// Import-only overrides preserve the public source-oriented AST fields.
 #[derive(Debug, Default)]
 pub struct CemTreeSemantics {
+    pub provenance: BTreeMap<AstNodeId, crate::value::artifact::CemValueProvenance>,
     /// Import-owned, versioned source/profile fingerprint. Synthetic trees omit it.
     pub source_fingerprint: Option<[u8; 32]>,
     pub document_metadata: Option<CemDocumentMetadata>,
@@ -61,6 +62,7 @@ pub struct CemTreeNode {
 }
 
 pub struct RetainedCemTree {
+    provenance: BTreeMap<AstNodeId, crate::value::artifact::CemValueProvenance>,
     ast: CemDocument,
     source_uri: String,
     metadata: CemDocumentMetadata,
@@ -149,6 +151,17 @@ impl RetainedCemTree {
         semantics: CemTreeSemantics,
         native_owner: Option<Arc<dyn Any + Send + Sync>>,
     ) -> Result<Arc<Self>, String> {
+        Self::new_with_roots(ast, source_uri.into(), source_text, semantics, native_owner, None)
+    }
+
+    /// Native value projection may contain detached element/attribute roots and
+    /// multiple document owners. The ordinary document import remains strict.
+    pub(crate) fn native_forest(ast: CemDocument, roots: Vec<AstNodeId>, semantics: CemTreeSemantics, owner: Arc<dyn Any + Send + Sync>) -> Result<Arc<Self>, String> {
+        Self::new_with_roots(ast, "cem:native-values".into(), "", semantics, Some(owner), Some(roots))
+    }
+
+    fn new_with_roots(ast: CemDocument, source_uri: String, source_text: &str, semantics: CemTreeSemantics,
+        native_owner: Option<Arc<dyn Any + Send + Sync>>, roots: Option<Vec<AstNodeId>>) -> Result<Arc<Self>, String> {
         if !matches!(ast.root(), Some(CemAstNode::Document { node_id: 0, .. })) {
             return Err("A retained CEM tree requires a document root at node 0.".into());
         }
@@ -298,7 +311,9 @@ impl RetainedCemTree {
         }
         // Validate the entire source graph, including omitted nodes, before normalization.
         let mut seen = vec![false; nodes.len()];
-        let mut pending = vec![(0, None, false)];
+        let forest = roots.is_some();
+        let mut pending: Vec<_> = roots.unwrap_or_else(|| vec![0]).into_iter().rev()
+            .map(|id| (id, None, nodes.get(id as usize).is_some_and(|n| forest && n.kind == CemTreeNodeKind::Attribute))).collect();
         let mut order = 0;
         while let Some((id, parent, attribute)) = pending.pop() {
             let Some(node) = nodes.get_mut(id as usize) else {
@@ -308,7 +323,7 @@ impl RetainedCemTree {
                 return Err("CEM trees cannot contain cycles or shared child nodes.".into());
             }
             if (node.kind == CemTreeNodeKind::Attribute) != attribute
-                || (id != 0 && node.kind == CemTreeNodeKind::Document)
+                || (id != 0 && node.kind == CemTreeNodeKind::Document && (!forest || parent.is_some()))
             {
                 return Err("Invalid CEM child/attribute node kind.".into());
             }
@@ -401,7 +416,6 @@ impl RetainedCemTree {
                 *canonical_id = None;
             }
         }
-        let source_uri = source_uri.into();
         let metadata = semantics
             .document_metadata
             .unwrap_or_else(|| CemDocumentMetadata {
@@ -409,6 +423,7 @@ impl RetainedCemTree {
                 document_uri: Some(source_uri.clone()),
             });
         Ok(Arc::new(Self {
+            provenance: semantics.provenance,
             ast,
             source_uri,
             metadata,
@@ -467,16 +482,21 @@ impl RetainedCemTree {
     /// Opaque source-selection token; independent of per-document XDM identity.
     pub fn source_key(&self, id: AstNodeId) -> Option<String> {
         let id = self.canonical_id(id)?;
+        if let Some(origin) = self.provenance.get(&id) { return origin.source_key.clone(); }
         let hash = blake3::Hash::from_bytes(self.source_fingerprint?);
         Some(format!("cem-source:1:{}:{id}", hash.to_hex()))
     }
     pub fn source_line_number(&self, id: AstNodeId) -> Option<u32> {
         let id = self.canonical_id(id)?;
+        if let Some(origin) = self.provenance.get(&id) { return origin.line_number; }
         if !self.source_lines_known[id as usize] {
             return None;
         }
         let node = self.node(id)?;
         (node.source.origin().is_some() && node.range.line > 0).then_some(node.range.line)
+    }
+    pub fn node_source_uri(&self, id: AstNodeId) -> Option<&str> {
+        self.provenance.get(&id).and_then(|p| p.source_uri.as_deref()).or_else(|| self.document_uri())
     }
     pub fn base_uri(&self) -> Option<&str> {
         self.metadata.base_uri.as_deref()

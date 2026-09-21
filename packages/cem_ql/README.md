@@ -110,6 +110,12 @@ CEM-ML owns graph import, and CEM-QL consumes native views. See
 [the complete native-value contract](../../docs/cemt-native-values.md) and
 [the cell override examples](../cem-elements/demo/cell-overrides.html).
 
+Receiver `{attribute @name=count @type=integer @minInclusive=1}` declarations
+validate incoming native values before rendering. Imported expression hooks
+provide module defaults below caller overrides. XPath functions also consume
+constructed and portable CEM values through a cached shared native projection;
+they preserve output occurrence parents separately from reference targets.
+
 ### Retained-node navigation
 
 `dom:parent(node)` and `dom:children(node)` navigate the retained tree without

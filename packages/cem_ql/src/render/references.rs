@@ -308,7 +308,7 @@ fn expand_graph(view: &crate::eval::portable::GraphView) -> Vec<RenderPlanNode> 
                         .then(|| attribute.namespace.clone()),
                     qualified_name: Some(qualified_name),
                     value: attribute.lexical.clone(),
-                    value_stream: if attribute.values.is_empty() {
+                    value_stream: if !attribute.has_native_content() {
                         string_stream(attribute.lexical.clone())
                     } else {
                         ItemStream::from_items(

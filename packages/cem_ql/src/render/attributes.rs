@@ -83,6 +83,104 @@ impl crate::eval::QueryItemView for TypedValue {
 }
 
 impl PlanRenderer<'_> {
+    pub(super) fn validate_receiver_inputs(
+        &mut self,
+        nodes: &[TemplateNode],
+        host: &BTreeMap<String, AttributeValueContract>,
+    ) {
+        let mut declarations = Vec::new();
+        fn collect<'a>(nodes: &'a [TemplateNode], out: &mut Vec<&'a TemplateNode>) {
+            for node in nodes {
+                if let TemplateNode::Element {
+                    tag,
+                    attributes,
+                    children,
+                    ..
+                } = node
+                {
+                    if local_template_name(tag) == "attribute" {
+                        out.push(node);
+                    } else if local_template_name(tag) == "module"
+                        && literal_template_attribute(attributes, "__cem-module-uri").is_none()
+                    {
+                        collect(children, out);
+                    }
+                }
+            }
+        }
+        collect(nodes, &mut declarations);
+        let mut contracts = Vec::new();
+        for declaration in declarations {
+            let TemplateNode::Element {
+                attributes,
+                source_map,
+                ..
+            } = declaration
+            else {
+                unreachable!()
+            };
+            let Some(name) = declaration_name(attributes) else {
+                continue;
+            };
+            let type_name = literal_template_attribute(attributes, "type");
+            if let Some(base) = type_name
+                .as_ref()
+                .and_then(|name| self.value_types.get(name))
+            {
+                contracts.push((name.clone(), base.clone(), false, source_map.clone()));
+            }
+            let mut contract = type_name
+                .map(|name| self.value_contract(&name))
+                .unwrap_or_default();
+            contract.model.name = name.clone();
+            contract.content_type = literal_template_attribute(attributes, "content-type");
+            apply_contract_facets(&mut contract, attributes);
+            let required =
+                literal_template_attribute(attributes, "required").as_deref() == Some("true");
+            // Unconstrained legacy declarations continue to bind arbitrary native values.
+            if contract.model.value_type.is_none() && !has_facets(&contract) && !required {
+                continue;
+            }
+            contracts.push((name, contract, required, source_map.clone()));
+        }
+        for (name, contract) in host {
+            contracts.push((
+                name.clone(),
+                contract.clone(),
+                false,
+                SourceMapStack::default(),
+            ));
+        }
+        for (name, contract, required, source) in contracts {
+            let values = self
+                .evaluation_context
+                .policy_bindings
+                .get(&name)
+                .cloned()
+                .unwrap_or_default();
+            let missing = values.items.is_empty()
+                || matches!(values.items.as_slice(), [Item::Atomic(AtomValue::Null)]);
+            if missing {
+                if required {
+                    self.attribute_contract_failure(
+                        &format!("Required attribute `{name}` is missing"),
+                        &source,
+                    );
+                }
+                continue;
+            }
+            let converted = self.convert_values(values, &contract, &source);
+            if self.failure.is_some() || self.control_failed {
+                return;
+            }
+            bind_attribute_values(
+                &mut self.evaluation_context.policy_bindings,
+                &name,
+                converted.items,
+            );
+        }
+    }
+
     pub(super) fn output_attribute_stream(&mut self, attribute: &TemplateAttribute) -> ItemStream {
         match &attribute.value {
             None => string_stream(String::new()),
@@ -226,26 +324,7 @@ impl PlanRenderer<'_> {
             );
             return None;
         }
-        for attribute in attributes {
-            let Some(value) = literal_template_attribute(attributes, &attribute.name) else {
-                continue;
-            };
-            let field = match attribute.name.as_str() {
-                "pattern" => &mut contract.model.pattern,
-                "minInclusive" => &mut contract.model.min_inclusive,
-                "maxInclusive" => &mut contract.model.max_inclusive,
-                "minExclusive" => &mut contract.model.min_exclusive,
-                "maxExclusive" => &mut contract.model.max_exclusive,
-                "minLength" => &mut contract.model.min_length,
-                "maxLength" => &mut contract.model.max_length,
-                "length" => &mut contract.model.length,
-                "totalDigits" => &mut contract.model.total_digits,
-                "fractionDigits" => &mut contract.model.fraction_digits,
-                "whiteSpace" => &mut contract.model.white_space,
-                _ => continue,
-            };
-            *field = Some(value);
-        }
+        apply_contract_facets(&mut contract, attributes);
         let previous_contract = self
             .active_attribute_contract
             .replace(std::sync::Arc::new(contract.clone()));
@@ -263,7 +342,7 @@ impl PlanRenderer<'_> {
         };
         // Rich values retain their sequence; ordinary string attributes retain
         // it too unless a scalar type/constraint explicitly requests conversion.
-        if contract.model.value_type.is_some() || contract.model.pattern.is_some() {
+        if contract.model.value_type.is_some() || has_facets(&contract) {
             values = self.convert_values(values, &contract, source);
         }
         // A local conversion never relaxes a destination supplied by the host.
@@ -289,4 +368,46 @@ impl PlanRenderer<'_> {
             source_map: name_source_map,
         })
     }
+}
+
+fn apply_contract_facets(contract: &mut AttributeValueContract, attributes: &[TemplateAttribute]) {
+    for attribute in attributes {
+        let Some(value) = literal_template_attribute(attributes, &attribute.name) else {
+            continue;
+        };
+        let field = match attribute.name.as_str() {
+            "pattern" => &mut contract.model.pattern,
+            "minInclusive" => &mut contract.model.min_inclusive,
+            "maxInclusive" => &mut contract.model.max_inclusive,
+            "minExclusive" => &mut contract.model.min_exclusive,
+            "maxExclusive" => &mut contract.model.max_exclusive,
+            "minLength" => &mut contract.model.min_length,
+            "maxLength" => &mut contract.model.max_length,
+            "length" => &mut contract.model.length,
+            "totalDigits" => &mut contract.model.total_digits,
+            "fractionDigits" => &mut contract.model.fraction_digits,
+            "whiteSpace" => &mut contract.model.white_space,
+            _ => continue,
+        };
+        *field = Some(value);
+    }
+}
+
+fn has_facets(contract: &AttributeValueContract) -> bool {
+    let m = &contract.model;
+    [
+        &m.pattern,
+        &m.min_inclusive,
+        &m.max_inclusive,
+        &m.min_exclusive,
+        &m.max_exclusive,
+        &m.min_length,
+        &m.max_length,
+        &m.length,
+        &m.total_digits,
+        &m.fraction_digits,
+        &m.white_space,
+    ]
+    .iter()
+    .any(|v| v.is_some())
 }

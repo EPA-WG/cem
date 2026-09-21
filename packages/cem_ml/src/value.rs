@@ -2,6 +2,7 @@
 //! A reference owns its ordered targets, not copies of their retained subtrees.
 use std::sync::Arc;
 pub mod artifact;
+pub mod xpath;
 
 #[derive(Debug)]
 pub struct CemReference<T>(Arc<[T]>);

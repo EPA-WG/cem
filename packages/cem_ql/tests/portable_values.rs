@@ -204,10 +204,89 @@ fn all_document_formats_round_trip_through_the_same_native_graph() {
         ("yaml", "name: ivysaur\nid: 2\n"),
         ("csv", "name,id\nivysaur,2\n"),
     ] {
-        let values = eval(&format!("data:read({source:?}, {format:?}).root"), ItemStream::empty());
+        let values = eval(
+            &format!("data:read({source:?}, {format:?}).root"),
+            ItemStream::empty(),
+        );
         let before = eval("dom:text(values)", values.clone());
         let limits = CemValueArtifactLimits::default();
         let restored = decode_values(&encode_values(&values, &limits).unwrap(), &limits).unwrap();
-        assert_eq!(eval("dom:text(values)", restored).items, before.items, "{format}");
+        assert_eq!(
+            eval("dom:text(values)", restored).items,
+            before.items,
+            "{format}"
+        );
+    }
+}
+
+#[test]
+fn native_artifact_v2_keeps_occurrences_and_reads_v1_values() {
+    use cem_ql::{eval::output::output_nodes, render::*};
+    let limits = CemValueArtifactLimits::default();
+    let scalar = eval("2", ItemStream::empty());
+    let mut legacy = encode_values(&scalar, &limits).unwrap();
+    assert_eq!(legacy[4], 2);
+    legacy[4] = 1; // Non-occurrence v2 records retain the v1 body layout.
+    assert_eq!(
+        decode_values(&legacy, &limits).unwrap().items[0].atom(),
+        scalar.items[0].atom()
+    );
+    let artifact = compile_template(
+        r#"{$data:read("<r/>", "xml").root.children}"#,
+        &CompileTemplateOptions::default(),
+    );
+    let values = output_nodes(render_compiled_template(&artifact, &TemplateData::default()).nodes);
+    let bytes = encode_values(&values, &limits).unwrap();
+    let restored = decode_values(&bytes, &limits).unwrap();
+    assert_eq!(
+        restored.items[0]
+            .view()
+            .unwrap()
+            .field("occurrence")
+            .unwrap()[0]
+            .atom(),
+        Some(cem_ql::eval::AtomValue::Boolean(true))
+    );
+    let mut downgraded = bytes;
+    downgraded[4] = 1;
+    assert!(decode_values(&downgraded, &limits).is_err());
+}
+
+#[test]
+fn portable_source_attributes_bind_lexical_values_without_losing_explicit_empty_sequences() {
+    use cem_ql::render::*;
+    let values = eval(
+        r#"data:read("<r count=\"2\"/>", "xml").root.children.attributes"#,
+        ItemStream::empty(),
+    );
+    let limits = CemValueArtifactLimits::default();
+    let restored = decode_values(&encode_values(&values, &limits).unwrap(), &limits).unwrap();
+    let mut data = TemplateData::default();
+    data.bind_native_attribute(restored.items[0].clone())
+        .unwrap();
+    let result = render_template(
+        "{attribute @name=count @type=integer @required=true}{p | {$count + 1}}",
+        &data,
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(result.rendered, "<p>3</p>");
+    let attribute = RenderPlanAttribute {
+        name: "count".into(),
+        namespace: None,
+        qualified_name: None,
+        value: "stale projection".into(),
+        value_stream: ItemStream::empty(),
+        contract: None,
+        source_map: Default::default(),
+    };
+    let native = cem_ql::eval::output::output_attribute(attribute);
+    let restored = decode_values(
+        &encode_values(&ItemStream::once(native.clone()), &limits).unwrap(),
+        &limits,
+    )
+    .unwrap();
+    for attribute in [native, restored.items[0].clone()] {
+        data.bind_native_attribute(attribute).unwrap();
+        assert!(data.bindings["count"].items.is_empty());
     }
 }

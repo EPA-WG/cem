@@ -2,7 +2,7 @@
 //! Scalar parameters are explicitly declared; `any` accepts retained native
 //! XPath sequences only. Existing host adapters remain native-XDM-only.
 use crate::{
-    eval::{AtomValue, BudgetAxis, EvalError, Item, ItemStream},
+    eval::{AtomValue, BudgetAxis, EvalError, ItemStream},
     native::{NativeFunctionRegistry, NativeQueryFunction, NativeQueryRequest},
 };
 use cem_ml::{
@@ -321,6 +321,10 @@ impl NativeQueryFunction for InstalledFunction {
                 Ok(values) => values,
                 Err(message) => return request.raise("cem.ql.xpath_function_argument", message),
             };
+            item_count = item_count.saturating_add(values.len().saturating_sub(argument.items.len()) as u64);
+            if item_count > request.max_result_items {
+                return limit_failure(&request, "Expanded XPath argument item limit exceeded");
+            }
             if function.invocation.context_binding.as_deref() == Some(parameter.name.as_str()) {
                 let [value] = values.as_slice() else {
                     return request.raise(
@@ -408,32 +412,70 @@ pub(crate) fn bind_argument(
                 if parameter.kind == ParamType::Any
                     || item_has_type(native.xpath_item(), parameter.kind)
                 {
-                    return Ok(native.xpath_item().clone());
+                    return Ok(vec![native.xpath_item().clone()]);
                 }
             }
             if parameter.kind == ParamType::Any {
+                if let Some(targets) = crate::eval::values::reference_values(item) {
+                    return bind_argument(
+                        parameter,
+                        &ItemStream::from_items(targets.to_vec()),
+                        request,
+                    );
+                }
                 if let Some(node) = crate::eval::imported_xpath_node(item) {
-                    return node.map(XPathResultItem::from_native_node);
+                    return node.map(|node| vec![XPathResultItem::from_native_node(node)]);
                 }
             }
-            let Item::Atomic(atom) = item else {
+            if let Some(values) =
+                crate::eval::xpath_values::native_items(item, request.query_scope, &mut || {
+                    request
+                        .control
+                        .check_scope(request.scope)
+                        .map_err(|e| e.to_string())
+                })
+            {
+                let values = values?;
+                if parameter.kind == ParamType::Any
+                    || values.len() == 1
+                        && values
+                            .iter()
+                            .all(|item| item_has_type(item, parameter.kind))
+                {
+                    return Ok(values);
+                }
+                return Err(format!(
+                    "parameter `{}` rejects the native value type/cardinality",
+                    parameter.name
+                ));
+            }
+            let atom = item.atom().filter(|_| {
+                item.view()
+                    .is_none_or(|v| v.kind() == crate::eval::QueryItemViewKind::Atomic)
+            });
+            let Some(atom) = atom.as_ref() else {
                 return Err(format!(
                     "parameter `{}` requires an explicit scalar or retained XPath item",
                     parameter.name
                 ));
             };
             let (type_name, lexical_value) = match (parameter.kind, atom) {
-                (ParamType::String, AtomValue::String(text)) => ("xs:string", text.clone()),
-                (ParamType::Boolean, AtomValue::Boolean(value)) => {
+                (ParamType::String | ParamType::Any, AtomValue::String(text)) => {
+                    ("xs:string", text.clone())
+                }
+                (ParamType::Boolean | ParamType::Any, AtomValue::Boolean(value)) => {
                     ("xs:boolean", value.to_string())
                 }
-                (ParamType::Integer | ParamType::Number, AtomValue::Integer(value)) => {
-                    ("xs:integer", value.to_string())
-                }
-                (ParamType::Number, AtomValue::Decimal(value)) if valid_decimal(value) => {
+                (
+                    ParamType::Integer | ParamType::Number | ParamType::Any,
+                    AtomValue::Integer(value),
+                ) => ("xs:integer", value.to_string()),
+                (ParamType::Number | ParamType::Any, AtomValue::Decimal(value))
+                    if valid_decimal(value) =>
+                {
                     ("xs:decimal", value.clone())
                 }
-                (ParamType::Number, AtomValue::Double(value)) => (
+                (ParamType::Number | ParamType::Any, AtomValue::Double(value)) => (
                     "xs:double",
                     if value.is_nan() {
                         "NaN".into()
@@ -445,6 +487,8 @@ pub(crate) fn bind_argument(
                         value.to_string()
                     },
                 ),
+                (ParamType::Any, AtomValue::AnyUri(value)) => ("xs:anyURI", value.clone()),
+                (ParamType::Any, AtomValue::Null) => return Ok(Vec::new()),
                 _ => {
                     return Err(format!(
                         "parameter `{}` does not accept this value as {}",
@@ -453,7 +497,7 @@ pub(crate) fn bind_argument(
                     ))
                 }
             };
-            Ok(XPathResultItem::Atomic {
+            Ok(vec![XPathResultItem::Atomic {
                 value: XPathAtomicValue {
                     type_name: type_name.into(),
                     lexical_value,
@@ -461,9 +505,10 @@ pub(crate) fn bind_argument(
                     local_name: None,
                 },
                 source_map: request.source_map.clone(),
-            })
+            }])
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
+        .map(|parts| parts.into_iter().flatten().collect())
 }
 
 fn valid_decimal(value: &str) -> bool {
@@ -592,10 +637,12 @@ pub(crate) fn invocation_failure(
 ) -> ItemStream {
     let mut failed = request.raise("cem.ql.xpath_function_failed", "XPath function failed");
     // Resource/capability failures must not become catchable data errors.
-    if diagnostics
-        .iter()
-        .any(|d| matches!(d.code.as_str(), "cem.xpath.sequence_item_limit_exceeded" | "cem.xpath.import_limit_exceeded"))
-    {
+    if diagnostics.iter().any(|d| {
+        matches!(
+            d.code.as_str(),
+            "cem.xpath.sequence_item_limit_exceeded" | "cem.xpath.import_limit_exceeded"
+        )
+    }) {
         failed.error = Some(EvalError::BudgetExceeded(BudgetAxis::ItemsPerStage));
     } else if diagnostics
         .iter()

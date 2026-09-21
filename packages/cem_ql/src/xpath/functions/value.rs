@@ -33,7 +33,11 @@ impl XPathQueryItem {
 impl QueryItemView for XPathQueryItem {
     fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
         let node = self.xpath_item().native_node()?;
-        Some(cem_ml::value::artifact::CemValueProvenance { source_uri: node.owner().document_uri().map(str::to_owned), source_key: node.source_key(), line_number: node.source_line_number() })
+        Some(cem_ml::value::artifact::CemValueProvenance {
+            source_uri: node.source_uri().map(str::to_owned),
+            source_key: node.source_key(),
+            line_number: node.source_line_number(),
+        })
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -72,14 +76,18 @@ impl QueryItemView for XPathQueryItem {
             .native_node()
             .ok_or(QueryNodeAccessError::Unsupported)?;
         Ok(Box::new(
-            node.child_nodes_iter().map(|node| Ok(Self::from_node(node))),
+            node.child_nodes_iter()
+                .map(|node| Ok(Self::from_node(node))),
         ))
     }
     fn text_fragments(
         &self,
         _scope: QueryContextScope,
     ) -> Result<QueryNodeTextIterator<'_>, QueryNodeAccessError> {
-        let node = self.value.native_node().ok_or(QueryNodeAccessError::Unsupported)?;
+        let node = self
+            .value
+            .native_node()
+            .ok_or(QueryNodeAccessError::Unsupported)?;
         Ok(Box::new(node.text_fragments().map(Ok)))
     }
     fn atom(&self) -> Option<AtomValue> {
@@ -117,5 +125,34 @@ impl QueryItemView for XPathQueryItem {
             | XPathResultItem::Function { source_map, .. } => source_map.clone(),
         })
     }
-    // No fields/members view: never flatten XDM arrays or infer CEM records.
+    // Node fields use the shared CEM model; XDM maps/arrays remain opaque.
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let node = self.value.native_node()?;
+        let text = |value: &str| Some(vec![Item::Atomic(AtomValue::String(value.into()))]);
+        match name {
+            "id" => text(&node.identity()),
+            "kind" => text(match node.result_node_kind() {
+                cem_ml::validation::xpath::XPathResultNodeKind::Namespace => "namespace",
+                cem_ml::validation::xpath::XPathResultNodeKind::Document => "document",
+                cem_ml::validation::xpath::XPathResultNodeKind::Element => "element",
+                cem_ml::validation::xpath::XPathResultNodeKind::Attribute => "attribute",
+                cem_ml::validation::xpath::XPathResultNodeKind::Text => "text",
+                cem_ml::validation::xpath::XPathResultNodeKind::Comment => "comment",
+                cem_ml::validation::xpath::XPathResultNodeKind::ProcessingInstruction => {
+                    "processing-instruction"
+                }
+            }),
+            "name" => text(node.local_name()),
+            "namespace" => text(node.namespace_uri()),
+            "value" | "data" => text(node.semantic_value()),
+            "children" => Some(node.child_nodes_iter().map(Self::from_node).collect()),
+            "attributes" => Some(
+                node.attribute_nodes()
+                    .into_iter()
+                    .map(Self::from_node)
+                    .collect(),
+            ),
+            _ => None,
+        }
+    }
 }

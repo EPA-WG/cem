@@ -210,3 +210,179 @@ fn clone_preserves_document_and_attribute_kinds() {
         "attribute|0|2"
     );
 }
+
+#[test]
+fn imported_hooks_are_module_defaults_below_caller_and_local_scopes() {
+    use cem_ql::render::*;
+    let base = r#"{module | {template @on=expression @into=content @priority=100 | {result-sequence @select='"base"'}}{template @name=present @visibility=public | {body | {span | {$"value"}}}}{template @name=local @visibility=public | {body | {template @on=expression @into=content | {result-sequence @select='"local"'}}{b | {$"value"}}}}}"#;
+    let root = r#"{module | {import @as=base @src="./base.cemt"}{body | {call @from=base @template=present}{i | {$"root"}}{section | {template @on=expression @into=content | {result-sequence @select='"caller"'}}{call @from=base @template=present}{call @from=base @template=local}}}}"#;
+    let hash =
+        |s: &str| cem_ml::content_cache::ContentHash::from_blake3(s.as_bytes()).header_value();
+    let artifact = compile_template_module_closure(
+        root,
+        &TemplateModuleClosure {
+            root_uri: "https://example.test/root.cemt".into(),
+            root_content_hash: hash(root),
+            modules: vec![TemplateModuleSource {
+                alias: "base".into(),
+                parent_uri: None,
+                uri: "https://example.test/base.cemt".into(),
+                content_hash: hash(base),
+                source: base.into(),
+            }],
+            ..Default::default()
+        },
+        &CompileTemplateOptions::default(),
+    );
+    let mut artifact = artifact;
+    artifact.nodes = serde_json::from_slice(&serde_json::to_vec(&artifact.nodes).unwrap()).unwrap();
+    let plan = render_compiled_template(&artifact, &TemplateData::default());
+    assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    assert_eq!(
+        render_plan_to_html(&plan),
+        "<span>base</span><i>root</i><section><span>caller</span><b>local</b></section>"
+    );
+}
+
+#[test]
+fn hook_precedence_and_predicate_failure_are_deterministic() {
+    assert_eq!(
+        rendered(
+            r#"{template @on=expression @into=content @priority=5 | {$"older"}}{template @on=expression @into=content @priority=5 | {$"later"}}{template @on=expression @into=content @priority=1 | {$"low"}}{div | {$1}{section | {template @on=expression @into=content | {$"nearest"}}{$2}}{$3}}"#
+        ),
+        "<div>later<section>nearest</section>later</div>"
+    );
+    let result = render_template(
+        r#"{template @on=expression @into=content @match='1 / 0 > 1' | {$value}}{p | {$"must not publish"}}"#,
+        &TemplateData::default(),
+    );
+    assert!(!result.diagnostics.is_empty());
+    assert!(result.rendered.is_empty(), "{}", result.rendered);
+}
+
+#[test]
+fn receiver_declarations_validate_native_inputs_and_control_bindings() {
+    use cem_ql::{eval::output::output_attribute, render::*};
+    let produced = render_compiled_template(
+        &compile_template(
+            "{child | {attribute @name=count @type=integer @value=2}}",
+            &CompileTemplateOptions::default(),
+        ),
+        &TemplateData::default(),
+    );
+    let RenderPlanNode::Element { attributes, .. } = &produced.nodes[0] else {
+        panic!()
+    };
+    let mut data = TemplateData::default();
+    data.bind_native_attribute(output_attribute(attributes[0].clone()))
+        .unwrap();
+    let result = render_template(
+        "{attribute @name=count @type=integer @minInclusive=3}{p | {$count}}",
+        &data,
+    );
+    assert!(result.rendered.is_empty(), "{}", result.rendered);
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|d| d.severity == cem_ml::diagnostics::Severity::Error));
+    let good = render_template(
+        "{attribute @name=count @type=integer @minInclusive=1}{p | {$count + 1}}",
+        &data,
+    );
+    assert!(good.diagnostics.is_empty(), "{:?}", good.diagnostics);
+    assert_eq!(good.rendered, "<p>3</p>");
+    let scalar = TemplateData::default().with_binding(
+        "count",
+        ItemStream::once(Item::Atomic(AtomValue::String("002".into()))),
+    );
+    let good = render_template("{attribute @name=count @type=integer @minInclusive=1}{p | {$count + 1}|{$datadom.attributes.count + 1}}", &scalar);
+    assert!(good.diagnostics.is_empty(), "{:?}", good.diagnostics);
+    assert_eq!(good.rendered, "<p>3|3</p>");
+}
+
+#[test]
+fn receiver_preserves_nodes_and_rejects_invalid_temporal_regex_and_required_values() {
+    use cem_ql::render::*;
+    let mut data = data();
+    let producer = render_compiled_template(&compile_template(&format!("{}{{child | {{attribute @name=label @type=node @value='{{data.root.children.children}}'}}}}", source()), &CompileTemplateOptions { host_bindings: vec!["source".into()], ..Default::default() }), &data);
+    let RenderPlanNode::Element { attributes, .. } = &producer.nodes[0] else {
+        panic!()
+    };
+    data.bind_native_attribute(cem_ql::eval::output::output_attribute(
+        attributes[0].clone(),
+    ))
+    .unwrap();
+    let values = data.bindings["label"].clone();
+    let output = render_template("{attribute @name=label @type=node}{p | {$label}}", &data);
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    assert_eq!(
+        output.rendered,
+        "<p><name>ivy<em>saur</em></name><id>2</id></p>"
+    );
+    assert_eq!(
+        data.bindings["label"].items[0].identity(),
+        values.items[0].identity()
+    );
+    for source in [
+        "{attribute @name=missing @type=string @required=true}{p | invalid}",
+        "{attribute @name=day @type=date | 2023-02-29}{p | invalid}",
+        "{attribute @name=code @type=string @pattern='[A-Z]+' | abc}{p | invalid}",
+    ] {
+        let invalid = render_template(source, &TemplateData::default());
+        assert!(
+            invalid.rendered.is_empty(),
+            "{source}: {}",
+            invalid.rendered
+        );
+        assert!(!invalid.diagnostics.is_empty());
+    }
+}
+
+#[test]
+fn top_level_hooks_activate_only_after_their_declaration_and_capture_bindings() {
+    assert_eq!(
+        rendered(
+            r#"{cem:variable @name=label @select='"first"'}{p | {$label}}{template @on=expression @into=content | {$label}}{cem:variable @name=label @select='"second"'}{p | {$label}}"#
+        ),
+        "<p>first</p><p>first</p>"
+    );
+    let failed = render_template(
+        r#"{template @on=expression @into=content | {$1 / 0}}{p | {$"bad"}}"#,
+        &TemplateData::default(),
+    );
+    assert!(failed.rendered.is_empty());
+    assert!(!failed.diagnostics.is_empty());
+}
+
+#[test]
+fn receiver_cannot_relax_a_named_schema_type_or_host_input_contract() {
+    use cem_ml::schema::document_model::{AttributeModel, AttributeValueContract};
+    let contract = AttributeValueContract {
+        model: AttributeModel {
+            value_type: Some("integer".into()),
+            min_inclusive: Some("3".into()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut data = TemplateData::default().with_binding(
+        "count",
+        ItemStream::once(Item::Atomic(AtomValue::Integer(2))),
+    );
+    data.value_types
+        .insert("positive-count".into(), contract.clone());
+    let invalid = render_template(
+        "{attribute @name=count @type=positive-count @minInclusive=1}{p | invalid}",
+        &data,
+    );
+    assert!(invalid.rendered.is_empty());
+    assert!(!invalid.diagnostics.is_empty());
+    data.input_attribute_contracts
+        .insert("count".into(), contract);
+    let invalid = render_template(
+        "{attribute @name=count @type=integer @minInclusive=1}{p | invalid}",
+        &data,
+    );
+    assert!(invalid.rendered.is_empty());
+    assert!(!invalid.diagnostics.is_empty());
+}

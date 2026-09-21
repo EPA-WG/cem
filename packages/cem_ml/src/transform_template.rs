@@ -24348,6 +24348,10 @@ impl NativeTemplateModuleLowerer<'_> {
 
     fn lower_template(&mut self, template_id: AstNodeId) {
         let attrs = template_collect_attrs(self.document, template_id);
+        // Expression hooks are renderer declarations, not named module entrypoints.
+        if attr_value(&attrs, "", "on").as_deref() == Some("expression") {
+            return;
+        }
         let Some(name) = required_attr(&attrs, "name") else {
             self.push_missing_attr("template", "name");
             return;

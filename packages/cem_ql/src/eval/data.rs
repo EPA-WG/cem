@@ -42,7 +42,7 @@ pub(super) fn source_metadata(item: &Item, name: &str) -> Result<Option<AtomValu
         "line_number" => node.source_line_number().map(|line| AtomValue::Integer(line.into())),
         "node_key" => node.source_key().map(AtomValue::String),
         "base_uri" => node.base_uri().map(|uri| AtomValue::AnyUri(uri.into())),
-        "document_uri" if node.result_node_kind() == cem_ml::validation::xpath::XPathResultNodeKind::Document => node.owner().document_uri().map(|uri| AtomValue::AnyUri(uri.into())),
+        "document_uri" if node.result_node_kind() == cem_ml::validation::xpath::XPathResultNodeKind::Document => node.document_uri().map(|uri| AtomValue::AnyUri(uri.into())),
         _ => None,
     })
 }
@@ -296,7 +296,7 @@ impl QueryItemView for CemAstView {
             (CemAstNode::Element { attributes, .. }, "attributes") => {
                 attributes.iter().map(|id| self.item(*id)).collect()
             }
-            (CemAstNode::Attribute { value, .. }, "value") => {
+            (CemAstNode::Attribute { value, .. }, "value" | "values") => {
                 value.as_ref().map(string).unwrap_or_default()
             }
             (CemAstNode::Text { .. }, "kind") => string("text"),

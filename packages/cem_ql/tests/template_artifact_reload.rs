@@ -223,6 +223,8 @@ fn template_data() -> TemplateData {
     TemplateData {
         value_types: Default::default(),
         attribute_contracts: Default::default(),
+        expression_scope: Default::default(),
+        input_attribute_contracts: Default::default(),
         native_functions: Default::default(),
         data_readers: Default::default(),
         bindings: BTreeMap::from([

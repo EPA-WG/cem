@@ -3831,7 +3831,7 @@ fn collect_template_entrypoints(
             continue;
         };
 
-        if local_name(tag) == "template" {
+        if local_name(tag) == "template" && literal_attribute(attributes, "on").as_deref() != Some("expression") {
             if let Some(name) = literal_attribute(attributes, "name") {
                 entrypoints.named.insert(
                     name,
@@ -3872,7 +3872,23 @@ fn template_body_nodes(children: &[TemplateNode]) -> Vec<TemplateNode> {
         .unwrap_or_else(|| children.to_vec())
 }
 
-fn artifact_from_nodes(source: &TemplateArtifact, nodes: Vec<TemplateNode>) -> TemplateArtifact {
+fn artifact_from_nodes(source: &TemplateArtifact, mut nodes: Vec<TemplateNode>) -> TemplateArtifact {
+    fn defaults(nodes: &[TemplateNode], out: &mut Vec<TemplateNode>) {
+        for node in nodes {
+            if let TemplateNode::Element { tag, attributes, children, .. } = node {
+                if local_name(tag) == "template" && literal_attribute(attributes, "on").as_deref() == Some("expression") { out.push(node.clone()); }
+                else if local_name(tag) == "module" { defaults(children, out); }
+            }
+        }
+    }
+    let mut hooks = Vec::new();
+    defaults(&source.nodes, &mut hooks);
+    if !hooks.is_empty() {
+        // Preserve module defaults separately from lexical hooks in the selected body.
+        nodes = vec![TemplateNode::Element { tag: "module".into(), attributes: Vec::new(), children: {
+            hooks.push(TemplateNode::Element { tag: "body".into(), attributes: Vec::new(), children: nodes, source_map: Default::default() }); hooks
+        }, source_map: Default::default() }];
+    }
     TemplateArtifact {
         nodes,
         stylesheets: source.stylesheets.clone(),
@@ -9807,6 +9823,81 @@ count + 1"#,
         assert_eq!(
             test_output_value(&rendered.output),
             Value::String("<div><span>Icon</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_inherits_expression_hooks_across_imported_module_calls() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {body | {div | {call @from="ui" @template="icon"}{section | {template @on=expression @into=content | {$"caller"}}{call @from="ui" @template="icon"}}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = TransformTemplateParameterArena::default();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                        bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @on=expression @into=content @priority=100 | {$"default"}}
+  {template @name="icon" @visibility="public" | {body | {span | {$"value"}}}}
+}"#
+                        .to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            test_output_value(&rendered.output),
+            Value::String("<div><span>default</span><section><span>caller</span></section></div>".to_owned())
         );
         assert!(
             rendered.diagnostics.is_empty(),

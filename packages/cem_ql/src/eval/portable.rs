@@ -6,12 +6,12 @@ pub fn encode_values(
     values: &ItemStream,
     limits: &CemValueArtifactLimits,
 ) -> Result<Vec<u8>, String> {
-    let graph = encode_graph(values, limits, true, QueryContextScope(0), &mut || Ok(()))?;
+    let (graph, _) = encode_graph(values, limits, true, QueryContextScope(0), &mut || Ok(()))?;
     graph.encode(limits)
 }
 
 pub fn decode_values(bytes: &[u8], limits: &CemValueArtifactLimits) -> Result<ItemStream, String> {
-    let owner = Arc::new(CemValueGraph::decode(bytes, limits)?);
+    let owner = xpath_values::GraphOwner::new(CemValueGraph::decode(bytes, limits)?, *limits);
     Ok(ItemStream::from_items(
         owner
             .roots
@@ -21,7 +21,7 @@ pub fn decode_values(bytes: &[u8], limits: &CemValueArtifactLimits) -> Result<It
     ))
 }
 
-fn graph_item(owner: Arc<CemValueGraph>, id: u32) -> Item {
+fn graph_item(owner: Arc<xpath_values::GraphOwner>, id: u32) -> Item {
     Item::native(GraphView { owner, id })
 }
 
@@ -32,13 +32,13 @@ fn lexical_field(view: &NativeItemView, name: &str) -> String {
         .unwrap_or_default()
 }
 
-fn encode_graph(
+pub(super) fn encode_graph(
     values: &ItemStream,
     limits: &CemValueArtifactLimits,
     include_parents: bool,
     scope: QueryContextScope,
     check: &mut impl FnMut() -> Result<(), String>,
-) -> Result<CemValueGraph, String> {
+) -> Result<(CemValueGraph, BTreeMap<(String, String), u32>), String> {
     struct Encoder<'a> {
         items: Vec<Item>,
         ids: BTreeMap<(String, String), u32>,
@@ -124,17 +124,23 @@ fn encode_graph(
             } else {
                 Vec::new()
             };
+            let native_values = view.field("values");
+            let native_content = kind == "attribute" && native_values.is_some();
             CemValueRecord {
                 kind,
                 parent,
+                native_content,
                 name: lexical_field(view, "name"),
                 namespace: lexical_field(view, "namespace"),
                 lexical: lexical_field(view, "value"),
                 datatype: String::new(),
                 children: encoder.add_all(children)?,
                 attributes: encoder.add_all(view.field("attributes").unwrap_or_default())?,
-                values: encoder.add_all(view.field("values").unwrap_or_default())?,
+                values: encoder.add_all(native_values.unwrap_or_default())?,
                 targets: encoder.add_all(view.field("targets").unwrap_or_default())?,
+                occurrence: view.field("occurrence").is_some_and(|items| {
+                    items.first().and_then(Item::atom) == Some(AtomValue::Boolean(true))
+                }),
                 contract: view.value_contract(),
                 source: view.source_map().unwrap_or_default(),
                 provenance: view.provenance(),
@@ -154,15 +160,35 @@ fn encode_graph(
             }
         }
     }
-    Ok(CemValueGraph { roots, records })
+    Ok((CemValueGraph { roots, records }, encoder.ids))
 }
 
 #[derive(Debug, Clone)]
 pub struct GraphView {
-    pub(crate) owner: Arc<CemValueGraph>,
+    pub(crate) owner: Arc<xpath_values::GraphOwner>,
     pub(crate) id: u32,
 }
 impl GraphView {
+    pub(crate) fn xpath_items(
+        &self,
+        check: &mut impl FnMut() -> Result<(), String>,
+    ) -> Result<Vec<cem_ml::validation::xpath::XPathResultItem>, String> {
+        check()?;
+        if self.owner.xpath.get().is_none() {
+            let projection = cem_ml::value::xpath::CemValueXPathProjection::build(
+                self.owner.graph.clone(),
+                &self.owner.limits,
+                check,
+            )?;
+            let _ = self.owner.xpath.set(Arc::new(projection));
+        }
+        self.owner
+            .xpath
+            .get()
+            .expect("initialized projection")
+            .items(self.id)
+    }
+
     pub fn record(&self) -> &CemValueRecord {
         &self.owner.records[self.id as usize]
     }
@@ -211,6 +237,9 @@ impl QueryItemView for GraphView {
     }
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         let record = self.record();
+        if name == "occurrence" && record.kind == "reference" {
+            return Some(vec![Item::Atomic(AtomValue::Boolean(record.occurrence))]);
+        }
         let value = match name {
             "id" => self.identity(),
             "kind" => record.kind.clone(),
@@ -231,7 +260,9 @@ impl QueryItemView for GraphView {
             "attributes" => {
                 return Some(record.attributes.iter().map(|&id| self.item(id)).collect())
             }
-            "values" => return Some(record.values.iter().map(|&id| self.item(id)).collect()),
+            "values" if record.has_native_content() => {
+                return Some(record.values.iter().map(|&id| self.item(id)).collect())
+            }
             "targets" => return Some(record.targets.iter().map(|&id| self.item(id)).collect()),
             _ => return None,
         };
@@ -295,7 +326,7 @@ impl<'a> Iterator for GraphText<'a> {
                 self.pending.push((record.targets.iter(), root));
                 ""
             }
-            "attribute" if !record.values.is_empty() => {
+            "attribute" if record.has_native_content() => {
                 self.pending.push((record.values.iter(), true));
                 ""
             }
@@ -341,7 +372,7 @@ pub(super) fn clone_native(
     if let Some(error) = failure {
         return Err(error);
     }
-    let graph = graph.map_err(|error| {
+    let (graph, _) = graph.map_err(|error| {
         ctx.fail_diagnostic(
             source,
             crate::diagnostics::TYPE_ERROR,
@@ -357,7 +388,7 @@ pub(super) fn clone_native(
             "native clone failed",
         )
     })?;
-    let owner = Arc::new(graph);
+    let owner = xpath_values::GraphOwner::new(graph, limits);
     Ok(owner
         .roots
         .iter()

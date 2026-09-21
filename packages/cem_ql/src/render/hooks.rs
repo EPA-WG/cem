@@ -2,15 +2,60 @@
 use super::*;
 use construction::ResultItem;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(super) struct ExpressionHook {
-    id: usize,
+    id: String,
     into: String,
     test: Option<CompiledTemplateExpression>,
     priority: i64,
     returns: Option<String>,
     body: Vec<TemplateNode>,
     bindings: BTreeMap<String, ItemStream>,
+}
+
+/// Captured caller behavior is runtime state, never serialized as document data.
+#[derive(Debug, Clone, Default)]
+pub struct ExpressionScope {
+    pub(super) scopes: Vec<Vec<ExpressionHook>>,
+    pub(super) active: Vec<String>,
+    pub(super) focus: Option<Item>,
+    pub(super) call_depth: usize,
+}
+
+pub(super) fn module_hook_nodes(nodes: &[TemplateNode]) -> Vec<TemplateNode> {
+    let mut hooks = Vec::new();
+    for node in nodes {
+        if is_expression_hook(node) {
+            hooks.push(node.clone());
+        } else if let TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            ..
+        } = node
+        {
+            if local_template_name(tag) == "module"
+                && literal_template_attribute(attributes, "__cem-module-uri").is_none()
+            {
+                hooks.extend(module_hook_nodes(children));
+            }
+        }
+    }
+    hooks
+}
+pub(super) fn imported_module_defaults(node: &TemplateNode) -> Option<Vec<TemplateNode>> {
+    let TemplateNode::Element {
+        tag,
+        attributes,
+        children,
+        ..
+    } = node
+    else {
+        return None;
+    };
+    (local_template_name(tag) == "module"
+        && literal_template_attribute(attributes, "__cem-module-uri").is_some())
+    .then(|| module_hook_nodes(children))
 }
 
 pub(super) fn is_expression_hook(node: &TemplateNode) -> bool {
@@ -21,14 +66,39 @@ pub(super) fn is_expression_hook(node: &TemplateNode) -> bool {
 impl PlanRenderer<'_> {
     pub(super) fn register_module_hooks(&mut self, nodes: &[TemplateNode]) {
         for node in nodes {
-            if let TemplateNode::Element { tag, children, .. } = node {
-                if local_template_name(tag) == "module" {
-                    self.register_module_hooks(children);
-                } else if is_expression_hook(node) {
-                    self.register_hook(node);
+            if let TemplateNode::Element {
+                tag,
+                attributes,
+                children,
+                ..
+            } = node
+            {
+                if local_template_name(tag) == "module"
+                    && literal_template_attribute(attributes, "__cem-module-uri").is_none()
+                {
+                    for hook in module_hook_nodes(children) {
+                        self.register_hook(&hook);
+                    }
                 }
             }
         }
+    }
+
+    pub(super) fn render_template_body(
+        &mut self,
+        body: &TemplateBody,
+        out: &mut ResultBuffer,
+        attributes: &mut Vec<RenderPlanAttribute>,
+    ) {
+        // Callee module defaults are farther away than every active caller scope.
+        self.hook_scopes.push(Vec::new());
+        for hook in &body.defaults {
+            self.register_hook(hook);
+        }
+        let defaults = self.hook_scopes.pop().expect("default scope");
+        self.hook_scopes.insert(0, defaults);
+        self.render_nodes_scoped(&body.nodes, out, attributes);
+        self.hook_scopes.remove(0);
     }
 
     pub(super) fn register_hook(&mut self, node: &TemplateNode) {
@@ -54,7 +124,8 @@ impl PlanRenderer<'_> {
             return;
         }
         let hook = ExpressionHook {
-            id: node as *const TemplateNode as usize,
+            id: literal_template_attribute(attributes, "__cem-hook-id")
+                .unwrap_or_else(|| format!("{:?}", node)),
             into,
             test: attributes.iter().find_map(|a| match (&*a.name, &a.value) {
                 ("match", Some(TemplateAttributeValue::Expression(value))) => Some(value.clone()),
@@ -138,11 +209,17 @@ impl PlanRenderer<'_> {
                 );
                 self.evaluation_context.current_item =
                     Some(crate::eval::values::reference(input.items.clone()));
-                if hook
+                self.recovery_depth += 1;
+                let matches = hook
                     .test
                     .as_ref()
-                    .is_some_and(|test| !self.test_is_truthy(Some(test)))
-                {
+                    .is_none_or(|test| self.test_is_truthy(Some(test)));
+                self.recovery_depth -= 1;
+                if self.failure.is_some() || self.control_failed {
+                    result = ItemStream::empty();
+                    break 'scopes;
+                }
+                if !matches {
                     continue;
                 }
                 if self.call_depth >= self.max_call_depth {
@@ -157,11 +234,13 @@ impl PlanRenderer<'_> {
                     result = ItemStream::empty();
                     break 'scopes;
                 }
-                self.active_hooks.push(hook.id);
+                self.active_hooks.push(hook.id.clone());
                 self.call_depth += 1;
                 let previous_capture = self.capture_depth.replace(self.render_scope_depth + 1);
                 let mut buffer = ResultBuffer::default();
+                self.recovery_depth += 1;
                 self.render_nodes_scoped(&hook.body, &mut buffer, &mut Vec::new());
+                self.recovery_depth -= 1;
                 self.capture_depth = previous_capture;
                 self.call_depth -= 1;
                 self.active_hooks.pop();

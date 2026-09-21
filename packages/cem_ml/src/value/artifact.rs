@@ -3,7 +3,11 @@
 use crate::{schema::document_model::AttributeValueContract, source_map::SourceMapStack};
 use serde::{Deserialize, Serialize};
 
-const MAGIC: &[u8] = b"CEMV\x01";
+const MAGIC: &[u8] = b"CEMV\x02";
+const LEGACY_MAGIC: &[u8] = b"CEMV\x01";
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -43,6 +47,12 @@ pub struct CemValueRecord {
     pub attributes: Vec<u32>,
     pub values: Vec<u32>,
     pub targets: Vec<u32>,
+    /// An inserted output occurrence, including a detached root occurrence.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub occurrence: bool,
+    /// Presence of an authoritative native attribute sequence, even when empty.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub native_content: bool,
     pub contract: Option<AttributeValueContract>,
     pub source: SourceMapStack,
     pub provenance: Option<CemValueProvenance>,
@@ -60,10 +70,18 @@ impl Default for CemValueRecord {
             attributes: Vec::new(),
             values: Vec::new(),
             targets: Vec::new(),
+            occurrence: false,
+            native_content: false,
             contract: None,
             provenance: None,
             source: SourceMapStack::default(),
         }
+    }
+}
+
+impl CemValueRecord {
+    pub fn has_native_content(&self) -> bool {
+        self.native_content || !self.values.is_empty()
     }
 }
 
@@ -105,6 +123,9 @@ impl CemValueGraph {
                     | "reference"
             ) {
                 return Err("Unsupported native CEM value kind".into());
+            }
+            if record.occurrence && record.kind != "reference" {
+                return Err("Only references may mark output occurrences".into());
             }
             bytes = bytes.saturating_add(
                 record.name.len()
@@ -174,7 +195,7 @@ impl CemValueGraph {
                 return Err("Only elements own attributes".into());
             }
             if record.kind != "attribute"
-                && (!record.values.is_empty() || record.contract.is_some())
+                && (record.native_content || !record.values.is_empty() || record.contract.is_some())
             {
                 return Err("Only attributes carry value contracts".into());
             }
@@ -301,7 +322,7 @@ impl CemValueGraph {
         Ok(())
     }
 
-    fn string_value(&self, root: u32, max_bytes: usize) -> Result<String, String> {
+    pub(super) fn string_value(&self, root: u32, max_bytes: usize) -> Result<String, String> {
         let mut result = String::new();
         let mut pending = vec![(root, true)];
         while let Some((id, root)) = pending.pop() {
@@ -315,7 +336,7 @@ impl CemValueGraph {
                     pending.extend(record.targets.iter().rev().map(|&id| (id, root)));
                     ""
                 }
-                "attribute" if !record.values.is_empty() => {
+                "attribute" if record.has_native_content() => {
                     pending.extend(record.values.iter().rev().map(|&id| (id, true)));
                     ""
                 }
@@ -349,7 +370,9 @@ impl CemValueGraph {
         if bytes.len() > limits.max_bytes {
             return Err("Native CEM artifact byte limit exceeded".into());
         }
-        if bytes.len() < MAGIC.len() + 32 || !bytes.starts_with(MAGIC) {
+        if bytes.len() < MAGIC.len() + 32
+            || !(bytes.starts_with(MAGIC) || bytes.starts_with(LEGACY_MAGIC))
+        {
             return Err("Unsupported native CEM value artifact version".into());
         }
         let (hash, body) = bytes[MAGIC.len()..].split_at(32);
@@ -364,6 +387,14 @@ impl CemValueGraph {
         let graph = Self::deserialize(&mut decoder).map_err(|e| e.to_string())?;
         if cursor.position() as usize != body.len() {
             return Err("Trailing native CEM artifact data".into());
+        }
+        if bytes.starts_with(LEGACY_MAGIC)
+            && graph
+                .records
+                .iter()
+                .any(|r| r.occurrence || r.native_content)
+        {
+            return Err("Version-1 artifacts cannot declare version-2 value markers".into());
         }
         graph.validate(limits)?;
         Ok(graph)

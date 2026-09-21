@@ -6,6 +6,7 @@ use crate::render::{RenderPlanAttribute, RenderPlanNode};
 #[derive(Debug, Clone)]
 pub struct OutputView {
     owner: Arc<Vec<RenderPlanNode>>,
+    xpath: super::xpath_values::ProjectionCache,
     path: Vec<usize>,
     attribute: Option<usize>,
 }
@@ -15,11 +16,13 @@ pub fn output_nodes(nodes: Vec<RenderPlanNode>) -> ItemStream {
 }
 
 pub fn shared_output_nodes(owner: Arc<Vec<RenderPlanNode>>) -> ItemStream {
+    let xpath = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
     ItemStream::from_items(
         (0..owner.len())
             .map(|index| {
                 Item::native(OutputView {
                     owner: owner.clone(),
+                    xpath: xpath.clone(),
                     path: vec![index],
                     attribute: None,
                 })
@@ -39,12 +42,20 @@ pub fn output_attribute(attribute: RenderPlanAttribute) -> Item {
             children: Vec::new(),
             source_map,
         }]),
+        xpath: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
         path: vec![0],
         attribute: Some(0),
     })
 }
 
 impl OutputView {
+    pub(crate) fn xpath_cache(&self) -> &super::xpath_values::ProjectionCache {
+        &self.xpath
+    }
+    pub(crate) fn owner_values(&self) -> ItemStream {
+        shared_output_nodes(self.owner.clone())
+    }
+
     pub fn node(&self) -> &RenderPlanNode {
         let mut node = &self.owner[self.path[0]];
         for &index in &self.path[1..] {
@@ -66,6 +77,7 @@ impl OutputView {
         path.push(index);
         Item::native(Self {
             owner: self.owner.clone(),
+            xpath: self.xpath.clone(),
             path,
             attribute: None,
         })
@@ -169,6 +181,11 @@ impl QueryItemView for OutputView {
                     })
                     .collect(),
             ),
+            ("name", RenderPlanNode::ProcessingInstruction { target, .. }) => text(target),
+            ("value" | "data", RenderPlanNode::ProcessingInstruction { data, .. }) => text(data),
+            ("occurrence", RenderPlanNode::Reference { .. }) => {
+                Some(vec![Item::Atomic(AtomValue::Boolean(true))])
+            }
             ("targets", RenderPlanNode::Reference { reference, .. }) => {
                 Some(reference.values().to_vec())
             }

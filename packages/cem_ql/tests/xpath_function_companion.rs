@@ -110,7 +110,7 @@ fn deterministic_companion_reloads_without_source_and_rebinds_only_explicitly() 
                 ),
             ]),
             native_functions: functions.clone(),
-            data_readers: Default::default(),
+            ..Default::default()
         };
         let result = render_compiled_template(&template, &data);
         assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -375,7 +375,7 @@ fn separate_library_keeps_its_identity_across_consumers_and_replacement() {
                             ItemStream::once(Item::Atomic(AtomValue::String(text.into()))),
                         )]),
                         native_functions: host.functions(handle).unwrap(),
-                        data_readers: Default::default(),
+                        ..Default::default()
                     },
                 );
                 assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);

@@ -1,5 +1,13 @@
 # CEMT expression insertion — temporary proposal review
 
+Implementation update: module hook defaults/caller inheritance, receiver input
+contracts and native XPath projection are implemented. The maintained
+[contract](cemt-native-values.md) describes their behavior. Portable artifacts
+now write version 2 to distinguish root output occurrences from source-target
+references, while retaining version-1 reads. Explicit CEM-QL template dispatch,
+remaining scope/resource accounting and DX review continue in TODO.
+
+
 Status: **accepted direction; implementation and verification in progress**.
 
 R08 is resolved: portable native CEM value artifacts carry typed attributes and

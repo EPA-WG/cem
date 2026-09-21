@@ -269,3 +269,284 @@ fn imported_json_demo_library_packs_retained_tree_nodes_and_distinguishes_null()
         }
     }
 }
+
+#[test]
+fn constructed_and_portable_values_share_xpath_identity_and_text() {
+    use cem_ql::{
+        eval::{
+            output::output_nodes,
+            portable::{decode_values, encode_values},
+        },
+        render::*,
+    };
+    let artifact = compile_template(
+        r#"{r @count='2' | {name | ivy{em | saur}}}"#,
+        &CompileTemplateOptions::default(),
+    );
+    let plan = render_compiled_template(&artifact, &TemplateData::default());
+    let values = output_nodes(plan.nodes);
+    let limits = cem_ml::value::artifact::CemValueArtifactLimits::default();
+    let portable = decode_values(&encode_values(&values, &limits).unwrap(), &limits).unwrap();
+    for values in [values, portable] {
+        let mut context = context("");
+        context
+            .policy_bindings
+            .insert("values".into(), values.clone());
+        let text = run(r#"native:call("tree.text", values)"#, &context);
+        assert_eq!(
+            text.items[0].atom(),
+            Some(AtomValue::String("ivysaur".into()))
+        );
+        let a = run(r#"native:call("tree.keep", values)"#, &context);
+        let b = run(r#"native:call("tree.keep", values)"#, &context);
+        assert_eq!(a.items[0].identity(), b.items[0].identity());
+        let node = a.items[0]
+            .view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap();
+        assert!(
+            node.parent_node().is_none(),
+            "a constructed root has no fabricated document parent"
+        );
+        assert_eq!(node.attribute_nodes()[0].string_value(), "2");
+    }
+}
+
+#[test]
+fn xpath_reference_occurrences_have_output_parents_and_targets_keep_source_parents() {
+    use cem_ql::{
+        eval::{
+            output::output_nodes,
+            portable::{decode_values, encode_values},
+        },
+        render::*,
+    };
+    let plan = render_compiled_template(
+        &compile_template(
+            r#"{cem:variable @name=n @select='data:read("<source xmlns:p=\"urn:names\"><p:name rank=\"2\">ivy<em>saur</em></p:name></source>", "xml").root.children.children'}{output | {attribute @name=label @type=node @value='{n}'}{$n}{$n}}"#,
+            &CompileTemplateOptions::default(),
+        ),
+        &TemplateData::default(),
+    );
+    assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    let values = output_nodes(plan.nodes);
+    let limits = cem_ml::value::artifact::CemValueArtifactLimits::default();
+    let restored = decode_values(&encode_values(&values, &limits).unwrap(), &limits).unwrap();
+    for values in [values, restored] {
+        let mut context = context("");
+        context.policy_bindings.insert("values".into(), values);
+        let output = run(r#"native:call("tree.keep", values)"#, &context);
+        let node = output.items[0]
+            .view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap();
+        let children = node.child_nodes();
+        assert_eq!(children.len(), 2);
+        assert_ne!(children[0].identity(), children[1].identity());
+        assert_eq!(children[0].namespace_uri(), "urn:names");
+        assert_eq!(
+            children[0].parent_node().unwrap().identity(),
+            node.identity()
+        );
+        assert_eq!(node.attribute_nodes()[0].string_value(), "ivysaur");
+        let targets = run("seq:first(values.children).targets", &context);
+        context.policy_bindings.insert("target".into(), targets);
+        let target = run(r#"native:call("tree.keep", target)"#, &context);
+        let target = target.items[0]
+            .view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap();
+        assert_eq!(target.parent_node().unwrap().local_name(), "source");
+        assert_ne!(target.identity(), children[0].identity());
+        assert_eq!(target.source_key(), children[0].source_key());
+        assert_eq!(
+            target.source_line_number(),
+            children[0].source_line_number()
+        );
+    }
+}
+
+#[test]
+fn cloned_documents_and_standalone_attributes_keep_their_xpath_kinds() {
+    let context = context("<r rank=\"2\">value</r>");
+    for (query, kind) in [
+        (
+            r#"native:call("tree.keep", dom:clone(data:read(source, "xml").root))"#,
+            cem_ml::validation::xpath::XPathResultNodeKind::Document,
+        ),
+        (
+            r#"native:call("tree.keep", dom:clone(data:read(source, "xml").root.children.attributes))"#,
+            cem_ml::validation::xpath::XPathResultNodeKind::Attribute,
+        ),
+    ] {
+        let result = run(query, &context);
+        let node = result.items[0]
+            .view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap();
+        assert_eq!(node.result_node_kind(), kind);
+        assert!(node.parent_node().is_none());
+    }
+}
+
+#[test]
+fn xpath_accepts_portable_scalars_and_returned_nodes_remain_portable() {
+    use cem_ql::eval::portable::{decode_values, encode_values};
+    let limits = cem_ml::value::artifact::CemValueArtifactLimits::default();
+    let mut context = context("<r><name>ivy</name></r>");
+    let selected = run(
+        r#"native:call("tree.pick", data:read(source, "xml").root)"#,
+        &context,
+    );
+    let restored = decode_values(&encode_values(&selected, &limits).unwrap(), &limits).unwrap();
+    context.policy_bindings.insert("values".into(), restored);
+    assert_eq!(
+        run(r#"native:call("tree.text", values)"#, &context).items[0].atom(),
+        Some(AtomValue::String("ivy".into()))
+    );
+    let scalar = ItemStream::once(Item::Atomic(AtomValue::Integer(2)));
+    for values in [
+        scalar.clone(),
+        decode_values(&encode_values(&scalar, &limits).unwrap(), &limits).unwrap(),
+    ] {
+        context.policy_bindings.insert("values".into(), values);
+        assert_eq!(
+            run(r#"native:call("tree.text", values)"#, &context).items[0].atom(),
+            Some(AtomValue::String("2".into()))
+        );
+    }
+}
+
+#[test]
+fn root_insertions_are_detached_occurrences_while_explicit_references_select_targets() {
+    use cem_ql::{
+        eval::{
+            output::output_nodes,
+            portable::{decode_values, encode_values},
+        },
+        render::*,
+    };
+    let plan = render_compiled_template(
+        &compile_template(
+            r#"{$data:read("<r><name>ivy</name></r>", "xml").root.children.children}"#,
+            &CompileTemplateOptions::default(),
+        ),
+        &TemplateData::default(),
+    );
+    let values = output_nodes(plan.nodes);
+    let limits = cem_ml::value::artifact::CemValueArtifactLimits::default();
+    for values in [
+        values.clone(),
+        decode_values(&encode_values(&values, &limits).unwrap(), &limits).unwrap(),
+    ] {
+        let mut context = context("");
+        context.policy_bindings.insert("values".into(), values);
+        let result = run(r#"native:call("tree.keep", values)"#, &context);
+        let node = result.items[0]
+            .view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap();
+        assert!(node.parent_node().is_none());
+        let targets = run(
+            r#"native:call("tree.keep", dom:reference(values.targets))"#,
+            &context,
+        );
+        let node = targets.items[0]
+            .view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap();
+        assert_eq!(node.parent_node().unwrap().local_name(), "r");
+    }
+}
+
+#[test]
+fn constructed_xpath_cache_does_not_reuse_a_broader_scope_grant() {
+    use cem_ql::eval::{
+        QueryContextScope, QueryItemView, QueryItemViewKind, QueryNodeAccessError,
+        QueryNodeIterator,
+    };
+    #[derive(Debug)]
+    struct ScopedText;
+    impl QueryItemView for ScopedText {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn representation_id(&self) -> &'static str {
+            "test.scoped-text"
+        }
+        fn identity(&self) -> String {
+            "scoped-text".into()
+        }
+        fn kind(&self) -> QueryItemViewKind {
+            QueryItemViewKind::Node
+        }
+        fn field(&self, name: &str) -> Option<Vec<Item>> {
+            let value = match name {
+                "kind" => "text",
+                "value" => "restricted",
+                _ => return None,
+            };
+            Some(vec![Item::Atomic(AtomValue::String(value.into()))])
+        }
+        fn parent(&self, scope: QueryContextScope) -> Result<Option<Item>, QueryNodeAccessError> {
+            if scope.0 == 0 {
+                Ok(None)
+            } else {
+                Err(QueryNodeAccessError::ScopeViolation)
+            }
+        }
+        fn children(
+            &self,
+            _: QueryContextScope,
+        ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+            Ok(Box::new(std::iter::empty()))
+        }
+    }
+    let values =
+        cem_ql::eval::output::output_nodes(vec![cem_ql::render::RenderPlanNode::Reference {
+            reference: cem_ml::value::CemReference::new(vec![Item::native(ScopedText)]),
+            source_map: Default::default(),
+        }]);
+    let mut context = context("");
+    context.policy_bindings.insert("values".into(), values);
+    assert_eq!(
+        run(r#"native:call("tree.text", values)"#, &context).items[0].atom(),
+        Some(AtomValue::String("restricted".into()))
+    );
+    context.scope = QueryContextScope(1);
+    let query = compile(
+        r#"native:call("tree.text", values)"#,
+        &CompileContext {
+            policy_bindings: context.policy_bindings.clone(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let denied = evaluate(&query, &context);
+    assert!(denied.error.is_some());
+    assert!(denied.items.is_empty());
+}
