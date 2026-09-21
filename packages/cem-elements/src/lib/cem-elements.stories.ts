@@ -1526,6 +1526,19 @@ class StoryExecutionFailingWorker extends EventTarget {
 }
 
 class StoryControllableWorker extends EventTarget {
+    heldValueJobId: number | null = null;
+    private holdValueResponse = false;
+    private heldValueResponse: CemProcessingResponseEnvelope | null = null;
+    holdNextValueResponse(): void {
+        this.holdValueResponse = true;
+        this.heldValueJobId = null;
+    }
+    releaseValueResponse(): void {
+        const response = this.heldValueResponse;
+        this.heldValueResponse = null;
+        this.heldValueJobId = null;
+        if (response) this.dispatchMessage(response);
+    }
     heldRenderJobId: number | null = null;
     readonly cancelledTargetJobIds: number[] = [];
 
@@ -1569,6 +1582,13 @@ class StoryControllableWorker extends EventTarget {
 
     private readonly onMessage = (event: MessageEvent<unknown>): void => {
         const message = event.data;
+        if (this.holdValueResponse && isProcessingResponse(message) && message.operation === 'value') {
+            this.holdValueResponse = false;
+            this.heldValueJobId = message.jobId;
+            this.heldValueResponse = message;
+            return;
+        }
+
         if (
             this.holdRenderResponse
             && isProcessingResponse(message)
@@ -3206,7 +3226,7 @@ export const LocalStorageResourceLifecycle: Story = {
         localStorage.removeItem(jsonKey);
         localStorage.setItem(textKey, 'stored initial');
         localStorage.setItem(numberKey, '7');
-        localStorage.setItem(jsonKey, JSON.stringify({ answer: 'json initial' }));
+        localStorage.setItem(jsonKey, '{"answer":"json initial"}');
 
         const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-local-storage' });
         const declaration = buildCemMlDeclaration(
@@ -3220,7 +3240,7 @@ export const LocalStorageResourceLifecycle: Story = {
                 '  {input @class=draft @value="{$datadom.slices.draft}" @slice=draft @slice-event=input @slice-value="$target.value"}',
                 '  {output @class=draft-output | {$datadom.slices.draft}}',
                 '  {output @class=count-output | {$datadom.slices.count}}',
-                '  {output @class=json-output | {$datadom.slices.config.answer}}',
+                '  {output @class=json-output | {$dom:text((datadom.slices.config ?? ()).children.children.children)}}',
                 '}',
             ].join('\n')
         );
@@ -3239,12 +3259,14 @@ export const LocalStorageResourceLifecycle: Story = {
             '7',
             'local-storage coerces number slice'
         );
+        await runtime.whenRenderSettled(instance);
         assertEqual(
             instance.querySelector('.json-output')?.textContent?.trim(),
             'json initial',
             'local-storage coerces JSON slice'
         );
 
+        await runtime.whenRenderSettled(instance);
         dispatchInput(instance, 'typed draft');
         await waitForCondition(
             () => localStorage.getItem(textKey) === 'typed draft',
@@ -3253,7 +3275,7 @@ export const LocalStorageResourceLifecycle: Story = {
 
         localStorage.setItem(textKey, 'external update');
         localStorage.setItem(numberKey, '42');
-        localStorage.setItem(jsonKey, JSON.stringify({ answer: 'json update' }));
+        localStorage.setItem(jsonKey, '{"answer":"json update"}');
         await waitForCondition(
             () => instance.querySelector('.draft-output')?.textContent?.trim() === 'external update',
             'local-storage live text update renders'
@@ -3263,6 +3285,7 @@ export const LocalStorageResourceLifecycle: Story = {
             '42',
             'local-storage live number update renders'
         );
+        await runtime.whenRenderSettled(instance);
         assertEqual(
             instance.querySelector('.json-output')?.textContent?.trim(),
             'json update',
@@ -3273,9 +3296,9 @@ export const LocalStorageResourceLifecycle: Story = {
         assertEqual(snapshot.slices.draft, 'external update', 'snapshot stores live text slice');
         assertEqual(snapshot.slices.count, 42, 'snapshot stores coerced number slice');
         assertEqual(
-            (snapshot.slices.config as { answer?: string }).answer,
-            'json update',
-            'snapshot stores parsed JSON slice'
+            snapshot.nativeSlices?.find(binding => binding.name === 'config')?.value.kind,
+            'cem-native-value-v1',
+            'snapshot stores an opaque native JSON slice'
         );
         const payload = snapshot.eventPayloads.draft as { type?: string; key?: string; storageType?: string; live?: boolean };
         assertEqual(payload.type, 'local-storage', 'local-storage stores resource payload metadata');
@@ -3286,6 +3309,160 @@ export const LocalStorageResourceLifecycle: Story = {
         localStorage.removeItem(textKey);
         localStorage.removeItem(numberKey);
         localStorage.removeItem(jsonKey);
+    },
+};
+
+export const NativeJsonStorageLifecycle: Story = {
+    render: () => storyPanel('Native JSON storage', 'native edits, stale I/O, reconnect and saved state'),
+    play: async ({ canvasElement }) => {
+        const key = 'cem-story-native-json';
+        const nextKey = `${key}-next`;
+        const parentScope = createCemDeclarationScope({ document });
+        const scope = createCemDeclarationScope({ document, parent: parentScope });
+        let worker!: StoryControllableWorker;
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-native-json-declaration', declarationScope: scope,
+            processingPoolPolicy: { workerCount: 1, maxWorkers: 1 },
+            processingWorkerFactory: ({ scriptUrl, name, type }) => {
+                worker = new StoryControllableWorker(new Worker(scriptUrl, { name, type }));
+                return worker as unknown as Worker;
+            } });
+        const declaration = buildCemMlDeclaration('cem-native-json-declaration', 'story-native-json-storage', `
+{attribute @name=key}
+{attribute @name=forced}
+{local-storage @slice=value @key="{key}" @type=json @live=true @value="{forced}"}
+{output | {$dom:text(datadom.slices.value)}}
+{button @slice=value @slice-event=click |{attribute @name=slice-value @type=integer @value=8}Eight}
+{button @slice=value @slice-event=click |{attribute @name=slice-value @type=any @value='{null}'}Remove}
+{button @slice=value @slice-event=click |{attribute @name=slice-value @type=node @value='{data:read("null", "json").root}'}Null}
+{button @slice=value @slice-event=click |{attribute @name=slice-value @type=node @value='{data:read("<bad/>", "xml").root}'}Invalid}
+`);
+        canvasElement.append(declaration);
+        assert(runtime.registerDeclaration(declaration), 'native storage declaration registers');
+        await runtime.whenDeclarationSettled(declaration);
+        const instance = document.createElement('story-native-json-storage');
+        instance.setAttribute('key', key);
+        const output = () => instance.querySelector('output')?.textContent?.trim();
+        const click = (label: string) => {
+            const button = Array.from(instance.querySelectorAll('button')).find(b => b.textContent?.trim() === label);
+            assert(button, `native ${label} control exists`);
+            button.click();
+        };
+        const settle = async () => { await nextFrame(); await runtime.whenRenderSettled(instance); };
+        try {
+            const original = ' {"z":922337203685477580812345,"z":0} ';
+            localStorage.setItem(key, original);
+            canvasElement.append(instance);
+            await settle();
+            assertEqual(localStorage.getItem(key), original, 'a native read preserves original bytes');
+            assert(runtime.snapshotInstance(instance).nativeSlices?.length === 1, 'document is a native slice');
+            assertEqual(runtime.snapshotInstance(instance).slices.value, null, 'control JSON contains no document record');
+            const exported = exportDataIslandSnapshotForEdge(runtime.snapshotInstance(instance), { fields: { nativeSlices: 'allow' } });
+            assertEqual((exported.nativeSlices as { kind?: string })?.kind, 'cem-native-slices-v1', 'edge state uses the named binary envelope');
+
+            worker.holdNextValueResponse();
+            localStorage.setItem(key, '"old"');
+            await waitForCondition(() => worker.heldValueJobId !== null, 'old native import is held');
+            localStorage.setItem(key, '"new"');
+            await nextFrame();
+            worker.releaseValueResponse();
+            await settle();
+            assertEqual(output(), 'new', 'newer storage read wins');
+
+            worker.holdNextValueResponse();
+            click('Eight');
+            await waitForCondition(() => worker.heldValueJobId !== null, 'native export is held');
+            localStorage.setItem(key, '"external"');
+            await nextFrame();
+            worker.releaseValueResponse();
+            await settle();
+            assertEqual(localStorage.getItem(key), '"external"', 'stale export cannot overwrite a storage event');
+            assertEqual(output(), 'external', 'newer external value renders');
+
+            worker.holdNextValueResponse();
+            click('Eight');
+            await waitForCondition(() => worker.heldValueJobId !== null, 'superseded edit is held');
+            click('Invalid');
+            await nextFrame();
+            worker.releaseValueResponse();
+            await settle();
+            assertEqual(localStorage.getItem(key), '"external"', 'a later invalid edit cannot commit the cancelled edit');
+            assertEqual(output(), 'external', 'failed replacement restores the last accepted value');
+            click('Invalid');
+            await settle();
+            assertEqual(localStorage.getItem(key), '"external"', 'unrepresentable native edit leaves storage untouched');
+            assertEqual(output(), 'external', 'failed write restores accepted native slice');
+            assertDiagnostic(runtime.diagnosticsFor(instance), 'cem-element.local_storage_json_invalid');
+            localStorage.setItem(key, '{bad');
+            await settle();
+            assertEqual(localStorage.getItem(key), '{bad', 'invalid input is preserved');
+            assertEqual(runtime.snapshotInstance(instance).nativeSlices?.length, 0, 'invalid import publishes no partial tree');
+            click('Remove');
+            await settle();
+            assertEqual(localStorage.getItem(key), null, 'empty native write removes an invalid key');
+            click('Null');
+            await settle();
+            assertEqual(localStorage.getItem(key), 'null', 'native JSON null writes the literal value');
+            click('Eight');
+            await settle();
+            assertEqual(localStorage.getItem(key), '8', 'typed scalar native edits export');
+
+            instance.setAttribute('forced', '"forced"');
+            await settle();
+            assertEqual(localStorage.getItem(key), '"forced"', 'authoritative JSON validates before writing');
+            localStorage.setItem(key, '"external override"');
+            await settle();
+            assertEqual(localStorage.getItem(key), '"forced"', 'authoritative JSON restores after an external write');
+            click('Eight');
+            await settle();
+            assertEqual(output(), 'forced', 'authoritative JSON restores after a native edit');
+            instance.setAttribute('forced', 'bad');
+            await settle();
+            assertEqual(localStorage.getItem(key), '"forced"', 'invalid authoritative input cannot overwrite storage');
+            instance.removeAttribute('forced');
+            await settle();
+            localStorage.setItem(nextKey, '"rebound"');
+            instance.setAttribute('key', nextKey);
+            await settle();
+            assertEqual(output(), 'rebound', 'key rebinding imports the new key');
+            localStorage.setItem(key, '"old-key"');
+            await settle();
+            assertEqual(output(), 'rebound', 'old key listener is released');
+            worker.holdNextValueResponse();
+            localStorage.setItem(nextKey, '"disconnected"');
+            await waitForCondition(() => worker.heldValueJobId !== null, 'disconnect import is held');
+            instance.remove();
+            worker.releaseValueResponse();
+            localStorage.setItem(nextKey, '"reconnected"');
+            canvasElement.append(instance);
+            await settle();
+            assertEqual(output(), 'reconnected', 'reconnect ignores disposed I/O and imports current storage');
+            const serialized = instance.outerHTML;
+            instance.remove();
+            const saved = document.createElement('template');
+            saved.innerHTML = serialized;
+            const resumed = saved.content.firstElementChild as HTMLElement;
+            canvasElement.append(resumed);
+            await nextFrame();
+            await runtime.whenRenderSettled(resumed);
+            assertEqual(resumed.querySelector('output')?.textContent?.trim(), 'reconnected', 'serialized native state resumes');
+            worker.holdNextValueResponse();
+            localStorage.setItem(nextKey, '"disposed"');
+            await waitForCondition(() => worker.heldValueJobId !== null, 'scope import is held');
+            parentScope.dispose();
+            worker.releaseValueResponse();
+            await nextFrame();
+            assertEqual(resumed.querySelector('output')?.textContent?.trim(), 'reconnected', 'ancestor scope disposal suppresses late publication');
+            localStorage.setItem(nextKey, '"after disposal"');
+            await nextFrame();
+            assertEqual(resumed.querySelector('output')?.textContent?.trim(), 'reconnected', 'ancestor scope disposal releases storage listeners');
+            resumed.remove();
+        } finally {
+            instance.remove();
+            scope.dispose();
+            parentScope.dispose();
+            localStorage.removeItem(key);
+            localStorage.removeItem(nextKey);
+        }
     },
 };
 

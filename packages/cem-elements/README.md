@@ -302,3 +302,22 @@ Run `yarn nx run cem-elements:verify-cemt-pipeline-story` to build Storybook and
 pipeline story's formatted CEM tree, colored CEM tree, and writer output stages.
 
 Run `yarn nx run cem-elements:storybook` to open the interactive Storybook runtime fixture surface.
+
+### Native JSON storage
+
+`{local-storage @key=preferences @slice=preferences @type=json @live=true}`
+imports stored bytes through CEM-ML. `datadom.slices.preferences` is a native
+CEM document; select its children and use `dom:text` for text. The
+[storage demo](demo/local-storage.html) shows generic-data object properties,
+arrays, scalars, and a basket edited through native `slice-value` attributes.
+CEMT constructs replacement nodes without modifying the imported tree.
+
+Native slice event values travel as portable CEM artifacts across workers,
+fallback and saved hydration. Explicit writes export compact JSON through
+CEM-ML, preserving property order, duplicate keys and exact number text.
+Unchanged reads preserve original source bytes. Invalid reads keep raw storage
+and publish a diagnostic with no native tree; invalid writes leave storage
+unchanged. Empty/null slice writes remove the key, while a native JSON-null
+node writes the literal `null`. Scalar storage types retain their established
+browser-input coercion. Native event values target slices; native component
+attributes use CEMT attribute construction.

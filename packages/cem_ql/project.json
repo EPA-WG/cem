@@ -30,6 +30,7 @@
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-view.xslt",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-aspects.cemt",
                 "{workspaceRoot}/packages/cem-elements/demo/cell-overrides.html",
+                "{workspaceRoot}/packages/cem-elements/demo/local-storage.html",
                 "{workspaceRoot}/packages/cem-elements/demo/stock-cell.cemt",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-aspects.xslt",
                 "{workspaceRoot}/packages/cem-elements/demo/xpath-functions.html",

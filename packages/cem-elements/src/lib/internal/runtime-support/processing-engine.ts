@@ -11,6 +11,7 @@ import {
     type RenderPlanNode,
 } from '../../projection.js';
 import {
+    processNativeCemValue,
     retainLoadedCemDocument,
     disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
@@ -30,6 +31,8 @@ import type {
     CemProcessingArtifactHandle,
     CemProcessingCompileInput,
     CemProcessingCompileResult,
+    CemProcessingValueInput,
+    CemProcessingValueResult,
     CemProcessingDocumentInput,
     CemProcessingDocumentResult,
     CemProcessingDiagnostic,
@@ -87,6 +90,13 @@ export class CemProcessingEngine {
         this.renderPlans = new CemProcessingLruCache(
             options.maxRenderPlanEntries ?? DEFAULT_RENDER_PLAN_CACHE_ENTRIES
         );
+    }
+
+    async value(input: CemProcessingValueInput): Promise<CemProcessingValueResult> {
+        this.assertActive();
+        const result = await processNativeCemValue(input);
+        this.assertActive();
+        return result;
     }
 
     async document(input: CemProcessingDocumentInput): Promise<CemProcessingDocumentResult> {
@@ -234,6 +244,7 @@ export class CemProcessingEngine {
                 return { slice, documentId: document.id };
             }),
             nativeAttributes: input.nativeAttributes,
+            nativeSlices: input.nativeSlices,
             nativeValueLimits: input.nativeValueLimits,
             source: processingSourceText(artifact.input),
             data: input.data,

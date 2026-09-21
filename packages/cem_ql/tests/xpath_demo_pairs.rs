@@ -75,7 +75,15 @@ fn render(legend: &str, name: &str, value: &str) -> String {
 fn texts(html: &str, tag: &str) -> Vec<String> {
     html.split(&format!("<{tag}>"))
         .skip(1)
-        .map(|part| part.split(&format!("</{tag}>")).next().unwrap().to_owned())
+        .map(|part| {
+            let content = part.split(&format!("</{tag}>")).next().unwrap();
+            // Node interpolation may preserve an item subtree. Compare labels
+            // through the shared import/text view, as the browser fixture does.
+            let tree = cem_ml::import::import_data(
+                &format!("<label>{content}</label>"), "xml", "cem", "memory:demo-label.xml",
+            ).unwrap();
+            tree.text_fragments(0).unwrap().collect::<String>()
+        })
         .collect()
 }
 

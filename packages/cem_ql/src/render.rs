@@ -96,6 +96,23 @@ impl TemplateData {
         Ok(())
     }
 
+    /// Native slice values bypass the JSON control-data channel entirely.
+    pub fn bind_native_slice(&mut self, name: &str, values: ItemStream) -> Result<(), String> {
+        if name.is_empty() { return Err("A native slice needs a name".into()); }
+        let datadom = self.bindings.entry("datadom".into())
+            .or_insert_with(|| ItemStream::once(Item::Record(BTreeMap::new())));
+        let [Item::Record(fields)] = datadom.items.as_mut_slice() else {
+            return Err("Native slices require a data-island control envelope".into());
+        };
+        let slices = fields.entry("slices".into()).or_insert_with(|| vec![Item::Record(BTreeMap::new())]);
+        let [Item::Record(slices)] = slices.as_mut_slice() else {
+            return Err("Native slices require a slice control envelope".into());
+        };
+        slices.insert(name.into(), values.items.clone());
+        self.bindings.insert(name.into(), values);
+        Ok(())
+    }
+
     pub fn with_binding(mut self, name: impl Into<String>, value: ItemStream) -> Self {
         self.bindings.insert(name.into(), value);
         self

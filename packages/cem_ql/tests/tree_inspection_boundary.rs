@@ -253,11 +253,8 @@ fn inspection_honors_enclosing_control_memory_and_cancellation() {
     )
     .unwrap();
     let failure = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
-    assert!(
-        matches!(failure.error, Some(EvalError::Control(_))),
-        "{:?}",
-        failure
-    );
+    assert_eq!(failure.error, Some(EvalError::Unsupported("inspection payload limit exceeded".into())));
+    assert!(failure.diagnostics.iter().any(|d| d.code == "cem.ql.inspect_limit"));
     assert!(failure.items.is_empty());
     assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
     let control = OperationControl::default();

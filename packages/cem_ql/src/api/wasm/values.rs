@@ -60,6 +60,10 @@ struct Binding {
     name: String,
     artifact_id: u32,
     index: usize,
+    #[serde(default)]
+    target: Option<String>,
+    #[serde(default)]
+    attribute: Option<String>,
 }
 
 pub(super) fn bind(data: &mut TemplateData, bindings_json: &str) -> Result<(), String> {
@@ -69,7 +73,7 @@ pub(super) fn bind(data: &mut TemplateData, bindings_json: &str) -> Result<(), S
     let bindings: Vec<Binding> = serde_json::from_str(bindings_json).map_err(|e| e.to_string())?;
     let mut names = std::collections::BTreeSet::new();
     for binding in bindings {
-        if !names.insert(binding.name.clone()) {
+        if !names.insert((binding.target.as_deref().unwrap_or("attribute").to_owned(), binding.name.clone())) {
             return Err("Duplicate native attribute binding".into());
         }
         let value = INPUTS
@@ -81,14 +85,19 @@ pub(super) fn bind(data: &mut TemplateData, bindings_json: &str) -> Result<(), S
                     .cloned()
             })
             .ok_or("Unknown native value artifact or root index")?;
-        let name = value
-            .view()
-            .and_then(|v| v.field("name"))
-            .and_then(|items| items.first().and_then(crate::eval::Item::atom));
-        if name != Some(crate::eval::AtomValue::String(binding.name)) {
-            return Err("Native attribute name does not match its binding".into());
+        match binding.target.as_deref().unwrap_or("attribute") {
+            "slice" => {
+                let values = if let Some(name) = binding.attribute {
+                    crate::api::native_values::attribute_values(&value, &name)?
+                } else { ItemStream::once(value) };
+                data.bind_native_slice(&binding.name, values)?;
+            }
+            "attribute" => {
+                crate::api::native_values::attribute_values(&value, &binding.name)?;
+                data.bind_native_attribute(value)?;
+            }
+            _ => return Err("Unknown native value binding target".into()),
         }
-        data.bind_native_attribute(value)?;
     }
     Ok(())
 }
@@ -133,3 +142,15 @@ pub(super) fn limits(input: &str) -> Result<CemValueArtifactLimits, String> {
 }
 
 pub(super) fn clear_output() { OUTPUT.with(|output| output.borrow_mut().take()); }
+
+#[wasm_bindgen(js_name = "importCemDocumentValue")]
+pub fn import_document(bytes: &[u8], content_type: &str, uri: &str, limits_json: &str) -> Result<Vec<u8>, JsValue> {
+    let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
+    crate::api::native_values::import_document(bytes, content_type, uri, &limits).map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen(js_name = "exportCemJsonValue")]
+pub fn export_json(bytes: &[u8], index: usize, attribute: &str, limits_json: &str) -> Result<Option<String>, JsValue> {
+    let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
+    crate::api::native_values::export_json(bytes, index, (!attribute.is_empty()).then_some(attribute), &limits).map_err(|e| JsValue::from_str(&e))
+}

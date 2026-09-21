@@ -1,4 +1,4 @@
-import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type CemValueArtifactLimits } from "../../native-values.js";
+import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
 /**
  * Host runtime-support boundary for the `cem_ql` WASM render engine
  * (design [`cem-element-wasm-proposal.md` §5/§6](../../../../../../docs/cem-element-wasm-proposal.md)).
@@ -27,6 +27,8 @@ import initCemQlWasm, {
     disposeTemplate,
     importTemplateArtifact,
     renderTemplateWithNativeValues,
+    importCemDocumentValue,
+    exportCemJsonValue,
     importNativeValueArtifact,
     disposeNativeValueArtifact,
     takeRenderValueArtifact,
@@ -42,6 +44,7 @@ import initCemQlWasm, {
     xsltStylesheetImports,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 import {
+    edgeContentAddress,
     assertProcessingBoundaryValue,
     diffRenderPlansToPatchFrames,
     projectSlotsInRenderPlan,
@@ -86,6 +89,7 @@ export interface CemMlTemplateCompileResult {
 
 export interface CemQlRenderOptions {
     nativeAttributes?: readonly NativeCemAttributeBinding[];
+    nativeSlices?: readonly NativeCemSliceBinding[];
     nativeValueLimits?: CemValueArtifactLimits;
     /** Prefix for deterministic, pre-order render-node ids (typically the produced tag). */
     renderNodeIdPrefix?: string;
@@ -257,6 +261,7 @@ export interface CemMlTemplateProcessingIdentity {
 
 export interface CemMlTemplateProcessingInput {
     nativeAttributes?: readonly NativeCemAttributeBinding[];
+    nativeSlices?: readonly NativeCemSliceBinding[];
     nativeValueLimits?: CemValueArtifactLimits;
     source: string;
     data: Record<string, unknown>;
@@ -630,7 +635,7 @@ export async function renderCemMlTemplate(
             disposeTemplate(retained.artifactId);
         }
     }
-    if (options.nativeAttributes?.length || options.nativeValueLimits) {
+    if (options.nativeAttributes?.length || options.nativeSlices?.length || options.nativeValueLimits) {
         const retained = await retainCemMlTemplateSource(source, Object.keys(data));
         try { return await renderRetainedCemMlTemplate(retained.artifactId, data, options); }
         finally { disposeTemplate(retained.artifactId); }
@@ -675,7 +680,9 @@ function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings:
     const limits = options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS;
     let totalBytes = 0;
     try {
-        const bindings = (options.nativeAttributes ?? []).map(({ name, value }) => {
+        const inputs = [...(options.nativeAttributes ?? []).map(b => ({ ...b, target: 'attribute', attribute: undefined })),
+            ...(options.nativeSlices ?? []).map(b => ({ ...b, target: 'slice' }))];
+        const bindings = inputs.map(({ name, value, target, attribute }) => {
             if (value.kind !== 'cem-native-value-v1' || !Number.isSafeInteger(value.index) || value.index < 0) throw new TypeError('Invalid native CEM value binding');
             let artifactId = imported.get(value.artifact);
             if (artifactId === undefined) {
@@ -684,7 +691,7 @@ function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings:
                 artifactId = importNativeValueArtifact(new Uint8Array(value.artifact), JSON.stringify(limits));
                 imported.set(value.artifact, artifactId);
             }
-            return { name, artifactId, index: value.index };
+            return { name, artifactId, index: value.index, target, attribute };
         });
         return render(JSON.stringify(bindings));
     } finally {
@@ -724,7 +731,7 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
 export async function processCemMlTemplate(
     input: CemMlTemplateProcessingInput
 ): Promise<CemMlTemplateProcessingResult> {
-    if (input.moduleClosure || input.nativeAttributes?.length) {
+    if (input.moduleClosure || input.nativeAttributes?.length || input.nativeSlices?.length || input.nativeValueLimits) {
         const retained = input.moduleClosure
             ? await retainCemMlTemplateModuleClosure(input.source, input.moduleClosure, Object.keys(input.data))
             : await retainCemMlTemplateSource(input.source, Object.keys(input.data));
@@ -784,6 +791,7 @@ export async function processRetainedCemMlTemplate(
 
     const renderOptions = {
         nativeAttributes: input.nativeAttributes,
+        nativeSlices: input.nativeSlices,
         nativeValueLimits: input.nativeValueLimits,
         xpathCompanionId: input.xpathCompanionId,
         documents: input.documents,
@@ -917,4 +925,16 @@ export async function retainLoadedCemDocument(bytes: ArrayBuffer, contentType: s
 }
 export function disposeLoadedCemDocument(id: number): void {
     disposeCemDocument(id);
+}
+
+/** Opaque bytes in/out; native CEM-ML owns all format semantics. */
+export async function processNativeCemValue(input: import('./processing-host.js').CemProcessingValueInput): Promise<import('./processing-host.js').CemProcessingValueResult> {
+    await ensureRuntimeReady();
+    const limits = JSON.stringify(input.limits);
+    if (input.action === 'import') {
+        const artifact = importCemDocumentValue(new Uint8Array(input.bytes), input.contentType, input.sourceUri, limits).slice().buffer as ArrayBuffer;
+        return { value: { kind: 'cem-native-value-v1', artifact, index: 0,
+            contentHash: edgeContentAddress('sanitized-snapshot', artifact).digest } };
+    }
+    return { text: exportCemJsonValue(new Uint8Array(input.value.artifact), input.value.index, input.attribute ?? '', limits) ?? null };
 }

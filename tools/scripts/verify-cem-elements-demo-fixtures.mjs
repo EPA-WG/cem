@@ -2430,9 +2430,9 @@ const sourceHarnessHtml = `<!doctype html>
         localStorage.setItem('cemDemoTime', '13:30');
         localStorage.setItem('cemDemoLocalDateTime', '1977-04-01T14:00:30');
         localStorage.setItem('cemDemoNumber', '1.23456e+5');
-        localStorage.setItem('cemDemoJson', JSON.stringify({ a: 1, b: 'B' }));
+        localStorage.setItem('cemDemoJson', '{"a":1,"b":"B"}');
         localStorage.setItem('cemDemoCherries', '12');
-        localStorage.setItem('cemDemoBasket', JSON.stringify({ cherries: 12, lemons: 1 }));
+        localStorage.setItem('cemDemoBasket', '{"cherries":12,"lemons":1}');
         localStorage.setItem('cemDemoFruitLemons', '1');
         localStorage.setItem('cemDemoFruitCherries', '12');
         localStorage.setItem('cemDemoFruitApples', '0');

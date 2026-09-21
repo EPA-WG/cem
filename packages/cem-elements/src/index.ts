@@ -13,6 +13,6 @@ export * from './lib/legacy-xslt/contract.js';
 // browser runtime, SSR, and fixture gates.
 export { convertLegacyTemplate, type LegacyConvertResult } from './lib/internal/runtime-support/cem-ql-render.js';
 
-export { exportNativeCemAttributes, importNativeCemAttributes,
-    type NativeCemValue, type NativeCemAttributeBinding, type CemValueArtifactLimits,
+export { exportNativeCemAttributes, importNativeCemAttributes, exportNativeCemSlices, importNativeCemSlices,
+    type NativeCemValue, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits,
 } from './lib/native-values.js';

@@ -1,4 +1,4 @@
-import { exportNativeCemAttributes, importNativeCemAttributes, type NativeCemAttributeBinding, type CemValueArtifactLimits } from "./native-values.js";
+import { exportNativeCemSlices, importNativeCemSlices, sameNativeCemValue, type NativeCemValue, type NativeCemSliceBinding, exportNativeCemAttributes, importNativeCemAttributes, type NativeCemAttributeBinding, type CemValueArtifactLimits } from "./native-values.js";
 import { renderedNativeAttributeBindings, restoreNativeAttributeBindings } from "./projection.js";
 import { identifyXPathFunctionLibrary, XPATH_LIBRARY_MAX_SOURCE_BYTES, type CemXPathFunctionLibrarySource } from './internal/runtime-support/xpath-function-library.js';
 import {
@@ -60,6 +60,7 @@ import {
     type CemProcessingSourceRef,
     type CemProcessingCompileResult,
     type CemProcessingDocumentHandle,
+    type CemProcessingValueInput,
     type CemProcessingHost,
     type CemProcessingRenderDiffInput,
     type CemProcessingRenderDiffResult,
@@ -333,6 +334,7 @@ export interface DataIslandSnapshot {
     privacyPolicyStamp: string;
     hostAttributes: Record<string, string | boolean | null>;
     nativeAttributes?: NativeCemAttributeBinding[];
+    nativeSlices?: NativeCemSliceBinding[];
     dataset: Record<string, string>;
     payload: SerializedPayload;
     /** Complete DOM-native island tree made available to canonical transformations. */
@@ -348,6 +350,7 @@ export interface DataIslandSnapshot {
 export type DataIslandSnapshotExportField =
     | 'hostAttributes'
     | 'nativeAttributes'
+    | 'nativeSlices'
     | 'dataset'
     | 'payload'
     | 'slices'
@@ -373,7 +376,7 @@ export type ExportedDataIslandSnapshot = Pick<
     | 'scopePolicyStamp'
     | 'privacyPolicyStamp'
 > &
-    Partial<Pick<DataIslandSnapshot, Exclude<DataIslandSnapshotExportField, 'nativeAttributes'>>> & { nativeAttributes?: Record<string, unknown> };
+    Partial<Pick<DataIslandSnapshot, Exclude<DataIslandSnapshotExportField, 'nativeAttributes' | 'nativeSlices'>>> & { nativeAttributes?: Record<string, unknown>; nativeSlices?: Record<string, unknown> };
 
 export interface DataIslandSnapshotExportPolicy {
     fields?: Partial<Record<DataIslandSnapshotExportField, DataIslandSnapshotExportDecision>>;
@@ -796,6 +799,7 @@ interface ActiveProcessingRenderJob {
 }
 
 interface InstanceState {
+    nativeSlices: Record<string, NativeCemSliceBinding>;
     slices: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
     httpResources: Record<string, ActiveHttpResource>;
@@ -813,6 +817,7 @@ interface SliceEventBinding {
     sliceNames: string[];
     attributeNames: string[];
     eventNames: string[];
+    nativeValue?: NativeCemValue;
     expression: string | null;
     listener: EventListener;
 }
@@ -953,12 +958,25 @@ interface ActiveStorageStatusResource {
     refreshQueued: boolean;
 }
 
+interface NativeJsonStorageState {
+    revision: number;
+    eventRevision: number;
+    value?: NativeCemSliceBinding;
+    acceptedValue?: NativeCemSliceBinding;
+    scalar: unknown;
+    pending?: Promise<void>;
+    cancel?: () => void;
+    initialValue?: string;
+    disposed: boolean;
+}
+
 interface ActiveLocalStorageResource {
     key: string;
     storageType: string;
     live: boolean;
     lastValue: unknown;
     lastRawValue: string | null;
+    native?: NativeJsonStorageState;
     destroy?: () => void;
 }
 
@@ -1107,6 +1125,7 @@ const RUNTIME_PAYLOAD_ATTRIBUTE_NAMES = new Set([
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
     'nativeAttributes',
+    'nativeSlices',
     'hostAttributes',
     'dataset',
     'payload',
@@ -1515,6 +1534,7 @@ export function exportDataIslandSnapshotForEdge(
         if (decision === 'allow') {
             exported[field] = (field === 'nativeAttributes'
                 ? exportNativeCemAttributes(snapshot.nativeAttributes ?? [])
+                : field === 'nativeSlices' ? exportNativeCemSlices(snapshot.nativeSlices ?? [])
                 : cloneJsonSnapshotField(snapshot[field])) as never;
         } else if (decision === 'redact') {
             exported[field] = redactedSnapshotField(field) as never;
@@ -1678,8 +1698,15 @@ export class CemElementRuntime {
      * asynchronous `cem_ql` WASM render boundary for canonical CEM-ML. Synchronous
      * (DOM / legacy) renders resolve immediately.
      */
-    whenRenderSettled(instance: HTMLElement): Promise<void> {
-        return this.renderSettled.get(instance) ?? Promise.resolve();
+    async whenRenderSettled(instance: HTMLElement): Promise<void> {
+        for (;;) {
+            const render = this.renderSettled.get(instance);
+            await render;
+            const pending = Object.values(this.instanceStates.get(instance)?.localStorageResources ?? {})
+                .map(active => active.native?.pending).filter((p): p is Promise<void> => !!p);
+            await Promise.all(pending);
+            if (render === this.renderSettled.get(instance)) return;
+        }
     }
 
     install(host: CemElementWindow): void {
@@ -2671,6 +2698,7 @@ export class CemElementRuntime {
                 ...(moduleClosure === undefined ? {} : { moduleClosure }),
                 payload: snapshot.payload,
                 nativeAttributes: snapshot.nativeAttributes,
+                nativeSlices: snapshot.nativeSlices,
                 nativeValueLimits: this.nativeValueLimits,
                 identity: {
                     producedTag: compiled.producedTag,
@@ -2981,6 +3009,7 @@ export class CemElementRuntime {
                 data,
                 documents: this.httpDocumentBindings(instance, snapshot),
                 nativeAttributes: snapshot.nativeAttributes,
+                nativeSlices: snapshot.nativeSlices,
                 nativeValueLimits: this.nativeValueLimits,
                 scopeUid: this.currentScopeUid(instance, compiled),
                 previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,
@@ -3025,6 +3054,7 @@ export class CemElementRuntime {
                     data: wasmTemplateData(recoverySnapshot, compiled.declaredAttributes),
                     documents: this.httpDocumentBindings(instance, recoverySnapshot),
                     nativeAttributes: recoverySnapshot.nativeAttributes,
+                    nativeSlices: recoverySnapshot.nativeSlices,
                     nativeValueLimits: this.nativeValueLimits,
                     scopeUid: this.currentScopeUid(instance, compiled),
                     previousRenderPlan: null,
@@ -3624,6 +3654,7 @@ export class CemElementRuntime {
 
         const hydrationSnapshot = this.hydrationSnapshots.get(instance);
         const state: InstanceState = {
+            nativeSlices: Object.fromEntries((hydrationSnapshot?.nativeSlices ?? []).map(b => [b.name, b])),
             slices: hydrationSnapshot
                 ? templateValueRecord(hydrationSnapshot.slices)
                 : Object.fromEntries(compiled.declaredSlices.map((slice) => [slice.name, slice.defaultValue])),
@@ -3705,6 +3736,7 @@ export class CemElementRuntime {
             return;
         }
         const expression = renderedBindingAttribute(element, 'slice-value');
+        const nativeValue = renderedNativeAttributeBindings(element).find(b => b.name === 'slice-value')?.value;
         if (target.localName === 'form') {
             this.formSliceNames.set(target, sliceNames);
         }
@@ -3719,7 +3751,8 @@ export class CemElementRuntime {
             stringArraysEqual(existing.sliceNames, sliceNames) &&
             stringArraysEqual(existing.attributeNames, attributeNames) &&
             stringArraysEqual(existing.eventNames, eventNames) &&
-            existing.expression === expression
+            existing.expression === expression &&
+            sameNativeCemValue(existing.nativeValue, nativeValue)
         ) {
             return;
         }
@@ -3730,7 +3763,7 @@ export class CemElementRuntime {
         }
 
         const listener: EventListener = (event) => {
-            this.writeSlicesFromEvent(instance, compiled, sliceNames, attributeNames, expression, event);
+            this.writeSlicesFromEvent(instance, compiled, sliceNames, attributeNames, expression, event, nativeValue);
         };
         for (const eventName of eventNames) {
             target.addEventListener(eventName, listener);
@@ -3742,6 +3775,7 @@ export class CemElementRuntime {
             attributeNames,
             eventNames,
             expression,
+            nativeValue,
             listener,
         });
         if (eventNames.includes('init')) {
@@ -3923,6 +3957,7 @@ export class CemElementRuntime {
         const resourcesSettled: Promise<void>[] = [];
         const repositoryQueries = new Set<string>();
         const storageStatuses = new Set<string>();
+        const localStorageSlices = new Set<string>();
         let locationWriter = 0;
         for (const element of resourceElements) {
             const localName = element.localName;
@@ -3976,12 +4011,20 @@ export class CemElementRuntime {
                 continue;
             }
             if (localStorage) {
+                localStorageSlices.add(localStorage.sliceName);
                 this.bindLocalStorageResource(instance, compiled, localStorage);
                 continue;
             }
             if (locationElement) {
                 this.bindLocationResource(instance, compiled, locationElement, locationWriter);
                 if (locationElement.method) locationWriter += 1;
+            }
+        }
+        const state = this.instanceStates.get(instance);
+        for (const [name, active] of Object.entries(state?.localStorageResources ?? {})) {
+            if (active.native && !localStorageSlices.has(name)) {
+                active.destroy?.();
+                if (state) delete state.localStorageResources[name];
             }
         }
         this.disposeMissingRepositoryResources(instance, repositoryQueries, storageStatuses);
@@ -4820,6 +4863,12 @@ export class CemElementRuntime {
             active = undefined;
         }
 
+        if (declaration.storageType === 'json') {
+            this.bindNativeJsonStorage(instance, compiled, state, declaration, storage, window, active);
+            return;
+        }
+        delete state.nativeSlices[declaration.sliceName];
+
         let source: LocalStorageSliceSource = 'retained';
         let nextValue: unknown;
         let nextRawValue: string | null;
@@ -4869,6 +4918,162 @@ export class CemElementRuntime {
         }
     }
 
+    private bindNativeJsonStorage(
+        instance: HTMLElement, compiled: CompiledDeclaration, state: InstanceState,
+        declaration: LocalStorageDeclaration, storage: Storage, window: Window,
+        existing: ActiveLocalStorageResource | undefined,
+    ): void {
+        const name = declaration.sliceName;
+        const valueJob = async (native: NativeJsonStorageState, input: CemProcessingValueInput) => {
+            const host = this.processingHost(compiled);
+            const job = host.value(input);
+            const cancel = () => { void host.cancel({ targetJobId: job.jobId, reason: 'superseded' }).result.catch(() => undefined); };
+            native.cancel = cancel;
+            try { return await job.result; }
+            finally { if (native.cancel === cancel) native.cancel = undefined; }
+        };
+        const report = (error: unknown): void => {
+            this.recordDiagnostics(instance, [resourceDiagnostic('cem-element.local_storage_json_invalid',
+                `local-storage key \`${declaration.key}\`: ${String(error)}`, compiled.producedTag, 'error')]);
+        };
+        const sameBinding = (a?: NativeCemSliceBinding, b?: NativeCemSliceBinding) =>
+            a?.attribute === b?.attribute && sameNativeCemValue(a?.value, b?.value);
+        if (existing?.native) {
+            const native = existing.native;
+            if (native.disposed) return;
+            const eventRevision = (state.eventPayloads[name] as { revision?: number } | undefined)?.revision ?? 0;
+            const bindingChanged = !sameBinding(state.nativeSlices[name], native.value) || !Object.is(state.slices[name], native.scalar) || eventRevision !== native.eventRevision;
+            if (declaration.initialValue !== native.initialValue || (declaration.initialValue !== undefined && bindingChanged)) {
+                existing.destroy?.();
+                delete state.localStorageResources[name];
+            } else {
+                const binding = state.nativeSlices[name];
+                const scalar = state.slices[name];
+                if (!bindingChanged) return;
+                native.eventRevision = eventRevision;
+                const revision = ++native.revision;
+                native.cancel?.();
+                const previous = native.acceptedValue;
+                native.value = binding;
+                native.scalar = scalar;
+                const raw = existing.lastRawValue;
+                native.pending = (async () => {
+                    try {
+                        let text: string | null = null;
+                        if (binding) {
+                            const result = await valueJob(native, { action: 'export-json',
+                                value: binding.value, attribute: binding.attribute,
+                                scopePolicyStamp: this.scopePolicyStamp, limits: this.nativeValueLimits });
+                            if (!('text' in result)) throw new TypeError('Expected native JSON export');
+                            text = result.text;
+                        } else if (scalar !== null && scalar !== undefined) {
+                            throw new TypeError('JSON storage writes require native CEM values');
+                        }
+                        if (!isCurrent()) return;
+                        // An unobserved external writer wins over an older native edit.
+                        if (storage.getItem(declaration.key) !== raw) {
+                            existing.destroy?.();
+                            delete state.localStorageResources[name];
+                            this.renderInstance(instance, compiled);
+                            return;
+                        }
+                        writeLocalStorageRaw(storage, declaration.key, text);
+                        existing.lastRawValue = text;
+                        native.acceptedValue = binding;
+                        this.writeLocalStorageEventPayload(state, declaration, null, text, 'slice-write');
+                        this.renderInstance(instance, compiled);
+                    } catch (error) {
+                        if (!isCurrent()) return;
+                        if (previous) state.nativeSlices[name] = previous;
+                        else delete state.nativeSlices[name];
+                        state.slices[name] = null;
+                        native.value = previous;
+                        native.scalar = null;
+                        report(error);
+                        this.renderInstance(instance, compiled);
+                    }
+                })();
+                function isCurrent(): boolean {
+                    return !native.disposed && native.revision === revision && instance.isConnected && !compiled.declarationScope.disposed;
+                }
+                return;
+            }
+        }
+        const native: NativeJsonStorageState = {
+            revision: 0,
+            eventRevision: (state.eventPayloads[name] as { revision?: number } | undefined)?.revision ?? 0,
+            scalar: null, initialValue: declaration.initialValue, disposed: false,
+        };
+        const active: ActiveLocalStorageResource = {
+            key: declaration.key, storageType: 'json', live: declaration.live,
+            lastValue: null, lastRawValue: null, native,
+        };
+        state.localStorageResources[name] = active;
+        const read = (raw: string | null, source: LocalStorageSliceSource) => {
+            const revision = ++native.revision;
+            native.cancel?.();
+            native.eventRevision = (state.eventPayloads[name] as { revision?: number } | undefined)?.revision ?? 0;
+            active.lastRawValue = raw;
+            state.slices[name] = null;
+            delete state.nativeSlices[name];
+            native.value = undefined;
+            native.acceptedValue = undefined;
+            native.scalar = null;
+            native.pending = (async () => {
+                try {
+                    if (raw !== null) {
+                        const result = await valueJob(native, { action: 'import',
+                            bytes: new TextEncoder().encode(raw).buffer, contentType: 'application/json',
+                            sourceUri: `local-storage:${encodeURIComponent(declaration.key)}`,
+                            scopePolicyStamp: this.scopePolicyStamp, limits: this.nativeValueLimits });
+                        if (!('value' in result)) throw new TypeError('Expected native document import');
+                        if (!isCurrent()) return;
+                        const binding = { name, value: result.value };
+                        native.value = binding;
+                        native.acceptedValue = binding;
+                        state.nativeSlices[name] = binding;
+                    }
+                    if (!isCurrent()) return;
+                    if (source === 'value-attribute') writeLocalStorageRaw(storage, declaration.key, raw);
+                    this.writeLocalStorageEventPayload(state, declaration, null, raw, source);
+                } catch (error) {
+                    if (!isCurrent()) return;
+                    report(error);
+                    this.writeLocalStorageEventPayload(state, declaration, null, raw, source);
+                }
+                if (isCurrent()) this.renderInstance(instance, compiled);
+            })();
+            function isCurrent(): boolean {
+                return !native.disposed && native.revision === revision && instance.isConnected && !compiled.declarationScope.disposed;
+            }
+        };
+        const listener = (event: Event) => {
+            const key = localStorageChangedKey(event);
+            if (key !== null && key !== declaration.key) return;
+            const raw = storage.getItem(declaration.key);
+            if (raw !== active.lastRawValue) read(declaration.initialValue ?? raw, declaration.initialValue === undefined ? 'storage-event' : 'value-attribute');
+        };
+        if (declaration.live) {
+            ensureTrackedLocalStorage(window);
+            window.addEventListener('storage', listener);
+            window.addEventListener(LOCAL_STORAGE_EVENT, listener);
+        }
+        const removeScopeListeners: (() => void)[] = [];
+        active.destroy = () => {
+            if (native.disposed) return;
+            native.disposed = true;
+            native.revision++;
+            native.cancel?.();
+            window.removeEventListener('storage', listener);
+            window.removeEventListener(LOCAL_STORAGE_EVENT, listener);
+            for (const remove of removeScopeListeners.splice(0)) remove();
+        };
+        for (let scope: CemDeclarationScope | null = compiled.declarationScope; scope; scope = scope.parent) {
+            removeScopeListeners.push(onCemDeclarationScopeDispose(scope, active.destroy));
+        }
+        if (!native.disposed) read(declaration.initialValue ?? storage.getItem(declaration.key), declaration.initialValue === undefined ? 'initial-read' : 'value-attribute');
+    }
+
     private writeLocalStorageSlice(
         state: InstanceState,
         declaration: LocalStorageDeclaration,
@@ -4897,6 +5102,8 @@ export class CemElementRuntime {
         source: LocalStorageSliceSource,
     ): void {
         state.eventPayloads[declaration.sliceName] = {
+            ...((state.eventPayloads[declaration.sliceName] as { revision?: number } | undefined)?.revision !== undefined
+                ? { revision: (state.eventPayloads[declaration.sliceName] as { revision: number }).revision } : {}),
             type: 'local-storage',
             key: declaration.key,
             storageType: declaration.storageType,
@@ -5426,12 +5633,16 @@ export class CemElementRuntime {
         attributeNames: string[],
         expression: string | null,
         event: Event,
+        nativeValue?: NativeCemValue,
     ): void {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
-        const sliceValue = evaluateSliceEventValue(expression, event, state.slices);
+        const sliceValue = nativeValue ? null : evaluateSliceEventValue(expression, event, state.slices);
         let changed = false;
         for (const sliceName of sliceNames) {
+            if (nativeValue) state.nativeSlices[sliceName] = { name: sliceName, value: nativeValue, attribute: 'slice-value' };
+            else delete state.nativeSlices[sliceName];
+
             const eventPayload = serializeEventPayload(event, sliceValue);
             const previousRevision = (state.eventPayloads[sliceName] as { revision?: number } | undefined)?.revision;
             eventPayload.revision = (typeof previousRevision === 'number' ? previousRevision : 0) + 1;
@@ -5444,8 +5655,12 @@ export class CemElementRuntime {
                 changed = true;
             }
         }
+        if (nativeValue && attributeNames.length) {
+            this.recordDiagnostics(instance, [renderDiagnostic('cem-element.slice_attribute_native_target',
+                'Native slice-value events require a slice target; bind component attributes through CEMT attribute construction.', compiled.producedTag)]);
+        }
         const attributeValue = sliceValue === null ? '' : String(sliceValue);
-        for (const attributeName of attributeNames) {
+        for (const attributeName of nativeValue ? [] : attributeNames) {
             if (instance.getAttribute(attributeName) === attributeValue) {
                 continue;
             }
@@ -5723,6 +5938,7 @@ export class CemElementRuntime {
             privacyPolicyStamp: this.privacyPolicyStamp,
             hostAttributes: hostAttributes(instance),
             nativeAttributes: renderedNativeAttributeBindings(instance),
+            nativeSlices: Object.values(state?.nativeSlices ?? {}),
             dataset: datasetEntries(instance),
             payload: this.invalidInstancePayloads.has(instance)
                 ? emptySerializedPayload()
@@ -7023,13 +7239,7 @@ function localStorageStringToValue(type: string, rawValue: string | null, docume
     if (storageType === 'text') {
         return rawValue;
     }
-    if (storageType === 'json') {
-        try {
-            return JSON.parse(rawValue) as unknown;
-        } catch {
-            return null;
-        }
-    }
+    if (storageType === 'json') throw new TypeError('JSON storage requires native CEM import');
     const input = document.createElement('input');
     input.setAttribute('type', storageType);
     if (storageType === 'number') {
@@ -7052,13 +7262,7 @@ function localStorageValueToString(type: string, value: unknown): string | null 
     if (value === undefined || value === null) {
         return null;
     }
-    if (type === 'json') {
-        try {
-            return JSON.stringify(value);
-        } catch {
-            return null;
-        }
-    }
+    if (type === 'json') throw new TypeError('JSON storage requires native CEM export');
     if (type === 'number') {
         const number = typeof value === 'number' ? value : Number(value);
         return Number.isNaN(number) ? null : String(number);
@@ -7675,6 +7879,7 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
         hostAttributes: Object.fromEntries(
             Object.entries(serializedHostAttributes).map(([name, value]) => [name, value === '' ? true : value]),
         ) as Record<string, string | boolean | null>,
+        nativeSlices: hydration.nativeSlices === undefined ? [] : importNativeCemSlices(hydration.nativeSlices),
         nativeAttributes: hydration.nativeAttributes === undefined ? [] : importNativeCemAttributes(hydration.nativeAttributes),
         dataset: readIslandRecordSection(island, DATA_ISLAND_SECTIONS.dataset) as Record<string, string>,
         payload: serializePayload(
@@ -9332,6 +9537,7 @@ export function writeDataIslandHydrationData(
         sourceMapMode: snapshot.sourceMapMode,
         scopePolicyStamp: snapshot.scopePolicyStamp,
         privacyPolicyStamp: snapshot.privacyPolicyStamp,
+        ...(snapshot.nativeSlices?.length ? { nativeSlices: exportNativeCemSlices(snapshot.nativeSlices) } : {}),
         ...(snapshot.nativeAttributes?.length ? { nativeAttributes: exportNativeCemAttributes(snapshot.nativeAttributes) } : {}),
     });
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.attributes, snapshot.hostAttributes);

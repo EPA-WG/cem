@@ -32,7 +32,14 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 69);
+    assert_eq!(registry.functions.len(), 75);
+    for (module, name, arity) in [
+        ("cem:stdlib/dom", "text", 0), ("cem:stdlib/dom", "text", 1),
+        ("cem:stdlib/dom", "reference", 1), ("cem:stdlib/dom", "clone", 1),
+        ("cem:stdlib/dom", "element", 1), ("cem:stdlib/cemt", "apply_templates", 2),
+    ] {
+        assert!(registry.resolve(module, name, arity).is_some(), "{module}:{name}/{arity}");
+    }
     assert!(registry
         .resolve("cem:stdlib/modules", "module_url", 1)
         .is_some());

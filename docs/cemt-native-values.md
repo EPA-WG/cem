@@ -291,6 +291,16 @@ entrypoints retain their match declarations when their body is selected.
 
 ## Portable artifacts: accepted R08 transport
 
+Browser slice events use the same native graph transport as component attributes.
+A constructed native `slice-value` attribute supplies its authoritative value
+sequence to the named slice. `DataIslandSnapshot.nativeSlices` and the explicit
+`cem-native-slices-v1` saved envelope preserve that sequence without projecting
+it to DOM text or JavaScript document records. Import/export helpers are public
+alongside the native attribute helpers. See the
+[lifecycle contract](cem-element-lifecycle-principle.md#native-slice-values) and
+[JSON storage demo](../packages/cem-elements/demo/local-storage.html) for native
+edits and CEM-ML JSON export.
+
 CEM-ML owns the `CEMV` version-3 binary value artifact. It contains a flat native
 value graph with ordered roots, children, attributes, reference targets and
 native attribute segments. Scalars keep their datatype; attributes keep their

@@ -99,12 +99,12 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
             '@type=json',
             '@type=text',
             '@live=true',
-            "localStorage.setItem('cemDemoJson',JSON.stringify('ABC'))",
+            "localStorage.setItem('cemDemoJson','&quot;ABC&quot;')",
             "localStorage.setItem('cemDemoJson','ABC')",
             "localStorage.setItem('cemDemoJson','false')",
-            'record:entries(datadom.slices.json)',
-            'item:kind(datadom.slices.json)',
-            '@select=datadom.slices.json @as=item',
+            'dom:text(property.children)',
+            '(datadom.slices.json ?? ()).children',
+            '@select=value.children @as=item',
         ],
         named: false,
     },
@@ -125,9 +125,9 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
             '@key=cemDemoBasket',
             '@slice=basket',
             '@type=json',
-            'datadom.slices.basket.cherries',
-            'datadom.slices.basket.lemons',
-            "localStorage.setItem('cemDemoBasket', JSON.stringify(basket))",
+            '@name=cherries',
+            '@name=lemons',
+            '@name=slice-value @type=node',
         ],
         named: false,
     },
@@ -208,7 +208,7 @@ describe('local-storage demo source contracts', () => {
     });
 
     it('drives external writes through plain controls outside the observing DCE', () => {
-        for (const sample of samples.filter(({ legend }) => !legend.startsWith('7.'))) {
+        for (const sample of samples.filter(({ legend }) => !legend.startsWith('7.') && !legend.startsWith('5.'))) {
             const writer = sample.source.split('<cem-element')[0];
             expect(writer).toContain('onclick=');
             expect(writer).toContain('localStorage.setItem(');
@@ -218,10 +218,22 @@ describe('local-storage demo source contracts', () => {
         expect(samples.find(({ legend }) => legend.startsWith('2.'))?.source).not.toContain('@value=');
     });
 
+    it('edits JSON with native template values and no JavaScript document objects', () => {
+        const basket = samples.find(({ legend }) => legend.startsWith('5.'))?.source ?? '';
+        expect(basket).toContain('@name=slice-value @type=node');
+        expect(basket).toContain('@namespace=cem:generic-data');
+        expect(basket).toContain('@slice=basket @slice-event=click');
+        expect(basket).not.toContain('onclick=');
+        for (const name of ['Add cherry', 'Add lemon', 'Reset basket']) {
+            expect(basket).toContain(`@aria-label="${name}" @title="${name}"`);
+        }
+    });
+
     it('seeds defaults only when storage has no existing value', () => {
         expect(DEMO_SOURCE).toContain("cemDemoPersistedDefault: 'DEF'");
         expect(DEMO_SOURCE).toContain("cemDemoCherries: '12'");
-        expect(DEMO_SOURCE).toContain('JSON.stringify({ cherries: 12, lemons: 1 })');
+        expect(DEMO_SOURCE).toContain('cemDemoBasket: \'{"cherries":12,"lemons":1}\'');
+        expect(DEMO_SOURCE).not.toMatch(/JSON\.(parse|stringify)/u);
         expect(DEMO_SOURCE).toContain("cemDemoFruitLemons: '1'");
         expect(DEMO_SOURCE).toContain("cemDemoFruitCherries: '12'");
         expect(DEMO_SOURCE).toContain("cemDemoFruitApples: '0'");
@@ -237,7 +249,7 @@ describe('local-storage demo source contracts', () => {
         for (const [name, symbol] of [
             ['Store 24 cherries', '24🍒'], ['Store 12 cherries', '12🍒'],
             ['Add cherry', '+🍒'], ['Add lemon', '+🍋'],
-            ['Reset basket', '↺🛒'], ['Add apple', '+🍏'], ['Add banana', '+🍌'],
+            ['Add apple', '+🍏'], ['Add banana', '+🍌'],
         ]) {
             const controls = buttons.filter((button) => button.includes(`aria-label="${name}"`));
             expect(controls.length, name).toBeGreaterThan(0);

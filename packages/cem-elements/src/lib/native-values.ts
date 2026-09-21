@@ -6,6 +6,10 @@ export interface NativeCemValue {
     index: number;
 }
 export interface NativeCemAttributeBinding { name: string; value: NativeCemValue }
+export interface NativeCemSliceBinding extends NativeCemAttributeBinding {
+    /** Native event attribute whose authoritative values form this slice. */
+    attribute?: string;
+}
 export interface CemValueArtifactLimits { maxBytes: number; maxValues: number; maxDepth: number }
 export const DEFAULT_CEM_VALUE_ARTIFACT_LIMITS: Readonly<CemValueArtifactLimits> = Object.freeze({
     maxBytes: 16 * 1024 * 1024, maxValues: 100_000, maxDepth: 128,
@@ -60,4 +64,24 @@ export function importNativeCemAttributes(input: unknown, limits = DEFAULT_CEM_V
         seen.add(record.name);
         return { name: record.name, value: { kind: 'cem-native-value-v1', ...artifacts[record.artifact as number], index: record.index as number } };
     });
+}
+
+/** Saved slices carry opaque artifacts, including an optional event-value wrapper. */
+export function exportNativeCemSlices(bindings: readonly NativeCemSliceBinding[]): Record<string, unknown> {
+    return { kind: 'cem-native-slices-v1', values: exportNativeCemAttributes(bindings),
+        wrappers: bindings.filter(b => b.attribute !== undefined).map(b => ({ name: b.name, attribute: b.attribute })) };
+}
+export function importNativeCemSlices(input: unknown, limits = DEFAULT_CEM_VALUE_ARTIFACT_LIMITS): NativeCemSliceBinding[] {
+    const envelope = input as { kind?: unknown; values?: unknown; wrappers?: unknown } | null;
+    if (envelope?.kind !== 'cem-native-slices-v1' || !Array.isArray(envelope.wrappers) || envelope.wrappers.length > limits.maxValues) throw new TypeError('Invalid native CEM slice envelope');
+    const bindings: NativeCemSliceBinding[] = importNativeCemAttributes(envelope.values, limits);
+    const byName = new Map(bindings.map(binding => [binding.name, binding]));
+    const names = new Set<string>();
+    for (const wrapper of envelope.wrappers) {
+        const binding = byName.get(wrapper?.name);
+        if (!binding || names.has(binding.name) || typeof wrapper.attribute !== 'string' || !wrapper.attribute) throw new TypeError('Invalid native slice wrapper');
+        binding.attribute = wrapper.attribute;
+        names.add(binding.name);
+    }
+    return bindings;
 }

@@ -200,7 +200,10 @@ two existing warnings. The demo-element build passes as part of its test target.
 The intermittent stock startup finding and the three reproducible failures remain
 open; clean source presentation does not resolve those separate issues.
 
-## Pending decision: native JSON storage write-back
+## Accepted decision: native JSON storage write-back
+
+Accepted 2026-09-21: preserve two-way binding with native CEM export. Implement
+the recommended contract below; the alternative is review history.
 
 The JSON validation failure is a render-contract mismatch, reproduced in both
 standalone and source-loaded pages after declaration/render settlement:
@@ -215,11 +218,11 @@ standalone and source-loaded pages after declaration/render settlement:
 - The native structured-data fixture already requires rejection of direct
   record insertion. Selecting an explicit scalar field renders successfully.
 
-`localStorageStringToValue` still uses JavaScript `JSON.parse`, and its inverse
-uses `JSON.stringify`. Both JSON demos also use JavaScript document records;
-the basket's buttons parse and mutate one. The
-[import principle](cem-data-import-principle.md) records this older typed-value
-protocol separately from document ingestion. It must migrate to satisfy the
+At diagnosis, `localStorageStringToValue` used JavaScript `JSON.parse`, and its
+inverse used `JSON.stringify`. Both JSON demos used JavaScript document records;
+the basket's buttons parsed and mutated one. The
+[import principle](cem-data-import-principle.md) recorded this older typed-value
+protocol separately from document ingestion. It needed migration to satisfy the
 user's instruction that JSON data stays in native CEM trees. Merely guarding the
 record interpolation would repair the visible symptom while retaining that debt.
 
@@ -271,9 +274,8 @@ JSON slice's two-way write contract, forces native editors to choose an explicit
 export path, and makes the basket less representative of typed editing. This is
 a public contract choice, not an implementation shortcut to apply silently.
 
-Implementation of storage migration is paused for this choice under the user's
-stop-at-decisions instruction. Both options retain the CEM-ML import boundary;
-neither restores record insertion into CEMT content.
+The user approved the two-way native binding. Its implementation retains the
+CEM-ML import boundary and does not restore record insertion into CEMT content.
 
 ### Independent fixture corrections
 
@@ -294,3 +296,52 @@ The full parallel browser suite now passes 188 of 189 stories; only the diagnose
 local-storage JSON sample remains failing. Typecheck and lint pass, with the same
 two existing lint warnings. This change repairs fixtures and records the migration
 decision; it does not change storage, rendering, evaluator semantics or base viewers.
+
+### Native storage implementation
+
+The accepted migration adds CEM-ML's `value::json::write_json` over the portable
+native value graph. CEM-QL's host adapter delegates byte import and JSON export
+to CEM-ML; it does not parse external formats. Stateless processing-host `value`
+jobs use protocol v6 and replay on worker failure. Rendering validates native
+slice bindings separately from attribute bindings and releases decode handles.
+
+Native `slice-value` event attributes supply their retained value sequence.
+The JSON basket constructs replacement generic-data nodes; no JavaScript JSON
+object is created in either JSON sample. Imported slices contain documents;
+authored replacement values can be document, element, reference or atomic
+values accepted by the exporter. The basket selects the object from either
+an imported document or an authored object. Existing base viewers are unchanged.
+
+Storage jobs carry revision guards. Live reads invalidate pending exports;
+exports also compare the current raw key before committing. Invalid reads keep
+the raw key, clear the native slice and diagnose; invalid exports restore the
+accepted slice. Key changes, disconnect and direct/ancestor scope disposal invalidate pending
+work. Native artifacts persist in the explicit saved-state envelope, while
+reconnect reimports the current storage source. Native JSON null remains
+separate from an absent key; empty/atomic-null writes remove the key.
+
+Authoritative JSON `@value` is validated before writing and restored after an
+external write or slice edit. Unchanged reads do not reformat stored text.
+Explicit exports use compact JSON, preserve order/duplicate keys and numeric
+lexical values, escape strings, and reject nonrepresentable structures under
+byte/value/depth ceilings. The same environment limits can only be lowered by
+CEM scopes.
+
+Verification on 2026-09-21: all seven native storage cases, 413 runtime unit
+tests and 190 browser stories pass. Build, typecheck and lint pass with the two
+existing lint warnings. Focused packaged gallery checks pass for standalone
+and source-loaded storage pages; real demo cards show two desktop columns and
+390px containment, with repeated basket edits persisted and no browser errors.
+The complete packaged gallery also passes all 28 standalone pages and 34
+source-loaded documents, including the previously failing JSON validation list.
+The ancestor-scope fixture first reproduced a late import publication after
+disposal; storage now observes every scope ancestor and removes all listeners.
+
+The broader native run also exposed stale fixtures: the registry count predates
+six native-value function signatures, table selectors predate row headings,
+inspection rejects an oversized payload before allocating it, and node-pair
+labels must compare text rather than serialized subtree markup. The old XSLT
+output prerequisite now checks retained references and explicit `dom:text`.
+Those fixtures now assert the existing contracts. Three strict `xslt_data_view` comparisons
+still fail because XSLT uses selection `td` and CEMT uses `th`. Both implementations
+predate this migration and remain untouched; TODO tracks the parity decision.

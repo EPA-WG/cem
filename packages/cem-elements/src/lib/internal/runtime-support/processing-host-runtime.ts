@@ -16,6 +16,8 @@ import {
     type CemProcessingCancelResult,
     type CemProcessingCompileInput,
     type CemProcessingCompileResult,
+    type CemProcessingValueInput,
+    type CemProcessingValueResult,
     type CemProcessingDocumentInput,
     type CemProcessingDocumentResult,
     type CemProcessingDiagnostic,
@@ -529,6 +531,10 @@ class RootCemProcessingHost implements CemProcessingHost {
         return this.initialReady;
     }
 
+    value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult> {
+        return this.submit('value', input);
+    }
+
     document(input: CemProcessingDocumentInput): CemProcessingJob<CemProcessingDocumentResult> {
         const key = JSON.stringify(input.handle);
         if (input.action === 'retain') this.documentInputs.set(key, input);
@@ -682,6 +688,11 @@ class RootCemProcessingHost implements CemProcessingHost {
         request: CemProcessingRequestEnvelope<TOperation>,
         cancellationAccepted = false
     ): Promise<OperationResult<TOperation>> {
+        if (request.operation === 'value') {
+            const result = await this.engine.value(request.payload);
+            this.assertNotCancelled(request);
+            return result as OperationResult<TOperation>;
+        }
         if (request.operation === 'document') {
             const result = await this.engine.document(request.payload);
             try {
@@ -782,6 +793,7 @@ function requestScopePolicyStamp(
     request: CemProcessingRequestEnvelope,
     jobPolicies: ReadonlyMap<number, string>
 ): string {
+    if (request.operation === 'value') return request.payload.scopePolicyStamp;
     if (request.operation === 'document') return request.payload.handle.scopePolicyStamp;
     if (request.operation === 'compile') {
         return request.payload.scopePolicyStamp;
@@ -796,7 +808,8 @@ function requestScopePolicyStamp(
 }
 
 type OperationResult<TOperation extends CemProcessingOperation> =
-    TOperation extends 'document' ? CemProcessingDocumentResult
+    TOperation extends 'value' ? CemProcessingValueResult
+        : TOperation extends 'document' ? CemProcessingDocumentResult
         : TOperation extends 'compile' ? CemProcessingCompileResult
         : TOperation extends 'render-diff' ? CemProcessingRenderDiffResult
             : TOperation extends 'cancel' ? CemProcessingCancelResult

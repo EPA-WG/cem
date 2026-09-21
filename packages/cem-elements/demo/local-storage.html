@@ -25,9 +25,9 @@
             cemDemoTime: '13:30',
             cemDemoLocalDateTime: '1977-04-01T14:00:30',
             cemDemoNumber: '1.23456e+5',
-            cemDemoJson: JSON.stringify({ a: 1, b: 'B' }),
+            cemDemoJson: '{"a":1,"b":"B"}',
             cemDemoCherries: '12',
-            cemDemoBasket: JSON.stringify({ cherries: 12, lemons: 1 }),
+            cemDemoBasket: '{"cherries":12,"lemons":1}',
             cemDemoFruitLemons: '1',
             cemDemoFruitCherries: '12',
             cemDemoFruitApples: '0',
@@ -57,11 +57,14 @@
         </p>
         <p>
             Browser storage contains strings. The <code>type</code> attribute parses
-            text, number, date, time, datetime-local, or JSON values; an invalid value
-            becomes null. An authored <code>value</code> is authoritative and rewrites
-            the key on every render. Omit it when a stored value must survive reloads.
+            text, number, date, time, or datetime-local values; an invalid value
+            becomes null. JSON enters the shared CEM-ML importer as a native document.
+            Invalid JSON leaves the raw key unchanged, clears the native slice, and reports a diagnostic. An authored <code>value</code> is authoritative; JSON validates it before writing. Omit it when a stored value must survive reloads.
         </p>
         <p>
+            JSON edits construct replacement CEM nodes without modifying the imported tree.
+            Native exports preserve key order, duplicate keys, and exact number text.
+            A native JSON null writes <code>null</code>; an empty slice removes the key.
             Click the plain HTML buttons to call <code>localStorage.setItem()</code>
             or <code>removeItem()</code>, then watch the CEM-ML slice output change.
             These buttons represent an independent storage writer. The runtime
@@ -304,10 +307,10 @@
         description="Try JSON objects, arrays, and scalar values. Unquoted ABC becomes null; a valid write restores the parsed slice and its fields or items">
         <template>
 <button onclick="
-    localStorage.setItem('cemDemoJson',JSON.stringify({a:1,b:'B'}))
+    localStorage.setItem('cemDemoJson','{&quot;a&quot;:1,&quot;b&quot;:&quot;B&quot;}')
 ">Object</button>
 <button onclick="
-    localStorage.setItem('cemDemoJson',JSON.stringify('ABC'))
+    localStorage.setItem('cemDemoJson','&quot;ABC&quot;')
 ">JSON string</button>
 <button onclick="
     localStorage.setItem('cemDemoJson','12.345')
@@ -332,22 +335,23 @@
 {local-storage @key=cemDemoJson @slice=raw @type=text @live=true}
 {local-storage @key=cemDemoJson @slice=json @type=json @live=true}
 {p | Storage text: {output | {$(datadom.slices.raw ?? "null")}}}
+{cem:variable @name=value @select='(datadom.slices.json ?? ()).children'}
 {p | json slice: {output |
-    {cem:if @test='item:kind(datadom.slices.json) == "record"' | object}
-    {cem:if @test='item:kind(datadom.slices.json) == "array"' | array}
-    {$(datadom.slices.json ?? "null")}
+    {cem:choose |
+        {cem:when @test='(value.name ?? "null") == "object"' | object}
+        {cem:when @test='(value.name ?? "null") == "array"' | array}
+        {cem:when @test='(value.name ?? "null") == "null"' | null}
+        {cem:otherwise | {$dom:text(value)}}}
 }   }
-{cem:if @test='item:kind(datadom.slices.json) == "record"' |
+{cem:if @test='(value.name ?? "") == "object"' |
     {ul |
-        {cem:for-each
-            @select="record:entries(datadom.slices.json)"
-            @as=entry |
-            {li | {$entry.key}: {$entry.value}}
+        {cem:for-each @select=value.children @as=property |
+            {li | {$dom:text(property.attributes)}: {$dom:text(property.children)}}
 }   }   }
-{cem:if @test='item:kind(datadom.slices.json) == "array"' |
+{cem:if @test='(value.name ?? "") == "array"' |
     {ol |
-        {cem:for-each @select=datadom.slices.json @as=item |
-            {li | {$item}}
+        {cem:for-each @select=value.children @as=item |
+            {li | {$dom:text(item)}}
 }   }   }
     </template>
 </cem-element>
@@ -378,22 +382,8 @@
 
     <cem-demo-element
         legend="5. Live JSON basket"
-        description="Fruit buttons update a JSON object in localStorage; the live basket projects its counts and recalculates the total">
+        description="Fruit buttons construct new native CEM trees; the slice exports JSON to localStorage and recalculates the total">
         <template>
-<button aria-label="Add cherry" title="Add cherry" onclick="
-    const basket = JSON.parse(localStorage.getItem('cemDemoBasket') || '{}');
-    basket.cherries = (basket.cherries || 0) + 1;
-    localStorage.setItem('cemDemoBasket', JSON.stringify(basket));
-">+🍒</button>
-<button aria-label="Add lemon" title="Add lemon" onclick="
-    const basket = JSON.parse(localStorage.getItem('cemDemoBasket') || '{}');
-    basket.lemons = (basket.lemons || 0) + 1;
-    localStorage.setItem('cemDemoBasket', JSON.stringify(basket));
-">+🍋</button>
-<button aria-label="Reset basket" title="Reset basket" onclick="
-    localStorage.setItem('cemDemoBasket',
-        JSON.stringify({cherries:12,lemons:1}))
-">↺🛒</button>
 <cem-element>
     <template type="text/cem-ml">
 {style |```
@@ -407,17 +397,59 @@
     @slice=basket
     @type=json
     @live=true}
+{cem:variable @name=document @select='datadom.slices.basket ?? ()'}
+{cem:variable @name=properties @select='
+    seq:where((document, document.children),
+        fn(n) => (n.name ?? "") == "object").children'}
+{cem:variable @name=cherries @select='
+    if seq:count(properties) == 0 { 0 } else {
+        num:integer(str:trim(dom:text(seq:where(properties,
+            fn(p) => dom:text(seq:where(p.attributes,
+                fn(a) => a.name == "name")) == "cherries").children))) }'}
+{cem:variable @name=lemons @select='
+    if seq:count(properties) == 0 { 0 } else {
+        num:integer(str:trim(dom:text(seq:where(properties,
+            fn(p) => dom:text(seq:where(p.attributes,
+                fn(a) => a.name == "name")) == "lemons").children))) }'}
+{template @name=basket-value |
+    {param @name=cherries}
+    {param @name=lemons}
+    {body |
+        {attribute @name=slice-value @type=node
+            |{result-element @name=object @namespace=cem:generic-data |
+                {result-element @name=property @namespace=cem:generic-data |
+                    {result-attribute @name=name | cherries}
+                    {result-element @name=number @namespace=cem:generic-data
+                        | {$cherries}}}
+                {result-element @name=property @namespace=cem:generic-data |
+                    {result-attribute @name=name | lemons}
+                    {result-element @name=number @namespace=cem:generic-data
+                        | {$lemons}}}
+}}  }   }
+{button @aria-label="Add cherry" @title="Add cherry"
+    @slice=basket @slice-event=click |
+    {call @template=basket-value @with:cherries="{cherries + 1}"
+        @with:lemons="{$lemons}"}
+    +🍒}
+{button @aria-label="Add lemon" @title="Add lemon"
+    @slice=basket @slice-event=click |
+    {call @template=basket-value @with:cherries="{$cherries}"
+        @with:lemons="{lemons + 1}"}
+    +🍋}
+{button @aria-label="Reset basket" @title="Reset basket"
+    @slice=basket @slice-event=click |
+    {call @template=basket-value @with:cherries="{12}" @with:lemons="{1}"}
+    ↺🛒}
 {article @class=demo-card |
     {dl |
         {dt @aria-label=Cherries @title=Cherries | 🍒}
-        {dd | {$datadom.slices.basket.cherries}}
+        {dd | {$cherries}}
         {dt @aria-label=Lemons @title=Lemons | 🍋}
-        {dd | {$datadom.slices.basket.lemons}}
+        {dd | {$lemons}}
         {dt @aria-label=Total @title=Total | 🛒}
         {dd |
             {$(
-                datadom.slices.basket.cherries
-                + datadom.slices.basket.lemons
+                cherries + lemons
             )}
         }
     }

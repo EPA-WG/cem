@@ -131,21 +131,11 @@ These are not external document import implementations. Browser template
 declaration loading is a separate authored-template input boundary; it does
 not make DOM records an acceptable data-query model.
 
-The browser's explicitly typed `local-storage @type=json` codec currently
-decodes persisted host values into its existing record/array binding contract.
-That does not provide native document nodes. Treat conversion of this value
-protocol to document ingestion as a separate binding migration; never reuse
-its JSON decoder as an external-document importer. Authored slice values,
-hydration envelopes and scalar host parameters likewise retain their explicit
-value-protocol boundary.
-
-The local-storage document binding is migration debt, not a precedent for new
-JSON data consumers. The 2026-09-21 stabilization audit reproduced record content
-rejection in its demo and found JavaScript document mutation in its basket.
-Native reads must use shared CEM-ML import. The remaining decision is whether to
-preserve two-way binding with native JSON export or require a separate text
-writer; see the concrete
-[storage migration proposal](browser-stabilization-review.tmp.md#pending-decision-native-json-storage-write-back).
+The browser's `local-storage @type=json` reads through shared CEM-ML import
+and binds a native document in `datadom.slices.<name>`. It never exposes a
+JavaScript JSON record. Explicit slice edits use CEM-ML's native JSON export;
+control metadata and saved-state envelopes carry opaque CEM value artifacts.
+See the [accepted write-back contract](browser-stabilization-review.tmp.md#accepted-decision-native-json-storage-write-back).
 
 For implementation details and parity cases, see
 [the shared XPath view design](cem-tree-xpath-view.md). The loader first publishes

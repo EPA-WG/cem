@@ -32,7 +32,7 @@ fn render(source: &str, data: &TemplateData) -> RenderPlan {
 }
 
 #[test]
-fn native_xpath_nodes_are_stringified_by_existing_expression_insertion() {
+fn native_xpath_subtrees_and_explicit_text_keep_distinct_output() {
     for (source, format, projection) in [
         ("<r><row id='a'>payload</row><row/></r>", "xml", "cem"),
         (r#"{"row":"payload","empty":null}"#, "json", "json-to-xml"),
@@ -45,7 +45,16 @@ fn native_xpath_nodes_are_stringified_by_existing_expression_insertion() {
             "selected",
             ItemStream::once(XPathQueryItem::from_node(node)),
         );
-        let plan = render("{div | {$ selected}}", &data);
+        let native = render("{div | {$ selected}}", &data);
+        let [RenderPlanNode::Element { children, .. }] = native.nodes.as_slice() else {
+            panic!("expected result element");
+        };
+        let [RenderPlanNode::Reference { reference, .. }] = children.as_slice() else {
+            panic!("expected retained native subtree reference");
+        };
+        assert_eq!(reference.values(), &data.bindings["selected"].items);
+        assert!(render_plan_to_html(&native).contains("payload"));
+        let plan = render("{div | {$dom:text(selected)}}", &data);
         assert_eq!(render_plan_to_html(&plan), "<div>payload</div>");
         let [RenderPlanNode::Element { children, .. }] = plan.nodes.as_slice() else {
             panic!("expected result element");
@@ -53,8 +62,8 @@ fn native_xpath_nodes_are_stringified_by_existing_expression_insertion() {
         assert!(children
             .iter()
             .all(|n| matches!(n, RenderPlanNode::Text { .. })));
-        // The imported tree is still retained; only the output insertion loses
-        // its node structure. Re-parsing serialized markup is not a solution.
+        // Both paths retain the input owner. Only explicit text conversion
+        // omits its structure from the result.
         assert!(tree.native_owner().is_some());
     }
 }

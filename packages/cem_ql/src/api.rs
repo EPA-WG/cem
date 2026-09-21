@@ -28,6 +28,8 @@ mod json_boundary;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
+pub mod native_values;
+
 pub const CEM_QL_EXPRESSION_CONTENT_TYPE: &str = "application/vnd.cem.query-expression+cem-ql";
 pub const CEM_QL_EXPRESSION_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1#expression";
 pub const PRIMARY_INPUT_BINDING: &str = "input";

@@ -1,4 +1,4 @@
-import type { NativeCemAttributeBinding, CemValueArtifactLimits } from "../../native-values.js";
+import type { NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue, CemValueArtifactLimits } from "../../native-values.js";
 import type { CemXPathFunctionLibrarySource } from './xpath-function-library.js';
 import type { DataIslandSnapshot, SourceMapMode } from '../../cem-elements.js';
 import type { CemMlTemplateModuleClosure, CemQlStylesheetArtifact, CemXsltComponentOptions } from './cem-ql-render.js';
@@ -15,12 +15,13 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v5' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v6' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
     'render-diff',
     'document',
+    'value',
     'cancel',
     'dispose',
 ] as const;
@@ -176,8 +177,16 @@ export interface CemProcessingDocumentBinding {
     handle: CemProcessingDocumentHandle;
 }
 
+/** Stateless native value I/O; document syntax remains inside CEM-ML. */
+export type CemProcessingValueInput = { scopePolicyStamp: string; limits: CemValueArtifactLimits } & (
+    | { action: 'import'; bytes: ArrayBuffer; contentType: string; sourceUri: string }
+    | { action: 'export-json'; value: NativeCemValue; attribute?: string }
+);
+export type CemProcessingValueResult = { value: NativeCemValue } | { text: string | null };
+
 export interface CemProcessingRenderDiffInput {
     nativeAttributes?: readonly NativeCemAttributeBinding[];
+    nativeSlices?: readonly NativeCemSliceBinding[];
     nativeValueLimits?: CemValueArtifactLimits;
     documents?: CemProcessingDocumentBinding[];
     artifact: CemProcessingArtifactHandle;
@@ -281,6 +290,7 @@ export interface CemProcessingDisposeResult {
 
 interface CemProcessingRequestPayloads {
     document: CemProcessingDocumentInput;
+    value: CemProcessingValueInput;
     compile: CemProcessingCompileInput;
     'render-diff': CemProcessingRenderDiffInput;
     cancel: CemProcessingCancelInput;
@@ -289,6 +299,7 @@ interface CemProcessingRequestPayloads {
 
 interface CemProcessingSuccessResults {
     document: CemProcessingDocumentResult;
+    value: CemProcessingValueResult;
     compile: CemProcessingCompileResult;
     'render-diff': CemProcessingRenderDiffResult;
     cancel: CemProcessingCancelResult;
@@ -510,6 +521,7 @@ export interface CemProcessingHost {
     readonly mode: CemProcessingHostMode;
     readonly ownerScope: CemDeclarationScope;
     readonly ready: Promise<CemProcessingReadyEnvelope>;
+    value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult>;
     document(input: CemProcessingDocumentInput): CemProcessingJob<CemProcessingDocumentResult>;
     compile(input: CemProcessingCompileInput): CemProcessingJob<CemProcessingCompileResult>;
     renderDiff(input: CemProcessingRenderDiffInput): CemProcessingJob<CemProcessingRenderDiffResult>;
@@ -549,7 +561,7 @@ export type CemProcessingWorkerFailure =
           transactionState: CemProcessingPatchTransactionState;
           revision: RenderRevision;
       })
-    | (CemProcessingWorkerFailureBase & { operation: 'document' | 'cancel' | 'dispose' });
+    | (CemProcessingWorkerFailureBase & { operation: 'value' | 'document' | 'cancel' | 'dispose' });
 
 export type CemProcessingWorkerFailureDecision =
     | {
@@ -609,7 +621,7 @@ export function decideCemProcessingWorkerFailure(
     }
 
     const diagnostic = workerFallbackDiagnostic(failure.phase);
-    if (failure.operation === 'compile' || failure.operation === 'document') {
+    if (failure.operation === 'compile' || failure.operation === 'document' || failure.operation === 'value') {
         return {
             action: 'retry-main-thread',
             nextMode: 'main-thread',

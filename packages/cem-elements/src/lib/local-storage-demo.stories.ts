@@ -24,9 +24,9 @@ const STORAGE_DEFAULTS = {
     cemDemoTime: '13:30',
     cemDemoLocalDateTime: '1977-04-01T14:00:30',
     cemDemoNumber: '1.23456e+5',
-    cemDemoJson: JSON.stringify({ a: 1, b: 'B' }),
+    cemDemoJson: '{"a":1,"b":"B"}',
     cemDemoCherries: '12',
-    cemDemoBasket: JSON.stringify({ cherries: 12, lemons: 1 }),
+    cemDemoBasket: '{"cherries":12,"lemons":1}',
     cemDemoFruitLemons: '1',
     cemDemoFruitCherries: '12',
     cemDemoFruitApples: '0',
@@ -223,7 +223,7 @@ async function verifyJson(sample: HTMLElement): Promise<void> {
     );
     submitRaw(sample, '{"fruit":"cherry","count":0}');
     await waitForCondition(
-        () => textList(sample, 'ul li').join('|') === 'count: 0|fruit: cherry',
+        () => textList(sample, 'ul li').join('|') === 'fruit: cherry|count: 0',
         'object projection follows newly written field names and retains zero'
     );
     buttonByText(sample, 'Object').click();
@@ -265,18 +265,20 @@ async function verifyJsonBasket(sample: HTMLElement): Promise<void> {
     await waitForCondition(() => definitionValue(sample, '🛒') === '14', 'a cherry updates the JSON basket');
     buttonByLabel(sample, 'Add lemon').click();
     await waitForCondition(
-        () => definitionValue(sample, '🛒') === '15',
-        'an external JSON write updates the parsed live basket'
+        () => definitionValue(sample, '🛒') === '15'
+            && localStorage.getItem('cemDemoBasket') === '{"cherries":13,"lemons":2}',
+        'the native edit renders and completes JSON export'
     );
     assertDefinitionValue(sample, '🍒', '13');
     assertDefinitionValue(sample, '🍋', '2');
     assertEqual(
         localStorage.getItem('cemDemoBasket'),
-        JSON.stringify({ cherries: 13, lemons: 2 }),
+        '{"cherries":13,"lemons":2}',
         'the edited JSON text is persisted'
     );
     buttonByLabel(sample, 'Reset basket').click();
-    await waitForCondition(() => definitionValue(sample, '🛒') === '13', 'reset restores the basket');
+    await waitForCondition(() => definitionValue(sample, '🛒') === '13'
+        && localStorage.getItem('cemDemoBasket') === '{"cherries":12,"lemons":1}', 'reset restores and persists the basket');
 }
 
 async function verifyFruitWriterAndWatcher(sample: HTMLElement): Promise<void> {

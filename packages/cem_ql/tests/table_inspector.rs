@@ -164,7 +164,7 @@ fn inspector_controls_use_common_nodes_in_all_four_formats() {
                 .starts_with("row.cem-source:1:"));
             assert!(attr(checkbox(row), "checked").is_none());
         }
-        assert!(find(children(table), "th")
+        assert!(find(children(find(children(table), "thead")[0]), "th")
             .iter()
             .all(|node| attr(node, "scope") == Some("col")));
     }
@@ -174,7 +174,7 @@ fn inspector_controls_use_common_nodes_in_all_four_formats() {
 fn heterogeneous_columns_and_text_only_rows_remain_visible() {
     let plan = render("<r xmlns:a='urn:one' xmlns:b='urn:one'><a:row same=''>pre<![CDATA[🍒]]><same>child</same>post</a:row><b:row later=''>next</b:row></r>", "xml", vec![], 0);
     let table = find(&plan.nodes, "table")[0];
-    let headings = find(children(table), "th");
+    let headings = find(children(find(children(table), "thead")[0]), "th");
     let names: Vec<_> = headings
         .iter()
         .skip(1)
@@ -183,7 +183,7 @@ fn heterogeneous_columns_and_text_only_rows_remain_visible() {
     assert_eq!(names, ["@same", "#text", "same", "@later"]);
     assert!(!content(table).contains("xmlns"));
     let first = cells(rows(table)[0]);
-    assert_eq!(&first[1..3], &["\"\"", "pre🍒post"]);
+    assert_eq!(&first[..2], &["\"\"", "pre🍒post"]);
     assert_eq!(first.last().unwrap(), "∅");
     let plan = render(
         "<r><name>ivysaur</name><name>venusaur</name></r>",
@@ -238,7 +238,7 @@ fn multiple_selections_follow_source_keys_through_stable_sorting() {
         let mut selected = selected(table);
         selected.sort();
         assert_eq!(selected, ["Apple", "Lemon"]);
-        let active: Vec<_> = find(children(table), "th")
+        let active: Vec<_> = find(children(find(children(table), "thead")[0]), "th")
             .into_iter()
             .filter(|node| attr(node, "aria-sort").is_some())
             .collect();

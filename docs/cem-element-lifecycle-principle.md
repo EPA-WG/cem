@@ -47,6 +47,31 @@ produced them. A source-language schema such as JSON is never selected merely
 because state is record-shaped; foreign languages enter only through an
 explicit content-type/schema handoff.
 
+## Native slice values
+
+`DataIslandSnapshot.nativeSlices` carries portable native CEM value artifacts,
+separately from the scalar/control `slices` record. A native slice has a null
+placeholder in that control record; only the native binding channel supplies
+its query value. Native attributes use the same binary graph format. Neither
+channel serializes a document into JavaScript records or reconstructs nodes
+from rendered DOM text.
+
+Saved hydration and explicit edge export encode native slices in the named
+`cem-native-slices-v1` binary envelope. Event bindings may retain a native
+`slice-value` attribute wrapper; the receiver validates its name and unwraps
+its authoritative native value sequence. References, types and source metadata
+remain in the artifact. Environment limits apply and CEM scopes may lower them.
+
+For `local-storage @type=json`, CEM-ML imports source bytes to a native document.
+An edit supplies a replacement native value and CEM-ML exports JSON. Reading
+never rewrites unchanged source bytes. Failed reads clear the native binding
+and preserve raw storage; failed writes preserve storage and restore the last
+accepted binding. A host null/empty sequence removes the key; a generic-data
+JSON-null node writes `null`. Live changes, key rebinding, disconnect and direct
+or ancestor scope disposal invalidate older asynchronous work. Reconnect reads current storage.
+Portable artifacts belong to durable slice state; temporary WASM decode handles
+are released after each render, and storage I/O retains no WASM handles.
+
 ## First connection and payload capture
 
 When no direct marked island exists, the instance is in first-connection mode.

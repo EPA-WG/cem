@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, exportNativeCemAttributes, importNativeCemAttributes, type NativeCemValue } from './native-values.js';
+import { exportNativeCemSlices, importNativeCemSlices, DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, exportNativeCemAttributes, importNativeCemAttributes, type NativeCemValue } from './native-values.js';
 import { createCemDeclarationScope, resolveCemValueArtifactLimits } from './declaration-scope.js';
 import { diffRenderPlansToPatchFrames, edgeContentAddress, InMemoryEdgeRenderStateStore, type RenderPlan } from './projection.js';
 
@@ -18,6 +18,17 @@ describe('CEMT-VALUE-TRANSPORT portable binary control boundary', () => {
         expect(restored[1].value.index).toBe(1);
         expect(new Uint8Array(restored[0].value.artifact)).toEqual(new Uint8Array(first.artifact));
         expect(() => importNativeCemAttributes(envelope, { ...DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, maxBytes: 1 })).toThrow();
+    });
+
+    it('round trips native slices and validates event wrapper metadata', () => {
+        const native = value(1);
+        const bindings = [{ name: 'document', value: native }, { name: 'edit', value: native, attribute: 'slice-value' }];
+        const envelope = exportNativeCemSlices(bindings);
+        const restored = importNativeCemSlices(JSON.parse(JSON.stringify(envelope)));
+        expect(restored).toEqual(bindings);
+        expect(restored[0].value.artifact).toBe(restored[1].value.artifact);
+        expect(() => importNativeCemSlices({ ...envelope, wrappers: [{ name: 'missing', attribute: 'slice-value' }] })).toThrow();
+        expect(() => importNativeCemSlices({ ...envelope, wrappers: [{ name: 'edit', attribute: '' }] })).toThrow();
     });
 
     it('patches native changes when browser strings are equal and clears removed metadata', () => {

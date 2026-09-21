@@ -8136,7 +8136,7 @@ fn normalize_generic_data_json_number_lexeme(lexeme: &str) -> String {
     "0".to_owned()
 }
 
-fn is_json_number_lexeme(lexeme: &str) -> bool {
+pub(crate) fn is_json_number_lexeme(lexeme: &str) -> bool {
     let bytes = lexeme.as_bytes();
     let mut cursor = 0usize;
     if bytes.get(cursor) == Some(&b'-') {

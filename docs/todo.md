@@ -1992,6 +1992,9 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       budget under parallel load. Final full result: 179 passed, three separate
       CEM-QL/local-storage failures tracked below. Stock-warning checks pass in
       both focused gallery modes; its earlier intermittent cause remains open.
+      After native storage migration, all 190 browser stories and the full
+      gallery (28 standalone pages, 34 source-loaded documents) pass. The
+      original intermittent stock-warning cause still needs investigation.
 - [x] Fixture: check declaration-owned stylesheet lifecycle across repeated
       source-loaded gallery mounts in one document. A second hex-grid story
       using the same source registration rendered unstyled links; isolate
@@ -2064,15 +2067,34 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
   - [x] Reproduce the JSON record insertion failure after browser resource
         settlement; document native storage read/write migration options before
         changing its public two-way binding contract.
-- [ ] Migrate JSON local-storage and both JSON samples to native CEM trees,
+- [x] Migrate JSON local-storage and both JSON samples to native CEM trees,
       removing JavaScript document parsing and record mutation. Native reads
-      follow shared CEM-ML import. Pending write-back decision: preserve two-way
-      binding with native JSON export (recommended), or make the JSON view
-      read-only and write through a text slice. The diagnosis, proposed contract
-      and tradeoffs are in [browser stabilization review](browser-stabilization-review.tmp.md#pending-decision-native-json-storage-write-back).
+      follow shared CEM-ML import. Accepted 2026-09-21: preserve two-way binding
+      with native JSON export. The diagnosis, contract and tradeoffs are in
+      [browser stabilization review](browser-stabilization-review.tmp.md#accepted-decision-native-json-storage-write-back).
       Cover null versus removal, invalid sources, lexical/order retention,
       native edits, stale completion, worker fallback, reconnect/disposal and
       standalone/source-loaded interactions before closing the remaining failure.
+      Completed 2026-09-21: CEM-ML imports and exports opaque native values;
+      native slice/event/saved transport preserves types and references. Both
+      samples construct/query CEM nodes without JavaScript document records.
+      Seven native storage tests, all 413 unit tests and all 190 browser stories
+      pass; build/typecheck/lint pass (two existing warnings). The full packaged
+      gallery passes all 28 standalone pages and 34 source-loaded documents.
+      Focused storage interactions also pass in both modes. Real demo cards retain two
+      desktop columns and 390px containment, with repeated edits persisted and
+      no browser errors. The full native run exposes three separate existing
+      XSLT/CEMT selection-cell parity failures tracked below; viewers are unchanged.
+  - [x] Fixture: shared native JSON export preserves source order, duplicate keys,
+        exact numeric lexemes, references, scalar/null semantics and typed native
+        values; invalid shapes and resource limits fail without partial output.
+  - [x] Fixture: native slice artifacts survive workers, fallback and saved-state
+        transport; rendered native event values write back without string parsing.
+  - [x] Fixture: storage import/export rejects stale completions and cleans up on
+        disconnect, direct/ancestor scope disposal and key rebinding; invalid
+        writes retain storage.
+  - [x] Fixture: migrate the validation and basket samples, source contracts,
+        lifecycle stories and standalone/source-loaded gallery checks together.
 - [x] Fixture: reconcile the broad Storybook CEM-QL boundary/parity cases with
       native node values. The 2026-09-21 full run reports one diagnostic when
       `CemQlDataDocumentBoundary` inserts a slot bucket of JavaScript records,
@@ -2090,12 +2112,37 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         slot text selection and rejection of direct record insertion.
   - [x] Fixture: exercise children/parent navigation on imported native nodes
         and assert typed rejection of opaque legacy node identifiers.
+- [x] Fixture: migrate the native table-inspector column-heading checks to
+      `thead th` and data-cell offsets past the selection row heading, matching
+      the already corrected browser fixture; leave the viewer template unchanged.
+- [x] Fixture: align the native Tier A registry check with the six already
+      implemented CEMT value functions (`dom:text` at two arities, `reference`,
+      `clone`, `element`, and `cemt:apply_templates`). The full native run found
+      its stale count of 69 versus 75; verify their arities without changing the
+      registry or evaluator.
+- [x] Fixture: align the tree-inspection memory-limit assertion with the
+      existing early payload rejection (`cem.ql.inspect_limit`), retaining
+      no-partial-output, released-memory and cancellation checks. Do not alter
+      inspection or shared budget behavior.
+- [x] Fixture: compare the XPath/CEM-QL demo pairs' native text content, not
+      serialized inner markup. `{$node}` now reuses the item subtree while
+      the explicit CEM-QL label is a string; retain both authored examples.
+- [x] Fixture: migrate the old XSLT output prerequisite from implicit node
+      stringification to explicit `dom:text`, and assert ordinary expression
+      insertion retains XML and JSON-to-XML subtrees under the accepted CEMT
+      reference contract.
 - [ ] Audit the remaining `dom:descendants` and `dom:attribute` host stubs:
       their default evaluator branches still return an empty sequence, and the
       old parity rows use opaque `cemml:parse` identifiers. Define native node
       behavior, add native fixtures, and replace empty-output coverage when
       implementing those capabilities; do not count these rows as native DOM
       function parity.
+- [ ] Resolve existing native XSLT/CEMT viewer parity differences after agreeing
+      the viewer scope: the full native run on 2026-09-21 fails three
+      `xslt_data_view` comparisons because XSLT emits a selection `td` while
+      CEMT emits `th`. Browser fixtures already acknowledge this distinction.
+      Keep both viewer implementations untouched during JSON storage migration;
+      do not hide the semantic difference by weakening strict DOM parity.
 - [x] Fixture: add an independent anonymous whole-file XSLT example, proving
       the existing bounded native transform path before browser wiring and
       testing rendered payload, disclosure interaction, and source resolution.

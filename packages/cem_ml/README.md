@@ -18,6 +18,21 @@ The low-level npm/WASM deployment is published separately as
 [`cem-ml-cli`](../cem_ml_cli/README.md) crate, while CEM-QL evaluation is owned by
 [`cem-ql`](../cem_ql/README.md).
 
+## Native document I/O
+
+`import::import_data_bytes` resolves external content types into retained CEM
+AST documents. XML, JSON, YAML and CSV semantics belong to this boundary;
+query/render consumers receive native nodes.
+
+The explicit `value::json::write_json(&CemValueGraph, &CemValueArtifactLimits)`
+export writes one generic-data document/value or JSON-compatible native scalar.
+It follows reference targets, preserves property order, duplicate keys and exact
+number lexical values, and escapes string content. It rejects unsupported shapes
+or scalar types without publishing partial output. Export never mutates nodes.
+Graph values, graph/output bytes, depth and bounded reference expansion obey the
+supplied limits. It produces compact JSON; retaining original formatting is an
+import-owner concern, not a promise of explicit export.
+
 ## Verification
 
 Use Nx as the workspace task authority:

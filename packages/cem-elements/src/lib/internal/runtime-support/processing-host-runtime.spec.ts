@@ -16,6 +16,7 @@ vi.mock('./cem-ql-render.js', () => ({
         formatVersion: 'cem-template-artifact/1',
         diagnostics: [],
     })),
+    processNativeCemValue: vi.fn(async () => ({ text: 'null' })),
     retainLoadedCemDocument: vi.fn(async () => 201),
     disposeLoadedCemDocument: vi.fn(),
     disposeRetainedCemMlTemplate: vi.fn(() => true),
@@ -33,7 +34,7 @@ vi.mock('./cem-ql-render.js', () => ({
     })),
 }));
 
-import { retainLoadedCemDocument, disposeLoadedCemDocument, processRetainedCemMlTemplate } from './cem-ql-render.js';
+import { processNativeCemValue, retainLoadedCemDocument, disposeLoadedCemDocument, processRetainedCemMlTemplate } from './cem-ql-render.js';
 import type { DataIslandSnapshot } from '../../cem-elements.js';
 import { createCemDeclarationScope } from '../../declaration-scope.js';
 import { CemProcessingEngine } from './processing-engine.js';
@@ -303,12 +304,14 @@ it('replays retained response bytes through native import after worker loss and 
         scopePolicyStamp: 'scope-policy-v1', outputTarget: 'light-dom' as const };
     await host.renderDiff({ artifact, revision, data: {}, snapshot: { ...revision } as DataIslandSnapshot,
         nativeAttributes,
+        nativeSlices: [{ ...nativeAttributes[0], name: 'stored', attribute: 'slice-value' }],
         documents: [{ slice: 'response', handle }], scopeUid: 'scope-one' }).result;
     expect(host.mode).toBe('main-thread');
     expect(retainLoadedCemDocument).toHaveBeenCalledWith(bytes, 'application/json', 'https://example.test/data');
     expect(processRetainedCemMlTemplate).toHaveBeenLastCalledWith(expect.any(Number), expect.objectContaining({
         documents: [{ slice: 'response', documentId: 201 }],
         nativeAttributes,
+        nativeSlices: [{ ...nativeAttributes[0], name: 'stored', attribute: 'slice-value' }],
     }));
     await host.document({ action: 'release', handle }).result;
     expect(disposeLoadedCemDocument).toHaveBeenCalledWith(201);
@@ -358,4 +361,27 @@ it('releases only the disposed root documents when roots share one worker', asyn
         .map((request) => request.payload)).toEqual([{ action: 'release', handle: firstHandle }]);
     await second.dispose({ reason: 'scope-disposed' }).result;
     expect(worker.terminated).toBe(true);
+});
+
+it('replays stateless native value I/O on worker loss and suppresses cancelled results', async () => {
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const worker = new ThrowingProcessingWorker();
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker });
+    const input = { action: 'export-json' as const, scopePolicyStamp: 'storage',
+        limits: { maxBytes: 1000, maxValues: 100, maxDepth: 10 }, attribute: 'slice-value',
+        value: { kind: 'cem-native-value-v1' as const, artifact: new Uint8Array([67, 69, 77]).buffer, contentHash: 'opaque', index: 0 } };
+    expect(await host.value(input).result).toEqual({ text: 'null' });
+    expect(host.mode).toBe('main-thread');
+    expect(processNativeCemValue).toHaveBeenLastCalledWith(input);
+    let finish!: (value: { text: string }) => void;
+    vi.mocked(processNativeCemValue).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const job = host.value(input);
+    const rejected = expect(job.result).rejects.toThrow('cancelled');
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    await host.cancel({ targetJobId: job.jobId, reason: 'superseded' }).result;
+    finish({ text: 'old' });
+    await rejected;
+    root.dispose();
+    await expect(host.value(input).result).rejects.toThrow();
 });
