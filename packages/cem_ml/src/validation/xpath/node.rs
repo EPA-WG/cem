@@ -260,7 +260,11 @@ impl XPathNativeNode {
         self.at(0)
     }
     pub fn child_nodes(&self) -> Vec<Self> {
-        self.data().children.iter().map(|&id| self.at(id)).collect()
+        self.child_nodes_iter().collect()
+    }
+    /// Iterate the semantic children without allocating a second node list.
+    pub fn child_nodes_iter(&self) -> impl Iterator<Item = Self> + '_ {
+        self.data().children.iter().map(|&id| self.at(id))
     }
     pub fn attribute_nodes(&self) -> Vec<Self> {
         self.data()
@@ -269,7 +273,7 @@ impl XPathNativeNode {
             .map(|&id| self.at(id))
             .collect()
     }
-    pub(super) fn parent_node(&self) -> Option<Self> {
+    pub fn parent_node(&self) -> Option<Self> {
         self.data().parent.map(|id| self.at(id))
     }
     pub(super) fn document_order_key(&self) -> (usize, usize, usize) {
@@ -287,6 +291,11 @@ impl XPathNativeNode {
             .filter(|node| node.data().kind == CemTreeNodeKind::Text)
             .map(|node| node.data().value.as_str())
             .collect()
+    }
+    /// Borrow string-value fragments so consumers can bound extraction before
+    /// allocation while retaining this node's semantic projection.
+    pub fn text_fragments(&self) -> crate::parser::tree::CemTreeTextFragments<'_> {
+        self.tree.text_fragments(self.id).expect("validated semantic node")
     }
     pub fn result_node_kind(&self) -> XPathResultNodeKind {
         match self.data().kind {

@@ -1,3 +1,4 @@
+import type { NativeCemAttributeBinding, CemValueArtifactLimits } from "../../native-values.js";
 import type { CemXPathFunctionLibrarySource } from './xpath-function-library.js';
 import type { DataIslandSnapshot, SourceMapMode } from '../../cem-elements.js';
 import type { CemMlTemplateModuleClosure, CemQlStylesheetArtifact, CemXsltComponentOptions } from './cem-ql-render.js';
@@ -14,7 +15,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v4' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v5' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -176,6 +177,8 @@ export interface CemProcessingDocumentBinding {
 }
 
 export interface CemProcessingRenderDiffInput {
+    nativeAttributes?: readonly NativeCemAttributeBinding[];
+    nativeValueLimits?: CemValueArtifactLimits;
     documents?: CemProcessingDocumentBinding[];
     artifact: CemProcessingArtifactHandle;
     revision: RenderRevision;

@@ -221,6 +221,8 @@ fn load_context(source: &str) -> TemplateArtifactLoadContext {
 
 fn template_data() -> TemplateData {
     TemplateData {
+        value_types: Default::default(),
+        attribute_contracts: Default::default(),
         native_functions: Default::default(),
         data_readers: Default::default(),
         bindings: BTreeMap::from([

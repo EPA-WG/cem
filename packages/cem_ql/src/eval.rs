@@ -25,7 +25,11 @@ use crate::types::Type;
 
 mod data;
 mod inspection;
+pub mod values;
+pub mod output;
+pub mod portable;
 pub(crate) use data::xpath_node as imported_xpath_node;
+pub(crate) use data::source_node as imported_source_node;
 pub use data::{imported_cem_tree, DataReaderCache};
 pub(crate) use data::xpath_node as result_native_node;
 pub mod pipeline;
@@ -42,6 +46,19 @@ pub enum QueryItemViewKind {
     Array,
     Node,
 }
+
+/// A missing parent is `Ok(None)`; denied or unavailable node access is not
+/// an empty result. Host node views enforce their access policy for the scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryNodeAccessError {
+    ScopeViolation,
+    Unsupported,
+}
+
+pub type QueryNodeIterator<'a> = Box<dyn Iterator<Item = Result<Item, QueryNodeAccessError>> + 'a>;
+
+pub type QueryNodeTextIterator<'a> =
+    Box<dyn Iterator<Item = Result<&'a str, QueryNodeAccessError>> + 'a>;
 
 pub trait QueryItemView: fmt::Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
@@ -62,6 +79,29 @@ pub trait QueryItemView: fmt::Debug + Send + Sync {
     }
     fn source_map(&self) -> Option<SourceMapStack> {
         None
+    }
+    fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> { None }
+    fn value_contract(&self) -> Option<cem_ml::schema::document_model::AttributeValueContract> { None }
+    /// Return the original parent with its owner and access restrictions.
+    fn parent(&self, _scope: QueryContextScope) -> Result<Option<Item>, QueryNodeAccessError> {
+        Err(QueryNodeAccessError::Unsupported)
+    }
+    /// Yield children in source order, checking any host restrictions before
+    /// exposing each node. Descendants must retain the same restrictions.
+    fn children(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        Err(QueryNodeAccessError::Unsupported)
+    }
+    /// String-value fragments for text-context rendering, separate from query
+    /// atomization. Enforce scope before exposing each fragment. Yield an empty
+    /// fragment for non-text visits so consumers can bound traversal work.
+    fn text_fragments(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeTextIterator<'_>, QueryNodeAccessError> {
+        Err(QueryNodeAccessError::Unsupported)
     }
 }
 
@@ -221,6 +261,25 @@ impl NativeItemView {
 
     pub fn source_map(&self) -> Option<SourceMapStack> {
         self.view.source_map()
+    }
+    pub fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> { self.view.provenance() }
+    pub fn value_contract(&self) -> Option<cem_ml::schema::document_model::AttributeValueContract> { self.view.value_contract() }
+
+    pub fn parent(&self, scope: QueryContextScope) -> Result<Option<Item>, QueryNodeAccessError> {
+        self.view.parent(scope)
+    }
+
+    pub fn children(
+        &self,
+        scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        self.view.children(scope)
+    }
+    pub fn text_fragments(
+        &self,
+        scope: QueryContextScope,
+    ) -> Result<QueryNodeTextIterator<'_>, QueryNodeAccessError> {
+        self.view.text_fragments(scope)
     }
 }
 

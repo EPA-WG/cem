@@ -25,6 +25,12 @@ use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, Que
 use crate::ir::CompiledQuery;
 
 mod construction;
+mod interpolation;
+mod references;
+mod hooks;
+mod attributes;
+pub use attributes::project_attribute_value;
+pub use references::expand_reference;
 use construction::ResultBuffer;
 
 /// Explicit result instructions survive portable compilation. Unknown instructions
@@ -60,9 +66,45 @@ pub struct TemplateData {
     pub native_functions: crate::native::NativeFunctionRegistry,
     /// Reuse this runtime-only cache across renders to retain XPath XML owners.
     pub data_readers: crate::eval::DataReaderCache,
+    /// Resolved schema types and destination attribute contracts supplied by the host.
+    pub value_types: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
+    pub attribute_contracts: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
 }
 
 impl TemplateData {
+    /// Lossless component input. The caller imports a native CEM artifact;
+    /// neither its graph nor its values are reconstructed from DOM strings.
+    pub fn bind_native_attribute(&mut self, attribute: Item) -> Result<(), String> {
+        let view = attribute.view().ok_or("A native CEM attribute is required")?;
+        let string_field = |name| view.field(name).and_then(|items| items.first().and_then(Item::atom))
+            .and_then(|atom| if let AtomValue::String(value) = atom { Some(value) } else { None });
+        if string_field("kind").as_deref() != Some("attribute") {
+            return Err("A native CEM attribute is required".into());
+        }
+        let name = string_field("name").filter(|name| !name.is_empty()).ok_or("A native attribute needs a name")?;
+        let mut values = view.field("values").unwrap_or_default();
+        if values.is_empty() {
+            values = view.field("value").unwrap_or_default();
+        }
+        self.bindings.insert(name.clone(), ItemStream::from_items(values.clone()));
+        // Control records are host envelopes, never substitutes for the native
+        // document values they contain.
+        fn fields(stream: &mut ItemStream) -> Option<&mut BTreeMap<String, Vec<Item>>> {
+            match stream.items.as_mut_slice() { [Item::Record(fields)] => Some(fields), _ => None }
+        }
+        if let Some(attributes) = self.bindings.get_mut("attributes").and_then(fields) {
+            attributes.insert(name.clone(), values.clone());
+        }
+        if let Some(datadom) = self.bindings.get_mut("datadom").and_then(fields) {
+            if let Some(attributes) = datadom.get_mut("attributes") {
+                if let [Item::Record(attributes)] = attributes.as_mut_slice() {
+                    attributes.insert(name, values);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn with_binding(mut self, name: impl Into<String>, value: ItemStream) -> Self {
         self.bindings.insert(name.into(), value);
         self
@@ -266,64 +308,8 @@ impl HostAttributeUpdate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RenderPlanNode {
-    Element {
-        tag: String,
-        namespace: Option<String>,
-        /// Native expanded-name construction supplies its lexical QName explicitly.
-        /// `None` retains the existing CEMT name/namespace contract.
-        qualified_name: Option<String>,
-        attributes: Vec<RenderPlanAttribute>,
-        children: Vec<RenderPlanNode>,
-        source_map: SourceMapStack,
-    },
-    Text {
-        text: String,
-        source_map: SourceMapStack,
-    },
-    Comment {
-        text: String,
-        source_map: SourceMapStack,
-    },
-    Cdata {
-        text: String,
-        source_map: SourceMapStack,
-    },
-    ProcessingInstruction {
-        target: String,
-        data: String,
-        source_map: SourceMapStack,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub struct RenderPlanAttribute {
-    pub name: String,
-    pub namespace: Option<String>,
-    pub qualified_name: Option<String>,
-    pub value: String,
-    /// Typed CEM-QL value before HTML/string serialization.
-    ///
-    /// Render-plan consumers that produce markup should continue using `value`. Runtime
-    /// adapters can use this sidecar when an attribute is a semantic binding, such as
-    /// CEM-native `@with:*` call parameters, where preserving booleans, numbers, records,
-    /// and arrays matters.
-    pub value_stream: ItemStream,
-    pub source_map: SourceMapStack,
-}
-
-impl PartialEq for RenderPlanAttribute {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.namespace == other.namespace
-            && self.qualified_name == other.qualified_name
-            && self.value == other.value
-            && self.source_map == other.source_map
-    }
-}
-
-impl Eq for RenderPlanAttribute {}
+pub type RenderPlanNode = cem_ml::value::CemValueNode<Item, ItemStream>;
+pub type RenderPlanAttribute = cem_ml::value::CemValueAttribute<ItemStream>;
 
 #[derive(Debug, Clone)]
 pub struct RenderedTemplate {
@@ -351,6 +337,8 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     declared_bindings.insert(PRIMARY_INPUT_BINDING.to_owned(), ItemStream::empty());
     // Implicit subject of generic match-template dispatch (saved/restored per call).
     declared_bindings.insert("node".to_owned(), ItemStream::empty());
+    declared_bindings.insert("value".to_owned(), ItemStream::empty());
+    declared_bindings.insert("context".to_owned(), ItemStream::empty());
     // `{attribute @name=X}` / `{slice @name=X}` declarations introduce named bindings, so
     // declare them too. The render engine owns declaration metadata, so the host runtime
     // no longer needs to scan the template to make `{$ X}` compile.
@@ -1005,6 +993,14 @@ fn render_compiled_template_internal(
         result_work: 0,
         result_bytes: 0,
         result_depth: 0,
+        text_memory: Vec::new(),
+        hook_scopes: vec![Vec::new()],
+        active_hooks: Vec::new(),
+        capture_depth: None,
+        render_scope_depth: 0,
+        value_types: data.value_types.clone(),
+        attribute_contracts: data.attribute_contracts.clone(),
+        active_attribute_contract: None,
         calls,
     };
     let mut nodes = ResultBuffer::default();
@@ -1016,6 +1012,7 @@ fn render_compiled_template_internal(
         .cloned()
         .unwrap_or_default();
     if renderer.force_render(&boundary_source) {
+        renderer.register_module_hooks(&artifact.nodes);
         for node in root_render_nodes(&artifact.nodes) {
             let mut ignored_attributes = Vec::new();
             renderer.render_into(node, &mut nodes, &mut ignored_attributes);
@@ -1027,6 +1024,7 @@ fn render_compiled_template_internal(
     }
     if renderer.control_failed || renderer.failure.is_some() {
         nodes.clear();
+        host_attribute_updates.clear();
     }
     if renderer.control_failed && renderer.failure.is_none() {
         if let Some(diagnostic) = renderer.diagnostics.last().cloned() {
@@ -1326,6 +1324,9 @@ impl RenderPlanHtmlRenderer {
             return;
         }
         match node {
+            RenderPlanNode::Reference { reference, .. } => {
+                for node in expand_reference(reference) { self.render_node(&node); }
+            }
             RenderPlanNode::Element {
                 tag,
                 namespace,
@@ -1410,6 +1411,7 @@ impl RenderPlanHtmlRenderer {
     }
 
     fn render_attribute(&mut self, attribute: &RenderPlanAttribute) {
+        let value = project_attribute_value(attribute);
         let start = self.out.len() as u64;
         self.out.push(' ');
         if let Some(namespace) = attribute
@@ -1421,9 +1423,9 @@ impl RenderPlanHtmlRenderer {
             self.out.push(':');
         }
         self.out.push_str(attribute.qualified_name.as_deref().unwrap_or(&attribute.name));
-        if !attribute.value.is_empty() || attribute.qualified_name.is_some() {
+        if !value.is_empty() || attribute.qualified_name.is_some() {
             self.out.push_str("=\"");
-            self.escape_attr(&attribute.value);
+            self.escape_attr(&value);
             self.out.push('"');
         }
         self.record_span(start, &attribute.source_map);
@@ -1544,6 +1546,9 @@ impl RenderPlanXmlRenderer {
             return;
         }
         match node {
+            RenderPlanNode::Reference { reference, .. } => {
+                for node in expand_reference(reference) { self.render_node(&node); }
+            }
             RenderPlanNode::Element {
                 tag,
                 namespace: _,
@@ -1632,7 +1637,7 @@ impl RenderPlanXmlRenderer {
         }
         self.out.push_str(attribute.qualified_name.as_deref().unwrap_or(&attribute.name));
         self.out.push_str("=\"");
-        self.escape_attr(&attribute.value);
+        self.escape_attr(&project_attribute_value(attribute));
         self.out.push('"');
         self.record_span(start, &attribute.source_map);
     }
@@ -1813,7 +1818,9 @@ impl TemplateCompiler<'_> {
                 SchemaTokenKind::Attribute { name, value, .. } => {
                     let token = self.tokens[self.index].clone();
                     let compiled_value = value.as_ref().map(|value| {
-                        if (local_template_name(tag) == "attribute" && name == "select")
+                        if local_template_name(tag) == "attribute" && name == "pattern" {
+                            TemplateAttributeValue::Literal(value.clone())
+                        } else if (local_template_name(tag) == "attribute" && name == "select")
                             || (local_template_name(tag) == "template" && name == "match")
                             || (local_template_name(tag) == "apply-templates" && name == "select")
                             || (local_template_name(tag) == "result-sequence" && name == "select")
@@ -2617,6 +2624,16 @@ struct PlanRenderer<'a> {
     result_work: u64,
     result_bytes: u64,
     result_depth: usize,
+    // Account extracted lexical bytes for the duration of this render. This is
+    // not total heap accounting or ownership of the returned render plan.
+    text_memory: Vec<cem_ml::operation_control::MemoryPermit>,
+    hook_scopes: Vec<Vec<hooks::ExpressionHook>>,
+    active_hooks: Vec<usize>,
+    capture_depth: Option<usize>,
+    render_scope_depth: usize,
+    value_types: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
+    attribute_contracts: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
+    active_attribute_contract: Option<std::sync::Arc<cem_ml::schema::document_model::AttributeValueContract>>,
 }
 
 impl PlanRenderer<'_> {
@@ -2671,7 +2688,10 @@ impl PlanRenderer<'_> {
                 ));
                 continue;
             }
-            let value = stream_to_string(&stream);
+            let value = self.render_stream_text(&stream, &select.source_map);
+            if self.failure.is_some() || self.control_failed {
+                return;
+            }
             self.evaluation_context
                 .policy_bindings
                 .insert(name.clone(), stream);
@@ -2690,6 +2710,8 @@ impl PlanRenderer<'_> {
         out: &mut ResultBuffer,
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
+        self.hook_scopes.push(Vec::new());
+        self.render_scope_depth += 1;
         let names = nodes
             .iter()
             .filter_map(|node| match node {
@@ -2706,6 +2728,8 @@ impl PlanRenderer<'_> {
         for node in nodes {
             self.render_into(node, out, parent_attributes);
         }
+        self.render_scope_depth -= 1;
+        self.hook_scopes.pop();
         for (name, value) in previous {
             match value {
                 Some(stream) => {
@@ -2799,7 +2823,7 @@ impl PlanRenderer<'_> {
                 if let Some(calls) = self.calls.filter(|calls| calls.handles(tag)) {
                     let attributes = attributes
                         .iter()
-                        .filter_map(|a| self.render_attribute(a))
+                        .filter_map(|a| self.render_call_attribute(a))
                         .collect::<Vec<_>>();
                     if self.failure.is_some() || self.control_failed {
                         return;
@@ -2811,6 +2835,8 @@ impl PlanRenderer<'_> {
                             bindings: self.evaluation_context.policy_bindings.clone(),
                             native_functions: self.evaluation_context.native_functions.clone(),
                             data_readers: self.evaluation_context.data_readers.clone(),
+                            value_types: self.value_types.clone(),
+                            attribute_contracts: self.attribute_contracts.clone(),
                         },
                         self.recovery_depth > 0,
                     );
@@ -2821,6 +2847,10 @@ impl PlanRenderer<'_> {
                     } else {
                         out.extend(result.plan.nodes);
                     }
+                    return;
+                }
+                if hooks::is_expression_hook(node) {
+                    self.register_hook(node);
                     return;
                 }
                 if local_template_name(tag) == "try" {
@@ -2910,10 +2940,15 @@ impl PlanRenderer<'_> {
                 text: text.clone(),
                 source_map: source_map.clone(),
             }),
-            TemplateNode::Expression(expression) => out.push(RenderPlanNode::Text {
-                text: self.evaluate_to_string(expression),
-                source_map: expression.source_map.clone(),
-            }),
+            TemplateNode::Expression(expression) => {
+                let stream = self.evaluate_to_stream(expression);
+                if self.capture_depth == Some(self.render_scope_depth) {
+                    out.values(stream, &expression.source_map);
+                } else {
+                    let stream = self.apply_expression_hook(stream, "content", None, &expression.source_map);
+                    self.insert_values(stream, &expression.source_map, out);
+                }
+            }
             TemplateNode::Variable { name, select, .. } => {
                 if !name.is_empty() {
                     let value = select
@@ -3040,17 +3075,16 @@ impl PlanRenderer<'_> {
             ));
             return;
         }
-        // A selected native AST node has no implicit string serialization. Keep the
-        // query stream directly; HTML's empty-attribute omission is not applicable.
+        // Selection is a node context, not a text interpolation context.
         let selected = attributes
             .iter()
             .find(|a| a.name == "select")
-            .map(|a| self.render_attribute_value(a).1)
+            .map(|a| self.render_attribute_stream(a))
             .unwrap_or_default();
         let attributes: Vec<_> = attributes
             .iter()
             .filter(|a| a.name != "select")
-            .filter_map(|a| self.render_attribute(a))
+            .filter_map(|a| self.render_call_attribute(a))
             .collect();
         let mode = attributes
             .iter()
@@ -3075,6 +3109,7 @@ impl PlanRenderer<'_> {
             self.evaluation_context.policy_bindings.get("node").cloned(),
         );
         let rules = self.match_rules.clone();
+        let previous_focus = self.evaluation_context.current_item.clone();
         for item in selected
             .items
             .into_iter()
@@ -3083,6 +3118,7 @@ impl PlanRenderer<'_> {
             if !self.poll_render(source_map) {
                 break;
             }
+            self.evaluation_context.current_item = Some(item.clone());
             self.evaluation_context
                 .policy_bindings
                 .insert("node".into(), ItemStream::once(item));
@@ -3095,6 +3131,7 @@ impl PlanRenderer<'_> {
                 }
             }
         }
+        self.evaluation_context.current_item = previous_focus;
         for (name, value) in previous {
             if let Some(value) = value {
                 self.evaluation_context.policy_bindings.insert(name, value);
@@ -3132,7 +3169,7 @@ impl PlanRenderer<'_> {
 
         let rendered_attributes = attributes
             .iter()
-            .filter_map(|attribute| self.render_attribute(attribute))
+            .filter_map(|attribute| self.render_call_attribute(attribute))
             .collect::<Vec<_>>();
         let Some(template_name) = rendered_attributes
             .iter()
@@ -3246,17 +3283,26 @@ impl PlanRenderer<'_> {
     }
 
     fn render_attribute(&mut self, attribute: &TemplateAttribute) -> Option<RenderPlanAttribute> {
-        let (value, value_stream) = self.render_attribute_value(attribute);
+        let contract = self.attribute_contracts.get(&attribute.name).cloned().map(std::sync::Arc::new);
+        let old = std::mem::replace(&mut self.active_attribute_contract, contract.clone());
+        let mut value_stream = self.output_attribute_stream(attribute);
+        if let Some(contract) = &contract {
+            value_stream = self.convert_values(value_stream, contract, &attribute.source_map);
+        }
+        let has_nodes = value_stream.items.iter().any(|item| item.view().is_some_and(|v| v.kind() == crate::eval::QueryItemViewKind::Node));
+        let value = if has_nodes { String::new() } else { self.render_stream_text(&value_stream, &attribute.source_map) };
+        self.active_attribute_contract = old;
         let preserves_empty_value = match &attribute.value {
             None => true,
             Some(TemplateAttributeValue::Literal(value)) => value.is_empty(),
             Some(TemplateAttributeValue::Template(_))
             | Some(TemplateAttributeValue::Expression(_)) => false,
         };
-        if value.is_empty() && !preserves_empty_value && !attribute.name.starts_with("with:") {
+        if value.is_empty() && !has_nodes && !preserves_empty_value && !attribute.name.starts_with("with:") {
             return None;
         }
         Some(RenderPlanAttribute {
+            contract,
             qualified_name: None,
             name: attribute.name.clone(),
             namespace: None,
@@ -3290,7 +3336,7 @@ impl PlanRenderer<'_> {
             }
             Some(TemplateAttributeValue::Expression(expression)) => {
                 let value_stream = self.evaluate_to_stream(expression);
-                let value = stream_to_string(&value_stream);
+                let value = self.render_stream_text(&value_stream, &expression.source_map);
                 (value, value_stream)
             }
         }
@@ -3331,37 +3377,7 @@ impl PlanRenderer<'_> {
         children: &[TemplateNode],
         source_map: &SourceMapStack,
     ) -> Option<RenderPlanAttribute> {
-        let (name, name_source_map) =
-            self.render_constructor_name(attributes, "name", source_map, "attribute")?;
-        let namespace = self.render_constructor_optional_text(attributes, "namespace");
-        let Some(value_attribute) = attributes
-            .iter()
-            .find(|attribute| attribute.name == "value")
-        else {
-            let mut ignored_attributes = Vec::new();
-            let mut rendered_children = ResultBuffer::default();
-            for child in children {
-                self.render_into(child, &mut rendered_children, &mut ignored_attributes);
-            }
-            let value = render_plan_nodes_to_text(&self.finish_result_buffer(rendered_children, &SourceMapStack::default()));
-            return Some(RenderPlanAttribute {
-                qualified_name: None,
-                name,
-                namespace,
-                value: value.clone(),
-                value_stream: string_stream(value),
-                source_map: name_source_map,
-            });
-        };
-        let (value, value_stream) = self.render_attribute_value(value_attribute);
-        Some(RenderPlanAttribute {
-            qualified_name: None,
-            name,
-            namespace,
-            value,
-            value_stream,
-            source_map: value_attribute.source_map.clone(),
-        })
+        self.constructed_attribute_value(attributes, children, source_map)
     }
 
     fn render_constructor_text(
@@ -3467,7 +3483,8 @@ impl PlanRenderer<'_> {
     }
 
     fn evaluate_to_string(&mut self, expression: &CompiledTemplateExpression) -> String {
-        stream_to_string(&self.evaluate_to_stream(expression))
+        let stream = self.evaluate_to_stream(expression);
+        self.render_stream_text(&stream, &expression.source_map)
     }
 
     fn evaluate_to_stream(&mut self, expression: &CompiledTemplateExpression) -> ItemStream {
@@ -3706,16 +3723,7 @@ fn split_avt(value: &str) -> Vec<RawAttributePart> {
     out
 }
 
-fn stream_to_string(stream: &ItemStream) -> String {
-    stream
-        .items
-        .iter()
-        .map(item_to_string)
-        .collect::<Vec<_>>()
-        .join("")
-}
-
-fn item_to_string(item: &Item) -> String {
+pub(crate) fn item_to_string(item: &Item) -> String {
     if let Some(atom) = item.atom() {
         return match atom {
             AtomValue::String(value) => value,
@@ -3953,7 +3961,7 @@ fn collect_match_rules(nodes: &[TemplateNode]) -> Vec<MatchRule> {
             else {
                 continue;
             };
-            if local_template_name(tag) == "template" {
+            if local_template_name(tag) == "template" && !hooks::is_expression_hook(node) {
                 if let Some(TemplateAttributeValue::Expression(test)) = attributes
                     .iter()
                     .find(|a| a.name == "match")
@@ -4187,7 +4195,7 @@ fn template_body_nodes(children: &[TemplateNode]) -> Vec<TemplateNode> {
     }
     children
         .iter()
-        .filter(|child| !is_top_level_declaration(child))
+        .filter(|child| !is_top_level_declaration(child) || hooks::is_expression_hook(child))
         .cloned()
         .collect()
 }
@@ -4304,6 +4312,7 @@ fn payload_item_to_render_node(item: &Item, source_map: &SourceMapStack) -> Opti
                     attributes
                         .iter()
                         .map(|(name, values)| RenderPlanAttribute {
+                contract: None,
                             qualified_name: None,
                             name: name.clone(),
                             namespace: None,
@@ -4417,6 +4426,9 @@ fn render_plan_nodes_to_text(nodes: &[RenderPlanNode]) -> String {
     let mut text = String::new();
     for node in nodes {
         match node {
+            RenderPlanNode::Reference { reference, .. } => {
+                text.push_str(&render_plan_nodes_to_text(&expand_reference(reference)));
+            }
             RenderPlanNode::Element { children, .. } => {
                 text.push_str(&render_plan_nodes_to_text(children));
             }
@@ -4486,6 +4498,7 @@ mod tests {
                 tag: "p".to_owned(),
                 namespace: None,
                 attributes: vec![RenderPlanAttribute {
+                contract: None,
                     qualified_name: None,
                     name: "title".to_owned(),
                     namespace: None,
@@ -4637,6 +4650,7 @@ mod tests {
                     tag: "root".to_owned(),
                     namespace: None,
                     attributes: vec![RenderPlanAttribute {
+                contract: None,
                         qualified_name: None,
                         name: "id".to_owned(),
                         namespace: None,

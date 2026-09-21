@@ -1,5 +1,8 @@
 //! Explicit native XPath values, not generic record/JSON projections.
-use crate::eval::{AtomValue, Item, QueryItemView, QueryItemViewKind};
+use crate::eval::{
+    AtomValue, Item, QueryContextScope, QueryItemView, QueryItemViewKind, QueryNodeAccessError,
+    QueryNodeIterator, QueryNodeTextIterator,
+};
 use cem_ml::{
     source_map::SourceMapStack,
     validation::xpath::{XPathNativeNode, XPathResultItem},
@@ -28,6 +31,11 @@ impl XPathQueryItem {
 }
 
 impl QueryItemView for XPathQueryItem {
+    fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
+        let node = self.xpath_item().native_node()?;
+        Some(cem_ml::value::artifact::CemValueProvenance { source_uri: node.owner().document_uri().map(str::to_owned), source_key: node.source_key(), line_number: node.source_line_number() })
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -47,6 +55,32 @@ impl QueryItemView for XPathQueryItem {
         } else {
             QueryItemViewKind::Atomic
         }
+    }
+    fn parent(&self, _scope: QueryContextScope) -> Result<Option<Item>, QueryNodeAccessError> {
+        let node = self
+            .value
+            .native_node()
+            .ok_or(QueryNodeAccessError::Unsupported)?;
+        Ok(node.parent_node().map(Self::from_node))
+    }
+    fn children(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        let node = self
+            .value
+            .native_node()
+            .ok_or(QueryNodeAccessError::Unsupported)?;
+        Ok(Box::new(
+            node.child_nodes_iter().map(|node| Ok(Self::from_node(node))),
+        ))
+    }
+    fn text_fragments(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeTextIterator<'_>, QueryNodeAccessError> {
+        let node = self.value.native_node().ok_or(QueryNodeAccessError::Unsupported)?;
+        Ok(Box::new(node.text_fragments().map(Ok)))
     }
     fn atom(&self) -> Option<AtomValue> {
         if let Some(node) = self.value.native_node() {

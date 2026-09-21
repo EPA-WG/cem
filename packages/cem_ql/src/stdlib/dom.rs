@@ -5,6 +5,11 @@ use super::{StdlibFunction, Tier};
 pub const MODULE_URI: &str = "cem:stdlib/dom";
 
 pub const FUNCTIONS: &[StdlibFunction] = &[
+    StdlibFunction::host_context(MODULE_URI, "text", 0, Tier::A),
+    StdlibFunction::host_context(MODULE_URI, "text", 1, Tier::A),
+    StdlibFunction::host_context(MODULE_URI, "reference", 1, Tier::A),
+    StdlibFunction::host_context(MODULE_URI, "clone", 1, Tier::A),
+    StdlibFunction::host_context(MODULE_URI, "element", 1, Tier::A),
     StdlibFunction::host_context(MODULE_URI, "children", 1, Tier::A),
     StdlibFunction::host_context(MODULE_URI, "descendants", 1, Tier::A),
     StdlibFunction::host_context(MODULE_URI, "parent", 1, Tier::A),

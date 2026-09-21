@@ -362,14 +362,17 @@ fn render_template_uses_explicit_structured_data_document() {
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
     let rendered = render_template(
-        "{span | {$ datadom.attributes.label}-{$ datadom.dataset.variant}-{$ datadom.slices.open}-{$ datadom.payload.text}-{$ datadom.slots.leading}}",
+        "{span | {$ datadom.attributes.label}-{$ datadom.dataset.variant}-{$ datadom.slices.open}-{$ datadom.payload.text}}",
         &data,
     );
 
     assert_eq!(
         rendered.rendered,
-        "<span>Email-compact-true-Payload-</span>"
+        "<span>Email-compact-true-Payload</span>"
     );
+    let unsupported = render_template("{span | {$datadom.slots.leading}}", &data);
+    assert!(unsupported.rendered.is_empty());
+    assert!(unsupported.diagnostics.iter().any(|d| d.code == "cem.ql.render.expression_type"));
     assert!(
         rendered.diagnostics.is_empty(),
         "{:?}",

@@ -70,6 +70,66 @@ pub struct RetainedCemTree {
     source_fingerprint: Option<[u8; 32]>,
     source_lines_known: Vec<bool>,
     source_ranges: Vec<CemTreeRange>,
+    // Import-decoded source values before semantic text coalescing. Source-node
+    // interpolation must neither decode syntax nor read a neighbour's text.
+    source_values: BTreeMap<AstNodeId, String>,
+}
+
+/// Incremental string-value traversal. Every visited node yields one fragment
+/// (possibly empty), so callers can bound work and poll cancellation even for
+/// subtrees that contain no text. The stack grows with depth, not sibling count.
+pub struct CemTreeTextFragments<'a> {
+    tree: &'a RetainedCemTree,
+    root: Option<AstNodeId>,
+    pending: Vec<std::slice::Iter<'a, AstNodeId>>,
+    source: bool,
+}
+
+impl<'a> Iterator for CemTreeTextFragments<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let is_root = self.root.is_some();
+        let id = if let Some(id) = self.root.take() {
+            id
+        } else {
+            loop {
+                if let Some(id) = self.pending.last_mut()?.next() {
+                    break *id;
+                }
+                self.pending.pop();
+            }
+        };
+        if self.source {
+            use CemAstNode::*;
+            let value = match self.tree.ast.get(id).expect("validated source node") {
+                Document { root_children, .. } => {
+                    self.pending.push(root_children.iter());
+                    return Some("");
+                }
+                Element { children, .. } => {
+                    self.pending.push(children.iter());
+                    return Some("");
+                }
+                Text { data, .. } | Whitespace { data, .. } | Cdata { data, .. }
+                | RawText { data, .. } => data.as_str(),
+                Attribute { value, .. } if is_root => value.as_deref().unwrap_or(""),
+                Comment { data, .. } | ProcessingInstruction { data, .. } if is_root => data,
+                _ => return Some(""),
+            };
+            Some(self.tree.source_values.get(&id).map_or(value, String::as_str))
+        } else {
+            let node = &self.tree.nodes[id as usize];
+            if matches!(node.kind, CemTreeNodeKind::Document | CemTreeNodeKind::Element) {
+                self.pending.push(node.children.iter());
+                Some("")
+            } else if is_root || node.kind == CemTreeNodeKind::Text {
+                Some(&node.value)
+            } else {
+                Some("")
+            }
+        }
+    }
 }
 
 impl std::fmt::Debug for RetainedCemTree {
@@ -358,11 +418,38 @@ impl RetainedCemTree {
             source_fingerprint: semantics.source_fingerprint,
             source_lines_known,
             source_ranges,
+            source_values: semantics.values,
         }))
     }
 
     pub fn ast(&self) -> &CemDocument {
         &self.ast
+    }
+    /// Parent in the original source arena, including nodes omitted or
+    /// coalesced by the semantic view. Does not canonicalize the source ID.
+    pub fn source_parent(&self, id: AstNodeId) -> Option<AstNodeId> {
+        self.nodes.get(id as usize)?.parent
+    }
+    /// Decoded string value of an original source node, preserving individual
+    /// text/CDATA boundaries and excluding descendant comments and attributes.
+    pub fn source_text_fragments(&self, id: AstNodeId) -> Option<CemTreeTextFragments<'_>> {
+        self.ast.get(id)?;
+        Some(CemTreeTextFragments {
+            tree: self,
+            root: Some(id),
+            pending: Vec::new(),
+            source: true,
+        })
+    }
+    /// String value of the normalized semantic node, without materializing its
+    /// descendants or concatenating their text ahead of the caller's limits.
+    pub fn text_fragments(&self, id: AstNodeId) -> Option<CemTreeTextFragments<'_>> {
+        Some(CemTreeTextFragments {
+            tree: self,
+            root: Some(self.canonical_id(id)?),
+            pending: Vec::new(),
+            source: false,
+        })
     }
     pub fn source_uri(&self) -> &str {
         &self.source_uri

@@ -242,14 +242,31 @@
                                                         {cem:choose | {cem:when @test='selected == record.source.id' | ✓}{cem:otherwise | ○}}}}}}
                                             {cem:for-each @select=headings @as=heading |
                                                 {cem:variable @name=cells @select='seq:where(record.cells, fn(cell) => cell.key == heading)'}
-                                                {apply-templates @select=heading @mode=cell
-                                                    @with:cells="{$cells}"}}
+                                                {cem:choose |
+                                                    {cem:when @test='seq:count(cells) == 1 && seq:count(cells.subject) == 1' |
+                                                        {apply-templates @select=cells.subject @mode=cell}}
+                                                    {cem:otherwise |
+                                                        {call @template=cell-values @with:cells="{$cells}"
+                                                            @with:heading="{$heading}"}}}}
                                         }   }   }
                             }   }   }
                 }   }   }   }
 
     {template @name=cell @mode=cell @match=true @priority=-20 |
-        {param @name=node}{param @name=cells}
+        {param @name=node}
+        {body |
+            {cem:variable @name=parent @select='dom:parent(node)'}
+            {cem:variable @name=key @select='
+                if node.namespace == "cem:generic-data" {
+                    if (parent.name ?? "") == "property" { parent.attributes.value }
+                    else { "#value" }
+                } else {
+                    (if node.namespace == "" { "" } else { node.namespace + "|" }) + node.name
+                }'}
+            {td | {apply-templates @select=node @mode=inspect @with:key="{$key}"}}}}
+
+    {template @name=cell-values |
+        {param @name=cells}{param @name=heading}
         {body |
             {td | {cem:choose |
                 {cem:when @test='seq:count(cells) == 0' | ∅}
@@ -257,7 +274,7 @@
                     {cem:for-each @select=cells @as=cell |
                         {cem:choose |
                             {cem:when @test='seq:count(cell.subject) > 0' |
-                                {apply-templates @select=cell.subject @mode=inspect @with:key="{$node}"}}
+                                {apply-templates @select=cell.subject @mode=inspect @with:key="{$heading}"}}
                             {cem:when @test='cell.value == ""' | ""}
                             {cem:otherwise | {span @class=value | {$cell.value}}}
             }   }   }   }   }   }   }

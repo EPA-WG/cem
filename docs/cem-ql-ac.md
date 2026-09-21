@@ -1327,3 +1327,14 @@ here and tracked alongside the relevant AC item.*
     matrix, type system layout.
   - `cem-ql-stack-design-impl.md` — Rust module map, evaluator algorithm,
     cost model, diagnostic table.
+
+## Native expression values and transport
+
+The accepted [native CEMT value contract](cemt-native-values.md) requires immutable
+source reuse, explicit reference/clone/element/text operations and scoped
+expression hooks. CEM-ML owns native artifact encoding and validation. Cross-worker
+and saved-pipeline handoffs MUST preserve scalar datatypes, ordered native
+attribute content, reference relationships and origin metadata; MUST NOT use
+JSON document objects; and MUST enforce environment ceilings with CEM scope
+restrictions that can only lower them. Verification is tracked by CEMT-VALUES,
+CEMT-HOOKS, CEMT-ATTRIBUTE-TYPES, CEMT-VALUE-PIPELINE and CEMT-VALUE-TRANSPORT in TODO.

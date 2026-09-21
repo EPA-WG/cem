@@ -102,6 +102,12 @@ pub fn render_xslt_component(
     documents_json: &str,
     initial_document_id: Option<u32>,
 ) -> String {
+    render_xslt_component_with_native_values(id, data_json, documents_json, initial_document_id, "[]", "")
+}
+
+#[wasm_bindgen(js_name = "renderXsltComponentWithNativeValues")]
+pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, documents_json: &str, initial_document_id: Option<u32>, native_bindings_json: &str, limits_json: &str) -> String {
+    let limits = match values::limits(limits_json) { Ok(limits) => limits, Err(error) => return error_json("cem.value.limits", error) };
     let Some(component) = COMPONENTS.with(|host| host.borrow().entries.get(&id).cloned()) else {
         return error_json(
             "cem.xslt.unknown_component",
@@ -159,7 +165,8 @@ pub fn render_xslt_component(
             return error_json("cem.xslt.invalid_binding", error);
         }
     }
-    plan_json(&component.render(&data)).to_string()
+    if let Err(error) = values::bind(&mut data, native_bindings_json) { return error_json("cem.value.binding", error); }
+    plan_json_with_limits(&component.render(&data), &limits).to_string()
 }
 
 #[wasm_bindgen(js_name = "disposeXsltComponent")]

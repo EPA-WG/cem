@@ -1,3 +1,4 @@
+import { sameNativeCemValue, type NativeCemValue, type NativeCemAttributeBinding } from "./native-values.js";
 /**
  * Processing-layer projection boundary for `<cem-element>` (design §4.1/§4.2).
  *
@@ -78,6 +79,7 @@ export type TemplateSourceNode =
 export interface RenderPlanAttribute {
     name: string;
     value: string;
+    nativeValue?: NativeCemValue;
 }
 
 export type RenderPlanNode =
@@ -94,12 +96,44 @@ export type RenderPlanNode =
       };
 
 /** Render-engine / patch-transport schema version (FF-6 SemVer axis, BR-VC-5). */
-export const RENDER_ENGINE_VERSION = '1.1.0';
+export const RENDER_ENGINE_VERSION = '1.2.0';
 
 /** Edge render-state record schema version (FF-6 SemVer axis, BR-VC-5). */
 export const EDGE_RENDER_STATE_VERSION = '1.0.0';
 
 const renderedAttributeValues = new WeakMap<Element, Map<string, string>>();
+type NativeAttributeStore = WeakMap<Element, Map<string, { value: NativeCemValue; projection: string }>>;
+const NATIVE_ATTRIBUTE_STORE = Symbol.for('cem.native-attribute-store.v1');
+// Source and packaged runtimes may coexist on one page. Their components must
+// read the same native handoff without exposing an AST as JavaScript records.
+const nativeAttributeEnvironment = globalThis as typeof globalThis & { [NATIVE_ATTRIBUTE_STORE]?: NativeAttributeStore };
+const nativeAttributeValues = nativeAttributeEnvironment[NATIVE_ATTRIBUTE_STORE] ??= new WeakMap();
+/** Retained native attributes, separate from their final browser string projection. */
+export function renderedNativeAttributeBindings(element: Element): NativeCemAttributeBinding[] {
+    return [...(nativeAttributeValues.get(element) ?? [])].filter(([name, record]) =>
+        renderPlanAttributeValue(element, name) === record.projection
+    ).map(([name, record]) => ({ name, value: record.value }));
+}
+export function restoreNativeAttributeBindings(element: Element, bindings: readonly NativeCemAttributeBinding[]): void {
+    nativeAttributeValues.set(element, new Map(bindings.map(({ name, value }) => [name, { value, projection: renderPlanAttributeValue(element, name) ?? '' }])));
+}
+function syncNativeAttributes(element: Element, attributes: readonly RenderPlanAttribute[]): void {
+    const previous = nativeAttributeValues.get(element);
+    const next = new Map<string, { value: NativeCemValue; projection: string }>();
+    for (const attribute of attributes) {
+        if (attribute.nativeValue) next.set(attribute.name, { value: attribute.nativeValue, projection: attribute.value });
+    }
+    nativeAttributeValues.set(element, next);
+    // Metadata may change while the projected string stays identical. A normal
+    // attribute mutation wakes the existing produced-component lifecycle.
+    if (element.isConnected) for (const name of new Set([...(previous?.keys() ?? []), ...next.keys()])) {
+        if (!sameNativeCemValue(previous?.get(name)?.value, next.get(name)?.value)) {
+            const value = renderPlanAttributeValue(element, name);
+            if (value !== null) setRenderPlanAttribute(element, name, value);
+        }
+    }
+}
+
 
 /**
  * Read the latest render-plan value for an attribute even when the UI adapter
@@ -240,6 +274,7 @@ export type SerializedNode =
           tagName: string;
           namespace?: string | null;
           attributes: Record<string, string>;
+          nativeAttributes?: Record<string, NativeCemValue>;
           children: SerializedNode[];
           sourceMapRef?: SourceMapRef;
       }
@@ -255,7 +290,7 @@ export type DomPatchOp =
     | { op: 'replace'; target: DomPatchTarget; node: PatchNodePayload }
     | { op: 'reconcileChildren'; target: DomPatchTarget; children: PatchNodePayload[] }
     | { op: 'setText'; target: DomPatchTarget; value: string }
-    | { op: 'setAttribute'; target: DomPatchTarget; name: string; value: string | null }
+    | { op: 'setAttribute'; target: DomPatchTarget; name: string; value: string | null; nativeValue?: NativeCemValue }
     | {
           op: 'replaceScope';
           scopeId: string;
@@ -1997,6 +2032,10 @@ export function applyPatchFramesToRange(
                     attributes.set(operation.name, operation.value);
                     setRenderPlanAttribute(element, operation.name, operation.value);
                 }
+                const native = nativeAttributeValues.get(element) ?? new Map();
+                if (operation.nativeValue && operation.value !== null) native.set(operation.name, { value: operation.nativeValue, projection: operation.value });
+                else native.delete(operation.name);
+                nativeAttributeValues.set(element, native);
                 renderedAttributeValues.set(element, attributes);
             } else if (operation.op === 'reconcileChildren') {
                 const element = target as Element;
@@ -2085,7 +2124,7 @@ function deserializePatchNode(node: SerializedNode): RenderPlanNode {
         kind: 'element',
         namespace: node.namespace ?? null,
         tag: node.tagName,
-        attributes: Object.entries(node.attributes).map(([name, value]) => ({ name, value })),
+        attributes: Object.entries(node.attributes).map(([name, value]) => ({ name, value, ...(node.nativeAttributes?.[name] ? { nativeValue: node.nativeAttributes[name] } : {}) })),
         renderNodeId: node.renderNodeId,
         children: node.children.map(deserializePatchNode),
         sourceMapRef: node.sourceMapRef,
@@ -2217,6 +2256,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         element,
         new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])),
     );
+    syncNativeAttributes(element, node.attributes);
     element.setAttribute(RENDER_NODE_ID_ATTR, node.renderNodeId);
     (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = node.renderNodeId;
     element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
@@ -2464,6 +2504,7 @@ function mergeRenderPlanNode(
             ? (attribute) => preserveElementAttribute(element, desiredElement, attribute)
             : undefined,
     );
+    syncNativeAttributes(element, desired.attributes);
     syncReboundCheckedControl(element, previousSlice, renderedAttributeValues.get(element));
     if (desiredElement && preserveElementChildren?.(element, desiredElement)) {
         return;
@@ -2544,6 +2585,7 @@ function createRenderPlanElement(
         element,
         new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])),
     );
+    syncNativeAttributes(element, node.attributes);
     mirrorRenderIdentity(element, node.renderNodeId);
     return element;
 }
@@ -3095,6 +3137,8 @@ function diffAttributes(
 ): void {
     const previousAttributes = attributeRecord(previous.attributes);
     const nextAttributes = attributeRecord(next.attributes);
+    const previousNative = new Map(previous.attributes.map(a => [a.name, a.nativeValue]));
+    const nextNative = new Map(next.attributes.map(a => [a.name, a.nativeValue]));
     const target = renderNodeTarget(previous);
     for (const name of Object.keys(previousAttributes).sort()) {
         if (!(name in nextAttributes)) {
@@ -3102,8 +3146,8 @@ function diffAttributes(
         }
     }
     for (const name of Object.keys(nextAttributes).sort()) {
-        if (previousAttributes[name] !== nextAttributes[name]) {
-            ops.push({ op: 'setAttribute', target, name, value: nextAttributes[name] });
+        if (previousAttributes[name] !== nextAttributes[name] || !sameNativeCemValue(previousNative.get(name), nextNative.get(name))) {
+            ops.push({ op: 'setAttribute', target, name, value: nextAttributes[name], ...(nextNative.get(name) ? { nativeValue: nextNative.get(name) } : {}) });
         }
     }
 }
@@ -3140,6 +3184,7 @@ function serializeRenderNode(node: RenderPlanNode): SerializedNode {
         tagName: node.tag,
         namespace: node.namespace,
         attributes: attributeRecord(node.attributes),
+        ...(node.attributes.some(a => a.nativeValue) ? { nativeAttributes: Object.fromEntries(node.attributes.filter(a => a.nativeValue).map(a => [a.name, a.nativeValue!])) } : {}),
         children: node.children.map(serializeRenderNode),
         sourceMapRef: node.sourceMapRef,
     };
@@ -3172,10 +3217,15 @@ function stableJsonDigest(value: unknown): string {
 
 function cloneStableJsonValue(value: unknown): unknown {
     assertProcessingBoundaryValue(value);
-    return JSON.parse(stableJsonStringify(value)) as unknown;
+    return structuredClone(value);
 }
 
 function stableJsonStringify(value: unknown): string {
+    if (value instanceof ArrayBuffer) {
+        let hex = '';
+        for (const byte of new Uint8Array(value)) hex += byte.toString(16).padStart(2, '0');
+        return `{"$cemBinary":"${hex}"}`;
+    }
     if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
         return JSON.stringify(value);
     }

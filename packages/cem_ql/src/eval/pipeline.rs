@@ -18,10 +18,11 @@ use crate::diagnostics::{
     MODULE_URL_BLOCKED, MODULE_URL_INVALID, MODULE_URL_POLICY_DENIED, MODULE_URL_REFERRER_INVALID,
     MODULE_URL_REFERRER_SCOPE_DENIED, MODULE_URL_REFERRER_UNAVAILABLE,
     MODULE_URL_REFERRER_UNRESOLVED, MODULE_URL_UNAVAILABLE, MODULE_URL_UNRESOLVED,
-    POLICY_ACCESSOR_FAILED, READ_DENIED, READ_UNSATISFIABLE, UNRESOLVED_REFERENCE,
+    POLICY_ACCESSOR_FAILED, READ_DENIED, READ_UNSATISFIABLE, SCOPE_VIOLATION, UNRESOLVED_REFERENCE,
 };
 use crate::eval::{
     effective_boolean, first_integer, AtomValue, EvalCtx, Item, ItemStream, QueryItemViewKind,
+    QueryNodeAccessError, QueryNodeIterator,
 };
 use crate::ir::{IrId, IrStep};
 use crate::resolve::ModuleUri;
@@ -139,6 +140,24 @@ fn apply_stdlib_step(
     if module.0 == "cem:stdlib/sequence" {
         return apply_builtin_step(input, name, args, ctx);
     }
+    if module.0 == "cem:stdlib/dom"
+        && matches!(name.local.as_str(), "parent" | "children")
+        && args.is_empty()
+    {
+        if input.error.is_some() {
+            return input;
+        }
+        let mut out = ItemStream::empty();
+        out.diagnostics = input.diagnostics;
+        for item in input.items {
+            let next = navigate_node(&ItemStream::once(item), &name.local, ctx, IrId(0));
+            if next.error.is_some() {
+                return next;
+            }
+            out.append_stream(next);
+        }
+        return out;
+    }
     ctx.unknown_function(
         args.first().copied().unwrap_or(IrId(0)),
         "unknown stdlib pipeline step",
@@ -163,6 +182,11 @@ pub(crate) fn apply_stdlib_call(
         return ctx.unknown_function(source, "unknown stdlib call");
     }
     match (module.0.as_str(), name.local.as_str()) {
+        ("cem:stdlib/dom", "text") => super::values::text(arg_streams, ctx, source),
+        ("cem:stdlib/dom", "reference") => ItemStream::once(super::values::reference(
+            arg_streams.into_iter().next().unwrap_or_default().items)),
+        ("cem:stdlib/dom", "clone" | "element") => super::values::construct(
+            arg_streams.into_iter().next().unwrap_or_default(), name.local == "clone", ctx, source),
         ("cem:stdlib/modules", "module_url") => module_url(arg_streams, ctx, source),
         ("cem:stdlib/sequence", "first") => {
             first(arg_streams.into_iter().next().unwrap_or_default())
@@ -298,9 +322,10 @@ pub(crate) fn apply_stdlib_call(
             item_kind(arg_streams.into_iter().next().unwrap_or_default())
         }
         ("cem:stdlib/dom", "tainted") => ItemStream::once(Item::Atomic(AtomValue::Boolean(false))),
-        ("cem:stdlib/dom", "children")
-        | ("cem:stdlib/dom", "descendants")
-        | ("cem:stdlib/dom", "parent")
+        ("cem:stdlib/dom", "parent" | "children") => {
+            navigate_node(&arg_streams[0], &name.local, ctx, source)
+        }
+        ("cem:stdlib/dom", "descendants")
         | ("cem:stdlib/dom", "attribute")
         | ("cem:stdlib/state", "read")
         | ("cem:stdlib/state", "keys")
@@ -686,6 +711,66 @@ fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
         }
     }
     Some(out)
+}
+
+fn navigate_node(input: &ItemStream, name: &str, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {
+    if let Err(error) = ctx.force_safe_point(source) {
+        return error;
+    }
+    let view = match input.items.as_slice() {
+        [] => return ItemStream::empty(),
+        [Item::Native(view)] if view.kind() == QueryItemViewKind::Node => view,
+        _ => return ctx.type_error(source, "DOM navigation requires zero or one native node"),
+    };
+    let nodes: Result<QueryNodeIterator<'_>, QueryNodeAccessError> = if name == "parent" {
+        view.parent(ctx.query_scope)
+            .map(|node| Box::new(node.into_iter().map(Ok)) as QueryNodeIterator<'_>)
+    } else {
+        view.children(ctx.query_scope)
+    };
+    let mut nodes = match nodes {
+        Ok(nodes) => nodes,
+        Err(error) => return node_access_error(error, ctx, source),
+    };
+    let mut out = ItemStream::empty();
+    loop {
+        if let Err(error) = ctx.poll_work(source) {
+            return error;
+        }
+        let Some(node) = nodes.next() else { break; };
+        let node = match node {
+            Ok(node) => node,
+            Err(error) => return node_access_error(error, ctx, source),
+        };
+        if !node
+            .view()
+            .is_some_and(|view| view.kind() == QueryItemViewKind::Node)
+        {
+            return ctx.type_error(source, "DOM navigation returned a non-node value");
+        }
+        if let Err(error) = ctx.charge_items(1, source) {
+            return error;
+        }
+        out.items.push(node);
+    }
+    match ctx.force_safe_point(source) {
+        Ok(()) => out,
+        Err(error) => error,
+    }
+}
+
+pub(super) fn node_access_error(error: QueryNodeAccessError, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {
+    match error {
+        QueryNodeAccessError::ScopeViolation => ctx.fail_diagnostic(
+            source,
+            SCOPE_VIOLATION,
+            "DOM navigation would leave the active query scope",
+            "node access outside query scope",
+        ),
+        QueryNodeAccessError::Unsupported => {
+            ctx.unsupported(source, "node view does not provide the requested DOM navigation")
+        }
+    }
 }
 
 fn user_has_role(arg_streams: Vec<ItemStream>, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {

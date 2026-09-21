@@ -295,16 +295,20 @@ it('replays retained response bytes through native import after worker loss and 
     const { artifact } = await host.compile(compileInput('fixture')).result;
     const handle = { documentKey: 'retained-response', instanceId: 'fixture', scopePolicyStamp: 'scope-policy-v1' };
     const bytes = new TextEncoder().encode('{"qty":3}').buffer;
+    const nativeAttributes = [{ name: 'label', value: { kind: 'cem-native-value-v1' as const,
+        artifact: new Uint8Array([67, 69, 77, 86, 1]).buffer, contentHash: 'opaque-fixture', index: 0 } }];
     await host.document({ action: 'retain', handle, bytes, contentType: 'application/json', sourceUri: 'https://example.test/data' }).result;
     vi.mocked(retainLoadedCemDocument).mockClear();
     const revision = { instanceId: 'fixture', dataRevision: '1', templateArtifactId: 'fixture',
         scopePolicyStamp: 'scope-policy-v1', outputTarget: 'light-dom' as const };
     await host.renderDiff({ artifact, revision, data: {}, snapshot: { ...revision } as DataIslandSnapshot,
+        nativeAttributes,
         documents: [{ slice: 'response', handle }], scopeUid: 'scope-one' }).result;
     expect(host.mode).toBe('main-thread');
     expect(retainLoadedCemDocument).toHaveBeenCalledWith(bytes, 'application/json', 'https://example.test/data');
     expect(processRetainedCemMlTemplate).toHaveBeenLastCalledWith(expect.any(Number), expect.objectContaining({
         documents: [{ slice: 'response', documentId: 201 }],
+        nativeAttributes,
     }));
     await host.document({ action: 'release', handle }).result;
     expect(disposeLoadedCemDocument).toHaveBeenCalledWith(201);

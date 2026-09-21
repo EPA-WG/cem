@@ -20,6 +20,7 @@ use crate::template_artifact::{
     TemplateArtifactSourceMapMode, CEM_TEMPLATE_ARTIFACT_VERSION,
 };
 
+mod values;
 mod xpath_functions;
 mod xslt_bundle;
 
@@ -368,8 +369,19 @@ fn parse_template_data(input: &str) -> Result<TemplateData, String> {
 }
 
 fn plan_json(plan: &RenderPlan) -> Value {
+    plan_json_with_limits(plan, &cem_ml::value::artifact::CemValueArtifactLimits::default())
+}
+fn plan_json_with_limits(plan: &RenderPlan, limits: &cem_ml::value::artifact::CemValueArtifactLimits) -> Value {
+    let mut values = crate::eval::ItemStream::empty();
+    let nodes = nodes_json(&plan.nodes, &mut values);
+    let artifact = match values::publish(&values, limits) {
+        Ok(artifact) => artifact,
+        Err(error) => return serde_json::from_str(&error_json("cem.value.artifact", error)).expect("error control metadata"),
+    };
     json!({
-        "nodes": plan.nodes.iter().map(node_json).collect::<Vec<_>>(),
+        "nodes": nodes,
+        "nativeValueArtifactId": artifact.as_ref().map(|a| a.0),
+        "nativeValueContentHash": artifact.as_ref().map(|a| &a.1),
         "hostAttributeUpdates": plan.host_attribute_updates.iter().map(|update| json!({
             "name": update.name,
             "value": update.value,
@@ -402,8 +414,9 @@ fn module_map_json(artifact: &TemplateArtifact) -> Value {
         })
 }
 
-fn node_json(node: &RenderPlanNode) -> Value {
+fn node_json(node: &RenderPlanNode, values: &mut crate::eval::ItemStream) -> Value {
     match node {
+        RenderPlanNode::Reference { reference, .. } => Value::Array(nodes_json(&crate::render::expand_reference(reference), values)),
         RenderPlanNode::Element {
             tag,
             namespace,
@@ -418,8 +431,9 @@ fn node_json(node: &RenderPlanNode) -> Value {
             "attributes": attributes.iter().map(|attribute| {
                 let mut value = json!({
                     "name": attribute.qualified_name.as_ref().unwrap_or(&attribute.name),
+                    "nativeValueIndex": values::attribute(attribute, values),
                     "namespace": attribute.namespace,
-                    "value": attribute.value,
+                    "value": crate::render::project_attribute_value(attribute),
                     "byteOffset": source_map_offset(&attribute.source_map),
                     "sourceMap": source_map_json(&attribute.source_map)
                 });
@@ -428,7 +442,7 @@ fn node_json(node: &RenderPlanNode) -> Value {
                 }
                 value
             }).collect::<Vec<_>>(),
-            "children": children.iter().map(node_json).collect::<Vec<_>>(),
+            "children": nodes_json(children, values),
             "byteOffset": source_map_offset(source_map),
             "sourceMap": source_map_json(source_map)
         }),
@@ -462,6 +476,13 @@ fn node_json(node: &RenderPlanNode) -> Value {
             "sourceMap": source_map_json(source_map)
         }),
     }
+}
+
+fn nodes_json(nodes: &[RenderPlanNode], values: &mut crate::eval::ItemStream) -> Vec<Value> {
+    nodes.iter().flat_map(|node| match node_json(node, values) {
+        Value::Array(nodes) => nodes,
+        node => vec![node],
+    }).collect()
 }
 
 /// The current (most specific) frame's absolute byte offset, for host

@@ -61,6 +61,9 @@ use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 use crate::tokenizer::cem::CemTokenizer;
 
+mod value_contract;
+pub use value_contract::{convert_attribute_value, AttributeValueContract, TypedAttributeValue};
+
 pub const UNKNOWN_ELEMENT_CODE: &str = "cem.schema_model.unknown_element";
 pub const UNKNOWN_ATTRIBUTE_CODE: &str = "cem.schema_model.unknown_attribute";
 pub const MISSING_REQUIRED_ATTRIBUTE_CODE: &str = "cem.schema_model.missing_required_attribute";
@@ -192,7 +195,7 @@ impl ElementModel {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct AttributeModel {
     pub name: String,
     pub value_type: Option<String>,

@@ -1659,6 +1659,73 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       the current data-table, table-inspector and XML/tree viewer behavior;
       change their implementation only for the agreed minimum reuse hook.
       Do not implement other legacy XmlView features in this increment.
+  - [x] Complete retained-node parent/child navigation through `dom:parent`
+        and `dom:children`; compose sibling selection with ordinary filtering.
+        Preserve source versus XPath views, native identity, scope rejection,
+        cancellation and inherited budgets. Pass the current source node to
+        the Pokémon cell and read its sibling `id`. Keep missing/multiple
+        values in one table cell. Imported views expose the whole retained
+        document; host-restricted views must enforce their scope themselves.
+  - [ ] Fixture DATA-CELL-NAVIGATION: testing resumed for this implementation; cover
+        parent/children identity and source maps, root/attribute/text/CDATA
+        behavior, namespaces, all import formats and XPath views, type errors,
+        host scope rejection, budgets and cancellation. Update the earlier
+        cell fixtures for node dispatch, sibling IDs, grouped-value fallback
+        and the row-selection `th`.
+  - [x] Implement `{$node}` text-context conversion through shared retained-node
+        access and use it for the Pokémon label and image alternative. Preserve
+        node-valued selections/parameters and query operators; keep decoded
+        source text distinct from XPath's coalesced text. Bound extraction and
+        propagate scope, cancellation and budget failures without partial output.
+  - [ ] Fixture DATA-CELL-NODE-TEXT: testing resumed; verify explicit node text
+        and attribute interpolation, nested text/CDATA/whitespace, decoded entities
+        and escaping, empty nodes and sequences, selected attributes/comments/PIs,
+        CEM source versus XPath text boundaries, and XML/JSON/YAML/CSV imports.
+        Cover unchanged native parameter passing and result copying, unsupported
+        views, denied scope, cancellation, extraction budgets and lower child-scope
+        memory limits; update the Pokémon fixtures for typed `{$node}` insertion
+        and explicit `dom:text` extraction.
+  - [ ] Implement the accepted expression/value direction recorded in
+        [the proposal review](./cemt-expression-review.tmp.md), using the shared
+        CEM value model and immutable retained source owners.
+    - [ ] Fixture CEMT-VALUES: `dom:text` explicit/implicit focus, retained
+          references and repeated occurrences, explicit deep clone and empty
+          element construction, source identity/provenance and all import formats.
+    - [ ] Fixture CEMT-HOOKS: whole-sequence content/attribute hooks, compact
+          declarations, lexical scope, caller/import inheritance, precedence,
+          focus restoration, empty versus missing focus and bounded recursion.
+    - [ ] Fixture CEMT-ATTRIBUTE-TYPES: shared conversion then validation for
+          numeric, temporal, regex-constrained string and rich native values;
+          preserve mixed attribute content, destination constraints, native
+          component handoff and final-boundary serialization.
+    - [ ] Fixture CEMT-VALUE-PIPELINE: native intermediate output, reference
+          navigation and lifetime, artifact round trips, cancellation and
+          environment-defined limits with scope overrides that only lower them.
+    - [x] Fixture CEMT-VALUE-TRANSPORT: portable native CEM value artifacts
+          across workers, deterministic fallback and saved pipelines. The user
+          selected this R08 direction during implementation. Preserve shared
+          targets, source parents/provenance and typed attribute contracts;
+          reject invalid graphs and apply host/scope limits. Keep document data
+          binary/native, with JSON only for explicitly named control metadata.
+          Native worker/file/fallback round trips pass in
+          `packages/cem_ql/tests/native-values-wasm.mjs`; native scalar, reference,
+          source-key and graph-limit cases are in `tests/portable_values.rs`.
+          Browser patch and saved-envelope cases are in `native-values.spec.ts`.
+    - [ ] Complete the remaining expression review cases: imported-module hook
+          defaults and caller precedence, explicit CEM-QL template dispatch,
+          destination schema binding for native inputs, and portable constructed
+          nodes as XPath inputs. Keep this distinct from the settled R08 transport.
+    - [ ] Finish scope/cancellation accounting for deferred text/markup projection
+          and native artifact export; cover denied host views without partial text.
+    - [x] Update maintained syntax, acceptance criteria, package references and
+          cell-overrides lessons; verify focused native then WASM/browser cases.
+          Verified: 93 focused CEM-QL tests, 95 transformation-adapter tests,
+          Rust workspace check, WASM/element build, the real worker/file/fallback
+          fixture, 408 runtime unit tests and 3 cell-override browser stories.
+          The full expression proposal remains open at the cases listed above.
+    - [ ] Polish DX for text, reference, clone, element and explicit template
+          dispatch operations; consider matching compact forms for other template
+          types as requested during review. Do not add confusing copy/copy-of aliases.
   - [x] Inspect current dispatch and local legacy collapse code; record the
         findings in the [presentation override discussion](../packages/cem-elements/docs/xml-viewer-migration.md#cell-presentation-overrides).
         Current tables already use native disclosure. Legacy tree branches
@@ -1668,9 +1735,10 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
   - [x] Discuss small cell features before implementation. Approved: Pokémon
         image plus name, followed by a separate zero-stock warning/fallback
         lesson. The follow-up requires the first template inline and a primitive
-        name match. Use child-element cells and the existing imported rules;
-        leave the base viewer unchanged. Other candidate features stay deferred.
-  - [x] Prove the agreed import/match/delegation contract in native tests:
+        name match. The later approved cell-generation hook dispatches the
+        retained source node and uses shared parent navigation for sibling IDs.
+        Other candidate features stay deferred.
+  - [ ] Prove the revised import/match/delegation contract in native tests:
         the selected cell uses the local rule, unmatched and nested content
         retain base rendering, and rows stay attached to the imported CEM tree.
         Preserve default viewer output and CEMT/XSLT parity if a hook is needed.
@@ -1679,10 +1747,11 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         standalone operation, compact layout, source contracts and inventory/cache
         inputs. Table collapse remains an alternative, not an approved refactor.
   - [ ] Fixture DATA-CELL-MATCH-POKEMON: inline the sample's template and
-        match only the local name `name` (default absent names to empty text).
-        Render an image plus name using that node's `pokemon-id` attribute,
-        as in the index example. Other field names use the imported renderer.
-        Verify image loading, name sorting, nested matches and source repair.
+        match only the local name `name` in `cell` mode, without an explicit
+        priority. Render an image plus name using the sibling `id` element.
+        Other field names use the imported renderer. Implementation is present;
+        image loading, sorting, node dispatch and source repair need updated
+        fixtures when the user resumes testing.
   - [ ] Fixture DATA-CELL-MATCH-STOCK: override only zero stock in catalog
         product rows; verify positive values, unrelated fields and edited values
         use the imported fallback, without changing the retained source.

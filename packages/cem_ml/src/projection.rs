@@ -1323,24 +1323,35 @@ pub fn dom_json(doc: &CemDocument) -> Value {
 mod inspection;
 pub use inspection::{cem_document_inspection, cem_tree_inspection};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CemTreeAstStream {
-    nodes: Vec<CemTreeAstNode>,
+    nodes: Arc<std::sync::OnceLock<Vec<CemTreeAstNode>>>,
+    native_values: Option<Arc<dyn std::any::Any + Send + Sync>>,
+    project_values: Option<Arc<dyn Fn() -> Vec<CemTreeAstNode> + Send + Sync>>,
     source_owner: Option<Arc<crate::parser::tree::RetainedCemTree>>,
+}
+
+impl std::fmt::Debug for CemTreeAstStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CemTreeAstStream").field("nodes", &self.nodes.get())
+            .field("retains_native_values", &self.native_values.is_some()).finish()
+    }
 }
 
 // Presentation equality remains structural; retaining an original source owner
 // is a lifetime guarantee, not an additional serialized field.
 impl PartialEq for CemTreeAstStream {
     fn eq(&self, other: &Self) -> bool {
-        self.nodes == other.nodes
+        self.as_nodes() == other.as_nodes()
     }
 }
 
 impl CemTreeAstStream {
     pub fn new(nodes: Vec<CemTreeAstNode>) -> Self {
         Self {
-            nodes,
+            nodes: Arc::new(std::sync::OnceLock::from(nodes)),
+            native_values: None,
+            project_values: None,
             source_owner: None,
         }
     }
@@ -1350,8 +1361,22 @@ impl CemTreeAstStream {
     }
 
     pub fn as_nodes(&self) -> &[CemTreeAstNode] {
-        &self.nodes
+        self.nodes.get_or_init(|| self.project_values.as_ref().map(|project| project()).unwrap_or_default())
     }
+
+    /// Native transformations retain typed values and source references. The
+    /// presentation tree is produced only when a writer explicitly requests it.
+    pub fn from_native_values<T: std::any::Any + Send + Sync>(values: Arc<T>, project: impl Fn(&T) -> Vec<CemTreeAstNode> + Send + Sync + 'static) -> Self {
+        let projection_owner = values.clone();
+        Self { nodes: Arc::new(std::sync::OnceLock::new()), native_values: Some(values),
+            project_values: Some(Arc::new(move || project(&projection_owner))), source_owner: None }
+    }
+
+    pub fn native_values<T: std::any::Any + Send + Sync>(&self) -> Option<Arc<T>> {
+        self.native_values.clone()?.downcast().ok()
+    }
+
+    pub fn is_materialized(&self) -> bool { self.nodes.get().is_some() }
 
     /// Source capability retained by structural inspection through writer stages.
     pub fn source_owner(&self) -> Option<&Arc<crate::parser::tree::RetainedCemTree>> {
@@ -1359,16 +1384,20 @@ impl CemTreeAstStream {
     }
 
     pub fn retain_non_directive_nodes(&mut self) {
-        self.nodes.retain(|node| !node.is_cem_directive());
-        for node in &mut self.nodes {
+        let mut nodes = self.as_nodes().to_vec();
+        nodes.retain(|node| !node.is_cem_directive());
+        for node in &mut nodes {
             node.retain_non_directive_descendants();
         }
+        self.nodes = Arc::new(std::sync::OnceLock::from(nodes));
+        self.native_values = None;
+        self.project_values = None;
     }
 
     pub fn into_cemt_subject(self) -> Value {
         Value::Array(
-            self.nodes
-                .into_iter()
+            self.as_nodes()
+                .iter().cloned()
                 .map(CemTreeAstNode::into_cemt_subject)
                 .collect(),
         )

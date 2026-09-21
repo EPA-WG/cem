@@ -1,3 +1,5 @@
+import { exportNativeCemAttributes, importNativeCemAttributes, type NativeCemAttributeBinding, type CemValueArtifactLimits } from "./native-values.js";
+import { renderedNativeAttributeBindings, restoreNativeAttributeBindings } from "./projection.js";
 import { identifyXPathFunctionLibrary, XPATH_LIBRARY_MAX_SOURCE_BYTES, type CemXPathFunctionLibrarySource } from './internal/runtime-support/xpath-function-library.js';
 import {
     DATA_CEM_RENDER_SCOPE_ATTR,
@@ -83,6 +85,7 @@ import {
     lookupCemDeclarationScopeRegistration,
     onCemDeclarationScopeDispose,
     resolveCemControlInputPolicy,
+    resolveCemValueArtifactLimits,
     unbindCemDeclarationScopeRegistration,
     type CemDeclarationScope,
     type CemControlInputPolicy,
@@ -302,7 +305,7 @@ export interface SerializedEventPayload {
 }
 
 /** Pre-1.0 version of the namespace-aware data-island / processing snapshot contract. */
-export const SNAPSHOT_SCHEMA_VERSION = '0.1.2';
+export const SNAPSHOT_SCHEMA_VERSION = '0.2.0';
 
 export type SourceMapMode = 'dev' | 'prod';
 
@@ -323,6 +326,7 @@ export interface DataIslandSnapshot {
     scopePolicyStamp: string;
     privacyPolicyStamp: string;
     hostAttributes: Record<string, string | boolean | null>;
+    nativeAttributes?: NativeCemAttributeBinding[];
     dataset: Record<string, string>;
     payload: SerializedPayload;
     /** Complete DOM-native island tree made available to canonical transformations. */
@@ -337,6 +341,7 @@ export interface DataIslandSnapshot {
 
 export type DataIslandSnapshotExportField =
     | 'hostAttributes'
+    | 'nativeAttributes'
     | 'dataset'
     | 'payload'
     | 'slices'
@@ -362,7 +367,7 @@ export type ExportedDataIslandSnapshot = Pick<
     | 'scopePolicyStamp'
     | 'privacyPolicyStamp'
 > &
-    Partial<Pick<DataIslandSnapshot, DataIslandSnapshotExportField>>;
+    Partial<Pick<DataIslandSnapshot, Exclude<DataIslandSnapshotExportField, 'nativeAttributes'>>> & { nativeAttributes?: Record<string, unknown> };
 
 export interface DataIslandSnapshotExportPolicy {
     fields?: Partial<Record<DataIslandSnapshotExportField, DataIslandSnapshotExportDecision>>;
@@ -517,6 +522,7 @@ export interface CemElementRuntimeOptions {
     declarationScope?: CemDeclarationScope;
     /** Environment ceiling for UTF-8 control input; scopes may only lower it. Default: 8 MiB. */
     controlInputBytes?: number;
+    nativeValueLimits?: Partial<CemValueArtifactLimits>;
     scopePolicyStamp?: string;
     privacyPolicyStamp?: string;
     logger?: Pick<Console, 'warn' | 'error'>;
@@ -1094,6 +1100,7 @@ const RUNTIME_PAYLOAD_ATTRIBUTE_NAMES = new Set([
 ]);
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
+    'nativeAttributes',
     'hostAttributes',
     'dataset',
     'payload',
@@ -1486,7 +1493,9 @@ export function exportDataIslandSnapshotForEdge(
     for (const field of DATA_ISLAND_EXPORT_FIELDS) {
         const decision = policy.fields?.[field] ?? 'omit';
         if (decision === 'allow') {
-            exported[field] = cloneJsonSnapshotField(snapshot[field]) as never;
+            exported[field] = (field === 'nativeAttributes'
+                ? exportNativeCemAttributes(snapshot.nativeAttributes ?? [])
+                : cloneJsonSnapshotField(snapshot[field])) as never;
         } else if (decision === 'redact') {
             exported[field] = redactedSnapshotField(field) as never;
         }
@@ -1581,6 +1590,7 @@ export class CemElementRuntime {
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
     private readonly processingPoolPolicy?: CemProcessingPoolPolicy;
     private readonly controlInputPolicy: CemControlInputPolicy;
+    private readonly nativeValueLimits: CemValueArtifactLimits;
     private readonly artifactRegistry?: CemArtifactRegistryHooks;
     private readonly onProcessingTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
     private readonly srcDocuments = new Map<string, Promise<LoadedSrcDocument>>();
@@ -1612,9 +1622,15 @@ export class CemElementRuntime {
         this.declarationTag = options.declarationTag ?? DEFAULT_DECLARATION_TAG;
         this.declarationScopeOption = options.declarationScope;
         this.controlInputPolicy = resolveCemControlInputPolicy(options.controlInputBytes, options.declarationScope);
+        this.nativeValueLimits = resolveCemValueArtifactLimits(options.nativeValueLimits, options.declarationScope);
         const policyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
         this.scopePolicyStamp = options.controlInputBytes !== undefined || this.controlInputPolicy.scopes.length
             ? `${policyStamp}:control-input:${edgeContentAddress('template-artifact', this.controlInputPolicy).digest}` : policyStamp;
+        let scopedNativeLimits = false;
+        for (let scope = options.declarationScope; scope; scope = scope.parent ?? undefined) scopedNativeLimits ||= !!scope.nativeValueLimits;
+        if (options.nativeValueLimits || scopedNativeLimits) {
+            this.scopePolicyStamp += `:native-values:${edgeContentAddress('template-artifact', this.nativeValueLimits).digest}`;
+        }
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
         this.moduleUrlRootOption = options.moduleUrlRoot;
@@ -2595,6 +2611,8 @@ export class CemElementRuntime {
                 data,
                 ...(moduleClosure === undefined ? {} : { moduleClosure }),
                 payload: snapshot.payload,
+                nativeAttributes: snapshot.nativeAttributes,
+                nativeValueLimits: this.nativeValueLimits,
                 identity: {
                     producedTag: compiled.producedTag,
                     instanceId: snapshot.instanceId,
@@ -2903,6 +2921,8 @@ export class CemElementRuntime {
                 snapshot,
                 data,
                 documents: this.httpDocumentBindings(instance, snapshot),
+                nativeAttributes: snapshot.nativeAttributes,
+                nativeValueLimits: this.nativeValueLimits,
                 scopeUid: this.currentScopeUid(instance, compiled),
                 previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,
             });
@@ -2945,6 +2965,8 @@ export class CemElementRuntime {
                     snapshot: recoverySnapshot,
                     data: wasmTemplateData(recoverySnapshot, compiled.declaredAttributes),
                     documents: this.httpDocumentBindings(instance, recoverySnapshot),
+                    nativeAttributes: recoverySnapshot.nativeAttributes,
+                    nativeValueLimits: this.nativeValueLimits,
                     scopeUid: this.currentScopeUid(instance, compiled),
                     previousRenderPlan: null,
                 });
@@ -3480,6 +3502,7 @@ export class CemElementRuntime {
         }
 
         reconcileHostAttributesFromIsland(instance, snapshot.hostAttributes);
+        restoreNativeAttributeBindings(instance, snapshot.nativeAttributes ?? []);
 
         this.hydrationSnapshots.set(instance, snapshot);
         this.instanceIds.set(instance, snapshot.instanceId);
@@ -5644,6 +5667,7 @@ export class CemElementRuntime {
             scopePolicyStamp: this.scopePolicyStamp,
             privacyPolicyStamp: this.privacyPolicyStamp,
             hostAttributes: hostAttributes(instance),
+            nativeAttributes: renderedNativeAttributeBindings(instance),
             dataset: datasetEntries(instance),
             payload: this.invalidInstancePayloads.has(instance)
                 ? emptySerializedPayload()
@@ -7595,6 +7619,7 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
         hostAttributes: Object.fromEntries(
             Object.entries(serializedHostAttributes).map(([name, value]) => [name, value === '' ? true : value]),
         ) as Record<string, string | boolean | null>,
+        nativeAttributes: hydration.nativeAttributes === undefined ? [] : importNativeCemAttributes(hydration.nativeAttributes),
         dataset: readIslandRecordSection(island, DATA_ISLAND_SECTIONS.dataset) as Record<string, string>,
         payload: serializePayload(
             island,
@@ -8186,7 +8211,7 @@ function cloneJsonSnapshotField(value: unknown): unknown {
     if (value === undefined) {
         return {};
     }
-    return JSON.parse(JSON.stringify(value)) as unknown;
+    return structuredClone(value);
 }
 
 function redactedSnapshotField(field: DataIslandSnapshotExportField): unknown {
@@ -8889,7 +8914,7 @@ function cloneJsonSafe(value: unknown): unknown {
         return undefined;
     }
     try {
-        return JSON.parse(JSON.stringify(value)) as unknown;
+        return structuredClone(value);
     } catch {
         return undefined;
     }
@@ -9251,6 +9276,7 @@ export function writeDataIslandHydrationData(
         sourceMapMode: snapshot.sourceMapMode,
         scopePolicyStamp: snapshot.scopePolicyStamp,
         privacyPolicyStamp: snapshot.privacyPolicyStamp,
+        ...(snapshot.nativeAttributes?.length ? { nativeAttributes: exportNativeCemAttributes(snapshot.nativeAttributes) } : {}),
     });
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.attributes, snapshot.hostAttributes);
     replaceIslandRecordSection(

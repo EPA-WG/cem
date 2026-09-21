@@ -1,3 +1,4 @@
+import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, lowerCemValueArtifactLimits, type CemValueArtifactLimits } from "./native-values.js";
 import type { CemDeclarationRegistrationIdentity } from './cem-elements.js';
 
 /**
@@ -12,6 +13,7 @@ export interface CemDeclarationScope {
     readonly parent: CemDeclarationScope | null;
     /** Optional local ceiling; children inherit and may only lower it. */
     readonly controlInputBytes?: number;
+    readonly nativeValueLimits?: Readonly<Partial<CemValueArtifactLimits>>;
     readonly disposed: boolean;
     dispose(): void;
 }
@@ -20,6 +22,7 @@ export interface CemDeclarationScopeOptions {
     document: Document;
     parent?: CemDeclarationScope | null;
     controlInputBytes?: number;
+    nativeValueLimits?: Readonly<Partial<CemValueArtifactLimits>>;
 }
 
 export type CemDeclarationScopeErrorCode =
@@ -60,6 +63,7 @@ interface CemDeclarationScopeState {
     parent: CemDeclarationScope | null;
     disposed: boolean;
     controlInputBytes?: number;
+    nativeValueLimits?: Readonly<Partial<CemValueArtifactLimits>>;
     registrations: Map<string, CemDeclarationScopeRegistration>;
     disposeListeners: Set<() => void>;
 }
@@ -83,6 +87,8 @@ class LogicalCemDeclarationScope implements CemDeclarationScope {
     get controlInputBytes(): number | undefined {
         return scopeState(this).controlInputBytes;
     }
+
+    get nativeValueLimits(): Readonly<Partial<CemValueArtifactLimits>> | undefined { return scopeState(this).nativeValueLimits; }
 
     dispose(): void {
         const state = scopeState(this);
@@ -132,11 +138,16 @@ export function createCemDeclarationScope(options: CemDeclarationScopeOptions): 
         }
     }
 
+    if (options.nativeValueLimits) {
+        const maximum = { maxBytes: Number.MAX_SAFE_INTEGER, maxValues: Number.MAX_SAFE_INTEGER, maxDepth: Number.MAX_SAFE_INTEGER };
+        lowerCemValueArtifactLimits(parent ? resolveCemValueArtifactLimits(maximum, parent) : maximum, options.nativeValueLimits);
+    }
     const scope = Object.freeze(new LogicalCemDeclarationScope());
     scopeStates.set(scope, {
         document,
         parent,
         controlInputBytes: options.controlInputBytes,
+        nativeValueLimits: options.nativeValueLimits ? Object.freeze({ ...options.nativeValueLimits }) : undefined,
         disposed: false,
         registrations: new Map(),
         disposeListeners: new Set(),
@@ -318,4 +329,14 @@ function requiredTag(tag: string): string {
         );
     }
     return name;
+}
+
+/** Host-defined ceilings; ordinary CEM scope ancestry may only lower them. */
+export function resolveCemValueArtifactLimits(environment: Partial<CemValueArtifactLimits> = {}, scope?: CemDeclarationScope): CemValueArtifactLimits {
+    let limits = lowerCemValueArtifactLimits({ maxBytes: Number.MAX_SAFE_INTEGER, maxValues: Number.MAX_SAFE_INTEGER, maxDepth: Number.MAX_SAFE_INTEGER }, { ...DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, ...environment });
+    if (scope) assertScopeChainActive(scope);
+    const ancestry: CemDeclarationScope[] = [];
+    for (let current = scope; current; current = current.parent ?? undefined) ancestry.unshift(current);
+    for (const current of ancestry) limits = lowerCemValueArtifactLimits(limits, current.nativeValueLimits);
+    return limits;
 }

@@ -1,5 +1,8 @@
 //! Format-neutral CEM reader views. External syntax belongs to cem_ml::import.
-use super::{AtomValue, Item, QueryItemView, QueryItemViewKind};
+use super::{
+    AtomValue, Item, QueryContextScope, QueryItemView, QueryItemViewKind, QueryNodeAccessError,
+    QueryNodeIterator, QueryNodeTextIterator,
+};
 use cem_ml::{
     import::import_data,
     parser::{tree::RetainedCemTree, AstNodeId, CemAstNode},
@@ -19,6 +22,14 @@ mod string_import;
 pub(super) use string_import::parse;
 
 pub(super) fn source_metadata(item: &Item, name: &str) -> Result<Option<AtomValue>, ()> {
+    if let Some(provenance) = item.view().and_then(|v| v.provenance()) {
+        match name {
+            "node_key" => return Ok(provenance.source_key.map(AtomValue::String)),
+            "line_number" => return Ok(provenance.line_number.map(|n| AtomValue::Integer(n.into()))),
+            _ => {},
+        }
+    }
+
     let node = if let Some(view) = item
         .view()
         .and_then(|v| v.downcast_ref::<crate::xpath::functions::XPathQueryItem>())
@@ -90,6 +101,11 @@ pub(crate) fn xpath_node(item: &Item) -> Option<Result<XPathNativeNode, String>>
     Some(XPathNativeNode::cem_node(tree, id).map_err(|error| error.to_string()))
 }
 
+pub(crate) fn source_node(item: &Item) -> Option<(Arc<RetainedCemTree>, AstNodeId)> {
+    let view = item.view()?.downcast_ref::<CemAstView>()?;
+    Some((view.owner.tree.clone()?, view.node?))
+}
+
 /// Whole-document source owner for inert structural inspection. In particular,
 /// XPath's semantic text coalescing must not replace the original source arena.
 pub(super) fn retained_document(item: &Item) -> Option<Arc<RetainedCemTree>> {
@@ -144,6 +160,11 @@ impl CemAstView {
     }
 }
 impl QueryItemView for CemAstView {
+    fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
+        let tree = self.owner.tree.as_ref()?;
+        Some(cem_ml::value::artifact::CemValueProvenance { source_uri: Some(tree.source_uri().into()), source_key: tree.source_key(self.node?), line_number: tree.source_line_number(self.node?) })
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -159,6 +180,39 @@ impl QueryItemView for CemAstView {
         } else {
             QueryItemViewKind::Record
         }
+    }
+    fn parent(&self, _scope: QueryContextScope) -> Result<Option<Item>, QueryNodeAccessError> {
+        // Import grants this view a complete retained document. Restricted
+        // host projections must implement their own scope-aware node views.
+        let id = self.node.ok_or(QueryNodeAccessError::Unsupported)?;
+        let tree = self
+            .owner
+            .tree
+            .as_ref()
+            .ok_or(QueryNodeAccessError::Unsupported)?;
+        Ok(tree.source_parent(id).map(|id| self.item(id)))
+    }
+    fn children(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeIterator<'_>, QueryNodeAccessError> {
+        let id = self.node.ok_or(QueryNodeAccessError::Unsupported)?;
+        let tree = self
+            .owner
+            .tree
+            .as_ref()
+            .ok_or(QueryNodeAccessError::Unsupported)?;
+        let node = tree.ast().get(id).ok_or(QueryNodeAccessError::Unsupported)?;
+        Ok(Box::new(children(node).iter().map(|id| Ok(self.item(*id)))))
+    }
+    fn text_fragments(
+        &self,
+        _scope: QueryContextScope,
+    ) -> Result<QueryNodeTextIterator<'_>, QueryNodeAccessError> {
+        let fragments = self.owner.tree.as_ref()
+            .and_then(|tree| tree.source_text_fragments(self.node?))
+            .ok_or(QueryNodeAccessError::Unsupported)?;
+        Ok(Box::new(fragments.map(Ok)))
     }
     fn source_map(&self) -> Option<SourceMapStack> {
         let tree = self.owner.tree.as_ref()?;

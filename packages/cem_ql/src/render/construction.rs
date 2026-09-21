@@ -26,6 +26,9 @@ impl From<RenderPlanNode> for ResultItem {
 }
 
 impl ResultBuffer {
+    pub(super) fn values(&mut self, stream: ItemStream, source: &SourceMapStack) {
+        self.0.extend(stream.items.into_iter().map(|item| ResultItem::Value(item, source.clone())));
+    }
     pub(super) fn push(&mut self, node: RenderPlanNode) {
         self.0.push(node.into());
     }
@@ -193,6 +196,7 @@ impl PlanRenderer<'_> {
                     return;
                 }
                 out.0.push(ResultItem::Attribute(RenderPlanAttribute {
+                contract: None,
                     name: qualified_name.rsplit(':').next().unwrap_or("").into(),
                     qualified_name: Some(qualified_name),
                     namespace,
@@ -569,6 +573,7 @@ impl PlanRenderer<'_> {
                 }
             }
             XPathResultNodeKind::Attribute => ResultItem::Attribute(RenderPlanAttribute {
+                contract: None,
                 name: name.clone(),
                 qualified_name: Some(name),
                 namespace,
@@ -689,6 +694,9 @@ impl PlanRenderer<'_> {
             | ResultItem::Document(children) => {
                 content.atomic(render_plan_nodes_to_text(&children))
             }
+            ResultItem::Node(RenderPlanNode::Reference { reference, .. }) => {
+                content.atomic(render_plan_nodes_to_text(&expand_reference(&reference)))
+            }
             ResultItem::Attribute(attribute) => content.atomic(attribute.value),
         }
     }
@@ -782,6 +790,7 @@ impl PlanRenderer<'_> {
                     format!("xmlns:{prefix}")
                 };
                 declarations.push(RenderPlanAttribute {
+                contract: None,
                     name: if prefix.is_empty() {
                         "xmlns".into()
                     } else {

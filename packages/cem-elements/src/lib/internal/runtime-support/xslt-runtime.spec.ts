@@ -5,7 +5,7 @@ const wasm = vi.hoisted(() => ({
 }));
 vi.mock('../../../../../cem_ql/dist/wasm/cem_ql.js', () => ({
     default: vi.fn(async () => undefined),
-    retainXsltComponent: wasm.retain, renderXsltComponent: wasm.render,
+    retainXsltComponent: wasm.retain, renderXsltComponentWithNativeValues: wasm.render,
     disposeXsltComponent: wasm.dispose, xsltStylesheetImports: wasm.imports,
     templateArtifactPayloadKey: (source: string) => JSON.stringify({ contentType: 'cem-template-artifact',
         sourceHash: `hash:${source}`, cemMlVersion: 'test', cemQlVersion: 'test', sourceMapMode: 'dev' }),

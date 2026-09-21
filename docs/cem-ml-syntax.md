@@ -326,6 +326,11 @@ Template-embedding rules:
 - Attribute values do not need the `$` node because the attribute-value scanner
   already owns `{...}` spans.
 
+CEMT evaluates body expressions as native values: nodes are reused as retained
+subtrees and atoms become text. `dom:text()` / `dom:text(values)` request text
+explicitly. Native attributes retain their value sequence until final projection;
+see [native values, expression hooks and portable transport](cemt-native-values.md).
+
 ## Document Format Directive [A]
 
 Top-level canonical CEM-ML documents begin with a required document-format

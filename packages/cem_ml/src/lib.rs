@@ -63,6 +63,7 @@ pub mod transform_template;
 #[cfg(feature = "typescript-projections")]
 pub mod typescript;
 pub mod validation;
+pub mod value;
 pub mod worker_control;
 
 #[cfg(all(test, not(feature = "debug-control")))]

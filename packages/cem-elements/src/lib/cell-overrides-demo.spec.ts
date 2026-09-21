@@ -7,26 +7,27 @@ const page = read('../../demo/cell-overrides.html');
 describe('imported cell presentation lessons', () => {
     it('inlines the primitive name override and isolates the conditional fallback lesson', () => {
         expect(Array.from(page.matchAll(/legend="([^"]+)"/gu), match => match[1])).toEqual([
-            '1. Name cells become Pokémon pictures', '2. Zero-stock cells get a warning',
+            '1. Name cells become Pokémon pictures', '2. Zero-stock cells get a warning', '3. Native values pass into another component',
         ]);
-        expect(page.match(/<template>\n<cem-element/gu)).toHaveLength(2);
+        expect(page.match(/<template>\n<cem-element/gu)).toHaveLength(3);
         const inline = page.split('<template type="text/cem-ml">')[1].split('</template>')[0];
-        expect(inline.match(/@match='([^']+)'/u)?.[1]).toBe('(node.name ?? "") == "name"');
-        expect(inline).toContain('fn(a) => a.name == "pokemon-id"');
-        expect(inline).toContain('@select=node.children.value');
+        expect(inline.match(/@match='([^']+)'/u)?.[1]).toBe('node.name == "name"');
+        expect(inline).toContain('dom:children(dom:parent(node))');
+        expect(inline).toContain('{$node}');
+        expect(inline).toContain('@mode=cell');
         expect(page).toContain('href="./stock-cell.cemt"');
         expect(page).toContain('src="./stock-cell.cemt"');
         for (const template of [inline, read('../../demo/stock-cell.cemt')]) {
             expect(template).toContain('{import @as=base @src="./data-table-view.cemt"}');
             expect(template).toContain('{call @from=base @template=viewer}');
-            expect(template).toContain('@mode=inspect @priority=10');
+            expect(template).toContain('@mode=');
             expect(template).not.toContain('{table');
             expect(template).not.toContain('{cem-data');
         }
     });
 
     it('documents retained source matching, fallback and the existing cell boundary', () => {
-        for (const contract of ['data:node_key', 'Attribute cells', 'image plus the original name', 'retained CEM tree']) {
+        for (const contract of ['data:node_key', 'Missing values', 'image plus the original name', 'retained CEM tree']) {
             expect(page).toContain(contract);
         }
         for (const forbidden of ['JSON.parse', 'DOMParser', 'XSLTProcessor', 'onclick=', 'data-testid']) {

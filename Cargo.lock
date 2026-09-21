@@ -284,6 +284,7 @@ dependencies = [
  "quick-xml",
  "regex",
  "regex-automata 0.4.14",
+ "rmp-serde",
  "ryu",
  "serde",
  "serde_json",

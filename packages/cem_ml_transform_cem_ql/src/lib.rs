@@ -3585,12 +3585,12 @@ fn content_type_essence(content_type: &str) -> String {
 }
 
 fn render_plan_to_cem_tree_nodes(plan: &RenderPlan) -> CemTreeAstStream {
-    CemTreeAstStream::new(
-        plan.nodes
+    CemTreeAstStream::from_native_values(Arc::new(plan.nodes.clone()), |nodes| {
+        nodes
             .iter()
             .filter_map(render_plan_node_to_cem_tree)
-            .collect(),
-    )
+            .collect()
+    })
 }
 
 fn render_plan_to_cem_tree_nodes_with_control(
@@ -3600,84 +3600,17 @@ fn render_plan_to_cem_tree_nodes_with_control(
 ) -> Result<CemTreeAstStream, cem_ml::operation_control::ControlError> {
     let mut safe_points = cem_ml::operation_control::SafePointPoller::new(control.clone(), scope);
     safe_points.force()?;
-    let mut nodes = Vec::new();
-    for node in &plan.nodes {
-        if let Some(node) = render_plan_node_to_cem_tree_with_control(node, &mut safe_points)? {
-            nodes.push(node);
-        }
-    }
+    let tree = render_plan_to_cem_tree_nodes(plan);
     safe_points.force()?;
-    Ok(CemTreeAstStream::new(nodes))
-}
-
-fn render_plan_node_to_cem_tree_with_control(
-    node: &RenderPlanNode,
-    safe_points: &mut cem_ml::operation_control::SafePointPoller,
-) -> Result<Option<CemTreeAstNode>, cem_ml::operation_control::ControlError> {
-    safe_points.poll_one()?;
-    let converted = match node {
-        RenderPlanNode::Element { tag, .. } if tag.trim().is_empty() => None,
-        RenderPlanNode::Element {
-            tag,
-            namespace,
-            qualified_name,
-            attributes,
-            children,
-            source_map,
-        } => {
-            let mut converted_attributes = Vec::with_capacity(attributes.len());
-            for attribute in attributes {
-                safe_points.poll_one()?;
-                converted_attributes.push(render_plan_attribute_to_cem_tree(attribute));
-            }
-            let mut converted_children = Vec::with_capacity(children.len());
-            for child in children {
-                if let Some(child) = render_plan_node_to_cem_tree_with_control(child, safe_points)?
-                {
-                    converted_children.push(child);
-                }
-            }
-            Some(CemTreeAstNode::Element {
-                name: qualified_name.clone().unwrap_or_else(|| render_plan_cem_tree_name(tag, namespace.as_deref())),
-                attributes: converted_attributes,
-                children: converted_children,
-                source: source_map.clone(),
-            })
-        }
-        RenderPlanNode::Text { text, source_map } if text.trim().is_empty() => {
-            Some(CemTreeAstNode::Whitespace {
-                data: text.clone(),
-                source: source_map.clone(),
-            })
-        }
-        RenderPlanNode::Text { text, source_map } => Some(CemTreeAstNode::Text {
-            value: text.clone(),
-            source: source_map.clone(),
-        }),
-        RenderPlanNode::Comment { text, source_map } => Some(CemTreeAstNode::Comment {
-            data: text.clone(),
-            source: source_map.clone(),
-        }),
-        RenderPlanNode::Cdata { text, source_map } => Some(CemTreeAstNode::Cdata {
-            data: text.clone(),
-            source: source_map.clone(),
-        }),
-        RenderPlanNode::ProcessingInstruction {
-            target,
-            data,
-            source_map,
-        } => Some(CemTreeAstNode::ProcessingInstruction {
-            name: target.clone(),
-            target: target.clone(),
-            data: data.clone(),
-            source: source_map.clone(),
-        }),
-    };
-    Ok(converted)
+    Ok(tree)
 }
 
 fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<CemTreeAstNode> {
     match node {
+        RenderPlanNode::Reference { reference, source_map } => Some(CemTreeAstNode::Document {
+            children: cem_ql::render::expand_reference(reference).iter().filter_map(render_plan_node_to_cem_tree).collect(),
+            source: source_map.clone(),
+        }),
         RenderPlanNode::Element { tag, .. } if tag.trim().is_empty() => None,
         RenderPlanNode::Element {
             tag,
@@ -3732,7 +3665,7 @@ fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<CemTreeAstNode>
 fn render_plan_attribute_to_cem_tree(attribute: &RenderPlanAttribute) -> CemTreeAstAttribute {
     CemTreeAstAttribute {
         name: attribute.qualified_name.clone().unwrap_or_else(|| render_plan_cem_tree_name(&attribute.name, attribute.namespace.as_deref())),
-        value: Some(attribute.value.clone()),
+        value: Some(cem_ql::render::project_attribute_value(attribute)),
         source: attribute.source_map.clone(),
     }
 }
@@ -5408,6 +5341,9 @@ impl QueryItemView for EncodedTextQueryView {
 
 fn artifact_query_stream(artifact: &TransformTemplateDataArtifact) -> Result<ItemStream, String> {
     match &artifact.body {
+        TransformArtifactBody::CemTree(tree) if tree.native_values::<Vec<RenderPlanNode>>().is_some() => {
+            Ok(cem_ql::eval::output::shared_output_nodes(tree.native_values::<Vec<RenderPlanNode>>().expect("native values checked")))
+        }
         TransformArtifactBody::CemDocument(document) => document
             .root()
             .map(|_| ItemStream::once(CemDocumentQueryView::item(Arc::clone(document), 0)))
@@ -6347,7 +6283,6 @@ mod tests {
     use cem_ml::interpreter::{light_dom::LightDomInterpreter, xml::XmlInterpreter};
     use cem_ml::parser::builder::CemAstBuilder;
     use cem_ml::parser::document::CemDocument;
-    use cem_ml::projection;
     use cem_ml::real::RealCemMlEngine;
     use cem_ml::resolver::{
         has_uri_scheme, ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead,
@@ -6414,6 +6349,30 @@ mod tests {
             cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
         )
         .is_err());
+    }
+
+    #[test]
+    fn native_pipeline_values_retain_owners_without_materializing() {
+        let template = cem_ql::render::compile_template(
+            r#"{out | {attribute @name=count @type=integer @value=002}{$data:read("<name>ivy<em>saur</em></name>", "xml").root.children}}"#,
+            &CompileTemplateOptions::default(),
+        );
+        let plan = cem_ql::render::render_compiled_template(&template, &TemplateData::default());
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+        let tree = render_plan_to_cem_tree_nodes(&plan);
+        assert!(!tree.is_materialized());
+        let owner = tree.native_values::<Vec<RenderPlanNode>>().unwrap();
+        let artifact = TransformTemplateDataArtifact::new("values", None, None, TransformArtifactBody::CemTree(Arc::new(tree.clone())));
+        let stream = artifact_query_stream(&artifact).unwrap();
+        assert_eq!(stream.items[0].identity(), cem_ql::eval::output::shared_output_nodes(owner).items[0].identity());
+        let limits = cem_ml::value::artifact::CemValueArtifactLimits::default();
+        let bytes = cem_ql::eval::portable::encode_values(&stream, &limits).unwrap();
+        let restored = cem_ql::eval::portable::decode_values(&bytes, &limits).unwrap();
+        let root = restored.items[0].view().unwrap();
+        let attrs = root.field("attributes").unwrap();
+        assert_eq!(attrs[0].view().unwrap().field("values").unwrap()[0].atom(), Some(AtomValue::Integer(2)));
+        assert_eq!(root.text_fragments(cem_ql::eval::QueryContextScope(0)).unwrap().collect::<Result<String, _>>().unwrap(), "ivysaur");
+        assert!(!tree.is_materialized(), "native stages and binary export never request the legacy text projection");
     }
 
     fn test_output_value(output: &TransformTemplateOutputArtifact) -> Value {

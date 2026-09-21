@@ -85,6 +85,69 @@ instructions. JSON/YAML/CSV use the `cem:generic-data` namespace with
 (`string`, `number`, `boolean`, `null`). CSV uses its first row as headings
 and retains string-valued fields. This is not a JSON AST handoff.
 
+### Native values in templates
+
+`{$node}` reuses a retained node subtree in body content. Use
+`{$dom:text(node)}` for text alone. `@alt="{$node}"` retains the native value
+until the final attribute projection extracts text. Mixed attribute content
+keeps its ordered literal and native segments between transformation phases.
+Sources remain immutable; only `dom:clone(values)` requests independent node
+storage. `dom:element(elements)` creates empty named element shells, and
+`dom:reference(values)` constructs an explicit native reference.
+
+`dom:text()` reads the active matching-template focus. In an expression hook,
+the focus is the entire expression sequence, including empty input. Missing
+focus is an error. For example:
+
+```cem
+{template @on=expression @into=attribute | {$dom:text()}}
+```
+
+Scalar types, regex/range constraints and final representations are distinct
+attribute contracts. Portable native CEM artifacts preserve them across workers
+and saved pipelines. JavaScript carries artifact bytes and control metadata;
+CEM-ML owns graph import, and CEM-QL consumes native views. See
+[the complete native-value contract](../../docs/cemt-native-values.md) and
+[the cell override examples](../cem-elements/demo/cell-overrides.html).
+
+### Retained-node navigation
+
+`dom:parent(node)` and `dom:children(node)` navigate the retained tree without
+copying or re-importing it. Direct calls accept zero or one native node; empty
+input returns empty, the document root has no parent, and other types or
+multiple items produce `cem.ql.type_error`. Named pipeline steps apply these
+helpers to each input node. Returned nodes retain the same owner, identity and
+source maps. Imported CEM views navigate the original source arena, including
+separate text/CDATA nodes; XPath views retain their existing semantic projection.
+The `.children` field remains unchanged; `.parent` is not a new record field.
+
+For a retained `<name>` element, select sibling `<id>` elements with ordinary
+CEM-QL filtering, without a separate sibling-selector language:
+
+```cem-ql
+seq:where(dom:children(dom:parent(node)), fn(sibling) =>
+    sibling.kind == "element" && sibling.namespace == node.namespace
+        && sibling.name == "id")
+```
+
+This returns all matching siblings in source order. A caller chooses explicitly
+whether to take the first result. Sorting a sequence does not reparent its nodes.
+Host `QueryItemView` implementations receive the active `QueryContextScope`
+through the new `parent`/`children` capabilities and must preserve restrictions
+on returned views. Denied navigation raises fatal `cem.ql.scope_violation`;
+unsupported views fail explicitly rather than reporting a missing parent.
+The built-in imported/XPath views grant access to their complete retained
+document; this does not add subtree grants or a general host access-control
+registry. Restricted hosts must supply restricted views instead of unwrapping
+them into unrestricted native documents.
+
+Navigation polls cancellation and charges each returned node to the inherited
+item budget, discarding partial results on failure. Children are collected from
+an iterator under that budget. This is bounded navigation of a materialized
+tree, not a claim that the full query pipeline or an incoming AST stream can
+execute with no buffering. An ID arriving after a streamed name requires
+retention or deferring the row until it is complete.
+
 Processing instructions expose their target as `name` and their data through
 `value` (`data` is an alias). For `<?keep inert?>`, these are `keep` and `inert`;
 consumers must not split the value to recover the target. Native Rust views also
@@ -299,8 +362,9 @@ discovery, headings, cells, tree/table rendering and sort-key selection in
 API. An [imported extension](../cem-elements/demo/data-table-aspects.cemt)
 changes notes to a tree and an IP-filter record to a local preview form.
 The [cell override lessons](../cem-elements/demo/cell-overrides.html) import
-the same viewer unchanged: an inline name match renders Pokémon images beside
-their names, and a value predicate replaces zero stock with a warning. Unmatched
+the viewer: its `cell` mode selects the original source node, and an inline
+name match finds a sibling ID to render Pokémon images beside their names.
+A separate `inspect` predicate replaces zero stock with a warning. Unmatched
 cells retain the imported presentation; source values and sort keys stay intact.
 Two independent XSLT cases use the same native import and rendering lifecycle
 through explicit scalar parameters, including an imported presentation module.

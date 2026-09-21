@@ -42,7 +42,7 @@ export const PokemonCellPictures: Story = {
         for (const image of images()) expect(image.src).toContain(new URL('./pokemon/', SOURCE_URL).href);
         expect(viewer.querySelector('table')).toHaveTextContent('venusaur');
         expect(viewer.querySelector('table')).toHaveTextContent('ivysaur');
-        expect(Array.from(viewer.querySelectorAll('th'), th => th.textContent?.trim())).toEqual(['✓', '#text', 'name', 'type']);
+        expect(Array.from(viewer.querySelectorAll('thead th'), th => th.textContent?.trim())).toEqual(['✓', '#text', 'id', 'name', 'type']);
         await userEvent.click(viewer.querySelector('tbody button') as HTMLButtonElement);
         await waitFor(() => expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('venusaur'), { timeout: 10000 });
         select(controls.getByRole('combobox', { name: 'Sort column' }), 'name');
@@ -50,7 +50,7 @@ export const PokemonCellPictures: Story = {
         expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('venusaur');
         expect(input.value).toBe(original);
         input.focus();
-        change(input, original.replace('<name pokemon-id="3">venusaur</name>', '<title pokemon-id="3">venusaur</title>'));
+        change(input, original.replace('<name>venusaur</name>', '<title>venusaur</title>'));
         await waitFor(() => expect(images()).toHaveLength(1), { timeout: 10000 });
         expect(viewer.querySelector('table')).toHaveTextContent('venusaur');
         expect(viewer.querySelector('table')).toHaveTextContent('grass');
@@ -94,5 +94,18 @@ export const ConditionalStockFallback: Story = {
         await userEvent.click(controls.getByRole('button', { name: 'Reset source' }));
         await waitFor(() => expect(viewer.querySelectorAll('strong')).toHaveLength(1), { timeout: 10000 });
         expect(input.value).toBe(original);
+    },
+};
+
+export const NativeAttributeValues: Story = {
+    render: renderDocument,
+    play: async ({ canvasElement }) => {
+        await waitFor(() => expect(canvasElement.querySelector('cem-native-value-card article')).not.toBeNull(), { timeout: 10000 });
+        const card = canvasElement.querySelector('cem-native-value-card article');
+        expect(card).toHaveTextContent('Next count: 3');
+        expect(card).toHaveTextContent('Date: 2024-02-29');
+        expect(card?.querySelector('.value-label > name > em')).toHaveTextContent('saur');
+        expect(card?.querySelector(':scope > section > p')).toHaveTextContent('Text-only label: ivysaur');
+        expect(card?.querySelector(':scope > section name')).toBeNull();
     },
 };

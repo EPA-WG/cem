@@ -407,23 +407,30 @@ inventory exercises Space on checkboxes and Enter on a sort button.
 
 ## Cell presentation overrides
 
-The follow-up [cell-overrides.html](../demo/cell-overrides.html) contains two
+The follow-up [cell-overrides.html](../demo/cell-overrides.html) contains three
 separate `cem-element` lessons. Each owns a small CEMT module, imports the
-unchanged data viewer, adds one priority-10 `inspect` match rule, and calls
-`base.viewer`. The viewer's existing `apply-templates` dispatch selects the
-local rule for matching cells and imported rules for all other values.
+data viewer, adds one match rule, and calls `base.viewer`. Single-node data
+cells dispatch their original retained subjects through `cell` mode. The base
+`@match=true @priority=-20` rule generates a `td` and delegates content to
+`inspect`; a local cell rule can replace that entire cell.
 
 - The first sample inlines its entire template. Its primitive predicate is
-  `(node.name ?? "") == "name"`; the empty default handles nameless text nodes.
-  It renders a 32px image beside the original name, using the matched node's
-  `pokemon-id` attribute as in the index's Pokémon example. The rule matches
-  that local name at any path; other field names retain the imported view.
+  `node.name == "name"` in `cell` mode, with no explicit priority. The template
+  receives only the retained `name` node. `dom:parent` and `dom:children` find
+  its sibling `id`, selecting the first match in source order with
+  `(sibling.name ?? "") == "id"`. The fallback skips nameless whitespace;
+  this simple demo compares only local names. It renders a 32px image beside
+  the original name, or just the name if no ID is present. Other field names
+  retain the imported view. `{$node}` reuses the name subtree for the label and
+  `@alt="{$node}"` supplies the image alternative through shared node text
+  conversion; no separate name variable or child-value projection is needed.
   The sample uses IDs 2 and 3, whose SVGs and upstream notice are bundled with
   [source attribution](../demo/pokemon/README.md). `cem-module-url` resolves the
   image directory relative to the declaration for source-loaded documents too.
 - [stock-cell.cemt](../demo/stock-cell.cemt) matches
   `/catalog/product/stock` only when its trimmed text is `0`. Its replacement is
-  a visible “Out of stock (0)” warning. Positive values, edited values and a
+  a visible “Out of stock (0)” warning in `inspect` mode, retaining the base
+  cell wrapper. Positive values, edited values and a
   reference branch's zero stock use the imported renderer.
 
 The stock path describes selected XML data; `@match` itself is a CEM-QL
@@ -435,22 +442,25 @@ simple. The templates never reparse the source or query
 rendered HTML. `cem-data` in the base viewer remains the single import point.
 The module-URL slice contains scalar resource metadata only.
 
-Child-element cells already pass their retained subjects through match
-dispatch. Attribute cells and direct row text currently render inline; extending
-those remains separate work. No table shell extraction, cell API, new evaluator
-function, or base CEMT/XSLT/tree implementation change is needed for these lessons.
+The base CEMT template owns the cell-generation hook. Missing values, repeated
+values in one column, attributes and direct row text use its `cell-values`
+fallback, keeping exactly one `td` per heading; these cases do not invoke the
+single-node cell override. The XSLT and tree-view templates are unchanged.
+Shared `dom:parent`/`dom:children` preserve the selected source owner and view;
+neither navigation nor the demo parses source syntax or constructs a document
+object. This lesson uses complete retained trees, not progressive AST input.
 The earlier table-collapse idea was not selected: the current table already has
 native disclosure, while the legacy table caption only records `todo collapsible`.
 No other legacy XmlView features are part of this increment. Storybook startup
 stabilization follows DATA-CELL-MATCH-1 in `docs/todo.md`.
 
-[Native fixtures](../../cem_ql/tests/cell_overrides.rs) extract the first sample's
-actual inline template and verify name matching, the stock rule's path/namespace
-isolation, fallback for other field names, retained source text, stable sorting
-and source-based row selection, conditional fallback and malformed-source
-recovery. Browser fixtures verify actual local images, unchanged columns and
-names, edits, resets and source-loaded URL resolution. The same two lessons
-are included in the standalone/source-loaded gallery inventory.
+[Native fixtures](../../cem_ql/tests/cell_overrides.rs), browser stories and
+source contracts were authored for the earlier content-only override and
+attribute-based image ID. The user deferred test changes and execution before
+the cell-mode, sibling-ID and node-text revisions. Updating those fixtures, the
+gallery checks, shared-navigation and text-conversion coverage remains pending
+in `docs/todo.md`;
+the earlier passing results do not verify this revision.
 
 ## Review verification
 
@@ -511,3 +521,9 @@ verifier passes 27 standalone pages and 33 source-loaded documents. The page
 fits two cards at 1440px and stays contained at 390px and 320px. All reviewed
 XML-VIEW teaching-point fixtures are now complete; the separate browser startup
 wait and repeated-mount stylesheet lifecycle work remains in `docs/todo.md`.
+
+The third cell-override lesson demonstrates the shared native-value boundary:
+a parent passes integer, date and node-valued attributes into a child component.
+The child renders the retained name subtree and uses a local expression hook for
+text-only output. The [native value contract](../../../docs/cemt-native-values.md)
+defines portable artifacts across workers, fallback and saved pipelines.
