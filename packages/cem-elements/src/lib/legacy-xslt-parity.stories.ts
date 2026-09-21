@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { waitFor } from 'storybook/test';
 import attributeInvalidationCemFixture from '../../tests/parity/legacy/attribute-invalidation.cem.html?raw';
 import attributeInvalidationLegacyFixture from '../../tests/parity/legacy/attribute-invalidation.legacy.html?raw';
 import attributesCemFixture from '../../tests/parity/legacy/attributes.cem.html?raw';
@@ -599,23 +600,12 @@ async function waitForFileExpectations(
     state: FileParityState,
     expectations: FileParityExpectation[],
     phase: string,
-    timeout = 2000
+    timeout = 30000
 ): Promise<void> {
-    const start = Date.now();
-    for (;;) {
-        const ready = [state.legacy, state.cemMl].every((side) =>
-            expectations.every((expectation) =>
-                fileExpectationTexts(side, expectation).join('|') === expectation.texts.join('|')
-            )
-        );
-        if (ready) {
-            return;
-        }
-        if (Date.now() - start > timeout) {
-            throw new Error(`${state.id} timed out waiting for ${phase} output`);
-        }
-        await new Promise((resolve) => setTimeout(resolve, 16));
-    }
+    await waitFor(() => {
+        assertFileExpectations(state.legacy, expectations, `${state.id} legacy ${phase}`);
+        assertFileExpectations(state.cemMl, expectations, `${state.id} CEM-ML ${phase}`);
+    }, { timeout });
 }
 
 function mutateMarkedAttributes(instances: HTMLElement[]): void {
@@ -727,18 +717,8 @@ function normalizeWhitespaceNodes(root: Node): void {
     }
 }
 
-async function waitForElement(root: ParentNode, selector: string, timeout = 2000): Promise<Element> {
-    const start = Date.now();
-    for (;;) {
-        const found = root.querySelector(selector);
-        if (found) {
-            return found;
-        }
-        if (Date.now() - start > timeout) {
-            throw new Error(`timed out waiting for \`${selector}\``);
-        }
-        await new Promise((resolve) => setTimeout(resolve, 16));
-    }
+async function waitForElement(root: ParentNode, selector: string): Promise<Element> {
+    return waitFor(() => requiredElement(root, selector), { timeout: 30000 });
 }
 
 function requiredElement(root: ParentNode, selector: string): Element {

@@ -395,7 +395,7 @@ const dataTableSamples = [
     ]),
     sampleContract('6. XSLT table: native sorting and selection', [
         text('tbody', '∅'), text('tbody', '""'), text('tbody', 'null'),
-        ...tableInteractions('qty', 'table'),
+        ...tableInteractions('qty', 'table', 'td'),
         fillBlurThenText('textarea', '[oops]', '[role="alert"]', '⚠'),
         countExactly('table', 0),
         clickThenText('button[aria-label="Reset source"]', 'tbody', '🍒'),
@@ -430,14 +430,14 @@ const dataTableSamples = [
     ]),
 ];
 
-function tableInteractions(column, table) {
+function tableInteractions(column, table, selectionCell = 'th') {
     return [
-        clickThenText(`${table} > tbody > tr:nth-child(2) > td > button`, `${table} > tbody`, '✓'),
+        clickThenText(`${table} > tbody > tr:nth-child(2) > ${selectionCell} > button`, `${table} > tbody`, '✓'),
         selectThenText('select[aria-label="Sort column"]', column, `${table} > tbody > tr:first-child`, '10'),
         selectThenText('select[aria-label="Compare"]', 'number', `${table} > tbody > tr:first-child > td:nth-child(2)`, '2'),
-        attributeEquals(`${table} > tbody > tr:first-child > td > button`, 'aria-pressed', 'true'),
+        attributeEquals(`${table} > tbody > tr:first-child > ${selectionCell} > button`, 'aria-pressed', 'true'),
         selectThenText('select[aria-label="Direction"]', 'descending', `${table} > tbody > tr:first-child > td:nth-child(2)`, '10'),
-        attributeEquals(`${table} > tbody > tr:last-child > td > button`, 'aria-pressed', 'true'),
+        attributeEquals(`${table} > tbody > tr:last-child > ${selectionCell} > button`, 'aria-pressed', 'true'),
         clickThenText('article > details > summary', 'article', 'Source'),
         propertyEquals('article > details', 'open', false),
         pressThenProperty('article > details > summary', 'Enter', 'article > details', 'open', true),

@@ -30,7 +30,7 @@ export const EveryAuthoredSample: Story = {
             const xml = viewer.getAttribute('format') === 'xml';
             const table = () => viewer.querySelector('table');
             const quantities = () => Array.from(table()?.querySelectorAll(':scope > tbody > tr') ?? [],
-                (row) => row.querySelectorAll(':scope > td')[1]?.textContent?.trim());
+                (row) => row.querySelector(':scope > td')?.textContent?.trim());
             await waitFor(() => expect(quantities()).toEqual(['10', '2', '3']), { timeout: 10000 });
             await select(controls.getByRole('combobox', { name: 'Sort column' }), xml ? '@id' : 'qty');
             await select(controls.getByRole('combobox', { name: 'Compare' }), 'number');
@@ -59,7 +59,7 @@ export const EveryAuthoredSample: Story = {
         const original = input.value;
         input.value = '[oops]';
         input.dispatchEvent(new Event('change', { bubbles: true }));
-        await waitFor(() => expect(controls.getByRole('alert')).toHaveTextContent('⚠'));
+        await waitFor(() => expect(controls.getByRole('alert')).toHaveTextContent('⚠'), { timeout: 10000 });
         expect(json.querySelectorAll('table')).toHaveLength(0);
         controls.getByRole('button', { name: 'Reset source' }).click();
         await waitFor(() => expect(json.querySelectorAll('table')).toHaveLength(1), { timeout: 10000 });

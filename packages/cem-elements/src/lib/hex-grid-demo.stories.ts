@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { userEvent } from 'storybook/test';
+import { userEvent, waitFor } from 'storybook/test';
 
 const SOURCE_TAG = 'story-hex-grid-demo-document';
 const DEMO_URL = new URL('../../demo/hex-grid.html', import.meta.url);
@@ -49,7 +49,6 @@ export const ResponsiveFrameworkLinks: Story = {
                 host.querySelectorAll(`cem-demo-element[legend="${COMPACT_LEGEND}"] .hex-link`).length === 6 &&
                 host.querySelectorAll(`cem-demo-element[legend="${FIXED_LEGEND}"] .hex-link`).length === 6,
             'responsive size samples render from the authored HTML document',
-            300,
         );
 
         const sample = requiredElement(host, `cem-demo-element[legend="${LEGEND}"]`);
@@ -70,7 +69,6 @@ export const ResponsiveFrameworkLinks: Story = {
                 images.length === 14 &&
                 images.filter((_, index) => index !== 1).every((image) => image.complete && image.naturalWidth > 0),
             () => `all relative framework logos load; sources=${JSON.stringify(images.map((image) => image.src))}`,
-            300,
         );
         assertIncludes(images[0]?.src ?? '', '/demo/framework-logos/wc-square.svg', 'DCE logo URL');
 
@@ -158,7 +156,6 @@ async function assertCurrentPageRow(host: HTMLElement): Promise<void> {
     await waitForCondition(
         () => host.querySelectorAll(`cem-demo-element[legend="${ROW_LEGEND}"] nav a`).length === 3,
         'current-page row links render from the authored HTML',
-        600,
     );
     const sample = requiredElement(host, `cem-demo-element[legend="${ROW_LEGEND}"]`);
     const nav = requiredElement(sample, 'nav[aria-label="Demo page links"]');
@@ -224,7 +221,6 @@ async function assertPresentationModes(host: HTMLElement): Promise<void> {
             host.querySelectorAll(`cem-demo-element[legend="${WRAPPER_LEGEND}"] .hex-link`).length === 3 &&
             host.querySelectorAll(`cem-demo-element[legend="${IMAGE_BUTTON_LEGEND}"] .hex-link`).length === 1,
         'presentation samples render from the authored HTML document',
-        300,
     );
 
     const sample = requiredElement(host, `cem-demo-element[legend="${LEGEND}"]`);
@@ -370,13 +366,10 @@ function requiredElement(root: ParentNode, selector: string): HTMLElement {
 async function waitForCondition(
     condition: () => boolean,
     message: string | (() => string),
-    attempts = 200,
 ): Promise<void> {
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    }
-    throw new Error(typeof message === 'string' ? message : message());
+    await waitFor(() => {
+        if (!condition()) throw new Error(typeof message === 'string' ? message : message());
+    }, { timeout: 30000 });
 }
 
 function assertDeepEqual(actual: readonly string[], expected: readonly string[], label: string): void {

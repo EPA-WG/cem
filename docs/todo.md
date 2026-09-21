@@ -1958,7 +1958,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
   - [x] Fixture DATA-CELL-MATCH-STOCK: override only zero stock in catalog
         product rows; verify positive values, unrelated fields and edited values
         use the imported fallback, without changing the retained source.
-- [ ] Fixture DATA-TABLE-VERIFIER-SELECTORS: during the deferred browser
+- [x] Fixture DATA-TABLE-VERIFIER-SELECTORS: during the deferred browser
       stabilization, migrate the gallery verifier's `tableInteractions` selectors
       from `td > button` to the existing `th > button` row-selection controls.
       The full gallery run stopped on this stale selector in `data-table.html`;
@@ -1972,6 +1972,10 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       `table-inspector-demo.stories.ts` / ColumnsAndText queries all `th` instead
       of `thead th` (includes two row-selection headings). These are fixture
       migrations, not requests to change the viewer's output.
+      Completed 2026-09-21: the corrected selectors pass in Storybook and in a
+      focused run of the gallery verifier covering data-table and cell-overrides
+      as two standalone pages and two source-loaded documents. The XSLT sample
+      retains its existing selection `td`; its helper receives that explicitly.
 - [ ] Stabilize browser startup waits under parallel Storybook load, after
       DATA-CELL-MATCH-1: the unchanged scoped-CSS and legacy icon-link stories
       intermittently exhaust their short frame/two-second waits, although
@@ -1980,15 +1984,42 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       stock sample's initial-warning timeout seen once in the full gallery;
       six focused standalone/source-loaded runs passed without reproducing it.
       Establish its cause before treating it as the same startup issue.
+      2026-09-21: scoped-CSS, hex-grid and legacy parity helpers now wait on
+      rendered output/style/image conditions within the 30-second story budget,
+      replacing frame-count and two-second cutoffs. All 29 cases in the five
+      affected story files pass together and in the full parallel suite. The
+      table's invalid-input alert also needed its existing ten-second interaction
+      budget under parallel load. Final full result: 179 passed, three separate
+      CEM-QL/local-storage failures tracked below. Stock-warning checks pass in
+      both focused gallery modes; its earlier intermittent cause remains open.
 - [ ] Fixture: check declaration-owned stylesheet lifecycle across repeated
       source-loaded gallery mounts in one document. A second hex-grid story
       using the same source registration rendered unstyled links; isolate
       registration reuse and unmount/remount cleanup from startup timing.
+      2026-09-21: reproduced after explicit render/declaration settlement and
+      with the real source-loaded hex gallery (four styles on first mount, zero
+      on second). Same-scope remounts reject as duplicates; compatible fresh
+      scopes still attach styles to the detached original owner. Paused for the
+      lifecycle decision in
+      [browser stabilization review](browser-stabilization-review.tmp.md).
 - [ ] Fixture: during Storybook stabilization, preserve authored source in real
       source-loaded `cem-demo-element` cards. The cell layout audit shows runtime
       `data-cem-render-node-id` and artifact/revision attributes in displayed source,
       while the standalone cards show authored markup. Trace source/provenance
       capture and add a source-loaded regression without changing viewer behavior.
+- [ ] Fixture: diagnose the standalone local-storage JSON sample's missing
+      list in the full gallery verifier. The 2026-09-21 run advanced past the
+      repaired table selectors, then timed out on
+      `cem-demo-element[legend="3e. JSON validation"] ul` expecting `b : B`.
+      Isolate this from startup and stylesheet ownership before changing runtime
+      behavior; preserve the CEM-ML import boundary for stored JSON.
+- [ ] Fixture: reconcile the broad Storybook CEM-QL boundary/parity cases with
+      native node values. The 2026-09-21 full run reports one diagnostic when
+      `CemQlDataDocumentBoundary` inserts a slot bucket of JavaScript records,
+      and two `cem.ql.type_error` diagnostics for the Rust-first table's
+      `dom:children(cemml:parse(...))` case. Check the supported node/import
+      contracts before updating the old empty-output expectations; add native
+      reproductions first if runtime behavior needs repair.
 - [x] Fixture: add an independent anonymous whole-file XSLT example, proving
       the existing bounded native transform path before browser wiring and
       testing rendered payload, disclosure interaction, and source resolution.

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { waitFor } from 'storybook/test';
 
 const SOURCE_TAG = 'story-scoped-css-demo-document';
 const DEMO_URL = new URL('../../demo/scoped-css.html', import.meta.url);
@@ -31,8 +32,7 @@ export const EveryAuthoredSample: Story = {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
             () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
-            'all twelve scoped-CSS samples render from the HTML source',
-            300
+            'all twelve scoped-CSS samples render from the HTML source'
         );
         assertDeepEqual(sampleLegends(host), [...EXPECTED_LEGENDS], 'scoped-CSS sample inventory');
 
@@ -152,12 +152,10 @@ async function styleEquals(
     );
 }
 
-async function waitForCondition(condition: () => boolean, message: string, attempts = 200): Promise<void> {
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    }
-    throw new Error(message);
+async function waitForCondition(condition: () => boolean, message: string): Promise<void> {
+    await waitFor(() => {
+        if (!condition()) throw new Error(message);
+    }, { timeout: 30000 });
 }
 
 function assertNotEqual(actual: unknown, unexpected: unknown, label: string): void {

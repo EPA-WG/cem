@@ -94,7 +94,7 @@ export const ColumnsAndText: Story = {
         await ready(canvasElement);
         const columns = card(canvasElement, '1. Columns from every row');
         const table = columns.querySelector('table') as HTMLTableElement;
-        const headings = Array.from(table.querySelectorAll('th'), node => node.textContent?.replace(/[↑↓]/gu, '').trim());
+        const headings = Array.from(table.querySelectorAll('thead th'), node => node.textContent?.replace(/[↑↓]/gu, '').trim());
         expect(headings).toEqual(['✓', '@early', '#text', '@later']);
         expect(rows(table)[0].cells[1]).toHaveTextContent('""');
         expect(rows(table)[0].cells[3]).toHaveTextContent('∅');
