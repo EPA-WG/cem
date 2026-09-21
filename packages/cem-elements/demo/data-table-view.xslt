@@ -210,10 +210,10 @@
                                 <xsl:variable name="record" select="."/>
                                 <xsl:variable name="id" select="source:node-key(?source)"/>
                                 <tr aria-selected="{$id = $ui?selected}">
-                                    <td><button type="button" slice="selected" slice-event="click" value="{$id}"
+                                    <th><button type="button" slice="selected" slice-event="click" value="{$id}"
                                         aria-label="Select source line {source:line-number(?source)}" aria-pressed="{$id = $ui?selected}">
                                         <xsl:choose><xsl:when test="$id = $ui?selected">✓</xsl:when><xsl:otherwise>○</xsl:otherwise></xsl:choose>
-                                    </button></td>
+                                    </button></th>
                                     <xsl:for-each select="$headings">
                                         <xsl:variable name="heading" select="."/>
                                         <xsl:variable name="cells" select="$record?cells[?key = $heading]"/>

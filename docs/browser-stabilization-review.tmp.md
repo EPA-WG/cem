@@ -10,9 +10,11 @@ the original reproduction and alternatives below remain review history.
 
 The CEMT data-table uses a `th` for its row-selection control. Its first `td`
 contains the first data column. The gallery verifier and the table story now
-follow that structure; inspector headings are selected from `thead`. The XSLT
-sample still has a selection `td`, and its verifier keeps that distinction.
-No viewer template or output changed.
+follow that structure; inspector headings are selected from `thead`. The initial
+stabilization kept XSLT's selection `td` as a separate fixture contract and
+changed no viewer output. The user subsequently approved `th` for headings in
+both versions on 2026-09-21; XSLT now follows CEMT and the verifier uses one
+shared heading selector.
 
 Scoped-CSS, hex-grid and legacy parity stories now use `storybook/test`'s
 `waitFor` to observe their expected rendered elements, text, styles and image
@@ -342,9 +344,11 @@ six native-value function signatures, table selectors predate row headings,
 inspection rejects an oversized payload before allocating it, and node-pair
 labels must compare text rather than serialized subtree markup. The old XSLT
 output prerequisite now checks retained references and explicit `dom:text`.
-Those fixtures now assert the existing contracts. Three strict `xslt_data_view` comparisons
-still fail because XSLT uses selection `td` and CEMT uses `th`. Both implementations
-predate this migration and remain untouched; TODO tracks the parity decision.
+Those fixtures now assert the existing contracts. Three strict `xslt_data_view`
+comparisons initially failed because XSLT used selection `td` and CEMT used
+`th`. The subsequently approved heading alignment changes XSLT to `th` and
+removes its browser-fixture exception. All six focused native viewer tests now
+pass, including sorting and imported aspects; DOM comparisons remain strict.
 
 ## Stock startup follow-up
 

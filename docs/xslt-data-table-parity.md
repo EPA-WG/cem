@@ -37,6 +37,16 @@ implemented with the approved
 [optional named-entry focus](xslt-runtime-lowering.md#named-entry-initial-focus-decision),
 strict declarations and retained worker/fallback lifecycle.
 
+Heading parity was approved on 2026-09-21: both CEMT and XSLT use `th` for
+column headings and the row-selection heading. Data cells use `td`. CEMT
+already implements this contract; XSLT and browser consumers now follow it.
+Strict native DOM parity remains the acceptance check for base and imported
+aspect output.
+Verification passes all 618 native CEM-QL tests, 413 runtime unit tests and 191
+browser stories, plus typecheck, lint (two existing warnings), 28 standalone
+pages and 34 source-loaded gallery documents. The table page retains two cards
+per row at 1440px and has no page overflow at 390px or 320px.
+
 ## Scope
 
 Author an XSLT equivalent of

@@ -124,8 +124,10 @@ pipeline inputs, source maps, references, restricted hosts, lowered environment
 and child-scope limits, cyclic hosts and cancellation. Constructor/portable
 regressions and the authored XPath/CEM-QL pairs pass. The broader native run has
 615 passing tests and the same three pre-existing `xslt_data_view` failures:
-XSLT's selection cell is `td`, while CEMT's is `th`. Those failures remain in the
-separate viewer-scope TODO; neither viewer was changed or its parity weakened.
+XSLT's selection cell was `td`, while CEMT's was `th`. Neither viewer was changed
+or its parity weakened during DOM helper implementation. The subsequent
+user-approved heading alignment resolves those failures; see the
+[viewer parity contract](xslt-data-table-parity.md).
 
 The XPath functions page now uses `dom:attribute(node, "qty")` and
 `dom:text(item)` in its CEM-QL pair, and explains qualified selectors and the
@@ -137,5 +139,5 @@ Both WASM builds and the runtime build pass, along with 413 runtime unit tests,
 191 browser stories, typecheck and lint (two existing warnings). The complete
 gallery passes for 28 standalone pages and 34 source-loaded documents. The
 authored XPath functions page fits two cards per row at 1440px and has no page
-overflow at 390px or 320px. The remaining decision is the separately tracked
-XSLT/CEMT selection-cell parity scope, not a blocker for these native helpers.
+overflow at 390px or 320px. The separately tracked XSLT/CEMT selection-cell
+decision was subsequently resolved in favor of `th` in both versions.

@@ -1974,8 +1974,9 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       migrations, not requests to change the viewer's output.
       Completed 2026-09-21: the corrected selectors pass in Storybook and in a
       focused run of the gallery verifier covering data-table and cell-overrides
-      as two standalone pages and two source-loaded documents. The XSLT sample
-      retains its existing selection `td`; its helper receives that explicitly.
+      as two standalone pages and two source-loaded documents. At that stage the
+      XSLT sample retained its selection `td` through a helper exception; the
+      subsequently approved heading parity work below removes that exception.
 - [ ] Stabilize browser startup waits under parallel Storybook load, after
       DATA-CELL-MATCH-1: the unchanged scoped-CSS and legacy icon-link stories
       intermittently exhaust their short frame/two-second waits, although
@@ -2178,12 +2179,24 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         unqualified strings, explicit namespace/name descriptors and scoped
         native attribute access. The subsequent user approval covers both the
         selectors and shared host capability; empty stub results are not parity.
-- [ ] Resolve existing native XSLT/CEMT viewer parity differences after agreeing
-      the viewer scope: the full native run on 2026-09-21 fails three
-      `xslt_data_view` comparisons because XSLT emits a selection `td` while
-      CEMT emits `th`. Browser fixtures already acknowledge this distinction.
-      Keep both viewer implementations untouched during JSON storage migration;
-      do not hide the semantic difference by weakening strict DOM parity.
+- [x] Resolve native XSLT/CEMT heading parity: the original full native run on
+      2026-09-21 failed three `xslt_data_view` comparisons because XSLT emitted a
+      selection `td` while CEMT emitted `th`. Both viewers were preserved during
+      JSON storage migration. Retain strict semantic DOM parity checks.
+      Approved 2026-09-21: the user requires `th` for headings in both versions.
+      Completed 2026-09-21: XSLT now uses the same selection `th` as CEMT;
+      browser fixtures share one heading selector and read the first data `td`.
+      All 618 native CEM-QL tests pass, including the three formerly failing
+      strict DOM comparisons. Verification also passes 413 runtime unit tests,
+      191 browser stories, typecheck, lint (two existing warnings), all 28
+      standalone/34 source-loaded gallery checks, and two-card 1440px layout
+      with no overflow at 390px/320px. CEMT already used `th` and needed no edit.
+  - [x] Fixture VIEWER-HEADING-PARITY: reproduce the existing native failures,
+        align the XSLT selection heading with CEMT's `th`, and migrate browser
+        row-value selectors and the gallery's XSLT-only `td` exception. Retain
+        strict semantic DOM comparisons; verify sorting, selection and imported
+        aspects in native and standalone/source-loaded browser checks, plus
+        compact desktop/mobile demo layout.
 - [x] Fixture: add an independent anonymous whole-file XSLT example, proving
       the existing bounded native transform path before browser wiring and
       testing rendered payload, disclosure interaction, and source resolution.

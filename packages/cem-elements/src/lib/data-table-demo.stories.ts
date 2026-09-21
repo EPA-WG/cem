@@ -173,7 +173,7 @@ export const NativeXsltViewer: Story = {
         const input = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
         const original = input.value;
         const quantities = () => Array.from(viewer.querySelectorAll('table:first-of-type > tbody > tr'),
-            row => row.querySelectorAll(':scope > td')[1]?.textContent?.trim());
+            row => row.querySelector(':scope > td')?.textContent?.trim());
         for (const [format, source] of [
             ['xml', '<r><row qty="10"/><row qty="2"/><row qty="3"/></r>'],
             ['csv', 'qty,fruit\n10,🍒\n2,🍋\n3,🍌'],
@@ -187,7 +187,7 @@ export const NativeXsltViewer: Story = {
             await waitFor(() => expect(quantities()).toEqual(['10', '2', '3']), { timeout: 10000 });
             expect(viewer.querySelector('[role="alert"]')).toBeNull();
         }
-        viewer.querySelectorAll<HTMLButtonElement>('tbody button')[1].click();
+        viewer.querySelectorAll<HTMLButtonElement>('tbody > tr > th > button')[1].click();
         await waitFor(() => expect(viewer.querySelector('[aria-selected="true"]')).toHaveTextContent('🍋'));
         await select(controls.getByRole('combobox', { name: 'Sort column' }), 'qty');
         await select(controls.getByRole('combobox', { name: 'Compare' }), 'number');
