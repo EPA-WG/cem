@@ -2030,11 +2030,25 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
   - [x] Fixture: include the declaration's named CSS scope in registration
         identity so a remount or cross-scope alias cannot reuse differently
         scoped styles under otherwise identical template bytes.
-- [ ] Fixture: during Storybook stabilization, preserve authored source in real
+- [x] Fixture: during Storybook stabilization, preserve authored source in real
       source-loaded `cem-demo-element` cards. The cell layout audit shows runtime
       `data-cem-render-node-id` and artifact/revision attributes in displayed source,
       while the standalone cards show authored markup. Trace source/provenance
       capture and add a source-loaded regression without changing viewer behavior.
+      Completed 2026-09-21: DOM-derived previews serialize an inert snapshot
+      without the six reserved render tracking attributes, including inside
+      nested templates. Input/live nodes retain metadata; explicit source strings
+      remain verbatim. All 11 demo-element stories pass. The full runtime browser
+      suite passes 186/189, with only the same three failures tracked below.
+      Packaged standalone/source-loaded checks confirm matching previews in all
+      three cards, working live examples and no browser errors. Base viewer
+      templates and the CEM-ML import boundary are unchanged.
+  - [x] Fixture: omit reserved render tracking attributes from DOM-derived demo
+        source, including nested templates, explicit source slots, body capture
+        and node-valued source input; retain authored attributes, literal strings
+        and the original live/inert nodes.
+  - [x] Fixture: compare all three real source-loaded cell-overrides previews
+        with their authored DOM serialization and retain working live examples.
 - [ ] Fixture: diagnose the standalone local-storage JSON sample's missing
       list in the full gallery verifier. The 2026-09-21 run advanced past the
       repaired table selectors, then timed out on

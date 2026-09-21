@@ -163,5 +163,39 @@ Build, typecheck, all 410 runtime unit tests and lint pass (two existing lint
 warnings). All 12 focused CSS/registration/lifecycle stories pass. The final full
 parallel run passes 185 of 188 stories; the three CEM-QL/local-storage failures
 listed above remain unchanged. The packaged hex gallery passes its standalone
-and source-loaded interaction checks. Authored-source preview cleanup and the remaining
-stabilization findings stay in TODO. No base viewer template changes were needed.
+and source-loaded interaction checks. No base viewer template changes were needed.
+
+## Authored source previews
+
+The real `cem-demo-element` capture reproduced tracking attributes in all three
+source-loaded cell-overrides cards. `projection.ts` correctly stamps the nodes
+in the source template; `cem-demo-element` then serialized those same attributes
+into its displayed source. The highlighted text matched that contaminated source,
+so the problem was capture, rather than highlighting or the CEM-ML importer.
+
+DOM-derived previews now serialize an inert snapshot with the six reserved render
+tracking attributes omitted, recursively including nested templates. Importing
+into an inert document avoids constructing another set of custom elements just
+to capture source. Input templates and live output retain their tracking metadata;
+other attributes and literal text remain visible. String-valued source, the source
+attribute and fetched source remain verbatim. This is DOM serialization, not a
+new promise of byte-exact author-source recovery or reversal of upstream changes.
+The precise presentation contract is in the
+[demo element README](../packages/cem-demo-element/README.md).
+
+The source-loaded preview fixture failed before the correction while the three
+existing cell-override interaction stories passed. Coverage now compares every
+real source-loaded cell card with its authored DOM serialization, checks retained
+metadata in the source template, and checks the three live examples. A separate
+demo-element fixture covers body capture, direct and explicit-slot templates,
+node-valued source and verbatim strings/attributes, including nested templates.
+The base viewers, runtime projection and external data import boundary are unchanged.
+
+All 11 demo-element stories pass. The full runtime browser suite passes 186 of
+189 stories, with the same local-storage and two CEM-QL failures listed above.
+Packaged standalone/source-loaded checks confirm identical displayed source in
+all three cards, retained template metadata, working live examples and no browser
+errors. Both packages pass typecheck and lint; lint retains only the runtime's
+two existing warnings. The demo-element build passes as part of its test target.
+The intermittent stock startup finding and the three reproducible failures remain
+open; clean source presentation does not resolve those separate issues.

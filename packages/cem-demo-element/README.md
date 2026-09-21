@@ -45,6 +45,15 @@ needs semantic formatting or live rendering. See [`demo/index.html`](./demo/inde
   into the live demo.
 - A `<template slot="source">` explicitly selects the source.
 - `source` accepts a string or DOM node and can also be set as an attribute.
+- DOM-derived source uses HTML serialization with CEM render tracking attributes
+  omitted, including inside nested templates. This affects only the displayed
+  snapshot; the input nodes and live demo retain their metadata. The omitted
+  attributes are `data-cem-render-node-id`, `data-cem-template-artifact-id`,
+  `data-cem-data-revision`, `data-cem-source-fidelity`, `data-cem-source-frame`
+  and `data-cem-render-scope`. Other attributes and text are preserved. Explicit
+  source strings, the `source` attribute and fetched source stay verbatim, so
+  examples can demonstrate tracking attributes themselves. DOM capture does not
+  recover original bytes, quoting or values already transformed upstream.
 - `src` fetches source; fetched HTML is also rendered as the live demo, with
   URL-valued attributes rebased to the fetched document. `type="auto"` detects
   HTML, CSS, JavaScript/JSON, CEM-ML, or plain text from the response media type

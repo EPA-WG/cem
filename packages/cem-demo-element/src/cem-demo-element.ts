@@ -7,6 +7,15 @@ import {
 import { highlightedSource } from './source-highlight.js';
 
 const STYLE_MARKER = 'data-cem-demo-element-styles';
+// Presentation-only metadata from cem-elements. Never strip it from live nodes.
+const RENDER_TRACKING_ATTRIBUTES = [
+    'data-cem-render-node-id',
+    'data-cem-template-artifact-id',
+    'data-cem-data-revision',
+    'data-cem-source-fidelity',
+    'data-cem-source-frame',
+    'data-cem-render-scope',
+] as const;
 const REGION_NAMES = ['legend', 'description', 'text', 'demo', 'status'] as const;
 type RegionName = typeof REGION_NAMES[number];
 
@@ -134,7 +143,6 @@ export class CemDemoElement extends HTMLElement {
     }
 
     #initialize(): void {
-        const authoredHtml = this.innerHTML;
         const sourceControl = this.querySelector('[slot="source"]')
             ?? this.querySelector('template');
         if (this.#sourceValue === undefined) {
@@ -142,7 +150,7 @@ export class CemDemoElement extends HTMLElement {
                 ? this.getAttribute('source') ?? ''
                 : sourceControl
                     ? sourceText(sourceControl)
-                    : authoredHtml;
+                    : sourceText(this);
         }
 
         if (sourceControl) this.#initializeTemplateLayout(sourceControl);
@@ -365,9 +373,22 @@ export function defineCemDemoElement(registry: CustomElementRegistry = customEle
 function sourceText(value: CemDemoSource): string | undefined {
     if (value === null || value === undefined) return undefined;
     if (typeof value === 'string') return value;
-    if (value instanceof HTMLTemplateElement) return value.innerHTML;
-    if (value instanceof Element) return value.innerHTML;
+    if (value instanceof Element) {
+        // Import into a document without a custom-element registry: capturing
+        // source must not construct or connect another set of demo components.
+        const snapshot = value.ownerDocument.implementation.createHTMLDocument().importNode(value, true);
+        omitRenderTracking(snapshot);
+        return snapshot.innerHTML;
+    }
     return value.nodeValue ?? value.textContent ?? '';
+}
+
+function omitRenderTracking(element: Element): void {
+    for (const attribute of RENDER_TRACKING_ATTRIBUTES) element.removeAttribute(attribute);
+    const content = element.localName === 'template' && 'content' in element
+        ? (element as HTMLTemplateElement).content
+        : element;
+    for (const child of Array.from(content.children)) omitRenderTracking(child);
 }
 
 function directSlottedChild(parent: Element, slot: RegionName): HTMLElement | undefined {

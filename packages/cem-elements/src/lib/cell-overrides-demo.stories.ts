@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
+import authoredPage from '../../demo/cell-overrides.html?raw';
 
 const meta: Meta = { title: 'CEM Elements/Cell Template Overrides', tags: ['test'] };
 export default meta;
@@ -26,6 +27,33 @@ function select(element: HTMLElement, value: string): void {
     (element as HTMLSelectElement).value = value;
     element.dispatchEvent(new Event('change', { bubbles: true }));
 }
+
+export const AuthoredSourcePreviews: Story = {
+    render: renderDocument,
+    play: async ({ canvasElement }) => {
+        const authored = document.createElement('template');
+        authored.innerHTML = authoredPage;
+        const expected = Array.from(authored.content.querySelectorAll('cem-demo-element'), card => ({
+            legend: card.getAttribute('legend'),
+            source: (card.querySelector('template') as HTMLTemplateElement).innerHTML,
+        }));
+        expect(expected).toHaveLength(3);
+        await waitFor(() => {
+            expect(canvasElement.querySelectorAll('cem-demo-element[data-state=ready]')).toHaveLength(3);
+        }, { timeout: 30000 });
+        expect(Array.from(canvasElement.querySelectorAll('cem-demo-element'), card => ({
+            legend: card.getAttribute('legend'),
+            source: card.querySelector('[slot=text] code')?.textContent,
+        }))).toEqual(expected);
+        const template = canvasElement.querySelector('cem-demo-element > template') as HTMLTemplateElement;
+        expect(template.content.querySelector('cem-element')?.hasAttribute('data-cem-render-node-id')).toBe(true);
+        await waitFor(() => {
+            expect(canvasElement.querySelectorAll('cem-pokemon-cells img')).toHaveLength(2);
+            expect(canvasElement.querySelector('cem-stock-cells strong')).toHaveTextContent('Out of stock (0)');
+            expect(canvasElement.querySelector('cem-native-value-card article')).toHaveTextContent('Next count: 3');
+        }, { timeout: 10000 });
+    },
+};
 
 export const PokemonCellPictures: Story = {
     render: renderDocument,

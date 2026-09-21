@@ -61,6 +61,50 @@ export const InlineBody: Story = {
     },
 };
 
+export const DomSourcePresentation: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        const paragraph = '<p data-cem-example="kept" data-cem-render-node-id="render-1" '
+            + 'data-cem-template-artifact-id="artifact-1" data-cem-data-revision="2" '
+            + 'data-cem-source-fidelity="dom-canonical" data-cem-source-frame="dom:0" '
+            + 'data-cem-render-scope="scope-1">data-cem-render-node-id</p>';
+        const instrumented = paragraph + '<template data-cem-render-node-id="render-2"><span data-cem-island="example" '
+            + 'data-cem-render-node-id="render-3">Nested</span></template>';
+        const expected = '<p data-cem-example="kept">data-cem-render-node-id</p>'
+            + '<template><span data-cem-island="example">Nested</span></template>';
+        for (const mode of ['body', 'template', 'slot', 'node', 'string', 'attribute']) {
+            const card = document.createElement('cem-demo-element') as CemDemoElement;
+            if (mode === 'body') card.innerHTML = paragraph;
+            else {
+                const source = document.createElement('template');
+                source.innerHTML = instrumented;
+                if (mode === 'slot') {
+                    const ignored = document.createElement('template');
+                    ignored.innerHTML = '<b>Ignored</b>';
+                    card.append(ignored);
+                    source.slot = 'source';
+                }
+                card.append(source);
+                if (mode === 'node') card.source = source;
+                if (mode === 'string') card.source = instrumented;
+                if (mode === 'attribute') card.setAttribute('source', instrumented);
+            }
+            canvasElement.append(card);
+            await card.updateComplete;
+            expect(card.state).toBe('ready');
+            expect(card.source).toBe(mode === 'body'
+                ? '<p data-cem-example="kept">data-cem-render-node-id</p>'
+                : ['string', 'attribute'].includes(mode) ? instrumented : expected);
+            expect(requiredRegion(card, 'text').querySelector('code')?.textContent).toBe(card.source);
+            expect(requiredRegion(card, 'demo').querySelector('p')?.getAttribute('data-cem-render-node-id')).toBe('render-1');
+            if (mode !== 'body') {
+                const template = card.querySelector(mode === 'slot' ? ':scope > template[slot=source]' : ':scope > template') as HTMLTemplateElement;
+                expect(template.innerHTML).toBe(instrumented);
+            }
+        }
+    },
+};
+
 export const TemplateLegendAndDescription: Story = {
     render: () => `
         <cem-demo-element
