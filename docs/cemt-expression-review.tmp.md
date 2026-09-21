@@ -1,5 +1,40 @@
 # CEMT expression insertion — temporary proposal review
 
+## Native pipeline lifetime and cached scope limits (R03/R08/R10)
+
+The 2026-09-21 pipeline audit reproduced a limit bypass in constructed and
+portable values: projecting a 40-level tree under a child with depth 16 failed
+when the XPath cache was cold, but succeeded after a parent query warmed it.
+The accepted environment-defined limit contract already requires child scopes
+to respect lower ceilings, so this correction needs no new semantic decision.
+
+The shared CEM-ML projection now checks current limits on cache reuse. When
+limits shrink, it revalidates the immutable graph and checks expanded index
+counts without rebuilding the index. CEM-QL supplies effective limits for both
+constructed and portable inputs on every access. The existing memory admission,
+query capability checks and terminal control errors remain in force.
+
+Permanent native regressions cover cold/warm lowered depth, parent recovery,
+expanded index limits, cancellation and failed-import permit cleanup. They also
+cover two render stages and artifact round trips preserving aliases, source and
+occurrence parents, rich attribute values and scalar constraints. XPath results
+remain navigable and exportable after input handles are dropped; their memory
+is released with the final live result. Verification is tracked as
+`CEMT-PIPELINE-LIFETIME` in [TODO](todo.md).
+
+Verification passed: 136 focused CEM-QL tests, 96 adapter tests, two shared
+projection tests and workspace test compilation; WASM/component build,
+typecheck, lint (two existing warnings), 408 runtime unit tests, both portable
+value transport fixtures and all three cell-demo browser stories. Two stale
+XPath reader assertions now expect retained subtrees from `{$node}`, preserving
+their source-change and owner-lifetime checks. Render engine 1.5.4 invalidates
+older previews. Pipeline coverage is complete; DX review and the cell demo's
+compact-layout audit remain before the deferred Storybook stabilization.
+
+No external-format handling or viewer template changes are involved. XML and
+JSON continue to enter through the shared CEM-ML importer as retained CEM trees.
+The maintained contract is in [Native CEMT values](cemt-native-values.md#xpath-over-constructed-values).
+
 ## Large integer query representation (R06/R08)
 
 **Selected by the user on 2026-09-21: use decimal evaluation consistently.**

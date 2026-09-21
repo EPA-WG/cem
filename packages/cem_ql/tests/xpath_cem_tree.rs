@@ -591,3 +591,262 @@ fn cached_xpath_index_respects_lowered_memory_and_control_errors_are_not_caught(
     assert!(result.error.is_some(), "{result:?}");
     assert!(result.items.is_empty());
 }
+
+fn check_xpath_projection_depth(portable: bool) {
+    use cem_ml::operation_control::{
+        ExecutionScopeKind, ExecutionScopeRegistration, OperationControl, ROOT_EXECUTION_SCOPE_ID,
+    };
+    use cem_ml::scheduler::ScopePolicy;
+    use cem_ml::value::artifact::CemValueArtifactLimits;
+    use cem_ql::{api::evaluate_with_control, eval::portable::*, render::*};
+
+    for warm in [false, true] {
+        let source = format!("{}ivy{}", "{r | ".repeat(40), "}".repeat(40));
+        let plan = render_compiled_template(
+            &compile_template(&source, &CompileTemplateOptions::default()),
+            &TemplateData::default(),
+        );
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+        let mut values = cem_ql::eval::output::output_nodes(plan.nodes);
+        if portable {
+            let limits = CemValueArtifactLimits::default();
+            values = decode_values(&encode_values(&values, &limits).unwrap(), &limits).unwrap();
+        }
+        let mut context = context("");
+        context.policy_bindings.insert("values".into(), values);
+        let query = compile(
+            r#"try { native:call("tree.keep", values) } catch (code, message) { "caught" }"#,
+            &CompileContext {
+                policy_bindings: context.policy_bindings.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let control = OperationControl::default();
+        if warm {
+            let result = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
+            assert!(result.error.is_none(), "{:?}", result.diagnostics);
+        }
+        let charge_before = control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap();
+        let child = control
+            .register_scope(
+                ROOT_EXECUTION_SCOPE_ID,
+                ExecutionScopeRegistration::inherited(
+                    ExecutionScopeKind::Template,
+                    "lowered-depth",
+                    ScopePolicy::host_root().with_stack_depth(16),
+                ),
+            )
+            .unwrap();
+        let result = evaluate_with_control(&query, &context, &control, child);
+        assert!(
+            result.error.is_some(),
+            "portable={portable}, warm={warm}: {result:?}"
+        );
+        assert!(result.items.is_empty());
+        assert!(control.check_scope(ROOT_EXECUTION_SCOPE_ID).is_ok());
+        assert_eq!(control.memory_charged(child).unwrap(), 0);
+        assert_eq!(
+            control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(),
+            charge_before
+        );
+        let parent = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
+        assert!(parent.error.is_none(), "{:?}", parent.diagnostics);
+        drop(parent);
+        drop(query);
+        drop(context);
+        assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+    }
+}
+
+#[test]
+fn constructed_xpath_projection_enforces_lowered_depth_before_and_after_caching() {
+    check_xpath_projection_depth(false);
+}
+
+#[test]
+fn portable_xpath_projection_enforces_lowered_depth_before_and_after_caching() {
+    check_xpath_projection_depth(true);
+}
+
+#[test]
+fn live_xpath_results_own_their_memory_after_pipeline_inputs_are_released() {
+    use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
+    use cem_ml::value::artifact::CemValueArtifactLimits;
+    use cem_ql::{api::evaluate_with_control, eval::portable::*, render::*};
+
+    for portable in [false, true] {
+        let control = OperationControl::default();
+        let plan = render_compiled_template(
+            &compile_template("{r | {name | ivy}}", &CompileTemplateOptions::default()),
+            &TemplateData::default(),
+        );
+        let mut values = cem_ql::eval::output::output_nodes(plan.nodes);
+        if portable {
+            let limits = CemValueArtifactLimits::default();
+            let bytes = encode_values(&values, &limits).unwrap();
+            values = decode_values_with_control(&bytes, &limits, &control, ROOT_EXECUTION_SCOPE_ID)
+                .unwrap();
+        }
+        let mut context = context("");
+        context.policy_bindings.insert("values".into(), values);
+        let query = compile(
+            r#"native:call("tree.keep", values)"#,
+            &CompileContext {
+                policy_bindings: context.policy_bindings.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let result = evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
+        assert!(result.error.is_none(), "{:?}", result.diagnostics);
+        let owner = {
+            let node = result.items[0]
+                .view()
+                .unwrap()
+                .downcast_ref::<XPathQueryItem>()
+                .unwrap()
+                .xpath_item()
+                .native_node()
+                .unwrap();
+            Arc::downgrade(node.owner())
+        };
+        drop(query);
+        drop(context);
+        assert!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap() > 0);
+        let retained = result.clone();
+        drop(result);
+        let node = retained.items[0]
+            .view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap();
+        assert_eq!(node.child_nodes()[0].string_value(), "ivy");
+        assert_eq!(
+            node.child_nodes()[0].parent_node().unwrap().identity(),
+            node.identity()
+        );
+        assert!(owner.upgrade().is_some());
+        let bytes = encode_values(&retained, &CemValueArtifactLimits::default()).unwrap();
+        assert!(
+            !bytes.is_empty(),
+            "the last live result can feed another stage"
+        );
+        drop(retained);
+        assert!(owner.upgrade().is_none());
+        assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+    }
+}
+
+#[test]
+fn multiple_native_stages_preserve_aliases_parents_and_typed_attributes() {
+    use cem_ml::value::artifact::CemValueArtifactLimits;
+    use cem_ql::{eval::portable::*, render::*};
+
+    let limits = CemValueArtifactLimits::default();
+    let first = render_compiled_template(
+        &compile_template(
+            r#"{cem:variable @name=n @select='seq:first(data:read("<source xmlns:p=\"urn:names\"><p:name>ivysaur</p:name><id>2</id></source>", "xml").root.children.children)'}{box | {attribute @name=count @type=integer @minInclusive=1 @value=002}{attribute @name=label @type=node @value='{n}'}{$n}{$n}}"#,
+            &CompileTemplateOptions::default(),
+        ),
+        &TemplateData::default(),
+    );
+    assert!(first.diagnostics.is_empty(), "{:?}", first.diagnostics);
+    let first = cem_ql::eval::output::output_nodes(first.nodes);
+    let first_bytes = encode_values(&first, &limits).unwrap();
+    drop(first);
+    let mut data = TemplateData::default();
+    data.bindings.insert(
+        "stage".into(),
+        decode_values(&first_bytes, &limits).unwrap(),
+    );
+    let second = render_compiled_template(
+        &compile_template(
+            "{outer | {$stage}}",
+            &CompileTemplateOptions {
+                host_bindings: vec!["stage".into()],
+                ..Default::default()
+            },
+        ),
+        &data,
+    );
+    assert!(second.diagnostics.is_empty(), "{:?}", second.diagnostics);
+    drop(data);
+    let expected_markup = render_plan_to_html(&second);
+    let second = cem_ql::eval::output::output_nodes(second.nodes);
+    let second_bytes = encode_values(&second, &limits).unwrap();
+    drop(second);
+    let mut context = context("");
+    context.policy_bindings.insert(
+        "values".into(),
+        decode_values(&second_bytes, &limits).unwrap(),
+    );
+    let targets = run("values.children.targets.children.targets", &context);
+    assert_eq!(targets.items.len(), 2);
+    assert_eq!(targets.items[0].identity(), targets.items[1].identity());
+    context
+        .policy_bindings
+        .insert("target".into(), ItemStream::once(targets.items[0].clone()));
+    assert_eq!(
+        run("dom:parent(target).name", &context).items[0].atom(),
+        Some(AtomValue::String("source".into()))
+    );
+    assert_eq!(
+        run("dom:text(dom:parent(target))", &context).items[0].atom(),
+        Some(AtomValue::String("ivysaur2".into()))
+    );
+    let attributes = run("values.children.targets.attributes", &context);
+    let count = attributes.items[0]
+        .view()
+        .unwrap()
+        .downcast_ref::<GraphView>()
+        .unwrap();
+    assert_eq!(count.record().name, "count");
+    assert!(count
+        .record()
+        .contract
+        .as_ref()
+        .unwrap()
+        .models()
+        .any(|model| model.min_inclusive.as_deref() == Some("1")));
+    assert_eq!(
+        run(
+            "seq:first(values.children.targets.attributes).values + 1",
+            &context
+        )
+        .items[0]
+            .atom(),
+        Some(AtomValue::Integer(3))
+    );
+    let label = attributes.items[1].view().unwrap().field("values").unwrap();
+    assert_eq!(label[0].identity(), targets.items[0].identity());
+    let selected = run(r#"native:call("tree.keep", values)"#, &context);
+    let root = selected.items[0]
+        .view()
+        .unwrap()
+        .downcast_ref::<XPathQueryItem>()
+        .unwrap()
+        .xpath_item()
+        .native_node()
+        .unwrap();
+    let boxes = root.child_nodes();
+    let names = boxes[0].child_nodes();
+    assert_eq!(names.len(), 2);
+    assert_ne!(names[0].identity(), names[1].identity());
+    assert_eq!(names[0].namespace_uri(), "urn:names");
+    assert_eq!(
+        names[0].parent_node().unwrap().identity(),
+        boxes[0].identity()
+    );
+    assert_eq!(boxes[0].parent_node().unwrap().identity(), root.identity());
+    let mut data = TemplateData::default();
+    data.bindings.insert(
+        "stage".into(),
+        context.policy_bindings.remove("values").unwrap(),
+    );
+    drop(context);
+    assert_eq!(render_template("{$stage}", &data).rendered, expected_markup);
+}

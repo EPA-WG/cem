@@ -1791,9 +1791,27 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             Both WASM fixtures pass; `native-constraints-wasm.mjs` generates
             its binary fixtures in Rust and checks saved-file, separate-worker
             and fallback validation without JavaScript document objects.
-    - [ ] Fixture CEMT-VALUE-PIPELINE: native intermediate output, reference
+    - [x] Fixture CEMT-VALUE-PIPELINE: native intermediate output, reference
           navigation and lifetime, artifact round trips, cancellation and
           environment-defined limits with scope overrides that only lower them.
+      - [x] Fixture CEMT-PIPELINE-LIFETIME: verify multiple native render stages
+            and artifact round trips preserve reference targets, occurrence
+            parents and typed attributes; retain live XPath results after input
+            handles are released, then release memory with the last result.
+            Check fresh and cached projections under lower child-scope limits,
+            and cancelled/failed stages without partial output or retained permits.
+            The audit reproduced a cached-depth bypass for both constructed
+            and portable values. Shared CEM-ML cache admission now revalidates
+            lowered limits without rebuilding the index. Five new CEM-QL cases
+            and an expanded shared projection fixture cover lifetime, multi-stage
+            transport, cancellation, cleanup and lower limits. Verified 2026-09-21:
+            136 focused CEM-QL tests, 96 adapter tests, 2 shared projection tests,
+            workspace test compilation, build/typecheck/lint (two existing
+            warnings), 408 runtime unit tests, both WASM transport fixtures and
+            all 3 cell-demo browser stories. Render engine is 1.5.4.
+      - [x] Fixture CEMT-READER-NODE-INSERTION: migrate the two stale XPath
+            reader render expectations to retained subtree insertion; preserve
+            their matching, source-change and reader-owner lifetime assertions.
     - [x] Fixture CEMT-VALUE-TRANSPORT: portable native CEM value artifacts
           across workers, deterministic fallback and saved pipelines. The user
           selected this R08 direction during implementation. Preserve shared

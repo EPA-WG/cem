@@ -265,3 +265,53 @@ fn retained_metadata_is_part_of_the_native_graph_memory_budget() {
     rich.records[0].contract = Some(contract);
     assert!(rich.accounted_bytes() >= plain.accounted_bytes() + 262144);
 }
+
+#[test]
+fn failed_and_cancelled_import_stages_release_permits_and_leave_parent_usable() {
+    use cem_ml::operation_control::{ExecutionScopeKind, ExecutionScopeRegistration};
+    use cem_ql::{eval::portable::*, render::*};
+
+    let source = format!("{}ivy{}", "{r | ".repeat(24), "}".repeat(24));
+    let plan = render_compiled_template(
+        &compile_template(&source, &CompileTemplateOptions::default()),
+        &TemplateData::default(),
+    );
+    assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    let limits = CemValueArtifactLimits::default();
+    let bytes = encode_values(&cem_ql::eval::output::output_nodes(plan.nodes), &limits).unwrap();
+    let control = OperationControl::default();
+    for failure in ["depth", "corruption", "cancellation"] {
+        let child = control
+            .register_scope(
+                ROOT_EXECUTION_SCOPE_ID,
+                ExecutionScopeRegistration::inherited(
+                    ExecutionScopeKind::Template,
+                    failure,
+                    if failure == "depth" {
+                        ScopePolicy::host_root().with_stack_depth(16)
+                    } else {
+                        ScopePolicy::host_root()
+                    },
+                ),
+            )
+            .unwrap();
+        if failure == "cancellation" {
+            control.cancel_scope(child, None, None).unwrap();
+        }
+        let input = if failure == "corruption" {
+            &bytes[..bytes.len() - 1]
+        } else {
+            &bytes
+        };
+        assert!(decode_values_with_control(input, &limits, &control, child).is_err());
+        assert_eq!(control.memory_charged(child).unwrap(), 0);
+        assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+        assert!(control.check_scope(ROOT_EXECUTION_SCOPE_ID).is_ok());
+    }
+    let healthy =
+        decode_values_with_control(&bytes, &limits, &control, ROOT_EXECUTION_SCOPE_ID).unwrap();
+    assert!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap() > 0);
+    assert_eq!(encode_values(&healthy, &limits).unwrap(), bytes);
+    drop(healthy);
+    assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+}

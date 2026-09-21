@@ -212,8 +212,8 @@ impl GraphView {
         check: &mut impl FnMut() -> Result<(), String>,
     ) -> Result<Vec<cem_ml::validation::xpath::XPathResultItem>, String> {
         check()?;
+        let limits = value_control::ValueControl::new(control, execution_scope, QueryContextScope(0), self.owner.limits).map_err(|e| e.to_string())?.limits;
         if self.owner.xpath.get().is_none() {
-            let limits = value_control::ValueControl::new(control, execution_scope, QueryContextScope(0), self.owner.limits).map_err(|e| e.to_string())?.limits;
             let projection = cem_ml::value::xpath::CemValueXPathProjection::build_with_owner(
                 self.owner.graph.clone(), &limits, check,
                 |bytes, _| control.charge_memory(execution_scope, bytes as u64, None)
@@ -223,6 +223,7 @@ impl GraphView {
         }
         let projection = self.owner.xpath.get().expect("initialized projection");
         let _admission = control.charge_memory(execution_scope, projection.accounted_bytes as u64, None).map_err(|e| e.to_string())?;
+        projection.check_limits_with_check(&limits, check)?;
         projection.items_with_check(self.id, check)
     }
 

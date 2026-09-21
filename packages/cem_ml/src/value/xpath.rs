@@ -24,6 +24,9 @@ pub struct CemValueXPathProjection {
     graph: Arc<CemValueGraph>,
     tree: Arc<RetainedCemTree>,
     selections: Vec<Vec<u32>>,
+    validated_limits: CemValueArtifactLimits,
+    projected_values: usize,
+    projected_bytes: usize,
     pub accounted_bytes: usize,
 }
 
@@ -85,8 +88,10 @@ impl CemValueXPathProjection {
             semantics,
             selections,
             attributes,
+            bytes: projected_bytes,
             ..
         } = builder;
+        let projected_values = ast.nodes.len();
         // Both the native graph and the semantic index can own source frames,
         // names and provenance. Include those retained copies in the permit.
         let accounted_bytes = graph.accounted_bytes().saturating_mul(2).saturating_add(builder_cost(&ast));
@@ -98,8 +103,35 @@ impl CemValueXPathProjection {
             graph,
             tree,
             selections,
+            validated_limits: *limits,
+            projected_values,
+            projected_bytes,
             accounted_bytes,
         })
+    }
+
+    /// A retained index does not carry its builder's resource allowance into
+    /// another execution scope. Revalidate the graph only when limits shrink;
+    /// expanded index size can exceed the graph's own record or byte count.
+    pub fn check_limits_with_check(
+        &self,
+        limits: &CemValueArtifactLimits,
+        check: &mut impl FnMut() -> Result<(), String>,
+    ) -> Result<(), String> {
+        check()?;
+        if limits.max_depth < self.validated_limits.max_depth
+            || limits.max_values < self.validated_limits.max_values
+            || limits.max_bytes < self.validated_limits.max_bytes
+        {
+            self.graph.validate_with_check(limits, check)?;
+        }
+        if self.projected_values > limits.max_values {
+            return Err("Native XPath projection value limit exceeded".into());
+        }
+        if self.projected_bytes > limits.max_bytes {
+            return Err("Native XPath projection byte limit exceeded".into());
+        }
+        Ok(())
     }
 
     pub fn items(&self, id: u32) -> Result<Vec<XPathResultItem>, String> {
@@ -337,6 +369,12 @@ mod tests {
             .clone();
         assert_eq!(node.string_value(), "text");
         assert!(node.parent_node().is_none());
+        projection.check_limits_with_check(&limits, &mut || Ok(())).unwrap();
+        // The graph itself fits two records, but its index also owns a sentinel.
+        assert!(projection.check_limits_with_check(
+            &CemValueArtifactLimits { max_values: 2, ..limits },
+            &mut || Ok(()),
+        ).is_err());
         assert!(CemValueXPathProjection::build(
             graph.clone(),
             &CemValueArtifactLimits {
@@ -365,5 +403,85 @@ mod tests {
             }
         });
         assert_eq!(cancelled.unwrap_err(), "cancelled");
+    }
+
+    #[test]
+    fn cached_projection_checks_expanded_bytes_lowered_depth_and_cancellation() {
+        let graph = Arc::new(CemValueGraph {
+            roots: vec![0],
+            records: vec![
+                CemValueRecord {
+                    kind: "element".into(),
+                    name: "r".into(),
+                    children: vec![1],
+                    ..Default::default()
+                },
+                CemValueRecord {
+                    kind: "reference".into(),
+                    parent: Some(0),
+                    targets: vec![2, 2, 2, 2],
+                    ..Default::default()
+                },
+                CemValueRecord {
+                    kind: "text".into(),
+                    lexical: "abcdefgh".into(),
+                    ..Default::default()
+                },
+            ],
+        });
+        let limits = CemValueArtifactLimits::default();
+        let projection =
+            CemValueXPathProjection::build(graph.clone(), &limits, &mut || Ok(())).unwrap();
+        let small_bytes = CemValueArtifactLimits {
+            max_bytes: 32,
+            ..limits
+        };
+        graph.validate(&small_bytes).unwrap();
+        assert_eq!(
+            projection
+                .check_limits_with_check(&small_bytes, &mut || Ok(()))
+                .unwrap_err(),
+            "Native XPath projection byte limit exceeded"
+        );
+        assert!(projection
+            .check_limits_with_check(
+                &CemValueArtifactLimits {
+                    max_depth: 1,
+                    ..limits
+                },
+                &mut || Ok(()),
+            )
+            .is_err());
+        let fits = CemValueArtifactLimits {
+            max_depth: 2,
+            ..limits
+        };
+        projection
+            .check_limits_with_check(&fits, &mut || Ok(()))
+            .unwrap();
+        let mut polls = 0;
+        assert_eq!(
+            projection
+                .check_limits_with_check(&fits, &mut || {
+                    polls += 1;
+                    if polls > 2 {
+                        Err("cancelled".into())
+                    } else {
+                        Ok(())
+                    }
+                })
+                .unwrap_err(),
+            "cancelled"
+        );
+        projection
+            .check_limits_with_check(&limits, &mut || Ok(()))
+            .unwrap();
+        assert_eq!(
+            projection.items(0).unwrap()[0]
+                .native_node()
+                .unwrap()
+                .string_value(),
+            "abcdefgh".repeat(4)
+        );
     }
 }

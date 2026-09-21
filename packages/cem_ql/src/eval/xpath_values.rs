@@ -49,6 +49,8 @@ pub(crate) fn native_items(
     if let Some(output) = view.downcast_ref::<output::OutputView>() {
         let result = (|| {
             check()?;
+            let limits = value_control::ValueControl::new(control, execution_scope, scope, CemValueArtifactLimits::default())
+                .map_err(|e| e.to_string())?.limits;
             let cache = output.xpath_cache();
             let retained = cache
                 .lock()
@@ -61,8 +63,6 @@ pub(crate) fn native_items(
                 // Only the most recently used capability scope is retained.
                 // Evicted trees remain alive only through actual result owners.
                 *cache.lock().map_err(|_| "Native XPath cache lock failed")? = None;
-                let limits = value_control::ValueControl::new(control, execution_scope, scope, CemValueArtifactLimits::default())
-                    .map_err(|e| e.to_string())?.limits;
                 let projection = Projection::build(
                     output.owner_values(),
                     scope,
@@ -78,6 +78,7 @@ pub(crate) fn native_items(
                 }
             };
             let _admission = control.charge_memory(execution_scope, projection.native.accounted_bytes as u64, None).map_err(|e| e.to_string())?;
+            projection.native.check_limits_with_check(&limits, check)?;
             projection.items(view, check)
         })();
         return Some(checked_projection(result, control, execution_scope));

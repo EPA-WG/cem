@@ -185,8 +185,21 @@ The output owner retains at most its most recently used query scope's index.
 Changing scope rebuilds the index under that scope's access checks. Cache eviction
 never invalidates returned XPath nodes: their tree owner retains its memory permit
 until the last reference is released. Cached access is checked against the current
-execution scope's memory allowance, including when another operation built it.
-Portable graphs retain one scope-independent index after validated import.
+execution scope's memory and depth allowances, including when another operation
+built it. Lower limits revalidate the native graph and the expanded index's value
+and byte counts; cache reuse never grants the builder's larger limits. A rejected
+or cancelled child stage returns no partial result, releases its temporary memory
+permits and leaves its parent scope usable.
+Portable graphs retain one scope-independent index after validated import, with
+the same execution-limit checks on each use.
+
+Native intermediate output can feed another render directly or through a CEMV
+artifact. Repeated artifact round trips preserve shared reference targets,
+source ancestry and typed attribute contracts, while inserted occurrences retain
+their output parents. Earlier input handles may be released once the next stage
+owns its values. A live XPath selection also retains everything it needs for
+navigation and later export. Once the input/cache owners are gone, dropping the
+last result releases the index permit.
 
 ## Explicit template dispatch from CEM-QL
 

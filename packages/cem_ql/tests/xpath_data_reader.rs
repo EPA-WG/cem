@@ -225,11 +225,11 @@ fn declarative_reader_renders_changed_xml_and_cemt_matches() {
     for (source, expected) in [
         (
             "<r xmlns='urn:fruit'><item qty='1'>🍋</item><item qty='2'>🍒</item></r>",
-            "<i>🍋</i><b>🍒</b>",
+            "<i><item xmlns=\"urn:fruit\" qty=\"1\">🍋</item></i><b><item xmlns=\"urn:fruit\" qty=\"2\">🍒</item></b>",
         ),
         (
             "<r xmlns='urn:fruit'><item qty='3'>🍇</item></r>",
-            "<b>🍇</b>",
+            "<b><item xmlns=\"urn:fruit\" qty=\"3\">🍇</item></b>",
         ),
     ] {
         data.bindings
@@ -278,7 +278,7 @@ fn render_turns_reuse_reader_owners_until_template_data_disposal() {
         assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
         assert_eq!(
             render_plan_to_html(&plan),
-            format!("<output>{text}</output>")
+            format!("<output><r>{text}</r></output>")
         );
     }
     let owners = observed.lock().unwrap();
