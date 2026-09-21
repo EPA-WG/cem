@@ -1,5 +1,67 @@
 # CEMT expression insertion — temporary proposal review
 
+## Pending decision: constructor reference inputs (R01/R09/R11)
+
+The 2026-09-21 DX audit reproduced a transport-dependent public result in
+`dom:clone` and `dom:element`. Implementation is paused under the user's
+stop-at-decisions instruction: the existing signatures describe nodes and
+element inputs, but do not settle whether these constructors follow a reference
+or operate on that first-class node itself.
+
+The input is one explicit reference with two occurrences of the same target:
+
+```cem-ql
+let name = data:read("<r><name>ivy</name></r>", "xml").root.children.children;
+dom:reference((name, name))
+```
+
+Two temporary native probes evaluated that value directly and after
+`encode_values` / `decode_values` using the default CEMV limits. Both equality
+checks failed:
+
+| Operation | Direct reference | After CEMV round trip |
+| --- | --- | --- |
+| `dom:clone(values)` | Two element roots, each with a distinct clone identity. | One reference root; its two targets share the identity of one cloned element. |
+| `dom:element(values)` | Two new empty element shells. | No result; `cem.ql.type_error`: `dom:element requires element nodes`. |
+
+`eval/values.rs::clone_item` recursively follows only the concrete
+`ReferenceView`. Portable `GraphView` references instead reach the native graph
+clone or the element-kind check. Constructed output occurrences also use a
+different native view, so the eventual regression matrix must include them.
+Transport must not determine result kind, cardinality or repeated-target aliasing.
+
+| Direction | Benefits | Costs |
+| --- | --- | --- |
+| **Recommended: preserve first-class reference nodes.** `dom:clone(reference)` clones the reference and its reachable target graph; repeated target links within that graph still alias. `dom:element` accepts elements only; use `reference.targets` explicitly for its target elements. | Matches the user's first-class reference model and the portable graph contract. `clone` preserves the selected node's kind and internal sharing; target selection stays visible in the query. | Changes current direct-reference behavior. Callers wanting a result for each target must write `dom:clone(reference.targets)` or `dom:element(reference.targets)`. |
+| Follow reference targets consistently in both constructors. Recursively unwrap references and construct a result for each target occurrence. | Preserves current direct-reference convenience; both constructors work on references without an explicit selector. | `clone` changes a reference node into its targets. Repeated targets become independent clones, and reference wrappers/alias relationships disappear; portable behavior must change. |
+
+The recommendation follows the user's requirement that a reference is a node
+in its own right. `dom:text(reference)` can still extract its target text, and
+body insertion can still render target content; those are presentation
+operations, not evidence that cloning should erase the reference node.
+
+Under the recommended rule, cloning each item in an input sequence remains an
+independent operation. `dom:clone((name, name))` therefore produces two independent
+element clones, while `dom:clone(dom:reference((name, name)))` produces one cloned
+reference whose repeated targets share a cloned element. Selected roots are
+detached; source provenance survives, and the original tree remains immutable.
+Neither option requires an external-format branch, a new artifact version,
+new aliases, or changes to the data-table/XML viewer templates.
+
+After selection, implement one rule for direct references, constructed
+occurrences and portable references. Add regressions for nested/empty references,
+repeated targets, scalar and invalid shell inputs, parent/provenance behavior,
+scope rejection, cancellation, lowered budgets and worker/fallback transport.
+Then finish the operation guide and compact template examples, audit the cell
+demo layout, and proceed to the deferred Storybook stabilization.
+
+The two temporary failing probes were removed after recording their exact
+outcomes here. The existing constructor, expression and portable-value suites
+remain the baseline: all 39 tests in `expression_values`, `portable_values`
+and `retained_node_values` pass. They do not cover the reproduced reference
+transport mismatch. No runtime or demo changes are authorized by this note.
+The pending work is tracked as `CEMT-CONSTRUCTOR-REFERENCES` in [TODO](todo.md).
+
 ## Native pipeline lifetime and cached scope limits (R03/R08/R10)
 
 The 2026-09-21 pipeline audit reproduced a limit bypass in constructed and

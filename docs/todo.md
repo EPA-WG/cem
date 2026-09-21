@@ -1875,6 +1875,18 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
     - [ ] Polish DX for text, reference, clone, element and explicit template
           dispatch operations; consider matching compact forms for other template
           types as requested during review. Do not add confusing copy/copy-of aliases.
+      - [ ] Fixture CEMT-CONSTRUCTOR-REFERENCES: audit `dom:clone` and
+            `dom:element` with explicit reference inputs before and after CEMV
+            transport. Resolve target-following versus reference-node behavior
+            before changing result kind, cardinality or repeated-target identity;
+            then add native and worker regressions for the selected contract.
+            The 2026-09-21 audit reproduced two failures: direct `clone` returns
+            two independent elements where portable `clone` returns one reference
+            retaining target aliases; direct `element` accepts the reference
+            where portable `element` raises a type error. Pause for the decision
+            in [Constructor reference inputs](./cemt-expression-review.tmp.md#pending-decision-constructor-reference-inputs-r01r09r11).
+            Recommended: preserve reference nodes in `clone` and require an
+            explicit `.targets` selection for constructing element shells.
   - [x] Inspect current dispatch and local legacy collapse code; record the
         findings in the [presentation override discussion](../packages/cem-elements/docs/xml-viewer-migration.md#cell-presentation-overrides).
         Current tables already use native disclosure. Legacy tree branches
