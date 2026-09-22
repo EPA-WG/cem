@@ -11,7 +11,7 @@ use crate::resolve::ImportKind;
 
 pub const CEM_QL_ARTIFACT_CONTENT_TYPE: &str = "application/vnd.cem.query-artifact+cem-bin";
 pub const CEM_QL_ARTIFACT_VERSION: &str = "cem-ql-artifact/1";
-pub const CEM_QL_SCHEMA_VERSION: &str = "1.0.0";
+pub const CEM_QL_SCHEMA_VERSION: &str = "1.1.0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledArtifact {

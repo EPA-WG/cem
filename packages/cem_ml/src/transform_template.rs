@@ -449,6 +449,8 @@ pub struct TransformTemplateModuleParseRequest {
 pub struct TransformTemplateModuleParseResponse {
     pub module_options: TransformTemplateModuleOptions,
     pub diagnostics: Vec<Diagnostic>,
+    /// Whether the source contains an explicit `module` wrapper. Implicit
+    /// modules also populate `module_options` when this flag is false.
     pub module_declared: bool,
 }
 
@@ -24068,6 +24070,14 @@ pub fn template_body_layout_error(body_count: usize, has_direct_content: bool) -
     }
 }
 
+/// Non-output declarations shared by implicit and explicit CEMT modules.
+/// `template` is handled separately because an inert HTML template is output.
+pub fn is_template_module_declaration(name: &str) -> bool {
+    name.starts_with('@') || matches!(name,
+        "import" | "param" | "function" | "encoding-function" | "format-function"
+        | "color-function" | "attribute" | "slice" | "style" | "module-map")
+}
+
 pub fn parse_cem_native_template_module_options(
     request: TransformTemplateModuleParseRequest,
 ) -> TransformTemplateModuleParseResponse {
@@ -24101,17 +24111,13 @@ pub fn parse_cem_native_template_module_options(
 
     let module_declared = parser.module_count > 0;
     let mut diagnostics = parser.diagnostics;
-    if module_declared || explicit_template_schema {
+    if module_declared || explicit_template_schema || explicit_transform_schema || !parser.options.is_empty() {
         diagnostics.extend(tokenizer_diagnostics);
         diagnostics.extend(document.diagnostics.clone());
     }
 
     TransformTemplateModuleParseResponse {
-        module_options: if module_declared {
-            parser.options
-        } else {
-            TransformTemplateModuleOptions::default()
-        },
+        module_options: parser.options,
         diagnostics,
         module_declared,
     }
@@ -24211,6 +24217,13 @@ impl NativeTemplateModuleLowerer<'_> {
             return;
         };
 
+        let has_module = root_children.iter().any(|child| {
+            template_element_name(self.document, *child) == Some("module")
+        });
+        if !has_module {
+            self.lower_module_nodes(root_children);
+            return;
+        }
         for child in root_children {
             let Some(name) = template_element_name(self.document, *child) else {
                 continue;
@@ -24231,14 +24244,7 @@ impl NativeTemplateModuleLowerer<'_> {
             }
         }
 
-        if (self.explicit_template_schema || self.explicit_transform_schema)
-            && self.module_count == 0
-        {
-            self.push_diag(
-                self.module_required_code(),
-                "CEM template schema requires one top-level `module` node",
-            );
-        } else if self.module_count > 1 {
+        if self.module_count > 1 {
             self.push_diag(
                 TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
                 "CEM-native template schema allows only one top-level `module` node",
@@ -24251,6 +24257,38 @@ impl NativeTemplateModuleLowerer<'_> {
             return;
         };
 
+        self.lower_module_nodes(children);
+    }
+
+    fn is_module_declaration(&self, node: AstNodeId) -> bool {
+        let Some(name) = template_element_name(self.document, node) else { return false; };
+        if name == "template" {
+            let attrs = template_collect_attrs(self.document, node);
+            return self.module_count > 0 || self.explicit_template_schema || self.explicit_transform_schema
+                || ["name", "match", "on"].iter().any(|name| attr_value(&attrs, "", name).is_some());
+        }
+        is_template_module_declaration(name)
+    }
+
+    fn lower_module_nodes(&mut self, children: &[AstNodeId]) {
+        let body_count = children.iter().filter(|child| {
+            template_element_name(self.document, **child) == Some("body")
+        }).count();
+        let has_direct_content = children.iter().any(|child| {
+            if self.is_module_declaration(*child)
+                || template_element_name(self.document, *child) == Some("body") {
+                return false;
+            }
+            match self.document.get(*child) {
+                Some(CemAstNode::Whitespace { .. }) => false,
+                Some(CemAstNode::Text { data, .. } | CemAstNode::RawText { data, .. }) => !data.trim().is_empty(),
+                _ => true,
+            }
+        });
+        if let Some(message) = template_body_layout_error(body_count, has_direct_content) {
+            self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
+            return;
+        }
         for child in children {
             let Some(name) = template_element_name(self.document, *child) else {
                 continue;
@@ -24258,7 +24296,8 @@ impl NativeTemplateModuleLowerer<'_> {
             match name {
                 "import" => self.lower_import(*child),
                 "param" => self.lower_param(*child, None),
-                "template" => self.lower_template(*child),
+                "@doc" => self.saw_doc_directive = true,
+                "template" if self.is_module_declaration(*child) => self.lower_template(*child),
                 "body" => self.collect_body_expressions(*child, None),
                 "function" if self.explicit_transform_schema => self.lower_function(*child),
                 "encoding-function" if self.explicit_transform_schema => self
@@ -24269,14 +24308,16 @@ impl NativeTemplateModuleLowerer<'_> {
                 "color-function" if self.explicit_transform_schema => {
                     self.lower_output_function(*child, TransformTemplateOutputFunctionKind::Color)
                 }
+                "function" | "encoding-function" | "format-function" | "color-function" => self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
+                    format!("`{name}` requires the CEM transform schema"),
+                ),
                 "include" => self.push_diag(
                     TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
                     "`include` is reserved in CEM-native template modules; use `import`",
                 ),
-                other => self.push_diag(
-                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
-                    format!("`{other}` is not valid inside CEM-native template `module`"),
-                ),
+                other if is_template_module_declaration(other) => {},
+                _ => self.collect_expressions_in_subtree(*child, None),
             }
         }
     }
@@ -24385,24 +24426,27 @@ impl NativeTemplateModuleLowerer<'_> {
         if attr_value(&attrs, "", "on").as_deref() == Some("expression") {
             return;
         }
-        let Some(name) = required_attr(&attrs, "name") else {
+        let name = required_attr(&attrs, "name");
+        if name.is_none() && required_attr(&attrs, "match").is_none() {
             self.push_missing_attr("template", "name");
             return;
-        };
+        }
         let visibility =
             self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref(), false);
-        self.options
-            .entrypoints
-            .push(TransformTemplateModuleEntrypointDeclaration {
+        if let Some(name) = &name {
+            self.options.entrypoints.push(TransformTemplateModuleEntrypointDeclaration {
                 name: name.clone(),
                 visibility,
             });
+        }
+        // Anonymous rules have their own parameter/let scope but no callable entrypoint.
+        let owner = name.unwrap_or_else(|| format!("#match:{template_id:?}"));
 
         for child in children {
             match template_element_name(self.document, *child) {
-                Some("param") => self.lower_param(*child, Some(&name)),
-                Some("body") => self.collect_body_expressions(*child, Some(&name)),
-                _ => self.collect_expressions_in_subtree(*child, Some(&name)),
+                Some("param") => self.lower_param(*child, Some(&owner)),
+                Some("body") => self.collect_body_expressions(*child, Some(&owner)),
+                _ => self.collect_expressions_in_subtree(*child, Some(&owner)),
             }
         }
     }
@@ -25040,6 +25084,13 @@ impl NativeTemplateModuleLowerer<'_> {
         let Some(CemAstNode::Element { children, .. }) = self.document.get(node_id) else {
             return;
         };
+        if template_element_name(self.document, node_id) == Some("template") {
+            let attrs = template_collect_attrs(self.document, node_id);
+            if ["name", "match", "on"].iter().any(|name| attr_value(&attrs, "", name).is_some()) {
+                self.lower_template(node_id);
+                return;
+            }
+        }
         if template_element_name(self.document, node_id) == Some("let") {
             self.lower_let(node_id, owner);
             self.reject_decl_children(node_id, "let");
@@ -25584,14 +25635,6 @@ impl NativeTemplateModuleLowerer<'_> {
 
     fn uses_cem_template_diagnostics(&self) -> bool {
         self.explicit_template_schema && !self.explicit_transform_schema
-    }
-
-    fn module_required_code(&self) -> &'static str {
-        if self.uses_cem_template_diagnostics() {
-            CEM_TEMPLATE_MODULE_REQUIRED_CODE
-        } else {
-            TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE
-        }
     }
 
     fn import_alias_duplicate_code(&self) -> &'static str {

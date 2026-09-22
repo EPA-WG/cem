@@ -3852,9 +3852,8 @@ fn module_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
 }
 
 fn module_body_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
-    module_node_children(node)?
-        .iter()
-        .find_map(body_node_children)
+    let children = module_node_children(node)?;
+    Some(children.iter().find_map(body_node_children).unwrap_or(children))
 }
 
 fn body_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {

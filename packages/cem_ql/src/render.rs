@@ -377,6 +377,7 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         &mut stylesheets,
         &mut compiler.diagnostics,
     );
+    validate_module_bodies(&mut nodes, &mut compiler.diagnostics);
     TemplateArtifact {
         nodes,
         stylesheets,
@@ -3857,7 +3858,7 @@ fn is_top_level_declaration(node: &TemplateNode) -> bool {
                 declaration_name(attributes).is_some()
                     || attributes.iter().any(|a| a.name == "match" || a.name == "on")
             }
-            _ => false,
+            name => cem_ml::transform_template::is_template_module_declaration(name),
         },
         _ => false,
     }
@@ -3971,12 +3972,64 @@ fn scan_declaration_names(tokens: &[SchemaToken]) -> Vec<String> {
     names
 }
 
+fn validate_module_bodies(nodes: &mut Vec<TemplateNode>, diagnostics: &mut Vec<Diagnostic>) {
+    let module_count = nodes.iter().filter(|node| {
+        matches!(node, TemplateNode::Element { tag, .. } if local_template_name(tag) == "module")
+    }).count();
+    if module_count > 1 {
+        diagnostics.push(render_diagnostic(
+            cem_ml::transform_template::TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+            "CEM-native template schema allows only one top-level `module` node".into(),
+            0, SourceMapStack::default(),
+        ));
+        nodes.clear();
+        return;
+    }
+    if module_count == 1 {
+        for node in nodes {
+            if let TemplateNode::Element { tag, children, .. } = node {
+                if local_template_name(tag) == "module" {
+                    validate_module_body(children, diagnostics);
+                }
+            }
+        }
+    } else {
+        validate_module_body(nodes, diagnostics);
+    }
+}
+
+fn validate_module_body(nodes: &mut Vec<TemplateNode>, diagnostics: &mut Vec<Diagnostic>) {
+    let body_count = nodes.iter().filter(|node| {
+        matches!(node, TemplateNode::Element { tag, .. } if local_template_name(tag) == "body")
+    }).count();
+    let has_direct_content = nodes.iter().any(|node| {
+        if is_top_level_declaration(node) { return false; }
+        match node {
+            TemplateNode::Element { tag, .. } if local_template_name(tag) == "body" => false,
+            TemplateNode::Text { text, .. } => !text.trim().is_empty(),
+            _ => true,
+        }
+    });
+    if let Some(message) = cem_ml::transform_template::template_body_layout_error(body_count, has_direct_content) {
+        let source_map = nodes.first().map(template_node_source_map).cloned().unwrap_or_default();
+        diagnostics.push(render_diagnostic(
+            cem_ml::transform_template::TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+            message.into(), source_map_start(&source_map), source_map,
+        ));
+        nodes.clear();
+    }
+}
+
 fn root_render_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
     let mut roots = Vec::new();
     for node in nodes {
         if let TemplateNode::Element { tag, children, .. } = node {
             if local_template_name(tag) == "module" {
                 roots.extend(module_body_nodes(children));
+                continue;
+            }
+            if local_template_name(tag) == "body" {
+                roots.extend(children);
                 continue;
             }
         }
@@ -4011,7 +4064,7 @@ fn module_body_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
             return children.iter().collect();
         }
     }
-    Vec::new()
+    nodes.iter().filter(|node| !is_top_level_declaration(node) || hooks::is_expression_hook(node)).collect()
 }
 
 #[derive(Debug, Clone)]

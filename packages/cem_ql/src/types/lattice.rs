@@ -29,7 +29,8 @@ impl<'schema> TypeLattice<'schema> {
             (Type::Atom(actual), Type::Atom(expected)) => actual == expected,
             (Type::Record(actual), Type::Record(expected)) => actual == expected,
             (Type::Array(actual), Type::Array(expected))
-            | (Type::Stream(actual), Type::Stream(expected)) => {
+            | (Type::Stream(actual), Type::Stream(expected))
+            | (Type::Chain(actual), Type::Chain(expected)) => {
                 self.is_subtype(actual, expected) && self.is_subtype(expected, actual)
             }
             (

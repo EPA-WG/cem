@@ -26,6 +26,35 @@ class HtmlDemoElement extends HTMLElement {
 customElements.define('cem-demo-element', HtmlDemoElement);
 `;
 
+const domChainSamples = [
+    sampleContract("Wrap values", [normalizedText('output', "a, b, a")]),
+    sampleContract("Parent", [normalizedText('output', "row")]),
+    sampleContract("Element children", [normalizedText('output', "a, b")]),
+    sampleContract("All child nodes", [normalizedText('output', "4")]),
+    sampleContract("Ancestors", [normalizedText('output', "section, row")]),
+    sampleContract("Closest ancestor", [normalizedText('output', "section")]),
+    sampleContract("Local names", [normalizedText('output', "fruit")]),
+    sampleContract("Node text", [normalizedText('output', "ivysaur")]),
+    sampleContract("Unqualified attribute", [normalizedText('output', "2")]),
+    sampleContract("Qualified attribute", [normalizedText('output', "other")]),
+    sampleContract("First match", [normalizedText('output', "2")]),
+    sampleContract("Last match", [normalizedText('output', "b")]),
+    sampleContract("Filter", [normalizedText('output', "a, a")]),
+    sampleContract("First value", [normalizedText('output', "a")]),
+    sampleContract("Last value", [normalizedText('output', "b")]),
+    sampleContract("Take a prefix", [normalizedText('output', "a, b")]),
+    sampleContract("Skip a prefix", [normalizedText('output', "b, c")]),
+    sampleContract("Map values", [normalizedText('output', "a!, b!")]),
+    sampleContract("Flatten mapped values", [normalizedText('output', "a, a, b, b")]),
+    sampleContract("Any match", [normalizedText('output', "true")]),
+    sampleContract("All match", [normalizedText('output', "false")]),
+    sampleContract("Empty chain", [normalizedText('output', "true")]),
+    sampleContract("Count values", [normalizedText('output', "3")]),
+    sampleContract("Sort values", [normalizedText('output', "a, b, b")]),
+    sampleContract("Sort native nodes", [normalizedText('output', "second, first, third")]),
+    sampleContract("Reverse order", [normalizedText('output', "c, b, a")]),
+];
+
 const xpathMapArraySamples = [
     sampleContract('1. An IP-filter map with an optional note', [
         normalizedText('article p:first-of-type output', 'allow: 192.0.2.0/24'),
@@ -1394,6 +1423,11 @@ const fixtureSpecs = [
         ],
     },
     {
+        path: '/packages/cem-elements/demo/functions/dom.html',
+        checks: domChainSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
+    },
+    {
         path: '/packages/cem-elements/demo/functions/str.html',
         checks: [
             ...stringMethodSamples.flatMap((sample) => sample.checks.map(
@@ -2301,6 +2335,7 @@ const sourceDocumentSpecs = [
             ]),
         ],
     },
+    { path: '/packages/cem-elements/demo/functions/dom.html', samples: domChainSamples },
     {
         path: '/packages/cem-elements/demo/functions/str.html',
         samples: [

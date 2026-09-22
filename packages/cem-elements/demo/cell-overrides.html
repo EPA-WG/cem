@@ -31,13 +31,15 @@
             simply <code>node.name == "name"</code> in <code>cell</code> mode:
             <code>node</code> is the original <code>&lt;name&gt;</code> element.
             Matching supplies <code>node</code> automatically; it needs no
-            parameter declaration. Direct template content is its body, including
-            in an importing module; no body wrapper is needed.
+            parameter declaration. The source is an implicit module: imports and
+            matching rules are declarations; other content runs in source order.
+            Neither <code>module</code> nor <code>body</code> wrappers are needed.
+            A rule selected only by matching needs no <code>@name</code>.
             The replacement cell contains an image plus the original name.
             <code>{$node}</code> reuses the name subtree in the label.
             The image attribute projects that same native value to text.
             Use <code>{$dom:text(node)}</code> when only text is wanted.
-            <code>dom:parent(node)</code> finds its row; filtering that parent's
+            <a href="./functions/dom.html"><code>dom::chain(node).parent()</code></a> finds its row; searching that parent's
             children finds the sibling <code>&lt;id&gt;</code> for the image.
             No heading, row or ID is passed to the matching template.
             Other fields keep the imported presentation.</p>
@@ -82,28 +84,27 @@
     <template type="text/cem-ml">
 {attribute @name=format | xml}
 {style |```
-    .pokemon-name { display: inline-flex; align-items: center;
-        gap: .35rem; }
-    .pokemon-name img { width: 2rem; height: 2rem;
-        object-fit: contain; }
+    .pokemon-name
+    {   display: inline-flex; align-items: center;
+        gap: .35rem;
+        img
+        {   width: 2rem; height: 2rem;
+            object-fit: contain;
+    }   }
 ```}
-{module |
-    {import @as=base @src="./data-table-view.cemt"}
-    {template @name=pokemon-name @mode=cell
-        @match='node.name == "name"' |
-        {cem:variable @name=id @select='seq:first(seq:where(
-            dom:children(dom:parent(node)), fn(sibling) =>
-                (sibling.name ?? "") == "id")).children.value'}
-        {td | {span @class=pokemon-name |
-            {cem:if @test='(datadom.slices.images ?? false)
-                && (id ?? "") != ""' |
-                {img @src="{$datadom.slices.images}{$id}.svg"
-                    @alt="{$node}" @width=32 @height=32}}
-            {$node}}}}
-    {body |
-        {cem-module-url @slice=images @src="./pokemon/"}
-        {call @from=base @template=viewer}}
-}
+{import @as=base @src="./data-table-view.cemt"}
+{template @mode=cell @match='node.name == "name"' |
+    {cem:variable @name=id @select='
+        dom::chain(node).parent().children()
+            .find(|sibling| sibling.name() == "id").text()'}
+    {td | {span @class=pokemon-name |
+        {cem:if @test='(datadom.slices.images ?? false)
+            && (id ?? "") != ""' |
+            {img @src="{$datadom.slices.images}{$id}.svg"
+                @alt="{$node}" @width=32 @height=32}}
+        {$node}}}}
+{cem-module-url @slice=images @src="./pokemon/"}
+{call @from=base @template=viewer}
     </template>
 </cem-element>
 <cem-pokemon-cells format="xml">

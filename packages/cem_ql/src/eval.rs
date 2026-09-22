@@ -24,6 +24,7 @@ use crate::resolve::BindingId;
 use crate::types::Type;
 
 mod data;
+mod chain;
 mod inspection;
 pub mod values;
 pub mod value_control;
@@ -428,6 +429,7 @@ pub struct ItemStream {
     pub diagnostics: Vec<Diagnostic>,
     pub error: Option<EvalError>,
     cursor: usize,
+    pub(crate) chain: bool,
 }
 
 impl Default for ItemStream {
@@ -449,6 +451,7 @@ impl ItemStream {
             diagnostics: Vec::new(),
             error: None,
             cursor: 0,
+            chain: false,
         }
     }
 
@@ -462,6 +465,7 @@ impl ItemStream {
             diagnostics: Vec::new(),
             error: None,
             cursor: 0,
+            chain: false,
         }
     }
 
@@ -471,6 +475,7 @@ impl ItemStream {
             diagnostics: vec![diagnostic],
             error: Some(error),
             cursor: 0,
+            chain: false,
         }
     }
 

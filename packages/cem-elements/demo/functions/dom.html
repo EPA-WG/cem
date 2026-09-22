@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CEM-QL DOM chains</title>
+    <link rel="stylesheet" href="../demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav">
+    <a href="../../index.html">cem-element demo</a>
+    <h1>CEM-QL DOM chains</h1>
+</nav>
+<main>
+    <section>
+        <h2>Navigate native data with small, readable expressions</h2>
+        <p><code>dom::chain(values)</code> wraps retained CEM values in an immutable
+            collection. Navigate, filter and reorder it with Rust-style methods
+            and <code>|item| expression</code> callbacks. Missing results become
+            empty chains; no <code>unwrap()</code> is needed.</p>
+        <p>XML, JSON, YAML and CSV enter through CEM-ML import. These methods
+            operate on the resulting CEM tree. They reuse nodes and preserve
+            their original parents. Sorting buffers handles and keys under the
+            environment's resource limits; it never rearranges the source tree.</p>
+        <p>Selection and transformation return chains. Explicit questions such
+            as <code>any()</code> and <code>count()</code> return scalars.
+            Invalid types, callback failures and denied access remain errors.</p>
+        <p>Unlike Rust's <code>Iterator::find()</code>, this collection's
+            <code>find()</code> returns a chain containing zero or one member.
+            Existing <code>.children</code> and <code>dom:children()</code>
+            continue to include every child-node kind.</p>
+        <h3>See also</h3>
+        <p><a href="../../../../docs/cem-ql-chains.md">Chain API reference</a> ·
+            <a href="../cell-overrides.html">Cell template overrides</a> ·
+            <a href="../xpath-functions.html#cem-ql-nodes">XPath and CEM-QL node use cases</a> ·
+            <a href="./str.html">String functions</a></p>
+    </section>
+    <cem-demo-element legend="Wrap values"
+        description="Start a chain from values; their order and duplicates remain.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b", "a"))'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Parent"
+        description="Select the existing parent of each child without copying nodes.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row&gt;&lt;name&gt;ivy&lt;/name&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.children().parent().name()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Element children"
+        description="children() skips text and comments and keeps element order.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row&gt;text&lt;a/&gt;&lt;b/&gt;&lt;!--note--&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.children().name()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="All child nodes"
+        description="child_nodes() includes text, elements and comments.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row&gt;text&lt;a/&gt;&lt;b/&gt;&lt;!--note--&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.child_nodes().count()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Ancestors"
+        description="Walk upward from the parent, nearest element first.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row&gt;&lt;section&gt;&lt;leaf/&gt;&lt;/section&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.children().children().ancestors().name()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Closest ancestor"
+        description="Start with parent() to find a matching element strictly above the leaf.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row&gt;&lt;section&gt;&lt;leaf/&gt;&lt;/section&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.children().children().parent()
+    .closest(|n| n.name() == "section").name()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Local names"
+        description="name() reads the local name; namespace prefixes are separate metadata.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row xmlns:p=\"urn:fruit\"&gt;&lt;p:fruit/&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.children().name()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Node text"
+        description="text() extracts descendant text without inserting element markup.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row&gt;&lt;name&gt;ivy&lt;em&gt;saur&lt;/em&gt;&lt;/name&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.children().text()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Unqualified attribute"
+        description="A string selector matches only an attribute without a namespace.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row xmlns:p=\"urn:fruit\" id=\"2\" p:id=\"other\"/&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.attribute("id").text()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Qualified attribute"
+        description="Use an expanded name descriptor to select an attribute by namespace.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row xmlns:p=\"urn:fruit\" id=\"2\" p:id=\"other\"/&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='row.attribute({namespace: "urn:fruit", name: "id"}).text()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="First match"
+        description="Edit the local name to select a sibling. An absent match produces empty output.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row&gt;&lt;name&gt;ivy&lt;/name&gt;&lt;id&gt;2&lt;/id&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=wanted @select='datadom.slices.wanted ?? "id"'}
+{cem:variable @name=result @select='row.children().find(|n| n.name() == wanted).text()'}
+{article @class=demo-card |
+    {label | Local name
+        {input @slice=wanted @slice-event=input @value="{$wanted}"}}
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Last match"
+        description="find_last() selects the last match in collection order.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b", "a"))
+    .find_last(|v| v != "a")'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Filter"
+        description="Keep every value accepted by the predicate, including duplicates.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b", "a"))
+    .filter(|v| v == "a")'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="First value"
+        description="first() produces a chain containing at most one value.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b")).first()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Last value"
+        description="last() waits for the input and keeps its final value.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b")).last()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Take a prefix"
+        description="take() stops after the requested number of results.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b", "c")).take(2)'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Skip a prefix"
+        description="skip() omits the requested number of results.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b", "c")).skip(1)'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Map values"
+        description="map() transforms each member; its callback receives an individual value.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b")).map(|v| v + "!")'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Flatten mapped values"
+        description="flat_map() concatenates the sequences returned by the callback.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b")).flat_map(|v| (v, v))'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Any match"
+        description="any() returns a boolean and stops on the first accepted member.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b")).any(|v| v == "b")'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="All match"
+        description="all() returns a boolean and stops on the first rejected member.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b")).all(|v| v == "a")'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Empty chain"
+        description="Missing parents stay empty through navigation, selection and extraction.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row/&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=result @select='dom::chain(doc).parent().children()
+    .find(|n| n.name() == "id").text().is_empty()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Count values"
+        description="count() returns the number of members, including duplicates.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b", "a")).count()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Sort values"
+        description="sorted() produces ascending text order without changing the input.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("b", "a", "b")).sorted()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Sort native nodes"
+        description="Equal sort keys retain their source order. Changing direction preserves the original tree.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=doc @select='data::read("&lt;row&gt;&lt;b&gt;first&lt;/b&gt;&lt;a&gt;second&lt;/a&gt;&lt;b&gt;third&lt;/b&gt;&lt;/row&gt;", "xml").root'}
+{cem:variable @name=row @select='dom::chain(doc).children()'}
+{cem:variable @name=direction @select='datadom.slices.direction ?? "ascending"'}
+{cem:variable @name=result @select='row.children()
+    .sorted_by_key(|n| n.name(), direction).text()'}
+{article @class=demo-card |
+    {label | Direction
+        {select @slice=direction @slice-event=change @value="{$direction}" |
+            {option @value=ascending | Ascending}
+            {option @value=descending | Descending}}}
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Reverse order"
+        description="reversed() changes collection order; the native tree stays unchanged.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b", "c")).reversed()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+</main>
+<script type="module" src="../../../cem-demo-element/dist/index.js"></script>
+</body>
+</html>

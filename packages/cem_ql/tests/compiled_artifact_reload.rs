@@ -56,6 +56,7 @@ fn eval_context() -> EvaluationContext {
 #[test]
 fn ac_qc_v_1_reloaded_artifact_matches_source_driven_corpus() {
     let corpus = [
+        r#"dom::chain((3, 1, 2)).filter(|n| n != 2).sorted("ascending", "number")"#,
         "1 + 2 * 3",
         r#"(1, 2, 2) | (2, 3)"#,
         r#"cemml:parse("{form | {input @id=email} {label @for=email | Email}}").target"#,
@@ -103,7 +104,7 @@ fn ac_qc_v_1_package_fixture_declares_stable_identity_stamps() {
         artifact.identity.schema_uri,
         "https://cem.dev/ns/query/cem-ql/1"
     );
-    assert_eq!(artifact.identity.schema_version, "1.0.0");
+    assert_eq!(artifact.identity.schema_version, "1.1.0");
     assert_eq!(artifact.identity.compiler_version, cem_ql::VERSION);
     assert_eq!(
         artifact.identity.source_hash,

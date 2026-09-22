@@ -147,6 +147,7 @@ pub enum IrRecordKey {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum IrStep {
+    Method { name: QName, args: Vec<IrId> },
     Named {
         name: QName,
         binding: Option<BindingId>,

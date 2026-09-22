@@ -46,12 +46,14 @@ For example, `{template @name=label | {strong | Label}}` and
 `{template @name=label | {body | {strong | Label}}}` have the same body.
 Both forms support `param` declarations, public/private visibility, calls and
 expression collection. Imports use the same native parsing rule as direct
-rendering. Named module entrypoints still require `@name`; the module's default
-entrypoint and transform functions retain their explicit `body` syntax.
+rendering. Named entrypoints require `@name`; matching declarations and expression
+hooks may be anonymous. Each source is an implicit module, with declarations
+and executable content at its root. Explicit `module` and default `body` wrappers
+remain optional. Transform functions retain their explicit `body` syntax.
 
 Mixing direct output with an explicit body, or supplying multiple bodies,
 produces `cem.transform_template.declaration_invalid`. Formatting whitespace
-and parameters may surround the explicit body; output comments belong inside it.
+and declarations may surround the explicit body; output comments belong inside it.
 See [CEMT compact templates](../../../../../docs/cemt-native-values.md#compact-template-bodies)
 for matching templates and expression hooks.
 
@@ -62,7 +64,6 @@ template module declarations, imports, params, bodies, immutable `let` bindings,
 and call metadata. The package schema declares the template-facing element and
 attribute contracts and the diagnostic codes for template-specific policy:
 
-- `cem.template.module_required`
 - `cem.template.entrypoint_duplicate`
 - `cem.template.param_duplicate`
 - `cem.template.import_alias_duplicate`

@@ -212,6 +212,8 @@
             fallback handles other text. Use <code>seq:any(items, fn(item) =&gt;
             condition)</code> for an existential test over a sequence.</p>
         <h3 id="cem-ql-nodes">Select native nodes and inspect attributes</h3>
+        <p>Explore the <a href="./functions/dom.html">DOM chain samples</a> for
+            fluent navigation, predicates, extraction and immutable sorting.</p>
         <p><code>seq:where(nodes, fn(n) =&gt; n.kind == "element" &amp;&amp;
             n.name == "item" &amp;&amp; n.namespace == "")</code> selects
             unqualified item elements. Apply it at each level to match

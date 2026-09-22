@@ -16,20 +16,22 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 
 | Element | Required attributes | Optional attributes | Child elements |
 | ------- | ------------------- | ------------------- | -------------- |
-| `module` | none | `version` | `import`, `param`, `template`, `body` |
+| `module` | none | `version` | declarations and ordinary output content, or one `body` |
 | `import` | `as`, `src` | `content-type`, `contentType`, `schema` | none |
 | `param` | `name` | `default`, `default-expr`, `defaultExpr`, `nullable`, `required`, `type`, `visibility` | none |
-| `template` | `name` | `visibility` | `param`, `body`, ordinary output content |
+| `template` | `name` for named entrypoints | `match`, `mode`, `priority`, `on`, `into`, `returns`, `visibility` | `param`, `body`, ordinary output content |
 | `body` | none | none | `*` |
 | `call` | `template` | `from`, `with:*` | none |
 
 ## Module Semantics
 
-- A document contains one `module` root for the native-template declaration
-  surface.
-- `module` may declare imports, module params, named templates, and one default
-  `body`.
-- The module-level `body` is the implicit render entrypoint.
+- A template document is an implicit module; an explicit `module` wrapper
+  remains supported. Imports, module params and template declarations produce
+  no output. Other root content executes in source order as the default entrypoint.
+- The default entrypoint may instead use one explicit `body`. Mixing it with
+  direct executable content, or declaring multiple bodies, is invalid.
+- Matching templates and expression hooks may be anonymous. Named entrypoints
+  require `@name`.
 - `template @name="NAME"` declares an explicit named entrypoint. Its output may
   be direct content or one explicit `body`. Mixed direct content and `body`,
   or multiple bodies, are invalid. Params and formatting whitespace may

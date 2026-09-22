@@ -30,6 +30,7 @@ pub enum Type {
     Record(Vec<RecordField>),
     Array(Box<Type>),
     Stream(Box<Type>),
+    Chain(Box<Type>),
     Lambda {
         params: Vec<Type>,
         ret: Box<Type>,
@@ -598,7 +599,30 @@ impl TypeChecker {
         let mut current = self.infer_expression(source);
         for step in steps {
             current = match step {
-                PipelineStep::Named { name, args, range } => {
+                PipelineStep::Named {
+                    name,
+                    args,
+                    range,
+                    called,
+                } => {
+                    if !called {
+                        if let Type::Record(fields) = &current {
+                            current = fields
+                                .iter()
+                                .find(|field| field.name == name.local)
+                                .map(|field| field.ty.clone())
+                                .unwrap_or(Type::Empty);
+                            continue;
+                        }
+                    }
+                    if *called
+                        && name.prefix.is_none()
+                        && (matches!(current, Type::Chain(_) | Type::Node(_))
+                            || crate::stdlib::dom::chain_method_arity(&name.local).is_some())
+                    {
+                        current = self.infer_chain_method(&current, name, args, *range);
+                        continue;
+                    }
                     let any_receiver = current.is_any();
                     let mut all_args = Vec::with_capacity(args.len() + 1);
                     all_args.push(current);
@@ -620,6 +644,97 @@ impl TypeChecker {
             };
         }
         current
+    }
+
+    fn infer_chain_method(
+        &mut self,
+        receiver: &Type,
+        name: &QName,
+        args: &[Expression],
+        range: ByteRange,
+    ) -> Type {
+        let Some((min, max)) = crate::stdlib::dom::chain_method_arity(&name.local) else {
+            self.emit(
+                UNKNOWN_FUNCTION,
+                format!("unknown chain method `{}`", name.local),
+                range,
+            );
+            return Type::Any;
+        };
+        if args.len() < min || args.len() > max {
+            self.emit(
+                TYPE_ERROR,
+                format!("invalid arity for chain method `{}`", name.local),
+                range,
+            );
+        }
+        let item = match receiver {
+            Type::Chain(item) | Type::Stream(item) => item.as_ref().clone(),
+            other => other.clone(),
+        };
+        let node_method = matches!(
+            name.local.as_str(),
+            "parent"
+                | "children"
+                | "child_nodes"
+                | "ancestors"
+                | "closest"
+                | "name"
+                | "text"
+                | "attribute"
+        );
+        if node_method
+            && !matches!(
+                item,
+                Type::Any | Type::Empty | Type::Node(_) | Type::SchemaElement(_)
+            )
+        {
+            self.emit(
+                TYPE_ERROR,
+                format!("`{}` requires native nodes", name.local),
+                range,
+            );
+        }
+        let arg_types: Vec<_> = args.iter().map(|a| self.infer_expression(a)).collect();
+        if matches!(
+            name.local.as_str(),
+            "find"
+                | "find_last"
+                | "filter"
+                | "closest"
+                | "any"
+                | "all"
+                | "map"
+                | "flat_map"
+                | "sorted_by_key"
+        ) {
+            if let Some(ty) = arg_types.first() {
+                match ty {
+                    Type::Lambda { params, ret } if params.len() == 1 => {
+                        if matches!(
+                            name.local.as_str(),
+                            "find" | "find_last" | "filter" | "closest" | "any" | "all"
+                        ) && !matches!(ret.as_ref(), Type::Any | Type::Atom(AtomType::Boolean))
+                        {
+                            self.emit(TYPE_ERROR, "chain predicate must return a boolean", range);
+                        }
+                    }
+                    Type::Any => (),
+                    _ => self.emit(TYPE_ERROR, "chain callback must accept one argument", range),
+                }
+            }
+        }
+        match name.local.as_str() {
+            "any" | "all" | "is_empty" => boolean_type(),
+            "count" => Type::atom(AtomType::Integer),
+            "name" | "text" if !matches!(receiver, Type::Chain(_)) => Type::atom(AtomType::String),
+            "name" | "text" => Type::Chain(Box::new(Type::atom(AtomType::String))),
+            "parent" | "children" | "child_nodes" | "ancestors" | "closest" | "attribute" => {
+                Type::Chain(Box::new(Type::Node(NodeKind::Node)))
+            }
+            "map" | "flat_map" => Type::Chain(Box::new(Type::Any)),
+            _ => Type::Chain(Box::new(item)),
+        }
     }
 
     fn infer_lambda(&mut self, params: &[FunctionParam], body: &Expression) -> Type {
@@ -844,6 +959,10 @@ impl TypeChecker {
     }
 
     fn call_named(&mut self, name: &QName, args: &[Type], range: ByteRange) -> Type {
+        if name.prefix.as_deref() == Some("dom") && name.local == "chain" && args.len() == 1 {
+            let item = match &args[0] { Type::Stream(item) | Type::Chain(item) => item.as_ref().clone(), other => other.clone() };
+            return Type::Chain(Box::new(item));
+        }
         let Some(signature) = self.lookup_function_signature(name, args.len()) else {
             if self.is_imported_name(name) {
                 return Type::Any;

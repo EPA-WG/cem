@@ -1,5 +1,37 @@
 # CEMT expression insertion — temporary proposal review
 
+## Implicit modules and default bodies
+
+Selected by the user on 2026-09-21: use each template source as an implicit
+module. Imports and template declarations may sit beside executable root
+content. The executable content forms the default body, in source order.
+Explicit `module` and `body` wrappers remain valid; mixed direct/explicit
+bodies and duplicate bodies are errors. Matching declarations need `@name`
+only if also called by name. Visibility, import lifecycle and function bodies
+retain their existing contracts.
+
+The inline Pokémon sample removes both wrappers and its unused name. Shared
+CEM-ML preflight, CEM-QL rendering and the native adapter recognize the same
+forms. Render engine 1.5.7 invalidates older previews. `moduleDeclared` remains
+an explicit-wrapper flag; imports are discovered regardless of that flag.
+
+The user explicitly deferred test changes. Existing tests and integration
+checks validate this increment; permanent implicit-module coverage and legacy
+wrapper-requirement assertion updates are tracked in [TODO](todo.md).
+The unchanged `cem_native_template_schema_requires_module_root` and
+`loads_native_template_document_model_from_schema_uri` tests assert the retired
+module-wrapper and mandatory-name requirements, respectively. They remain
+expected failures until that test-update increment; no test files were edited.
+
+Verification: the existing nine native cell cases, 19 renderer cases, 96 native
+adapter cases, 413 runtime unit cases and five cell browser stories pass.
+WASM probes confirm wrapperless imports, local anonymous-match precedence,
+inactive imported default bodies, module-map preludes and mixed/duplicate body
+rejection. Build, typecheck and lint pass (two existing lint warnings). The real
+cards fit a two-column row at 1440px without overflow at 390px or 320px.
+The full gallery verifier also passes all 28 standalone pages and 34
+source-loaded documents. No test files were changed.
+
 ## Compact module template bodies (R11/R12)
 
 **Selected by the user on 2026-09-21: align shared module preflight with compact

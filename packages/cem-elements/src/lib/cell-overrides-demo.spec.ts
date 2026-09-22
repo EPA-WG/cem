@@ -12,7 +12,8 @@ describe('imported cell presentation lessons', () => {
         expect(page.match(/<template>\n<cem-element/gu)).toHaveLength(3);
         const inline = page.split('<template type="text/cem-ml">')[1].split('</template>')[0];
         expect(inline.match(/@match='([^']+)'/u)?.[1]).toBe('node.name == "name"');
-        expect(inline).toContain('dom:children(dom:parent(node))');
+        expect(inline).toContain('dom::chain(node).parent().children()');
+        expect(inline).toContain('.find(|sibling| sibling.name() == "id").text()');
         expect(inline).toContain('{$node}');
         expect(inline).toContain('@mode=cell');
         expect(page).toContain('href="./stock-cell.cemt"');

@@ -163,6 +163,15 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 
 ## 2. Surface Syntax
 
+- **AC-QS-CHAIN [A] MUST** provide the explicit native `dom::chain(values)`
+  collection API defined in [Native CEM-QL chains](cem-ql-chains.md). Method
+  calls and fields are distinct. Rust-style `|item| expression` callbacks act
+  on individual members; navigation flattens native results, selection returns
+  chains, and explicit boolean/count terminals return scalars. Missing members
+  propagate emptiness without suppressing errors. Stable sorting reorders
+  retained values without modifying the source tree. Existing namespace
+  functions and all-node `.children` field access retain their contracts.
+
 - **AC-QS-1 [A] MUST** support **dot-chained pipeline** form where the
   left-hand stream is the receiver and the right-hand call is applied to
   each item. This is the canonical Rust-method-style traversal surface.

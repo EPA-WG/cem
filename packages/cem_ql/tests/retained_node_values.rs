@@ -399,6 +399,8 @@ enum Behavior {
     Cancel(OperationControl),
     Wide,
     Cycle,
+    ParentCycle,
+    ParentScalar,
 }
 #[derive(Debug, Clone)]
 struct HostNode(Behavior);
@@ -440,6 +442,8 @@ impl QueryItemView for HostNode {
         match self.0 {
             Behavior::Unsupported => Err(QueryNodeAccessError::Unsupported),
             Behavior::Leaf => Ok(None),
+            Behavior::ParentCycle => Ok(Some(Item::native(self.clone()))),
+            Behavior::ParentScalar => Ok(Some(string("invalid"))),
             _ => Ok(Some(Item::native(HostNode(Behavior::Leaf)))),
         }
     }
@@ -538,6 +542,13 @@ fn host_result(
 #[test]
 fn restricted_and_unsupported_views_fail_without_field_or_atom_fallback() {
     for query in [
+        "dom::chain(node).parent()",
+        "dom::chain(node).children()",
+        "dom::chain(node).ancestors()",
+        "dom::chain(node).closest(|n| true)",
+        "dom::chain(node).name()",
+        "dom::chain(node).text()",
+        "dom::chain(node).attribute(\"id\")",
         "dom:parent(node)",
         "dom:children(node)",
         "dom:descendants(node)",
@@ -638,6 +649,9 @@ fn restricted_and_unsupported_views_fail_without_field_or_atom_fallback() {
 #[test]
 fn navigation_and_text_work_are_bounded_and_discard_prefix_on_cancellation() {
     for query in [
+        "dom::chain(node).children()",
+        "dom::chain(node).child_nodes()",
+        "dom::chain(node).children().filter(|n| true)",
         "dom:children(node)",
         "node.dom:children()",
         "dom:descendants(node)",
@@ -994,4 +1008,77 @@ fn native_axes_reject_invalid_nodes_and_selectors_even_on_empty_input() {
             "{query}: {result:?}"
         );
     }
+}
+
+#[test]
+fn chains_stop_native_enumeration_after_a_decisive_result() {
+    for suffix in ["find(|n| true)", "first()", "take(1)", "take(0)", "any(|n| true)", "all(|n| false)", "is_empty()"] {
+        let query = format!("dom::chain(node).children().{suffix}");
+        let result = host_result(&query, Behavior::DenyAfterFirst, 7, ScopePolicy::host_root(), &OperationControl::default());
+        assert!(result.error.is_none(), "{query}: {result:?}");
+    }
+    let result = host_result("dom::chain(node).children().filter(|n| true)", Behavior::DenyAfterFirst, 7, ScopePolicy::host_root(), &OperationControl::default());
+    assert!(result.error.is_some() && result.items.is_empty(), "{result:?}");
+}
+
+#[test]
+fn chain_navigation_is_identical_for_every_import_and_portable_view() {
+    for (format, source) in IMPORTS {
+        let (context, root) = import(format, source);
+        for root in [root.clone(), transported(&root)] {
+            let context = bound(&context, &root);
+            let row = run(r#"dom::chain(dom:descendants(node)).find(|n| n.text() == "ivysaur").parent()"#, &context).items.remove(0);
+            let context = bound(&context, &row);
+            let nodes = run("dom::chain(node).children()", &context).items;
+            assert_eq!(nodes.len(), 2, "{format}");
+            let values = run(r#"dom::chain(node).children().find(|n| n.text() == "ivysaur").parent().children().find(|n| n.text() == "2").text()"#, &context);
+            assert_eq!(values.items, vec![string("2")], "{format}");
+            let sorted = run("dom::chain(node).children().sorted_by_key(|n| n.text())", &context).items;
+            assert_eq!(sorted[0].identity(), nodes[1].identity());
+            assert_eq!(provenance(&sorted[0]), provenance(&nodes[1]));
+        }
+    }
+}
+
+#[test]
+fn cemt_chain_results_reuse_nodes_and_extract_text_at_attribute_boundary() {
+    use cem_ql::render::{compile_template, render_compiled_template, render_plan_to_html, CompileTemplateOptions, RenderPlanNode, TemplateData};
+    let (_, root) = import("xml", "<r><name>ivy</name></r>");
+    let data = TemplateData::default().with_binding("node", ItemStream::once(root.clone()));
+    let compiled = compile_template(r#"{cem:variable @name=names @select='dom::chain(node).children().children()'}{p @title="{$names}" | {$names}}"#, &CompileTemplateOptions::default());
+    let plan = render_compiled_template(&compiled, &data);
+    assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    assert_eq!(render_plan_to_html(&plan), "<p title=\"ivy\"><name>ivy</name></p>");
+    let RenderPlanNode::Element { children, .. } = &plan.nodes[0] else { panic!() };
+    let RenderPlanNode::Reference { reference, .. } = &children[0] else { panic!() };
+    assert_eq!(reference.values()[0].identity(), field(&field(&root, "children")[0], "children")[0].identity());
+}
+
+#[test]
+fn chain_ancestor_cycles_are_bounded_without_recursing_the_host_tree() {
+    for query in ["dom::chain(node).ancestors()", "dom::chain(node).closest(|n| false)"] {
+        let result = host_result(query, Behavior::ParentCycle, 7, ScopePolicy::host_root().with_memory_bytes(64), &OperationControl::default());
+        assert!(result.error.is_some() && result.items.is_empty(), "{query}: {result:?}");
+        assert!(matches!(result.error, Some(EvalError::BudgetExceeded(_))));
+    }
+}
+
+#[test]
+fn chain_rejects_non_node_parent_values_from_a_host() {
+    let result = host_result("dom::chain(node).parent()", Behavior::ParentScalar, 7, ScopePolicy::host_root(), &OperationControl::default());
+    assert!(result.error.is_some() && result.items.is_empty(), "{result:?}");
+}
+
+#[test]
+fn chain_flat_map_materializes_members_for_portable_transport() {
+    use cem_ml::value::artifact::CemValueArtifactLimits;
+    use cem_ql::eval::portable::{decode_values, encode_values};
+    let result = run(r#"dom::chain(("a", "b")).map(|v| (v,v)).flat_map(|v| v)"#, &EvaluationContext::default());
+    let limits = CemValueArtifactLimits::default();
+    let decoded = decode_values(&encode_values(&result, &limits).unwrap(), &limits).unwrap();
+    let mut context = EvaluationContext::default();
+    context.policy_bindings.insert("values".into(), decoded);
+    let resumed = run("dom::chain(values).reversed()", &context);
+    assert_eq!(resumed.items.iter().map(Item::atom).collect::<Vec<_>>(),
+        ["b", "b", "a", "a"].map(|s| Some(AtomValue::String(s.into()))));
 }

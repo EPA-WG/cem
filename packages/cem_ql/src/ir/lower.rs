@@ -681,9 +681,19 @@ impl IrLowerer {
 
     fn lower_step(&mut self, step: &PipelineStep) -> IrStep {
         match step {
-            PipelineStep::Named { name, args, .. } => {
-                let args = args.iter().map(|arg| self.lower_expr(arg)).collect();
-                if let Some(module) = self.stdlib_module_for(name) {
+            PipelineStep::Named {
+                name, args, called, ..
+            } => {
+                let args: Vec<_> = args.iter().map(|arg| self.lower_expr(arg)).collect();
+                if *called
+                    && name.prefix.is_none()
+                    && self.lookup_function_id(name, args_len(&args)).is_none()
+                {
+                    IrStep::Method {
+                        name: name.clone(),
+                        args,
+                    }
+                } else if let Some(module) = self.stdlib_module_for(name) {
                     IrStep::NamedStdlib {
                         module,
                         name: name.clone(),

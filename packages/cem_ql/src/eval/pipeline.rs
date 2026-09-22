@@ -35,7 +35,10 @@ pub(crate) fn apply_pipeline(
     ctx: &mut EvalCtx<'_>,
 ) -> ItemStream {
     let mut stream = source;
-    for step in steps {
+    for (index, step) in steps.iter().enumerate() {
+        if stream.chain && matches!(step, IrStep::Method { .. }) {
+            return super::chain::apply(stream, &steps[index..], ctx);
+        }
         let source = step_source(step);
         if let Err(error) = ctx.poll_work(source) {
             return error;
@@ -54,7 +57,7 @@ pub(crate) fn apply_pipeline(
 fn step_source(step: &IrStep) -> IrId {
     match step {
         IrStep::Lambda(lambda) => *lambda,
-        IrStep::Named { args, .. } | IrStep::NamedStdlib { args, .. } => {
+        IrStep::Method { args, .. } | IrStep::Named { args, .. } | IrStep::NamedStdlib { args, .. } => {
             args.first().copied().unwrap_or(IrId(0))
         }
     }
@@ -62,6 +65,7 @@ fn step_source(step: &IrStep) -> IrId {
 
 fn apply_step(input: ItemStream, step: &IrStep, ctx: &mut EvalCtx<'_>) -> ItemStream {
     match step {
+        IrStep::Method { name, args } => super::chain::method(input, name, args, ctx),
         IrStep::Lambda(lambda) => apply_lambda_step(input, *lambda, ctx),
         IrStep::Named {
             binding,
@@ -107,7 +111,7 @@ fn apply_lambda_step(input: ItemStream, lambda: IrId, ctx: &mut EvalCtx<'_>) -> 
     out
 }
 
-fn apply_builtin_step(
+pub(super) fn apply_builtin_step(
     input: ItemStream,
     name: &QName,
     args: &[IrId],
@@ -203,6 +207,11 @@ pub(crate) fn apply_stdlib_call(
     }
     match (module.0.as_str(), name.local.as_str()) {
         ("cem:stdlib/cemt", "apply_templates") => super::template_dispatch::apply(arg_streams, ctx, source),
+        ("cem:stdlib/dom", "chain") => {
+            let mut out = arg_streams.into_iter().next().unwrap_or_default();
+            out.chain = true;
+            out
+        }
         ("cem:stdlib/dom", "text") => super::values::text(arg_streams, ctx, source),
         ("cem:stdlib/dom", "reference") => ItemStream::once(super::values::reference(
             arg_streams.into_iter().next().unwrap_or_default().items)),
@@ -249,8 +258,8 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/sequence", "peek") => arg_streams.into_iter().next().unwrap_or_default(),
         ("cem:stdlib/sequence", "any") => any_all_sequence(arg_streams, ctx, args, false),
         ("cem:stdlib/sequence", "all") => any_all_sequence(arg_streams, ctx, args, true),
-        ("cem:stdlib/sequence", "group_by") => keyed_collection(arg_streams, ctx, args, true),
-        ("cem:stdlib/sequence", "sorted") => keyed_collection(arg_streams, ctx, args, false),
+        ("cem:stdlib/sequence", "group_by") => keyed_collection(arg_streams, ctx, args, true, false),
+        ("cem:stdlib/sequence", "sorted") => keyed_collection(arg_streams, ctx, args, false, false),
         ("cem:stdlib/sequence", "count") => {
             let count = arg_streams
                 .into_iter()
@@ -738,7 +747,7 @@ fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
     Some(out)
 }
 
-struct AttributeName {
+pub(super) struct AttributeName {
     namespace: String,
     name: String,
 }
@@ -760,7 +769,7 @@ fn selector_string(items: &[Item]) -> Option<String> {
     }
 }
 
-fn attribute_selector(
+pub(super) fn attribute_selector(
     input: &ItemStream,
     ctx: &mut EvalCtx<'_>,
     source: IrId,
@@ -796,7 +805,7 @@ fn attribute_selector(
             "dom:attribute requires an unqualified name string or exactly {namespace: string, name: string}; prefixes and wildcards are not selectors"))
 }
 
-fn navigate_node(
+pub(super) fn navigate_node(
     input: &ItemStream,
     name: &str,
     selector: Option<&AttributeName>,
@@ -1263,11 +1272,12 @@ fn item_string(item: &Item) -> Option<String> {
 
 /// Generic stable grouping/sorting with expression-defined scalar keys. Items are
 /// retained verbatim, including native AST owner handles and source provenance.
-fn keyed_collection(
+pub(super) fn keyed_collection(
     mut args: Vec<ItemStream>,
     ctx: &mut EvalCtx<'_>,
     ids: &[IrId],
     group: bool,
+    identity_key: bool,
 ) -> ItemStream {
     use std::cmp::Ordering;
     let source = ids.first().copied().unwrap_or(IrId(0));
@@ -1276,8 +1286,10 @@ fn keyed_collection(
         error.items.clear();
         return error;
     }
-    let Some(Item::Lambda(lambda)) = args.get(1).and_then(|a| a.items.first()).cloned() else {
-        return ctx.unsupported(source, "collection key must be a lambda");
+    let lambda = match args.get(1).and_then(|a| a.items.first()) {
+        Some(Item::Lambda(lambda)) => Some(*lambda),
+        None if identity_key && !group => None,
+        _ => return ctx.unsupported(source, "collection key must be a lambda"),
     };
     let direction = args
         .get(2)
@@ -1307,7 +1319,10 @@ fn keyed_collection(
         if let Err(error) = ctx.poll_work(source) {
             return error;
         }
-        let mut key = ctx.invoke_lambda(lambda, vec![ItemStream::once(item.clone())]);
+        let mut key = match lambda {
+            Some(lambda) => ctx.invoke_lambda(lambda, vec![ItemStream::once(item.clone())]),
+            None => ItemStream::once(item.clone()),
+        };
         if key.error.is_some() {
             key.items.clear();
             return key;

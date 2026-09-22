@@ -120,7 +120,11 @@ focus is an error. For example:
 Matching supplies `node` without a redundant parameter declaration. Matching,
 named and expression-hook templates accept direct bodies, including imported
 module templates. Use direct content or one explicit `body`; mixed and duplicate
-bodies are errors. See the [compact forms](../../docs/cemt-native-values.md#compact-template-bodies).
+bodies are errors. Each source is an implicit module: imports and declarations
+need no `module` wrapper, and executable root content needs no `body` wrapper.
+Matching rules need no `@name` unless called by name. Explicit wrappers remain
+supported with the same body rules. See the
+[compact forms](../../docs/cemt-native-values.md#compact-template-bodies).
 
 Attribute bodies and `@value` interpolation both use attribute hooks. Controls
 and template calls retain that destination and its metadata; constructed node
@@ -379,6 +383,15 @@ Cancellation is cooperative: checks run during arena preflight and surround the
 existing synchronous projection/writer. Cancellation, `cem.ql.inspect_limit`,
 control exhaustion and `cem.ql.inspect_writer` failures discard the whole
 result and cannot be converted to partial output by `try`/`catch`.
+
+### Native DOM chains
+
+Use `dom::chain(node).parent().children().find(|n| n.name() == "id").text()`
+for fluent native navigation with empty-result propagation. The
+[chain API guide](../../docs/cem-ql-chains.md) documents all methods, Rust-style
+closures, immutable sorting, resource limits and transport behavior. Try the
+[DOM functions samples](../cem-elements/demo/functions/dom.html), with their
+own **CEM Elements/CEM-QL DOM Functions** Storybook group.
 
 ### Collections and presentation dispatch
 

@@ -26,10 +26,10 @@
     }
 
     {elements |
-        {element @name="module" @optional-attributes="version" @children="import param template body"}
+        {element @name="module" @optional-attributes="version" @children="import param template body *"}
         {element @name="import" @required-attributes="as src" @optional-attributes="content-type contentType schema"}
         {element @name="param" @required-attributes="name" @optional-attributes="default default-expr defaultExpr nullable required type visibility"}
-        {element @name="template" @required-attributes="name" @optional-attributes="visibility" @children="param body *"}
+        {element @name="template" @optional-attributes="name visibility match mode priority on into returns" @children="param body *"}
         {element @name="body" @children="*"}
         {element @name="let" @required-attributes="name" @optional-attributes="value expr expression nullable type"}
         {element @name="call" @required-attributes="template" @optional-attributes="from with:*"}
@@ -59,10 +59,11 @@
     }
 
     {constraints |
-        {constraint @kind="single-module-root" @target="module" @policy="required"}
-        {constraint @kind="single-implicit-body" @target="module" @policy="required"}
+        {constraint @kind="single-module-root" @target="module" @policy="implicit document module or one explicit module wrapper"}
+        {constraint @kind="single-implicit-body" @target="module" @policy="direct content or one explicit body; declarations and formatting whitespace may accompany either form"}
         {constraint @kind="unique-import-alias" @target="import" @policy="required"}
         {constraint @kind="template-body-form" @target="template" @policy="direct content or one explicit body; param declarations and formatting whitespace may accompany either form"}
+        {constraint @kind="template-signature" @target="template" @policy="name required for named entrypoints; match declarations and expression hooks may be anonymous"}
         {constraint @kind="unique-template-entrypoint" @target="template" @policy="required"}
         {constraint @kind="unique-param-name-per-scope" @target="param" @policy="required"}
         {constraint @kind="default-expr-reserved" @target="param" @policy="fatal in v1"}

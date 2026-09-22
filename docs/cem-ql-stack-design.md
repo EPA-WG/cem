@@ -465,6 +465,16 @@ comprehension sugar.
 
 ## 10. Layer 6 — Evaluator (`cem_ql::eval`)
 
+The implemented [native chain API](cem-ql-chains.md) preserves a `Chain<T>`
+receiver through explicit method IR steps. Contiguous streaming methods pass
+individual native handles through the evaluator and stop upstream axes for
+decisive selections or boolean answers. Binding/evaluation boundaries
+materialize values; sorting, reverse ordering and last-result operations buffer
+their input. The existing general `ItemStream` remains materialized: this
+extension does not claim that every legacy pipeline is lazy. Portable artifacts
+carry materialized members, not chain execution state. Compiled-query schema
+identity is `1.1.0` so cached IR predating explicit methods is invalidated.
+
 ### Purpose
 
 Walk the IR and produce a `Stream<Item>`. Streams are **lazy** (AC-QP-4):

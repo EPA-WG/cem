@@ -7,6 +7,20 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
+### Native CEM-QL chain API (user-directed)
+
+- [x] Implement typed native chains, Rust paths/closures, navigation, selection,
+  extraction, scalar terminals and immutable stable ordering with Rust tests.
+- [x] Document the [chain contract](cem-ql-chains.md) and simplify the Pokémon cell override.
+- [x] Add the DOM functions demo fixture, dedicated Storybook subset, source
+  contracts and standalone/source-loaded inventory; verify native and browser paths.
+
+Validation: 168 focused Rust checks (including all 26 authored examples),
+441 browser unit tests, 10 DOM/cell Storybook tests, and the complete gallery
+(29 standalone pages / 35 source-loaded documents) pass. WASM/build, typecheck
+and lint pass; lint retains two pre-existing non-null assertion warnings.
+The DOM page has two cards per desktop row and no overflow at 390px or 320px.
+
 Inventory and lock the Phase 6 CEM Site implementation boundary, then build the
 root-wired documentation product from canonical repository sources. Live Figma
 library and prototype updates are deferred to final Phases 10 and 11; Markdown
@@ -1894,6 +1908,29 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             Both WASM worker/file/fallback fixtures pass with constructor parity.
             The operation guide documents `.targets` selection and migration;
             no aliases or new element-construction overloads were introduced.
+      - [x] Implement implicit CEMT modules and default bodies, retaining explicit
+            wrappers and rejecting mixed/duplicate bodies. Allow anonymous match
+            declarations, align shared preflight/native/browser execution, and
+            simplify the inline Pokémon sample. Approved 2026-09-21; leave test
+            files unchanged for this increment and verify with existing coverage.
+            Shared preflight and rendering support implicit imports and anonymous
+            matches; the native adapter accepts direct module bodies. The sample
+            omits both wrappers and its unused name. Existing checks pass: nine
+            native cell cases, 19 renderer cases, 96 adapter cases, 413 runtime
+            unit cases, five cell browser stories, WASM import/body probes,
+            build, typecheck and lint (two existing warnings). The real gallery
+            cards fit two columns at 1440px and have no overflow at 390px/320px.
+            The full gallery verifier passes all 28 standalone pages and 34
+            source-loaded documents. Test files remain unchanged.
+        - [ ] Fixture CEMT-IMPLICIT-MODULES: add permanent parser, renderer,
+              adapter and browser coverage for implicit imports, anonymous
+              matches, explicit/direct body parity and invalid mixtures in the
+              next test-update increment (deferred at the user's request).
+              Update the retired assertions in
+              `cem_native_template_schema_requires_module_root` and
+              `loads_native_template_document_model_from_schema_uri`; the
+              existing focused parser/schema run passes 25 cases and fails
+              these two unchanged mandatory-wrapper/name cases.
       - [x] Fixture CEMT-COMPACT-TEMPLATES: implement the user-approved compact
             module-body grammar (2026-09-21). Align shared module preflight and
             direct compilation, preserve parameters and visibility, and reject

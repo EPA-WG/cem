@@ -241,7 +241,8 @@ impl<'src> Parser<'src> {
                 self.parse_try(token)
             }
             TokenKind::Ident | TokenKind::PrefixedName => {
-                Some(Expression::Name(qname_from_token(&token)?, token.range))
+                let name = self.finish_qname(token)?;
+                Some(Expression::Name(name.clone(), name.range))
             }
             TokenKind::Dot => Some(Expression::LeadingDot(token.range)),
             TokenKind::Slash => {
@@ -258,6 +259,7 @@ impl<'src> Parser<'src> {
             TokenKind::Let => self.parse_let(token),
             TokenKind::For => self.parse_for(token),
             TokenKind::FnKw => self.parse_lambda(token),
+            TokenKind::Pipe | TokenKind::PipePipe => self.parse_rust_closure(token),
             TokenKind::Bang => {
                 let operand = self.parse_expression(PREC_UNARY)?;
                 let range = join_ranges(token.range, operand.range());
@@ -409,6 +411,49 @@ impl<'src> Parser<'src> {
             body: Box::new(body),
             range,
         })
+    }
+
+    fn parse_rust_closure(&mut self, start: Token) -> Option<Expression> {
+        let mut params = Vec::new();
+        if start.kind == TokenKind::Pipe {
+            loop {
+                let name = self.parse_qname()?;
+                params.push(FunctionParam {
+                    name,
+                    type_annotation: None,
+                });
+                if self.match_kind(TokenKind::Comma).is_none() {
+                    break;
+                }
+                if self.at(TokenKind::Pipe) {
+                    break;
+                }
+            }
+            self.expect(TokenKind::Pipe, "`|` after closure parameters")?;
+        }
+        let body = if self.at(TokenKind::LBrace) {
+            self.parse_braced_expression("closure body")?
+        } else {
+            self.parse_expression(0)?
+        };
+        let range = join_ranges(start.range, body.range());
+        Some(Expression::Lambda {
+            params,
+            body: Box::new(body),
+            range,
+        })
+    }
+
+    fn finish_qname(&mut self, token: Token) -> Option<QName> {
+        let mut name = qname_from_token(&token)?;
+        if self.match_kind(TokenKind::ColonColon).is_some() {
+            let local = self.expect(TokenKind::Ident, "name after `::`")?;
+            let local = qname_from_token(&local)?;
+            name.prefix = Some(name.local);
+            name.local = local.local;
+            name.range = join_ranges(name.range, local.range);
+        }
+        Some(name)
     }
 
     fn parse_lambda(&mut self, start: Token) -> Option<Expression> {
@@ -633,7 +678,8 @@ impl<'src> Parser<'src> {
         } else {
             let name = self.parse_qname()?;
             let mut range = join_ranges(dot.range, name.range);
-            let args = if self.match_kind(TokenKind::LParen).is_some() {
+            let called = self.match_kind(TokenKind::LParen).is_some();
+            let args = if called {
                 let args = self.parse_arguments(TokenKind::RParen)?;
                 let close = self.expect(TokenKind::RParen, "`)` after pipeline step arguments")?;
                 range = join_ranges(dot.range, close.range);
@@ -641,7 +687,7 @@ impl<'src> Parser<'src> {
             } else {
                 Vec::new()
             };
-            PipelineStep::Named { name, args, range }
+            PipelineStep::Named { name, args, range, called }
         };
         let range = join_ranges(source.range(), step.range());
         match source {
@@ -693,7 +739,7 @@ impl<'src> Parser<'src> {
     fn parse_qname(&mut self) -> Option<QName> {
         let token = self.bump();
         match token.kind {
-            TokenKind::Ident | TokenKind::PrefixedName => qname_from_token(&token),
+            TokenKind::Ident | TokenKind::PrefixedName => self.finish_qname(token),
             TokenKind::Dollar => {
                 let range = if matches!(
                     self.current().kind,
@@ -1144,6 +1190,7 @@ pub enum PathStep {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PipelineStep {
     Named {
+        called: bool,
         name: QName,
         args: Vec<Expression>,
         range: ByteRange,

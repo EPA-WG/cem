@@ -71,8 +71,30 @@ does not change that focus or the insertion rules. Use direct content or one
 explicit `body`; combining them, or declaring multiple bodies, is a compile
 error. Parameter declarations and formatting whitespace may accompany either
 form. Output comments count as content and belong inside the chosen body.
-Named and matching declarations inside a module still require `@name`;
-expression hooks are exempt. Visibility and function-body syntax are unchanged. The module's own default entrypoint still uses `body`.
+Matching declarations need `@name` only when they are also called by name.
+Expression hooks likewise need no name. Visibility and function-body syntax
+are unchanged.
+
+Each template source is an implicit module. Imports, parameters and template
+declarations produce no output; other content forms the default entrypoint and
+executes in source order. Neither a `module` nor a `body` wrapper is required:
+
+```cem
+{import @as=base @src="./data-table-view.cemt"}
+{template @mode=cell @match='node.name == "name"' |
+    {td | {strong | {$node}}}}
+{call @from=base @template=viewer}
+```
+
+An explicit `module` remains supported, with direct content or one explicit
+`body`. An implicit module may also declare an explicit `body`. Mixing a body
+wrapper with direct executable content, or declaring multiple bodies in one
+module, is an error. Formatting whitespace and declarations can accompany either
+form; output comments count as content. Imported modules follow the same rules;
+their default body is not executed merely by importing them. Named entrypoints
+retain their visibility rules, and anonymous matches remain available for
+dispatch. Import discovery's `moduleDeclared` flag reports an explicit wrapper,
+not whether imports are available.
 
 The inline [Pokémon cell example](../packages/cem-elements/demo/cell-overrides.html)
 uses the compact matching form and its implicit `node` binding. Module import
