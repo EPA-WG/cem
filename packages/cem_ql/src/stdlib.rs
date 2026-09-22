@@ -163,6 +163,8 @@ impl ModuleRegistry {
     }
 
     pub fn with_all_known() -> Self {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("stdlib/assemble-registry");
         let functions = all_known_functions();
         let mut modules = functions
             .iter()

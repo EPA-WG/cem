@@ -327,6 +327,8 @@ pub struct RenderedTemplate {
 }
 
 pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> TemplateArtifact {
+    #[cfg(test)]
+    let mut profile = crate::compile_profile::Span::new("template/tokenize");
     let mut tokenizer =
         CemTokenizer::from_source(BytesSource::new(SourceId(1), source.as_bytes().to_vec()));
     let mut tokens = Vec::new();
@@ -334,6 +336,8 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         tokens.push(token);
     }
 
+    #[cfg(test)]
+    profile.next("template/bindings");
     let mut declared_bindings: BTreeMap<String, ItemStream> = options
         .host_bindings
         .iter()
@@ -368,7 +372,11 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         element_stack: Vec::new(),
         skip_cemt_function_bodies: options.skip_cemt_function_bodies,
     };
+    #[cfg(test)]
+    profile.next("template/compile-nodes");
     let mut nodes = compiler.compile_all();
+    #[cfg(test)]
+    profile.next("template/extract-validate");
     let module_map = extract_static_module_map(&mut nodes, &mut compiler.diagnostics);
     let mut stylesheets = Vec::new();
     extract_static_stylesheets(

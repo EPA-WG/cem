@@ -18,6 +18,8 @@ use crate::resolve::{Arity, QNameKey, SchemaTypeId};
 
 pub mod lattice;
 pub mod subtype;
+#[cfg(test)]
+mod profile_tests;
 
 pub use lattice::TypeLattice;
 pub use subtype::SubtypeChecker;

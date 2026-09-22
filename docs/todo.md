@@ -2303,12 +2303,39 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         stock probes pass. Viewer/runtime sources, story limits and concurrency
         are unchanged. Table completion under final load is 28.600 s, so startup
         headroom and the remaining historical failures stay open.
-  - [ ] Profiling fixture: separate cold XSLT lowering, XPath compilation,
+  - [x] Profiling fixture: separate cold XSLT lowering, XPath compilation,
         generated CEMT compilation and bundle assembly/validation before choosing
-        a compiler optimization. Attribute remaining complete selected-record
-        and template-scope copies independently. Retain source maps, diagnostics,
+        a compiler optimization. Retain source maps, diagnostics,
         artifact validation, public bindings, native import and viewer behavior;
         propose measured bounded changes before further shared implementation.
+        Current fixture: opt-in thread-local Rust test spans around the actual
+        compiler stages; verify byte-identical profiled/unprofiled bundles and
+        native rendering before proposing a production correction.
+        Compare test-only type-surface setup candidates against complete
+        signature maps, imported prefixes, existing host declarations, inferred
+        types and diagnostics under strict/development configurations.
+        Completed 2026-09-22: release profiles attribute 425/702 ms of 493/822 ms
+        base/aspect bundle compilation to 959/1,559 CEM-QL type checks. Two
+        test-only setup candidates preserve checked contracts; a per-compilation
+        prepared baseline reduces the 128-setup median from 53.819 to 44.105 ms.
+        No production optimization is implemented; see the
+        [type-surface proposal](browser-stabilization-review.tmp.md#pending-decision-prepared-type-checking-baseline).
+  - [ ] Decide the shared compiler correction: recommend one lazily initialized,
+        owned built-in type-checker baseline per CEMT compilation, cloned before
+        adding each expression's bindings, imports and declarations. Preserve
+        the complete public function table, diagnostics/configuration and artifact bytes;
+        do not share mutable checkers or introduce a process-global cache.
+  - [ ] Fixture and implementation after that decision: validate checker
+        isolation, import aliases, local function/variable overrides, type
+        configuration, source maps, diagnostics and portable artifact equality;
+        implement the accepted bounded setup reuse, repeat native stage profiles,
+        rebuild WASM, and verify normal plus synchronized browser coverage.
+        Measure complete compiler/browser improvement rather than projecting the
+        microbenchmark percentage. Keep viewer sources, limits and concurrency.
+  - [ ] Profile remaining complete selected-record and template-scope copies
+        independently. Preserve native identities, all public binding access and
+        opaque-callback context; propose measured bounded changes before shared
+        evaluator/renderer implementation.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

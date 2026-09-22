@@ -24,6 +24,8 @@ mod sorting;
 mod templates;
 mod variables;
 mod xpath;
+#[cfg(test)]
+mod profile_tests;
 use templates::TemplateDeclaration;
 type CompileResult<T> = std::result::Result<T, Vec<Diagnostic>>;
 const MAX_SOURCE_BYTES: usize = 128 * 1024;
@@ -105,6 +107,8 @@ pub fn compile_xslt_bundle_with_options(
     source_uri: &str,
     options: &XsltCompileOptions,
 ) -> CompileResult<CompiledXsltBundle> {
+    #[cfg(test)]
+    let mut profile = crate::compile_profile::Span::new("xslt/preflight");
     if options.parameters.len() > 250 {
         return Err(imports::diagnostic(
             source_uri,
@@ -196,6 +200,8 @@ pub fn compile_xslt_bundle_with_options(
         .chain(sources)
         .collect();
     let mut stylesheets = Vec::new();
+    #[cfg(test)]
+    profile.next("xslt/parse-validate");
     let mut manifests = Vec::new();
     let mut hashes = Vec::new();
     for (uri, (source, hash)) in &sources {
@@ -234,6 +240,8 @@ pub fn compile_xslt_bundle_with_options(
             dependencies: vec![],
         });
     }
+    #[cfg(test)]
+    profile.next("xslt/author-link");
     let mut compiler = Compiler {
         stylesheet: &stylesheets[0],
         source_hash: hashes[0].clone(),
@@ -282,7 +290,11 @@ pub fn compile_xslt_bundle_with_options(
     }
     let declarations = imports::link(&mut compiler, &roots, &options.modules, &mut manifests)?;
     compiler.select_source(0);
+    #[cfg(test)]
+    profile.next("xslt/lower-including-xpath");
     let generated_cemt = compiler.templates(&roots[0], &declarations, options)?;
+    #[cfg(test)]
+    profile.next("xslt/generated-template-artifact");
     let template = compile_template_artifact(
         &generated_cemt,
         &CompileTemplateOptions {
@@ -293,6 +305,8 @@ pub fn compile_xslt_bundle_with_options(
         },
         TemplateArtifactSourceMapMode::Dev,
     );
+    #[cfg(test)]
+    profile.next("xslt/compose-including-validation");
     let bytes = XsltBundle::compose(
         &template,
         BundleSource::new(
@@ -305,6 +319,8 @@ pub fn compile_xslt_bundle_with_options(
     .map_err(|error| {
         compiler.error(roots[0].event, "cem.xslt.compile_bundle", error.to_string())
     })?;
+    #[cfg(test)]
+    profile.next("xslt/finalize");
     Ok(CompiledXsltBundle {
         content_hash: ContentHash::from_blake3(&bytes),
         bytes,
@@ -971,10 +987,14 @@ impl<'a> Compiler<'a> {
             .keys()
             .map(|name| (xpath::expanded(name), "item()*".into()))
             .collect();
+        #[cfg(test)]
+        let profile = crate::compile_profile::Span::new("xpath/adapt-and-compile");
         xpath::adapt(&mut expression, kind)
             .map_err(|message| self.error(event, "cem.xslt.compile_xpath", message))?;
         let artifact = XPathCompiledArtifact::compile(&expression, self.source_hash.clone())
             .map_err(|error| self.error(event, "cem.xslt.compile_xpath", error.to_string()))?;
+        #[cfg(test)]
+        drop(profile);
         let id = self.programs.len();
         let mut arguments = vec![
             quote(&format!("xslt.program.{id}")),

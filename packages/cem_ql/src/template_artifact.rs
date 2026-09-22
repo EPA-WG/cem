@@ -118,12 +118,16 @@ pub fn compile_template_artifact(
     options: &CompileTemplateOptions,
     source_map_mode: TemplateArtifactSourceMapMode,
 ) -> CompiledTemplateArtifact {
+    #[cfg(test)]
+    let mut profile = crate::compile_profile::Span::new("template-artifact/compile");
     let host_bindings = canonical_host_bindings(&options.host_bindings);
     let canonical_options = CompileTemplateOptions {
         host_bindings: host_bindings.clone(),
         skip_cemt_function_bodies: options.skip_cemt_function_bodies,
     };
     let mut artifact = compile_template(source, &canonical_options);
+    #[cfg(test)]
+    profile.next("template-artifact/encode");
     if source_map_mode == TemplateArtifactSourceMapMode::Prod {
         strip_template_source_maps(&mut artifact);
     }

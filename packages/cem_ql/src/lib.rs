@@ -30,6 +30,9 @@ pub mod xpath;
 pub mod xslt;
 
 #[cfg(test)]
+mod compile_profile;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

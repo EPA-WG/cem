@@ -1995,3 +1995,137 @@ production code changed, and the browser target reused the existing WASM build.
 The fixture correction is complete, not overall browser stabilization. Keep
 NPM/location tracing available for a reproduced failure and continue the
 independent cold-XSLT stage profile before choosing another shared optimization.
+
+### Cold XSLT compiler stage profile
+
+Native profiling now follows the actual compiler through test-only,
+thread-local spans. The spans and candidate code are absent from production
+and WASM builds. No timer runs in ordinary tests unless a profiling session is
+active. Two ignored release fixtures inspect the complete base/aspect viewer
+stylesheets, including imported modules, Dev source maps, native input and
+unchanged artifact validation. Every compilation builds a fresh bundle; only
+process-level schema initialization warms up. Nested timings are inclusive and
+must not be added to their parent stages.
+
+The final release run reports these five-repeat medians (milliseconds):
+
+| Stage | Base viewer | Imported aspects |
+| --- | ---: | ---: |
+| Complete bundle compilation | 493.444 | 821.583 |
+| Stylesheet parsing/validation | 4.698 | 5.922 |
+| Lowering, including XPath programs | 11.473 | 13.916 |
+| XPath adaptation/compilation within lowering | 4.675 | 5.568 |
+| Generated CEMT artifact, including encoding | 462.770 | 774.143 |
+| CEMT compilation within that artifact | 455.092 | 759.460 |
+| Artifact encoding | 7.693 | 15.341 |
+| Bundle composition, including hostile-reload validation | 14.118 | 25.046 |
+| CEM-QL type checking within CEMT compilation | 425.383 | 702.005 |
+| Function-surface seeding within type checking | 327.898 | 536.570 |
+| Registry assembly within seeding | 43.117 | 70.195 |
+| Host-binding declarations within type checking | 7.214 | 14.773 |
+| Inference/checker disposal within type checking | 90.221 | 149.504 |
+
+The first base compile takes 646.926 ms, including 154.790 ms of stylesheet
+parsing/schema initialization. Later parsing is about 5 ms. The aspects case
+starts after that process-level initialization; its first compile is 821.997 ms.
+An unprofiled compile takes 529.411/810.525 ms. These observations retain ordinary
+timing variance; they are not post-optimization gains. Separate bundle reload is 11.177/18.538 ms.
+Validation bypass is not justified by these results.
+
+Generated CEMT contains **959/1,559** compiled query expressions, versus
+**104/127** XPath programs. Each query seeds the complete standard type surface:
+17 default aliases plus the bare helper surface each assemble a new registry,
+for **17,262/28,062** registry assemblies per bundle. The seeded table has
+399 signatures and 32,859 parameter slots. `native:call` alone declares
+arities 1 through 255, accounting for 32,640 of those slots. Registry assembly
+is measurable but is only part of repeated signature construction and disposal.
+No arity or function is removed by this investigation.
+
+The profile asserts exact equality of complete artifact bytes across all six
+recorded compiles and a compile without recording, then reloads and renders
+native XML with numeric sorting and empty diagnostics. A second reload renders
+identical HTML. These fixture URIs yield bundles of 2,184,579/3,772,915 bytes;
+generated CEMT is 73,208/117,864 bytes. Source-map owners account for URI-dependent
+artifact sizes; comparisons use identical URIs. Runtime source data still enters
+through shared CEM-ML import. Viewer templates and production code paths are
+unchanged.
+
+### Pending decision: prepared type-checking baseline
+
+The measured next correction is in shared CEM-QL/CEMT compilation. Per the
+request to stop at decisions and the active TODO's requirement to propose a
+bounded change before further shared implementation, no production optimization
+has been made.
+
+Two test-only candidates retain the full function table. Six batches of 128
+checker setups, reporting the median after the first batch, give the following.
+All timed batches have recording disabled and include checker disposal; registry
+counts are collected separately. The prepared case also includes preparation
+and disposal of its one extra baseline.
+
+| Setup strategy | Median (ms) | Range (ms) |
+| --- | ---: | ---: |
+| Current complete initialization for each checker | 53.819 | 53.136–58.322 |
+| One local registry per checker initialization | 48.565 | 47.448–50.071 |
+| One prepared built-in baseline, cloned per checker | 44.105 | 43.976–45.702 |
+
+The local-registry candidate reduces 2,304 registry assemblies to 128 and
+improves this setup measurement about 10%. The prepared-baseline candidate
+includes preparing its baseline once per batch and improves the measurement
+about 18%. It still allocates and disposes independent function tables. These
+are setup measurements, not measured whole-compiler or browser gains; the
+prepared candidate does not yet participate in the real template compiler.
+
+Both candidates match every signature, imported prefix and pre-existing host
+variable scope against current initialization. Eight cases under strict and
+development configurations also match inferred types and complete diagnostics:
+simple expressions, lambdas, a standard-library alias, an opaque host import,
+URI helpers, native calls, unknown functions and invalid arithmetic. Existing
+custom host function registration remains present. The candidate alias list
+exists only in the test fixture, with complete-table equality guarding drift;
+it must not become a second production registry.
+
+**Recommend one lazily initialized, owned built-in type-checker baseline per
+CEMT compilation.** Clone it into a fresh checker for each expression, then
+apply that expression's type configuration, import aliases, host bindings and
+local declarations in the current order. Initialize it only when an expression
+actually reaches type checking. Literal-only templates and failures before
+type checking should not pay for preparation. Keep standalone compilation's
+public API and existing behavior. Do not share a mutable checker, cache caller
+bindings, remove public function entries, change arity handling, weaken type
+checks, or introduce a process-global cache.
+
+This retains one additional fixed built-in surface during compilation and
+requires an internal prepared-context path between CEMT and CEM-QL. Each query
+still owns its working table, and the prepared surface is released when that
+template compilation ends. The smaller alternative changes only local registry
+assembly, with less code but the smaller measured benefit. Keeping initialization
+unchanged avoids both changes and retains the measured cost.
+
+After the decision, add native regressions for cross-expression/template
+isolation, custom/local function overrides, imported aliases, strict/development
+diagnostics, failed compilation, no-expression templates, source maps and
+complete portable bytes. Implement the accepted path, repeat the actual stage
+profile, rebuild WASM and check normal plus synchronized Storybook/standalone
+startup with existing limits, concurrency and viewer sources. The remaining
+selected-record/template-scope copying and NPM/location readiness attribution
+remain separate open tasks.
+
+Reproduce the profiles with:
+
+```sh
+cargo test -p cem-ql --release --lib profile_ -- --ignored --nocapture --test-threads=1
+```
+
+Evidence: `/tmp/cem-xslt-stage-profile.log` (initial stage split),
+`/tmp/cem-xslt-type-stage-profile.log` (type-check attribution),
+`/tmp/cem-xslt-candidate-profile.log` (first candidate comparison), and
+`/tmp/cem-xslt-final-profile.log` (final profiles with setup timing separated
+from registry counting). Both final release profiles pass. The full native
+Nx test gate passes **648 tests**, with seven opt-in profiles skipped; native
+lint passes with the existing 131 CEM-ML/41 CEM-QL warnings. New fixture
+formatting and whitespace checks pass. Logs:
+`/tmp/cem-xslt-stage-native-tests.log` and `/tmp/cem-xslt-stage-native-lint.log`.
+Browser/WASM gates are deferred until an actual production optimization; this
+test-only investigation does not claim improved browser startup or completion
+of stabilization.

@@ -38,6 +38,8 @@ const DEFAULT_EXPRESSION_QUEUE_SIZE: u32 = 256;
 
 /// Compile a CEM-QL query module source string into a typed IR.
 pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, CompileError> {
+    #[cfg(test)]
+    let mut profile = crate::compile_profile::Span::new("query/parse");
     let parsed = parse(source);
     if let Some(diagnostic) = parsed
         .diagnostics
@@ -46,6 +48,8 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
     {
         return Err(CompileError::diagnostic(diagnostic));
     }
+    #[cfg(test)]
+    profile.next("query/imports");
     let import_report = resolve_imports(&parsed.module, &context.import_policy);
     if let Some(diagnostic) = import_report
         .iter()
@@ -53,6 +57,8 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
     {
         return Err(CompileError::diagnostic(diagnostic));
     }
+    #[cfg(test)]
+    profile.next("query/type-check");
     let type_report = type_check(&parsed.module, context);
     if let Some(diagnostic) = type_report
         .iter()
@@ -60,6 +66,8 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
     {
         return Err(CompileError::diagnostic(diagnostic));
     }
+    #[cfg(test)]
+    profile.next("query/lower");
     let lowered = IrLowerer::new()
         .with_policy_bindings(context.policy_bindings.keys().cloned())
         .lower_module(&parsed.module);
@@ -225,11 +233,19 @@ pub fn resolve_imports(module: &SurfaceModule, import_policy: &ImportPolicy) -> 
 
 /// Run strict or profile-configured static type checks for a parsed module.
 pub fn type_check(module: &SurfaceModule, context: &CompileContext) -> Vec<Diagnostic> {
+    #[cfg(test)]
+    let mut profile = crate::compile_profile::Span::new("type-check/new");
     let mut checker = TypeChecker::with_config(context.type_config.clone());
+    #[cfg(test)]
+    profile.next("type-check/seed-functions");
     checker.seed_runtime_import_surface(module);
+    #[cfg(test)]
+    profile.next("type-check/bindings");
     for name in context.policy_bindings.keys() {
         checker.declare_variable(crate::resolve::QNameKey::new(None, name.clone()), Type::Any);
     }
+    #[cfg(test)]
+    profile.next("type-check/infer-and-drop");
     checker.check_surface_module(module).diagnostics
 }
 
