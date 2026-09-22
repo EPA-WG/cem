@@ -3,6 +3,8 @@ use crate::ir::CompiledQuery;
 
 impl EvaluationContext {
     pub(crate) fn for_query(&self, query: &CompiledQuery) -> Self {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("copy/expression-context");
         let Some(used) = query.binding_dependencies() else {
             return self.clone();
         };

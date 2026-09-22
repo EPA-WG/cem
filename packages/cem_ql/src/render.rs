@@ -39,6 +39,8 @@ use construction::ResultBuffer;
 
 #[cfg(test)]
 mod prepared_tests;
+#[cfg(test)]
+mod copy_profile_tests;
 
 /// Explicit result instructions survive portable compilation. Unknown instructions
 /// are rejected by older artifact readers instead of becoming literal elements.
@@ -990,13 +992,19 @@ fn render_compiled_template_internal(
     let control = Some(control.unwrap_or((&owned_control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)));
     let policy = control.and_then(|(c, s)| c.scope_tree().scope(s).map(|s| s.effective_policy))
         .unwrap_or_else(ScopePolicy::host_root);
+    #[cfg(test)]
+    let mut profile = crate::compile_profile::Span::new("render/input-context");
     let mut policy_bindings = data.bindings.clone();
     let datadom = data_document_with_host_bindings(&data.bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
     let mut host_attribute_updates =
         seed_declaration_defaults(&artifact.nodes, &mut policy_bindings);
+    #[cfg(test)]
+    profile.next("render/index-templates");
     let templates = collect_named_templates(&artifact.nodes);
     let match_rules = collect_match_rules(&artifact.nodes);
+    #[cfg(test)]
+    profile.next("render/renderer-metadata");
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
             scope: QueryContextScope(0),
@@ -1031,6 +1039,8 @@ fn render_compiled_template_internal(
         expression_target: data.expression_scope.target.clone(),
         calls,
     };
+    #[cfg(test)]
+    profile.next("render/body");
     let mut nodes = ResultBuffer::default();
     renderer.apply_attribute_declaration_selects(&artifact.nodes, &mut host_attribute_updates);
     renderer.validate_receiver_inputs(&artifact.nodes, &data.input_attribute_contracts);
@@ -2799,6 +2809,8 @@ impl PlanRenderer<'_> {
     ) {
         self.hook_scopes.push(Vec::new());
         self.render_scope_depth += 1;
+        #[cfg(test)]
+        let profile = crate::compile_profile::Span::new("copy/scoped-variable-snapshot");
         let names = nodes
             .iter()
             .filter_map(|node| match node {
@@ -2812,6 +2824,8 @@ impl PlanRenderer<'_> {
                 .entry(name.clone())
                 .or_insert_with(|| self.evaluation_context.policy_bindings.get(&name).cloned());
         }
+        #[cfg(test)]
+        drop(profile);
         for node in nodes {
             self.render_into(node, out, parent_attributes);
         }
@@ -3216,7 +3230,11 @@ impl PlanRenderer<'_> {
             return;
         }
         let previous_node = self.evaluation_context.policy_bindings.get("node").cloned();
-        let rules = self.match_rules.clone();
+        let rules = {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("copy/match-rules");
+            self.match_rules.clone()
+        };
         let previous_focus = self.evaluation_context.current_item.clone();
         for item in selected
             .items
@@ -3291,7 +3309,11 @@ impl PlanRenderer<'_> {
             ));
             return;
         };
-        let Some(template_nodes) = self.templates.get(&template_name).cloned() else {
+        let Some(template_nodes) = ({
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("copy/call-template");
+            self.templates.get(&template_name).cloned()
+        }) else {
             self.template_failure(render_diagnostic(
                 "cem.transform_template.call_unknown",
                 format!("native template call target `{template_name}` was not compiled"),
@@ -3617,11 +3639,15 @@ impl PlanRenderer<'_> {
             return ItemStream::empty();
         }
         let (control, scope) = self.control.clone().unwrap_or_else(|| (OperationControl::default(), cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID));
+        #[cfg(not(test))]
         let context = self.evaluation_context.for_query(query);
         let protected = self.recovery_depth > 0;
+        #[cfg(not(test))]
         let stream = crate::eval::Evaluator::evaluate_internal(
             query, &context, &control, scope, protected, Some(self),
         );
+        #[cfg(test)]
+        let stream = copy_profile_tests::evaluate_candidate(self, query, &control, scope, protected);
         if self.recovery_depth > 0 {
             if let Some(error) = &stream.error {
                 if let Some(diagnostic) = stream
@@ -3651,14 +3677,22 @@ impl PlanRenderer<'_> {
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
         let first_catch = children.iter().position(|n| matches!(n, TemplateNode::Element { tag, .. } if local_template_name(tag) == "catch")).unwrap_or(children.len());
-        let saved_bindings = self.evaluation_context.policy_bindings.clone();
+        let saved_bindings = {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("copy/try-snapshot");
+            self.evaluation_context.policy_bindings.clone()
+        };
         let diagnostic_start = self.diagnostics.len();
         let mut buffered = ResultBuffer::default();
         let mut attributes = parent_attributes.clone();
         self.recovery_depth += 1;
         self.render_nodes_scoped(&children[..first_catch], &mut buffered, &mut attributes);
         self.recovery_depth -= 1;
-        self.evaluation_context.policy_bindings = saved_bindings.clone();
+        self.evaluation_context.policy_bindings = {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("copy/try-restore");
+            saved_bindings.clone()
+        };
         if self.control_failed {
             return;
         }
@@ -3737,7 +3771,11 @@ impl PlanRenderer<'_> {
                 self.evaluation_context.policy_bindings = saved_bindings;
                 return;
             }
-            self.evaluation_context.policy_bindings = saved_bindings.clone();
+            self.evaluation_context.policy_bindings = {
+                #[cfg(test)]
+                let _profile = crate::compile_profile::Span::new("copy/try-restore");
+                saved_bindings.clone()
+            };
         }
         self.evaluation_context.policy_bindings = saved_bindings;
         self.failure = Some(failure);

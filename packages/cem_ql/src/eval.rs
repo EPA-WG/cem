@@ -708,6 +708,8 @@ impl<'a> EvalCtx<'a> {
     }
 
     fn bind_policy_bindings(&mut self, context: &EvaluationContext) {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("copy/evaluator-bindings");
         let dependencies = self.query.binding_dependencies();
         for (binding, name) in &self.query.policy_bindings {
             if dependencies.as_ref().is_some_and(|used| !used.contains(binding)) {
@@ -1579,6 +1581,8 @@ impl<'a> EvalCtx<'a> {
     fn lookup_var(&mut self, binding: BindingId) -> ItemStream {
         for scope in self.scopes.iter().rev() {
             if let Some(value) = scope.get(&binding) {
+                #[cfg(test)]
+                let _profile = crate::compile_profile::Span::new("copy/local-value");
                 return value.clone();
             }
         }

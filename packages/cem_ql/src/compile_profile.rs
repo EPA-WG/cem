@@ -1,4 +1,4 @@
-//! Opt-in, thread-local measurements for native compiler profiling tests only.
+//! Opt-in, thread-local measurements for native compiler and rendering profiling tests only.
 use std::{
     cell::RefCell,
     collections::BTreeMap,

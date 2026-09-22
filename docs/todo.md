@@ -2342,10 +2342,36 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         story completes in 24.082 s within its unchanged 30-second limit.
         NPM/location ran after the added stock load ended; their readiness work
         stays open. See the [implementation evidence](browser-stabilization-review.tmp.md#prepared-baseline-implementation-and-validation).
-  - [ ] Profile remaining complete selected-record and template-scope copies
+  - [x] Profile remaining complete selected-record and template-scope copies
         independently. Preserve native identities, all public binding access and
         opaque-callback context; propose measured bounded changes before shared
         evaluator/renderer implementation.
+        Completed 2026-09-22: native stage and small-scope fixtures distinguish
+        expression contexts, evaluator bindings/local values, template/rule
+        clones and snapshots. The unchanged viewer preserves exact output,
+        diagnostics and source maps across four formats and retained native
+        inputs. A test-only borrowing candidate reduces loaded viewer medians
+        32.144→23.123 ms (XML), 31.643→23.231 ms (CSV), 33.225→24.813 ms (YAML)
+        and 31.914→24.051 ms (JSON); it removes one context-copy layer while
+        preserving downstream copies and callback fallback. All 653 native tests,
+        the release profile and native lint pass; production behavior is unchanged.
+        See the
+        [measured proposal](browser-stabilization-review.tmp.md#pending-decision-borrow-proven-expression-contexts).
+  - [ ] Decide whether compiler-proven expressions may borrow the renderer's
+        existing context without mutable CEMT-host access. Recommend borrowing
+        only under the existing conservative dependency proof; preserve the
+        current complete-context copy and host path for opaque/native/CEMT calls.
+  - [ ] If accepted, promote the borrowed-context candidate with native failure,
+        cancellation, focus/capability, whole-record and callback regressions;
+        repeat release profiles, rebuild WASM and verify normal plus synchronized
+        browser coverage. Preserve public APIs/artifacts, viewer sources, limits
+        and concurrency. No production optimization is applied at this checkpoint.
+  - [ ] After that bounded correction, investigate remaining evaluator binding
+        and local-value copies, shadowed-variable snapshots, try/catch snapshots
+        and eligible-hook context capture separately. Keep owned public values,
+        native identity, rollback and callback contracts; propose any shared
+        ownership/lifetime change before implementation. The direct CEM-QL
+        workload and scope snapshots are unaffected by the current candidate.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

@@ -2215,3 +2215,150 @@ Evidence: `/tmp/cem-prepared-normal.log`,
 `/tmp/cem-prepared-synchronized.log`,
 `/tmp/cem-prepared-synchronized-stock.{json,log}` and
 `/tmp/cem-prepared-synchronized-status.log` (both subprocesses exit zero).
+
+
+### Selected-record and template-scope copy attribution
+
+The follow-up uses opt-in native test spans around expression-context creation,
+evaluator binding setup, local-value cloning, scoped-variable snapshots,
+compiled template/rule copies and try/catch snapshots. Production behavior and
+viewer sources remain unchanged. The fixture compares 0 and 256 synthetic
+browser control records; these are explicit host metadata, never imported
+JSON/XML/YAML/CSV document objects.
+
+The same authored viewer runs with all four source formats and a separately
+retained native reader value. External documents still enter exclusively through
+shared CEM-ML import. Recording-on/off runs verify exact HTML, diagnostics,
+host-attribute updates and output source-map spans. Numeric sorting and retained
+root identity remain correct. The retained-input fixture substitutes only the
+reader declaration in its in-memory template copy, as in the existing table
+profile; repository viewer templates are untouched.
+
+Small fixtures separate repeated member reads, named/matched calls, shadowed
+variables, try/catch and eligible false-match hooks. Whole-record selection
+still incurs evaluator binding and local-value copies, independently of CEMT.
+Template-scoped snapshots occur on shadowing/recovery/hook paths; they are not
+interchangeable with selected-record copies. Nested profile totals include their
+children and must not be summed with them. Clone spans exclude later disposal;
+whole-operation measurements include temporary-context disposal.
+
+### Pending decision: borrow proven expression contexts
+
+A bounded test-only candidate uses the existing conservative
+`CompiledQuery::binding_dependencies()` proof to identify expressions that cannot
+require mutable CEMT-host access. Those expressions evaluate directly against a
+borrow of the renderer's existing `EvaluationContext`; the evaluator continues
+its current dependency filtering and owned value copies. Native extension
+calls, CEMT dispatch, unknown modules and unresolved/dynamic calls retain the
+existing complete-context copy and mutable-host path. Every function body is
+inspected by the existing proof, including nested and otherwise unused functions.
+
+This removes one expression-local context copy and its disposal. It does not
+prune record members, change public value representations, share mutable
+binding maps or remove scope snapshots. Query scope, focus, policy, diagnostics,
+reader/resolver capabilities and native registries are retained. No new IR
+metadata or public API is needed. The proof is already conservative for binding
+selection; using it to omit mutable template-host access is the new shared
+renderer decision.
+
+The candidate is scoped to a thread-local switch in native tests, restored on
+unwind. Its implementation is absent from production and WASM. Focused checks
+compare the original and candidate after portable artifact reload: full record
+entries, native identity/current focus, shadowed variables, catch recovery,
+direct and lambda-nested CEMT dispatch, and native callbacks with preserved
+arguments, provenance and operation control. They assert that callback cases
+still enter the original copied-context path.
+
+Recommend this bounded borrowing path before a broader internal shared-value
+redesign. Keeping current copies avoids the change but retains the measured
+cost. Changing all record/scoped-binding ownership could remove more copies,
+but would require a separate design for public owned values, mutation,
+callback materialization and snapshot lifetime. Do not infer that alternative
+from this candidate.
+
+The active TODO requires a measured proposal before another shared
+implementation, and the user requested a stop at decisions. Native release
+measurements and validation follow below before requesting approval. If
+accepted, promote the candidate with focused regression coverage for failure
+and cancellation boundaries, full record access and capability/focus
+preservation; repeat the native profile, rebuild WASM and verify normal plus
+synchronized browser coverage. Keep viewer sources, existing limits and worker
+concurrency. Remaining evaluator copies, scope snapshots and NPM/location
+readiness attribution stay separate.
+
+
+#### Release measurements for the borrowing candidate
+
+The release fixture passes with six recording-on runs per strategy and six
+recording-off runs, reporting five warm samples after excluding the first.
+Current and candidate use the same binary and inputs; compilation, import of
+retained test inputs, output checks and unrelated builds are outside the timed
+region. Strategies run in successive batches, so ranges are retained and
+small differences must not be interpreted as gains.
+
+| Authored viewer, 256 nested controls | Current median (ms) | Borrowing candidate (ms) | Reduction |
+| --- | ---: | ---: | ---: |
+| XML | 32.144 | 23.123 | 28.1% |
+| CSV | 31.643 | 23.231 | 26.6% |
+| YAML | 33.225 | 24.813 | 25.3% |
+| JSON | 31.914 | 24.051 | 24.6% |
+
+XML ranges are 30.473–35.084 ms current and 22.749–24.120 ms candidate. The
+separate retained-reader runs also improve: XML 34.444→26.134 ms, CSV
+31.304→23.880 ms, YAML 33.306→23.970 ms and JSON 33.437→25.691 ms. All four
+formats use the same downstream CEM-tree path. Without added controls, the
+current/candidate XML viewer medians are 1.962/1.969 ms; this correction targets
+context size, not every render equally. These are native measurements, with no
+browser speed or stabilization-completion claim.
+
+The recorded XML stages explain the bounded gain:
+
+| Stage, loaded XML viewer | Calls | Current median (ms) |
+| --- | ---: | ---: |
+| Expression-context selection and copying | 145 | 4.436 |
+| Evaluator binding selection and copying | 145 | 4.447 |
+| Local-value cloning | 311 | 3.104 |
+| Named template-body cloning | 9 | 0.294 |
+| Match-rule cloning | 1 | 0.030 |
+| Scoped-variable snapshot setup | 120 | 0.017 |
+| Initial render context construction | 1 | 1.314 |
+| Template indexing | 1 | 0.367 |
+
+The candidate removes all 145 expression-context copies in this fixture;
+145 evaluator setups and 311 local-value clones still execute. The context
+clone span measures construction only, while the full render also benefits
+from avoiding its disposal. The other stage medians and total contain timing
+variance; do not attribute the entire remaining render time to these spans.
+
+The independent 32-operation fixtures retain their separate costs. With loaded
+controls, repeated member interpolation measures 78.640→62.489 ms. Literal
+output is 1.838/1.793 ms, named calls 1.704/1.776 ms, matched calls
+1.823/1.741 ms, shadowing 11.140/11.330 ms and try/catch 56.524/56.485 ms.
+Try/catch's 32 snapshot/restore copies account for 15.111/14.733 ms before
+later disposal. Eligible false-match hooks measure 103.875/99.210 ms, including
+hook processing and snapshots; the internal hook costs are not fully split by
+this fixture. None of those snapshot paths is removed by the candidate.
+
+Direct CEM-QL member access remains a negative control: it bypasses CEMT and
+therefore cannot use this candidate. The small/loaded current medians are
+0.009/0.961 ms. Its second batch, labeled `borrow-candidate`, executes identical
+standalone code; its 0.008/0.787 ms values are variation, not an optimization.
+The measured remaining copies therefore justify separate follow-up work,
+without a record representation or scope-lifetime migration in this proposal.
+
+Reproduce with:
+
+```sh
+cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
+```
+
+Evidence: `/tmp/cem-render-copy-debug.log`,
+`/tmp/cem-render-copy-candidate-debug.log`, `/tmp/cem-render-copy-contracts.log`,
+`/tmp/cem-render-copy-release.log` and `/tmp/cem-render-copy-lint.log`.
+Native lint passes with the existing 131 CEM-ML/41 CEM-QL warnings. The full
+native Nx suite passes **653 tests**, with eight opt-in profiles skipped
+(`/tmp/cem-render-copy-native-tests.log`). Fixture formatting and diff checks
+pass. Browser/WASM gates are reserved for an accepted production optimization;
+this investigation does not rebuild or alter the packaged WASM. The production
+render path retains its original context copies, scope handling and callbacks.
+The next step is the explicit borrowing decision above.
