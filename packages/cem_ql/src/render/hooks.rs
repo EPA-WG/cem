@@ -199,7 +199,11 @@ impl PlanRenderer<'_> {
                 .unwrap_or(0),
             returns: literal_template_attribute(attributes, "returns"),
             body: template_body_nodes(children),
-            bindings: self.evaluation_context.policy_bindings.clone(),
+            bindings: {
+                #[cfg(test)]
+                let _profile = crate::compile_profile::Span::new("copy/hook-capture");
+                self.evaluation_context.policy_bindings.clone()
+            },
         };
         self.hook_scopes.last_mut().expect("root scope").push(hook);
     }
@@ -219,10 +223,22 @@ impl PlanRenderer<'_> {
         }) {
             return input;
         }
-        let scopes = self.hook_scopes.clone();
-        let previous = self.evaluation_context.policy_bindings.clone();
+        let scopes = {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("copy/hook-scopes");
+            self.hook_scopes.clone()
+        };
+        let previous = {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("copy/hook-caller");
+            self.evaluation_context.policy_bindings.clone()
+        };
         let previous_focus = self.evaluation_context.current_item.clone();
-        let mut result = input.clone();
+        let mut result = {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("copy/hook-default-input");
+            input.clone()
+        };
         'scopes: for scope in scopes.iter().rev() {
             let mut candidates: Vec<_> = scope
                 .iter()
@@ -231,7 +247,15 @@ impl PlanRenderer<'_> {
                 .collect();
             candidates.sort_by_key(|(order, hook)| std::cmp::Reverse((hook.priority, *order)));
             for (_, hook) in candidates {
-                self.evaluation_context.policy_bindings = hook.bindings.clone();
+                {
+                    #[cfg(test)]
+                    let _profile = crate::compile_profile::Span::new("scope/hook-install");
+                    self.evaluation_context.policy_bindings = {
+                        #[cfg(test)]
+                        let _profile = crate::compile_profile::Span::new("copy/hook-bindings");
+                        hook.bindings.clone()
+                    };
+                }
                 self.evaluation_context
                     .policy_bindings
                     .insert("value".into(), input.clone());
@@ -323,7 +347,11 @@ impl PlanRenderer<'_> {
                 break 'scopes;
             }
         }
-        self.evaluation_context.policy_bindings = previous;
+        {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("scope/hook-restore");
+            self.evaluation_context.policy_bindings = previous;
+        }
         self.evaluation_context.current_item = previous_focus;
         result
     }

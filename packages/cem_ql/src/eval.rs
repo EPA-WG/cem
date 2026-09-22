@@ -40,6 +40,9 @@ pub mod pipeline;
 pub mod set_ops;
 pub mod types_runtime;
 
+#[cfg(test)]
+pub(crate) mod binding_profile_tests;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct QueryContextScope(pub u32);
 
@@ -602,7 +605,10 @@ impl Evaluator {
 
     pub(crate) fn evaluate_internal<'a>(
         query: &'a CompiledQuery,
+        #[cfg(not(test))]
         context: &EvaluationContext,
+        #[cfg(test)]
+        context: &'a EvaluationContext,
         control: &OperationControl,
         scope: ExecutionScopeId,
         protected: bool,
@@ -630,6 +636,9 @@ pub(crate) struct EvalCtx<'a> {
     template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
     safe_points: SafePointPoller,
     scopes: Vec<HashMap<BindingId, ItemStream>>,
+    // Investigation only: immutable input borrows never escape evaluation.
+    #[cfg(test)]
+    borrowed_inputs: HashMap<BindingId, &'a ItemStream>,
     globals: HashMap<BindingId, IrId>,
     functions: HashMap<BindingId, IrId>,
     current_items: Vec<Item>,
@@ -651,7 +660,10 @@ pub(crate) struct EvalCtx<'a> {
 impl<'a> EvalCtx<'a> {
     fn new(
         query: &'a CompiledQuery,
+        #[cfg(not(test))]
         context: &EvaluationContext,
+        #[cfg(test)]
+        context: &'a EvaluationContext,
         control: &OperationControl,
         scope: ExecutionScopeId,
     ) -> Self {
@@ -668,6 +680,8 @@ impl<'a> EvalCtx<'a> {
             template_host: None,
             safe_points: SafePointPoller::new(control.clone(), scope),
             scopes: vec![HashMap::new()],
+            #[cfg(test)]
+            borrowed_inputs: HashMap::new(),
             globals: HashMap::new(),
             functions: HashMap::new(),
             current_items: context.current_item.clone().into_iter().collect(),
@@ -707,10 +721,26 @@ impl<'a> EvalCtx<'a> {
         }
     }
 
-    fn bind_policy_bindings(&mut self, context: &EvaluationContext) {
+    fn bind_policy_bindings(
+        &mut self,
+        #[cfg(not(test))] context: &EvaluationContext,
+        #[cfg(test)] context: &'a EvaluationContext,
+    ) {
         #[cfg(test)]
         let _profile = crate::compile_profile::Span::new("copy/evaluator-bindings");
         let dependencies = self.query.binding_dependencies();
+        #[cfg(test)]
+        if binding_profile_tests::enabled() && dependencies.is_some() {
+            let _profile = crate::compile_profile::Span::new("candidate/borrowed-input-bindings");
+            for (binding, name) in &self.query.policy_bindings {
+                if dependencies.as_ref().is_some_and(|used| used.contains(binding)) {
+                    if let Some(value) = context.policy_bindings.get(name) {
+                        self.borrowed_inputs.insert(*binding, value);
+                    }
+                }
+            }
+            return;
+        }
         for (binding, name) in &self.query.policy_bindings {
             if dependencies.as_ref().is_some_and(|used| !used.contains(binding)) {
                 continue;
@@ -1585,6 +1615,11 @@ impl<'a> EvalCtx<'a> {
                 let _profile = crate::compile_profile::Span::new("copy/local-value");
                 return value.clone();
             }
+        }
+        #[cfg(test)]
+        if let Some(value) = self.borrowed_inputs.get(&binding) {
+            let _profile = crate::compile_profile::Span::new("copy/local-value");
+            return (*value).clone();
         }
         if let Some(let_id) = self.globals.get(&binding).copied() {
             if let Some(IrNode::Let { value, .. }) = self.query.tree.node(let_id).cloned() {

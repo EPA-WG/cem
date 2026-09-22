@@ -2464,3 +2464,179 @@ concurrency, viewer source or browser-runtime behavior was changed to pass.
 This completes the approved borrowing correction. Next, measure remaining
 evaluator binding/local-value copies and scope snapshots independently, then
 propose any broader ownership or lifetime change before implementation.
+
+### Evaluator input and scope-copy follow-up
+
+The `8fc03964` borrowing correction removes the renderer's expression-context
+copy. Several independent costs remain, and this investigation keeps production
+behavior unchanged:
+
+- `EvalCtx::bind_policy_bindings` copies each selected complete input stream
+  into its root scope. Borrowing the renderer context does not remove this copy.
+- `lookup_var` returns an owned clone for each read, including complete nested
+  records. A repeated read pays again; locals, parameters and returned values
+  retain their existing ownership.
+- `record_field` clones its input collection while flattening one array level,
+  then clones the selected record values. The new `copy/field-input` and
+  `copy/field-selected` spans separate these from variable reads. Native view
+  access stays on its existing path; no format-specific evaluator is involved.
+- CEMT saves shadowed variables, snapshots complete bindings for try/catch, and
+  captures complete lexical bindings when registering expression hooks. Eligible
+  hooks also clone their hook scopes and caller bindings, then install a cloned
+  captured environment for each candidate. Registration, caller capture, scope
+  cloning, candidate installation and restoration now have separate test spans.
+
+Clone spans measure construction only. `scope/hook-install` and
+`scope/try-restore` additionally include replacement/disposal and contain their
+nested clone spans; do not sum parent and child timings. Complete-operation
+timings include temporary-value disposal. `scope/variable-restore` and
+`scope/hook-restore` expose restoration work separately. Hook input sizing is
+kept constant in this fixture; large expression payloads remain separate work.
+
+The expanded native fixture retains the original 0/256-control cases and the
+unchanged four-format table viewer. It adds successful, recovering and scanning
+catch cases, plus false, true and scanning expression hooks, with 32 operations
+per small template. Synthetic records represent explicit host control metadata;
+XML/JSON/YAML/CSV fixture documents still enter through shared CEM-ML import.
+The original/current/candidate outputs, diagnostics, complete output source maps,
+host updates, numeric sorting and retained native identities must agree.
+
+#### Test-only borrowed evaluator inputs
+
+The candidate retains selected input streams by immutable reference for the
+duration of evaluation, only when the existing conservative dependency proof
+returns `Some`. A separate internal map holds those references. Owned locals and
+parameters take precedence; reads still clone complete streams, and all results
+remain owned. The candidate does not prune record members, change public
+`Item`/`ItemStream` representations, alter scope snapshots, or borrow output.
+Opaque/native/CEMT calls keep their current complete owned input bindings.
+
+The map, input lifetime annotations and selection path are all under `cfg(test)`;
+a thread-local, unwind-safe switch defaults off. The profiler's `copied-context`
+batch forces the pre-`8fc03964` renderer path, `borrowed-context` uses current
+production behavior, and `borrowed-input-candidate` adds the proposed evaluator
+borrowing. Standalone CEM-QL is identical in the first two batches; the third
+now changes evaluator setup. Only the latter two compare the proposed correction
+against the current implementation.
+
+Focused native checks prove actual reference reuse, scope shadowing/restoration,
+independent owned result mutation, full records and stream metadata (including
+diagnostics, errors, cursor and chain state), nested captures and forward calls.
+The renderer contract matrix additionally compares against forced original
+copies after portable reload, including current focus/native identity, reader
+ownership and cache clearing, callback fallback, failure provenance, recovery,
+mid-expression cancellation and lower child-scope budgets. The expanded debug
+profile passes in `/tmp/cem-input-binding-debug-profile.log`; focused contracts
+pass in `/tmp/cem-input-binding-contracts.log`.
+
+#### Release attribution and candidate measurements
+
+The expanded release profile passes in 38.42 s
+(`/tmp/cem-input-binding-release.log`; build:
+`/tmp/cem-input-binding-release-build.log`). As before, each strategy runs six
+recorded and six unrecorded iterations, excludes the first, and reports five
+warm samples. Compilation, verification, and unrelated builds are outside the
+timed region. The following medians have recording disabled; adjacent strategy
+batches use the same binary and inputs.
+
+| Authored viewer, 256 nested controls | Current (ms) | Borrowed-input candidate (ms) | Reduction |
+| --- | ---: | ---: | ---: |
+| XML | 23.820 | 15.437 | 35.2% |
+| CSV | 24.946 | 15.853 | 36.5% |
+| YAML | 25.610 | 16.624 | 35.1% |
+| JSON | 25.249 | 17.375 | 31.2% |
+
+XML ranges are 22.558–25.705/14.730–17.007 ms. JSON has wider candidate variation,
+23.215–26.474/15.638–22.849 ms. Retained-reader medians also fall: XML
+23.829→15.212, CSV 23.905→16.006, YAML 23.401→15.551 and JSON 25.377→16.584 ms.
+Small-context XML is 1.811/2.018 ms with overlapping 1.780–1.987/1.727–2.741 ms
+ranges; no general small-context gain is claimed. These remain native candidate
+measurements, not production or browser speed claims.
+
+Standalone `datadom.mode` with 256 nested controls measures 0.790→0.542 ms
+(0.772–0.817/0.527–0.595 ms). Reading it twice measures 1.319→1.084 ms. The
+recorded first case has three separate full-record copy stages: evaluator setup
+0.140 ms, variable read 0.147 ms, and field-input flattening 0.138 ms. Reading
+twice keeps one setup but doubles variable and field-input copies. This explains
+why borrowing input setup alone cannot eliminate the cost of repeated access.
+The candidate preserves the latter two copies.
+
+| Loaded XML viewer stage | Calls | Current (ms) | Candidate (ms) |
+| --- | ---: | ---: | ---: |
+| Evaluator binding setup | 145 | 4.536 | 0.095 |
+| Complete value reads | 311 | 2.895 | 3.131 |
+| Field-input flattening/copying | 218 | 3.107 | 3.086 |
+| Selected record values | 108 | 0.191 | 0.221 |
+| Shadow snapshot setup | 120 | 0.015 | 0.014 |
+| Variable restoration | 120 | 0.020 | 0.016 |
+
+All 145 evaluator setups remain; their binding values are borrowed instead of
+copied in the candidate. The candidate's reference-map construction is 0.073 ms,
+included in the 0.095 ms setup total. Whole-render savings also avoid disposing
+the copied input values; clone-only stage times do not account for that work.
+
+The 32-operation templates expose separate snapshot costs. Current medians
+with 256 nested controls are:
+
+| Template case | Whole render (ms) | Attributed snapshot work (ms) |
+| --- | ---: | --- |
+| Repeated member expression | 60.784 | Candidate reduces this to 38.058 |
+| Shadow a binding | 10.911 | 32 saved-value clones: 4.701 |
+| Successful try | 70.348 | 32 snapshots: 16.195; 32 restore clones: 16.358 |
+| Recovering try | 65.337 | Recovery still snapshots and restores complete bindings |
+| Try with two false catches | 117.400 | 32 snapshots: 17.272; 96 restore clones: 53.247 |
+| Eligible false hook | 101.075 | Scope clones: 17.438; caller copies: 18.309; candidate binding copies: 21.893 |
+| Eligible true hook | 100.925 | Captured environments remain complete owned copies |
+| Two false hooks, then a match | 237.379 | Scope clones: 57.732; caller copies: 19.205; 96 candidate binding copies: 53.009 |
+
+For the false hook, initial registration capture costs 0.447 ms once. Its
+32 candidate installations total 37.255 ms including their binding copies and
+replaced-value disposal; restoring the caller costs another 15.034 ms.
+Successful try restoration similarly totals 30.205 ms including its 16.358 ms
+clones. These overlapping stages must not be summed twice. Scanning false
+handlers multiplies copies, even though no handler body executes.
+
+The candidate does not change these snapshots. Shadowing is 10.911/11.090 ms,
+catch scanning 117.400/117.543 ms and hook scanning 237.379/237.178 ms. Differences
+in the other snapshot-only or literal batches are timing variation, not gains
+from borrowed inputs. No shared snapshot optimization is proposed for immediate
+implementation in this checkpoint.
+
+Reproduce using:
+
+```sh
+cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
+```
+
+#### Pending decision: borrow proven evaluator input bindings
+
+Validation before this decision: the three focused native candidate checks pass,
+as do all **660 native tests** across 77 suites (eight opt-in profiles skipped)
+in `/tmp/cem-input-binding-native-tests.log`. Native Nx lint passes with the
+existing 131 CEM-ML/41 CEM-QL warnings (`/tmp/cem-input-binding-lint.log`), and
+fixture formatting/diff checks pass. The added instrumentation and candidate are
+test-only; the default shared evaluator still owns its input bindings. This
+investigation does not rebuild WASM or repeat browser runs. The packaged WASM
+remains at the verified `8fc03964` hash
+`4c208511246e34b308b1a7a4f68ca1a7269fba839355852e1586e1ab75bcb35a`.
+
+Recommend promoting the bounded borrowed-input map under the existing dependency
+proof. It removes a measured setup-copy layer without changing owned locals,
+arguments, output streams, public record access, or mutable CEMT-host fallback.
+Rust ties input references to the evaluation call; no references escape in the
+returned stream or portable artifact. Retain the current scope, focus, reader,
+resolver, diagnostics, recovery and cancellation behavior.
+
+Keeping current owned inputs avoids the internal lifetime change but retains
+the measured cost. A general shared-value or copy-on-write representation might
+also reduce local reads and snapshots, but would require a broader design for
+public owned values, callback materialization, rollback and mutation. Prefer
+the bounded input map first; do not infer approval for that broader alternative.
+
+The active TODO requires a proposal before shared ownership/lifetime changes,
+and the user requested a stop at decisions. This checkpoint therefore retains
+the candidate only in native tests. If approved, promote it with default-path
+regressions and preserved opaque-call fallback, repeat the native comparison,
+rebuild WASM, and verify unchanged table/tree demos plus normal and synchronized
+browser coverage. Remaining full-value reads, field projection, shadowing,
+try/catch and eligible-hook snapshots stay separate follow-up work.

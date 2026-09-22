@@ -18,7 +18,7 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    operation()
+    crate::eval::binding_profile_tests::with_borrowed_inputs(false, operation)
 }
 
 pub(super) fn force_context_copy() -> bool {
@@ -83,6 +83,13 @@ fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T))
         profile_strategy(&format!("{case}/copied-context"), &mut operation, &verify);
     });
     profile_strategy(&format!("{case}/borrowed-context"), &mut operation, &verify);
+    crate::eval::binding_profile_tests::with_borrowed_inputs(true, || {
+        profile_strategy(
+            &format!("{case}/borrowed-input-candidate"),
+            &mut operation,
+            &verify,
+        );
+    });
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -466,6 +473,16 @@ fn borrowing_preserves_scoped_cancellation_and_budget_failure() {
 }
 
 #[test]
+fn borrowed_input_candidate_preserves_renderer_contracts() {
+    crate::eval::binding_profile_tests::with_borrowed_inputs(true, || {
+        borrowing_preserves_focus_records_recovery_and_callbacks();
+        borrowing_preserves_reader_retention_across_renders();
+        borrowing_preserves_protected_failures_and_recovery();
+        borrowing_preserves_scoped_cancellation_and_budget_failure();
+    });
+}
+
+#[test]
 #[ignore = "profiling fixture: --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1"]
 fn profile_render_copies() {
     for count in [0, 256] {
@@ -530,9 +547,31 @@ fn profile_render_copies() {
                 "{try | {span | fixed}{catch | {span | error}}}".repeat(32),
             ),
             (
+                "try-recover",
+                "{try | {span | prefix}{$1 / 0}{catch | {span | fixed}}}".repeat(32),
+            ),
+            (
+                "try-scan",
+                "{try | {$1 / 0}{catch @test=false | wrong}{catch @test=false | wrong}{catch | {span | fixed}}}".repeat(32),
+            ),
+            (
                 "eligible-false-hook",
                 format!(
                     "{{template @on=expression @into=content @match=false | {{$value}}}}{}",
+                    "{span | {$\"fixed\"}}".repeat(32)
+                ),
+            ),
+            (
+                "eligible-true-hook",
+                format!(
+                    "{{template @on=expression @into=content | {{$value}}}}{}",
+                    "{span | {$\"fixed\"}}".repeat(32)
+                ),
+            ),
+            (
+                "eligible-hook-scan",
+                format!(
+                    "{{template @on=expression @into=content @match=false | wrong}}{{template @on=expression @into=content @match=false | wrong}}{{template @on=expression @into=content @priority=-1 | {{$value}}}}{}",
                     "{span | {$\"fixed\"}}".repeat(32)
                 ),
             ),

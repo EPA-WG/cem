@@ -704,11 +704,15 @@ fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
     // Flatten one array level so navigating a data-document collection projects the field across
     // its rows, i.e. `datadom.slices.hue.td1` yields every row's `td1`. A non-array item passes
     // through unchanged.
-    let items: Vec<Item> = input
-        .items
-        .iter()
-        .flat_map(|item| item.members().unwrap_or_else(|| vec![item.clone()]))
-        .collect();
+    let items: Vec<Item> = {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("copy/field-input");
+        input
+            .items
+            .iter()
+            .flat_map(|item| item.members().unwrap_or_else(|| vec![item.clone()]))
+            .collect()
+    };
     if items.is_empty() {
         let mut out = ItemStream::empty();
         out.diagnostics.extend(input.diagnostics);
@@ -733,6 +737,8 @@ fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
         match item {
             Item::Record(record) => {
                 if let Some(values) = record.get(field) {
+                    #[cfg(test)]
+                    let _profile = crate::compile_profile::Span::new("copy/field-selected");
                     out.items.extend(values.clone());
                 }
             }

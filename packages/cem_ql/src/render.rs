@@ -2831,6 +2831,8 @@ impl PlanRenderer<'_> {
         }
         self.render_scope_depth -= 1;
         self.hook_scopes.pop();
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("scope/variable-restore");
         for (name, value) in previous {
             match value {
                 Some(stream) => {
@@ -3699,11 +3701,15 @@ impl PlanRenderer<'_> {
         self.recovery_depth += 1;
         self.render_nodes_scoped(&children[..first_catch], &mut buffered, &mut attributes);
         self.recovery_depth -= 1;
-        self.evaluation_context.policy_bindings = {
+        {
             #[cfg(test)]
-            let _profile = crate::compile_profile::Span::new("copy/try-restore");
-            saved_bindings.clone()
-        };
+            let _profile = crate::compile_profile::Span::new("scope/try-restore");
+            self.evaluation_context.policy_bindings = {
+                #[cfg(test)]
+                let _profile = crate::compile_profile::Span::new("copy/try-restore");
+                saved_bindings.clone()
+            };
+        }
         if self.control_failed {
             return;
         }
@@ -3782,11 +3788,15 @@ impl PlanRenderer<'_> {
                 self.evaluation_context.policy_bindings = saved_bindings;
                 return;
             }
-            self.evaluation_context.policy_bindings = {
+            {
                 #[cfg(test)]
-                let _profile = crate::compile_profile::Span::new("copy/try-restore");
-                saved_bindings.clone()
-            };
+                let _profile = crate::compile_profile::Span::new("scope/try-restore");
+                self.evaluation_context.policy_bindings = {
+                    #[cfg(test)]
+                    let _profile = crate::compile_profile::Span::new("copy/try-restore");
+                    saved_bindings.clone()
+                };
+            }
         }
         self.evaluation_context.policy_bindings = saved_bindings;
         self.failure = Some(failure);

@@ -2379,12 +2379,42 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         concurrent stock runs. NPM/location ran after stock load ended; keep that
         readiness investigation open. See the
         [production validation](browser-stabilization-review.tmp.md#production-context-borrowing).
-  - [ ] After that bounded correction, investigate remaining evaluator binding
+  - [x] After that bounded correction, investigate remaining evaluator binding
         and local-value copies, shadowed-variable snapshots, try/catch snapshots
         and eligible-hook context capture separately. Keep owned public values,
         native identity, rollback and callback contracts; propose any shared
         ownership/lifetime change before implementation. The direct CEM-QL
         workload and scope snapshots are unaffected by this borrowing correction.
+        Completed 2026-09-22: separate spans attribute input setup, value reads,
+        field-input/selected-value copies, shadow snapshots, catch scanning and
+        hook registration/caller/candidate/restoration costs. A native test-only
+        input-borrow candidate preserves owned reads/results and opaque fallback;
+        loaded viewer medians improve 23.820→15.437 ms (XML), 24.946→15.853 ms
+        (CSV), 25.610→16.624 ms (YAML) and 25.249→17.375 ms (JSON). Snapshots
+        remain separate costs; production behavior is unchanged. See the
+        [measured proposal](browser-stabilization-review.tmp.md#pending-decision-borrow-proven-evaluator-input-bindings).
+  - [x] Fixture: isolate evaluator input-binding setup from value reads,
+        split hook capture/caller/candidate and scope restoration costs,
+        and compare a test-only borrowed-input candidate against complete
+        owned outputs, diagnostics, native identity, scope/callback and
+        portable-reload contracts. Measure standalone queries and the
+        unchanged four-format viewer before proposing a shared change.
+        Completed 2026-09-22: three native candidate contract tests and the
+        expanded debug/release profiles pass. All 660 native tests pass;
+        callback, cancellation, recovery, scope and ownership checks are retained.
+  - [ ] Decide whether proven expressions may borrow evaluator input bindings
+        for the evaluation call, while reads/results and locals remain owned.
+        Recommend the bounded reference map under the existing dependency proof;
+        retain complete owned inputs for opaque/native/CEMT calls. See the
+        [decision](browser-stabilization-review.tmp.md#pending-decision-borrow-proven-evaluator-input-bindings).
+  - [ ] If accepted, promote the evaluator input-borrow candidate with default
+        path and fallback regressions, repeat native profiling, rebuild WASM,
+        and verify unchanged table/tree plus normal/synchronized browser coverage.
+        Preserve public values/artifacts, scope policies, limits and concurrency.
+  - [ ] After that bounded correction, investigate owned value reads and field
+        projection separately from shadow, try/catch and eligible-hook snapshots.
+        Propose measured ownership/lifetime changes before implementation; do not
+        infer a shared-value or copy-on-write redesign from the input-borrow work.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load
