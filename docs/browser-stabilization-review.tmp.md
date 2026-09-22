@@ -951,6 +951,10 @@ stage consumes the remaining time.
 
 ### Pending decision: rendering profile or story split
 
+Accepted 2026-09-22: the user chose option 1, profiling the worker/native rendering
+path. The profiling fixture is active in `docs/todo.md`; optimization remains
+subject to the measured hotspot and bounded correction described below.
+
 The requested live-selection investigation is complete. The user requested a
 stop at decisions, and the active TODO keeps story organization, time budgets
 and concurrency unchanged until this evidence is reviewed. The next work can
@@ -985,3 +989,169 @@ Local evidence: `/tmp/cem-tree-processing-focused.log`,
 `/tmp/cem-tree-processing-stress.log`, `/tmp/cem-tree-processing-repeat.log`,
 `/tmp/cem-tree-processing-normal.log` and the two `*-stock.json` reports. The
 tables above preserve the findings when those temporary files are unavailable.
+
+### Worker/native tree rendering profile
+
+Completed 2026-09-22. The accepted profiling work identifies repeated built-in
+conversion-registry construction inside `cemml:inspect` as the dominant native
+cost for these two tree fixtures. Production code, viewer templates, story
+budgets and worker concurrency are unchanged by this investigation.
+
+The retained probes are:
+
+- `packages/cem_ql/tests/tree_render_profile.rs`: an opt-in release-mode Rust
+  test using the authored tree/request templates, the small XML sample and the
+  local request document. It measures a first call and five subsequent calls
+  per stage. It checks successful diagnostics, selected-count output and exact
+  branch-output equality with an in-memory diagnostic variant that omits only
+  the inspection expression. It also compares registry construction candidates
+  without changing the production constructor.
+- `tools/scripts/profile-cem-tree-render.mjs`: an isolated browser probe using
+  the packaged WASM, real workers and unchanged authored declarations. It
+  instruments HTTP-served copies of three built modules in memory; installed
+  files and worker messages are unchanged. Worker/job correlation separates
+  host round trips from worker and nested stage durations. Two selection/reset
+  cycles per component verify eighteen connected output/count assertions.
+  Its explicitly named JSON report contains diagnostic/control metadata, not
+  imported document objects.
+
+Both paths load external XML through CEM-ML import and use retained native CEM
+trees downstream. Native HTML serialization is measured as an explicit export
+stage; the browser's result mapping is a separate render-plan protocol stage.
+These probes do not introduce a document parsing or evaluation path.
+
+Measurements use an Intel Core Ultra 7 258V, Rust 1.96.0, Node 24.16.0 and
+Chromium 148.0.7778.96. Runtime sources are at `c9d2845e`; the report records the
+profiling script, template and packaged-module SHA-256 hashes. The packaged
+WASM hash is
+`dd9e2cef978a65254b919e8573d577503b25cbe228784721cb76937716d3f338`.
+Native and browser measurements ran sequentially without the earlier
+eight-page stress load. Wall-clock timings are observations, not assertions.
+
+Native warm medians, milliseconds (five calls per stage):
+
+| Stage | Small XML | Local request XML |
+| --- | ---: | ---: |
+| CEM-ML import | 0.343 | 0.374 |
+| Typed inspection projection | 0.014 | 0.021 |
+| Built-in schema registry | 13.444 | 14.177 |
+| Built-in conversion registry | 539.770 | 528.714 |
+| Typed inspection output pipeline, registries already built | 14.835 | 20.019 |
+| `cemml:inspect` expression | 563.803 | 553.179 |
+| Full authored viewer render | 560.912 | 583.647 |
+| Same render, inspection expression omitted in memory | 1.708 | 2.037 |
+| Explicit HTML export | 0.192 | 0.253 |
+| Request template render with retained document | 580.408 | 552.072 |
+
+Initial full renders take 586.663/565.729 ms, and initial conversion-registry
+construction takes 543.996/539.977 ms. Template compilation is measured
+separately: 21.861 ms warm for the viewer and 28.402 ms for the request module
+closure. The registry is rebuilt on every call, so warming does not remove
+that cost. Independent timings overlap and vary; they are not an additive
+breakdown of a single render. Omitting inspection preserves exact branch HTML
+and reduces these renders to about 2 ms, corroborating the direct stage probe.
+
+The profiling-only assembly candidate passes exact converter metadata and
+artifact ordering comparisons. Both candidates preserve exact typed output:
+
+| Registry construction candidate | Small XML run | Local request run |
+| --- | ---: | ---: |
+| One local schema registry per assembly | 46.397 ms | 51.440 ms |
+| Clone an already-built conversion registry | 0.031 ms | 0.030 ms |
+
+The first candidate reduces measured construction time by roughly 90–91%; it
+still runs the existing metadata extraction and artifact validation. The
+second measures owned cloning only, not cache initialization or cache lifetime
+behavior. Neither candidate is wired into production rendering, so no optimized
+end-to-end browser result is claimed. The release profiling test passes in
+28.38 seconds after compilation.
+
+Browser warm medians, milliseconds (eight selection renders per component):
+
+| Stage | Small XML | Local request XML |
+| --- | ---: | ---: |
+| Host send-to-response round trip | 1188.30 | 1230.15 |
+| Worker request handling | 1186.65 | 1227.70 |
+| WASM render plus binding/string transfer | 1181.05 | 1222.20 |
+| Result JSON parsing and node mapping | 0.25 | 0.30 |
+| JavaScript patch diff | 0.10 | 0.15 |
+| Render-plan content hash | 2.60 | 2.45 |
+| Boundary validation, summed calls | 0.80 | 1.15 |
+
+The WASM stage ranges are 895.0–1226.3 and 1120.1–1281.3 ms. Mapping remains
+below 0.7 ms and diff below 1 ms in these samples. The request's single retained
+document import takes 1.5 ms inside WASM, 1.8 ms for worker handling. Scoping,
+slot projection and resource lowering are also recorded in the raw report;
+none approaches the render cost. Stage spans nest and must not be added as
+independent costs. Host and worker clocks have separate origins, so only
+durations are compared. WASM timings include returned-string transfer; the
+independent native measurements identify the constructor within that stage.
+
+The source path explains the repeated work:
+
+1. `packages/cem_ql/src/eval/inspection.rs` constructs both built-in registries
+   on every `cemml:inspect` call.
+2. `ConversionRegistry::with_builtin_converters` in
+   `packages/cem_ml/src/conversion.rs` loads eighteen built-in packages for
+   converter descriptors, then the same eighteen for package artifacts.
+3. Every `load_builtin_schema_package` call in
+   `packages/cem_ml/src/schema/package_loader.rs` constructs the complete
+   `SchemaRegistry::with_builtin_schemas` again. One conversion-registry
+   assembly therefore causes thirty-six schema-registry constructions.
+4. Those loaders use embedded schema/package sources. The formatter pipeline
+   subsequently uses the registered package artifacts, so dropping the
+   conversion registry would change package-aware formatting behavior.
+
+The browser probe passes all eighteen connected assertions with no worker or
+runtime diagnostics. This is isolated stage attribution, not a repeat of the
+203-story combined-load gate. It does not establish that a correction will
+make that gate pass, or explain the historical stock warning timeout. The
+earlier 250 stock timing probes remain a separate evidence set.
+
+Reproduce sequentially from the repository root; the build commands are
+prerequisites when packaged browser artifacts are missing or stale:
+
+```bash
+cargo test -p cem-ql --release --test tree_render_profile -- --ignored --nocapture
+yarn nx run cem_ql:build:wasm
+yarn nx run cem-elements:build
+node tools/scripts/profile-cem-tree-render.mjs --output=/tmp/cem-tree-render-profile.json
+```
+
+Do not run the native profile, browser profile or asset-producing builds
+concurrently. The browser probe fails if its expected module instrumentation
+anchors change. JavaScript syntax/lint and Rust formatting checks pass. The
+normal/combined Storybook suites were not rerun for this profiling-only change.
+Local evidence is retained in `/tmp/cem-tree-native-profile-candidate.log`,
+`/tmp/cem-tree-browser-profile-final.log` and
+`/tmp/cem-tree-render-profile-final.json`; the findings here do not depend on
+those temporary files remaining available.
+
+### Pending decision: built-in conversion registry assembly
+
+The requested profiling is complete. The accepted scope above requires a
+bounded proposal before shared evaluator/rendering changes, and the user asked
+to stop at decisions. Choose the next implementation scope:
+
+| Direction | Benefit | Cost or limit |
+| --- | --- | --- |
+| **Reuse one schema registry per built-in conversion-registry assembly (recommended)** | Removes thirty-five repeated schema-registry constructions; preserves owned registries and current lifetimes; can retain package order, validation and formatter selection exactly | Still parses package metadata and validates artifacts on each assembly; must verify native/WASM behavior and the combined browser gate |
+| Cache the immutable built-in conversion registry and return owned clones | Subsequent construction becomes a cheap clone | Retains metadata for the process/worker lifetime and keeps the original cold-start cost; introduces a cache lifetime decision |
+
+For the recommended correction, keep the existing built-in package list and
+registration order. Resolve package descriptors against one local schema
+registry, load each embedded package once, and run the existing converter and
+artifact extraction/validation functions. Use an internal descriptor-based
+loader; retain current public loader behavior and error contracts. Do not skip
+package formatters, cache document inspection output, or introduce shared
+mutable registries. Apply the same construction pattern to the standalone
+built-in descriptor/artifact helpers so they do not retain the repeated work.
+
+Implementation acceptance, if selected: add focused Rust regression coverage
+for complete converter/artifact metadata and ordering, default/tabular package
+selection and exact typed inspection output, plus isolation of independently
+constructed registries. Run the relevant package-loading/conversion/inspection
+tests, rebuild WASM and browser assets, then rerun these probes and the normal
+and combined-load Storybook gates. Keep time budgets, concurrency and viewers
+unchanged. Any remaining hotspot or gate failure requires new evidence before
+another shared behavior change.

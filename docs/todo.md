@@ -2145,10 +2145,34 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         follows 17.4 ms later. Full journeys still exceed their 30-second budget.
         Normal suite passes 203/203; each stress run passes 201/203 and all 64
         stock probes pass. No lost selection or runtime fix is established.
-  - [ ] Decide the next response to measured rendering/queue pressure before
+  - [x] Decide the next response to measured rendering/queue pressure before
         changing story organization, budgets or concurrency. Recommend a bounded
         worker/native rendering profile; compare with splitting the long stories
         in [the proposal](browser-stabilization-review.tmp.md#pending-decision-rendering-profile-or-story-split).
+        Accepted 2026-09-22: profile the worker/native rendering path first.
+  - [x] Profiling fixture: reuse the authored XML tree and local request document
+        to measure initial/warmed CEM-ML import, inspection, branch rendering,
+        result conversion/diff and worker transport. Retain repeatable native
+        and browser probes with correctness assertions; keep viewer templates,
+        execution budgets and concurrency unchanged. Propose a measured bounded
+        correction before changing shared evaluator/rendering behavior.
+        Completed 2026-09-22: native and worker probes identify conversion
+        registry construction inside `cemml:inspect` as the dominant cost.
+        Every assembly rebuilds the schema registry thirty-six times. A
+        profiling-only candidate using one local registry reduces assembly
+        from 529–540 ms to 46–51 ms while preserving converter/artifact metadata
+        and exact typed inspection output. Rust probe and all eighteen browser
+        connected-count assertions pass; production code is unchanged.
+        See [profile findings](browser-stabilization-review.tmp.md#workernative-tree-rendering-profile).
+  - [ ] Decide the bounded shared conversion-registry correction before
+        implementation. Recommend one local schema registry per assembly,
+        preserving package validation, ordering, formatter selection and owned
+        registry lifetimes. Compare with caching immutable built-ins in
+        [the proposal](browser-stabilization-review.tmp.md#pending-decision-built-in-conversion-registry-assembly).
+        If selected, add focused native metadata/output/isolation regression
+        coverage first, implement the correction, rebuild WASM/browser assets,
+        then rerun the profiles and normal/combined-load Storybook gates without
+        changing viewers, time budgets or concurrency.
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
         available lifecycle signals before migrating each affected fixture;
