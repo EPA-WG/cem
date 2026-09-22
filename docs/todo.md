@@ -2462,9 +2462,42 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         32 synchronized stock cases. Table/tree/inspector overlap stock load;
         NPM/location waits occur afterward. See the
         [production evidence](browser-stabilization-review.tmp.md#production-field-input-borrowing).
-  - [ ] After that correction, investigate full binding/parameter reads and
+  - [x] After that correction, investigate full binding/parameter reads and
         selected-result copies separately from shadow/try/hook snapshots.
         Propose any further shared lifetime or ownership change before promotion.
+        Completed 2026-09-22: a test-only direct field lookup removes 92 complete
+        reads in the loaded XML viewer while retaining all 108 selected-field
+        clones and owned results. Native comparisons measure 12.339→5.431 and
+        10.971→5.061 ms. Whole-value arguments, large selected results and scope
+        snapshots remain separate costs; production behavior is unchanged. See
+        the [measured proposal](browser-stabilization-review.tmp.md#pending-decision-direct-record-field-reads).
+  - [x] Fixture: compare direct record-field selection with the current complete
+        binding/parameter read using a native test-only candidate. Keep outputs
+        owned, preserve source/step safe points and recovery, and retain fallback
+        for whole values, native accessors, non-record streams and opaque calls.
+        Verify shadowing, metadata, portable reload, native ownership, failures
+        and child-scope limits; profile unchanged viewers and large selected
+        results separately from scope snapshots before proposing production work.
+        Completed 2026-09-22: the complete-read regression fails before the
+        candidate and passes afterward. Six direct checks and the renderer
+        contract matrix preserve exact safe-point traces, selected native-owner
+        identity/retention and protected failures. Both release profiles, all
+        672 native tests and native lint pass. All candidate behavior is test-only.
+  - [ ] Decide whether proven closed queries may select the first plain field
+        directly from a materialized singleton record binding. Recommend the
+        bounded shortcut: borrow only during lookup, clone the selected result,
+        and preserve all current fallback and safe-point behavior. See the
+        [decision](browser-stabilization-review.tmp.md#pending-decision-direct-record-field-reads).
+  - [ ] If approved, promote direct record-field reads with default-path
+        ownership/fallback regressions, repeat native profiling, rebuild WASM,
+        and verify unchanged table/tree plus normal/synchronized Storybook.
+        Preserve public values/artifacts, import boundaries, native owner
+        retention, scope limits and concurrency. Assert default evaluation and
+        rendering skip only eligible complete reads before implementing it.
+  - [ ] After that decision, assess remaining whole-value argument reads and
+        selected-result copies separately from shadow/try/hook snapshots.
+        Propose measured shared ownership changes before promotion; do not infer
+        a general shared-value or copy-on-write redesign from direct field reads.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

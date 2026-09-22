@@ -3029,3 +3029,198 @@ format-specific evaluator changes or document-object handoffs. Full binding and
 parameter reads, selected-result copies, and shadow/try/hook snapshots remain
 separate follow-up costs; further shared ownership changes require a measured
 proposal.
+
+### Direct record-field read investigation (2026-09-22)
+
+Production `16023f8a` borrows evaluator inputs and temporary field traversal,
+but reading `datadom.mode` still clones the complete `datadom` value before
+selecting and cloning `mode`. A function parameter such as `value.mode` has
+the same full-read cost when `value` is already stored in a local scope.
+Selected results and whole-value reads have separate ownership requirements;
+shadow, try/catch and eligible-expression-hook snapshots are separate costs.
+
+#### Native-only direct record projection
+
+The candidate in
+`packages/cem_ql/src/eval/pipeline/record_read_profile_tests.rs` combines a
+materialized binding read with its first plain record-field projection. It
+accepts only a `LocalVar` pipeline source, an unprefixed named field without a
+function binding or arguments, and an error-free stream containing exactly one
+ordinary `Item::Record`. Reserved pipeline operations such as `first`, `where`
+and `target` keep their existing dispatch. The existing conservative compiled
+query dependency proof must establish a closed query; that result is reused
+once during evaluator setup rather than recomputed for each field.
+
+Lookup checks owned local scopes from innermost to outermost, then borrowed
+evaluator inputs. The candidate borrows that record only while finding and
+cloning the selected field and its diagnostics into an owned `ItemStream`.
+The borrow ends before the post-step safe point or any remaining pipeline
+step. Missing fields produce the same empty stream. Cursor and chain markers
+reset as in ordinary field projection. No binding is pruned or modified;
+whole-value reads later in the expression still see the complete record.
+
+Whole values, computed sources, methods, arrays/mixed/scalar/native streams,
+failed inputs and globals requiring evaluation retain the current read path.
+Queries with opaque/native/CEMT calls retain that path through the same
+conservative proof. No native accessor or callback runs while a binding is
+borrowed. Selected fields may contain native items, whose owned result handles
+retain the original CEM source owner. This is not a new shared-value storage
+model or an extension of a borrow into returned results.
+
+The experiment preserves the source's active-operation check and pending
+failure gate, the field step's work poll, and its forced acceptance safe point,
+in their existing order. A failed source check is passed through the ordinary
+pipeline error path. Subsequent steps use ordinary owned evaluation. Regression
+fixtures compare the exact ordered work-poll/forced-safe-point trace, result
+items, errors, diagnostics, cursor and chain metadata against the baseline.
+
+The switch, evaluator branch, trace collection and candidate implementation
+are all `cfg(test)`. The switch defaults off and restores its previous value
+on unwind. Production behavior and public IR/value/artifact contracts are
+unchanged. The fixture checklist was added before the tests; the first test
+failed on the complete value read before implementing the candidate
+(`/tmp/cem-record-read-red.log`). Six direct checks and one renderer-matrix
+check now cover:
+
+- Selected outputs remain owned and can be changed without changing the input.
+- Nested/missing fields, repeated and whole-value reads, local shadowing,
+  function parameters, captures, forward calls and protected recovery preserve
+  results and the exact safe-point order.
+- Full-value, computed-source, native, opaque-call, reserved-operation and
+  non-record paths retain their original full-read behavior. Failed inputs
+  retain the original error path and metadata.
+- Cancellation after an optimized read and lower child-scope budget failure
+  cannot escape through catch clauses or leak earlier output. Sibling scopes
+  remain usable and charged memory is released.
+- Selected native nodes retain the same source-owner identity after the reader
+  cache and original inputs are dropped; dropping the selected result releases
+  the owner. The XML fixture uses shared CEM-ML import.
+- The renderer matrix preserves portable reload, native identity/current focus,
+  retained-reader reuse, callbacks, protected failures and scope limits.
+
+All **89 native unit tests** pass, with three opt-in profiles skipped
+(`/tmp/cem-record-read-unit.log`). The release fixture adds
+`direct-record-candidate` beside `borrowed-fields` (current production), retaining
+the three earlier copied baselines. It compares direct queries, large selected
+values, parameter reads, interpolation and scope-snapshot cases, plus the
+unchanged authored and retained XML/CSV/YAML/JSON viewer fixtures. Every render
+checks output, diagnostics, source maps, host updates, sorting and native
+identity. Synthetic nested records model host control metadata; external
+documents still enter solely through shared CEM-ML import into retained native
+CEM trees.
+
+#### Direct-read release measurements and validation
+
+The release fixture passes twice in 59.45/62.58 s
+(`/tmp/cem-record-read-release.log` and
+`/tmp/cem-record-read-release-repeat.log`; build:
+`/tmp/cem-record-read-release-build.log`). Each strategy has six recorded and
+six unrecorded iterations, discarding the first and reporting five warm samples.
+The repeat uses the same binary to check the first XML batch's wide range.
+No unrelated build or browser workload ran during either profile. Values below
+are unrecorded medians in milliseconds with 256 nested host controls:
+
+| Viewer | Current, run 1 | Candidate, run 1 | Current, repeat | Candidate, repeat |
+| --- | ---: | ---: | ---: | ---: |
+| Authored XML | 12.339 | 5.431 | 10.971 | 5.061 |
+| Authored CSV | 10.445 | 4.500 | 10.611 | 5.525 |
+| Authored YAML | 10.266 | 4.467 | 11.251 | 4.865 |
+| Authored JSON | 10.814 | 4.737 | 10.550 | 4.527 |
+| Retained XML | 9.149 | 3.738 | 10.895 | 4.045 |
+| Retained CSV | 10.269 | 4.937 | 12.432 | 5.285 |
+| Retained YAML | 10.571 | 5.001 | 10.527 | 6.510 |
+| Retained JSON | 10.634 | 4.860 | 10.911 | 4.868 |
+
+Authored XML ranges are 9.558–21.485/3.627–9.762 ms in the first run and
+9.304–12.624/3.320–6.323 ms in the repeat. The repeat median reduction is
+53.9%, with remaining variation. Retained CSV also has a 20.537 ms baseline
+outlier in the repeat. Small-context authored XML measures 1.829/1.739 ms and
+1.944/2.808 ms, with overlapping ranges in each run; the latter candidate range
+is 1.908–3.567 ms. These samples establish no general small-context gain or
+browser speedup. Both runs are retained rather than selecting the best result.
+
+Loaded direct scalar `datadom.mode` measures 0.274→0.008 and 0.272→0.009 ms;
+two scalar reads measure 0.571→0.009 and 0.590→0.008 ms. Whole-record
+`datadom` stays on the original path, measuring 0.172/0.167 and 0.173/0.236 ms.
+The large selected `datadom.island` field measures 0.406→0.148 and
+0.466→0.160 ms: its result still requires a large owned clone. A function
+reading its record parameter measures 0.545→0.304 and 0.557→0.305 ms, retaining
+the whole-value argument read while avoiding the later parameter read.
+The 32-member interpolation case measures 21.675→2.006 and 21.292→2.070 ms.
+
+The recorded repeat separates these loaded authored XML stages:
+
+| Stage | Current calls / ms | Candidate calls / ms |
+| --- | ---: | ---: |
+| Evaluator input setup | 145 / 0.083 | 145 / 0.083 |
+| Read borrowed input values | 198 / 3.074 | 138 / 0.018 |
+| Read owned scoped values | 113 / 0.013 | 81 / 0.005 |
+| Ordinary field-input traversal | 218 / 0.017 | 126 / 0.009 |
+| Direct record lookup, including selected clone | 0 / — | 92 / 0.184 |
+| Ordinary selected-field clones | 108 / 0.198 | 17 / 0.003 |
+| Direct selected-field clones | 0 / — | 91 / 0.170 |
+| Shadow snapshot setup | 120 / 0.013 | 120 / 0.013 |
+| Variable restoration | 120 / 0.016 | 120 / 0.016 |
+
+The candidate removes 92 complete reads (60 borrowed inputs, 32 scoped values),
+leaving 219. All 108 selected-field clones remain: 91 through the direct path
+and 17 through ordinary projection; one direct lookup selects a missing field.
+The direct selected-clone span is nested inside direct lookup, and both read
+spans remain nested inside `copy/local-value`; do not add nested span times.
+Avoiding destruction of cloned unselected values contributes beyond the
+clone-construction timings. Native accessor work and returned ownership remain.
+
+Snapshot-only cases do not exercise this shortcut. Repeat medians are shadow
+11.716/11.742 ms, successful try 62.147/61.468 ms, catch scanning
+131.989/135.338 ms, and hook scanning 259.512/263.331 ms. Their copies remain;
+timing variation is not a snapshot optimization. Whole-value arguments and
+large selected-result clones likewise remain separate follow-up costs.
+
+Full native Nx validation passes **672 tests across 77 suites**, with eight
+opt-in profiles skipped (`/tmp/cem-record-read-native-tests.log`). Native Nx
+lint passes with the existing 131 CEM-ML/41 CEM-QL warnings
+(`/tmp/cem-record-read-lint.log`). Fixture formatting and diff checks pass.
+This test-only investigation does not rebuild WASM or repeat browser coverage.
+The packaged WASM remains the previously validated `16023f8a` runtime, SHA-256
+`12b372b8d549dc8ea1839aeff2fea21a0d89aa483144bc50a0c922b294a55d12`.
+
+Reproduce with:
+
+```sh
+cargo test -p cem-ql --lib record_read_candidate
+cargo test -p cem-ql --lib direct_record_candidate
+cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+```
+
+#### Pending decision: direct record-field reads
+
+Recommend promoting the bounded direct projection for proven closed queries
+and singleton ordinary record bindings. Only the field lookup borrows; selected
+results stay owned, native owners remain retained, and opaque/native/CEMT
+expressions keep the current path. Before promotion, change the regression to
+assert this behavior on default evaluation and rendering, then repeat the
+native profile, rebuild WASM and verify unchanged table/tree demos plus normal
+and synchronized Storybook coverage. Keep public values/artifacts, import
+boundaries, viewer sources, scope limits and browser concurrency unchanged.
+
+Keeping the current full read avoids a second evaluator path, but retains a
+complete record clone and destruction even for a scalar field. The candidate
+adds a narrow source/first-step shortcut that must preserve the original safe
+points, failure propagation and name dispatch; the ordered trace and fallback
+fixtures guard that requirement. It deliberately falls back rather than
+generalizing to native accessors or complex sources.
+
+A shared-value or copy-on-write evaluator could remove additional whole-value,
+argument and selected-result copies. That is a broader representation and
+ownership change, which these measurements do not authorize. Moving fields
+out of newly owned records is another possible investigation, but it must
+preserve native-owner retention and accessor/destruction order. Snapshot costs
+also remain separate. None of these alternatives is implied by promoting this
+candidate.
+
+The active TODO requires a measured proposal before further shared lifetime or
+ownership changes, and the user's current instruction requires a stop at
+decisions. This checkpoint therefore keeps the candidate in native tests and
+awaits the production-promotion decision.

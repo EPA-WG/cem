@@ -636,6 +636,8 @@ pub(crate) struct EvalCtx<'a> {
     // Proven input bindings remain immutable for this evaluation. Owned local
     // scopes shadow these references; reads and results still own their values.
     borrowed_inputs: HashMap<BindingId, &'a ItemStream>,
+    #[cfg(test)]
+    direct_record_reads: bool,
     globals: HashMap<BindingId, IrId>,
     functions: HashMap<BindingId, IrId>,
     current_items: Vec<Item>,
@@ -675,6 +677,8 @@ impl<'a> EvalCtx<'a> {
             safe_points: SafePointPoller::new(control.clone(), scope),
             scopes: vec![HashMap::new()],
             borrowed_inputs: HashMap::new(),
+            #[cfg(test)]
+            direct_record_reads: false,
             globals: HashMap::new(),
             functions: HashMap::new(),
             current_items: context.current_item.clone().into_iter().collect(),
@@ -718,6 +722,11 @@ impl<'a> EvalCtx<'a> {
         #[cfg(test)]
         let _profile = crate::compile_profile::Span::new("eval/input-bindings");
         let dependencies = self.query.binding_dependencies();
+        #[cfg(test)]
+        {
+            self.direct_record_reads =
+                pipeline::record_read_profile_tests::enabled() && dependencies.is_some();
+        }
         let borrowed = dependencies.as_ref();
         #[cfg(test)]
         let borrowed = borrowed.filter(|_| !binding_profile_tests::force_input_copy());
@@ -853,6 +862,12 @@ impl<'a> EvalCtx<'a> {
                 self.unsupported(id, "host AST axis evaluation is not wired yet")
             }
             IrNode::Pipeline { source, steps } => {
+                #[cfg(test)]
+                if let Some(projected) =
+                    pipeline::record_read_profile_tests::try_project(self, source, &steps)
+                {
+                    return projected;
+                }
                 let source = self.eval_id(source);
                 pipeline::apply_pipeline(source, &steps, self)
             }
@@ -1073,11 +1088,15 @@ impl<'a> EvalCtx<'a> {
     }
 
     pub(crate) fn poll_work(&mut self, source: IrId) -> Result<(), ItemStream> {
+        #[cfg(test)]
+        pipeline::record_read_profile_tests::trace_point(false, source);
         let result = self.safe_points.poll_one();
         self.map_control_result(source, result)
     }
 
     pub(crate) fn force_safe_point(&mut self, source: IrId) -> Result<(), ItemStream> {
+        #[cfg(test)]
+        pipeline::record_read_profile_tests::trace_point(true, source);
         let result = self.safe_points.force();
         self.map_control_result(source, result)
     }

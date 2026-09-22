@@ -2,6 +2,8 @@
 
 #[cfg(test)]
 pub(crate) mod field_profile_tests;
+#[cfg(test)]
+pub(crate) mod record_read_profile_tests;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;

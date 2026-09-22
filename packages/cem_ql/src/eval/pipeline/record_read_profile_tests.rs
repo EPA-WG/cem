@@ -1,0 +1,465 @@
+//! Native-only direct record projection experiment. Production reads stay owned.
+use super::*;
+use crate::api::{compile, evaluate, CompileContext, EvaluationContext};
+use crate::compile_profile::measure;
+use crate::eval::EvalError;
+use crate::ir::IrNode;
+use crate::resolve::BindingId;
+use std::cell::{Cell, RefCell};
+
+thread_local! {
+    static DIRECT_RECORDS: Cell<bool> = const { Cell::new(false) };
+    static POINTS: RefCell<Option<Vec<(bool, IrId)>>> = const { RefCell::new(None) };
+}
+
+pub(crate) fn enabled() -> bool {
+    DIRECT_RECORDS.with(Cell::get)
+}
+
+pub(crate) fn with_direct_records<T>(enabled: bool, run: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            DIRECT_RECORDS.with(|v| v.set(self.0));
+        }
+    }
+    let _reset = Reset(DIRECT_RECORDS.with(|v| v.replace(enabled)));
+    run()
+}
+
+pub(crate) fn trace_point(force: bool, source: IrId) {
+    POINTS.with(|trace| {
+        if let Some(points) = trace.borrow_mut().as_mut() {
+            points.push((force, source));
+        }
+    });
+}
+
+fn with_points<T>(run: impl FnOnce() -> T) -> (T, Vec<(bool, IrId)>) {
+    struct Reset(Option<Vec<(bool, IrId)>>);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            POINTS.with(|trace| *trace.borrow_mut() = self.0.take());
+        }
+    }
+    let _reset = Reset(POINTS.with(|trace| trace.replace(Some(vec![]))));
+    let result = run();
+    let points = POINTS.with(|trace| trace.borrow_mut().take().unwrap());
+    (result, points)
+}
+
+fn binding<'ctx>(ctx: &'ctx EvalCtx<'_>, id: BindingId) -> Option<&'ctx ItemStream> {
+    ctx.scopes
+        .iter()
+        .rev()
+        .find_map(|scope| scope.get(&id))
+        .or_else(|| ctx.borrowed_inputs.get(&id).copied())
+}
+
+pub(crate) fn try_project(
+    ctx: &mut EvalCtx<'_>,
+    source: IrId,
+    steps: &[IrStep],
+) -> Option<ItemStream> {
+    if !ctx.direct_record_reads {
+        return None;
+    }
+    let IrNode::LocalVar(id) = ctx.query.tree.node(source)? else {
+        return None;
+    };
+    let id = *id;
+    let IrStep::Named {
+        binding: None,
+        name,
+        args,
+    } = steps.first()?
+    else {
+        return None;
+    };
+    if name.prefix.is_some()
+        || !args.is_empty()
+        || matches!(
+            name.local.as_str(),
+            "first" | "last" | "take" | "drop" | "nth" | "target" | "where"
+        )
+    {
+        return None;
+    }
+    let input = binding(ctx, id)?;
+    // No native accessor runs while an evaluator binding is borrowed. Whole
+    // values, arrays/mixed streams, failed inputs and global evaluation fall back.
+    if input.error.is_some() || !matches!(input.items.as_slice(), [Item::Record(_)]) {
+        return None;
+    }
+    // Match eval_id(LocalVar), including its source safe point and pending
+    // failure rule. The eligible source has no input error or evaluation body.
+    if let Err(error) = ctx.ensure_active(source) {
+        return Some(apply_pipeline(error, steps, ctx));
+    }
+    if (ctx.recovery_depth > 0 || matches!(ctx.error, Some(EvalError::Raised { .. })))
+        && ctx.error.is_some()
+    {
+        return Some(apply_pipeline(ctx.pending_failure(), steps, ctx));
+    }
+    let step_source = step_source(&steps[0]);
+    if let Err(error) = ctx.poll_work(step_source) {
+        return Some(error);
+    }
+    let projected = {
+        let _profile = crate::compile_profile::Span::new("candidate/direct-record-read");
+        let input = binding(ctx, id).expect("safe points do not change bindings");
+        let [Item::Record(fields)] = input.items.as_slice() else {
+            unreachable!()
+        };
+        let items = fields
+            .get(&name.local)
+            .map(|values| {
+                let _profile = crate::compile_profile::Span::new("copy/direct-field-selected");
+                values.clone()
+            })
+            .unwrap_or_default();
+        let mut out = ItemStream::from_items(items);
+        out.diagnostics = input.diagnostics.clone();
+        out
+    };
+    // The borrow has ended. Preserve the first field step's acceptance point
+    // before dispatching the remaining steps through the ordinary owned path.
+    if let Err(error) = ctx.force_safe_point(step_source) {
+        return Some(error);
+    }
+    Some(apply_pipeline(projected, &steps[1..], ctx))
+}
+
+fn text(value: &str) -> Item {
+    Item::Atomic(AtomValue::String(value.into()))
+}
+fn record(fields: impl IntoIterator<Item = (&'static str, Item)>) -> Item {
+    Item::Record(
+        fields
+            .into_iter()
+            .map(|(name, value)| (name.into(), vec![value]))
+            .collect(),
+    )
+}
+fn context(input: ItemStream) -> EvaluationContext {
+    EvaluationContext {
+        policy_bindings: BTreeMap::from([("input".into(), input)]),
+        ..Default::default()
+    }
+}
+fn query(source: &str, context: &EvaluationContext) -> crate::ir::CompiledQuery {
+    compile(
+        source,
+        &CompileContext {
+            policy_bindings: context.policy_bindings.clone(),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+}
+fn same(actual: &ItemStream, expected: &ItemStream) {
+    assert_eq!(actual, expected);
+    assert_eq!(actual.diagnostics, expected.diagnostics);
+    assert_eq!(actual.cursor, expected.cursor);
+    assert_eq!(actual.chain, expected.chain);
+}
+
+#[test]
+fn record_read_candidate_avoids_whole_read_and_keeps_selected_results_owned() {
+    let input = ItemStream::once(record([
+        ("label", record([("text", text("kept"))])),
+        ("unselected", Item::Array(vec![text("extra")])),
+    ]));
+    let ctx = context(input.clone());
+    let q = query("input.label", &ctx);
+    let expected = evaluate(&q, &ctx);
+    let (mut actual, stages) = measure(|| with_direct_records(true, || evaluate(&q, &ctx)));
+    same(&actual, &expected);
+    let Item::Record(fields) = &mut actual.items[0] else {
+        panic!("owned result")
+    };
+    fields.clear();
+    assert_eq!(ctx.policy_bindings["input"], input);
+    same(&evaluate(&q, &ctx), &expected);
+    assert!(!stages.contains_key("copy/local-value"));
+    assert_eq!(stages["candidate/direct-record-read"].calls, 1);
+    assert_eq!(stages["copy/direct-field-selected"].calls, 1);
+}
+
+#[test]
+fn record_read_candidate_preserves_shadowing_parameters_and_safe_points() {
+    let ctx = context(ItemStream::once(record([
+        ("label", text("outer")),
+        ("nested", record([("label", text("nested"))])),
+        ("rows", Item::Array(vec![record([("label", text("row"))])])),
+    ])));
+    for source in [
+        "input.label",
+        "input.nested.label",
+        "input.missing.label",
+        "input.rows.label",
+        "(input.label, input.label, input)",
+        "{ let input = {label: \"inner\"}; input.label }",
+        "declare function label(value) { value.label } label(input)",
+        "seq:map((1, 2), fn(n) => input.label)",
+        "declare function first() { second() } declare function second() { input.label } first()",
+        "try { 1 / 0 } catch (code, message) { input.label }",
+        "try { (input.label, 1 / 0, input.label) } catch (code, message) { input.nested.label }",
+    ] {
+        let q = query(source, &ctx);
+        let (expected, expected_points) = with_points(|| evaluate(&q, &ctx));
+        let ((actual, points), stages) =
+            measure(|| with_direct_records(true, || with_points(|| evaluate(&q, &ctx))));
+        assert!(actual.error.is_none(), "{source}: {actual:?}");
+        same(&actual, &expected);
+        assert_eq!(points, expected_points, "{source}");
+        assert!(
+            stages.contains_key("candidate/direct-record-read"),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn record_read_candidate_preserves_full_value_native_and_opaque_fallbacks() {
+    let node = evaluate(
+        &compile(
+            r#"data:read("<name>ivy</name>", "xml").root"#,
+            &Default::default(),
+        )
+        .unwrap(),
+        &Default::default(),
+    );
+    assert!(node.error.is_none());
+    let plain = record([("label", text("outer"))]);
+    for (input, source) in [
+        (ItemStream::once(plain.clone()), "input"),
+        (ItemStream::once(plain.clone()), "seq:first(input).label"),
+        (ItemStream::once(plain.clone()), "input.first"),
+        (
+            ItemStream::once(plain.clone()),
+            "native:call(\"fixture.opaque\", input.label)",
+        ),
+        (
+            ItemStream::once(plain.clone()),
+            "seq:map((1), fn(n) => cemt:apply_templates(input.label))",
+        ),
+        (
+            ItemStream::once(Item::Array(vec![plain.clone()])),
+            "input.label",
+        ),
+        (
+            ItemStream::from_items(vec![plain.clone(), plain]),
+            "input.label",
+        ),
+        (ItemStream::once(text("scalar")), "input.label"),
+        (node, "input.name"),
+    ] {
+        let ctx = context(input);
+        let q = query(source, &ctx);
+        let (expected, expected_points) = with_points(|| evaluate(&q, &ctx));
+        let ((actual, points), stages) =
+            measure(|| with_direct_records(true, || with_points(|| evaluate(&q, &ctx))));
+        same(&actual, &expected);
+        assert_eq!(points, expected_points, "{source}");
+        assert!(
+            !stages.contains_key("candidate/direct-record-read"),
+            "{source}"
+        );
+        assert!(stages.contains_key("copy/local-value"), "{source}");
+    }
+}
+
+#[test]
+fn record_read_candidate_preserves_metadata_and_failed_input_fallback() {
+    use crate::eval::Diagnostic;
+    for failed in [false, true] {
+        let mut input = ItemStream::once(record([("label", text("value"))]));
+        input.cursor = 3;
+        input.chain = true;
+        input.diagnostics.push(Diagnostic {
+            code: "fixture.record-read".into(),
+            severity: Severity::Warning,
+            ..Default::default()
+        });
+        if failed {
+            input.error = Some(EvalError::TypeError("retained input error"));
+        }
+        let ctx = context(input.clone());
+        for source in [
+            "input.label",
+            "try { input.label } catch (code, message) { message }",
+        ] {
+            let q = query(source, &ctx);
+            let (expected, expected_points) = with_points(|| evaluate(&q, &ctx));
+            let ((actual, points), stages) =
+                measure(|| with_direct_records(true, || with_points(|| evaluate(&q, &ctx))));
+            same(&actual, &expected);
+            assert_eq!(points, expected_points);
+            assert_eq!(stages.contains_key("candidate/direct-record-read"), !failed);
+            assert_eq!(ctx.policy_bindings["input"].cursor, 3);
+            assert!(ctx.policy_bindings["input"].chain);
+            assert_eq!(ctx.policy_bindings["input"].diagnostics, input.diagnostics);
+        }
+    }
+}
+
+#[test]
+fn record_read_candidate_preserves_cancellation_and_child_budgets() {
+    use crate::api::evaluate_with_control;
+    use crate::eval::QueryItemView;
+    use cem_ml::operation_control::{
+        ExecutionScopeId, ExecutionScopeKind, ExecutionScopeRegistration, OperationControl,
+        ROOT_EXECUTION_SCOPE_ID,
+    };
+    use cem_ml::scheduler::ScopePolicy;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    #[derive(Debug)]
+    struct CancelField(OperationControl, ExecutionScopeId, Arc<AtomicUsize>);
+    impl QueryItemView for CancelField {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn representation_id(&self) -> &'static str {
+            "fixture.record-cancel"
+        }
+        fn identity(&self) -> String {
+            "trigger".into()
+        }
+        fn kind(&self) -> QueryItemViewKind {
+            QueryItemViewKind::Record
+        }
+        fn field(&self, name: &str) -> Option<Vec<Item>> {
+            assert_eq!(name, "fire");
+            self.2.fetch_add(1, Ordering::SeqCst);
+            self.0.cancel_scope(self.1, None, None).unwrap();
+            Some(vec![text("must-not-escape")])
+        }
+    }
+    for cancelled in [false, true] {
+        let source = if cancelled {
+            "try { (input.label, input.trigger.fire) } catch (code, message) { \"must-not-catch\" }"
+        } else {
+            "declare function down(n, value) { if n == 0 { value.label } else { (value.label, down(n - 1, value)) } } try { down(17, input) } catch (code, message) { \"must-not-catch\" }"
+        };
+        let mut baseline = None;
+        for candidate in [false, true] {
+            let policy = ScopePolicy::host_root().with_cpu_workers(2);
+            let control = OperationControl::with_root_policy(Default::default(), policy).unwrap();
+            let child = control
+                .register_scope(
+                    ROOT_EXECUTION_SCOPE_ID,
+                    ExecutionScopeRegistration::inherited(
+                        ExecutionScopeKind::Template,
+                        "limited",
+                        policy.with_cpu_workers(1),
+                    ),
+                )
+                .unwrap();
+            let sibling = control
+                .register_scope(
+                    ROOT_EXECUTION_SCOPE_ID,
+                    ExecutionScopeRegistration::inherited(
+                        ExecutionScopeKind::Template,
+                        "sibling",
+                        policy,
+                    ),
+                )
+                .unwrap();
+            let calls = Arc::new(AtomicUsize::new(0));
+            let ctx = context(ItemStream::once(record([
+                ("label", text("prefix")),
+                (
+                    "trigger",
+                    Item::native(CancelField(control.clone(), child, calls.clone())),
+                ),
+            ])));
+            let q = query(source, &ctx);
+            let ((result, points), stages) = measure(|| {
+                with_direct_records(candidate, || {
+                    with_points(|| evaluate_with_control(&q, &ctx, &control, child))
+                })
+            });
+            assert!(result.error.is_some());
+            assert!(result.items.is_empty());
+            assert!(!result.diagnostics.is_empty());
+            assert_eq!(
+                stages.contains_key("candidate/direct-record-read"),
+                candidate
+            );
+            if let Some((expected, expected_points)) = &baseline {
+                same(&result, expected);
+                assert_eq!(&points, expected_points);
+            } else {
+                baseline = Some((result, points));
+            }
+            assert_eq!(calls.load(Ordering::SeqCst), usize::from(cancelled));
+            assert_eq!(control.check_scope(child).is_err(), cancelled);
+            assert!(control.check_scope(sibling).is_ok());
+            assert_eq!(control.memory_charged(child).unwrap(), 0);
+            let sibling_query = query("input.label", &ctx);
+            assert!(with_direct_records(candidate, || evaluate_with_control(
+                &sibling_query,
+                &ctx,
+                &control,
+                sibling
+            ))
+            .error
+            .is_none());
+        }
+    }
+}
+
+#[test]
+fn record_read_candidate_retains_selected_native_owners() {
+    use crate::xpath::functions::XPathQueryItem;
+    use std::sync::Arc;
+    let imported = EvaluationContext::default();
+    let root = evaluate(
+        &compile(
+            r#"data:read("<root><name>ivy</name></root>", "xml", "xpath").root"#,
+            &Default::default(),
+        )
+        .unwrap(),
+        &imported,
+    );
+    assert!(root.error.is_none());
+    let owner = |item: &Item| {
+        item.view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap()
+            .source_owner()
+            .unwrap()
+    };
+    let original_owner = owner(&root.items[0]);
+    let weak = Arc::downgrade(&original_owner);
+    let ctx = context(ItemStream::once(record([("node", root.items[0].clone())])));
+    let q = query("input.node", &ctx);
+    let expected = evaluate(&q, &ctx);
+    let actual = with_direct_records(true, || evaluate(&q, &ctx));
+    same(&actual, &expected);
+    assert!(Arc::ptr_eq(&original_owner, &owner(&actual.items[0])));
+    imported.data_readers.clear();
+    std::mem::drop((ctx, expected, root, original_owner));
+    assert!(
+        weak.upgrade().is_some(),
+        "selected result retains the native owner"
+    );
+    let read = context(actual.clone());
+    assert_eq!(
+        evaluate(&query("dom:text(input)", &read), &read).items,
+        vec![text("ivy")]
+    );
+    std::mem::drop((read, actual));
+    assert!(
+        weak.upgrade().is_none(),
+        "no hidden borrowed owner escapes evaluation"
+    );
+}

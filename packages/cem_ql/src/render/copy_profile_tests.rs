@@ -18,8 +18,10 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
-        crate::eval::binding_profile_tests::with_copied_inputs(operation)
+    crate::eval::pipeline::record_read_profile_tests::with_direct_records(false, || {
+        crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
+            crate::eval::binding_profile_tests::with_copied_inputs(operation)
+        })
     })
 }
 
@@ -91,6 +93,13 @@ fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T))
         profile_strategy(&format!("{case}/copied-fields"), &mut operation, &verify);
     });
     profile_strategy(&format!("{case}/borrowed-fields"), &mut operation, &verify);
+    crate::eval::pipeline::record_read_profile_tests::with_direct_records(true, || {
+        profile_strategy(
+            &format!("{case}/direct-record-candidate"),
+            &mut operation,
+            &verify,
+        );
+    });
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -490,6 +499,16 @@ fn copied_input_baseline_preserves_renderer_contracts() {
 #[test]
 fn copied_field_baseline_preserves_renderer_contracts() {
     crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
+        borrowing_preserves_focus_records_recovery_and_callbacks();
+        borrowing_preserves_reader_retention_across_renders();
+        borrowing_preserves_protected_failures_and_recovery();
+        borrowing_preserves_scoped_cancellation_and_budget_failure();
+    });
+}
+
+#[test]
+fn direct_record_candidate_preserves_renderer_contracts() {
+    crate::eval::pipeline::record_read_profile_tests::with_direct_records(true, || {
         borrowing_preserves_focus_records_recovery_and_callbacks();
         borrowing_preserves_reader_retention_across_renders();
         borrowing_preserves_protected_failures_and_recovery();
