@@ -33,7 +33,7 @@ pub(crate) fn trace_point(force: bool, source: IrId) {
     });
 }
 
-fn with_points<T>(run: impl FnOnce() -> T) -> (T, Vec<(bool, IrId)>) {
+pub(crate) fn with_points<T>(run: impl FnOnce() -> T) -> (T, Vec<(bool, IrId)>) {
     struct Reset(Option<Vec<(bool, IrId)>>);
     impl Drop for Reset {
         fn drop(&mut self) {

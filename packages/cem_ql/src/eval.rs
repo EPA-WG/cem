@@ -42,6 +42,8 @@ pub mod types_runtime;
 
 #[cfg(test)]
 pub(crate) mod binding_profile_tests;
+#[cfg(test)]
+pub(crate) mod let_profile_tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct QueryContextScope(pub u32);
@@ -903,9 +905,18 @@ impl<'a> EvalCtx<'a> {
                 }
             }
             IrNode::Let { name, value, body } => {
+                #[cfg(test)]
+                if let_profile_tests::enabled() {
+                    return let_profile_tests::eval_let(self, name, value, body);
+                }
                 let value = self.eval_id(value);
                 self.push_scope();
-                self.bind(name, value.clone());
+                let bound = {
+                    #[cfg(test)]
+                    let _profile = crate::compile_profile::Span::new("copy/let-binding");
+                    value.clone()
+                };
+                self.bind(name, bound);
                 let mut body = self.eval_id(body);
                 body.extend_diagnostics(value);
                 self.pop_scope();
@@ -1066,6 +1077,8 @@ impl<'a> EvalCtx<'a> {
     }
 
     pub(crate) fn eval_arg_streams(&mut self, args: &[IrId]) -> Vec<ItemStream> {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("eval/argument-inputs");
         args.iter().map(|arg| self.eval_id(*arg)).collect()
     }
 

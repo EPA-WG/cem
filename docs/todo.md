@@ -2503,10 +2503,42 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         32 synchronized stock cases. Table/tree/inspector overlap stock load;
         NPM/location waits occur afterward. See the
         [production evidence](browser-stabilization-review.tmp.md#production-direct-record-field-reads).
-  - [ ] After that correction, assess remaining whole-value argument reads and
+  - [x] After that correction, assess remaining whole-value argument reads and
         selected-result copies separately from shadow/try/hook snapshots.
         Propose measured shared ownership changes before promotion; do not infer
         a general shared-value or copy-on-write redesign from direct field reads.
+        Completed 2026-09-22: parameter installation already moves owned values;
+        complete argument/return reads and selected-field copies remain. CEM-QL
+        `let` adds an avoidable whole-value clone solely to retain status for
+        its post-body merge. A test-only move reduces 32 `let` interpolations
+        40.479→21.451 ms (47.0%) while preserving status and native owners.
+        The unchanged viewer does not use the candidate and gains no proven
+        speedup. See the [proposal](browser-stabilization-review.tmp.md#pending-decision-move-owned-let-values).
+  - [x] Fixture: attribute whole argument reads, selected results and `let`
+        binding copies independently. Compare a native test-only `let` candidate
+        that moves the owned value into scope and retains only status metadata.
+        Preserve full binding metadata, native owners, shadowing, diagnostic
+        order, recovery, checkpoints and child limits. Profile direct calls and
+        unchanged four-format viewers; keep production and snapshots unchanged.
+        Completed 2026-09-22: the copy regression fails before the candidate;
+        six direct checks and the renderer matrix pass afterward, including
+        fresh native-owner release and portable-template reload. All 679 native
+        tests, the release profile and native lint pass. Production is unchanged.
+  - [ ] Decide whether to move owned CEM-QL `let` initializers into their local
+        scope while retaining cloned diagnostics/error for the post-body merge.
+        Recommend the bounded move; preserve the full binding metadata, owned
+        reads/results, checkpoint order and native lifetimes. See the
+        [decision](browser-stabilization-review.tmp.md#pending-decision-move-owned-let-values).
+  - [ ] If approved, promote owned-let moves with default-path allocation,
+        metadata, failure and native-owner regressions, repeat native profiling,
+        rebuild WASM and verify unchanged table/tree plus normal/synchronized
+        Storybook. Preserve public artifacts, import boundaries, scope limits
+        and concurrency; retain status on the binding and the post-body merge.
+  - [ ] After that decision, investigate renderer shadow/try/hook snapshots and
+        initial input-context copies as separate costs using actual workloads.
+        Require a measured proposal before shared ownership changes. Keep broad
+        argument borrowing and shared/consumed results separate; the current
+        viewer measurements do not establish a need for that redesign.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

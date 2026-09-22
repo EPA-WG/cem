@@ -3339,3 +3339,201 @@ format-specific evaluator branches or document-object handoffs were added.
 Whole-value arguments, selected-result copies and shadow/try/hook snapshots
 remain separate follow-up costs; further shared ownership changes require a
 measured proposal.
+
+### Remaining value copies and owned `let` bindings (2026-09-22)
+
+The `b2e041bb` correction removes complete binding reads for eligible plain
+fields. The remaining ownership paths are distinct:
+
+- Whole-value reads still return owned `ItemStream` values. Function arguments
+  are evaluated through those reads, then `invoke_lambda` **moves** the owned
+  arguments into parameter bindings; parameter installation does not add a
+  clone. Returning that complete parameter performs another owned read.
+- A direct field of an immutable binding still clones its selected result.
+  Computed sources and later pipeline steps also return owned projections.
+  Removing these copies would require different result ownership or carefully
+  moving fields from already-owned temporaries; neither follows from direct
+  binding reads.
+- CEM-QL `let` currently clones its complete, already-owned initializer into
+  the local scope. It retains the original only to append its diagnostics/error
+  after the body. `ItemStream::extend_diagnostics` does not use those retained
+  items, cursor or chain marker. This is a separate avoidable installation copy.
+- CEMT variable, try/catch and expression-hook snapshots are renderer scope
+  costs. They are not CEM-QL `let` bindings and remain separate work.
+
+#### Native-only owned-let candidate
+
+The experiment in `packages/cem_ql/src/eval/let_profile_tests.rs` moves the entire
+initializer into the new local scope. A separate empty-item status stream
+retains cloned diagnostics and the typed error for the existing post-body
+merge. The bound value keeps its items, diagnostics, error, cursor and chain
+marker intact. Reads and selected results still return owned values; no borrow
+extends across evaluation and no shared-value representation is introduced.
+
+Operation order remains initializer evaluation, scope push, value installation,
+body evaluation, status merge and scope pop. The scope retains native owners
+through the body. Returned native handles retain their owners independently;
+values unused by the result are released when the scope is popped. There is no
+new callback or native-accessor path, so the candidate applies to both closed
+queries and opaque-call bodies. Full evaluator input/callback copying remains
+unchanged. Existing body-error precedence and diagnostic duplication/order
+are preserved rather than redefined by this ownership experiment.
+
+The candidate, switch and new attribution spans are `cfg(test)`; the switch is
+off by default and restores its previous value on unwind. Production retains
+the original full `let` clone. `copy/let-binding` measures that clone,
+`candidate/move-let-binding` measures candidate installation, and its nested
+`copy/let-status` measures metadata copying. `eval/argument-inputs` includes
+argument evaluation, including nested queries/calls; it is not a new copy and
+must not be added to child read/projection spans.
+
+The fixture checklist was added before implementation. The first native test
+fails on the redundant clone before adding the candidate
+(`/tmp/cem-let-move-red.log`). Six direct checks then prove:
+
+- The candidate avoids that clone while preserving owned reads/results.
+- The scope receives the original item allocation, with complete stream
+  metadata; changing a returned read leaves the binding unchanged.
+- Shadowing, repeated/whole-value reads, parameters, closure use and recovery
+  preserve results and exact ordered safe-point traces.
+- Failed initializers, body errors, diagnostic ordering and cursor/chain
+  behavior remain identical to the original path.
+- A fresh native owner survives field access and returned handles, and releases
+  at the same observable point. Callback creation, field access and final-drop
+  order match, without a reader cache or original input keeping the owner alive.
+- Cancellation and lower child-scope budget failures cannot leak prefix output
+  or escape through catch clauses; sibling scopes and memory cleanup remain valid.
+
+A seventh check runs the renderer contract matrix with the candidate. Added
+`let` expressions use retained native CEM nodes, scalar records and native
+callbacks, including portable-template reload. The copied-context baseline
+explicitly disables the candidate. All **96 unit tests** pass, with three
+opt-in profiles skipped (`/tmp/cem-let-move-unit.log`).
+
+The release fixture retains its five historical strategies and adds
+`moved-let-candidate` after current production `direct-record-reads`. New direct
+cases separate whole returns, large selected fields, computed projections,
+function forwarding/return, plain `let` values and constructed initializers.
+A 32-interpolation `let` case supplements the existing scalar interpolation and
+snapshot cases. The authored and retained four-format viewer sources remain
+unchanged. In particular, the table viewer has no authored CEM-QL `let`; its
+CEMT variables do not make this a viewer optimization. Synthetic large records
+model host controls, while XML/JSON/YAML/CSV documents still enter solely through
+shared CEM-ML import into retained native CEM trees.
+
+#### Owned-let measurements and remaining costs
+
+The release fixture passes in 77.35 s (`/tmp/cem-let-move-release.log`; build:
+`/tmp/cem-let-move-release-build.log`). Each strategy has six recorded and six
+unrecorded iterations, discarding the first and reporting five warm samples.
+No unrelated build/browser workload ran during measurement. The following
+unrecorded medians use 256 nested host controls; all values are milliseconds.
+
+| `let` workload | Current | Candidate | Current range | Candidate range |
+| --- | ---: | ---: | ---: | ---: |
+| Bind whole input, select scalar | 0.652 | 0.281 | 0.533–2.231 | 0.273–0.295 |
+| Bind whole input, return whole value | 0.750 | 0.484 | 0.717–0.850 | 0.441–0.983 |
+| Bind constructed record, select scalar | 0.681 | 0.267 | 0.577–0.691 | 0.245–0.491 |
+| 32 `let` member interpolations | 40.479 | 21.451 | 38.309–45.512 | 19.714–24.690 |
+
+The 32-interpolation median decreases 47.0%. Its 32 full binding clones consume
+10.091 ms in the recorded baseline and are absent from the candidate. Candidate
+installation totals 0.011 ms, including 0.002 ms for status copying. All 32
+initializer reads remain (10.644/10.049 ms), as do 32 selected scalar copies,
+input-context setup and scope restoration. Avoiding destruction of duplicated
+values contributes beyond the clone-construction spans. With zero nested
+controls, the same interpolation fixture measures 0.087/0.078 ms; this is not a
+general small-input performance guarantee.
+
+Whole-value and selected-result cases without `let` retain their original work:
+
+| Workload | Complete reads | Selected-field clones | Current / candidate (ms) |
+| --- | ---: | ---: | ---: |
+| Whole input result | 1 | 0 | 0.165 / 0.164 |
+| Direct large field | 0 | 1 | 0.175 / 0.166 |
+| Large field of `seq:first(input)` | 1 | 1 | 0.447 / 0.495 |
+| Function selects a scalar parameter field | 1 | 1 | 0.275 / 0.309 |
+| Function returns its entire parameter | 2 | 0 | 0.467 / 0.461 |
+| Forward argument to scalar-field function | 2 | 1 | 0.580 / 0.598 |
+
+These are unchanged copy counts, not candidate speedups or regressions. The
+forwarding case confirms that evaluating another whole-value argument creates
+another owned read, while parameter installation itself moves values. A whole
+`let` return retains two reads after removing its additional installation copy.
+Direct large fields still clone owned results; computed projection also retains
+the selected-field clone. The candidate changes none of those contracts.
+
+The unchanged viewer fixtures exercise **zero** `let` binding copies or candidate
+installations in either mode. Their measurements provide output equivalence
+and a record of timing variation, not a viewer benefit:
+
+| Viewer, 256 nested controls | Current (ms) | Candidate enabled (ms) |
+| --- | ---: | ---: |
+| Authored XML | 3.806 | 5.052 |
+| Authored CSV | 4.957 | 4.603 |
+| Authored YAML | 4.554 | 4.892 |
+| Authored JSON | 4.534 | 5.425 |
+| Retained XML | 4.315 | 4.545 |
+| Retained CSV | 5.242 | 4.686 |
+| Retained YAML | 4.719 | 4.657 |
+| Retained JSON | 4.864 | 6.323 |
+
+Authored XML ranges overlap at 3.466–8.300/4.025–5.223 ms; small-context XML
+is 2.321/2.463 ms with overlapping ranges. The candidate never runs in these
+viewers. All output, diagnostics, source maps, host updates, numeric sorting and
+native identity assertions pass. Loaded XML retains 219 complete reads
+(138 input, 81 scoped), 91 direct and 17 ordinary selected-field clones.
+The latter 17 clones total 0.003 ms in each mode; direct selected clones measure
+0.208/0.197 ms and all complete reads 0.036/0.033 ms. This fixture does not
+justify a general borrowed-argument or shared-result representation change.
+
+Snapshot-only templates also retain their work: shadow medians are
+14.782/12.788 ms, successful try 63.788/64.051 ms, catch scanning
+134.129/127.243 ms and hook scanning 249.943/257.063 ms. They do not exercise
+the `let` candidate. Renderer snapshot/input-context costs remain a separate
+investigation, rather than treating this fixture as a correction for them.
+
+Full native Nx validation passes **679 tests across 77 suites**, with eight
+opt-in profiles skipped (`/tmp/cem-let-move-native-tests.log`). Native Nx lint
+passes with the existing 131 CEM-ML/41 CEM-QL warnings
+(`/tmp/cem-let-move-lint.log`). Fixture formatting and diff checks pass.
+This native test-only investigation does not rebuild WASM or repeat browser
+coverage. The packaged WASM remains the validated `b2e041bb` runtime, SHA-256
+`1bd417f6fe77efd28104b1ef370ce23f2017b02dda0005ee73242338a6a2c299`.
+
+Reproduce with:
+
+```sh
+cargo test -p cem-ql --lib let_move_candidate
+cargo test -p cem-ql --lib moved_let_candidate
+cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+```
+
+#### Pending decision: move owned let values
+
+Recommend moving already-owned CEM-QL `let` initializers into their local scope
+and retaining only status metadata for the post-body merge. The measured
+benefit applies to actual `let` workloads. The value remains fully owned; no
+borrow crosses evaluation, and public values/artifacts, diagnostic order,
+native owners, source maps and scope limits keep their current contract.
+
+Keeping the current clone avoids splitting the retained status from the bound
+value, but pays for a complete value copy that the post-body merge never reads.
+The bounded move must preserve both the binding's full metadata and the separate
+status merge; dropping metadata from the binding or changing diagnostic/error
+precedence is not part of this proposal.
+
+Borrowed function arguments, shared values and consuming selected temporary
+fields could remove other copies, but need their own ownership, callback and
+destruction-order review. The current viewer's remaining read/projection costs
+do not establish a need for those broader changes. Keep them separate and
+investigate renderer snapshots/input-context costs after this bounded correction.
+
+If approved, first make the ownership/status regression assert default behavior,
+then promote the move, repeat native profiling, rebuild WASM and verify unchanged
+table/tree plus normal and synchronized Storybook coverage. Preserve import
+boundaries, viewer sources, limits and concurrency. Production remains unchanged
+at this checkpoint: the active TODO requires a measured proposal before shared
+ownership changes, and the user's latest instruction requires a stop at decisions.

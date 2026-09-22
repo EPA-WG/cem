@@ -18,9 +18,11 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
-        crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
-            crate::eval::binding_profile_tests::with_copied_inputs(operation)
+    crate::eval::let_profile_tests::with_moved_lets(false, || {
+        crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
+            crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
+                crate::eval::binding_profile_tests::with_copied_inputs(operation)
+            })
         })
     })
 }
@@ -104,6 +106,13 @@ fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T))
         &mut operation,
         &verify,
     );
+    crate::eval::let_profile_tests::with_moved_lets(true, || {
+        profile_strategy(
+            &format!("{case}/moved-let-candidate"),
+            &mut operation,
+            &verify,
+        );
+    });
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -219,11 +228,14 @@ fn borrowing_preserves_focus_records_recovery_and_callbacks() {
         ("{$record:entries(datadom).key}", false),
         ("{$record:entries(island).key}", false),
         ("{$dom:text()} {$same_node(native, native)}", false),
+        ("{$ { let local = native; (local, same_node(local, native)) }}", false),
+        ("{$ { let local = datadom; local.mode }}", false),
         ("{cem:variable @name=label @select='\"outer\"'}{span | {cem:variable @name=label @select='label + \"-inner\"'}{$label}}{$label}", false),
         ("{try | {$1 / 0}{catch | {span | {$datadom.mode}}}}", false),
         ("{template @mode=probe @match=true | {$dom:text(node)} {$datadom.mode}}{$cemt:apply_templates(native, \"probe\")}", true),
         ("{template @mode=probe @match=true | {$dom:text(node)} {$datadom.mode}}{$seq:map((1), fn(n) => cemt:apply_templates(native, \"probe\"))}", true),
         ("{$native:call(\"urn:profile:echo\", native)}", true),
+        ("{$ { let local = native:call(\"urn:profile:echo\", native); local }}", true),
     ] {
         let options = CompileTemplateOptions { host_bindings: data.bindings.keys().cloned().collect(), ..Default::default() };
         // Exercise a portable artifact reload as well as direct compilation.
@@ -522,6 +534,16 @@ fn copied_record_read_baseline_preserves_renderer_contracts() {
 }
 
 #[test]
+fn moved_let_candidate_preserves_renderer_contracts() {
+    crate::eval::let_profile_tests::with_moved_lets(true, || {
+        borrowing_preserves_focus_records_recovery_and_callbacks();
+        borrowing_preserves_reader_retention_across_renders();
+        borrowing_preserves_protected_failures_and_recovery();
+        borrowing_preserves_scoped_cancellation_and_budget_failure();
+    });
+}
+
+#[test]
 #[ignore = "profiling fixture: --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1"]
 fn profile_render_copies() {
     for count in [0, 256] {
@@ -543,8 +565,14 @@ fn profile_render_copies() {
             "datadom",
             "datadom.mode",
             "datadom.island",
+            "seq:first(datadom).island",
             "(datadom.mode, datadom.mode)",
             "declare function label(value) { value.mode } label(datadom)",
+            "declare function pass(value) { value } pass(datadom)",
+            "declare function label(value) { value.mode } declare function forward(value) { label(value) } forward(datadom)",
+            "{ let local = datadom; local.mode }",
+            "{ let local = datadom; local }",
+            "{ let local = {mode: datadom.mode, island: datadom.island}; local.mode }",
         ] {
             let query = compile(
                 source,
@@ -557,8 +585,9 @@ fn profile_render_copies() {
             let expected = evaluate(&query, &context);
             assert!(expected.error.is_none());
             match source {
-                "datadom" => assert_eq!(expected, bindings["datadom"]),
-                "datadom.island" => assert_eq!(expected, bindings["island"]),
+                "datadom" | "{ let local = datadom; local }" |
+                "declare function pass(value) { value } pass(datadom)" => assert_eq!(expected, bindings["datadom"]),
+                "datadom.island" | "seq:first(datadom).island" => assert_eq!(expected, bindings["island"]),
                 _ => assert!(expected.items.iter().all(|item| item == &text("fixed"))),
             }
             profile(
@@ -573,6 +602,7 @@ fn profile_render_copies() {
         for (name, source) in [
             ("literal", "{span | fixed}".repeat(32)),
             ("selected-member", "{span | {$datadom.mode}}".repeat(32)),
+            ("let-member", "{span | {$ { let local = datadom; local.mode }}}".repeat(32)),
             (
                 "named-call",
                 format!(
