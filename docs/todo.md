@@ -2237,18 +2237,29 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         compilation by up to 11.828 s in that suite. Hook-free interpolation
         still clones the whole context (0.237 -> 11.346 ms with unread controls).
         See [attribution and limits](browser-stabilization-review.tmp.md#remaining-startup-and-readiness-attribution).
-  - [ ] Decide the bounded no-eligible-expression-hook correction before shared
+  - [x] Decide the bounded no-eligible-expression-hook correction before shared
         renderer changes. Recommend returning the unchanged input stream before
         saving scope/bindings/focus when no visible destination-matching,
         non-active hook can run. Preserve evaluation of every eligible predicate;
         see [the proposal](browser-stabilization-review.tmp.md#pending-decision-expression-hooks-with-no-eligible-handler).
-  - [ ] Fixture and implementation after that decision: test empty/opposite/active
+        Accepted 2026-09-22: skip copies when no hook can run.
+  - [x] Fixture and implementation after that decision: test empty/opposite/active
         hook eligibility, complete native streams/identity, lexical captures,
         priority, typed attributes, recovery, depth and portable reload; implement
         the approved guard and repeat native/browser profiles and normal plus
         synchronized Storybook gates. Retain viewer sources, budgets, concurrency
         and public bindings. Keep selected-record copying and cold XSLT
         compilation as separate profiling tasks.
+        Completed 2026-09-22: an allocation regression reproduces the old copy;
+        the bounded guard preserves whole streams/context when no hook is
+        eligible. All 641 native tests, four release profiles and 98 browser
+        profile checks pass. Loaded interpolation improves 11.346 -> 0.287 ms;
+        loaded native table rendering improves 73.496 -> 34.299 ms. Normal
+        Storybook initially exposes two retry-wait failures (201/203); the retry
+        subset and full repeat pass (4/4, 203/203). Synchronized Storybook passes
+        203/203 with table completion at 28.264 s; all 64 stock probes pass.
+        Overall stabilization remains open; see
+        [implementation and validation](browser-stabilization-review.tmp.md#expression-hook-eligibility-implementation).
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
         available lifecycle signals before migrating each affected fixture;
@@ -2266,6 +2277,18 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         within the existing story limit. NPM/location pass this repeat and still
         require captured failure state before attribution; see the attribution
         section linked above. No waits changed in this investigation.
+        The hook-eligibility validation also observes two declaration-source
+        retry stories failing their default 1,000 ms `waitFor` after declaration
+        settlement. Their four-story isolated run and a subsequent full suite
+        pass; capture render/worker state on recurrence before attributing the
+        failure or migrating these waits. Do not change retry/cache behavior
+        based on a missing paragraph at a polling deadline.
+  - [ ] Profiling fixture: separate cold XSLT lowering, XPath compilation,
+        generated CEMT compilation and bundle assembly/validation before choosing
+        a compiler optimization. Attribute remaining complete selected-record
+        and template-scope copies independently. Retain source maps, diagnostics,
+        artifact validation, public bindings, native import and viewer behavior;
+        propose measured bounded changes before further shared implementation.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

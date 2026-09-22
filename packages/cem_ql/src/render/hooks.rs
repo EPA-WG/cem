@@ -2,6 +2,10 @@
 use super::*;
 use construction::ResultItem;
 
+#[cfg(test)]
+#[path = "hooks_tests.rs"]
+mod tests;
+
 /// Output destination is independent of lexical scopes and direct hook returns.
 #[derive(Debug, Clone, Default)]
 pub(super) enum ExpressionTarget {
@@ -207,6 +211,14 @@ impl PlanRenderer<'_> {
         attribute: Option<&str>,
         source: &SourceMapStack,
     ) -> ItemStream {
+        // With no eligible handler, preserve the owned stream and leave the
+        // environment in place. Match predicates are observable and must still
+        // run through normal dispatch whenever a handler is eligible.
+        if !self.hook_scopes.iter().flatten().any(|hook| {
+            hook.into == into && !self.active_hooks.contains(&hook.id)
+        }) {
+            return input;
+        }
         let scopes = self.hook_scopes.clone();
         let previous = self.evaluation_context.policy_bindings.clone();
         let previous_focus = self.evaluation_context.current_item.clone();

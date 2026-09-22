@@ -1716,6 +1716,9 @@ records source/build hashes; packaged CEM-QL WASM remains
 
 ### Pending decision: expression hooks with no eligible handler
 
+Accepted 2026-09-22: skip copies when no hook can run. Implementation and
+validation are recorded below.
+
 The measured no-hook interpolation fixture and code inspection identify a
 bounded next correction. `PlanRenderer::apply_expression_hook` clones every
 hook scope, the complete binding environment, current focus and input sequence
@@ -1736,8 +1739,8 @@ later boundaries. No binding declarations or record members are removed, and
 all public island access, native identities, references and input metadata stay
 available.
 
-This is a proposal, not an implemented or benchmarked fast path. The fixture
-measures the existing overhead; it does not claim a measured post-change gain
+At proposal time, this fast path was neither implemented nor benchmarked. The
+fixture measured the existing overhead, without claiming a post-change gain
 or a fix for cold XSLT compilation. The alternatives are retaining that repeated
 work, or a broader shared-value representation change with a larger API and
 ownership review. Prefer the small eligibility check first.
@@ -1757,5 +1760,140 @@ and still checks the authored output inside the existing story limit. Capture
 NPM/location failures when they recur. Do not replace these waits with larger
 frame counts or count late settlement as passing coverage. Cold XSLT lowering
 also remains a separate profiling task; shared compiler changes require their
-own measured proposal. This turn stops before shared renderer implementation
-because the current user instruction explicitly requires a stop at decisions.
+own measured proposal. The investigation stopped before shared renderer implementation, as requested;
+the user subsequently approved the bounded eligibility check.
+
+### Expression hook eligibility implementation
+
+The approved correction checks the visible hook scopes before saving any
+renderer state. If no hook has the requested destination outside the active
+hook stack, `apply_expression_hook` returns its owned `ItemStream` directly.
+The input items, references, cursor, chain marker, errors and diagnostics stay
+intact, and the current binding environment/focus stays in place. If any hook
+is eligible, the original predicate, ordering, capture, recursion and recovery
+path runs unchanged. A predicate that returns false is still evaluated and can
+emit diagnostics or raise a recoverable error.
+
+The production change is confined to that guard. It adds no cache, mutable
+shared values, record pruning, API/schema changes or external-format handling.
+Native CEM-ML import, node reuse, content/attribute construction and typed
+validation retain their existing boundaries. Viewer sources and all browser
+assertions, waits and concurrency remain unchanged.
+
+A deterministic unit regression reproduced the old copy before implementation:
+`content/empty` returned a different item-vector allocation. With the guard,
+all six content/attribute × empty/opposite/active cases preserve both input and
+binding allocations, native identity, diagnostics, partially consumed stream
+state and errors. The active-only case runs at the call-depth ceiling to verify
+that bypassing an ineligible handler adds no recursion failure.
+
+Two new public integration tests run directly compiled and reloaded portable
+artifacts. They check native body/attribute identity, mixed atomic/node and
+empty sequences, integer conversion and invalid destination constraints.
+Native predicate probes verify exactly one call per eligible expression,
+complete captured control records, focus, warning diagnostics and recovery from
+predicate errors. Existing hook/attribute/portable/binding tests cover lexical
+activation, priority, outer fallback during recursion, captured caller behavior,
+limits and cancellation. The focused checks pass (one allocation regression and
+69 integration tests), followed by the complete native suite: **641 passed**,
+five opt-in profiles skipped. The full Nx native test command uses
+`--skipNxCache`, avoiding publication of the large Rust build directory.
+
+
+All four release profiling fixtures pass with exact HTML/diagnostic checks.
+After builds finish, warm medians across five calls are:
+
+| Native stage | Before (ms) | After (ms) |
+| --- | ---: | ---: |
+| 100 constant interpolations, empty input | 0.237 | 0.192 |
+| Same interpolations, unread control record | 11.346 | 0.287 |
+| 100 literal spans, unread control record | 0.122 | 0.130 |
+| Full table without extra control binding | 2.134 | 2.689 |
+| Identical table with unread control binding | 73.496 | 34.299 |
+| Select a member from a loaded control record | 0.102 | 0.120 |
+
+The isolated interpolation overhead falls about 97.5%; the full loaded native
+table takes about 53% less time. The simple table/record figures retain timing
+variance and remaining work: selected records and other template scopes still
+copy complete bindings. This correction does not authorize pruning them.
+Cold XSLT component construction remains 554.089/914.653 ms for base/aspects;
+its artifact sizes and XPath program counts are unchanged. Skipping no-handler
+saves does not solve cold compilation.
+
+Native lint passes with the existing 131 CEM-ML and 41 CEM-QL warnings and none
+in the changed production code. WASM and packaged browser builds pass. The
+normal table profiler passes all forty checks; authored startup takes 3.310 s
+and cold XSLT compilation takes 924.9/1,031.5 ms. Warm browser render medians
+across the final three comparisons are:
+
+| Case | XML before / after | CSV before / after | YAML before / after | JSON before / after |
+| --- | ---: | ---: | ---: | ---: |
+| Small fixtures | 67.5 / 27.6 | 64.4 / 24.6 | 54.5 / 27.2 | 53.0 / 26.4 |
+| Complete authored page | 99.3 / 39.1 | 68.8 / 32.4 | 96.1 / 37.6 | 77.5 / 31.1 |
+
+The before measurements use the same binding-selection production build
+recorded above, before this guard. The final comparison control-input sizes (including both island paths) are
+exactly unchanged for both table scenarios. The unchanged tree probe also passes all
+18 checks; its final eight render round-trip medians are 132.25 ms (small XML)
+and 165.30 ms (retained request XML). The updated packaged WASM SHA-256 is
+`653a28d17e8f2992572edb5143b3079acc8de36d2de945c7fed45648a3f7482f`.
+
+Evidence: `/tmp/cem-hook-fastpath-red.log`, `/tmp/cem-hook-fastpath-green.log`,
+`/tmp/cem-hook-compatibility-red.log` (compatibility assertions pass before the
+guard), `/tmp/cem-hook-regressions.log`, `/tmp/cem-hook-full-native.log`,
+`/tmp/cem-hook-native-lint.log`, `/tmp/cem-hook-native-profile.log`,
+`/tmp/cem-hook-browser-build.log`, `/tmp/cem-hook-table-profile.json`, and
+`/tmp/cem-hook-tree-profile.json`.
+
+
+The first normal Storybook run passes **201/203** in 39.55 s. Its table reaches
+setup in 8.840 s and finishes in 11.700 s; tree/inspector complete in
+6.914/3.118 s. The failures are `FailedTransportCanRetry` and
+`InterruptedBodyCanRetry` in `declaration-source-retry.stories.ts`, at line 90's
+unchanged paragraph assertion following declaration settlement. Their source
+is the literal `{p | Ready}`. Both use the Testing Library default
+`asyncUtilTimeout: 1000`; neither waits for render settlement. The failures
+show missing output at that deadline, not a captured render/worker failure.
+They therefore do not establish either a renderer regression or a fixture-only
+cause.
+
+The isolated four-story retry suite passes in 2.06 s (532 ms of tests), and a
+full normal repeat passes **203/203** in 38.69 s. The repeat's table setup /
+completion is 7.903 / 10.177 s, with tree/inspector at 6.365/2.835 s. The first
+run's failures remain recorded; the repeat does not erase them. Add these two
+waits to the readiness audit and capture lifecycle/worker state when they fail
+again before changing assertions or source-retry behavior. Logs:
+`/tmp/cem-hook-storybook-normal.log`, `/tmp/cem-hook-retry-focused.log`, and
+`/tmp/cem-hook-storybook-repeat.log`.
+
+
+The synchronized full-suite gate starts at 16:40:39 UTC; the stock probe starts
+at 16:40:39.848. **Storybook passes 203/203** in 63.94 s and all **32/32** stock
+probes pass (warning readiness 3.46–10.21 s). Table setup / completion is
+20.489 / 28.264 s; tree and inspector complete in 15.119 / 8.038 s. External-src
+finds its button in 94/120 frames (3.800 s), NPM's default selection in 137/200
+frames (2.968 s), and location's readers in 37/180 frames (1.106 s). Those waits
+are unchanged. This is a passing synchronized gate, but one near-deadline table
+journey does not close overall stabilization or the historical readiness
+failures. Logs: `/tmp/cem-hook-synchronized.log` and
+`/tmp/cem-hook-synchronized-stock.json`.
+
+
+The standalone table probe with synchronized stock load also passes **40/40**
+checks and **32/32** stock probes. Its authored setup is 10.008 s and all seven
+cards are verified by 14.665 s. Cold XSLT calls take 3.594/2.972 s and the maximum
+worker queue wait is 7.616 s. Under that changing load, the final comparison
+render medians are 195.2/80.6/86.3/120.0 ms for XML/CSV/YAML/JSON. Those cases run
+sequentially at different load phases; neither their ratios nor total startup
+variation should be attributed entirely to the guard. Stock warning readiness
+is 4.43–6.03 s. Reports: `/tmp/cem-hook-table-load.json` and its `.stock.json`
+companion. Across this implementation, all 98 browser profile checks and 64
+stock probes pass (538 total stock timing probes).
+
+The approved optimization is complete. Next, continue the readiness audit
+(external-src, NPM/location and the newly observed source-retry waits), using
+actual declaration/render/worker state and retaining output assertions inside
+the existing story deadline. Separately profile cold XSLT construction and the
+remaining selected-record/template-scope copies before proposing another shared
+change. No overall stabilization completion is claimed: the initial normal
+retry failures and historical timeouts remain evidence requiring follow-up.
