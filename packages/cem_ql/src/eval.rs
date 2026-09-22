@@ -605,9 +605,6 @@ impl Evaluator {
 
     pub(crate) fn evaluate_internal<'a>(
         query: &'a CompiledQuery,
-        #[cfg(not(test))]
-        context: &EvaluationContext,
-        #[cfg(test)]
         context: &'a EvaluationContext,
         control: &OperationControl,
         scope: ExecutionScopeId,
@@ -636,8 +633,8 @@ pub(crate) struct EvalCtx<'a> {
     template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
     safe_points: SafePointPoller,
     scopes: Vec<HashMap<BindingId, ItemStream>>,
-    // Investigation only: immutable input borrows never escape evaluation.
-    #[cfg(test)]
+    // Proven input bindings remain immutable for this evaluation. Owned local
+    // scopes shadow these references; reads and results still own their values.
     borrowed_inputs: HashMap<BindingId, &'a ItemStream>,
     globals: HashMap<BindingId, IrId>,
     functions: HashMap<BindingId, IrId>,
@@ -660,9 +657,6 @@ pub(crate) struct EvalCtx<'a> {
 impl<'a> EvalCtx<'a> {
     fn new(
         query: &'a CompiledQuery,
-        #[cfg(not(test))]
-        context: &EvaluationContext,
-        #[cfg(test)]
         context: &'a EvaluationContext,
         control: &OperationControl,
         scope: ExecutionScopeId,
@@ -680,7 +674,6 @@ impl<'a> EvalCtx<'a> {
             template_host: None,
             safe_points: SafePointPoller::new(control.clone(), scope),
             scopes: vec![HashMap::new()],
-            #[cfg(test)]
             borrowed_inputs: HashMap::new(),
             globals: HashMap::new(),
             functions: HashMap::new(),
@@ -721,26 +714,28 @@ impl<'a> EvalCtx<'a> {
         }
     }
 
-    fn bind_policy_bindings(
-        &mut self,
-        #[cfg(not(test))] context: &EvaluationContext,
-        #[cfg(test)] context: &'a EvaluationContext,
-    ) {
+    fn bind_policy_bindings(&mut self, context: &'a EvaluationContext) {
         #[cfg(test)]
-        let _profile = crate::compile_profile::Span::new("copy/evaluator-bindings");
+        let _profile = crate::compile_profile::Span::new("eval/input-bindings");
         let dependencies = self.query.binding_dependencies();
+        let borrowed = dependencies.as_ref();
         #[cfg(test)]
-        if binding_profile_tests::enabled() && dependencies.is_some() {
-            let _profile = crate::compile_profile::Span::new("candidate/borrowed-input-bindings");
+        let borrowed = borrowed.filter(|_| !binding_profile_tests::force_input_copy());
+        if let Some(used) = borrowed {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("eval/borrowed-input-bindings");
             for (binding, name) in &self.query.policy_bindings {
-                if dependencies.as_ref().is_some_and(|used| used.contains(binding)) {
-                    if let Some(value) = context.policy_bindings.get(name) {
-                        self.borrowed_inputs.insert(*binding, value);
-                    }
+                if !used.contains(binding) {
+                    continue;
+                }
+                if let Some(value) = context.policy_bindings.get(name) {
+                    self.borrowed_inputs.insert(*binding, value);
                 }
             }
             return;
         }
+        // Opaque/native/CEMT calls retain complete owned inputs and the current
+        // mutable-host path. The dependency proof inspects every function body.
         for (binding, name) in &self.query.policy_bindings {
             if dependencies.as_ref().is_some_and(|used| !used.contains(binding)) {
                 continue;
@@ -1616,8 +1611,8 @@ impl<'a> EvalCtx<'a> {
                 return value.clone();
             }
         }
-        #[cfg(test)]
         if let Some(value) = self.borrowed_inputs.get(&binding) {
+            #[cfg(test)]
             let _profile = crate::compile_profile::Span::new("copy/local-value");
             return (*value).clone();
         }

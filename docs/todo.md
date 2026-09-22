@@ -2392,7 +2392,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         loaded viewer medians improve 23.820→15.437 ms (XML), 24.946→15.853 ms
         (CSV), 25.610→16.624 ms (YAML) and 25.249→17.375 ms (JSON). Snapshots
         remain separate costs; production behavior is unchanged. See the
-        [measured proposal](browser-stabilization-review.tmp.md#pending-decision-borrow-proven-evaluator-input-bindings).
+        [measured proposal](browser-stabilization-review.tmp.md#accepted-borrow-proven-evaluator-input-bindings).
   - [x] Fixture: isolate evaluator input-binding setup from value reads,
         split hook capture/caller/candidate and scope restoration costs,
         and compare a test-only borrowed-input candidate against complete
@@ -2402,15 +2402,26 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         Completed 2026-09-22: three native candidate contract tests and the
         expanded debug/release profiles pass. All 660 native tests pass;
         callback, cancellation, recovery, scope and ownership checks are retained.
-  - [ ] Decide whether proven expressions may borrow evaluator input bindings
+  - [x] Decide whether proven expressions may borrow evaluator input bindings
         for the evaluation call, while reads/results and locals remain owned.
         Recommend the bounded reference map under the existing dependency proof;
         retain complete owned inputs for opaque/native/CEMT calls. See the
-        [decision](browser-stabilization-review.tmp.md#pending-decision-borrow-proven-evaluator-input-bindings).
-  - [ ] If accepted, promote the evaluator input-borrow candidate with default
+        [decision](browser-stabilization-review.tmp.md#accepted-borrow-proven-evaluator-input-bindings).
+        Accepted by the user 2026-09-22: borrow proven evaluator inputs.
+  - [x] Promote the approved evaluator input-borrow candidate with default
         path and fallback regressions, repeat native profiling, rebuild WASM,
         and verify unchanged table/tree plus normal/synchronized browser coverage.
         Preserve public values/artifacts, scope policies, limits and concurrency.
+        Verify the default path borrows actual input allocations, returns owned
+        reads and preserves copied opaque-call fallback before implementation.
+        Completed 2026-09-22: default-path ownership tests fail before promotion
+        and pass afterward; all 660 native tests and native lint pass. Loaded XML
+        viewer medians improve 22.800→15.084 ms (33.8%) with owned reads/results
+        retained. Rebuilt WASM passes 40 table/18 tree checks, both 203-test
+        Storybook runs and all 32 synchronized stock cases without errors.
+        The table/tree/inspector stories overlap stock load; NPM/location waits
+        occur afterward. See the
+        [production evidence](browser-stabilization-review.tmp.md#production-evaluator-input-borrowing).
   - [ ] After that bounded correction, investigate owned value reads and field
         projection separately from shadow, try/catch and eligible-hook snapshots.
         Propose measured ownership/lifetime changes before implementation; do not

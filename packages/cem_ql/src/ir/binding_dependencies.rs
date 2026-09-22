@@ -7,7 +7,8 @@ use std::collections::HashSet;
 impl CompiledQuery {
     /// `None` requires a complete context and preserves mutable template-host
     /// access. `Some` also proves evaluation can omit that host, allowing CEMT
-    /// to borrow its context. Keep declarations intact for artifact identity/reload.
+    /// to borrow its context and the evaluator to borrow selected input streams.
+    /// Keep declarations intact for artifact identity/reload.
     pub(crate) fn binding_dependencies(&self) -> Option<HashSet<BindingId>> {
         let functions: HashSet<_> = self
             .tree

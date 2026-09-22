@@ -1,24 +1,24 @@
-//! Native test-only candidate. Production input bindings remain owned copies.
+//! Production input-borrowing contracts and opt-in copied baseline for profiling.
 use super::*;
 use crate::api::{compile, evaluate, CompileContext};
 use std::cell::Cell;
 
 thread_local! {
-    static BORROW_INPUTS: Cell<bool> = const { Cell::new(false) };
+    static FORCE_INPUT_COPY: Cell<bool> = const { Cell::new(false) };
 }
 
-pub(crate) fn enabled() -> bool {
-    BORROW_INPUTS.with(Cell::get)
+pub(crate) fn force_input_copy() -> bool {
+    FORCE_INPUT_COPY.with(Cell::get)
 }
 
-pub(crate) fn with_borrowed_inputs<T>(enabled: bool, operation: impl FnOnce() -> T) -> T {
+pub(crate) fn with_copied_inputs<T>(operation: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset {
         fn drop(&mut self) {
-            BORROW_INPUTS.with(|v| v.set(self.0));
+            FORCE_INPUT_COPY.with(|v| v.set(self.0));
         }
     }
-    let _reset = Reset(BORROW_INPUTS.with(|v| v.replace(enabled)));
+    let _reset = Reset(FORCE_INPUT_COPY.with(|v| v.replace(true)));
     operation()
 }
 
@@ -46,9 +46,7 @@ fn borrowed_inputs_are_scoped_immutable_and_reads_remain_owned() {
     };
     let query = compile("input", &options).unwrap();
     let control = OperationControl::default();
-    let mut ctx = with_borrowed_inputs(true, || {
-        EvalCtx::new(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID)
-    });
+    let mut ctx = EvalCtx::new(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
     let binding = *query
         .policy_bindings
         .iter()
@@ -89,8 +87,8 @@ fn borrowed_inputs_are_scoped_immutable_and_reads_remain_owned() {
     ] {
         let query = compile(source, &options).unwrap();
         assert!(query.binding_dependencies().is_some(), "{source}");
-        let expected = evaluate(&query, &context);
-        let actual = with_borrowed_inputs(true, || evaluate(&query, &context));
+        let expected = with_copied_inputs(|| evaluate(&query, &context));
+        let actual = evaluate(&query, &context);
         assert_eq!(actual, expected, "{source}");
         assert_eq!(actual.diagnostics, expected.diagnostics, "{source}");
         assert!(actual.error.is_none(), "{source}: {actual:?}");
@@ -132,9 +130,7 @@ fn borrowed_input_reads_preserve_full_stream_metadata_and_opaque_fallback() {
             .find(|(_, name)| name.as_str() == "input")
             .unwrap()
             .0;
-        let mut ctx = with_borrowed_inputs(true, || {
-            EvalCtx::new(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID)
-        });
+        let mut ctx = EvalCtx::new(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID);
         let closed = query.binding_dependencies().is_some();
         assert_eq!(ctx.borrowed_inputs.contains_key(&binding), closed);
         assert_eq!(ctx.scopes[0].contains_key(&binding), !closed);

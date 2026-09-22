@@ -18,7 +18,7 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    crate::eval::binding_profile_tests::with_borrowed_inputs(false, operation)
+    crate::eval::binding_profile_tests::with_copied_inputs(operation)
 }
 
 pub(super) fn force_context_copy() -> bool {
@@ -82,14 +82,10 @@ fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T))
     with_context_copy(|| {
         profile_strategy(&format!("{case}/copied-context"), &mut operation, &verify);
     });
-    profile_strategy(&format!("{case}/borrowed-context"), &mut operation, &verify);
-    crate::eval::binding_profile_tests::with_borrowed_inputs(true, || {
-        profile_strategy(
-            &format!("{case}/borrowed-input-candidate"),
-            &mut operation,
-            &verify,
-        );
+    crate::eval::binding_profile_tests::with_copied_inputs(|| {
+        profile_strategy(&format!("{case}/copied-inputs"), &mut operation, &verify);
     });
+    profile_strategy(&format!("{case}/borrowed-inputs"), &mut operation, &verify);
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -155,8 +151,9 @@ fn default_render_borrows_proven_expression_context() {
     assert!(plan.diagnostics.is_empty());
     assert_eq!(render_plan_to_html(&plan), "<span>fixed</span>");
     assert!(!stages.contains_key("copy/expression-context"));
-    // The evaluator still owns its selected bindings and local values.
-    assert_eq!(stages["copy/evaluator-bindings"].calls, 1);
+    // Input setup borrows bindings, while value reads still return owned copies.
+    assert_eq!(stages["eval/input-bindings"].calls, 1);
+    assert_eq!(stages["eval/borrowed-input-bindings"].calls, 1);
     assert_eq!(stages["copy/local-value"].calls, 1);
 }
 
@@ -473,8 +470,8 @@ fn borrowing_preserves_scoped_cancellation_and_budget_failure() {
 }
 
 #[test]
-fn borrowed_input_candidate_preserves_renderer_contracts() {
-    crate::eval::binding_profile_tests::with_borrowed_inputs(true, || {
+fn copied_input_baseline_preserves_renderer_contracts() {
+    crate::eval::binding_profile_tests::with_copied_inputs(|| {
         borrowing_preserves_focus_records_recovery_and_callbacks();
         borrowing_preserves_reader_retention_across_renders();
         borrowing_preserves_protected_failures_and_recovery();

@@ -2503,6 +2503,9 @@ host updates, numeric sorting and retained native identities must agree.
 
 #### Test-only borrowed evaluator inputs
 
+This section records the candidate in `111af3ac`, before the production
+promotion documented below.
+
 The candidate retains selected input streams by immutable reference for the
 duration of evaluation, only when the existing conservative dependency proof
 returns `Some`. A separate internal map holds those references. Owned locals and
@@ -2608,7 +2611,12 @@ Reproduce using:
 cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
 ```
 
-#### Pending decision: borrow proven evaluator input bindings
+#### Accepted: borrow proven evaluator input bindings
+
+Accepted by the user 2026-09-22: **Borrow proven evaluator inputs**. Promote the
+bounded map below and verify default production behavior, native profiling and
+rebuilt WASM/browser coverage. The following candidate evidence records the
+pre-implementation checkpoint.
 
 Validation before this decision: the three focused native candidate checks pass,
 as do all **660 native tests** across 77 suites (eight opt-in profiles skipped)
@@ -2633,10 +2641,111 @@ also reduce local reads and snapshots, but would require a broader design for
 public owned values, callback materialization, rollback and mutation. Prefer
 the bounded input map first; do not infer approval for that broader alternative.
 
-The active TODO requires a proposal before shared ownership/lifetime changes,
-and the user requested a stop at decisions. This checkpoint therefore retains
-the candidate only in native tests. If approved, promote it with default-path
-regressions and preserved opaque-call fallback, repeat the native comparison,
-rebuild WASM, and verify unchanged table/tree demos plus normal and synchronized
+The active TODO required a proposal before shared ownership/lifetime changes,
+and the user requested a stop at decisions. The proposal checkpoint therefore
+retained the candidate only in native tests. The user subsequently approved
+promotion with default-path regressions, preserved opaque-call fallback, native
+comparison, rebuilt WASM and unchanged table/tree plus normal/synchronized
 browser coverage. Remaining full-value reads, field projection, shadowing,
 try/catch and eligible-hook snapshots stay separate follow-up work.
+
+#### Production evaluator input borrowing
+
+The approved reference map now belongs to the production `EvalCtx`. The existing
+dependency proof selects immutable input streams for borrowing during evaluation;
+opaque/native/CEMT expressions keep their complete owned inputs. Owned scopes
+are searched first so local bindings and parameters still shadow inputs. Reading
+a binding returns its existing complete owned clone, and returned values carry
+no evaluator lifetime. The public value, capability and portable-artifact
+contracts are unchanged.
+
+The candidate-enabling switch has been replaced by a test-only switch that can
+force input copies for comparison. Default native tests and WASM compile the
+same borrowing implementation. The two input ownership/metadata tests were first
+changed to use default evaluation and failed against the old implementation
+(`/tmp/cem-eval-borrow-red.log`); they now pass without enabling a candidate.
+The full unit suite passes 77 tests with three opt-in profiles skipped
+(`/tmp/cem-eval-borrow-unit.log`). The renderer matrix exercises both production
+borrowing and forced input copies against the original copied-context baseline.
+It retains portable reload, full records, native focus/identity, reader ownership,
+callback fallback, failure provenance, recovery, cancellation and child budgets.
+
+Profiling labels now distinguish `copied-context` (before renderer borrowing),
+`copied-inputs` (the prior production behavior) and `borrowed-inputs` (current
+production). `eval/input-bindings` measures setup under either strategy;
+`eval/borrowed-input-bindings` measures the borrowed map within that setup. Value
+read, field projection and snapshot spans keep their previous meaning.
+
+Full native validation passes **660 tests across 77 suites**, with eight opt-in
+profiles skipped (`/tmp/cem-eval-borrow-native-tests.log`). Native Nx lint passes
+with the existing 131 CEM-ML/41 CEM-QL warnings
+(`/tmp/cem-eval-borrow-lint.log`). Fixture formatting and diff checks pass.
+
+The production release profile passes in 38.99 s
+(`/tmp/cem-eval-borrow-release.log`, build:
+`/tmp/cem-eval-borrow-release-build.log`). Using the same five warm unrecorded
+samples per strategy, the prior copied-input path and default production path
+measure:
+
+| Authored viewer, 256 nested controls | Copied inputs (ms) | Production borrowing (ms) |
+| --- | ---: | ---: |
+| XML | 22.800 | 15.084 |
+| CSV | 31.631 | 20.680 |
+| YAML | 24.384 | 16.212 |
+| JSON | 30.098 | 16.933 |
+
+XML ranges are 22.016–25.144/14.881–16.738 ms, a 33.8% median reduction.
+CSV varies more widely at 28.127–38.562/17.043–21.897 ms, as does JSON at
+24.860–35.012/14.872–17.432 ms; retain these ranges instead of projecting one
+percentage onto every render. Retained-reader medians are XML 22.741→14.985,
+CSV 24.724→15.586, YAML 23.808→15.833 and JSON 23.989→16.161 ms. Small-context
+XML remains 1.881/2.049 ms with overlapping 1.781–2.269/1.905–2.299 ms ranges;
+this change does not establish a general small-context gain.
+
+All 145 loaded XML evaluator setups remain, with setup time falling from 4.258
+to 0.087 ms (including 0.064 ms borrowed-map construction). The 311 owned reads,
+218 field-input copies and 108 selected-field copies still occur. Complete
+output, diagnostics, source maps, host updates, numeric sorting and native
+identity checks pass for each format. The same run measures loaded standalone
+member access at 0.907→0.573 ms and 32 member interpolations at 62.992→43.305 ms.
+These are native measurements; no unrelated build or browser workload ran during
+the profile.
+
+The WASM/browser package rebuild passes (`/tmp/cem-eval-borrow-browser-build.log`).
+Packaged CEM-QL WASM SHA-256:
+`8b7140eb30ae85cd0dbc75a90998d8ce646b213b3de4d38d8edb273dd0935836`.
+The unchanged standalone demos pass **40/40 table** and **18/18 tree** checks,
+with no console/page errors (`/tmp/cem-eval-borrow-{table,tree}-profile.{json,log}`).
+The authored table reaches four tables at 3.0732 s and seven cards at 4.0386 s;
+base/aspect XSLT setup measures 853.3/744.3 ms. These single browser observations
+do not establish a browser speedup; the native render comparison above is the
+performance evidence for this correction.
+
+The normal Storybook run passes **203/203 tests in 42 files** in 37.88 s
+(`/tmp/cem-eval-borrow-normal.log`). Table, tree and inspector story completion
+times are 9.4463/6.7370/2.6531 s. Existing viewer templates, browser assertions,
+scope limits and concurrency remain unchanged.
+
+The synchronized run also passes **203/203 tests in 42 files** in 54.08 s
+(`/tmp/cem-eval-borrow-synchronized.log`). Stock load starts only after the
+actual Vitest `RUN` marker: eight concurrent pages across four batches, with
+the existing 45 s warning deadline. All **32/32 stock cases** pass without
+errors; warning readiness ranges from 3.458 to 6.708 s
+(`/tmp/cem-eval-borrow-synchronized-stock.{json,log}`). Both processes exit zero
+(`/tmp/cem-eval-borrow-synchronized-status.log`).
+
+Stock cases span 20:53:36.285–20:54:04.379 UTC. The table and tree stories start
+at 20:53:49.610/49.812, and the inspector starts at 20:53:57.952, so all three
+overlap the extra workload. Their completion times are 17.4921/13.6342/6.2715 s.
+NPM default selection becomes ready at 20:54:18.518 (71/200 attempts, 1.6142 s),
+and both location readers become ready at 20:54:29.414 (44/180 attempts,
+1.0753 s). Those waits begin after stock load ends; this run does not establish
+their behavior under added stock load. The historical stock timeout remains
+unreproduced, and NPM/location readiness attribution remains open.
+
+The approved evaluator-input correction is complete. XML, JSON, YAML and CSV
+still enter through shared CEM-ML import and retain native CEM trees; there is
+no format-specific evaluator or document-object handoff. The next investigation
+isolates owned value reads and field projection from shadow, try/catch and
+eligible-hook snapshots. Broader shared ownership changes still require a
+measured proposal.
