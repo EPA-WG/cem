@@ -1,77 +1,67 @@
-//! Native-only field traversal experiment; production keeps owned input copies.
+//! Production field borrowing contracts and an opt-in copied baseline.
 use super::*;
 use crate::compile_profile::measure;
 use crate::eval::{Diagnostic, EvalError, QueryItemView};
-use std::borrow::Cow;
 use std::cell::Cell;
 use std::sync::{Arc, Mutex, Weak};
 
 thread_local! {
-    static BORROW_FIELD_INPUT: Cell<bool> = const { Cell::new(false) };
+    static FORCE_FIELD_COPY: Cell<bool> = const { Cell::new(false) };
 }
 
-pub(crate) fn enabled() -> bool {
-    BORROW_FIELD_INPUT.with(Cell::get)
-}
-
-pub(crate) fn with_borrowed_fields<T>(operation: impl FnOnce() -> T) -> T {
-    with_strategy(true, operation)
+pub(crate) fn force_field_copy() -> bool {
+    FORCE_FIELD_COPY.with(Cell::get)
 }
 
 pub(crate) fn with_copied_fields<T>(operation: impl FnOnce() -> T) -> T {
-    with_strategy(false, operation)
-}
-
-fn with_strategy<T>(borrow: bool, operation: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset {
         fn drop(&mut self) {
-            BORROW_FIELD_INPUT.with(|value| value.set(self.0));
+            FORCE_FIELD_COPY.with(|value| value.set(self.0));
         }
     }
-    let _reset = Reset(BORROW_FIELD_INPUT.with(|value| value.replace(borrow)));
+    let _reset = Reset(FORCE_FIELD_COPY.with(|value| value.replace(true)));
     operation()
 }
 
-pub(super) fn borrowed_field(input: ItemStream, field: &str) -> Option<ItemStream> {
-    // Borrow the already-owned input only within this projection. Native
-    // accessors still supply owned members, and the original input retains
-    // their owners throughout access. Flatten precisely one array level.
-    let items: Vec<Cow<'_, Item>> = {
-        let _profile = crate::compile_profile::Span::new("candidate/field-input");
+pub(super) fn copied_field(input: ItemStream, field: &str) -> Option<ItemStream> {
+    // Flatten one array level so navigating a data-document collection projects the field across
+    // its rows, i.e. `datadom.slices.hue.td1` yields every row's `td1`. A non-array item passes
+    // through unchanged.
+    let items: Vec<Item> = {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("copy/field-input");
         input
             .items
             .iter()
-            .flat_map(|item| match item {
-                Item::Array(values) => values.iter().map(Cow::Borrowed).collect(),
-                Item::Native(view) => view
-                    .members()
-                    .map(|values| values.into_iter().map(Cow::Owned).collect())
-                    .unwrap_or_else(|| vec![Cow::Borrowed(item)]),
-                _ => vec![Cow::Borrowed(item)],
-            })
+            .flat_map(|item| item.members().unwrap_or_else(|| vec![item.clone()]))
             .collect()
     };
-    if !items.is_empty()
-        && !items.iter().any(|item| {
-            matches!(item.as_ref(), Item::Record(_))
-                || item.view().is_some_and(|view| {
-                    matches!(
-                        view.kind(),
-                        QueryItemViewKind::Record | QueryItemViewKind::Node
-                    )
-                })
-        })
-    {
+    if items.is_empty() {
+        let mut out = ItemStream::empty();
+        out.diagnostics.extend(input.diagnostics);
+        out.error = input.error;
+        return Some(out);
+    }
+    if !items.iter().any(|item| {
+        matches!(item, Item::Record(_))
+            || item.view().is_some_and(|view| {
+                matches!(
+                    view.kind(),
+                    QueryItemViewKind::Record | QueryItemViewKind::Node
+                )
+            })
+    }) {
         return None;
     }
     let mut out = ItemStream::empty();
-    out.diagnostics = input.diagnostics;
+    out.diagnostics.extend(input.diagnostics);
     out.error = input.error;
     for item in items {
-        match item.as_ref() {
+        match item {
             Item::Record(record) => {
                 if let Some(values) = record.get(field) {
+                    #[cfg(test)]
                     let _profile = crate::compile_profile::Span::new("copy/field-selected");
                     out.items.extend(values.clone());
                 }
@@ -103,11 +93,10 @@ fn same_stream(actual: &ItemStream, expected: &ItemStream) {
 }
 
 #[test]
-fn field_candidate_borrows_input_but_returns_owned_selected_values() {
+fn default_field_projection_borrows_input_but_returns_owned_selected_values() {
     let input = ItemStream::once(record(record(text("kept"))));
-    let expected = record_field(input.clone(), "label").unwrap();
-    let (mut actual, stages) =
-        measure(|| with_borrowed_fields(|| record_field(input.clone(), "label").unwrap()));
+    let expected = with_copied_fields(|| record_field(input.clone(), "label").unwrap());
+    let (mut actual, stages) = measure(|| record_field(input.clone(), "label").unwrap());
     same_stream(&actual, &expected);
     let Item::Record(fields) = &mut actual.items[0] else {
         panic!("selected record")
@@ -115,12 +104,12 @@ fn field_candidate_borrows_input_but_returns_owned_selected_values() {
     fields.clear();
     assert_eq!(record_field(input, "label").unwrap(), expected);
     assert!(!stages.contains_key("copy/field-input"));
-    assert_eq!(stages["candidate/field-input"].calls, 1);
+    assert_eq!(stages["eval/borrowed-field-input"].calls, 1);
     assert_eq!(stages["copy/field-selected"].calls, 1);
 }
 
 #[test]
-fn field_candidate_preserves_one_level_projection_and_stream_status() {
+fn default_field_projection_preserves_one_level_projection_and_stream_status() {
     let row = record(text("kept"));
     for (items, expected) in [
         (vec![], Some(vec![])),
@@ -151,13 +140,13 @@ fn field_candidate_preserves_one_level_projection_and_stream_status() {
             severity: Severity::Warning,
             ..Default::default()
         });
-        let baseline = record_field(input.clone(), "label");
-        let candidate = with_borrowed_fields(|| record_field(input.clone(), "label"));
+        let baseline = with_copied_fields(|| record_field(input.clone(), "label"));
+        let actual = record_field(input.clone(), "label");
         assert_eq!(
-            candidate.as_ref().map(|stream| &stream.items),
+            actual.as_ref().map(|stream| &stream.items),
             expected.as_ref()
         );
-        if let (Some(actual), Some(expected)) = (candidate, baseline) {
+        if let (Some(actual), Some(expected)) = (actual, baseline) {
             same_stream(&actual, &expected);
             assert_eq!(actual.diagnostics, input.diagnostics);
             assert_eq!(actual.error, input.error);
@@ -169,7 +158,7 @@ fn field_candidate_preserves_one_level_projection_and_stream_status() {
 }
 
 #[test]
-fn field_candidate_preserves_query_reads_shadowing_and_recovery() {
+fn default_field_projection_preserves_query_reads_shadowing_and_recovery() {
     use crate::api::{compile, evaluate, CompileContext, EvaluationContext};
     let input = ItemStream::once(Item::Record(BTreeMap::from([
         ("label".into(), vec![text("outer")]),
@@ -205,8 +194,8 @@ fn field_candidate_preserves_query_reads_shadowing_and_recovery() {
         "try { 1 / 0 } catch (code, message) { input.label }",
     ] {
         let query = compile(source, &options).unwrap();
-        let expected = evaluate(&query, &context);
-        let actual = with_borrowed_fields(|| evaluate(&query, &context));
+        let expected = with_copied_fields(|| evaluate(&query, &context));
+        let actual = evaluate(&query, &context);
         assert!(actual.error.is_none(), "{source}: {actual:?}");
         same_stream(&actual, &expected);
         assert_eq!(context.policy_bindings["input"], input);
@@ -214,7 +203,7 @@ fn field_candidate_preserves_query_reads_shadowing_and_recovery() {
 }
 
 #[test]
-fn field_candidate_preserves_native_accessor_order_and_parent_retention() {
+fn default_field_projection_preserves_native_accessor_order_and_parent_retention() {
     type Log = Arc<Mutex<Vec<&'static str>>>;
     #[derive(Debug)]
     struct Parent(Arc<()>, Log);
@@ -270,15 +259,11 @@ fn field_candidate_preserves_native_accessor_order_and_parent_retention() {
             Some(vec![text("native")])
         }
     }
-    for candidate in [false, true] {
+    for copy in [true, false] {
         let log = Arc::new(Mutex::new(vec![]));
         let input = ItemStream::once(Item::native(Parent(Arc::new(()), log.clone())));
         let run = || record_field(input, "label").unwrap();
-        let result = if candidate {
-            with_borrowed_fields(run)
-        } else {
-            run()
-        };
+        let result = if copy { with_copied_fields(run) } else { run() };
         assert_eq!(result.items, vec![text("native")]);
         assert_eq!(
             *log.lock().unwrap(),

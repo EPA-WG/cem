@@ -3,6 +3,7 @@
 #[cfg(test)]
 pub(crate) mod field_profile_tests;
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -705,43 +706,46 @@ fn nth(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
 
 fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
     #[cfg(test)]
-    if field_profile_tests::enabled() {
-        return field_profile_tests::borrowed_field(input, field);
+    if field_profile_tests::force_field_copy() {
+        return field_profile_tests::copied_field(input, field);
     }
-    // Flatten one array level so navigating a data-document collection projects the field across
-    // its rows, i.e. `datadom.slices.hue.td1` yields every row's `td1`. A non-array item passes
-    // through unchanged.
-    let items: Vec<Item> = {
+    // Borrow the already-owned input only within this projection. Native
+    // accessors still supply owned members, and the original input retains
+    // their owners throughout access. Flatten precisely one array level.
+    let items: Vec<Cow<'_, Item>> = {
         #[cfg(test)]
-        let _profile = crate::compile_profile::Span::new("copy/field-input");
+        let _profile = crate::compile_profile::Span::new("eval/borrowed-field-input");
         input
             .items
             .iter()
-            .flat_map(|item| item.members().unwrap_or_else(|| vec![item.clone()]))
+            .flat_map(|item| match item {
+                Item::Array(values) => values.iter().map(Cow::Borrowed).collect(),
+                Item::Native(view) => view
+                    .members()
+                    .map(|values| values.into_iter().map(Cow::Owned).collect())
+                    .unwrap_or_else(|| vec![Cow::Borrowed(item)]),
+                _ => vec![Cow::Borrowed(item)],
+            })
             .collect()
     };
-    if items.is_empty() {
-        let mut out = ItemStream::empty();
-        out.diagnostics.extend(input.diagnostics);
-        out.error = input.error;
-        return Some(out);
-    }
-    if !items.iter().any(|item| {
-        matches!(item, Item::Record(_))
-            || item.view().is_some_and(|view| {
-                matches!(
-                    view.kind(),
-                    QueryItemViewKind::Record | QueryItemViewKind::Node
-                )
-            })
-    }) {
+    if !items.is_empty()
+        && !items.iter().any(|item| {
+            matches!(item.as_ref(), Item::Record(_))
+                || item.view().is_some_and(|view| {
+                    matches!(
+                        view.kind(),
+                        QueryItemViewKind::Record | QueryItemViewKind::Node
+                    )
+                })
+        })
+    {
         return None;
     }
     let mut out = ItemStream::empty();
-    out.diagnostics.extend(input.diagnostics);
+    out.diagnostics = input.diagnostics;
     out.error = input.error;
     for item in items {
-        match item {
+        match item.as_ref() {
             Item::Record(record) => {
                 if let Some(values) = record.get(field) {
                     #[cfg(test)]

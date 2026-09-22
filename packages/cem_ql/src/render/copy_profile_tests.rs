@@ -84,17 +84,13 @@ fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T))
     with_context_copy(|| {
         profile_strategy(&format!("{case}/copied-context"), &mut operation, &verify);
     });
-    crate::eval::binding_profile_tests::with_copied_inputs(|| {
-        profile_strategy(&format!("{case}/copied-inputs"), &mut operation, &verify);
+    crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
+        crate::eval::binding_profile_tests::with_copied_inputs(|| {
+            profile_strategy(&format!("{case}/copied-inputs"), &mut operation, &verify);
+        });
+        profile_strategy(&format!("{case}/copied-fields"), &mut operation, &verify);
     });
-    profile_strategy(&format!("{case}/borrowed-inputs"), &mut operation, &verify);
-    crate::eval::pipeline::field_profile_tests::with_borrowed_fields(|| {
-        profile_strategy(
-            &format!("{case}/borrowed-field-candidate"),
-            &mut operation,
-            &verify,
-        );
-    });
+    profile_strategy(&format!("{case}/borrowed-fields"), &mut operation, &verify);
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -164,6 +160,9 @@ fn default_render_borrows_proven_expression_context() {
     assert_eq!(stages["eval/input-bindings"].calls, 1);
     assert_eq!(stages["eval/borrowed-input-bindings"].calls, 1);
     assert_eq!(stages["copy/local-value"].calls, 1);
+    assert!(!stages.contains_key("copy/field-input"));
+    assert_eq!(stages["eval/borrowed-field-input"].calls, 1);
+    assert_eq!(stages["copy/field-selected"].calls, 1);
 }
 
 #[test]
@@ -489,9 +488,8 @@ fn copied_input_baseline_preserves_renderer_contracts() {
 }
 
 #[test]
-fn borrowed_field_candidate_preserves_renderer_contracts() {
-    crate::eval::pipeline::field_profile_tests::with_borrowed_fields(|| {
-        default_render_borrows_proven_expression_context();
+fn copied_field_baseline_preserves_renderer_contracts() {
+    crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
         borrowing_preserves_focus_records_recovery_and_callbacks();
         borrowing_preserves_reader_retention_across_renders();
         borrowing_preserves_protected_failures_and_recovery();

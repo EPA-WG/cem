@@ -2432,7 +2432,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         218 field traversals. Two native
         comparisons improve loaded XML 22.265→10.907 and 16.935→10.408 ms;
         owned results and snapshot costs remain. Production is unchanged. See
-        the [measured proposal](browser-stabilization-review.tmp.md#pending-decision-borrow-temporary-field-inputs).
+        the [measured proposal](browser-stabilization-review.tmp.md#accepted-borrow-temporary-field-inputs).
   - [x] Fixture: compare current field-input cloning with a native test-only
         traversal borrowing the already-owned input and cloning selected results.
         Cover one-level array flattening, missing/mixed fields, native accessor
@@ -2442,15 +2442,26 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         Completed 2026-09-22: five native candidate checks, both release profiles,
         all 665 native tests and native lint pass. Native owner retention is
         explicitly checked through accessor calls; every output remains owned.
-  - [ ] Decide whether field projection may borrow its already-owned temporary
+  - [x] Decide whether field projection may borrow its already-owned temporary
         input for one traversal while selected results remain owned. Recommend
         this bounded correction, retaining native owners and accessor order;
         avoid broader binding-read or shared-value changes. See the
-        [decision](browser-stabilization-review.tmp.md#pending-decision-borrow-temporary-field-inputs).
-  - [ ] If accepted, promote temporary field-input borrowing with default-path
+        [decision](browser-stabilization-review.tmp.md#accepted-borrow-temporary-field-inputs).
+        Accepted by the user 2026-09-22: borrow temporary field inputs.
+  - [x] Promote the approved temporary field-input borrowing with default-path
         ownership regressions, repeat native profiles, rebuild WASM, and verify
         unchanged table/tree demos plus normal/synchronized Storybook coverage.
         Preserve field semantics, scope limits, public values and artifacts.
+        First verify default evaluation and rendering avoid field-input clones
+        while selected outputs stay owned and native owners remain retained.
+        Completed 2026-09-22: the default-path regression fails before promotion
+        and passes afterward. All 665 native tests and native lint pass; the
+        loaded XML native median improves 16.923→9.666 ms (42.9%) while owned
+        reads/results and native owner retention remain intact. Rebuilt WASM
+        passes 40 table/18 tree checks, both 203-test Storybook runs and all
+        32 synchronized stock cases. Table/tree/inspector overlap stock load;
+        NPM/location waits occur afterward. See the
+        [production evidence](browser-stabilization-review.tmp.md#production-field-input-borrowing).
   - [ ] After that correction, investigate full binding/parameter reads and
         selected-result copies separately from shadow/try/hook snapshots.
         Propose any further shared lifetime or ownership change before promotion.

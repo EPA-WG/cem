@@ -2768,6 +2768,8 @@ retain their meaning.
 
 #### Native-only borrowed field traversal
 
+This section records the `bb154232` candidate before its production promotion.
+
 The candidate in
 `packages/cem_ql/src/eval/pipeline/field_profile_tests.rs` replaces the redundant
 flattening copy with temporary `Cow<Item>` entries. Ordinary items and members
@@ -2900,7 +2902,11 @@ yarn nx run cem_ql:test --skipNxCache
 yarn nx run cem_ql:lint --skipNxCache
 ```
 
-#### Pending decision: borrow temporary field inputs
+#### Accepted: borrow temporary field inputs
+
+Accepted by the user 2026-09-22: **Borrow temporary field inputs**. Promote the
+bounded traversal with default-path regressions and native/WASM/browser checks.
+The candidate discussion above records the `bb154232` proposal checkpoint.
 
 Recommend promoting this bounded field traversal based on the measured native
 comparison above. Its references stay inside the projection call, the original
@@ -2918,8 +2924,108 @@ from evaluator bindings would eliminate another read copy, but reaches across
 variable lookup, function arguments and mutable evaluation. Neither broader
 alternative is part of this candidate.
 
-The active TODO requires a measured proposal before shared ownership/lifetime
-changes, and the user requested a stop at decisions. This checkpoint therefore
-keeps the candidate in native tests. The next decision is whether to promote
-temporary field-input borrowing. Full binding reads, selected-result copies and
-shadow/try/hook snapshots remain separate follow-up work.
+The active TODO required a measured proposal before shared ownership/lifetime
+changes, and the user requested a stop at decisions. The proposal checkpoint
+therefore kept the candidate in native tests. The user subsequently approved
+promotion with the validation described above. Full binding reads, selected-result
+copies and shadow/try/hook snapshots remain separate follow-up work.
+
+#### Production field-input borrowing
+
+The approved traversal now runs in production `record_field`. Its temporary
+`Cow<Item>` entries borrow ordinary values from the owned input and own native
+accessor results. The input retains native owners until projection finishes.
+Selected record fields and all returned streams remain owned; public values,
+artifacts, field semantics, reader identity and scope policies are unchanged.
+No additional lifetime reaches the evaluator, callbacks or renderer.
+
+The previous implementation now exists only as an opt-in copied baseline in
+the native test module. The candidate-enabling switch has been replaced by an
+unwind-safe force-copy switch, off by default. The ownership, stream-status,
+query and native-retention tests exercise default production evaluation; the
+renderer contracts also run by default and against forced field copies.
+
+The default-path regression was changed before promotion and failed on the old
+input clone (`/tmp/cem-field-borrow-red.log`). After promotion, all **82 native
+unit tests** pass with three opt-in profiles skipped
+(`/tmp/cem-field-borrow-unit.log`). The default render regression verifies
+borrowed context/input setup and field traversal, while retaining the owned
+value read and selected-result clone.
+
+The release comparison now labels the prior production behavior `copied-fields`
+and the default implementation `borrowed-fields`. Historical `copied-context`
+and `copied-inputs` batches still force field copies as well, preserving their
+original baselines. `eval/borrowed-field-input` replaces the candidate span;
+owned-read and selected-result spans keep their previous meaning.
+
+Full native Nx validation passes **665 tests across 77 suites**, with eight
+opt-in profiles skipped (`/tmp/cem-field-borrow-native-tests.log`). Native Nx
+lint also passes with the existing 131 CEM-ML/41 CEM-QL warnings
+(`/tmp/cem-field-borrow-lint.log`). Fixture formatting and diff checks pass.
+
+The production release profile passes in 52.72 s
+(`/tmp/cem-field-borrow-release.log`; build:
+`/tmp/cem-field-borrow-release-build.log`). With five warm unrecorded samples
+per strategy and no unrelated build/browser work during measurement:
+
+| Authored viewer, 256 nested controls | Prior field copies (ms) | Production borrowing (ms) |
+| --- | ---: | ---: |
+| XML | 16.923 | 9.666 |
+| CSV | 19.912 | 10.461 |
+| YAML | 16.759 | 11.231 |
+| JSON | 16.962 | 12.502 |
+
+XML ranges are 15.246–18.990/9.192–10.168 ms, a 42.9% median reduction.
+Other formats retain their variation: CSV 16.070–20.596/9.633–13.179, YAML
+16.262–24.659/9.800–13.213 and JSON 15.554–19.420/11.184–14.459 ms.
+Retained-reader medians are XML 15.672→10.453, CSV 18.219→13.657,
+YAML 17.417→11.743 and JSON 18.333→11.032 ms. Small-context authored XML
+is 2.051/2.073 ms with overlapping 1.769–2.464/1.741–2.563 ms ranges;
+no general small-context gain is claimed.
+
+The loaded XML profile retains all 145 input setups, 198 borrowed-input reads,
+113 scoped reads and 108 selected-field copies. Its 218 field-input traversals
+change from 3.393 ms of copying to 0.018 ms of borrowed traversal/native-member
+access. Complete output, diagnostics, source maps, host updates, numeric sorting
+and native identity checks pass for every format. Loaded standalone scalar field
+access measures 0.602→0.323 ms, and 32 member interpolations measure
+48.430→22.156 ms. These are native performance measurements; browser checks
+below validate integration separately.
+
+The WASM/browser package rebuild passes
+(`/tmp/cem-field-borrow-browser-build.log`). Packaged CEM-QL WASM SHA-256:
+`12b372b8d549dc8ea1839aeff2fea21a0d89aa483144bc50a0c922b294a55d12`.
+The unchanged standalone demos pass **40/40 table** and **18/18 tree** checks
+with no reported errors (`/tmp/cem-field-borrow-{table,tree}-profile.{json,log}`).
+The authored table reaches four tables at 2.9845 s and seven cards at 3.9344 s;
+base/aspect XSLT retention measures 818.0/790.9 ms. These single browser
+observations are integration evidence, not a measured browser speedup.
+
+The normal Storybook run passes **203/203 tests in 42 files** in 41.54 s
+(`/tmp/cem-field-borrow-normal.log`). Table, tree and inspector stories finish
+in 11.0821/7.3261/3.2460 s. Viewer sources, assertions, scope limits and browser
+concurrency remain unchanged.
+
+The synchronized run passes **203/203 tests in 42 files** in 65.15 s
+(`/tmp/cem-field-borrow-synchronized.log`). After the actual Vitest `RUN` marker,
+the stock probe launches eight concurrent pages across four batches, preserving
+the 45 s warning deadline. All **32/32 stock cases** pass without errors, with
+warning readiness at 3.778–9.850 s
+(`/tmp/cem-field-borrow-synchronized-stock.{json,log}`). Both processes exit zero
+(`/tmp/cem-field-borrow-synchronized-status.log`).
+
+Stock cases span 21:28:27.484–21:29:05.589 UTC. Table/tree stories start at
+21:28:41.063/41.226 and the inspector at 21:28:50.991, confirming overlap with
+the extra workload. Their completion times are 24.7930/15.9651/5.4619 s.
+NPM default selection becomes ready at 21:29:20.372 (119/200 attempts,
+2.3921 s), and both location readers at 21:29:31.961 (42/180 attempts,
+0.9971 s). These waits begin after stock load ends, so their behavior under
+added stock load remains unverified. The historical stock timeout remains
+unreproduced; this correction does not claim to resolve it.
+
+The approved field-input correction is complete. XML, JSON, YAML and CSV still
+enter through shared CEM-ML import into retained native CEM trees. There are no
+format-specific evaluator changes or document-object handoffs. Full binding and
+parameter reads, selected-result copies, and shadow/try/hook snapshots remain
+separate follow-up costs; further shared ownership changes require a measured
+proposal.
