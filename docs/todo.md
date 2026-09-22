@@ -2052,13 +2052,42 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         source recovers. Both real/helper stock galleries reproduce failure
         after remount and recover after document reload. Record the distinction
         between this proven recovery defect and the unattributed historical timeout.
-  - [ ] Fixture SRC-FAILURE-RETRY: decide whether explicit registration/reconnect
-        should retry failed declaration acquisition; implement the accepted
-        [recovery contract](browser-stabilization-review.tmp.md#pending-decision-retry-on-explicit-registration-or-reconnect)
+  - [x] Fixture SRC-FAILURE-RETRY: implement the user-approved explicit
+        registration/reconnect retry after failed declaration acquisition. Use the
+        [recovery contract](browser-stabilization-review.tmp.md#accepted-contract-retry-on-explicit-registration-or-reconnect)
         with browser coverage for original/replacement declarations, interrupted
         bodies, concurrent consumers, successful cache reuse, scope disposal and
         the authored stock gallery. Do not add automatic retries or alter source
         parsing, URL resolution or base viewer templates as part of this proposal.
+        Approved 2026-09-21: preserve successful caches, share pending requests,
+        retain diagnostic history, then investigate the startup issue again.
+        Completed 2026-09-21: rejected loads are evicted and failed owners can
+        retry. All 203 browser stories, 441 unit tests, and the full gallery
+        (29 standalone pages / 35 source-loaded documents) pass. Build, types
+        and lint pass; lint retains its two existing warnings.
+  - [x] Investigate stock startup after SRC-FAILURE-RETRY with actual browser
+        request aborts, interrupted HTTP bodies, and remount/reconnect while a
+        source is pending. Compare the gallery helper and real demo component;
+        capture requests, declarations, styles, diagnostics and warning output.
+        Keep the historical timeout open unless its cause is established.
+        Completed 2026-09-21: all eight controlled cases pass on the rebuilt
+        runtime, including warning/style recovery and editing after remount.
+        Pending owners share one request. The historical cause remains unknown;
+        further import/worker probes are recorded in the
+        [renewed investigation](browser-stabilization-review.tmp.md#renewed-startup-investigation-after-the-fix).
+  - [x] Probe stock-only imported-template failures and pending loads using a
+        host resolver, with the authored source unchanged. Capture processing
+        traces and recovery after remount to distinguish source registration
+        from module compilation and instance rendering.
+        Completed 2026-09-21: four import cases and two gated worker-compilation
+        cases pass with the helper and real demo component. Import failure is
+        diagnosed on the defined instance; pending work recovers after remount
+        and release. No worker fallback or overflow occurs. The historical
+        timeout remains unattributed.
+  - [ ] Measure stock request, worker-queue, compile and render timing under
+        parallel load using phase traces. Investigate unexplained delays without
+        increasing waits or changing viewer templates; keep attribution to the
+        historical timeout separate from any newly reproduced issue.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

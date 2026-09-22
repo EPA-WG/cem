@@ -295,6 +295,84 @@ export const DelayedStockDeclaration: Story = {
     },
 };
 
+export const FailedStockDeclarationCanRemount: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        let failing = true;
+        let requests = 0;
+        const scope = createCemDeclarationScope({ document });
+        const pageSource = authoredPage
+            .replaceAll('cem-element', 'cem-retry-cell-declaration')
+            .replaceAll('cem-pokemon-cells', 'story-retry-pokemon-cells')
+            .replaceAll('cem-stock-cells', 'story-retry-stock-cells')
+            .replaceAll('cem-native-value-parent', 'story-retry-native-value-parent')
+            .replaceAll('cem-native-value-card', 'story-retry-native-value-card');
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-retry-cell-declaration', declarationScope: scope,
+            loadSrcDocument: async (path, baseDocument) => {
+                const url = new URL(path, baseDocument.baseURI);
+                if (url.href === SOURCE_URL.href) return pageSource;
+                if (url.pathname.endsWith('/stock-cell.cemt')) {
+                    requests++;
+                    if (failing) throw new Error('HTTP 503: controlled stock source failure');
+                }
+                const response = await fetch(url);
+                if (!response.ok || !response.body) throw new Error(`Cannot load ${url}: ${response.status}`);
+                return { body: response.body, resolvedUrl: response.url,
+                    resolverIdentity: 'retry-cell-fixture', contentType: response.headers.get('content-type') ?? undefined };
+            },
+        });
+        runtime.install(window);
+        function mountPage(tag: string): HTMLElement {
+            const declaration = document.createElement(runtime.declarationTag);
+            declaration.setAttribute('tag', tag);
+            declaration.setAttribute('src', SOURCE_URL.href);
+            const page = document.createElement(tag);
+            canvasElement.append(declaration, page);
+            return page;
+        }
+        try {
+            const first = mountPage('story-retry-cell-first-page');
+            await ready(first, 'story-retry-pokemon-cells');
+            await waitFor(() => expect(first.querySelectorAll('cem-demo-element[data-state=ready]')).toHaveLength(3), { timeout: 10000 });
+            const failedOwner = first.querySelector(`${runtime.declarationTag}[tag="story-retry-stock-cells"]`) as HTMLElement;
+            await runtime.whenDeclarationSettled(failedOwner);
+            expect(runtime.diagnosticsFor(failedOwner).map(diagnostic => diagnostic.code)).toEqual(['cem-element.src_load_failed']);
+            expect(customElements.get('story-retry-stock-cells')).toBeUndefined();
+            expect(first.querySelector('story-retry-stock-cells strong')).toBeNull();
+            expect(failedOwner.querySelector('style[data-cem-declaration-style]')).toBeNull();
+            const failedRequests = requests;
+            expect(failedRequests).toBeGreaterThan(0);
+
+            canvasElement.replaceChildren();
+            failing = false;
+            const replacement = mountPage('story-retry-cell-replacement-page');
+            await ready(replacement, 'story-retry-pokemon-cells');
+            await waitFor(() => expect(requests).toBe(failedRequests + 1), { timeout: 10000 });
+            const stock = await ready(replacement, 'story-retry-stock-cells');
+            const owner = replacement.querySelector(`${runtime.declarationTag}[tag="story-retry-stock-cells"]`) as HTMLElement;
+            await runtime.whenDeclarationSettled(owner);
+            await waitFor(() => {
+                expect(stock.querySelector('strong')).toHaveTextContent('Out of stock (0)');
+                expect(owner.querySelector('style[data-cem-declaration-style]')).not.toBeNull();
+            }, { timeout: 10000 });
+            expect(requests).toBe(failedRequests + 1);
+            expect(runtime.diagnosticsFor(owner)).toEqual([]);
+            expect(runtime.diagnosticsFor(stock)).toEqual([]);
+            expect(runtime.diagnosticsFor(failedOwner).map(diagnostic => diagnostic.code)).toEqual(['cem-element.src_load_failed']);
+            const input = stock.querySelector('textarea') as HTMLTextAreaElement;
+            change(input, input.value.replace('<stock>0</stock>', '<stock>7</stock>'));
+            await waitFor(() => {
+                expect(stock.querySelector('table')).toHaveTextContent('7');
+                expect(stock.querySelector('strong')).toBeNull();
+            }, { timeout: 10000 });
+        } finally {
+            canvasElement.replaceChildren();
+            scope.dispose();
+        }
+    },
+};
+
 export const NativeAttributeValues: Story = {
     render: renderDocument,
     play: async ({ canvasElement }) => {

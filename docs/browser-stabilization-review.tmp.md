@@ -505,9 +505,12 @@ The injected failures therefore demonstrate a current recovery
 defect and a matching visible symptom, not proof that HTTP failure caused that
 historical run. Existing passing load/remount cases do not exercise this path.
 
-### Pending decision: retry on explicit registration or reconnect
+### Accepted contract: retry on explicit registration or reconnect
 
-Recommended: permit a new attempt after failed source acquisition when a host
+**Accepted 2026-09-21:** the user approved this behavior and requested renewed
+startup investigation after implementation.
+
+Permit a new attempt after failed source acquisition when a host
 explicitly registers the declaration again, reconnects it, or mounts a new
 declaration. Evict a rejected source-cache entry only if it still names that
 failed attempt; release the failed element's registration-in-progress marker.
@@ -524,10 +527,100 @@ The alternative is to document that a failed declaration source requires a new
 runtime or document. That preserves current retention behavior but prevents normal
 gallery remounts from recovering after a transient source failure.
 
-Before implementation, add focused browser regressions for HTTP and body-stream
+The tests-first plan adds focused browser regressions for HTTP and body-stream
 failures, retries using original and replacement declarations, concurrent load
 sharing, successful cache reuse, disposed scopes, and the real stock gallery.
 Use a controlled response gate instead of sleep-based readiness. Run those cases,
-the full Storybook suite and the independent gallery checks. No runtime code has
-been changed by this investigation; the user requested investigation and a stop
-at decisions.
+the full Storybook suite and the independent gallery checks.
+
+### Source-retry implementation
+
+The browser host now removes a rejected source promise from its cache, guarded
+by that promise's identity, and removes the failed declaration's registration
+marker before reporting its diagnostic. This lets reconnects and explicit
+registration retry through the existing scope and resolver checks. Pending
+requests remain shared; successful documents and diagnostic history are retained.
+The CEM import and transformation layers, URL candidate policy and base viewers
+are unchanged.
+
+Tests were added before the fix: all four declaration-source retry stories fail
+on the old runtime, and the authored stock remount story times out after recovery.
+With the fix, all twelve stories across the retry and cell-override files pass.
+Coverage includes original and replacement owners, simultaneous consumers,
+interrupted response streams, successful cache reuse, direct and ancestor scope
+disposal, disposal during retry, and stock warning/style recovery followed by
+source editing. This is browser-host lifecycle behavior, so the failing cases
+exercise that boundary rather than adding unrelated Rust parser tests.
+
+Final verification on 2026-09-21 passes all 203 browser stories in 42 files,
+all 441 runtime unit tests in 52 files, and the complete gallery of 29 standalone
+pages and 35 source-loaded documents. The package build, declaration type check
+and lint pass; lint reports only the two pre-existing non-null-assertion warnings.
+
+### Renewed startup investigation after the fix
+
+The rebuilt packaged runtime was tested through its default HTTP loader, using
+fresh Chromium documents for the gallery helper and the real `cem-demo-element`.
+Both load the authored `cell-overrides.html` without changing viewer templates.
+The server controls only the stock declaration response. Each case waits for
+the Pokémon table and stock declaration owner before changing the load or mount
+state; response gates replace timing guesses.
+
+| Case, run with both card implementations | Observed result |
+| --- | --- |
+| Close the HTTP connection without a response; restore it and remount the page | Load failure is diagnosed; remount makes a new request and renders the warning |
+| Send HTTP 200 and part of the body, then terminate before the advertised content length; restore it and remount | Body failure is diagnosed; one healthy request on remount restores output |
+| Hold the stock response pending, remount the whole page, then release it | Both owners share one request; the connected replacement receives styles and output |
+| Hold the response pending, reconnect and explicitly register the original owner, then release it | One request remains pending; registration and rendering finish normally |
+
+All eight cases pass. Every final page retains three mounted cards and the stock
+fixture marker, shows one warning and two stock declaration stylesheets, and has
+no declaration/instance diagnostics on the recovered owner. Changing stock from
+zero to seven removes the warning in all eight cases. No page exceptions occur.
+The deliberately failed requests report `ERR_EMPTY_RESPONSE` or
+`ERR_CONTENT_LENGTH_MISMATCH`. Chromium itself repeats some empty-response socket
+attempts before the loader's fallback candidate; these server requests are not
+a new runtime retry loop. Pending remount/reconnect cases make exactly one stock
+request each.
+
+A separate minimal default-loader probe also confirms HTTP 503 and interrupted
+body recovery for the original and replacement declarations: both render `Ready`
+after settlement, share one healthy request, and retain the original diagnostic
+only on the failed owner. Awaiting declaration settlement alone does not imply
+render settlement; the probe checks both before reading output.
+
+The source audit also checked downstream static-import acquisition:
+`ensureProcessingArtifact` already removes rejected compilation promises, and
+`preflightCemMlTemplateModules` keeps its loaded-source map within an individual
+attempt. There is no equivalent permanent rejected-source cache in that path.
+This is a code audit, not proof that every import/worker startup interleaving is
+correct.
+
+Four further cases isolate the stock template's imported data-table module, with
+both card implementations. A host resolver adds a query marker only when resolving
+the stock template's import; the server can then fail or hold that request without
+affecting the Pokémon viewer's import of the same file. Authored templates remain
+unchanged. An HTTP 503 leaves the stock browser tag defined, installs no stock
+styles, and reports `cem-element.processing_host_render_failed` on the instance.
+Restoring the source and remounting produces a new request and recovers. Holding
+the import through a page remount shares one pending request and renders after
+release. All four cases recover one warning and two styles, pass the subsequent
+stock edit, and show no scheduler fallback, overflow or cancellation.
+
+Two final cases hold the stock compilation request at the worker transport
+boundary, using the existing worker-factory injection point with the real worker.
+The tag is defined, but no stock styles or warning exist while compilation is
+held. Remounting the page and releasing the request recovers with both card
+implementations. Worker request/response traces show replies to all three stock
+compile requests observed across this remount sequence. The recovered instances
+have no diagnostics, and the scheduler reports no fallback or overflow. This
+checks delayed completion and recovery; it does not establish a compile-time
+performance bound or a policy for a permanently unresponsive worker.
+
+All fourteen startup cases pass. Source acquisition, imported-module acquisition
+and pending worker compilation can each explain a temporarily absent warning;
+registration and diagnostics distinguish their observed states. None establishes
+which state caused the historical timeout, so startup remains active. The next
+investigation should measure request, worker-queue, compile and render timing under
+parallel load to identify any unexplained delay without increasing wait limits.
+No new runtime behavior is selected from the old, incomplete snapshot.

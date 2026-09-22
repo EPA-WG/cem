@@ -128,6 +128,15 @@ The current browser runtime caches external source documents per runtime instanc
 specifier path. Hosts that add module-map or security-policy resolution SHOULD include those identities in their
 `loadSrcDocument` behavior or use separate runtime instances when policy differs.
 
+The browser runtime shares pending source loads and retains successful documents.
+A rejected source load is evicted, and its failed declaration can attempt registration
+again on an explicit `registerDeclaration` call or reconnection. A new declaration
+using the same source can also retry. There is no automatic retry loop. Each retry
+passes the existing scope checks, including disposal and document ownership; disposal
+while a retry is pending prevents registration. Diagnostics retain attempt history
+after successful recovery. Missing fragments in successfully loaded documents and
+live source editing do not invalidate the successful source cache.
+
 ## Resource Role And Expected Content-Type Context
 
 `cem-element` and `http-request` classify resources before handing them to CEM-ML:

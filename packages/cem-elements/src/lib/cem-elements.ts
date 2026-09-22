@@ -2084,6 +2084,9 @@ export class CemElementRuntime {
         try {
             loaded = await this.loadSrcDocumentParsed(declarationElement, reference.path);
         } catch (error) {
+            // A failed acquisition is settled, not registered. A later explicit
+            // registration or reconnect must retry through the usual scope checks.
+            this.registeredDeclarationElements.delete(declarationElement);
             const code =
                 error instanceof ExternalDeclarationSourceError
                     ? error.code
@@ -2221,6 +2224,10 @@ export class CemElementRuntime {
             };
         })();
         this.srcDocuments.set(key, parsed);
+        void parsed.catch(() => {
+            // Share pending work and retain successes; do not cache failures.
+            if (this.srcDocuments.get(key) === parsed) this.srcDocuments.delete(key);
+        });
         return parsed;
     }
 
