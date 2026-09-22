@@ -2132,12 +2132,23 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         verified live result before timeout; its late settlement follows
         detachment. Post-timeout play continuation is not passing coverage.
         See [phase findings](browser-stabilization-review.tmp.md#long-story-phase-investigation).
-  - [ ] Fixture: trace the tree's second-selection scheduling, worker response,
+  - [x] Fixture: trace the tree's second-selection scheduling, worker response,
         render revision and selected-count output while still connected under
         the same combined load. Distinguish delayed processing from stale live
         output before changing story organization, budgets or concurrency.
         Track timeout/detachment and post-timeout play continuation separately;
         do not treat settlement on a detached viewer as successful recovery.
+        Completed 2026-09-22: opt-in worker/scheduler and DOM observations show
+        a successful connected revision 3/count 2 in both combined-load runs.
+        In the repeat, selection waits 5.064 seconds behind the remote-document
+        viewer, then spends 4.083 seconds in the worker round trip; DOM output
+        follows 17.4 ms later. Full journeys still exceed their 30-second budget.
+        Normal suite passes 203/203; each stress run passes 201/203 and all 64
+        stock probes pass. No lost selection or runtime fix is established.
+  - [ ] Decide the next response to measured rendering/queue pressure before
+        changing story organization, budgets or concurrency. Recommend a bounded
+        worker/native rendering profile; compare with splitting the long stories
+        in [the proposal](browser-stabilization-review.tmp.md#pending-decision-rendering-profile-or-story-split).
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
         available lifecycle signals before migrating each affected fixture;

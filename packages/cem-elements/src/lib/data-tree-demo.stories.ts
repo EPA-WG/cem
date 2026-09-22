@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { storyTiming } from '../../.storybook/story-timing.js';
+import { startTreeProcessingTiming, watchTreeSelection } from '../../.storybook/tree-processing-timing.js';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import {
     applyPatchFramesToRange, applyRenderPlanToRange, diffRenderPlansToPatchFrames,
@@ -79,13 +80,18 @@ function replaceSource(input: HTMLTextAreaElement, source: string): void {
 }
 
 export const EditingSelectionAndDisclosure: Story = {
-    render: renderDocument,
+    render: () => {
+        const root = renderDocument();
+        startTreeProcessingTiming(root);
+        return root;
+    },
     play: async ({ canvasElement }) => {
         const mark = storyTiming('tree/EditingSelectionAndDisclosure');
         mark('setup:start');
         await waitFor(() => expect(canvasElement.querySelectorAll('cem-data-tree textarea')).toHaveLength(3), { timeout: 30000 });
         mark('setup:verified');
         const xml = card(canvasElement, '1. XML branches: independent selection');
+        watchTreeSelection(xml);
         const controls = within(xml);
         await waitFor(() => expect(xml.querySelector('pre[aria-label="CEM-ML document"]')).toHaveTextContent('{ast'), { timeout: 10000 });
         mark('initial-document:verified');

@@ -869,3 +869,119 @@ Final lint passes with the two existing non-null-assertion warnings. This change
 adds fixture observations and documentation only; existing assertions, waits,
 story budgets, concurrency configuration and viewer/runtime behavior remain
 unchanged.
+
+## Live tree selection through the worker queue
+
+The 2026-09-22 investigation starts at `7c92e8f1` and adds
+`.storybook/tree-processing-timing.ts`. Enable its observations alongside the
+existing phase marks:
+
+```sh
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test
+```
+
+The helper uses the existing scheduler observer and worker-construction seam.
+It calls the default worker factory, forwards messages and transfer options,
+and records enqueue/dispatch/cancel events, request/response job IDs, instance
+revisions, branch-selection control tokens, patch-operation counts and
+diagnostic codes. It does not serialize source documents, native artifacts,
+result subtrees or complete runtime snapshots. The JSON records are explicitly
+diagnostic control data.
+
+The detailed trace activates only for `EditingSelectionAndDisclosure`, before
+mounting its authored page. It reads the existing XML viewer's output count,
+checked controls, committed revision and connection state, and observes click
+and change events. It never calls `snapshotInstance`, which would create a new
+revision. A document mutation observer records state changes and ends the trace
+on removal of the story root, releasing its listeners. Existing phase marks
+still identify later async play/settlement activity. Trace elapsed time starts
+at render preparation; phase elapsed time starts at `play`, so correlate the
+two streams by their UTC timestamps. Failing-test console replay may duplicate
+records; deduplicate by timestamp, event, job ID and scheduling kind.
+
+### Observed live selection
+
+The focused four-story file passes. For its XML viewer, the second selection
+produces instance `cem-instance-2`, revision `3`, with both branch keys present.
+Its worker round trip takes 955.8 ms; the connected output changes to count 2
+2.3 ms after the response. Each request and response includes the same revision.
+
+The full suite is then run twice with the existing eight-page/four-batch stock
+probe, launched when Vitest announces `RUN` after build prerequisites:
+
+| Run | Storybook result | Stock probes | Stock warning time |
+| --- | --- | --- | --- |
+| Worker trace, started 13:27:25 UTC | 201/203, 68.70 s | 32/32 pass | 6.00–9.14 s |
+| Repeat, started 13:29:15 UTC | 201/203, 69.63 s | 32/32 pass | 5.63–9.37 s |
+
+Both runs fail only the table and tree's full 30-second journeys. The inspector
+passes. In both runs the tree's second selection succeeds **while connected**:
+revision 3/count 2 appears at 19.448 and 26.060 seconds from trace start.
+
+The repeat identifies the competing work precisely. All times below are seconds
+from that trace's start, on worker `cem-processing-pool-1-slot-1`, owner scope 1:
+
+| Event | Time | Evidence |
+| --- | ---: | --- |
+| Second selection's change event | 16.841 | Viewer connected, revision 2/count 1, both checkboxes checked |
+| Selection compile preflight reply | 16.895 | Job 22 succeeds; its worker round trip is 2.4 ms |
+| Remote-document viewer dispatched | 16.895 | Render job 21, instance 5/revision 4, same worker and owner |
+| Selection render enqueued | 16.896 | Job 23 waits behind job 21 |
+| Remote-document viewer replies | 21.958 | Success after a 5.063 s worker round trip |
+| Selection render dispatched/sent | 21.959 | Queue wait 5.064 s; instance 2/revision 3 has `branch.1.1` and `branch.1.2`, both `edit-0` |
+| Selection render replies | 26.043 | Success, five patch operations, no diagnostics; worker round trip 4.083 s |
+| Connected DOM commits selection | 26.060 | Revision 3/count 2, both controls checked; 17.4 ms after reply |
+
+This is 9.219 seconds from change event to live output. The competing anonymous
+component is authored by the fourth card's `data-tree-request.cemt` declaration;
+it imports the same tree inspection template. In the first combined run the
+selection is dispatched before that component's long render, so count 2 appears
+earlier; the later reset then waits behind its 5.404-second round trip instead.
+The complete journey reaches another selection near its deadline and is removed
+at 30 seconds in both runs. These traces show expensive work sharing one queue,
+with successful connected output when there is time to commit it. They do not
+show a permanently pending selection, stale committed revision, scheduler
+overflow or fallback. They support a timing explanation for the earlier
+untraced second-selection failures, but cannot prove their exact interleaving.
+
+Round-trip time includes messaging, engine execution and response delivery; it
+is not a native CPU profile. The next optimization cannot be selected from these
+timestamps alone. A fast compile-cache response does not identify which render
+stage consumes the remaining time.
+
+### Pending decision: rendering profile or story split
+
+The requested live-selection investigation is complete. The user requested a
+stop at decisions, and the active TODO keeps story organization, time budgets
+and concurrency unchanged until this evidence is reviewed. The next work can
+take either of these concrete directions:
+
+| Direction | Benefit | Cost or limit |
+| --- | --- | --- |
+| **Profile the worker/native rendering path first (recommended)** | Investigates latency users also experience; preserves current coverage, templates and execution policy | Needs a native/worker profiling fixture before any optimization can be justified; does not immediately make the combined stress gate pass |
+| Split the long journeys into focused stories | Separates format sorting, selection/disclosure and source recovery failures; gives each journey its own existing 30-second budget | Repeats authored-page startup and its competing renders; may still require performance work, and must preserve cross-action and whole-page coverage |
+
+For the recommended direction, use the existing small XML tree and local
+request document as fixtures. Measure warmed and initial import, tree
+inspection/branch rendering, result construction/diff and worker transport
+separately. Keep external syntax handling in CEM-ML import, use retained native
+trees downstream, and leave viewer templates unchanged. Identify a measured
+hotspot and a bounded correction with Rust coverage before implementing any
+shared evaluator or rendering behavior change. No timeout increase, concurrency
+cap, worker ownership change or template simplification is proposed here.
+
+Verification: the final normal full suite with observations enabled passes all
+203 tests in 42 files (48.98 s). The diagnostic helper passes a targeted strict
+TypeScript check; package lint passes with its two existing warnings. An ad hoc
+expanded TypeScript check also reports the existing `definePreview` parameter
+typing issue in `preview.ts`; the package typecheck excludes these Storybook
+files, so it is not claimed as coverage for them. The helper's worker
+`postMessage` overload handling was corrected and verified independently.
+The stock probe's critical source/runtime hashes match the preceding phase
+investigation. All 64 new stock probes pass, bringing the timing-probe total to
+250; the historical stock warning timeout remains unattributed.
+
+Local evidence: `/tmp/cem-tree-processing-focused.log`,
+`/tmp/cem-tree-processing-stress.log`, `/tmp/cem-tree-processing-repeat.log`,
+`/tmp/cem-tree-processing-normal.log` and the two `*-stock.json` reports. The
+tables above preserve the findings when those temporary files are unavailable.

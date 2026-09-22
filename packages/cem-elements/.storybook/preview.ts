@@ -4,6 +4,7 @@ import { installCemElementRuntime, type CemElementRuntime } from '../src/index.j
 import '@epa-wg/cem-demo-element';
 import '@epa-wg/cem-theme/styles.css';
 import { definePreview } from '@storybook/web-components-vite';
+import { treeProcessingTimingOptions } from './tree-processing-timing.js';
 
 let runtime: CemElementRuntime | undefined;
 const declarationLoads = new Map<string, Promise<void>>();
@@ -19,6 +20,7 @@ const moduleUrlDemoMappedReferrerUrl = new URL('./module-referrer/', moduleUrlDe
 
 function installStorybookRuntime(): CemElementRuntime {
     return installCemElementRuntime(window, {
+        ...treeProcessingTimingOptions,
         moduleUrlRoot: {
             importMap: {
                 imports: {
