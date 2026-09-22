@@ -2044,9 +2044,21 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       Follow-up 2026-09-21: all 198 current stories and 24 concurrent startup
       probes (12 gallery-helper / 12 real demo-component, with three declaration
       release schedules) pass. No lost markers, missing mounts or diagnostics
-      reproduce. Await the [acceptance decision](browser-stabilization-review.tmp.md#pending-decision-retire-the-unreproduced-startup-blocker)
-      before moving this historical finding to monitoring and proceeding to
-      the authored-sample Storybook coverage inventory. No runtime fix is claimed.
+      reproduce. The user selected [continued investigation](browser-stabilization-review.tmp.md#startup-follow-up-decision-continue-investigation);
+      keep this item active before the authored-sample coverage inventory.
+  - [x] Investigate failed source acquisition and recovery: HTTP 503 and
+        interrupted response bodies both remain cached as rejected promises;
+        original and replacement declarations make no new request after the
+        source recovers. Both real/helper stock galleries reproduce failure
+        after remount and recover after document reload. Record the distinction
+        between this proven recovery defect and the unattributed historical timeout.
+  - [ ] Fixture SRC-FAILURE-RETRY: decide whether explicit registration/reconnect
+        should retry failed declaration acquisition; implement the accepted
+        [recovery contract](browser-stabilization-review.tmp.md#pending-decision-retry-on-explicit-registration-or-reconnect)
+        with browser coverage for original/replacement declarations, interrupted
+        bodies, concurrent consumers, successful cache reuse, scope disposal and
+        the authored stock gallery. Do not add automatic retries or alter source
+        parsing, URL resolution or base viewer templates as part of this proposal.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

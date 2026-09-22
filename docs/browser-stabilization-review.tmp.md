@@ -390,7 +390,11 @@ No stock predicate, base viewer, runtime behavior or startup timeout was changed
 The independent native DOM-helper audit can proceed to its explicit
 [name-selection decision](dom-helper-native-review.tmp.md).
 
-## Pending decision: retire the unreproduced startup blocker
+## Startup follow-up decision: continue investigation
+
+The user selected continued investigation on 2026-09-21. The monitoring option
+below was not accepted; startup remains active. The subsequent fault-injection
+findings are recorded in the next section.
 
 Follow-up audit on 2026-09-21, starting at `e16da2c1`:
 
@@ -429,7 +433,101 @@ continue fault-injection or load experiments. This may find another failure,
 but no currently failing case identifies a product correction to implement.
 It also leaves authored-sample coverage waiting behind an unconfirmed cause.
 
-The user requested a stop at decisions or ambiguity. Moving an unresolved
-historical finding out of the active queue is an acceptance decision, so it
-has not been done. This follow-up changes only the evidence and decision record;
-it does not claim a runtime fix or mark the startup checklist complete.
+This follow-up does not claim a runtime fix or mark startup complete.
+
+## Reproduced defect: failed declaration sources cannot recover
+
+Investigation at `b299f7fd` identifies a deterministic recovery defect in the
+shared browser source loader. It does not yet identify the cause of the original
+single-run stock timeout.
+
+### Minimal source-load reproduction
+
+Use the packaged runtime with its default HTTP loader, an external HTML source
+containing a CEM-ML template, and a server whose response can change from failing
+to healthy without changing the source URL.
+
+1. Register a declaration referencing `/fixture-source.html#card`. Fail the
+   request with HTTP 503, or send HTTP 200 headers and interrupt the response
+   body before it completes. Await `whenDeclarationSettled`.
+2. Confirm `cem-element.src_load_failed` on the declaration and no produced
+   browser tag. Restore a healthy response containing the selected template.
+3. Remove and reattach the original declaration, explicitly call
+   `registerDeclaration`, then register a new declaration element with a different
+   produced tag but the same source reference. Await both attempts.
+4. Finally register that source through a fresh runtime as a control.
+
+Both transport failure cases give the same result:
+
+| Attempt after the server recovers | New HTTP requests | Result |
+| --- | ---: | --- |
+| Original declaration registered again | 0 | No produced tag or output; original failure remains |
+| New declaration using the same runtime and URL | 0 | Cached failure; no produced tag or output |
+| Declaration using a fresh runtime | 1 | Template renders `Ready` without diagnostics |
+
+The explicit registration call returns `true` for the original element but starts
+no new work. This is not a request that is merely slow or awaiting retry.
+
+### Reproduction with the authored stock demo
+
+The source-loaded `cell-overrides.html` reproduces the same defect with both the
+gallery's simplified helper and the real packaged `cem-demo-element`:
+
+1. Return HTTP 503 for the stock source requests while allowing all other
+   resources to load. All three cards mount, the Pokémon table renders, and
+   the stock tag remains undefined with zero warnings and zero stylesheets.
+2. Restore the stock source and remount the entire authored page under a new
+   outer produced tag in the same runtime. All three cards still mount, but
+   the stock tag remains undefined. There are **no additional stock requests**.
+3. Reload the browser document with the healthy server. A new stock request
+   succeeds, the tag registers, and exactly one warning appears.
+
+The nested loader first tries the declaration-relative URL and then its existing
+page-relative fallback. The failed diagnostic reports the last candidate. The
+probe records both requests; this investigation does not change URL resolution.
+
+### Cause and limit of attribution
+
+In `packages/cem-elements/src/lib/cem-elements.ts`:
+
+- `loadSrcDocumentParsed` stores the pending parse promise in `srcDocuments`.
+  Its rejection is never removed. Every later declaration sharing the cache key
+  receives the same rejected promise without invoking the loader.
+- `registerDeclaration` puts an external declaration into
+  `registeredDeclarationElements` before acquisition completes. A failed load
+  leaves it there, and the early return prevents that element from trying again.
+
+The original `/tmp/cem-cell-gallery-final.log` was recovered during this audit.
+Its sample text describes an earlier cell-dispatch design and differs from the
+first committed sample; the exact source/build identity was not recorded. It reports
+no browser HTTP errors and lacks declaration diagnostics and request history.
+The injected failures therefore demonstrate a current recovery
+defect and a matching visible symptom, not proof that HTTP failure caused that
+historical run. Existing passing load/remount cases do not exercise this path.
+
+### Pending decision: retry on explicit registration or reconnect
+
+Recommended: permit a new attempt after failed source acquisition when a host
+explicitly registers the declaration again, reconnects it, or mounts a new
+declaration. Evict a rejected source-cache entry only if it still names that
+failed attempt; release the failed element's registration-in-progress marker.
+Concurrent consumers continue sharing a pending attempt, and successful source
+documents remain cached. Keep the existing diagnostic history; successful recovery
+is demonstrated by registration and rendered output, not by deleting past errors.
+
+This adds no timer, background retry loop, new element attribute or data-format
+handling. Every explicit retry must pass the existing scope and resolver checks.
+Keep missing-fragment and successful-source invalidation policy separate: this
+proposal addresses failures of acquisition/stream reading, not live source editing.
+
+The alternative is to document that a failed declaration source requires a new
+runtime or document. That preserves current retention behavior but prevents normal
+gallery remounts from recovering after a transient source failure.
+
+Before implementation, add focused browser regressions for HTTP and body-stream
+failures, retries using original and replacement declarations, concurrent load
+sharing, successful cache reuse, disposed scopes, and the real stock gallery.
+Use a controlled response gate instead of sleep-based readiness. Run those cases,
+the full Storybook suite and the independent gallery checks. No runtime code has
+been changed by this investigation; the user requested investigation and a stop
+at decisions.
