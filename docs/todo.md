@@ -2184,13 +2184,31 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         64 stock probes: the tree completes within budget, but the table still
         times out. Overall stabilization remains open; see
         [the correction and remaining gate](browser-stabilization-review.tmp.md#local-schema-registry-correction).
-  - [ ] Profiling fixture: investigate the remaining table startup/sorting
+  - [x] Profiling fixture: investigate the remaining table startup/sorting
         timeout using the authored multi-format page and native
         `data_view_templates.rs` fixtures. Separate compilation, CEM import,
         row/column selection, sorting and output from worker queue/setup time,
         including competing authored instances. Propose a measured bounded
         correction before further shared behavior changes; retain viewer
         templates, story coverage, time budgets and concurrency.
+        Completed 2026-09-22: two native profiling fixtures and 98 connected
+        browser checks pass. Unread host-control metadata raises an identical
+        native table render from 4.953 ms to 350.921 ms. Browser probes separate
+        large island bindings and repeated WASM rendering from two cold XSLT
+        compilations and their worker queue. Production code remains unchanged;
+        see [table findings](browser-stabilization-review.tmp.md#table-startup-and-sorting-profile).
+  - [ ] Decide the bounded shared binding-copy correction before implementation.
+        Recommend copying only compiler-proven expression dependencies, with
+        complete context retained for opaque/native callbacks. Preserve public
+        `island`/`datadom.island` access, captures, focus and scope contracts; see
+        [the proposal](browser-stabilization-review.tmp.md#pending-decision-expression-binding-copies).
+  - [ ] Fixture and implementation, after that decision: add native regression
+        coverage for captures, shadowing, recovery, indirect callback access,
+        scope/limits and exact output; implement the accepted dependency-copy
+        correction, rebuild WASM/browser assets, then repeat profiles and normal
+        and combined-load Storybook gates. Keep viewer sources, coverage,
+        budgets and concurrency unchanged. The diagnostic island omission is
+        not a production solution or a passing stabilization gate.
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
         available lifecycle signals before migrating each affected fixture;

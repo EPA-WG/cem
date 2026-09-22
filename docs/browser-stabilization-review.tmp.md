@@ -1254,3 +1254,174 @@ Evidence: `/tmp/cem-registry-baseline.log`,
 Use the profile commands above and the existing synchronized eight-page,
 four-batch stock-probe procedure to reproduce these checks. Rust formatting
 and whitespace checks also pass.
+
+### Table startup and sorting profile
+
+The next profiling step is complete on 2026-09-22 against production revision
+`73a31da3`. No shared runtime, viewer, story, time-budget or concurrency change
+is included. The opt-in Rust fixture `table_render_profile.rs` separates CEMT
+compilation, native import, row/column selection, grouping, record projection,
+sorting, rendering and HTML export. It reuses the small XML, CSV, YAML and JSON
+cases from `data_view_templates.rs` and reads expressions from the unchanged
+authored table template. Imported documents stay native CEM trees throughout.
+
+The browser profiler now accepts `--fixture=table`. It first mounts the same
+four small fixtures individually, then opens a fresh page with the complete
+authored `data-table.html`: four CEMT format examples, the CEMT aspect example
+and two XSLT examples. Interaction begins at the story's four-textarea boundary,
+so remaining sample setup still competes for the worker. All seven cards must
+have a table before completion. Each scenario verifies twenty connected row
+orders through column selection and repeated text/numeric comparisons. The
+original tree mode remains available and passes its eighteen connected checks.
+
+The probe instruments HTTP-served copies of built assets in memory. It records
+compile/render spans, worker queue events, revisions and host-control field
+sizes; installed assets and worker messages remain unchanged. Size inspection
+decodes only the explicitly named host-control envelope. XML, JSON, YAML and
+CSV document content still enters through CEM-ML import, including in the
+diagnostic variant. Reports identify the source revision, asset hashes and
+runtime environment. Nested spans overlap and must not be added together;
+field-size collection happens after the WASM span and adds observation overhead
+to the worker total. String sizes below are UTF-16 code units, not UTF-8 bytes.
+
+Native warm medians from five calls per stage, milliseconds:
+
+| Stage | XML | CSV | YAML | JSON |
+| --- | ---: | ---: | ---: | ---: |
+| Direct CEM import | 0.343 | 0.453 | 0.324 | 0.306 |
+| Discover columns | 0.049 | 0.054 | 0.055 | 0.052 |
+| Select rows | 0.011 | 0.013 | 0.012 | 0.012 |
+| Project records | 0.075 | 0.127 | 0.075 | 0.074 |
+| Numeric sort expression | 0.085 | 0.097 | 0.087 | 0.105 |
+| Full render, source order | 4.749 | 6.804 | 6.677 | 6.844 |
+| Full render, numeric order | 7.557 | 7.077 | 7.982 | 6.868 |
+| HTML export, numeric order | 0.228 | 0.222 | 0.234 | 0.220 |
+
+Full template compilation takes 65.410 ms. The separate `data:read` expression
+imports on its first call and uses its context's native reader cache on warm
+calls; its warm times must not be reported as fresh import costs. A diagnostic
+template variant binds the already retained native document instead of running
+the `cem-data` instruction. Exact HTML agrees in all twelve format/sort cases,
+but the variant shows no consistent render improvement. Ordinary small-document
+sorting and import do not explain the observed browser interaction cost. These
+are wall-clock samples with visible variance, not performance assertions.
+
+The final browser baseline shows a different input scale. After two control
+changes, a small table's host-control argument has 183,545–186,191 code units;
+the authored page's arguments have 206,626–212,398. The same island snapshot is
+available as both `island` and `datadom.island`. Each copy grows from about
+28,000 to 89,000 code units for the small fixtures. On the authored page each
+copy reaches 97,217–99,585 code units; its actual `datadom.payload` remains
+430–874. These are host state projections, not an alternate representation of
+the imported document.
+
+For attribution only, `--omit-island` drops those two fields from the served
+WASM call's control argument. It is restricted to this table fixture and is
+explicitly not a proposed runtime change: public island access must remain.
+Both baseline and diagnostic runs pass all forty connected order assertions
+with no errors. Warm WASM render medians across the final three comparisons,
+milliseconds, are:
+
+| Case | XML baseline / omission | CSV baseline / omission | YAML baseline / omission | JSON baseline / omission |
+| --- | ---: | ---: | ---: | ---: |
+| Small fixtures | 278.3 / 20.1 | 326.1 / 20.8 | 325.2 / 19.7 | 342.0 / 19.5 |
+| Complete authored page | 433.5 / 43.7 | 358.5 / 34.0 | 480.2 / 48.0 | 329.6 / 34.9 |
+
+This counterfactual localizes a large cost to unused control metadata; it does
+not prove full public-contract parity or the gain of a safe optimization.
+The native second fixture reproduces that cost independently: adding an unread
+synthetic host `island` containing 256 nested control records changes the same
+table render from 4.953 ms to 350.921 ms, with byte-for-byte identical HTML and
+empty diagnostics. The synthetic record is control metadata, not parsed data.
+
+Source inspection identifies repeated deep copies. CEMT's `evaluate_query`
+clones the entire `EvaluationContext` for every expression. Lowering predeclares
+every policy binding in `CompiledQuery`, and `bind_policy_bindings` then clones
+each declared value into evaluator scope, including unread bindings. Record and
+array items own their contents, so these clones copy nested values. The host
+data-document merge also retains bindings in the synthesized `datadom`.
+
+A deliberately narrow native experiment compiles
+`seq:map((1, 2, 3), fn(n) => n + delta)` with both `delta` and the unused island.
+Filtering that pure query's policy binding map to IR variable references keeps
+the lambda's captured `delta` and exactly preserves `[2, 3, 4]` and diagnostics.
+Median evaluation falls from 0.585 ms to 0.053 ms. Cloning its full evaluation
+context alone takes 0.130 ms. This experiment is not a general dependency
+algorithm: opaque/native callbacks can observe context indirectly.
+
+Startup has a separate measured cost. The full-page baseline reaches four
+tables after 4,880.9 ms, compared with 1,503.0 ms for sequential small fixtures.
+Two `retainXsltComponent` calls spend 1,169.6 and 1,311.8 ms in compilation;
+queued compilation jobs wait as long as 2,602.1 ms before dispatch. Small-fixture
+queue waits are at most 0.1 ms. In the omission run, authored setup is 3,344.7 ms
+and the two XSLT calls still take 852.3 and 1,041.3 ms. Those separate runs also
+vary in compilation time, so their setup difference is not a controlled
+measurement of binding-copy savings. Omitting control metadata does not remove
+cold XSLT compilation or prove the combined-load table gate will pass.
+
+Verification: both opt-in Rust tests pass, as do forty baseline table checks,
+forty diagnostic table checks and eighteen original tree checks (98 total).
+JavaScript syntax/lint, Rust formatting and whitespace checks pass. No complete
+Storybook gate was rerun for this profiling-only change. The latest gate result
+remains the previous 203/203 normal and 202/203 combined-load runs; overall
+stabilization and historical stock-timeout attribution remain open.
+
+Reproduce against freshly built assets, running benchmarks separately from
+builds and other suites:
+
+```sh
+cargo test -p cem-ql --release --test table_render_profile -- --ignored --nocapture --test-threads=1
+node tools/scripts/profile-cem-tree-render.mjs --fixture=table --output=/tmp/cem-table-profile-final.json
+node tools/scripts/profile-cem-tree-render.mjs --fixture=table --omit-island --output=/tmp/cem-table-profile-omitted-final.json
+node tools/scripts/profile-cem-tree-render.mjs --output=/tmp/cem-tree-profile-regression.json
+```
+
+Native evidence: `/tmp/cem-table-native-profile-final.log`. Browser reports
+above have corresponding `.log` files; final table runs started at
+14:43:12/14:43:31 UTC. Earlier independent browser samples in
+`/tmp/cem-table-browser-sizes.json` and
+`/tmp/cem-table-browser-omit-island.json` show the same attribution.
+
+### Pending decision: expression binding copies
+
+The requested investigation is complete. Per the user's instruction to stop
+before another shared behavior decision, implementation pauses here.
+
+Recommend limiting expression-local binding copies to compiler-proven
+dependencies, with a full-context fallback wherever access cannot be proven.
+Apply the same dependency contract to CEMT's evaluation-context preparation and
+CEM-QL's evaluator binding setup. Preserve the complete outer template scope,
+both public island paths, default data-document merging, node/reference
+identity, focus, diagnostics, recovery, scope budgets and reader/native
+capabilities. Preserve captures and transitive function dependencies; opaque
+native calls or indirect evaluation retain the complete context until an
+explicit dependency contract supports narrowing it. A selected `datadom`
+binding stays complete, including `datadom.island`; this proposal does not prune
+record members or delete public fields.
+
+The benefit is a bounded change at the measured repeated-copy sites, using
+compiler information without changing public value representation. The cost
+is dependency analysis and conservative fallback; retained full records,
+other template scope copies and cold XSLT compilation may still dominate.
+The pure-query experiment validates one mechanism, not an optimized full
+renderer. Measure the actual end-to-end gain before claiming a timeout fix.
+
+An alternative is to change records/arrays and binding environments to shared
+immutable storage. That could make broader cloning cheap, including unknown
+callback access, but expands the work into value representation, identity,
+mutation and portable-transport contracts. It is not recommended as the first
+correction. Dropping island fields or splitting the authored story would not
+address the requested shared behavior with existing contracts and coverage.
+
+If the recommended correction is selected, first add focused Rust cases for
+direct and transitive reads, nested/forward function captures, shadowing,
+defaults, recovery, template callbacks and native functions that inspect
+otherwise unread context. Cover both island paths, record enumeration, focus,
+scope/limits/cancellation and exact authored output. If dependency metadata is
+serialized, cover artifact reload and its compatibility contract. Replace the
+profiling fixture's assertion of the current unused-binding behavior as needed;
+retain the output/capture assertions and before/after timing evidence. Then
+rebuild WASM/browser assets, repeat both native and browser profiles, and run
+normal and combined-load Storybook gates with unchanged viewers, budgets and
+concurrency. Only after that verification resume the remaining readiness-helper
+audit, or stop with evidence if a different shared hotspot needs a decision.
