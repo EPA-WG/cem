@@ -2242,7 +2242,12 @@ interchangeable with selected-record copies. Nested profile totals include their
 children and must not be summed with them. Clone spans exclude later disposal;
 whole-operation measurements include temporary-context disposal.
 
-### Pending decision: borrow proven expression contexts
+### Accepted: borrow proven expression contexts
+
+Accepted by the user 2026-09-22: **Borrow eligible contexts**. Promote the bounded
+path below, with native failure/cancellation coverage and production WASM/browser
+validation. The candidate measurements below record the pre-implementation
+checkpoint; remaining copies and snapshots are separate work.
 
 A bounded test-only candidate uses the existing conservative
 `CompiledQuery::binding_dependencies()` proof to identify expressions that cannot
@@ -2261,8 +2266,8 @@ metadata or public API is needed. The proof is already conservative for binding
 selection; using it to omit mutable template-host access is the new shared
 renderer decision.
 
-The candidate is scoped to a thread-local switch in native tests, restored on
-unwind. Its implementation is absent from production and WASM. Focused checks
+At the proposal checkpoint, the candidate was scoped to a thread-local switch
+in native tests, restored on unwind, and absent from production and WASM. Focused checks
 compare the original and candidate after portable artifact reload: full record
 entries, native identity/current focus, shadowed variables, catch recovery,
 direct and lambda-nested CEMT dispatch, and native callbacks with preserved
@@ -2276,10 +2281,10 @@ but would require a separate design for public owned values, mutation,
 callback materialization and snapshot lifetime. Do not infer that alternative
 from this candidate.
 
-The active TODO requires a measured proposal before another shared
-implementation, and the user requested a stop at decisions. Native release
-measurements and validation follow below before requesting approval. If
-accepted, promote the candidate with focused regression coverage for failure
+The active TODO required a measured proposal before another shared
+implementation, and the user requested a stop at decisions. The native release
+measurements and validation below preceded the user's approval. The accepted
+work promotes the candidate with focused regression coverage for failure
 and cancellation boundaries, full record access and capability/focus
 preservation; repeat the native profile, rebuild WASM and verify normal plus
 synchronized browser coverage. Keep viewer sources, existing limits and worker
@@ -2358,7 +2363,104 @@ Evidence: `/tmp/cem-render-copy-debug.log`,
 Native lint passes with the existing 131 CEM-ML/41 CEM-QL warnings. The full
 native Nx suite passes **653 tests**, with eight opt-in profiles skipped
 (`/tmp/cem-render-copy-native-tests.log`). Fixture formatting and diff checks
-pass. Browser/WASM gates are reserved for an accepted production optimization;
-this investigation does not rebuild or alter the packaged WASM. The production
-render path retains its original context copies, scope handling and callbacks.
-The next step is the explicit borrowing decision above.
+passed. At this investigation checkpoint, browser/WASM gates were reserved for
+an accepted production optimization; production retained its original context
+copies. The user subsequently approved the bounded change above.
+
+#### Production context borrowing
+
+`PlanRenderer::evaluate_query` now evaluates proven expressions directly against
+its existing context without a mutable template host. The original copied
+context and mutable-host branch remains for every expression the dependency
+proof cannot close. Error propagation after either branch is shared and unchanged.
+The test-only candidate evaluator has been removed; native tests and WASM use
+the same production implementation. A thread-local, unwind-safe test switch can
+only force the old copied path for contract comparisons and profiling.
+
+The new default-path regression failed against the old implementation before
+promotion, then passed with borrowing. It also confirms that evaluator binding
+and local-value copies remain. Native comparisons cover portable template reload,
+whole records, focus/native identity, shadowing, direct and lambda-nested CEMT
+dispatch, native callback capabilities, protected typed failures/source maps,
+missing capabilities, and catch rollback. A retained-reader case compares actual
+source-owner pointers across renders and cache clearing; content identity alone
+cannot establish allocation reuse. A native field accessor cancels its child
+scope during a closed expression, proving partial output and memory permits are
+discarded and sibling scopes remain usable. The same fixture checks a lower
+child call-depth budget without weakening the root budget.
+
+No external-format branch or document-object binding was introduced. XML, JSON,
+YAML and CSV still enter through shared CEM-ML import and are consumed downstream
+as retained native CEM trees. Viewer templates, public APIs/artifacts, limits and
+worker concurrency remain unchanged.
+
+Native validation: **657 passed, zero failures, eight opt-in profiles skipped**
+across 77 suites (`/tmp/cem-borrow-native-tests.log`). The five focused contract
+tests pass (`/tmp/cem-borrow-contracts.log`); the initial failing default-path
+check is retained in `/tmp/cem-borrow-red.log`. Native Nx lint passes with the
+existing 131 CEM-ML/41 CEM-QL warnings (`/tmp/cem-borrow-native-lint.log`).
+
+The production release profile passes (`/tmp/cem-borrow-release.log`, build in
+`/tmp/cem-borrow-release-build.log`). It uses the same six-run/five-warm-sample
+method as the proposal, with recording off for these medians. `copied-context`
+forces the old branch; `borrowed-context` runs the default production path.
+
+| Authored viewer, 256 nested controls | Forced copies (ms) | Production borrowing (ms) |
+| --- | ---: | ---: |
+| XML | 31.397 | 26.583 |
+| CSV | 33.968 | 23.860 |
+| YAML | 31.745 | 23.914 |
+| JSON | 34.731 | 24.019 |
+
+XML ranges are 29.906–35.696/23.280–28.564 ms; the 15.3% reduction is smaller
+than the earlier candidate run, so retain the ranges rather than reusing its
+28.1% figure. Other formats show 24.7–30.8% reductions. Retained-reader medians
+are XML 34.338→24.819, CSV 35.121→24.363, YAML 32.935→26.441 and JSON
+32.944→24.513 ms. With no extra controls, XML remains 1.954/1.973 ms: no gain
+is claimed for that small-context case.
+
+The production XML viewer removes all 145 expression-context copies (4.601 ms
+construction in the forced baseline), while keeping 145 evaluator-binding and
+311 local-value copies. Exact output, diagnostics, complete output source maps,
+host updates, numeric sorting and retained native identity checks pass for all
+four formats. The standalone CEM-QL batches still run identical code under both
+labels and remain a negative control, not an optimization result. No unrelated
+build or browser load ran during this native measurement.
+
+`yarn nx run cem-elements:build` rebuilds and packages the production WASM
+successfully (`/tmp/cem-borrow-browser-build.log`). Packaged CEM-QL WASM SHA-256:
+`4c208511246e34b308b1a7a4f68ca1a7269fba839355852e1586e1ab75bcb35a`.
+The unchanged standalone profilers pass **40/40 table** and **18/18 tree** checks,
+with no console/page errors (`/tmp/cem-borrow-{table,tree}-profile.{json,log}`).
+The authored table reaches four ready tables at 2.7607 s and seven cards at
+3.7400 s; base/aspect XSLT setup measures 732.9/743.3 ms. These are single browser
+observations, not repeated performance estimates or stabilization-completion
+claims. The prior production observations remain in the prepared-baseline
+section for context.
+
+Normal Storybook passes **203/203 tests in 42 files**, 36.29 s
+(`/tmp/cem-borrow-normal.log`). With worker tracing enabled and the existing
+eight-page/four-batch stock workload started only after Vitest's `RUN` marker,
+the full suite again passes **203/203**, 61.31 s
+(`/tmp/cem-borrow-synchronized.log`). All **32/32 stock runs** pass with zero
+errors, warning readiness 3.404–9.500 s under the unchanged 45-second deadline
+(`/tmp/cem-borrow-synchronized-stock.{json,log}`). Both processes exit zero
+(`/tmp/cem-borrow-synchronized-status.log`).
+
+| Story completion | Normal (s) | Synchronized (s) |
+| --- | ---: | ---: |
+| Table / EveryAuthoredSample | 9.8944 | 24.5211 |
+| Tree / EditingSelectionAndDisclosure | 7.0297 | 17.3977 |
+| Inspector / MultipleSelectionAndRecovery | 2.9130 | 6.0615 |
+
+Stock runs span **20:09:42.344–20:10:20.012 UTC on 2026-09-22**, overlapping
+all three stories above. NPM starts at 20:10:23 and location at 20:10:37, after
+stock work ends. Their successful checks therefore do not establish extra-load
+readiness: NPM's default selection uses 136/200 frames (3.001 s), and location's
+reader readiness uses 39/180 frames (1.020 s). Keep their attribution task and
+the historical unreproduced stock timeout open. No deadline, assertion,
+concurrency, viewer source or browser-runtime behavior was changed to pass.
+
+This completes the approved borrowing correction. Next, measure remaining
+evaluator binding/local-value copies and scope snapshots independently, then
+propose any broader ownership or lifetime change before implementation.

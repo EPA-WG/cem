@@ -2356,22 +2356,35 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         preserving downstream copies and callback fallback. All 653 native tests,
         the release profile and native lint pass; production behavior is unchanged.
         See the
-        [measured proposal](browser-stabilization-review.tmp.md#pending-decision-borrow-proven-expression-contexts).
-  - [ ] Decide whether compiler-proven expressions may borrow the renderer's
+        [measured proposal](browser-stabilization-review.tmp.md#accepted-borrow-proven-expression-contexts).
+  - [x] Decide whether compiler-proven expressions may borrow the renderer's
         existing context without mutable CEMT-host access. Recommend borrowing
         only under the existing conservative dependency proof; preserve the
         current complete-context copy and host path for opaque/native/CEMT calls.
-  - [ ] If accepted, promote the borrowed-context candidate with native failure,
+        Accepted by the user 2026-09-22: borrow eligible contexts.
+  - [x] Promote the approved borrowed-context candidate with native failure,
         cancellation, focus/capability, whole-record and callback regressions;
         repeat release profiles, rebuild WASM and verify normal plus synchronized
         browser coverage. Preserve public APIs/artifacts, viewer sources, limits
-        and concurrency. No production optimization is applied at this checkpoint.
+        and concurrency. Include a regression proving that default rendering uses
+        the production borrowing path, with forced copies only as a test baseline.
+        Completed 2026-09-22: production borrows proven contexts and retains full
+        copies/mutable-host access for opaque/native/CEMT calls. Five native
+        contract tests preserve focus, reader ownership, whole records, callbacks,
+        failure provenance, rollback, cancellation and child-scope budgets; all
+        657 native tests and native lint pass. The release profile removes 145
+        expression-context copies from the loaded XML viewer (31.397→26.583 ms);
+        other loaded formats improve 24.7–30.8%. Rebuilt WASM passes 40 table/18
+        tree checks, 203/203 normal and synchronized browser tests, and 32/32
+        concurrent stock runs. NPM/location ran after stock load ended; keep that
+        readiness investigation open. See the
+        [production validation](browser-stabilization-review.tmp.md#production-context-borrowing).
   - [ ] After that bounded correction, investigate remaining evaluator binding
         and local-value copies, shadowed-variable snapshots, try/catch snapshots
         and eligible-hook context capture separately. Keep owned public values,
         native identity, rollback and callback contracts; propose any shared
         ownership/lifetime change before implementation. The direct CEM-QL
-        workload and scope snapshots are unaffected by the current candidate.
+        workload and scope snapshots are unaffected by this borrowing correction.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

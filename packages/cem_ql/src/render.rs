@@ -3639,15 +3639,26 @@ impl PlanRenderer<'_> {
             return ItemStream::empty();
         }
         let (control, scope) = self.control.clone().unwrap_or_else(|| (OperationControl::default(), cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID));
-        #[cfg(not(test))]
-        let context = self.evaluation_context.for_query(query);
         let protected = self.recovery_depth > 0;
-        #[cfg(not(test))]
-        let stream = crate::eval::Evaluator::evaluate_internal(
-            query, &context, &control, scope, protected, Some(self),
-        );
+        // The conservative dependency proof excludes native extensions, CEMT
+        // dispatch and unresolved calls, including calls inside function bodies.
+        // Proven expressions need no mutable template host, so their context
+        // can be borrowed. The evaluator still owns its selected binding values.
+        let borrow_context = query.binding_dependencies().is_some();
         #[cfg(test)]
-        let stream = copy_profile_tests::evaluate_candidate(self, query, &control, scope, protected);
+        let borrow_context = borrow_context && !copy_profile_tests::force_context_copy();
+        let stream = if borrow_context {
+            #[cfg(test)]
+            let _profile = crate::compile_profile::Span::new("render/borrowed-evaluation");
+            crate::eval::Evaluator::evaluate_internal(
+                query, &self.evaluation_context, &control, scope, protected, None,
+            )
+        } else {
+            let context = self.evaluation_context.for_query(query);
+            crate::eval::Evaluator::evaluate_internal(
+                query, &context, &control, scope, protected, Some(self),
+            )
+        };
         if self.recovery_depth > 0 {
             if let Some(error) = &stream.error {
                 if let Some(diagnostic) = stream

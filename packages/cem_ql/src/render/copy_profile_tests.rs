@@ -7,49 +7,22 @@ use crate::{
 use std::{hint::black_box, time::Instant};
 
 thread_local! {
-    static BORROW_CONTEXT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static FORCE_CONTEXT_COPY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-fn with_candidate<T>(enabled: bool, operation: impl FnOnce() -> T) -> T {
+fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset {
         fn drop(&mut self) {
-            BORROW_CONTEXT.with(|v| v.set(self.0));
+            FORCE_CONTEXT_COPY.with(|v| v.set(self.0));
         }
     }
-    let _reset = Reset(BORROW_CONTEXT.with(|v| v.replace(enabled)));
+    let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
     operation()
 }
 
-pub(super) fn evaluate_candidate(
-    renderer: &mut PlanRenderer<'_>,
-    query: &CompiledQuery,
-    control: &OperationControl,
-    scope: ExecutionScopeId,
-    protected: bool,
-) -> ItemStream {
-    if BORROW_CONTEXT.with(|v| v.get()) && query.binding_dependencies().is_some() {
-        let _profile = Span::new("candidate/borrowed-evaluation");
-        return crate::eval::Evaluator::evaluate_internal(
-            query,
-            &renderer.evaluation_context,
-            control,
-            scope,
-            protected,
-            None,
-        );
-    }
-    // Identical to the production path. Opaque calls retain the mutable host
-    // and complete context even while the test candidate is enabled.
-    let context = renderer.evaluation_context.for_query(query);
-    crate::eval::Evaluator::evaluate_internal(
-        query,
-        &context,
-        control,
-        scope,
-        protected,
-        Some(renderer),
-    )
+pub(super) fn force_context_copy() -> bool {
+    FORCE_CONTEXT_COPY.with(|v| v.get())
 }
 
 const VIEW: &str = include_str!("../../../cem-elements/demo/data-table-view.cemt");
@@ -106,22 +79,10 @@ fn report(case: &str, samples: &[Stages]) {
     }
 }
 fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
-    for enabled in [false, true] {
-        with_candidate(enabled, || {
-            profile_strategy(
-                &format!(
-                    "{case}/{}",
-                    if enabled {
-                        "borrow-candidate"
-                    } else {
-                        "current"
-                    }
-                ),
-                &mut operation,
-                &verify,
-            );
-        });
-    }
+    with_context_copy(|| {
+        profile_strategy(&format!("{case}/copied-context"), &mut operation, &verify);
+    });
+    profile_strategy(&format!("{case}/borrowed-context"), &mut operation, &verify);
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -151,8 +112,12 @@ fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: imp
     );
 }
 fn verify_plan(plan: &RenderPlan, expected: &RenderPlan) {
-    assert_eq!(plan.diagnostics, expected.diagnostics);
     assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    verify_plan_including_errors(plan, expected);
+}
+
+fn verify_plan_including_errors(plan: &RenderPlan, expected: &RenderPlan) {
+    assert_eq!(plan.diagnostics, expected.diagnostics);
     assert_eq!(plan.host_attribute_updates, expected.host_attribute_updates);
     let actual = render_plan_to_html_with_source_map(plan);
     let expected = render_plan_to_html_with_source_map(expected);
@@ -166,7 +131,30 @@ fn verify_plan(plan: &RenderPlan, expected: &RenderPlan) {
 }
 
 #[test]
-fn borrowing_candidate_preserves_focus_records_recovery_and_callbacks() {
+fn default_render_borrows_proven_expression_context() {
+    let data = TemplateData::default().with_binding(
+        "datadom",
+        ItemStream::once(record([("mode", text("fixed"))])),
+    );
+    let artifact = compile_template(
+        "{span | {$datadom.mode}}",
+        &CompileTemplateOptions {
+            host_bindings: vec!["datadom".into()],
+            ..Default::default()
+        },
+    );
+    assert!(artifact.diagnostics.is_empty());
+    let (plan, stages) = measure(|| render_compiled_template(&artifact, &data));
+    assert!(plan.diagnostics.is_empty());
+    assert_eq!(render_plan_to_html(&plan), "<span>fixed</span>");
+    assert!(!stages.contains_key("copy/expression-context"));
+    // The evaluator still owns its selected bindings and local values.
+    assert_eq!(stages["copy/evaluator-bindings"].calls, 1);
+    assert_eq!(stages["copy/local-value"].calls, 1);
+}
+
+#[test]
+fn borrowing_preserves_focus_records_recovery_and_callbacks() {
     use crate::native::{NativeQueryFunction, NativeQueryRequest};
     #[derive(Debug)]
     struct Echo;
@@ -221,12 +209,259 @@ fn borrowing_candidate_preserves_focus_records_recovery_and_callbacks() {
             source_map_mode: TemplateArtifactSourceMapMode::Dev,
         }).unwrap();
         assert!(artifact.diagnostics.is_empty(), "{source}: {:?}", artifact.diagnostics);
-        let baseline = render_compiled_template(&artifact, &data);
-        let (candidate, stages) = measure(|| with_candidate(true, || render_compiled_template(&artifact, &data)));
-        verify_plan(&candidate, &baseline);
+        let baseline = with_context_copy(|| render_compiled_template(&artifact, &data));
+        let (borrowed, stages) = measure(|| render_compiled_template(&artifact, &data));
+        verify_plan(&borrowed, &baseline);
         assert_eq!(stages.contains_key("copy/expression-context"), fallback, "{source}");
         assert_eq!(data.bindings["native"], native);
         assert_eq!(data.expression_scope.focus.as_ref().unwrap().identity(), native.items[0].identity());
+    }
+}
+
+#[test]
+fn borrowing_preserves_reader_retention_across_renders() {
+    use crate::xpath::functions::XPathQueryItem;
+    use std::sync::Arc;
+    let owner = |item: &Item| {
+        item.view()
+            .unwrap()
+            .downcast_ref::<XPathQueryItem>()
+            .unwrap()
+            .xpath_item()
+            .native_node()
+            .unwrap()
+            .source_owner()
+            .unwrap()
+    };
+    let context = EvaluationContext::default();
+    let source = r#"data:read("<name>ivy</name>", "xml", "xpath").root"#;
+    let query = compile(source, &Default::default()).unwrap();
+    let native = evaluate(&query, &context);
+    assert!(native.error.is_none());
+    let original = owner(&native.items[0]);
+    let data = TemplateData {
+        data_readers: context.data_readers.clone(),
+        ..Default::default()
+    }
+    .with_binding("retained", native.clone());
+    let artifact = compile_template(
+        &format!("{{${source}}}"),
+        &CompileTemplateOptions {
+            host_bindings: vec!["retained".into()],
+            ..Default::default()
+        },
+    );
+    assert!(artifact.diagnostics.is_empty());
+    let baseline = with_context_copy(|| render_compiled_template(&artifact, &data));
+    for _ in 0..2 {
+        let (plan, stages) = measure(|| render_compiled_template(&artifact, &data));
+        verify_plan(&plan, &baseline);
+        assert_eq!(render_plan_to_html(&plan), "<name>ivy</name>");
+        let RenderPlanNode::Reference { reference, .. } = &plan.nodes[0] else {
+            panic!("native result reference expected");
+        };
+        assert!(Arc::ptr_eq(&owner(&reference.values()[0]), &original));
+        assert!(!stages.contains_key("copy/expression-context"));
+    }
+    // Clearing the shared capability invalidates future reads, while the input
+    // binding independently retains its original tree and identity.
+    data.data_readers.clear();
+    let plan = render_compiled_template(&artifact, &data);
+    assert!(plan.diagnostics.is_empty());
+    let RenderPlanNode::Reference { reference, .. } = &plan.nodes[0] else {
+        panic!("native result reference expected");
+    };
+    assert!(!Arc::ptr_eq(&owner(&reference.values()[0]), &original));
+    assert_eq!(
+        data.bindings["retained"].items[0].identity(),
+        native.items[0].identity()
+    );
+}
+
+#[test]
+fn borrowing_preserves_protected_failures_and_recovery() {
+    for (source, fallback, recovered) in [
+        (
+            r#"{b | prefix}{$report:raise("fixture.failure", "bad value")}{i | suffix}"#,
+            false,
+            false,
+        ),
+        (
+            r#"{try | {b | prefix}{$native:call("fixture.missing")}{catch | must-not-recover}}"#,
+            true,
+            false,
+        ),
+        (
+            r#"{cem:variable @name=label @select='"outer"'}{try | {b | prefix}{cem:variable @name=label @select='"inner"'}{$report:raise("fixture.failure", label)}{catch @as=e | {b | {$e.code}}{i | {$label}}}}"#,
+            false,
+            true,
+        ),
+    ] {
+        let artifact = compile_template(source, &Default::default());
+        assert!(
+            artifact.diagnostics.is_empty(),
+            "{:?}",
+            artifact.diagnostics
+        );
+        let data = TemplateData::default();
+        let render = || render_compiled_template_internal(&artifact, &data, None, None, true);
+        let baseline = with_context_copy(render);
+        let (actual, stages) = measure(render);
+        verify_plan_including_errors(&actual.plan, &baseline.plan);
+        assert_eq!(stages.contains_key("copy/expression-context"), fallback);
+        if recovered {
+            assert!(actual.failure.is_none());
+            assert!(actual.plan.diagnostics.is_empty());
+            assert_eq!(
+                render_plan_to_html(&actual.plan),
+                "<b>fixture.failure</b><i>outer</i>"
+            );
+        } else {
+            assert!(actual.plan.nodes.is_empty());
+            let failure = actual.failure.expect("propagated failure");
+            let baseline = baseline.failure.unwrap();
+            assert_eq!(failure.error, baseline.error);
+            assert_eq!(failure.diagnostic, baseline.diagnostic);
+            assert!(!failure.diagnostic.source_map.unwrap().frames.is_empty());
+            assert_eq!(failure.error.is_recoverable(), !fallback);
+        }
+    }
+}
+
+#[test]
+fn borrowing_preserves_scoped_cancellation_and_budget_failure() {
+    use crate::eval::{QueryItemView, QueryItemViewKind};
+    use cem_ml::operation_control::{
+        ExecutionScopeKind, ExecutionScopeRegistration, ROOT_EXECUTION_SCOPE_ID,
+    };
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    // A native field can signal cancellation during an otherwise closed query.
+    // It does not need (or receive) a mutable CEMT host.
+    #[derive(Debug)]
+    struct CancelField(OperationControl, ExecutionScopeId, Arc<AtomicUsize>);
+    impl QueryItemView for CancelField {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn representation_id(&self) -> &'static str {
+            "fixture.cancel-field"
+        }
+        fn identity(&self) -> String {
+            "cancel-field".into()
+        }
+        fn kind(&self) -> QueryItemViewKind {
+            QueryItemViewKind::Record
+        }
+        fn field(&self, name: &str) -> Option<Vec<Item>> {
+            if name != "value" {
+                return None;
+            }
+            self.2.fetch_add(1, Ordering::SeqCst);
+            self.0.cancel_scope(self.1, None, None).unwrap();
+            Some(vec![text("must-not-escape")])
+        }
+    }
+    for cancelled in [false, true] {
+        let expression = if cancelled {
+            "trigger.value"
+        } else {
+            "declare function down(n) { if n == 0 { 1 } else { down(n - 1) } } down(17)"
+        };
+        let artifact = compile_template(
+            &format!(
+                "{{try | {{b | {{$\"prefix\"}}}}{{${expression}}}{{catch | must-not-recover}}}}"
+            ),
+            &CompileTemplateOptions {
+                host_bindings: vec!["trigger".into()],
+                ..Default::default()
+            },
+        );
+        assert!(
+            artifact.diagnostics.is_empty(),
+            "{:?}",
+            artifact.diagnostics
+        );
+        let mut expected = None;
+        for copy in [true, false] {
+            let root_policy = ScopePolicy::host_root()
+                .with_cpu_workers(2)
+                .with_queue_size(128);
+            let control =
+                OperationControl::with_root_policy(Default::default(), root_policy).unwrap();
+            let child = control
+                .register_scope(
+                    ROOT_EXECUTION_SCOPE_ID,
+                    ExecutionScopeRegistration::inherited(
+                        ExecutionScopeKind::Template,
+                        "limited",
+                        root_policy.with_cpu_workers(1),
+                    ),
+                )
+                .unwrap();
+            let sibling = control
+                .register_scope(
+                    ROOT_EXECUTION_SCOPE_ID,
+                    ExecutionScopeRegistration::inherited(
+                        ExecutionScopeKind::Template,
+                        "sibling",
+                        root_policy,
+                    ),
+                )
+                .unwrap();
+            let calls = Arc::new(AtomicUsize::new(0));
+            let data = TemplateData::default().with_binding(
+                "trigger",
+                ItemStream::once(Item::native(CancelField(
+                    control.clone(),
+                    child,
+                    calls.clone(),
+                ))),
+            );
+            let render =
+                || render_compiled_template_with_control(&artifact, &data, &control, child);
+            let (plan, stages) = measure(|| {
+                if copy {
+                    with_context_copy(render)
+                } else {
+                    render()
+                }
+            });
+            assert!(plan.nodes.is_empty(), "{:?}", plan.nodes);
+            assert!(!plan.diagnostics.is_empty());
+            assert_eq!(stages.contains_key("copy/expression-context"), copy);
+            assert_eq!(calls.load(Ordering::SeqCst), usize::from(cancelled));
+            assert_eq!(control.check_scope(child).is_err(), cancelled);
+            if let Some(expected) = &expected {
+                verify_plan_including_errors(&plan, expected);
+            } else {
+                expected = Some(plan);
+            }
+            assert_eq!(control.memory_charged(child).unwrap(), 0);
+            // Neither cancellation nor the lower child budget poisons its peers.
+            let query = compile(
+                "declare function down(n) { if n == 0 { 1 } else { down(n - 1) } } down(17)",
+                &Default::default(),
+            )
+            .unwrap();
+            for scope in [ROOT_EXECUTION_SCOPE_ID, sibling] {
+                assert!(control.check_scope(scope).is_ok());
+                let result = crate::api::evaluate_with_control(
+                    &query,
+                    &EvaluationContext {
+                        scope_policy: root_policy,
+                        ..Default::default()
+                    },
+                    &control,
+                    scope,
+                );
+                assert!(result.error.is_none(), "{result:?}");
+                assert_eq!(result.items, vec![Item::Atomic(AtomValue::Integer(1))]);
+            }
+        }
     }
 }
 
