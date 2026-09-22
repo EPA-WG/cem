@@ -1,5 +1,8 @@
 //! Pipeline iterator-chain adapters.
 
+#[cfg(test)]
+pub(crate) mod field_profile_tests;
+
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -701,6 +704,10 @@ fn nth(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
 }
 
 fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
+    #[cfg(test)]
+    if field_profile_tests::enabled() {
+        return field_profile_tests::borrowed_field(input, field);
+    }
     // Flatten one array level so navigating a data-document collection projects the field across
     // its rows, i.e. `datadom.slices.hue.td1` yields every row's `td1`. A non-array item passes
     // through unchanged.

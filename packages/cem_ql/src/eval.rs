@@ -1608,12 +1608,16 @@ impl<'a> EvalCtx<'a> {
             if let Some(value) = scope.get(&binding) {
                 #[cfg(test)]
                 let _profile = crate::compile_profile::Span::new("copy/local-value");
+                #[cfg(test)]
+                let _origin = crate::compile_profile::Span::new("copy/scoped-value-read");
                 return value.clone();
             }
         }
         if let Some(value) = self.borrowed_inputs.get(&binding) {
             #[cfg(test)]
             let _profile = crate::compile_profile::Span::new("copy/local-value");
+            #[cfg(test)]
+            let _origin = crate::compile_profile::Span::new("copy/borrowed-input-read");
             return (*value).clone();
         }
         if let Some(let_id) = self.globals.get(&binding).copied() {

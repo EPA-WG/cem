@@ -2749,3 +2749,177 @@ no format-specific evaluator or document-object handoff. The next investigation
 isolates owned value reads and field projection from shadow, try/catch and
 eligible-hook snapshots. Broader shared ownership changes still require a
 measured proposal.
+
+### Field projection after evaluator input borrowing
+
+The next investigation starts from production `0a32f6ae`. Its evaluator borrows
+proven input bindings, but reading a binding still clones its entire stream.
+For `datadom.mode`, `record_field` then clones that already-owned record again
+while flattening one array level, before cloning the selected field values.
+The two full-record copies are separate from input binding setup and from
+CEMT shadow, try/catch and expression-hook snapshots.
+
+Two new native-only spans split `copy/local-value` into
+`copy/borrowed-input-read` and `copy/scoped-value-read`. They distinguish reads
+from the borrowed input map from reads of owned local/argument bindings. These
+are nested attribution spans, not additional copies; their times must not be
+added to their enclosing span. Existing field-input and selected-field spans
+retain their meaning.
+
+#### Native-only borrowed field traversal
+
+The candidate in
+`packages/cem_ql/src/eval/pipeline/field_profile_tests.rs` replaces the redundant
+flattening copy with temporary `Cow<Item>` entries. Ordinary items and members
+of owned arrays borrow from the projection's existing owned input. Native
+`members()` accessors still return owned members. The input stays alive through
+all field accesses, selected record values are still cloned, and native
+`field()` results retain their existing owned return contract.
+
+The borrow ends inside one `record_field` call. This does not change evaluator
+input lifetimes, public `Item`/`ItemStream`, local reads, callbacks or portable
+artifacts. No field selection is pushed into a variable lookup, and records
+remain complete for later reads. This experiment does not introduce shared
+values or copy-on-write storage. Native/opaque/CEMT expressions retain their
+existing copied evaluator inputs and mutable-host path.
+
+The candidate preserves the current operation order: flatten exactly one level,
+check whether any item supports field projection, then visit fields in order.
+Empty collections still produce an empty stream; scalar-only inputs remain
+unrecognized field steps; mixed collections ignore ordinary non-record values.
+Projection preserves errors and diagnostics while retaining the existing cursor
+and chain-marker reset. It does not redefine these semantics.
+
+A native owner-lifetime fixture matters here: `members()` can return views whose
+field accessor needs the parent owner to remain live. The fixture uses a weak
+owner reference to verify retention through field access and release afterward.
+Simply consuming each input and dropping its parent while flattening would
+require additional owner retention. Borrowing the temporary input avoids that
+change and leaves selected outputs owned.
+
+The switch, candidate implementation and extra spans are all `cfg(test)`;
+the switch defaults off and restores its previous value on unwind. Production
+continues using the existing field copies. Four direct native checks cover
+owned selected results, one-level flattening/status, nested and repeated reads,
+shadowing/recovery, and native accessor order/retention. A fifth check reuses
+the renderer contract matrix against forced original copies, including portable
+reload, full records, native focus/identity, retained readers, callback fallback,
+protected failures, cancellation and lower child budgets.
+
+The first three checks ran before adding the candidate. The copy-elimination
+assertion failed while the semantic cases passed
+(`/tmp/cem-field-projection-red.log`). All five candidate checks then passed
+(`/tmp/cem-field-projection-contracts.log`). The release fixture compares
+`borrowed-inputs` (current production) with `borrowed-field-candidate`, keeping
+the previous copied-context/input batches for attribution. Direct queries now
+include whole-record return, a large selected field and function-argument field
+access in addition to single/repeated scalar selection. The authored and
+retained four-format viewer fixtures remain unchanged; external documents still
+enter solely through shared CEM-ML import into retained native CEM trees.
+
+#### Release measurements and validation
+
+The release fixture passes twice in 52.27/54.08 s
+(`/tmp/cem-field-projection-release.log` and
+`/tmp/cem-field-projection-release-repeat.log`; build:
+`/tmp/cem-field-projection-release-build.log`). Each strategy still has six
+recorded and six unrecorded iterations, discarding the first and reporting five
+warm samples. No unrelated build or browser workload ran during either profile.
+The repeat checks variation in the first XML baseline; it uses the same binary
+and assertions. The table retains both runs rather than selecting the largest
+improvement. Values are unrecorded medians in milliseconds, with 256 nested
+controls:
+
+| Viewer | Current, run 1 | Candidate, run 1 | Current, repeat | Candidate, repeat |
+| --- | ---: | ---: | ---: | ---: |
+| Authored XML | 22.265 | 10.907 | 16.935 | 10.408 |
+| Authored CSV | 17.971 | 11.093 | 17.821 | 12.412 |
+| Authored YAML | 17.975 | 10.450 | 16.854 | 12.434 |
+| Authored JSON | 18.901 | 11.150 | 20.336 | 11.427 |
+| Retained XML | 16.495 | 10.018 | 21.079 | 14.006 |
+| Retained CSV | 16.822 | 11.242 | 19.439 | 11.133 |
+| Retained YAML | 17.748 | 11.016 | 20.356 | 11.151 |
+| Retained JSON | 18.433 | 11.459 | 18.939 | 13.202 |
+
+Authored XML ranges are 19.954–26.480/10.169–12.547 ms in the first run and
+15.404–17.109/9.923–11.850 ms in the repeat. The repeat median reduction is
+38.5%; the first run's larger percentage is not a universal speedup claim.
+CSV has a 19.149 ms candidate outlier in the first run, and retained XML varies
+widely in the repeat (16.985–28.247/12.370–16.883 ms). Small-context authored
+XML measures 2.147/2.338 ms and 2.150/2.461 ms with overlapping ranges; no
+general small-context gain is established. These are native candidate results,
+not production or browser improvements.
+
+For loaded standalone queries, scalar `datadom.mode` changes from 0.560→0.293
+and 0.600→0.298 ms. Whole-record `datadom` remains 0.147/0.149 and
+0.166/0.188 ms: no field traversal occurs. Selecting the large `datadom.island`
+field measures 0.810→0.533 and 0.808→0.558 ms, retaining the large selected-result
+copy. A function reading its record parameter measures 0.870→0.575 and
+0.927→0.631 ms, retaining both the input read and parameter read. The 32-member
+interpolation template measures 42.989→20.804 and 44.300→23.982 ms.
+
+The recorded repeat separates these loaded XML stages:
+
+| Stage | Calls | Current (ms) | Candidate (ms) |
+| --- | ---: | ---: | ---: |
+| Evaluator input setup | 145 | 0.102 | 0.088 |
+| Read borrowed input values | 198 | 3.293 | 3.034 |
+| Read owned scoped values | 113 | 0.013 | 0.013 |
+| Field-input traversal | 218 | 3.377 | 0.020 |
+| Copy selected record values | 108 | 0.234 | 0.213 |
+| Shadow snapshot setup | 120 | 0.016 | 0.014 |
+| Variable restoration | 120 | 0.019 | 0.017 |
+
+All 311 owned reads and 108 selected-field copies remain. The candidate's
+218 field traversals borrow ordinary items and retain owned native accessor
+returns; it does not remove native accessor work. Avoided temporary destruction
+also contributes to whole-operation savings, beyond clone-construction spans.
+The direct function case confirms that owned scoped reads can still copy large
+records even though their cost is small in this viewer.
+
+Snapshot-only templates remain separate costs: first-run shadow medians are
+11.980/11.347 ms, successful try 68.132/72.862 ms, catch scanning
+132.461/129.892 ms, and hook scanning 252.361/258.208 ms. They do not exercise
+field projection; variation is not a candidate optimization or regression in
+snapshot handling. The repeat retains their same work and comparable ranges.
+
+Full native Nx validation passes **665 tests across 77 suites**, with eight
+opt-in profiles skipped (`/tmp/cem-field-projection-native-tests.log`). Native
+Nx lint passes with the existing 131 CEM-ML/41 CEM-QL warnings
+(`/tmp/cem-field-projection-lint.log`); fixture formatting and diff checks pass.
+This test-only investigation does not rebuild WASM or repeat browser coverage.
+The packaged WASM hash remains the verified production `0a32f6ae` value:
+`8b7140eb30ae85cd0dbc75a90998d8ce646b213b3de4d38d8edb273dd0935836`.
+
+Reproduce with:
+
+```sh
+cargo test -p cem-ql --lib field_candidate
+cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+```
+
+#### Pending decision: borrow temporary field inputs
+
+Recommend promoting this bounded field traversal based on the measured native
+comparison above. Its references stay inside the projection call, the original
+input retains native owners, and returned fields remain owned. Opaque/native/
+CEMT evaluator input copies, current field semantics, public artifacts and scope
+policies remain unchanged. Add a default-path allocation regression when
+promoting it; then repeat native profiling, rebuild WASM and verify the unchanged
+table/tree demos plus normal and synchronized Storybook coverage.
+
+Keeping the current implementation avoids introducing a temporary borrow, but
+retains a complete input clone for every field step. Moving consumed items and
+selected fields could remove further copies, but requires explicit native-owner
+retention and a separate review of destruction/access order. Borrowing directly
+from evaluator bindings would eliminate another read copy, but reaches across
+variable lookup, function arguments and mutable evaluation. Neither broader
+alternative is part of this candidate.
+
+The active TODO requires a measured proposal before shared ownership/lifetime
+changes, and the user requested a stop at decisions. This checkpoint therefore
+keeps the candidate in native tests. The next decision is whether to promote
+temporary field-input borrowing. Full binding reads, selected-result copies and
+shadow/try/hook snapshots remain separate follow-up work.

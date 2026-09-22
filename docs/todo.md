@@ -2422,10 +2422,38 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         The table/tree/inspector stories overlap stock load; NPM/location waits
         occur afterward. See the
         [production evidence](browser-stabilization-review.tmp.md#production-evaluator-input-borrowing).
-  - [ ] After that bounded correction, investigate owned value reads and field
+  - [x] After that bounded correction, investigate owned value reads and field
         projection separately from shadow, try/catch and eligible-hook snapshots.
         Propose measured ownership/lifetime changes before implementation; do not
         infer a shared-value or copy-on-write redesign from the input-borrow work.
+        Completed 2026-09-22: attribution separates borrowed-input and scoped
+        reads from field traversal. A test-only temporary-input borrow preserves
+        all 311 loaded XML reads but avoids redundant input cloning across
+        218 field traversals. Two native
+        comparisons improve loaded XML 22.265→10.907 and 16.935→10.408 ms;
+        owned results and snapshot costs remain. Production is unchanged. See
+        the [measured proposal](browser-stabilization-review.tmp.md#pending-decision-borrow-temporary-field-inputs).
+  - [x] Fixture: compare current field-input cloning with a native test-only
+        traversal borrowing the already-owned input and cloning selected results.
+        Cover one-level array flattening, missing/mixed fields, native accessor
+        order and owner retention, stream metadata, local shadowing, callback and
+        protected-failure contracts. Profile direct queries and unchanged viewers;
+        keep production behavior, public values and scope snapshots unchanged.
+        Completed 2026-09-22: five native candidate checks, both release profiles,
+        all 665 native tests and native lint pass. Native owner retention is
+        explicitly checked through accessor calls; every output remains owned.
+  - [ ] Decide whether field projection may borrow its already-owned temporary
+        input for one traversal while selected results remain owned. Recommend
+        this bounded correction, retaining native owners and accessor order;
+        avoid broader binding-read or shared-value changes. See the
+        [decision](browser-stabilization-review.tmp.md#pending-decision-borrow-temporary-field-inputs).
+  - [ ] If accepted, promote temporary field-input borrowing with default-path
+        ownership regressions, repeat native profiles, rebuild WASM, and verify
+        unchanged table/tree demos plus normal/synchronized Storybook coverage.
+        Preserve field semantics, scope limits, public values and artifacts.
+  - [ ] After that correction, investigate full binding/parameter reads and
+        selected-result copies separately from shadow/try/hook snapshots.
+        Propose any further shared lifetime or ownership change before promotion.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load

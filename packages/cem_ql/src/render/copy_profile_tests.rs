@@ -18,7 +18,9 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    crate::eval::binding_profile_tests::with_copied_inputs(operation)
+    crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
+        crate::eval::binding_profile_tests::with_copied_inputs(operation)
+    })
 }
 
 pub(super) fn force_context_copy() -> bool {
@@ -86,6 +88,13 @@ fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T))
         profile_strategy(&format!("{case}/copied-inputs"), &mut operation, &verify);
     });
     profile_strategy(&format!("{case}/borrowed-inputs"), &mut operation, &verify);
+    crate::eval::pipeline::field_profile_tests::with_borrowed_fields(|| {
+        profile_strategy(
+            &format!("{case}/borrowed-field-candidate"),
+            &mut operation,
+            &verify,
+        );
+    });
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -480,6 +489,17 @@ fn copied_input_baseline_preserves_renderer_contracts() {
 }
 
 #[test]
+fn borrowed_field_candidate_preserves_renderer_contracts() {
+    crate::eval::pipeline::field_profile_tests::with_borrowed_fields(|| {
+        default_render_borrows_proven_expression_context();
+        borrowing_preserves_focus_records_recovery_and_callbacks();
+        borrowing_preserves_reader_retention_across_renders();
+        borrowing_preserves_protected_failures_and_recovery();
+        borrowing_preserves_scoped_cancellation_and_budget_failure();
+    });
+}
+
+#[test]
 #[ignore = "profiling fixture: --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1"]
 fn profile_render_copies() {
     for count in [0, 256] {
@@ -497,7 +517,13 @@ fn profile_render_copies() {
             policy_bindings: bindings.clone(),
             ..Default::default()
         };
-        for source in ["datadom.mode", "(datadom.mode, datadom.mode)"] {
+        for source in [
+            "datadom",
+            "datadom.mode",
+            "datadom.island",
+            "(datadom.mode, datadom.mode)",
+            "declare function label(value) { value.mode } label(datadom)",
+        ] {
             let query = compile(
                 source,
                 &CompileContext {
@@ -508,7 +534,11 @@ fn profile_render_copies() {
             .unwrap();
             let expected = evaluate(&query, &context);
             assert!(expected.error.is_none());
-            assert!(expected.items.iter().all(|item| item == &text("fixed")));
+            match source {
+                "datadom" => assert_eq!(expected, bindings["datadom"]),
+                "datadom.island" => assert_eq!(expected, bindings["island"]),
+                _ => assert!(expected.items.iter().all(|item| item == &text("fixed"))),
+            }
             profile(
                 &format!("query/{source}/{count}"),
                 || evaluate(&query, &context),
