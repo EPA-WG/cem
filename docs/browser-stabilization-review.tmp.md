@@ -389,3 +389,47 @@ The historical timeout remains open pending reproduction with this evidence.
 No stock predicate, base viewer, runtime behavior or startup timeout was changed.
 The independent native DOM-helper audit can proceed to its explicit
 [name-selection decision](dom-helper-native-review.tmp.md).
+
+## Pending decision: retire the unreproduced startup blocker
+
+Follow-up audit on 2026-09-21, starting at `e16da2c1`:
+
+- The full parallel Chromium Storybook run passes all 198 tests in 41 files,
+  including the delayed-stock regression and the new implicit-module cases.
+- A separate startup probe runs 24 fresh browser pages in six batches of four.
+  Twelve use the gallery verifier's simplified card helper; twelve load the
+  packaged `cem-demo-element`. Each imports the authored `cell-overrides.html`
+  through `<cem-element src="…">` and uses the packaged CEM runtime.
+- For each implementation, four runs release `stock-cell.cemt` immediately,
+  four release it after the Pokémon table appears, and four release it after
+  editing that table's source. These probes run separately from the full
+  Storybook suite; they do not establish a combined stress result.
+- All 24 runs request the stock declaration, retain all three cards and their
+  templates/live regions, retain the stock fixture marker, and show exactly
+  one stock warning. No browser errors or declaration/instance diagnostics
+  occur. Helper connection traces always find the authored template present.
+
+The helper differs from the real component, but this matrix does not reproduce
+a mounting difference. Runtime materialization builds a new element's children
+before connecting it. There is no evidence here for changing card mounting,
+stock matching, request lifecycle, viewer output or timeout limits. The original
+snapshot still lacks the information needed to attribute its failure to any of
+these causes. Passing runs do not prove that the historical failure was fixed.
+
+**Recommended:** finish the active startup stabilization item with its known
+readiness fixes, and retain the historical stock timeout as a monitored finding.
+Keep `DelayedStockDeclaration`, the full Storybook/gallery gates and the enriched
+failure snapshots. Reopen active diagnosis if the warning check fails again;
+use the captured mount, marker, registration, style, loading and runtime evidence
+to select the failing layer. Proceed next to the page-and-legend Storybook
+coverage inventory already listed in TODO.
+
+**Alternative:** keep the historical timeout as the next active blocker and
+continue fault-injection or load experiments. This may find another failure,
+but no currently failing case identifies a product correction to implement.
+It also leaves authored-sample coverage waiting behind an unconfirmed cause.
+
+The user requested a stop at decisions or ambiguity. Moving an unresolved
+historical finding out of the active queue is an acceptance decision, so it
+has not been done. This follow-up changes only the evidence and decision record;
+it does not claim a runtime fix or mark the startup checklist complete.

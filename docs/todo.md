@@ -2041,6 +2041,12 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       After native storage migration, all 190 browser stories and the full
       gallery (28 standalone pages, 34 source-loaded documents) pass. The
       original intermittent stock-warning cause still needs investigation.
+      Follow-up 2026-09-21: all 198 current stories and 24 concurrent startup
+      probes (12 gallery-helper / 12 real demo-component, with three declaration
+      release schedules) pass. No lost markers, missing mounts or diagnostics
+      reproduce. Await the [acceptance decision](browser-stabilization-review.tmp.md#pending-decision-retire-the-unreproduced-startup-blocker)
+      before moving this historical finding to monitoring and proceeding to
+      the authored-sample Storybook coverage inventory. No runtime fix is claimed.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load
