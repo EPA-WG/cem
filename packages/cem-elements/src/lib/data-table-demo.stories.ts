@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { storyTiming } from '../../.storybook/story-timing.js';
 import { expect, waitFor, within } from 'storybook/test';
 import { whenCemRendered } from '../../.storybook/preview.js';
 import {
@@ -25,23 +26,33 @@ function renderDocument(): HTMLElement {
 export const EveryAuthoredSample: Story = {
     render: renderDocument,
     play: async ({ canvasElement }) => {
+        const mark = storyTiming('table/EveryAuthoredSample');
+        mark('setup:start');
         await waitFor(() => expect(canvasElement.querySelectorAll('cem-data-table textarea')).toHaveLength(4), { timeout: 30000 });
+        mark('setup:ready');
         for (const viewer of canvasElement.querySelectorAll<HTMLElement>('cem-data-table')) {
+            const format = viewer.getAttribute('format');
+            mark(`${format}:initial:start`);
             const controls = within(viewer);
             const xml = viewer.getAttribute('format') === 'xml';
             const table = () => viewer.querySelector('table');
             const quantities = () => Array.from(table()?.querySelectorAll(':scope > tbody > tr') ?? [],
                 (row) => row.querySelector(':scope > td')?.textContent?.trim());
             await waitFor(() => expect(quantities()).toEqual(['10', '2', '3']), { timeout: 10000 });
+            mark(`${format}:sort-column:start`);
             await select(controls.getByRole('combobox', { name: 'Sort column' }), xml ? '@id' : 'qty', viewer);
+            mark(`${format}:sort-column:settled-and-verified`);
             await select(controls.getByRole('combobox', { name: 'Compare' }), 'number', viewer);
+            mark(`${format}:compare:settled-and-verified`);
             await waitFor(() => expect(quantities()).toEqual(['2', '3', '10']), { timeout: 10000 });
         }
+        mark('formats:verified');
         const xml = canvasElement.querySelector('cem-data-table[format="xml"]') as HTMLElement;
         const xmlControls = within(xml);
         const xmlInput = xmlControls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
         xmlInput.value = '<r xmlns="urn:root" xmlns:p="urn:rows"><p:row xmlns:q="urn:field" id="1" q:xmlns="first"/><p:row xmlns:q="urn:field" id="2" q:xmlns="second"/><single xmlns:s="urn:detail" s:xmlns="detail"><?keep inert?></single></r>';
         xmlInput.dispatchEvent(new Event('change', { bubbles: true }));
+        mark('namespaces:dispatched', xml);
         await waitFor(() => expect(xmlControls.getByRole('columnheader', { name: '@urn:field|xmlns' })).toBeVisible(), { timeout: 10000 });
         expect(xml.querySelector('table')).toHaveTextContent('first');
         expect(xml.querySelector('table')).toHaveTextContent('second');
@@ -52,7 +63,9 @@ export const EveryAuthoredSample: Story = {
         expect(xml.querySelector('details')).not.toHaveTextContent('@q:');
         expect(xml.querySelector('details')).not.toHaveTextContent('@s:');
         expect(xml.querySelector('details')).toHaveTextContent('keep inert');
+        mark('namespaces:verified');
         xmlControls.getByRole('button', { name: 'Reset source' }).click();
+        mark('xml-reset:dispatched', xml);
 
         const json = canvasElement.querySelector('cem-data-table[format="json"]') as HTMLElement;
         const controls = within(json);
@@ -60,13 +73,17 @@ export const EveryAuthoredSample: Story = {
         const original = input.value;
         input.value = '[oops]';
         input.dispatchEvent(new Event('change', { bubbles: true }));
+        mark('invalid-json:dispatched', json);
         await waitFor(() => expect(controls.getByRole('alert')).toHaveTextContent('⚠'), { timeout: 10000 });
         expect(json.querySelectorAll('table')).toHaveLength(0);
+        mark('invalid-json:verified');
         controls.getByRole('button', { name: 'Reset source' }).click();
+        mark('json-reset:dispatched', json);
         await waitFor(() => expect(json.querySelectorAll('table')).toHaveLength(1), { timeout: 10000 });
         expect(input.value).toBe(original);
         expect(json.textContent).toContain('∅');
         expect(json.textContent).toContain('""');
+        mark('complete');
     },
 };
 

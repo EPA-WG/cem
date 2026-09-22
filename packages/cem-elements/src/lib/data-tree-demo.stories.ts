@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { storyTiming } from '../../.storybook/story-timing.js';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import {
     applyPatchFramesToRange, applyRenderPlanToRange, diffRenderPlansToPatchFrames,
@@ -80,28 +81,44 @@ function replaceSource(input: HTMLTextAreaElement, source: string): void {
 export const EditingSelectionAndDisclosure: Story = {
     render: renderDocument,
     play: async ({ canvasElement }) => {
+        const mark = storyTiming('tree/EditingSelectionAndDisclosure');
+        mark('setup:start');
         await waitFor(() => expect(canvasElement.querySelectorAll('cem-data-tree textarea')).toHaveLength(3), { timeout: 30000 });
+        mark('setup:verified');
         const xml = card(canvasElement, '1. XML branches: independent selection');
         const controls = within(xml);
         await waitFor(() => expect(xml.querySelector('pre[aria-label="CEM-ML document"]')).toHaveTextContent('{ast'), { timeout: 10000 });
+        mark('initial-document:verified');
         let first = controls.getByRole('checkbox', { name: 'Select branch 1.1: fruit' });
         expect(first).not.toBeChecked();
+        mark('select-first:start');
         await userEvent.click(first);
+        mark('select-first:dispatched', xml);
         await waitFor(() => expect(controls.getByRole('status', { name: 'Selected branches' })).toHaveTextContent(/^1$/), { timeout: 10000 });
+        mark('select-first:verified');
+        mark('select-second:start');
         await userEvent.click(controls.getByRole('checkbox', { name: 'Select branch 1.2: fruit' }));
+        mark('select-second:dispatched', xml);
         await waitFor(() => expect(controls.getByRole('status', { name: 'Selected branches' })).toHaveTextContent(/^2$/), { timeout: 10000 });
+        mark('select-second:verified');
         first = controls.getByRole('checkbox', { name: 'Select branch 1.1: fruit' });
         const second = controls.getByRole('checkbox', { name: 'Select branch 1.2: fruit' });
         const disclosure = first.closest('li')?.querySelector('details');
         const summary = disclosure?.querySelector('summary');
         if (!disclosure || !summary) throw new Error('branch disclosure missing');
+        mark('close-disclosure:start');
         await userEvent.click(summary);
+        mark('close-disclosure:dispatched', xml);
         await waitFor(() => expect(disclosure.open).toBe(false), { timeout: 10000 });
+        mark('close-disclosure:verified');
         expect(first).toBeChecked();
         expect(second).toBeChecked();
         expect(controls.getByRole('status', { name: 'Selected branches' })).toHaveTextContent(/^2$/);
+        mark('open-disclosure:start');
         await userEvent.click(summary);
+        mark('open-disclosure:dispatched', xml);
         await waitFor(() => expect(disclosure.open).toBe(true), { timeout: 10000 });
+        mark('open-disclosure:verified');
         expect(xml.querySelectorAll('strong')).toHaveLength(2);
         expect(xml).toHaveTextContent('urn:fruit');
         expect(xml).toHaveTextContent('""');
@@ -111,21 +128,34 @@ export const EditingSelectionAndDisclosure: Story = {
         expect(json.querySelectorAll('input:checked')).toHaveLength(0);
         const source = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
         const original = source.value;
+        mark('reset-selections:start');
         controls.getByRole('button', { name: 'Reload original' }).click();
+        mark('reset-selections:dispatched', xml);
         await waitFor(() => expect(controls.getByRole('status', { name: 'Selected branches' })).toHaveTextContent(/^0$/), { timeout: 10000 });
+        mark('reset-selections:verified');
         expect(source.value).toBe(original);
         expect(xml.querySelectorAll('input:checked')).toHaveLength(0);
+        mark('reselect-first:start');
         (controls.getByRole('checkbox', { name: 'Select branch 1.1: fruit' }) as HTMLElement).click();
+        mark('reselect-first:dispatched', xml);
         await waitFor(() => expect(controls.getByRole('status', { name: 'Selected branches' })).toHaveTextContent(/^1$/), { timeout: 10000 });
+        mark('reselect-first:verified');
         source.focus();
+        mark('replace-source:start');
         replaceSource(source, '<r><script>neverRun()</script><fruit>🍏</fruit></r>');
+        mark('replace-source:dispatched', xml);
         await waitFor(() => expect(controls.getByRole('status', { name: 'Selected branches' })).toHaveTextContent(/^0$/), { timeout: 10000 });
+        mark('replace-source:verified');
         expect(xml.querySelectorAll('input:checked')).toHaveLength(0);
         expect(xml.querySelector('script')).toBeNull();
         expect(document.activeElement).toBe(source);
+        mark('restore-source:start');
         controls.getByRole('button', { name: 'Reload original' }).click();
+        mark('restore-source:dispatched', xml);
         await waitFor(() => expect(source.value).toBe(original), { timeout: 10000 });
+        mark('restore-source:verified');
         expect(xml.querySelectorAll('input:checked')).toHaveLength(0);
+        mark('complete');
     },
 };
 

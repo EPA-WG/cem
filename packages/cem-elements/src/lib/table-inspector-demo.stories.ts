@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { storyTiming } from '../../.storybook/story-timing.js';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import {
     applyPatchFramesToRange, applyRenderPlanToRange, diffRenderPlansToPatchFrames,
@@ -112,28 +113,51 @@ export const ColumnsAndText: Story = {
 export const MultipleSelectionAndRecovery: Story = {
     render: renderDocument,
     play: async ({ canvasElement }) => {
+        const mark = storyTiming('inspector/MultipleSelectionAndRecovery');
+        mark('setup:start');
         await ready(canvasElement);
+        mark('setup:verified');
         const viewer = card(canvasElement, '4. Multiple selections survive sorting');
         const controls = within(viewer);
         const table = () => viewer.querySelector('table') as HTMLTableElement;
+        mark('select-first:start');
         await userEvent.click(rows(table())[1].querySelector('input') as HTMLInputElement);
+        mark('select-first:dispatched', viewer);
         await waitFor(() => expect(table().querySelector('caption output')).toHaveTextContent(/^1$/), { timeout: 10000 });
+        mark('select-first:verified');
+        mark('select-second:start');
         await userEvent.click(rows(table())[2].querySelector('input') as HTMLInputElement);
+        mark('select-second:dispatched', viewer);
         await waitFor(() => expect(table().querySelector('caption output')).toHaveTextContent(/^2$/), { timeout: 10000 });
+        mark('select-second:verified');
         const mode = controls.getByRole('combobox', { name: 'Compare document/row' }) as HTMLSelectElement;
+        mark('compare-number:start');
         mode.value = 'number'; mode.dispatchEvent(new Event('change', { bubbles: true }));
+        mark('compare-number:dispatched', viewer);
+        mark('sort-ascending:start');
         await userEvent.click(controls.getByRole('button', { name: 'Sort @qty ascending in document/row' }));
+        mark('sort-ascending:dispatched', viewer);
         await order(viewer, ['Cherry 🍒', 'Apple 🍏', 'Lemon 🍋', 'Banana 🍌']);
+        mark('sort-ascending:verified');
         expect(selected(table())).toEqual(['Apple 🍏', 'Lemon 🍋']);
         expect(table().querySelector('th[aria-sort]')).toHaveAttribute('aria-sort', 'ascending');
+        mark('sort-descending:start');
         await userEvent.click(controls.getByRole('button', { name: 'Sort @qty descending in document/row' }));
+        mark('sort-descending:dispatched', viewer);
         await order(viewer, ['Lemon 🍋', 'Cherry 🍒', 'Apple 🍏', 'Banana 🍌']);
+        mark('sort-descending:verified');
         expect(selected(table())).toEqual(['Lemon 🍋', 'Apple 🍏']);
         expect(table().querySelector('caption output')).toHaveTextContent(/^2$/);
+        mark('deselect-first:start');
         await userEvent.click(rows(table())[0].querySelector('input') as HTMLInputElement);
+        mark('deselect-first:dispatched', viewer);
         await waitFor(() => expect(selected(table())).toEqual(['Apple 🍏']), { timeout: 10000 });
+        mark('deselect-first:verified');
+        mark('source-order:start');
         await userEvent.click(controls.getByRole('button', { name: 'Restore source order in document/row' }));
+        mark('source-order:dispatched', viewer);
         await order(viewer, ['Cherry 🍒', 'Lemon 🍋', 'Apple 🍏', 'Banana 🍌']);
+        mark('source-order:verified');
         expect(selected(table())).toEqual(['Apple 🍏']);
         expect(table().querySelector('th[aria-sort]')).toBeNull();
         expect(card(canvasElement, '1. Columns from every row').querySelectorAll('input:checked')).toHaveLength(0);
@@ -144,23 +168,39 @@ export const MultipleSelectionAndRecovery: Story = {
         second.setAttribute('format', 'xml');
         second.setAttribute('inspector', 'true');
         second.textContent = original;
+        mark('second-instance:start');
         viewer.parentElement?.append(second);
+        mark('second-instance:dispatched', second);
         await waitFor(() => expect(second.querySelector('table')).not.toBeNull(), { timeout: 10000 });
+        mark('second-instance:verified');
         expect(selected(second.querySelector('table') as HTMLTableElement)).toEqual([]);
+        mark('second-selection:start');
         await userEvent.click(second.querySelector('input') as HTMLInputElement);
+        mark('second-selection:dispatched', second);
         await waitFor(() => expect(second.querySelector('caption output')).toHaveTextContent(/^1$/), { timeout: 10000 });
+        mark('second-selection:verified');
         expect(selected(table())).toEqual(['Apple 🍏']);
         second.remove();
+        mark('reset:start');
         await userEvent.click(controls.getByRole('button', { name: 'Reset source' }));
+        mark('reset:dispatched', viewer);
         await waitFor(() => expect(selected(table())).toEqual([]), { timeout: 10000 });
+        mark('reset:verified');
         expect(input.value).toBe(original);
+        mark('invalid-source:start');
         input.focus(); change(input, '<broken>');
+        mark('invalid-source:dispatched', viewer);
         await waitFor(() => expect(controls.getByRole('alert')).toBeVisible(), { timeout: 10000 });
+        mark('invalid-source:verified');
         expect(viewer.querySelector('table')).toBeNull();
         expect(document.activeElement).toBe(input);
+        mark('restore-source:start');
         change(input, original);
+        mark('restore-source:dispatched', viewer);
         await order(viewer, ['Cherry 🍒', 'Lemon 🍋', 'Apple 🍏', 'Banana 🍌']);
+        mark('restore-source:verified');
         expect(selected(table())).toEqual([]);
+        mark('complete');
     },
 };
 

@@ -742,9 +742,9 @@ Those failures are different from a one-second poll or an incorrect instance
 count. The current results do not identify which part of each journey consumes
 the budget, or establish that an individual operation never settles. No viewer
 change, larger timeout, story split or concurrency cap is justified from this
-snapshot alone. The next bounded investigation is to timestamp setup and each
-interaction/settlement phase in these three cases under the same load, then
-decide whether to change test organization or execution policy if needed.
+snapshot alone. The [follow-up below](#long-story-phase-investigation) timestamps
+setup and interaction/settlement phases in these three cases under the same
+load before considering changes to test organization or execution policy.
 
 The historical stock warning timeout remains open. Passing stock probes and
 corrected fixture readiness do not prove that the original failure is fixed.
@@ -755,3 +755,117 @@ its two existing warnings; the diagnostic script passes syntax and lint checks.
 The earlier synchronized stress run remains recorded as 199/203 plus 32/32 stock
 probes; it is not reported as a passing stress gate. Runtime/viewer source and
 packaged runtime hashes were unchanged throughout this investigation.
+
+## Long-story phase investigation
+
+The follow-up at `3e83149d` adds opt-in observations to the existing table
+`EveryAuthoredSample`, tree `EditingSelectionAndDisclosure` and inspector
+`MultipleSelectionAndRecovery` stories. Enable them with:
+
+```sh
+STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test
+```
+
+The shared `.storybook/story-timing.ts` helper emits labeled diagnostic control
+records immediately. It uses warning output because this runner hides ordinary
+console output for passing tests; these records are not runtime warnings. Each
+record contains the story, phase, UTC timestamp and elapsed time since the
+story's `play` function starts. Setup includes the existing source-page readiness
+assertion; module import and work before `play` are outside that clock.
+
+Action start/dispatch and successful DOM assertions are observed without changing
+the actions or their waits. Where the story already awaits rendering (table sort
+controls), the completion marker includes that wait and its assertion. Other
+actions attach an **unawaited observer** to the existing `whenCemRendered`
+lifecycle. That lifecycle follows the instance's latest render: a subsequent
+action can extend an earlier observer's wait. Several observers completing
+together therefore do not measure several independently slow render jobs. The
+records identify visible progress and eventual settlement, not native evaluator
+CPU time. Logging and observation also add some overhead.
+The final helper also records the target tag and whether it is connected at
+dispatch/settlement. A settlement after detachment is not evidence of a successful
+live render. The runner can replay records when reporting a failed test; use
+`(story, at, phase)` to deduplicate them.
+
+The normal instrumented full suite passes all 203 cases in 42 files (60.73 s).
+The same full suite with observation disabled passes 203/203 (51.68 s); these are
+single runs with varying scheduling, not an isolated estimate of logging cost.
+
+| Journey | Initial readiness | Complete play | Observed interaction cost |
+| --- | ---: | ---: | --- |
+| Table | 11.58 s | 24.66 s | Four formats sorted by 20.07 s; namespace edit verified at 21.08 s, invalid JSON at 22.99 s |
+| Tree | 8.17 s | 26.31 s | First/second selections verified at 10.36/12.89 s; reset takes 5.21 s, reselect 2.53 s, replacement 2.31 s, final restore 3.22 s |
+| Inspector | 1.77 s | 15.81 s | Ascending/descending orders verified at 6.30/7.96 s; source order at 11.10 s, recovery at 15.80 s |
+
+The tree's close/open disclosure interactions each complete within 40 ms in that
+run. Its two selections, reset and subsequent source transitions account for
+most of the interaction time. The inspector starts after earlier stories in its
+file have loaded the same source document; its setup cost is not a cold-start
+comparison with the table and tree.
+
+### Combined-load results and timeout cleanup
+
+Both runs below start the existing eight-page/four-batch stock probe when the
+full suite announces Vitest `RUN`, after its build prerequisites finish. The
+first starts at `2026-09-22T05:05:32.538Z`; the repeat with connection-state
+observations starts at `05:07:41.425Z`. They use the same machine described in
+the startup timing report. The probe's critical source/runtime hashes still
+match that earlier report; no viewer or runtime source was changed.
+
+| Run | Storybook result | Stock probes | Stock warning time |
+| --- | --- | --- | --- |
+| Initial phase observations | 201/203, 82.36 s | 32/32 pass | 7.96–10.68 s |
+| Connection-state repeat | 200/203, 83.41 s | 32/32 pass | 4.73–12.07 s |
+
+The table and tree exhaust the full 30-second story budget in both runs. The
+inspector passes the first and exhausts the same budget in the repeat. There
+are no other failing stories in these runs.
+
+- **Table:** initial readiness takes 24.01/26.11 seconds, leaving fewer than
+  six/four seconds for the entire four-format journey. The first column change
+  settles and passes its assertion at 29.48/29.68 seconds. That setup plus the
+  first successful operation already accounts for almost the whole budget.
+  The async play function continues after timeout; in the repeat it reaches the
+  namespace edit at 54.05 seconds with `connected: false`. Its subsequent
+  assertions and settlement must not be counted as successful live coverage.
+- **Tree:** initial readiness takes 19.42/19.26 seconds. The first selection is
+  verified at 22.85/24.58 seconds, and the second is dispatched at 22.93/24.65
+  seconds. Its count-of-two assertion never reports success. The initial run
+  reports late settlement at 34.76 seconds; the repeat reports it at 35.16
+  seconds **after the viewer has detached**. This rules out treating that late
+  signal as proof of recovery. The traces do not yet distinguish a long pending
+  worker job from stale or missing live output for that selection.
+- **Inspector:** the first run verifies every action and finishes at 27.58
+  seconds. In the repeat, source-order restoration is verified at 25.55 seconds,
+  the second instance at 25.89 seconds and its independent selection at 26.48
+  seconds. Reset and invalid-source checks pass by 28.55 seconds. The final
+  recovery is dispatched at 28.57 seconds; settlement is observed at 30.54
+  seconds on a detached viewer. The late `complete` marker at 30.59 seconds does
+  not turn this into a passing test. This journey makes steady progress up to
+  its deadline, rather than stopping at initial readiness.
+
+The result supports cumulative setup/interaction pressure for table and
+inspector, but does not fully explain the tree's second selection. It also
+exposes a diagnostic trap: test timeout does not automatically stop an async
+play function, and settlement can follow teardown. The next bounded fixture
+investigation should capture the tree's scheduling, worker request/response,
+render revision, selection output and connection state **before the deadline**,
+using the existing observation hooks. Track post-timeout continuation separately
+so detached work cannot be mistaken for a recovered live interaction. Keep
+story organization, budgets and concurrency unchanged until that evidence is
+available; there is no proposed runtime correction from these traces alone.
+
+The historical stock timeout remains unattributed. These 64 additional passing
+probes bring the phase-timing probe total to 186; they do not close that issue.
+Local evidence is retained in `/tmp/cem-story-phases-baseline.log`,
+`/tmp/cem-story-phases-combined.log`, `/tmp/cem-story-phases-connected.log`,
+`/tmp/cem-story-phases-stock.json` and
+`/tmp/cem-story-phases-connected-stock.json`. The tables above retain the
+findings when those temporary files are unavailable. Reproduce the observations
+with the environment flag above and the existing combined-load probe procedure;
+enable the flag only on the Storybook process.
+
+Final lint passes with the two existing non-null-assertion warnings. This change
+adds fixture observations and documentation only; existing assertions, waits,
+story budgets, concurrency configuration and viewer/runtime behavior remain
+unchanged.

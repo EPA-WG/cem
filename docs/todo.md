@@ -2115,11 +2115,29 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         instances. All eight focused cases and the normal 203-story suite pass;
         lint passes with its two existing warnings. Full-budget stress failures
         remain a separate investigation below.
-  - [ ] Timestamp setup and interaction/settlement phases in the table
+  - [x] Timestamp setup and interaction/settlement phases in the table
         EveryAuthoredSample, tree EditingSelectionAndDisclosure and inspector
         MultipleSelectionAndRecovery stories under combined load. They exhaust
         their full 30-second budgets; distinguish slow progress from unsettled
         work before changing story organization, budgets or concurrency policy.
+        Fixture instrumentation: add opt-in phase/settlement observations to
+        those three existing journeys, retaining incremental output on timeout;
+        compare the normal full suite with synchronized eight-page probe load
+        without changing waits, assertions, story budgets or runtime behavior.
+        Completed 2026-09-21: opt-in observations retain setup/action/assertion,
+        lifecycle settlement and connection state across timeout. Normal suite
+        passes 203/203; combined runs pass 201/203 and 200/203, with all 64 stock
+        probes passing. Table setup takes 24–26 seconds; inspector progresses
+        through recovery near its deadline. Tree's second selection has no
+        verified live result before timeout; its late settlement follows
+        detachment. Post-timeout play continuation is not passing coverage.
+        See [phase findings](browser-stabilization-review.tmp.md#long-story-phase-investigation).
+  - [ ] Fixture: trace the tree's second-selection scheduling, worker response,
+        render revision and selected-count output while still connected under
+        the same combined load. Distinguish delayed processing from stale live
+        output before changing story organization, budgets or concurrency.
+        Track timeout/detachment and post-timeout play continuation separately;
+        do not treat settlement on a detached viewer as successful recovery.
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
         available lifecycle signals before migrating each affected fixture;
