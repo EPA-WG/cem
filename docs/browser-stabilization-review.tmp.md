@@ -624,3 +624,134 @@ which state caused the historical timeout, so startup remains active. The next
 investigation should measure request, worker-queue, compile and render timing under
 parallel load to identify any unexplained delay without increasing wait limits.
 No new runtime behavior is selected from the old, incomplete snapshot.
+
+## Startup timing under parallel load
+
+The 2026-09-21 follow-up starts at `5ecbf60f`. The repeatable probe is
+[`tools/scripts/diagnose-cem-stock-startup.mjs`](../tools/scripts/diagnose-cem-stock-startup.mjs).
+It serves the authored gallery through the packaged runtime, alternating the
+gallery helper and real demo cards in fresh browser contexts. It records:
+
+- Git revision, changed file names, hashes of critical source/runtime files,
+  browser/Node versions, CPU/kernel, concurrency, and run timestamps.
+- Browser resource timing through response-body completion; the common viewer
+  import entries include both Pokémon and stock consumers.
+- Existing scheduler enqueue/dispatch events and worker construction/readiness.
+- Stock compile/render request and response timestamps, outcomes, and diagnostics.
+- First stock owner, stylesheet, table and warning observations, plus final card
+  mount state, registration, styles and diagnostics.
+
+The worker factory only observes the real worker's messages. Request-to-response
+time includes transport, engine initialization and main-thread delivery; it is
+**not** a pure native compile/render duration. Scheduler wait means enqueue to
+dispatch; worker readiness and dispatch-to-send time are recorded separately.
+Measurements overlap and must not be added as independent parts of startup.
+The probe preserves the gallery's 45-second limit and does not alter template
+sources, runtime policy or worker counts. Its JSON file is an explicit diagnostic
+control report, not an external document or AST handoff.
+
+Reproduce after building the packaged dependencies, sequentially:
+
+```sh
+yarn nx run cem-elements:build
+yarn nx run @epa-wg/cem-demo-element:build
+node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=1 --batches=2 --label=baseline --output=/tmp/cem-stock-baseline.json
+node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=4 --batches=2 --label=four-pages --output=/tmp/cem-stock-four.json
+node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=2 --label=eight-pages --output=/tmp/cem-stock-eight.json
+```
+
+For combined load, start `yarn nx run cem-elements:test`, wait until Vitest starts
+running (its build prerequisites must have finished), then run the probe in a
+second terminal with `--concurrency=8 --batches=4 --label=alongside-storybook` and
+a separate output path. Retain both reports; compare their timestamps to confirm
+overlap. Timing ranges below describe this machine/run, not a performance SLA.
+
+The initial matrix used Chromium 148.0.7778.96, Node 24.16.0, WSL2 Linux
+6.6.114.1 and an Intel Core Ultra 7 258V with eight available CPU threads:
+
+| Load | Probes | Warning after mount | Max stock source | Max viewer import | Max stock queue | Max stock compile round trip | Max stock render round trip |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| One page | 2 | 1.36–1.45 s | 3 ms | 5 ms | 409 ms | 82 ms | 166 ms |
+| Four pages | 8 | 2.12–2.48 s | 29 ms | 30 ms | 558 ms | 126 ms | 231 ms |
+| Eight pages | 16 | 3.61–4.77 s | 59 ms | 204 ms | 1,347 ms | 368 ms | 493 ms |
+| Eight pages alongside Storybook | 32 | 7.75–10.28 s | 186 ms | 291 ms | 2,347 ms | 585 ms | 1,073 ms |
+
+All 58 stock probes pass. There are no failed source requests, runtime
+diagnostics, scheduler overflows or fallback events. The combined probe runs
+overlap the active Storybook tests. Worker readiness reaches 4.41 seconds in
+that run. Initial stock compilation shares a worker with the native-value card's
+initialization, accounting for observed queue waits. The second stock compile
+request is the existing render preflight in `CemScopeProcessingHost.renderDiff`;
+the engine's retained-artifact path returns it quickly. The trace does not show
+repeated full compilation or an unexplained 45-second stall.
+
+### Reproduced fixture readiness failures
+
+The initial combined run passes 200 of 203 Storybook cases. Three assertions
+expire before their expected output is present:
+
+- `form-demo.stories.ts` / `EveryAuthoredSample` stops after 300 animation frames
+  while waiting for its five anonymous form instances.
+- `data-table-demo.stories.ts` / `MatchingPresentationAspects` uses the default
+  one-second poll immediately after attaching its second instance.
+- `data-table-demo.stories.ts` / `NativeXsltViewer` uses the same short poll after
+  resetting invalid source, while the restored table is still pending.
+
+The first fixture correction waits for the existing declaration/render lifecycle
+before those assertions. All six cases in the two focused files pass, and the
+form startup and second-instance checks pass in the next combined run. That
+repeat exposes additional short polls at table format/IP-address updates and
+an XPath-sort toggle, plus a 300-frame data-slices startup check. All 32 stock
+probes still pass, with warning times reaching 11.54 seconds; the suite passes
+199 of 203 cases in that intermediate run.
+
+Replacing the data-slices frame cutoff with settlement reveals a deterministic
+assertion error even without stress: **16 legends contain 18 rendered instances**.
+The attribute-initialization sample and the emotion-attribute sample each author
+two instances. The old equality-to-16 readiness condition could pass during a
+partially rendered state or miss that transient count entirely. The corrected
+test validates each legend's intended instance count after settlement, then
+executes the existing interaction checks.
+
+The final fixture changes share `whenCemSourceRendered` in the Storybook preview
+to await the source host, its declarations and initial produced instances.
+Forms and data-slices use that helper; table and XPath-sort transitions use the
+existing `whenCemRendered` before output assertions. The eight cases across
+those four files pass together. Story budgets, data/order/focus assertions,
+runtime and viewer templates remain unchanged; the instance-count assertion now
+matches the authored source. These are fixture corrections, not evidence of a
+fixed historical stock timeout.
+
+The synchronized repeat starts its probe process when Vitest announces `RUN`.
+All 32 stock probes pass in 6.03–11.99 seconds. It exposes one more fixed-frame
+cutoff in `InlineBrowserSubstrateContract`; that fixture now retains its runtime
+and awaits declaration/render settlement before inspecting the button. The
+source/runtime hashes recorded by all six timing reports match (the diagnostic
+script itself gained per-run timestamps between the baseline and combined runs).
+
+### Remaining stress boundary
+
+Under the synchronized extra load, these complete interaction journeys exhaust
+their existing 30-second story budgets:
+
+- Multi-format Data Tables / `EveryAuthoredSample`;
+- Retained Data Trees / `EditingSelectionAndDisclosure`;
+- Table Inspector / `MultipleSelectionAndRecovery`.
+
+Those failures are different from a one-second poll or an incorrect instance
+count. The current results do not identify which part of each journey consumes
+the budget, or establish that an individual operation never settles. No viewer
+change, larger timeout, story split or concurrency cap is justified from this
+snapshot alone. The next bounded investigation is to timestamp setup and each
+interaction/settlement phase in these three cases under the same load, then
+decide whether to change test organization or execution policy if needed.
+
+The historical stock warning timeout remains open. Passing stock probes and
+corrected fixture readiness do not prove that the original failure is fixed.
+
+Final verification: the normal full Storybook suite passes all 203 tests in
+42 files after the fixture corrections (62.42 seconds). Package lint passes with
+its two existing warnings; the diagnostic script passes syntax and lint checks.
+The earlier synchronized stress run remains recorded as 199/203 plus 32/32 stock
+probes; it is not reported as a passing stress gate. Runtime/viewer source and
+packaged runtime hashes were unchanged throughout this investigation.

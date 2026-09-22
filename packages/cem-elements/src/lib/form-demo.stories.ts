@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-form-demo-document';
 const DEMO_URL = new URL('../../demo/form.html', import.meta.url);
@@ -34,10 +35,11 @@ export const EveryAuthoredSample: Story = {
     },
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
-        await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend] article').length === EXPECTED_LEGENDS.length,
-            'all five form samples render from the HTML source',
-            300
+        await whenCemSourceRendered(host);
+        assertEqual(
+            host.querySelectorAll('cem-demo-element[legend] article').length,
+            EXPECTED_LEGENDS.length,
+            'all five form samples render from the HTML source'
         );
 
         assertDeepEqual(

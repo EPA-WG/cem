@@ -264,6 +264,8 @@ export const MissingInlineTemplateShape: Story = {
     },
 };
 
+const inlineContractRuntimes = new WeakMap<HTMLElement, CemElementRuntime>();
+
 export const InlineBrowserSubstrateContract: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -271,6 +273,7 @@ export const InlineBrowserSubstrateContract: Story = {
 
         const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-inline-contract' });
         runtime.install(window);
+        inlineContractRuntimes.set(root, runtime);
 
         const declaration = document.createElement('cem-element-story-inline-contract');
         declaration.setAttribute('tag', 'story-inline-contract');
@@ -310,7 +313,12 @@ export const InlineBrowserSubstrateContract: Story = {
         assert(window.customElements.get('story-inline-contract'), 'produced custom element is registered');
 
         const instance = requiredElement(canvasElement, 'story-inline-contract') as HTMLElement;
-        const button = await waitForElement(instance, 'button[data-role="action"]', 240) as HTMLButtonElement;
+        const root = requiredElement(canvasElement, 'section[aria-label="inline browser substrate contract"]') as HTMLElement;
+        const runtime = inlineContractRuntimes.get(root);
+        if (!runtime) throw new Error('inline contract runtime is missing');
+        await runtime.whenDeclarationSettled(declaration as HTMLElement);
+        await runtime.whenRenderSettled(instance);
+        const button = requiredElement(instance, 'button[data-role="action"]') as HTMLButtonElement;
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
         const capturedPayload = island.content.querySelector('[data-contract-payload]') as HTMLElement | null;
 

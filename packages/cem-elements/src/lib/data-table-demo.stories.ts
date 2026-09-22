@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor, within } from 'storybook/test';
+import { whenCemRendered } from '../../.storybook/preview.js';
 import {
     applyPatchFramesToRange, applyRenderPlanToRange, diffRenderPlansToPatchFrames,
     renderPlanIdentity, type RenderPlan, type RenderPlanNode,
@@ -32,8 +33,8 @@ export const EveryAuthoredSample: Story = {
             const quantities = () => Array.from(table()?.querySelectorAll(':scope > tbody > tr') ?? [],
                 (row) => row.querySelector(':scope > td')?.textContent?.trim());
             await waitFor(() => expect(quantities()).toEqual(['10', '2', '3']), { timeout: 10000 });
-            await select(controls.getByRole('combobox', { name: 'Sort column' }), xml ? '@id' : 'qty');
-            await select(controls.getByRole('combobox', { name: 'Compare' }), 'number');
+            await select(controls.getByRole('combobox', { name: 'Sort column' }), xml ? '@id' : 'qty', viewer);
+            await select(controls.getByRole('combobox', { name: 'Compare' }), 'number', viewer);
             await waitFor(() => expect(quantities()).toEqual(['2', '3', '10']), { timeout: 10000 });
         }
         const xml = canvasElement.querySelector('cem-data-table[format="xml"]') as HTMLElement;
@@ -81,12 +82,15 @@ export const MatchingPresentationAspects: Story = {
         const address = controls.getByRole('textbox', { name: 'Address / CIDR' }) as HTMLInputElement;
         address.value = '198.51.100.0/24';
         address.dispatchEvent(new Event('input', { bubbles: true }));
-        await select(controls.getByRole('combobox', { name: 'Action' }), 'deny');
+        await whenCemRendered(viewer);
+        await select(controls.getByRole('combobox', { name: 'Action' }), 'deny', viewer);
         await waitFor(() => expect(viewer.querySelector('form output')).toHaveTextContent('deny: 198.51.100.0/24'));
         controls.getByRole('checkbox', { name: 'Presentation aspects' }).click();
+        await whenCemRendered(viewer);
         await waitFor(() => expect(viewer.querySelector('table[aria-label="notes"]')).not.toBeNull(), { timeout: 10000 });
         expect(viewer.querySelector('form')).toBeNull();
         controls.getByRole('checkbox', { name: 'Presentation aspects' }).click();
+        await whenCemRendered(viewer);
         await waitFor(() => expect(viewer.querySelector('form output')).toHaveTextContent('deny: 198.51.100.0/24'), { timeout: 10000 });
         expect((controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement).value).toBe(original);
 
@@ -95,16 +99,18 @@ export const MatchingPresentationAspects: Story = {
         second.setAttribute('format', 'json');
         second.textContent = original;
         viewer.parentElement?.append(second);
+        await whenCemRendered(second);
         await waitFor(() => expect(second.querySelector('form output')).toHaveTextContent('allow: 192.0.2.0/24'));
         expect(viewer.querySelector('form output')).toHaveTextContent('deny: 198.51.100.0/24');
         second.remove();
     },
 };
 
-async function select(element: HTMLElement, value: string): Promise<void> {
+async function select(element: HTMLElement, value: string, viewer: HTMLElement): Promise<void> {
     const control = element as HTMLSelectElement;
     control.value = value;
     control.dispatchEvent(new Event('change', { bubbles: true }));
+    await whenCemRendered(viewer);
     await waitFor(() => expect(control).toHaveAttribute('value', value), { timeout: 10000 });
 }
 
@@ -183,29 +189,34 @@ export const NativeXsltViewer: Story = {
             viewer.setAttribute('format', format);
             input.value = source;
             input.dispatchEvent(new Event('change', { bubbles: true }));
+            await whenCemRendered(viewer);
             await waitFor(() => expect(viewer.querySelector('label')).toHaveTextContent(`Source (${format.toUpperCase()})`));
             await waitFor(() => expect(quantities()).toEqual(['10', '2', '3']), { timeout: 10000 });
             expect(viewer.querySelector('[role="alert"]')).toBeNull();
         }
         viewer.querySelectorAll<HTMLButtonElement>('tbody > tr > th > button')[1].click();
+        await whenCemRendered(viewer);
         await waitFor(() => expect(viewer.querySelector('[aria-selected="true"]')).toHaveTextContent('🍋'));
-        await select(controls.getByRole('combobox', { name: 'Sort column' }), 'qty');
-        await select(controls.getByRole('combobox', { name: 'Compare' }), 'number');
+        await select(controls.getByRole('combobox', { name: 'Sort column' }), 'qty', viewer);
+        await select(controls.getByRole('combobox', { name: 'Compare' }), 'number', viewer);
         await waitFor(() => expect(quantities()).toEqual(['2', '3', '10']));
         expect(viewer.querySelector('tbody tr:first-child')).toHaveAttribute('aria-selected', 'true');
-        await select(controls.getByRole('combobox', { name: 'Direction' }), 'descending');
+        await select(controls.getByRole('combobox', { name: 'Direction' }), 'descending', viewer);
         await waitFor(() => expect(quantities()).toEqual(['10', '3', '2']));
         input.value = original.replace('10', '11');
         input.dispatchEvent(new Event('change', { bubbles: true }));
+        await whenCemRendered(viewer);
         await waitFor(() => expect(quantities()).toEqual(['11', '3', '2']));
         expect(viewer.querySelector('[aria-selected="true"]')).toBeNull();
         input.focus();
         input.value = '[oops]';
         input.dispatchEvent(new Event('change', { bubbles: true }));
+        await whenCemRendered(viewer);
         await waitFor(() => expect(controls.getByRole('alert')).toHaveTextContent('⚠'));
         expect(viewer.querySelector('table')).toBeNull();
         expect(document.activeElement).toBe(input);
         controls.getByRole('button', { name: 'Reset source' }).click();
+        await whenCemRendered(viewer);
         await waitFor(() => expect(viewer.querySelector('table')).toBeTruthy());
         expect(input.value).toBe(original);
         // Restoring identical source bytes restores the same provenance key.
@@ -231,18 +242,22 @@ export const ImportedXsltPresentationAspects: Story = {
         address.value = '198.51.100.0/24';
         address.setSelectionRange(3, 3);
         address.dispatchEvent(new Event('input', { bubbles: true }));
+        await whenCemRendered(viewer);
         await waitFor(() => expect(viewer.querySelector('form output')).toHaveTextContent('198.51.100.0/24'));
         expect(document.activeElement).toBe(address);
         expect(address.selectionStart).toBe(3);
-        await select(controls.getByRole('combobox', { name: 'Action' }), 'deny');
+        await select(controls.getByRole('combobox', { name: 'Action' }), 'deny', viewer);
         controls.getByRole('checkbox', { name: 'Presentation aspects' }).click();
+        await whenCemRendered(viewer);
         await waitFor(() => expect(viewer.querySelector('table[aria-label="notes"]')).toBeTruthy());
         expect(viewer.querySelector('form')).toBeNull();
         controls.getByRole('checkbox', { name: 'Presentation aspects' }).click();
+        await whenCemRendered(viewer);
         await waitFor(() => expect(viewer.querySelector('form output')).toHaveTextContent('deny: 198.51.100.0/24'));
         const restored = controls.getByRole('textbox', { name: 'Address / CIDR' }) as HTMLInputElement;
         restored.value = '';
         restored.dispatchEvent(new Event('input', { bubbles: true }));
+        await whenCemRendered(viewer);
         await waitFor(() => expect(viewer.querySelector('form output')?.textContent).toBe('deny: '));
         expect(source.value).toBe(original);
         expect(canvasElement.querySelector('cem-aspect-view form output')).toHaveTextContent('allow: 192.0.2.0/24');

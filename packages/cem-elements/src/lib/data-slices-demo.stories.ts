@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-data-slices-document';
 const EXPECTED_LEGENDS = [
@@ -44,11 +45,13 @@ export const EveryAuthoredSample: Story = {
     },
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG) as HTMLElement;
-        await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend] article.demo-card').length === EXPECTED_LEGENDS.length,
-            'all data-slices samples render from the HTML source',
-            300
-        );
+        await whenCemSourceRendered(host);
+        for (const legend of EXPECTED_LEGENDS) {
+            const instances = legend === '4. initial slice value from attribute'
+                || legend === '9. slice in attribute' ? 2 : 1;
+            assertEqual(sampleByLegend(host, legend).querySelectorAll('article.demo-card').length,
+                instances, `${legend}: all authored instances render`);
+        }
 
         const actualLegends = Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
             normalize(sample.getAttribute('legend') ?? '')

@@ -100,4 +100,16 @@ export async function whenCemRendered(instance: HTMLElement): Promise<void> {
     await runtime?.whenRenderSettled(instance);
 }
 
+/** Settle a source page and the declarations/instances in its initial output. */
+export async function whenCemSourceRendered(host: HTMLElement): Promise<void> {
+    await whenCemRendered(host);
+    const declarations = Array.from(host.querySelectorAll<HTMLElement>('cem-element'));
+    // Anonymous instances are created after their declarations settle.
+    await Promise.all(declarations.map(declaration => runtime?.whenDeclarationSettled(declaration)));
+    await Promise.all(declarations.flatMap(declaration => {
+        const tag = declaration.getAttribute('tag');
+        return tag ? Array.from(host.querySelectorAll<HTMLElement>(tag), whenCemRendered) : [];
+    }));
+}
+
 export default preview;

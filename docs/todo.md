@@ -2084,10 +2084,46 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         diagnosed on the defined instance; pending work recovers after remount
         and release. No worker fallback or overflow occurs. The historical
         timeout remains unattributed.
-  - [ ] Measure stock request, worker-queue, compile and render timing under
+  - [x] Measure stock request, worker-queue, compile and render timing under
         parallel load using phase traces. Investigate unexplained delays without
         increasing waits or changing viewer templates; keep attribution to the
         historical timeout separate from any newly reproduced issue.
+        Retain a repeatable diagnostic probe with source/build hashes and
+        environment metadata; compare helper/real cards at increasing page
+        concurrency and alongside the full Storybook suite.
+        Completed 2026-09-21: all 122 timing probes pass across baseline,
+        four/eight-page and three combined-load runs. Warning times range from
+        1.36 to 11.99 seconds; critical source/runtime hashes match. The repeated
+        full-suite load exposes fixture readiness/count bugs tracked below,
+        without reproducing the historical 45-second stock stall. See the
+        [timing report](browser-stabilization-review.tmp.md#startup-timing-under-parallel-load).
+  - [x] Fixture startup settlement: investigate the combined-load failures in
+        form EveryAuthoredSample (300-frame startup cutoff), table Matching
+        PresentationAspects (new instance), and NativeXsltViewer (reset). Use
+        declaration/render settlement before their existing assertions; preserve
+        test budgets and viewer behavior, then repeat the combined-load check.
+        The repeat exposes the same cutoffs in data-slices startup and additional
+        table/XPath-sort interactions. Apply the same lifecycle waits to those
+        transitions; do not change their expected data, ordering or time budgets.
+        Settlement exposes a separate data-slices assertion bug: sixteen samples
+        contain eighteen instances, so the old equality-to-sixteen condition can
+        miss its transient window. Assert each legend's authored instance count.
+        The synchronized repeat also exposes a 240-frame inline-substrate cutoff;
+        await its own runtime's declaration/render settlement before assertions.
+        Completed 2026-09-21: source-page/instance settlement replaces those
+        incidental waits, and per-legend counts match all eighteen slice
+        instances. All eight focused cases and the normal 203-story suite pass;
+        lint passes with its two existing warnings. Full-budget stress failures
+        remain a separate investigation below.
+  - [ ] Timestamp setup and interaction/settlement phases in the table
+        EveryAuthoredSample, tree EditingSelectionAndDisclosure and inspector
+        MultipleSelectionAndRecovery stories under combined load. They exhaust
+        their full 30-second budgets; distinguish slow progress from unsettled
+        work before changing story organization, budgets or concurrency policy.
+  - [ ] Audit remaining frame-count readiness helpers and aggregate-count
+        predicates in demo stories. Check the authored instance inventory and
+        available lifecycle signals before migrating each affected fixture;
+        keep historical stock-timeout attribution separate from fixture fixes.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load
