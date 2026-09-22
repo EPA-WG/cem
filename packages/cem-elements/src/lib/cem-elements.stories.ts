@@ -1,3 +1,5 @@
+import { startReadinessTiming, readinessWait } from '../../.storybook/readiness-timing.js';
+import { treeProcessingTimingOptions } from '../../.storybook/tree-processing-timing.js';
 import httpDataLibrary from '../../demo/http-data.cemt?raw';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- This executable fixture intentionally exercises the canonical workspace example as raw source.
@@ -2297,6 +2299,7 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         // fixture); the runtime parses it and resolves the `#fragment` to its template.
         const runtime = new CemElementRuntime({
             declarationTag: 'cem-element-story-ext-src',
+            ...treeProcessingTimingOptions,
             loadSrcDocument: async (path) => {
                 if (path === './remote-button.html') {
                     return '<template id="remote-button" type="text/cem-ml">{button @type=button | {$datadom.attributes.label}}</template>';
@@ -2371,6 +2374,7 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         xsltInstance.innerHTML = '<catalog><item>Payload</item></catalog>';
         root.appendChild(xsltInstance);
 
+        startReadinessTiming(root, 'runtime/ExternalSrcDeclarationLoadingParity', runtime);
         return root;
     },
     play: async ({ canvasElement }) => {
@@ -7463,13 +7467,16 @@ function textOfNodes(nodes: readonly RenderPlanNode[]): string {
 
 /** Poll animation frames until a selector resolves — used for the async WASM render path. */
 async function waitForElement(root: ParentNode, selector: string, frames = 120): Promise<Element> {
+    const mark = readinessWait(selector, frames);
     for (let attempt = 0; attempt < frames; attempt += 1) {
         const found = root.querySelector(selector);
         if (found) {
+            mark('ready', attempt);
             return found;
         }
         await nextFrame();
     }
+    mark('timeout', frames);
     throw new Error(`expected ${selector} to appear within ${frames} frames`);
 }
 

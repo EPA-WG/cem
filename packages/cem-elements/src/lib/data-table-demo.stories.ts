@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { storyTiming } from '../../.storybook/story-timing.js';
 import { expect, waitFor, within } from 'storybook/test';
-import { whenCemRendered } from '../../.storybook/preview.js';
+import { traceCemReadiness, whenCemRendered } from '../../.storybook/preview.js';
 import {
     applyPatchFramesToRange, applyRenderPlanToRange, diffRenderPlansToPatchFrames,
     renderPlanIdentity, type RenderPlan, type RenderPlanNode,
@@ -20,6 +20,7 @@ function renderDocument(): HTMLElement {
     declaration.setAttribute('tag', SOURCE_TAG);
     declaration.setAttribute('src', SOURCE_URL.href);
     root.append(declaration, document.createElement(SOURCE_TAG));
+    traceCemReadiness(root, 'table');
     return root;
 }
 

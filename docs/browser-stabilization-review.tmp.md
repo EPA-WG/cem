@@ -1568,3 +1568,194 @@ declaration/render/worker state before attributing or changing them. Another
 shared performance correction requires its own measured proposal and decision;
 this accepted change does not authorize record-member pruning, shared mutable
 value storage, story splitting or larger time budgets.
+
+### Remaining startup and readiness attribution
+
+The next investigation keeps production CEM-ML/CEM-QL/runtime code, viewer
+sources, story assertions, time limits and worker concurrency unchanged. The
+existing opt-in native table profiler now also isolates constant interpolation
+with unread host controls, selection of a member from a complete control record,
+and the public XSLT preflight/name-resolution/compile/reload boundaries. Both
+base and imported-aspect XSLT components must render exactly the same HTML as
+independently compiled, reloaded bundles, including numeric row order. All
+external source data continues through native CEM-ML import; synthetic records
+in these profiles are explicitly host controls.
+
+`STORYBOOK_CEM_TREE_TRACE=1` now observes the table, external-src, NPM-version
+and location stories as well as the tree. The added readiness observations
+record registration, declaration/render settlement, diagnostic codes, control
+counts and the existing frame-loop outcome. They never create runtime snapshots
+or revisions, serialize document/native artifact content, await additional work
+in the story, or extend a deadline. Observers disconnect when the story root
+leaves the document. Existing assertion messages containing rendered markup are
+redacted in the timing stream. Trace logging can affect timing; these are
+attribution runs, not a promise of identical latency without instrumentation.
+
+The table browser profiler adds `--stock-load`. It launches the existing
+32-probe stock load (eight pages, four batches) at the authored table mount,
+records the child launch/result and report path, and fails if the load probe
+fails. Its isolated small-table case runs first without the competing load.
+It preserves all seven authored cards and all forty connected table checks.
+This is a standalone attribution workload, distinct from the complete
+Storybook stress gate.
+
+Reproduce the native and standalone browser profiles with:
+
+```sh
+cargo test -p cem-ql --release --test table_render_profile -- --ignored --nocapture --test-threads=1
+node tools/scripts/profile-cem-tree-render.mjs --fixture=table --stock-load --output=/tmp/cem-startup-table-load.json
+```
+
+Run profiling after compilation and other checks have finished. For the full
+Storybook workload, enable both trace flags and start the existing stock probe
+as soon as the Vitest `RUN` marker appears, retaining UTC timestamps. This run
+uses `/tmp/cem-startup-synchronized.py` to poll that marker every 100 ms and
+launch `diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4`. The table
+profiler's mount synchronization does not substitute for that full-suite run.
+
+#### Native evidence
+
+All four release profiling fixtures pass, with five warm measurements per
+stage. The final run is `/tmp/cem-startup-native-profile-final.log`:
+
+| Stage | Warm median (ms) |
+| --- | ---: |
+| 100 literal spans, unread control record | 0.122 |
+| 100 constant interpolations, empty input | 0.237 |
+| Same interpolations, unread control record | 11.346 |
+| Select one member of a small control record | 0.010 |
+| Same member, record also containing unread controls | 0.102 |
+| Authored native table without extra controls | 2.134 |
+| Identical table with unread control binding | 73.496 |
+| Base / aspects XSLT bundle compilation | 508.426 / 839.982 |
+| Base / aspects bundle reload | 11.337 / 19.618 |
+| Base / aspects complete component compilation | 529.391 / 877.129 |
+| Base / aspects component render | 24.937 / 39.409 |
+
+The constant-interpolation comparison reads no control binding and declares no
+hooks, isolating renderer work from record member access. The member-selection
+comparison separately confirms that selecting a binding still copies its
+complete record; it does not authorize dropping unread members from public
+values. Exact HTML and empty diagnostics are asserted throughout.
+
+Both bundle imports remain validated. Reload is only a small portion of cold
+component construction, so bypassing artifact validation is neither justified
+nor proposed. The base bundle contains 104 XPath programs / 2,183,361 bytes;
+the imported-aspect bundle contains 127 programs / 3,771,191 bytes. More precise
+attribution inside compilation remains future work.
+
+#### Browser evidence
+
+Normal Storybook passes **203/203** in 44.74 s. The table reaches its setup
+boundary in 10.019 s and completes in 14.043 s; tree and inspector journeys
+complete in 8.113 and 5.260 s. External-src finds its first button after
+45 frames / 1.499 s. NPM's default selection takes 113 frames / 2.523 s and
+location's two readers take 50 frames / 2.225 s.
+
+The synchronized full-suite run starts at 16:15:54 UTC; stock starts at
+16:15:54.874. Storybook passes **202/203** in 66.19 s, with external-src's first
+button as the only failure. Table setup takes 22.652 s and completion 29.213 s;
+tree completes in 18.049 s and inspector in 10.685 s. This near-deadline table
+pass does not close the prior 30-second timeout or establish stable headroom.
+All 32 concurrent stock probes pass, with initial warnings in 5.62–9.56 s.
+The table's two XSLT compile worker round trips are 6.678 and 4.365 s; its
+cached CEMT compile requests wait 11.788–11.828 s before dispatch. These are
+whole-job/scheduler observations, distinct from the native-function spans in
+the standalone probe below.
+
+External-src's failure has concrete lifecycle evidence:
+
+- The button's produced tag is defined at 35.7 ms; its declaration settles at
+  2,116.0 ms without diagnostics.
+- The unchanged 120-frame button wait expires after **4,030.8 ms** (4,086.6 ms
+  from trace start). All four declarations are registered, the whole-document
+  and subtree output is present, and neither declarations nor instances report
+  diagnostic errors. The button itself is absent.
+- The button's render settles without diagnostics at **4,135.6 ms**, 49 ms
+  after the timeout. The root detaches at 4,152.7 ms. Settlement alone does not
+  prove that every subsequent assertion would pass; this remains failed
+  coverage, not a passing test obtained by counting late work.
+
+That observed wait expires during unfinished rendering. It is not a missing
+registration or reported declaration-load error. Worker events for this
+external-src instance are absent in this run, so the trace does not establish
+which internal stage consumes the pending render time. In particular, existing
+worker pools can predate the diagnostic worker factory; do not infer worker
+execution details from lifecycle settlement alone. NPM and location pass in
+this load run (default selection 101 frames / 2.100 s; readers 32 frames /
+1.089 s). Their earlier failing runs still need failure-time evidence before
+attribution; a passing repeat is insufficient.
+
+The standalone loaded table probe passes all **40/40** checks and **32/32**
+stock probes. The authored four-table boundary takes **8.872 s**; all seven
+cards are verified by 14.838 s. Cold base/aspect `retainXsltComponent` calls
+consume **3.762 s** and **2.353 s** on the same worker. Subsequent CEMT compile
+requests wait up to **6.468 s** before dispatch, then complete in 0.5–16.1 ms
+from cache. These expensive cold XSLT jobs delay the first CEMT table renders;
+the queue is a measured consequence, not evidence that concurrency should
+change. Initial four-table native render calls take 94–230 ms each.
+
+Warm comparison render medians under this load are 457.8/230.4/119.2/117.7 ms
+for XML/CSV/YAML/JSON. Those comparisons occur sequentially at different phases
+of the competing load and must not be read as relative format-parser costs.
+The isolated small-table medians are 58.0/52.3/53.2/52.3 ms. CEM import and all
+public island bindings remain intact. The stock probes' warnings appear in
+4.50–5.81 s. All 64 new stock probes pass (474 total timing probes); the
+historical 45-second stock warning timeout remains unattributed.
+
+Package lint passes with its two existing non-null-assertion warnings. Rust
+fixture formatting, script syntax and diff checks pass. No production rebuild
+was needed; the browser target reused the existing WASM/dependency builds.
+
+Evidence: `/tmp/cem-startup-normal.log`,
+`/tmp/cem-startup-synchronized.log`,
+`/tmp/cem-startup-synchronized-stock.json`,
+`/tmp/cem-startup-table-load.json`, and its `.stock.json` report. The profiler
+records source/build hashes; packaged CEM-QL WASM remains
+`aaff3cb84360e36f05d5eef09d720270ce2e8d5065f9741dd46872dae51af31b`.
+
+### Pending decision: expression hooks with no eligible handler
+
+The measured no-hook interpolation fixture and code inspection identify a
+bounded next correction. `PlanRenderer::apply_expression_hook` clones every
+hook scope, the complete binding environment, current focus and input sequence
+before checking whether any hook can run. The ordinary table declares no
+expression hooks, but each interpolation still incurs this saving/restoration.
+Compiler-proven expression binding selection cannot remove copies made by this
+separate renderer path. Copies of a selected record are another cost and remain
+outside this proposal.
+
+Recommend returning the unchanged input stream immediately when **no visible
+hook matches the output destination and is outside the active-hook stack**.
+Test that eligibility before cloning any scope/context/input. An eligible
+hook with a false match predicate must still follow the existing evaluation
+path: predicate evaluation, diagnostics, ordering, captured bindings, lexical
+scope, active-hook recursion exclusion and recovery are observable behavior.
+Content/attribute construction and typed conversion still run at their existing
+later boundaries. No binding declarations or record members are removed, and
+all public island access, native identities, references and input metadata stay
+available.
+
+This is a proposal, not an implemented or benchmarked fast path. The fixture
+measures the existing overhead; it does not claim a measured post-change gain
+or a fix for cold XSLT compilation. The alternatives are retaining that repeated
+work, or a broader shared-value representation change with a larger API and
+ownership review. Prefer the small eligibility check first.
+
+After approval, add focused native regressions for content and attribute
+interpolation with no hooks, opposite-destination hooks and only active hooks;
+preserve whole-sequence values/diagnostics and native identity. Exercise false
+predicates, nested lexical/priority dispatch, captured caller scope, typed
+attributes, recoverable errors and depth limits, including portable reload.
+Then implement the guard, repeat these profiles, rebuild WASM and run normal
+and synchronized Storybook gates. Keep the viewers, budgets, concurrency and
+all assertions unchanged.
+
+The readiness audit remains separate: use the external-src lifecycle evidence
+to design a bounded wait that observes the actual declaration/render lifecycle
+and still checks the authored output inside the existing story limit. Capture
+NPM/location failures when they recur. Do not replace these waits with larger
+frame counts or count late settlement as passing coverage. Cold XSLT lowering
+also remains a separate profiling task; shared compiler changes require their
+own measured proposal. This turn stops before shared renderer implementation
+because the current user instruction explicitly requires a stop at decisions.

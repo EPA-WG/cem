@@ -338,3 +338,188 @@ fn profile_unread_control_bindings() {
     assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
     assert_eq!(render_plan_to_html(&ordinary), render_plan_to_html(&loaded));
 }
+
+#[test]
+#[ignore = "profiling fixture: run with --release --ignored --nocapture"]
+fn profile_hook_free_interpolation() {
+    let literal = compile_template(&"{span | fixed}".repeat(100), &Default::default());
+    let expression = compile_template(
+        &"{span | {$\"fixed\"}}".repeat(100),
+        &CompileTemplateOptions {
+            host_bindings: vec!["island".into()],
+            ..Default::default()
+        },
+    );
+    assert!(literal.diagnostics.is_empty());
+    assert!(expression.diagnostics.is_empty());
+    // Unread synthetic host controls, never document content.
+    let busy = TemplateData::default().with_binding(
+        "island",
+        ItemStream::once(Item::Record(
+            (0..256)
+                .map(|i| (format!("control-{i}"), vec![text(&"metadata".repeat(32))]))
+                .collect(),
+        )),
+    );
+    let expected = "<span>fixed</span>".repeat(100);
+    for (stage, template, input) in [
+        ("literal-empty", &literal, &TemplateData::default()),
+        ("literal-loaded", &literal, &busy),
+        ("expression-empty", &expression, &TemplateData::default()),
+        ("expression-loaded", &expression, &busy),
+    ] {
+        let output = measure("no-hooks", stage, || {
+            render_compiled_template(template, input)
+        });
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert_eq!(render_plan_to_html(&output), expected);
+    }
+    // Selecting one field still selects its complete binding. This is separate
+    // from the hook-free interpolation above, whose expression reads no record.
+    for (stage, control) in [
+        ("small-record-member", Item::Record(BTreeMap::new())),
+        (
+            "loaded-record-member",
+            busy.bindings["island"].items[0].clone(),
+        ),
+    ] {
+        let result = query(
+            "selected-record",
+            stage,
+            "datadom.mode",
+            &BTreeMap::from([(
+                "datadom".into(),
+                ItemStream::once(record(vec![("mode", text("fixed")), ("island", control)])),
+            )]),
+        );
+        assert_eq!(result.items, vec![text("fixed")]);
+    }
+}
+
+#[test]
+#[ignore = "profiling fixture: run with --release --ignored --nocapture"]
+fn profile_xslt_authoring_stages() {
+    use cem_ml::{content_cache::ContentHash, validation::xpath::XPathExpandedName};
+    use cem_ql::xslt::{
+        compiler::{
+            compile_xslt_bundle_with_options, resolve_xslt_names, stylesheet_imports,
+            XsltCompileOptions, XsltModuleSource,
+        },
+        component::{XsltComponent, XsltComponentOptions, XsltScalarMapping, XsltSourceModule},
+        XsltBundle,
+    };
+    let base = include_str!("../../cem-elements/demo/data-table-view.xslt");
+    let aspects = include_str!("../../cem-elements/demo/data-table-aspects.xslt");
+    for (case, source, entry) in [
+        ("xslt-base", base, "viewer"),
+        ("xslt-aspects", aspects, "viewer-aspects"),
+    ] {
+        let uri = format!("memory:{case}.xslt");
+        let mut names = vec![
+            "source",
+            "initial",
+            "format",
+            "column",
+            "direction",
+            "mode",
+            "selected",
+        ];
+        let modules = if case == "xslt-aspects" {
+            names.extend(["aspects", "ipAddress", "ipAction"]);
+            vec![XsltModuleSource {
+                parent_uri: uri.clone(),
+                href: "./data-table-view.xslt".into(),
+                uri: "memory:xslt-base.xslt".into(),
+                source: base.into(),
+                content_hash: ContentHash::from_blake3(base.as_bytes()),
+            }]
+        } else {
+            vec![]
+        };
+        let options = XsltCompileOptions {
+            entrypoint: Some(XPathExpandedName::unqualified(entry)),
+            parameters: names
+                .iter()
+                .map(|name| (XPathExpandedName::unqualified(*name), (*name).into()))
+                .collect(),
+            modules,
+        };
+        let imports = measure(case, "import-preflight", || {
+            stylesheet_imports(source, &uri).unwrap()
+        });
+        assert_eq!(imports.len(), options.modules.len());
+        let resolved = measure(case, "resolve-parameter-names", || {
+            resolve_xslt_names(source, &uri, &names).unwrap()
+        });
+        assert_eq!(resolved.len(), names.len());
+        let compiled = measure(case, "compile-bundle", || {
+            compile_xslt_bundle_with_options(source, &uri, &options).unwrap()
+        });
+        let bundle = measure(case, "reload-bundle", || {
+            XsltBundle::from_bytes(
+                &compiled.bytes,
+                &compiled.content_hash,
+                &compiled.source_hash,
+            )
+            .unwrap()
+        });
+        println!(
+            "{case}\tbundle_bytes={}\txpath_programs={}\tgenerated_cemt_bytes={}",
+            compiled.bytes.len(),
+            bundle.expressions().len(),
+            compiled.generated_cemt.len()
+        );
+        let component_options = XsltComponentOptions {
+            entrypoint: Some(entry.into()),
+            parameters: names
+                .iter()
+                .map(|name| XsltScalarMapping {
+                    name: (*name).into(),
+                    select: (*name).into(),
+                })
+                .collect(),
+            modules: options
+                .modules
+                .iter()
+                .map(|module| XsltSourceModule {
+                    parent_uri: module.parent_uri.clone(),
+                    href: module.href.clone(),
+                    uri: module.uri.clone(),
+                    source: module.source.clone(),
+                    content_hash: module.content_hash.header_value(),
+                })
+                .collect(),
+        };
+        let bindings = names.iter().map(|name| (*name).into()).collect::<Vec<_>>();
+        let component = measure(case, "compile-component-total", || {
+            XsltComponent::compile(source, &uri, &component_options, &bindings).unwrap()
+        });
+        let mut input = TemplateData::default()
+            .with_binding(
+                "source",
+                ItemStream::once(text(
+                    "<r><row qty='10'>🍒</row><row qty='2'>🍋</row><row qty='3'>🍌</row></r>",
+                )),
+            )
+            .with_binding("format", ItemStream::once(text("xml")))
+            .with_binding("column", ItemStream::once(text("@qty")))
+            .with_binding("mode", ItemStream::once(text("number")))
+            .with_binding("direction", ItemStream::once(text("ascending")));
+        for binding in bundle.host_bindings() {
+            input.bindings.entry(binding.clone()).or_default();
+        }
+        let output = measure(case, "component-render", || component.render(&input));
+        let portable = bundle.render(&input);
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert!(
+            portable.diagnostics.is_empty(),
+            "{:?}",
+            portable.diagnostics
+        );
+        let html = render_plan_to_html(&output);
+        assert_eq!(html, render_plan_to_html(&portable));
+        let table = html.split_once("<tbody>").unwrap().1;
+        assert!(table.find('🍋').unwrap() < table.find('🍌').unwrap());
+        assert!(table.find('🍌').unwrap() < table.find('🍒').unwrap());
+    }
+}

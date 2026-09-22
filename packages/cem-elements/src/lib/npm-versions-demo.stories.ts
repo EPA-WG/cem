@@ -1,3 +1,5 @@
+import { readinessWait } from '../../.storybook/readiness-timing.js';
+import { traceCemReadiness } from '../../.storybook/preview.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 
 const SOURCE_TAG = 'story-npm-versions-demo-document';
@@ -115,6 +117,7 @@ function sourceLoadedDemo(): HTMLElement {
     declaration.setAttribute('tag', SOURCE_TAG);
     declaration.setAttribute('src', DEMO_URL.href);
     root.append(declaration, document.createElement(SOURCE_TAG));
+    traceCemReadiness(root, 'npm/EveryAuthoredSample');
     return root;
 }
 
@@ -166,10 +169,15 @@ function requiredElement(root: ParentNode, selector: string): HTMLElement {
 }
 
 async function waitForCondition(condition: () => boolean, message: string, attempts = 200): Promise<void> {
+    const mark = readinessWait(message, attempts);
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
+        if (condition()) {
+            mark('ready', attempt);
+            return;
+        }
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
+    mark('timeout', attempts);
     throw new Error(message);
 }
 

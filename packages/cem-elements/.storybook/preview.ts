@@ -5,6 +5,7 @@ import '@epa-wg/cem-demo-element';
 import '@epa-wg/cem-theme/styles.css';
 import { definePreview } from '@storybook/web-components-vite';
 import { treeProcessingTimingOptions } from './tree-processing-timing.js';
+import { startReadinessTiming } from './readiness-timing.js';
 
 let runtime: CemElementRuntime | undefined;
 const declarationLoads = new Map<string, Promise<void>>();
@@ -95,6 +96,10 @@ async function registerCemDeclaration(path: string, source: string): Promise<voi
     if (errors.length > 0) {
         throw new Error(errors.map(({ code, message }) => `${code}: ${message}`).join('\n'));
     }
+}
+
+export function traceCemReadiness(root: HTMLElement, story: string): void {
+    startReadinessTiming(root, story, runtime);
 }
 
 export async function whenCemRendered(instance: HTMLElement): Promise<void> {

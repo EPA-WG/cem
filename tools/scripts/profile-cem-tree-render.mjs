@@ -4,7 +4,7 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { cpus } from 'node:os';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,13 +15,18 @@ const { values } = parseArgs({ options: {
     output: { type: 'string', default: '/tmp/cem-tree-render-profile.json' },
     fixture: { type: 'string', default: 'tree' },
     'omit-island': { type: 'boolean', default: false },
+    'stock-load': { type: 'boolean', default: false },
 } });
 if (!['tree', 'table'].includes(values.fixture)) throw new Error('fixture must be tree or table');
 if (values['omit-island'] && values.fixture !== 'table') throw new Error('omit-island is a table-only diagnostic');
+if (values['stock-load'] && (values.fixture !== 'table' || values['omit-island'])) {
+    throw new Error('stock-load requires the complete table fixture');
+}
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const runtimeDir = 'packages/cem-elements/dist/lib/internal/runtime-support/';
 const files = [
     'tools/scripts/profile-cem-tree-render.mjs',
+    ...(values['stock-load'] ? ['tools/scripts/diagnose-cem-stock-startup.mjs'] : []),
     'packages/cem-elements/demo/data-tree-view.cemt',
     'packages/cem-elements/demo/data-tree-request.cemt',
     'packages/cem-elements/demo/tree-source.xml',
@@ -189,6 +194,7 @@ const report = { version: 'cem-tree-render-profile-v1', fixture: values.fixture,
     revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
     hashes, environment: { node: process.version, chromium: browser.version(), cpu: cpus()[0]?.model },
     workerProfiles: [], errors: [] };
+let stockRun;
 try {
     for (const scenario of values.fixture === 'tree' ? ['tree'] : ['isolated-table', 'authored-table']) {
         const page = await browser.newPage();
@@ -224,6 +230,17 @@ try {
         } else {
             await page.evaluate(() => window.markProfile('mount:start'));
             if (scenario === 'authored-table') {
+                if (values['stock-load']) {
+                    report.stockLoad = { launched: new Date().toISOString(), output: values.output + '.stock.json',
+                        concurrency: 8, batches: 4 };
+                    const child = spawn(process.execPath, [resolve(root, 'tools/scripts/diagnose-cem-stock-startup.mjs'),
+                        '--concurrency=8', '--batches=4', '--label=table-profile', '--output=' + report.stockLoad.output],
+                    { cwd: root, stdio: 'inherit' });
+                    stockRun = new Promise(resolve => {
+                        child.on('error', error => resolve({ error: error.message }));
+                        child.on('exit', (code, signal) => resolve({ code, signal }));
+                    });
+                }
                 await page.evaluate(() => window.mount('profile-table-page', 'data-table.html', ''));
                 await page.waitForFunction(() => document.querySelectorAll('cem-data-table textarea').length === 4);
                 await page.evaluate(() => window.markProfile('four-tables:ready'));
@@ -292,6 +309,13 @@ try {
     }
 } catch (error) { report.failure = error.message; process.exitCode = 1; }
 finally {
+    if (stockRun) {
+        report.stockLoad.result = await stockRun;
+        if (report.stockLoad.result.code !== 0) {
+            report.failure ??= 'Synchronized stock probe failed';
+            process.exitCode = 1;
+        }
+    }
     await writeFile(values.output, JSON.stringify(report, null, 2) + '\n');
     await browser.close();
     await new Promise(resolve => server.close(resolve));

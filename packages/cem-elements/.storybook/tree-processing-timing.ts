@@ -11,6 +11,7 @@ let active = false;
 let started = 0;
 let viewer: HTMLElement | undefined;
 let disconnect: (() => void) | undefined;
+let story = 'tree/EditingSelectionAndDisclosure';
 
 // Explicit diagnostic control records only. Never serialize source documents,
 // native artifacts, render subtrees or the complete runtime snapshot.
@@ -18,7 +19,7 @@ function emit(event: string, detail: object = {}): void {
     if (!active) return;
     const now = performance.now();
     console.warn('[cem-tree-processing]', JSON.stringify({
-        event, at: new Date(performance.timeOrigin + now).toISOString(),
+        event, story, at: new Date(performance.timeOrigin + now).toISOString(),
         elapsedMs: Math.round((now - started) * 10) / 10,
         ...detail,
     }));
@@ -54,7 +55,7 @@ const workerFactory: CemProcessingWorkerFactory = input => {
             tag: message.payload.producedTag,
             artifact: message.payload.templateArtifactId,
         } : message.operation === 'cancel' ? message.payload : {};
-        jobs.set(message.jobId, detail);
+        jobs.set(message.jobId, { story, ...detail });
         emit('worker-send', { worker: input.name, jobId: message.jobId, operation: message.operation, ...detail });
         if (Array.isArray(options)) send(message, options);
         else send(message, options);
@@ -89,9 +90,15 @@ export const treeProcessingTimingOptions: Pick<CemElementRuntimeOptions, 'proces
 
 /** Start before mounting the existing authored page; stop at its actual removal. */
 export function startTreeProcessingTiming(root: HTMLElement): void {
+    startProcessingTiming(root, 'tree/EditingSelectionAndDisclosure');
+}
+
+/** Shared opt-in transport tracing; never changes worker scheduling or inputs. */
+export function startProcessingTiming(root: HTMLElement, label: string): void {
     if (!enabled) return;
     disconnect?.();
     viewer = undefined;
+    story = label;
     started = performance.now();
     active = true;
     let mounted = false;

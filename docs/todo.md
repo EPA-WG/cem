@@ -2219,13 +2219,36 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         inputs. Combined-load gates remain open (201/203, 202/203 with late
         overlap, 200/203 synchronized); all 96 stock probes pass. See
         [implementation and remaining gates](browser-stabilization-review.tmp.md#expression-binding-selection-implementation).
-  - [ ] Profiling fixture: attribute remaining table startup and rendering under
+  - [x] Profiling fixture: attribute remaining table startup and rendering under
         synchronized load. Separate cold XSLT compilation/worker queue time
         from copies of complete selected records and template scopes. Retain
         native import, public bindings, viewer sources, coverage, budgets and
         concurrency; propose measured bounded changes before modifying another
         shared capability. A 27.469 s passing table journey is not sufficient:
         the synchronized repeat still exceeds 30 s after 22.237 s of setup.
+        Add opt-in native profiles for XSLT preflight/name resolution, bundle
+        construction/reload and hook-free interpolation with unread controls;
+        trace table and affected story declaration/worker readiness under the
+        existing synchronized stock load, without changing their waits.
+        Completed 2026-09-22: four native profiles, forty browser checks and
+        all 64 stock probes pass. Normal Storybook is 203/203; synchronized load
+        is 202/203 with an external-src wait expiring 49 ms before clean render
+        settlement. The table takes 29.213 s; cold XSLT jobs delay cached CEMT
+        compilation by up to 11.828 s in that suite. Hook-free interpolation
+        still clones the whole context (0.237 -> 11.346 ms with unread controls).
+        See [attribution and limits](browser-stabilization-review.tmp.md#remaining-startup-and-readiness-attribution).
+  - [ ] Decide the bounded no-eligible-expression-hook correction before shared
+        renderer changes. Recommend returning the unchanged input stream before
+        saving scope/bindings/focus when no visible destination-matching,
+        non-active hook can run. Preserve evaluation of every eligible predicate;
+        see [the proposal](browser-stabilization-review.tmp.md#pending-decision-expression-hooks-with-no-eligible-handler).
+  - [ ] Fixture and implementation after that decision: test empty/opposite/active
+        hook eligibility, complete native streams/identity, lexical captures,
+        priority, typed attributes, recovery, depth and portable reload; implement
+        the approved guard and repeat native/browser profiles and normal plus
+        synchronized Storybook gates. Retain viewer sources, budgets, concurrency
+        and public bindings. Keep selected-record copying and cold XSLT
+        compilation as separate profiling tasks.
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
         available lifecycle signals before migrating each affected fixture;
@@ -2236,6 +2259,13 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         both readers. Capture declaration/render/worker state before attributing
         these failures or changing waits. Normal coverage passes, but that alone
         does not establish their failure cause under combined load.
+        Progress 2026-09-22: opt-in lifecycle and frame-wait traces reproduce
+        external-src's 120-frame timeout during pending rendering after clean
+        declaration settlement. Its render settles 49 ms later without errors;
+        later assertions remain unverified. Propose lifecycle-based readiness
+        within the existing story limit. NPM/location pass this repeat and still
+        require captured failure state before attribution; see the attribution
+        section linked above. No waits changed in this investigation.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load
