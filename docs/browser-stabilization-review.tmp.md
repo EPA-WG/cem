@@ -1387,6 +1387,9 @@ above have corresponding `.log` files; final table runs started at
 The requested investigation is complete. Per the user's instruction to stop
 before another shared behavior decision, implementation pauses here.
 
+Accepted 2026-09-22: reduce unused binding copies with conservative full-context
+fallback. The implementation and verification are recorded below.
+
 Recommend limiting expression-local binding copies to compiler-proven
 dependencies, with a full-context fallback wherever access cannot be proven.
 Apply the same dependency contract to CEMT's evaluation-context preparation and
@@ -1425,3 +1428,143 @@ rebuild WASM/browser assets, repeat both native and browser profiles, and run
 normal and combined-load Storybook gates with unchanged viewers, budgets and
 concurrency. Only after that verification resume the remaining readiness-helper
 audit, or stop with evidence if a different shared hotspot needs a decision.
+
+### Expression binding selection implementation
+
+The accepted correction derives dependencies from the existing query IR at
+evaluation time. It scans all function bodies and lambda captures, including
+forward and nested functions, and selects values by resolved binding ID rather
+than source spelling. CEMT copies only the selected bindings into its temporary
+evaluation context, and CEM-QL uses the same analysis when populating evaluator
+scope. The complete outer CEMT environment and caller data remain intact.
+
+Native extension calls, query-driven CEMT dispatch, unresolved calls/modules
+and unknown methods retain full context. The current native callback API takes
+explicit arguments, focus, scope/control and resolver capabilities; it does not
+expose an ambient binding map. The fallback still deliberately covers native
+calls as agreed. Template dispatch can read its host's complete outer scope.
+Other supported built-ins use arguments, callbacks in the same IR and retained
+capabilities. New IR variants require an explicit dependency review; unknown
+stdlib modules fall back rather than assuming closed dependencies.
+
+Selected record/array values remain complete, including `datadom.island` when
+`datadom` is selected. Both public island paths, default data-document merging,
+node/reference identity, focus, diagnostics, reader caches, resolver/native
+capabilities and scope policies are preserved. No document-format handling or
+viewer source is changed. The declaration map, query bytes and template
+artifact schema are unchanged; dependencies are derived again after reload,
+so no artifact version or dependency metadata migration is needed.
+
+Six focused unit cases cover selection, nested/forward captures, shadowing,
+recovery, focus, whole records/native nodes, artifact reload and conservative
+fallback. Two CEMT fixtures verify indirect template reads of both island paths,
+default attribute expressions, record enumeration, caller immutability and
+scope/recovery restoration, including portable template reload. Together with
+the existing focused native-function, viewer, artifact, expression, recovery,
+call-budget and native-view suites, all 77 native checks pass. The original
+profiling fixture intentionally retains its declaration-count assertion:
+unused declarations remain in IR, while their values need not be copied into
+every evaluation. End-to-end measurements and complete gate results follow.
+
+The complete native test command invoked by `yarn nx run cem_ql:test` passes
+628 tests, with the three opt-in profiling tests skipped. `cem_ql:lint` completes
+with 131 CEM-ML and 41 CEM-QL warnings in existing files and none in the new
+modules. After Cargo had finished successfully, both Nx wrappers were stopped
+during cache publication: each was copying the 77 GB Rust target directory.
+Their terminal logs retain all completed test/lint results; no successful Nx
+cache publication is claimed. Timing below was rerun after those writes stopped.
+
+Both release profiling tests pass. Warm medians across five calls, milliseconds:
+
+| Native stage | Before | After |
+| --- | ---: | ---: |
+| Query with unread control binding | 0.585 | 0.014 |
+| Same query with diagnostic declaration filtering | 0.053 | 0.013 |
+| Full table render without unread control | 4.953 | 2.762 |
+| Full table render with unread control | 350.921 | 74.388 |
+
+The full loaded render takes about 79% less time with exact HTML and diagnostic
+parity. The declaration-filtering experiment now has essentially the same
+evaluation cost as the unmodified query, because production evaluation selects
+the read bindings. Full context cloning still costs 0.140 ms; the correction
+avoids repeated copies rather than changing value representation. Complete
+selected records and other template scope copies remain, so this is not the
+diagnostic browser island omission. Small source-order full renders improve
+from 4.749/6.804/6.677/6.844 ms to 2.272/3.187/3.435/3.260 ms for
+XML/CSV/YAML/JSON. Template compilation is comparable at 66.842 ms. Evidence:
+`/tmp/cem-binding-unit.log`, `/tmp/cem-binding-regressions.log`,
+`/tmp/cem-binding-full-native.log`, `/tmp/cem-binding-lint.log` and
+`/tmp/cem-binding-native-profile-final.log`.
+
+The WASM and packaged browser builds pass. The ordinary table profiler keeps
+the complete control input and passes all forty connected checks without
+diagnostics. The argument sizes after comparison changes remain exactly the
+same as before: 183,545–186,191 code units for the small fixtures and
+206,626–212,398 for the authored page. Warm WASM render medians across the
+final three comparisons, milliseconds:
+
+| Case | XML before / after | CSV before / after | YAML before / after | JSON before / after |
+| --- | ---: | ---: | ---: | ---: |
+| Small fixtures | 278.3 / 67.5 | 326.1 / 64.4 | 325.2 / 54.5 | 342.0 / 53.0 |
+| Complete authored page | 433.5 / 99.3 | 358.5 / 68.8 | 480.2 / 96.1 | 329.6 / 77.5 |
+
+These gains use production binding selection with both island paths intact.
+The authored page reaches four tables in 3,674.2 ms; cold XSLT compilation still
+takes 980.4 and 1,116.1 ms. Startup comparisons include compilation/run variance
+and are not attributed solely to this correction. The original tree probe
+also passes all eighteen checks: final eight-render round-trip medians are
+177.75 ms for small XML and 268.15 ms for retained request XML. All 58 checks
+run against packaged CEM-QL WASM SHA-256
+`aaff3cb84360e36f05d5eef09d720270ce2e8d5065f9741dd46872dae51af31b`.
+Reports: `/tmp/cem-binding-browser-profile.json` and
+`/tmp/cem-binding-tree-profile.json`, with matching `.log` files. Browser
+profiling ran separately from builds and test suites.
+
+Storybook verification retains the existing phase observations, viewer sources,
+assertions, time limits and worker concurrency. Combined load adds the existing
+eight-page/four-batch stock probe:
+
+| Run (UTC start) | Storybook | Table setup / complete | Tree complete | Inspector complete | Stock probes |
+| --- | --- | --- | ---: | ---: | --- |
+| Normal, 15:42:46 | 203/203; 46.09 s suite | 11.028 / 14.953 s | 9.609 s | 5.837 s | — |
+| Combined, 15:43:47 | 201/203; 72.49 s suite | 18.800 / 27.469 s | 16.531 s | 11.694 s | 32/32; warning 6.59–10.34 s |
+| Late overlap, 15:45:27 | 202/203; 64.76 s suite | 11.651 / 15.309 s | 9.617 s | 5.887 s | 32/32; warning 4.75–8.86 s |
+| Synchronized, 15:47:05 | 200/203; 69.36 s suite | 22.237 / **timeout at 30 s** | 17.757 s | 11.722 s | 32/32; warning 5.28–10.15 s |
+
+The first combined run starts its stock load at 15:43:56.187 and the table
+finishes within budget. It fails external-src declaration loading at the
+existing 120-frame first-button wait and the NPM-version page at its 200-frame
+default-selection wait. The late-overlap probe starts at 15:46:01.101, after
+that run's table journey has completed, so it provides no second confirmation
+of table completion under load. It fails the location page's 180-frame
+initial-reader wait. Those failures are observations, not proof of either a
+runtime regression or a fixture-only cause; lifecycle/worker evidence is needed.
+
+The final run launches the stock probe automatically as soon as the Vitest
+`RUN` marker appears (15:47:06.058). It repeats the external-src and location
+readiness failures and the table exceeds its 30-second limit. The table reaches
+XML column verification at 25.209 s, CSV numeric comparison at 27.361 s, YAML
+at 28.799 s and JSON at 29.238 s. Namespace/reset/invalid-input work continues
+after the deadline; the later 31.898 s completion marker is not passing coverage.
+The binding-copy correction improves measured native/browser rendering, but
+does not close the table stress gate or overall browser stabilization.
+
+All 96 new stock probes pass (410 total timing probes). The historical
+45-second stock warning timeout remains unattributed. Logs:
+`/tmp/cem-binding-storybook-normal.log`,
+`/tmp/cem-binding-storybook-stress.log`,
+`/tmp/cem-binding-storybook-repeat.log`,
+`/tmp/cem-binding-synchronized.log`, and reports
+`/tmp/cem-binding-stock-stress.json`, `/tmp/cem-binding-stock-repeat.json`,
+`/tmp/cem-binding-synchronized-stock.json`. Synchronize future load repeats to
+the Vitest `RUN` marker rather than a manual later check, and retain timestamps
+to distinguish actual setup overlap from overlap elsewhere in the suite.
+
+Next, profile the remaining table setup/render cost under that synchronized
+load: cold XSLT compilation/queue time remains separate from full selected
+record copies and other template scope copies. Continue the already-planned
+readiness audit with the three observed frame-count failures, collecting
+declaration/render/worker state before attributing or changing them. Another
+shared performance correction requires its own measured proposal and decision;
+this accepted change does not authorize record-member pruning, shared mutable
+value storage, story splitting or larger time budgets.

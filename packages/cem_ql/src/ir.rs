@@ -11,6 +11,7 @@ use crate::types::Type;
 pub mod deserialize;
 pub mod lower;
 pub mod serialize;
+mod binding_dependencies;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,

@@ -3604,7 +3604,7 @@ impl PlanRenderer<'_> {
             return ItemStream::empty();
         }
         let (control, scope) = self.control.clone().unwrap_or_else(|| (OperationControl::default(), cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID));
-        let context = self.evaluation_context.clone();
+        let context = self.evaluation_context.for_query(query);
         let protected = self.recovery_depth > 0;
         let stream = crate::eval::Evaluator::evaluate_internal(
             query, &context, &control, scope, protected, Some(self),

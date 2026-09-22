@@ -708,7 +708,11 @@ impl<'a> EvalCtx<'a> {
     }
 
     fn bind_policy_bindings(&mut self, context: &EvaluationContext) {
+        let dependencies = self.query.binding_dependencies();
         for (binding, name) in &self.query.policy_bindings {
+            if dependencies.as_ref().is_some_and(|used| !used.contains(binding)) {
+                continue;
+            }
             if let Some(value) = context.policy_bindings.get(name).cloned() {
                 self.scopes
                     .first_mut()

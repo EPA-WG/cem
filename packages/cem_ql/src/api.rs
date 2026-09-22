@@ -29,6 +29,7 @@ mod json_boundary;
 pub mod wasm;
 
 pub mod native_values;
+mod binding_selection;
 
 pub const CEM_QL_EXPRESSION_CONTENT_TYPE: &str = "application/vnd.cem.query-expression+cem-ql";
 pub const CEM_QL_EXPRESSION_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1#expression";

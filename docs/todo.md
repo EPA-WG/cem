@@ -2197,22 +2197,45 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         large island bindings and repeated WASM rendering from two cold XSLT
         compilations and their worker queue. Production code remains unchanged;
         see [table findings](browser-stabilization-review.tmp.md#table-startup-and-sorting-profile).
-  - [ ] Decide the bounded shared binding-copy correction before implementation.
+  - [x] Decide the bounded shared binding-copy correction before implementation.
         Recommend copying only compiler-proven expression dependencies, with
         complete context retained for opaque/native callbacks. Preserve public
         `island`/`datadom.island` access, captures, focus and scope contracts; see
         [the proposal](browser-stabilization-review.tmp.md#pending-decision-expression-binding-copies).
-  - [ ] Fixture and implementation, after that decision: add native regression
+        Accepted 2026-09-22: reduce unused binding copies with conservative
+        full-context fallback.
+  - [x] Fixture and implementation, after that decision: add native regression
         coverage for captures, shadowing, recovery, indirect callback access,
         scope/limits and exact output; implement the accepted dependency-copy
         correction, rebuild WASM/browser assets, then repeat profiles and normal
         and combined-load Storybook gates. Keep viewer sources, coverage,
         budgets and concurrency unchanged. The diagnostic island omission is
         not a production solution or a passing stabilization gate.
+        Completed 2026-09-22: CEMT and CEM-QL derive binding dependencies from
+        existing IR and retain full context for opaque calls. All 628 native
+        tests, both release profile tests, 58 browser profile checks and normal
+        Storybook (203/203) pass. Native loaded rendering improves 351 -> 74 ms;
+        authored browser rendering improves 330–480 -> 69–99 ms with unchanged
+        inputs. Combined-load gates remain open (201/203, 202/203 with late
+        overlap, 200/203 synchronized); all 96 stock probes pass. See
+        [implementation and remaining gates](browser-stabilization-review.tmp.md#expression-binding-selection-implementation).
+  - [ ] Profiling fixture: attribute remaining table startup and rendering under
+        synchronized load. Separate cold XSLT compilation/worker queue time
+        from copies of complete selected records and template scopes. Retain
+        native import, public bindings, viewer sources, coverage, budgets and
+        concurrency; propose measured bounded changes before modifying another
+        shared capability. A 27.469 s passing table journey is not sufficient:
+        the synchronized repeat still exceeds 30 s after 22.237 s of setup.
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
         available lifecycle signals before migrating each affected fixture;
         keep historical stock-timeout attribution separate from fixture fixes.
+        Prioritize the newly observed failures: external-src declaration loading
+        waits 120 frames for its first button; NPM-version samples wait 200
+        frames for the default selection; location samples wait 180 frames for
+        both readers. Capture declaration/render/worker state before attributing
+        these failures or changing waits. Normal coverage passes, but that alone
+        does not establish their failure cause under combined load.
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
         selectors and failed declaration loading; retain a delayed-load
