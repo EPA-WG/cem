@@ -1,5 +1,7 @@
 //! Pipeline iterator-chain adapters.
 
+pub(super) mod record_read;
+
 #[cfg(test)]
 pub(crate) mod field_profile_tests;
 #[cfg(test)]

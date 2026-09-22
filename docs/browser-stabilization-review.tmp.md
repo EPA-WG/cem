@@ -3032,6 +3032,9 @@ proposal.
 
 ### Direct record-field read investigation (2026-09-22)
 
+This section records the test-only `5f6a7876` checkpoint before the production
+promotion below.
+
 Production `16023f8a` borrows evaluator inputs and temporary field traversal,
 but reading `datadom.mode` still clones the complete `datadom` value before
 selecting and cloning `mode`. A function parameter such as `value.mode` has
@@ -3194,7 +3197,11 @@ yarn nx run cem_ql:test --skipNxCache
 yarn nx run cem_ql:lint --skipNxCache
 ```
 
-#### Pending decision: direct record-field reads
+#### Accepted: direct record-field reads
+
+Accepted by the user 2026-09-22: **Promote direct record-field reads**. Implement
+the bounded shortcut with default-path regressions and native/WASM/browser
+validation. The investigation above records the `5f6a7876` proposal checkpoint.
 
 Recommend promoting the bounded direct projection for proven closed queries
 and singleton ordinary record bindings. Only the field lookup borrows; selected
@@ -3220,7 +3227,115 @@ preserve native-owner retention and accessor/destruction order. Snapshot costs
 also remain separate. None of these alternatives is implied by promoting this
 candidate.
 
-The active TODO requires a measured proposal before further shared lifetime or
-ownership changes, and the user's current instruction requires a stop at
-decisions. This checkpoint therefore keeps the candidate in native tests and
-awaits the production-promotion decision.
+The active TODO required a measured proposal before further shared lifetime or
+ownership changes, and the user requested a stop at decisions. The proposal
+checkpoint kept the candidate in native tests; the user subsequently approved
+promotion with the validation above.
+
+#### Production direct record-field reads
+
+The approved shortcut now runs in `eval/pipeline/record_read.rs`. Evaluator
+setup reuses the existing closed-query proof, and eligible pipelines select
+their first plain field from an immutable materialized record binding. Only
+that lookup borrows; selected values and diagnostics become owned results
+before the acceptance safe point or remaining pipeline steps. Native accessors,
+whole values, non-record/failed streams, complex sources and opaque/native/CEMT
+queries keep the prior path. Public values, artifacts, native source ownership,
+field semantics, import boundaries and scope policies are unchanged.
+
+The previous complete-read path remains available through a test-only,
+unwind-safe force-copy switch, off by default. Historical input/field/context
+copy baselines also force complete reads so they retain their original meaning.
+The release profile labels the prior production path `copied-record-reads`
+and the new default `direct-record-reads`; `eval/direct-record-read` replaces
+the candidate span. Selected-result and remaining-read spans keep their meaning.
+
+The default evaluator and renderer regressions were changed before promotion;
+both fail on the old complete read (`/tmp/cem-direct-read-red.log`). After
+promotion, all **89 unit tests** pass, with three opt-in profiles skipped
+(`/tmp/cem-direct-read-unit.log`). The six direct-read contracts now exercise
+default evaluation against forced complete reads, including exact safe-point
+order, metadata, shadowing, fallback, protected failures, child budgets and
+native-owner retention/release. Existing renderer contracts exercise the
+default path and the complete-read baseline, including portable reload,
+native identity/current focus, callbacks and retained-reader reuse.
+
+The production release profile passes in 59.10 s
+(`/tmp/cem-direct-read-release.log`; build:
+`/tmp/cem-direct-read-release-build.log`). With five warm unrecorded samples per
+strategy and no unrelated build/browser work during measurement:
+
+| Viewer, 256 nested controls | Prior complete reads (ms) | Production direct reads (ms) |
+| --- | ---: | ---: |
+| Authored XML | 9.841 | 3.645 |
+| Authored CSV | 10.468 | 5.040 |
+| Authored YAML | 10.500 | 4.748 |
+| Authored JSON | 10.280 | 4.972 |
+| Retained XML | 9.685 | 3.585 |
+| Retained CSV | 10.826 | 4.611 |
+| Retained YAML | 11.565 | 4.743 |
+| Retained JSON | 11.411 | 4.801 |
+
+Authored XML ranges are 8.789–10.232/3.451–5.146 ms, a 63.0% median reduction
+in this run. Other authored ranges are CSV 9.742–11.071/4.613–5.995 ms, YAML
+9.138–14.521/4.066–5.184 ms and JSON 10.002–11.309/4.133–5.897 ms.
+Small-context authored XML is 1.986/2.103 ms with overlapping
+1.757–2.056/1.628–2.694 ms ranges; no general small-context gain is claimed.
+
+The loaded XML profile retains 145 evaluator input setups, removes 92 complete
+reads (311→219), and retains all 108 selected-field copies (91 direct, 17 ordinary).
+Borrowed-input reads fall 198→138 and scoped reads 113→81. Source and step
+checkpoints, snapshot work and native accessor ownership remain intact. Loaded
+scalar selection measures 0.260→0.008 ms and 32 member interpolations
+20.429→1.955 ms. Whole-record return retains its copy (0.145/0.166 ms), as do
+large selected results (0.704/0.160 ms, with a 1.359 ms baseline outlier) and
+whole-value function arguments (parameter-field case 0.544→0.292 ms).
+All output/source-map/diagnostic/host-update/sorting/native-identity assertions
+pass. These native measurements do not establish a browser speedup.
+
+Final native Nx validation passes **672 tests across 77 suites**, with eight
+opt-in profiles skipped (`/tmp/cem-direct-read-native-tests.log`). Native Nx
+lint passes with the existing 131 CEM-ML/41 CEM-QL warnings
+(`/tmp/cem-direct-read-lint.log`). An initial lint run identified a clone-closure
+warning exposed by promotion; an equivalent explicit field branch removes it,
+and the complete native suite passes again on that final source. Fixture
+formatting and diff checks pass.
+
+The WASM/browser package rebuild passes
+(`/tmp/cem-direct-read-browser-build.log`). Packaged CEM-QL WASM SHA-256:
+`1bd417f6fe77efd28104b1ef370ce23f2017b02dda0005ee73242338a6a2c299`.
+The unchanged standalone demos pass **40/40 table** and **18/18 tree** checks
+with no reported errors (`/tmp/cem-direct-read-{table,tree}-profile.{json,log}`).
+The authored table reaches four tables at 3.0644 s and seven cards at 3.9398 s.
+These browser observations validate integration; they are not a measured
+browser speedup.
+
+The normal Storybook run passes **203/203 tests in 42 files** in 46.05 s
+(`/tmp/cem-direct-read-normal.log`). Table, tree and inspector journeys complete
+in 12.5783/9.0725/3.4432 s. Viewer sources, assertions, scope limits and browser
+concurrency remain unchanged.
+
+The synchronized run passes **203/203 tests in 42 files** in 69.44 s
+(`/tmp/cem-direct-read-synchronized.log`). After the actual Vitest `RUN` marker,
+the stock probe launches eight concurrent pages across four batches, retaining
+the 45 s warning deadline. All **32/32 stock cases** pass without errors, with
+warning readiness at 4.785–10.614 s
+(`/tmp/cem-direct-read-synchronized-stock.{json,log}`). Both subprocesses exit
+zero (`/tmp/cem-direct-read-synchronized-status.log`), and the stock report
+records the rebuilt WASM hash above.
+
+Stock cases span 23:21:08.286–23:21:52.876 UTC. Table/tree stories start at
+23:21:23.983/24.344 and the inspector at 23:21:34.978. They complete in
+26.7869/17.6816/6.9918 s, all during the extra stock workload. NPM default
+selection becomes ready at 23:22:01.406 (158/200 attempts, 3.7046 s), and both
+location readers at 23:22:15.575 (45/180 attempts, 1.3424 s). These latter
+waits begin after stock load ends; their behavior under added stock load remains
+unverified. The historical stock timeout remains unreproduced, and this
+correction does not claim to resolve it.
+
+The approved direct-read correction is complete. XML, JSON, YAML and CSV still
+enter through shared CEM-ML import into retained native CEM trees. No
+format-specific evaluator branches or document-object handoffs were added.
+Whole-value arguments, selected-result copies and shadow/try/hook snapshots
+remain separate follow-up costs; further shared ownership changes require a
+measured proposal.

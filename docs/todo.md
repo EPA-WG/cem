@@ -2470,7 +2470,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         clones and owned results. Native comparisons measure 12.339→5.431 and
         10.971→5.061 ms. Whole-value arguments, large selected results and scope
         snapshots remain separate costs; production behavior is unchanged. See
-        the [measured proposal](browser-stabilization-review.tmp.md#pending-decision-direct-record-field-reads).
+        the [measured proposal](browser-stabilization-review.tmp.md#accepted-direct-record-field-reads).
   - [x] Fixture: compare direct record-field selection with the current complete
         binding/parameter read using a native test-only candidate. Keep outputs
         owned, preserve source/step safe points and recovery, and retain fallback
@@ -2483,18 +2483,27 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         contract matrix preserve exact safe-point traces, selected native-owner
         identity/retention and protected failures. Both release profiles, all
         672 native tests and native lint pass. All candidate behavior is test-only.
-  - [ ] Decide whether proven closed queries may select the first plain field
+  - [x] Decide whether proven closed queries may select the first plain field
         directly from a materialized singleton record binding. Recommend the
         bounded shortcut: borrow only during lookup, clone the selected result,
         and preserve all current fallback and safe-point behavior. See the
-        [decision](browser-stabilization-review.tmp.md#pending-decision-direct-record-field-reads).
-  - [ ] If approved, promote direct record-field reads with default-path
+        [decision](browser-stabilization-review.tmp.md#accepted-direct-record-field-reads).
+        Accepted by the user 2026-09-22: promote direct record-field reads.
+  - [x] Promote the approved direct record-field reads with default-path
         ownership/fallback regressions, repeat native profiling, rebuild WASM,
         and verify unchanged table/tree plus normal/synchronized Storybook.
         Preserve public values/artifacts, import boundaries, native owner
         retention, scope limits and concurrency. Assert default evaluation and
         rendering skip only eligible complete reads before implementing it.
-  - [ ] After that decision, assess remaining whole-value argument reads and
+        Completed 2026-09-22: evaluator/renderer regressions fail before promotion
+        and pass afterward. All 672 native tests and native lint pass; loaded
+        native XML improves 9.841→3.645 ms (63.0% in this run), retaining owned
+        selected results, checkpoint order and native owners. Rebuilt WASM
+        passes 40 table/18 tree checks, both 203-test Storybook runs and all
+        32 synchronized stock cases. Table/tree/inspector overlap stock load;
+        NPM/location waits occur afterward. See the
+        [production evidence](browser-stabilization-review.tmp.md#production-direct-record-field-reads).
+  - [ ] After that correction, assess remaining whole-value argument reads and
         selected-result copies separately from shadow/try/hook snapshots.
         Propose measured shared ownership changes before promotion; do not infer
         a general shared-value or copy-on-write redesign from direct field reads.

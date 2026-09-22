@@ -18,7 +18,7 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    crate::eval::pipeline::record_read_profile_tests::with_direct_records(false, || {
+    crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
         crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
             crate::eval::binding_profile_tests::with_copied_inputs(operation)
         })
@@ -92,14 +92,18 @@ fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T))
         });
         profile_strategy(&format!("{case}/copied-fields"), &mut operation, &verify);
     });
-    profile_strategy(&format!("{case}/borrowed-fields"), &mut operation, &verify);
-    crate::eval::pipeline::record_read_profile_tests::with_direct_records(true, || {
+    crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
         profile_strategy(
-            &format!("{case}/direct-record-candidate"),
+            &format!("{case}/copied-record-reads"),
             &mut operation,
             &verify,
         );
     });
+    profile_strategy(
+        &format!("{case}/direct-record-reads"),
+        &mut operation,
+        &verify,
+    );
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -165,13 +169,14 @@ fn default_render_borrows_proven_expression_context() {
     assert!(plan.diagnostics.is_empty());
     assert_eq!(render_plan_to_html(&plan), "<span>fixed</span>");
     assert!(!stages.contains_key("copy/expression-context"));
-    // Input setup borrows bindings, while value reads still return owned copies.
+    // A plain field lookup borrows its binding and returns only the owned field.
     assert_eq!(stages["eval/input-bindings"].calls, 1);
     assert_eq!(stages["eval/borrowed-input-bindings"].calls, 1);
-    assert_eq!(stages["copy/local-value"].calls, 1);
+    assert!(!stages.contains_key("copy/local-value"));
     assert!(!stages.contains_key("copy/field-input"));
-    assert_eq!(stages["eval/borrowed-field-input"].calls, 1);
-    assert_eq!(stages["copy/field-selected"].calls, 1);
+    assert!(!stages.contains_key("eval/borrowed-field-input"));
+    assert_eq!(stages["eval/direct-record-read"].calls, 1);
+    assert_eq!(stages["copy/direct-field-selected"].calls, 1);
 }
 
 #[test]
@@ -507,8 +512,8 @@ fn copied_field_baseline_preserves_renderer_contracts() {
 }
 
 #[test]
-fn direct_record_candidate_preserves_renderer_contracts() {
-    crate::eval::pipeline::record_read_profile_tests::with_direct_records(true, || {
+fn copied_record_read_baseline_preserves_renderer_contracts() {
+    crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
         borrowing_preserves_focus_records_recovery_and_callbacks();
         borrowing_preserves_reader_retention_across_renders();
         borrowing_preserves_protected_failures_and_recovery();

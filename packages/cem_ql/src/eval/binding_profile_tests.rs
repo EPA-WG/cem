@@ -19,7 +19,7 @@ pub(crate) fn with_copied_inputs<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_INPUT_COPY.with(|v| v.replace(true)));
-    operation()
+    super::pipeline::record_read_profile_tests::with_copied_record_reads(operation)
 }
 
 #[test]

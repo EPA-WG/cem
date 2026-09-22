@@ -636,7 +636,8 @@ pub(crate) struct EvalCtx<'a> {
     // Proven input bindings remain immutable for this evaluation. Owned local
     // scopes shadow these references; reads and results still own their values.
     borrowed_inputs: HashMap<BindingId, &'a ItemStream>,
-    #[cfg(test)]
+    // Only a closed query may select an owned field directly from an immutable
+    // materialized binding. Opaque/native/CEMT calls keep complete reads.
     direct_record_reads: bool,
     globals: HashMap<BindingId, IrId>,
     functions: HashMap<BindingId, IrId>,
@@ -677,7 +678,6 @@ impl<'a> EvalCtx<'a> {
             safe_points: SafePointPoller::new(control.clone(), scope),
             scopes: vec![HashMap::new()],
             borrowed_inputs: HashMap::new(),
-            #[cfg(test)]
             direct_record_reads: false,
             globals: HashMap::new(),
             functions: HashMap::new(),
@@ -722,10 +722,10 @@ impl<'a> EvalCtx<'a> {
         #[cfg(test)]
         let _profile = crate::compile_profile::Span::new("eval/input-bindings");
         let dependencies = self.query.binding_dependencies();
+        self.direct_record_reads = dependencies.is_some();
         #[cfg(test)]
         {
-            self.direct_record_reads =
-                pipeline::record_read_profile_tests::enabled() && dependencies.is_some();
+            self.direct_record_reads &= !pipeline::record_read_profile_tests::force_record_read_copy();
         }
         let borrowed = dependencies.as_ref();
         #[cfg(test)]
@@ -862,10 +862,7 @@ impl<'a> EvalCtx<'a> {
                 self.unsupported(id, "host AST axis evaluation is not wired yet")
             }
             IrNode::Pipeline { source, steps } => {
-                #[cfg(test)]
-                if let Some(projected) =
-                    pipeline::record_read_profile_tests::try_project(self, source, &steps)
-                {
+                if let Some(projected) = pipeline::record_read::try_project(self, source, &steps) {
                     return projected;
                 }
                 let source = self.eval_id(source);

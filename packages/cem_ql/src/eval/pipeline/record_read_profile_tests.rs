@@ -1,29 +1,27 @@
-//! Native-only direct record projection experiment. Production reads stay owned.
+//! Production direct record-read contracts and an opt-in complete-read baseline.
 use super::*;
 use crate::api::{compile, evaluate, CompileContext, EvaluationContext};
 use crate::compile_profile::measure;
 use crate::eval::EvalError;
-use crate::ir::IrNode;
-use crate::resolve::BindingId;
 use std::cell::{Cell, RefCell};
 
 thread_local! {
-    static DIRECT_RECORDS: Cell<bool> = const { Cell::new(false) };
+    static FORCE_RECORD_READ_COPY: Cell<bool> = const { Cell::new(false) };
     static POINTS: RefCell<Option<Vec<(bool, IrId)>>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn enabled() -> bool {
-    DIRECT_RECORDS.with(Cell::get)
+pub(crate) fn force_record_read_copy() -> bool {
+    FORCE_RECORD_READ_COPY.with(Cell::get)
 }
 
-pub(crate) fn with_direct_records<T>(enabled: bool, run: impl FnOnce() -> T) -> T {
+pub(crate) fn with_copied_record_reads<T>(run: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset {
         fn drop(&mut self) {
-            DIRECT_RECORDS.with(|v| v.set(self.0));
+            FORCE_RECORD_READ_COPY.with(|v| v.set(self.0));
         }
     }
-    let _reset = Reset(DIRECT_RECORDS.with(|v| v.replace(enabled)));
+    let _reset = Reset(FORCE_RECORD_READ_COPY.with(|v| v.replace(true)));
     run()
 }
 
@@ -46,88 +44,6 @@ fn with_points<T>(run: impl FnOnce() -> T) -> (T, Vec<(bool, IrId)>) {
     let result = run();
     let points = POINTS.with(|trace| trace.borrow_mut().take().unwrap());
     (result, points)
-}
-
-fn binding<'ctx>(ctx: &'ctx EvalCtx<'_>, id: BindingId) -> Option<&'ctx ItemStream> {
-    ctx.scopes
-        .iter()
-        .rev()
-        .find_map(|scope| scope.get(&id))
-        .or_else(|| ctx.borrowed_inputs.get(&id).copied())
-}
-
-pub(crate) fn try_project(
-    ctx: &mut EvalCtx<'_>,
-    source: IrId,
-    steps: &[IrStep],
-) -> Option<ItemStream> {
-    if !ctx.direct_record_reads {
-        return None;
-    }
-    let IrNode::LocalVar(id) = ctx.query.tree.node(source)? else {
-        return None;
-    };
-    let id = *id;
-    let IrStep::Named {
-        binding: None,
-        name,
-        args,
-    } = steps.first()?
-    else {
-        return None;
-    };
-    if name.prefix.is_some()
-        || !args.is_empty()
-        || matches!(
-            name.local.as_str(),
-            "first" | "last" | "take" | "drop" | "nth" | "target" | "where"
-        )
-    {
-        return None;
-    }
-    let input = binding(ctx, id)?;
-    // No native accessor runs while an evaluator binding is borrowed. Whole
-    // values, arrays/mixed streams, failed inputs and global evaluation fall back.
-    if input.error.is_some() || !matches!(input.items.as_slice(), [Item::Record(_)]) {
-        return None;
-    }
-    // Match eval_id(LocalVar), including its source safe point and pending
-    // failure rule. The eligible source has no input error or evaluation body.
-    if let Err(error) = ctx.ensure_active(source) {
-        return Some(apply_pipeline(error, steps, ctx));
-    }
-    if (ctx.recovery_depth > 0 || matches!(ctx.error, Some(EvalError::Raised { .. })))
-        && ctx.error.is_some()
-    {
-        return Some(apply_pipeline(ctx.pending_failure(), steps, ctx));
-    }
-    let step_source = step_source(&steps[0]);
-    if let Err(error) = ctx.poll_work(step_source) {
-        return Some(error);
-    }
-    let projected = {
-        let _profile = crate::compile_profile::Span::new("candidate/direct-record-read");
-        let input = binding(ctx, id).expect("safe points do not change bindings");
-        let [Item::Record(fields)] = input.items.as_slice() else {
-            unreachable!()
-        };
-        let items = fields
-            .get(&name.local)
-            .map(|values| {
-                let _profile = crate::compile_profile::Span::new("copy/direct-field-selected");
-                values.clone()
-            })
-            .unwrap_or_default();
-        let mut out = ItemStream::from_items(items);
-        out.diagnostics = input.diagnostics.clone();
-        out
-    };
-    // The borrow has ended. Preserve the first field step's acceptance point
-    // before dispatching the remaining steps through the ordinary owned path.
-    if let Err(error) = ctx.force_safe_point(step_source) {
-        return Some(error);
-    }
-    Some(apply_pipeline(projected, &steps[1..], ctx))
 }
 
 fn text(value: &str) -> Item {
@@ -165,15 +81,15 @@ fn same(actual: &ItemStream, expected: &ItemStream) {
 }
 
 #[test]
-fn record_read_candidate_avoids_whole_read_and_keeps_selected_results_owned() {
+fn default_record_field_read_avoids_whole_read_and_keeps_selected_results_owned() {
     let input = ItemStream::once(record([
         ("label", record([("text", text("kept"))])),
         ("unselected", Item::Array(vec![text("extra")])),
     ]));
     let ctx = context(input.clone());
     let q = query("input.label", &ctx);
-    let expected = evaluate(&q, &ctx);
-    let (mut actual, stages) = measure(|| with_direct_records(true, || evaluate(&q, &ctx)));
+    let expected = with_copied_record_reads(|| evaluate(&q, &ctx));
+    let (mut actual, stages) = measure(|| evaluate(&q, &ctx));
     same(&actual, &expected);
     let Item::Record(fields) = &mut actual.items[0] else {
         panic!("owned result")
@@ -182,12 +98,12 @@ fn record_read_candidate_avoids_whole_read_and_keeps_selected_results_owned() {
     assert_eq!(ctx.policy_bindings["input"], input);
     same(&evaluate(&q, &ctx), &expected);
     assert!(!stages.contains_key("copy/local-value"));
-    assert_eq!(stages["candidate/direct-record-read"].calls, 1);
+    assert_eq!(stages["eval/direct-record-read"].calls, 1);
     assert_eq!(stages["copy/direct-field-selected"].calls, 1);
 }
 
 #[test]
-fn record_read_candidate_preserves_shadowing_parameters_and_safe_points() {
+fn default_record_field_read_preserves_shadowing_parameters_and_safe_points() {
     let ctx = context(ItemStream::once(record([
         ("label", text("outer")),
         ("nested", record([("label", text("nested"))])),
@@ -207,21 +123,18 @@ fn record_read_candidate_preserves_shadowing_parameters_and_safe_points() {
         "try { (input.label, 1 / 0, input.label) } catch (code, message) { input.nested.label }",
     ] {
         let q = query(source, &ctx);
-        let (expected, expected_points) = with_points(|| evaluate(&q, &ctx));
-        let ((actual, points), stages) =
-            measure(|| with_direct_records(true, || with_points(|| evaluate(&q, &ctx))));
+        let (expected, expected_points) =
+            with_copied_record_reads(|| with_points(|| evaluate(&q, &ctx)));
+        let ((actual, points), stages) = measure(|| with_points(|| evaluate(&q, &ctx)));
         assert!(actual.error.is_none(), "{source}: {actual:?}");
         same(&actual, &expected);
         assert_eq!(points, expected_points, "{source}");
-        assert!(
-            stages.contains_key("candidate/direct-record-read"),
-            "{source}"
-        );
+        assert!(stages.contains_key("eval/direct-record-read"), "{source}");
     }
 }
 
 #[test]
-fn record_read_candidate_preserves_full_value_native_and_opaque_fallbacks() {
+fn default_record_field_read_preserves_full_value_native_and_opaque_fallbacks() {
     let node = evaluate(
         &compile(
             r#"data:read("<name>ivy</name>", "xml").root"#,
@@ -257,21 +170,18 @@ fn record_read_candidate_preserves_full_value_native_and_opaque_fallbacks() {
     ] {
         let ctx = context(input);
         let q = query(source, &ctx);
-        let (expected, expected_points) = with_points(|| evaluate(&q, &ctx));
-        let ((actual, points), stages) =
-            measure(|| with_direct_records(true, || with_points(|| evaluate(&q, &ctx))));
+        let (expected, expected_points) =
+            with_copied_record_reads(|| with_points(|| evaluate(&q, &ctx)));
+        let ((actual, points), stages) = measure(|| with_points(|| evaluate(&q, &ctx)));
         same(&actual, &expected);
         assert_eq!(points, expected_points, "{source}");
-        assert!(
-            !stages.contains_key("candidate/direct-record-read"),
-            "{source}"
-        );
+        assert!(!stages.contains_key("eval/direct-record-read"), "{source}");
         assert!(stages.contains_key("copy/local-value"), "{source}");
     }
 }
 
 #[test]
-fn record_read_candidate_preserves_metadata_and_failed_input_fallback() {
+fn default_record_field_read_preserves_metadata_and_failed_input_fallback() {
     use crate::eval::Diagnostic;
     for failed in [false, true] {
         let mut input = ItemStream::once(record([("label", text("value"))]));
@@ -291,12 +201,12 @@ fn record_read_candidate_preserves_metadata_and_failed_input_fallback() {
             "try { input.label } catch (code, message) { message }",
         ] {
             let q = query(source, &ctx);
-            let (expected, expected_points) = with_points(|| evaluate(&q, &ctx));
-            let ((actual, points), stages) =
-                measure(|| with_direct_records(true, || with_points(|| evaluate(&q, &ctx))));
+            let (expected, expected_points) =
+                with_copied_record_reads(|| with_points(|| evaluate(&q, &ctx)));
+            let ((actual, points), stages) = measure(|| with_points(|| evaluate(&q, &ctx)));
             same(&actual, &expected);
             assert_eq!(points, expected_points);
-            assert_eq!(stages.contains_key("candidate/direct-record-read"), !failed);
+            assert_eq!(stages.contains_key("eval/direct-record-read"), !failed);
             assert_eq!(ctx.policy_bindings["input"].cursor, 3);
             assert!(ctx.policy_bindings["input"].chain);
             assert_eq!(ctx.policy_bindings["input"].diagnostics, input.diagnostics);
@@ -305,7 +215,7 @@ fn record_read_candidate_preserves_metadata_and_failed_input_fallback() {
 }
 
 #[test]
-fn record_read_candidate_preserves_cancellation_and_child_budgets() {
+fn default_record_field_read_preserves_cancellation_and_child_budgets() {
     use crate::api::evaluate_with_control;
     use crate::eval::QueryItemView;
     use cem_ml::operation_control::{
@@ -346,7 +256,7 @@ fn record_read_candidate_preserves_cancellation_and_child_budgets() {
             "declare function down(n, value) { if n == 0 { value.label } else { (value.label, down(n - 1, value)) } } try { down(17, input) } catch (code, message) { \"must-not-catch\" }"
         };
         let mut baseline = None;
-        for candidate in [false, true] {
+        for copy in [true, false] {
             let policy = ScopePolicy::host_root().with_cpu_workers(2);
             let control = OperationControl::with_root_policy(Default::default(), policy).unwrap();
             let child = control
@@ -379,17 +289,17 @@ fn record_read_candidate_preserves_cancellation_and_child_budgets() {
             ])));
             let q = query(source, &ctx);
             let ((result, points), stages) = measure(|| {
-                with_direct_records(candidate, || {
-                    with_points(|| evaluate_with_control(&q, &ctx, &control, child))
-                })
+                let run = || with_points(|| evaluate_with_control(&q, &ctx, &control, child));
+                if copy {
+                    with_copied_record_reads(run)
+                } else {
+                    run()
+                }
             });
             assert!(result.error.is_some());
             assert!(result.items.is_empty());
             assert!(!result.diagnostics.is_empty());
-            assert_eq!(
-                stages.contains_key("candidate/direct-record-read"),
-                candidate
-            );
+            assert_eq!(stages.contains_key("eval/direct-record-read"), !copy);
             if let Some((expected, expected_points)) = &baseline {
                 same(&result, expected);
                 assert_eq!(&points, expected_points);
@@ -401,20 +311,19 @@ fn record_read_candidate_preserves_cancellation_and_child_budgets() {
             assert!(control.check_scope(sibling).is_ok());
             assert_eq!(control.memory_charged(child).unwrap(), 0);
             let sibling_query = query("input.label", &ctx);
-            assert!(with_direct_records(candidate, || evaluate_with_control(
-                &sibling_query,
-                &ctx,
-                &control,
-                sibling
-            ))
-            .error
-            .is_none());
+            let run = || evaluate_with_control(&sibling_query, &ctx, &control, sibling);
+            let result = if copy {
+                with_copied_record_reads(run)
+            } else {
+                run()
+            };
+            assert!(result.error.is_none());
         }
     }
 }
 
 #[test]
-fn record_read_candidate_retains_selected_native_owners() {
+fn default_record_field_read_retains_selected_native_owners() {
     use crate::xpath::functions::XPathQueryItem;
     use std::sync::Arc;
     let imported = EvaluationContext::default();
@@ -442,8 +351,8 @@ fn record_read_candidate_retains_selected_native_owners() {
     let weak = Arc::downgrade(&original_owner);
     let ctx = context(ItemStream::once(record([("node", root.items[0].clone())])));
     let q = query("input.node", &ctx);
-    let expected = evaluate(&q, &ctx);
-    let actual = with_direct_records(true, || evaluate(&q, &ctx));
+    let expected = with_copied_record_reads(|| evaluate(&q, &ctx));
+    let actual = evaluate(&q, &ctx);
     same(&actual, &expected);
     assert!(Arc::ptr_eq(&original_owner, &owner(&actual.items[0])));
     imported.data_readers.clear();

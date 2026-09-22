@@ -21,7 +21,7 @@ pub(crate) fn with_copied_fields<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_FIELD_COPY.with(|value| value.replace(true)));
-    operation()
+    super::record_read_profile_tests::with_copied_record_reads(operation)
 }
 
 pub(super) fn copied_field(input: ItemStream, field: &str) -> Option<ItemStream> {
