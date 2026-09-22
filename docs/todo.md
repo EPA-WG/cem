@@ -1922,15 +1922,23 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             cards fit two columns at 1440px and have no overflow at 390px/320px.
             The full gallery verifier passes all 28 standalone pages and 34
             source-loaded documents. Test files remain unchanged.
-        - [ ] Fixture CEMT-IMPLICIT-MODULES: add permanent parser, renderer,
+        - [x] Fixture CEMT-IMPLICIT-MODULES: add permanent parser, renderer,
               adapter and browser coverage for implicit imports, anonymous
               matches, explicit/direct body parity and invalid mixtures in the
-              next test-update increment (deferred at the user's request).
-              Update the retired assertions in
-              `cem_native_template_schema_requires_module_root` and
-              `loads_native_template_document_model_from_schema_uri`; the
-              existing focused parser/schema run passes 25 cases and fails
-              these two unchanged mandatory-wrapper/name cases.
+              next test-update increment (initially deferred at the user's request).
+              Completed 2026-09-21: updated the retired mandatory-wrapper/name
+              assertions and covered all implicit/explicit body forms. The new
+              adapter fixture reproduced an import declaration emitted as HTML
+              by explicit modules without a body wrapper. Default-entrypoint
+              extraction now preserves the module boundary and excludes document
+              directives. Native cases cover anonymous rule scopes, private
+              imports, call source locations and rejection without partial output.
+              Browser cases verify all four module/body forms, reactive switching
+              between local overrides and imported fallback, and invalid layouts.
+              Verification: 147 focused Rust tests (including all 97 adapter
+              tests), seven cell browser stories and three source checks pass.
+              WASM dependencies rebuild successfully; typecheck and lint pass
+              with the same two existing lint warnings.
       - [x] Fixture CEMT-COMPACT-TEMPLATES: implement the user-approved compact
             module-body grammar (2026-09-21). Align shared module preflight and
             direct compilation, preserve parameters and visibility, and reject

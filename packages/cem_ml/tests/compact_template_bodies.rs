@@ -1,4 +1,4 @@
-//! CEMT-COMPACT-TEMPLATES: module preflight accepts the renderer's direct bodies.
+//! CEMT-COMPACT-TEMPLATES / CEMT-IMPLICIT-MODULES: shared module preflight.
 use cem_ml::{
     engine::TemplateInput,
     transform_template::{
@@ -158,5 +158,121 @@ fn compact_calls_keep_validation_and_original_source_positions() {
             .any(|d| d.code == "cem.transform_template.param_required"),
         "{:?}",
         required.diagnostics
+    );
+}
+
+#[test]
+fn implicit_modules_collect_imports_calls_and_distinct_anonymous_rule_scopes() {
+    let source = r#"{import @as=ui @src="./ui.cemt"}
+{param @name=locale @default=en}
+{template @name=helper | {param @name=label} {i | {$label}}}
+{template @mode=cell @match=true |
+    {param @name=label @default=first}
+    {let @name=title @value=first}
+    {call @template=helper @with:label='{$label}'}}
+{template @mode=other @match=true |
+    {param @name=label @default=second}
+    {let @name=title @value=second}
+    {call @template=helper @with:label='{$label}'}}
+{p | before}{call @from=ui @template=icon}{p | after}"#;
+    let parsed = parse(source);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        !parsed.module_declared,
+        "only an explicit wrapper sets this flag"
+    );
+    let options = parsed.module_options;
+    assert_eq!(options.imports[0].alias, "ui");
+    assert_eq!(options.imports[0].uri, "./ui.cemt");
+    assert_eq!(options.entrypoints.len(), 1);
+    assert_eq!(options.entrypoints[0].name, "helper");
+    assert_eq!(options.params.len(), 4);
+    assert_eq!(options.params[0].name, "locale");
+    assert_ne!(options.params[2].name, options.params[3].name);
+    assert_eq!(options.let_bindings.len(), 2);
+    assert_ne!(
+        options.let_bindings[0].owner_entrypoint,
+        options.let_bindings[1].owner_entrypoint
+    );
+    assert_eq!(options.calls.len(), 3);
+    assert_eq!(options.calls[2].owner_entrypoint, None);
+    assert_eq!(options.calls[2].from.as_deref(), Some("ui"));
+}
+
+#[test]
+fn implicit_module_default_bodies_preserve_preflight_and_call_locations() {
+    let declarations = "{param @name=title @default=hello}{template @name=label | {b | {$title}}}";
+    let content = "{p | before}{call @template=label}{p | after}";
+    let direct = parse(&format!("{declarations}{content}"));
+    assert!(direct.diagnostics.is_empty(), "{:?}", direct.diagnostics);
+    for source in [
+        format!("{declarations}{{body | {content}}}"),
+        format!("{{module | {declarations}{content}}}"),
+        format!("{{module | {declarations}{{body | {content}}}}}"),
+    ] {
+        let parsed = parse(&source);
+        assert!(
+            parsed.diagnostics.is_empty(),
+            "{source}: {:?}",
+            parsed.diagnostics
+        );
+        assert_eq!(parsed.module_options, direct.module_options);
+    }
+    let source = "{p | before}\n{call @template=missing}";
+    let parsed = parse(source);
+    let diagnostic = parsed
+        .diagnostics
+        .iter()
+        .find(|d| d.code.ends_with(".call_unknown"))
+        .unwrap();
+    assert_eq!(diagnostic.uri.as_deref(), Some("memory:compact.cemt"));
+    assert_eq!(
+        diagnostic.byte_offset,
+        Some(source.find("{call").unwrap() as u64)
+    );
+}
+
+#[test]
+fn implicit_and_explicit_module_roots_reject_mixed_or_duplicate_bodies() {
+    for content in [
+        "{body | first}{b | second}",
+        "text{body | wrapped}",
+        "{body | first}{body | second}",
+        "{body | wrapped}{$node}",
+        "{body | wrapped}// output comment\n",
+    ] {
+        for source in [content.to_owned(), format!("{{module | {content}}}")] {
+            let parsed = parse(&source);
+            assert!(
+                parsed
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == "cem.transform_template.declaration_invalid"),
+                "{source}: {:?}",
+                parsed.diagnostics
+            );
+        }
+    }
+}
+
+#[test]
+fn anonymous_rules_require_a_match_without_creating_named_entrypoints() {
+    for declaration in [
+        "{template @match=true | {b | cell}}",
+        "{template @on=expression @into=content | {$dom:text()}}",
+    ] {
+        let parsed = parse(declaration);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        assert!(parsed.module_options.entrypoints.is_empty());
+    }
+    // An explicit module distinguishes an invalid rule from an HTML template node.
+    let parsed = parse("{module | {template @mode=cell | {b | cell}}}");
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.transform_template.declaration_required"),
+        "{:?}",
+        parsed.diagnostics
     );
 }

@@ -99,6 +99,101 @@ export const PokemonCellPictures: Story = {
     },
 };
 
+export const ImplicitAndExplicitModules: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        const scope = createCemDeclarationScope({ document });
+        const loaded: string[] = [];
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-module-forms-declaration', declarationScope: scope,
+            loadSrcDocument: async (path, baseDocument) => {
+                const url = new URL(path, baseDocument.baseURI);
+                expect(url.pathname).toMatch(/\/implicit-library\.cemt$/u);
+                loaded.push(url.href);
+                const source = `{template @name=present @visibility=public | {param @name=subject}
+                    {apply-templates @select=subject @mode=cell}}
+                    {template @mode=cell @match=true | {span | {$dom:text()}}}`;
+                return { resolvedUrl: url.href, contentType: 'text/cem-ml',
+                    body: new ReadableStream<Uint8Array>({ start(controller) {
+                        controller.enqueue(new TextEncoder().encode(source)); controller.close();
+                    } }) };
+            },
+        });
+        runtime.install(window);
+        try {
+            for (const moduleWrapper of [false, true]) {
+                for (const bodyWrapper of [false, true]) {
+                    const tag = `story-module-form-${Number(moduleWrapper)}-${Number(bodyWrapper)}`;
+                    const declaration = document.createElement(runtime.declarationTag);
+                    declaration.setAttribute('tag', tag);
+                    const template = document.createElement('template');
+                    template.setAttribute('type', 'text/cem-ml');
+                    const declarations = `{import @as=base @src="./implicit-library.cemt"}
+                        {template @mode=cell @match='node == "ivy"' | {b | {$dom:text()}}}`;
+                    const content = `{i | before}{call @from=base @template=present
+                        @with:subject='{datadom.attributes.label}'}{i | after}`;
+                    const source = declarations + (bodyWrapper ? `{body | ${content}}` : content);
+                    template.textContent = moduleWrapper ? `{module | ${source}}` : source;
+                    declaration.append(template);
+                    const instance = document.createElement(tag);
+                    instance.setAttribute('label', 'ivy');
+                    canvasElement.append(declaration, instance);
+                    await waitFor(() => expect(instance.querySelector('b')).toHaveTextContent('ivy'), { timeout: 30000 });
+                    expect(Array.from(instance.querySelectorAll('i, b, span'), node => node.textContent?.trim()))
+                        .toEqual(['before', 'ivy', 'after']);
+                    expect(runtime.diagnosticsFor(declaration)).toEqual([]);
+                    expect(runtime.diagnosticsFor(instance)).toEqual([]);
+                    instance.setAttribute('label', 'saur');
+                    await waitFor(() => {
+                        expect(instance.querySelector('span')).toHaveTextContent('saur');
+                        expect(instance.querySelector('b')).toBeNull();
+                    }, { timeout: 10000 });
+                }
+            }
+            expect(loaded.length).toBeGreaterThan(0);
+        } finally {
+            canvasElement.replaceChildren();
+            scope.dispose();
+        }
+    },
+};
+
+export const InvalidModuleBodies: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        const scope = createCemDeclarationScope({ document });
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-invalid-module-declaration', declarationScope: scope,
+        });
+        runtime.install(window);
+        try {
+            for (const [index, source] of [
+                '{body | {b | first}}{i | second}',
+                '{body | {b | first}}{body | {i | second}}',
+                '{module | {body | {b | first}}{i | second}}',
+                '{module | {body | {b | first}}{body | {i | second}}}',
+            ].entries()) {
+                const tag = `story-invalid-module-${index}`;
+                const declaration = document.createElement(runtime.declarationTag);
+                declaration.setAttribute('tag', tag);
+                const template = document.createElement('template');
+                template.setAttribute('type', 'text/cem-ml');
+                template.textContent = source;
+                declaration.append(template);
+                const instance = document.createElement(tag);
+                canvasElement.append(declaration, instance);
+                await waitFor(() => expect([
+                    ...runtime.diagnosticsFor(declaration), ...runtime.diagnosticsFor(instance),
+                ].some(diagnostic => diagnostic.code === 'cem.transform_template.declaration_invalid')).toBe(true), { timeout: 30000 });
+                expect(instance.querySelector('b, i')).toBeNull();
+            }
+        } finally {
+            canvasElement.replaceChildren();
+            scope.dispose();
+        }
+    },
+};
+
 export const ConditionalStockFallback: Story = {
     render: renderDocument,
     play: async ({ canvasElement }) => {

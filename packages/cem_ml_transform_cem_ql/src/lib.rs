@@ -3801,8 +3801,16 @@ fn parse_imported_module_options(
 
 fn extract_template_entrypoints(artifact: &TemplateArtifact) -> CemQlTemplateEntrypoints {
     let mut entrypoints = CemQlTemplateEntrypoints::default();
-    if let Some(module_body) = artifact.nodes.iter().find_map(module_body_node_children) {
-        entrypoints.implicit = Some(artifact_from_nodes(artifact, module_body.clone()));
+    if let Some(module) = artifact
+        .nodes
+        .iter()
+        .find(|node| module_node_children(node).is_some())
+    {
+        // Keep the module boundary so declarations stay outside the default body.
+        // Select only this node: document directives are not rendered content.
+        let mut module_artifact = artifact.clone();
+        module_artifact.nodes = vec![module.clone()];
+        entrypoints.implicit = Some(module_artifact);
     } else if artifact
         .nodes
         .iter()
@@ -3849,11 +3857,6 @@ fn module_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
         return None;
     };
     (local_name(tag) == "module").then_some(children)
-}
-
-fn module_body_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
-    let children = module_node_children(node)?;
-    Some(children.iter().find_map(body_node_children).unwrap_or(children))
 }
 
 fn body_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
@@ -9828,6 +9831,107 @@ count + 1"#,
             "{:?}",
             rendered.diagnostics
         );
+    }
+
+    #[test]
+    fn adapter_implicit_modules_preserve_imports_and_default_body_order() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let declarations = r#"{import @as=ui @src="templates/ui.cem"}
+            {template @mode=cell @match=true | {b | {$dom:text()}}}"#;
+        let content = r#"{i | before}{call @from=ui @template=icon}
+            {apply-templates @select='"ivy"' @mode=cell}{i | after}"#;
+        for module_wrapper in [false, true] {
+            for body_wrapper in [false, true] {
+                let body = if body_wrapper {
+                    format!("{{body | {content}}}")
+                } else {
+                    content.into()
+                };
+                let source = format!("{declarations}{body}");
+                let source = if module_wrapper {
+                    format!("{{@doc cem-ml 1}}\n{{module | {source}}}")
+                } else {
+                    source
+                };
+                let template = TemplateInput {
+                    uri: "template.cem".into(),
+                    bytes: source.into_bytes(),
+                    identity: Some(identity.clone()),
+                    root_scope: ScopeConfig::default(),
+                };
+                let preflight = cem_ml::transform_template::parse_cem_native_template_module_options(
+                    cem_ml::transform_template::TransformTemplateModuleParseRequest {
+                        template: template.clone(),
+                    },
+                );
+                assert!(
+                    preflight.diagnostics.is_empty(),
+                    "{:?}",
+                    preflight.diagnostics
+                );
+                let params = TransformTemplateParameterArena::default();
+                let compiled = adapter
+                    .compile(TransformTemplateCompileRequest {
+                        template: &template,
+                        entrypoint: &TransformTemplateEntrypoint::implicit(),
+                        params: &params,
+                        data_bindings: &[],
+                        module_options: preflight.module_options,
+                        module_preflight: TransformTemplateModulePreflight {
+                            resolved_imports: vec![TransformTemplateResolvedModule {
+                                alias: "ui".into(),
+                                parent_uri: None,
+                                requested_uri: None,
+                                normalized_uri: None,
+                                substituted_uri: None,
+                                resolver_policy_stamp: None,
+                                uri: "templates/ui.cem".into(),
+                                identity: Some(identity.clone()),
+                                content_hash: "cem-bin/1+blake3:implicit-ui".into(),
+                                bytes: br#"{template @name=icon @visibility=public | {span | Icon}}"#
+                                    .to_vec(),
+                            }],
+                            cache_key: None,
+                        },
+                        execution_policy: TransformExecutionPolicy::default(),
+                    })
+                    .expect("implicit module compiles");
+                assert!(
+                    compiled.diagnostics.is_empty(),
+                    "{:?}",
+                    compiled.diagnostics
+                );
+                let primary_input = packaged_dom_projection_artifact(document_from_cem("{p | source}"));
+                let rendered = adapter
+                    .render(TransformTemplateRenderRequest {
+                        compiled: &compiled.artifact,
+                        primary_input: &primary_input,
+                        secondary_inputs: &BTreeMap::new(),
+                        target: None,
+                        target_scope: &ScopeConfig::default(),
+                        execution_policy: TransformExecutionPolicy::default(),
+                    })
+                    .expect("implicit module renders");
+                assert!(
+                    rendered.diagnostics.is_empty(),
+                    "{:?}",
+                    rendered.diagnostics
+                );
+                assert_eq!(
+                    test_output_value(&rendered.output)
+                        .as_str()
+                        .unwrap()
+                        .split_whitespace()
+                        .collect::<String>(),
+                    "<i>before</i><span>Icon</span><b>ivy</b><i>after</i>",
+                    "module wrapper: {module_wrapper}, body wrapper: {body_wrapper}"
+                );
+            }
+        }
     }
 
     #[test]

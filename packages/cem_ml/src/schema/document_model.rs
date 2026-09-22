@@ -37804,7 +37804,9 @@ mod tests {
                 .unwrap();
 
         let template = model.element("template").unwrap();
-        assert!(template.required_attributes.contains("name"));
+        assert!(!template.required_attributes.contains("name"));
+        assert!(template.optional_attributes.contains("name"));
+        assert!(template.optional_attributes.contains("match"));
         assert!(template.child_elements.contains("body"));
         let call = model.element("call").unwrap();
         assert!(call.optional_attributes.contains("with:*"));

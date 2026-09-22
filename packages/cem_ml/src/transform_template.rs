@@ -41336,7 +41336,7 @@ mod tests {
     }
 
     #[test]
-    fn cem_native_template_schema_requires_module_root() {
+    fn cem_native_template_schema_accepts_implicit_module_root() {
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
                 template: template_input(
@@ -41350,10 +41350,8 @@ mod tests {
             });
 
         assert!(!response.module_declared);
-        assert!(response
-            .diagnostics
-            .iter()
-            .any(|diag| diag.code == CEM_TEMPLATE_MODULE_REQUIRED_CODE));
+        assert!(response.diagnostics.is_empty(), "{:?}", response.diagnostics);
+        assert!(response.module_options.is_empty());
     }
 
     #[test]

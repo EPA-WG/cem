@@ -1,4 +1,4 @@
-//! CEMT-COMPACT-TEMPLATES: direct and imported rendering share body validation.
+//! CEMT-COMPACT-TEMPLATES / CEMT-IMPLICIT-MODULES: native render parity.
 use cem_ql::render::{
     compile_template_module_closure, render_compiled_template, render_plan_to_html,
     render_template, CompileTemplateOptions, TemplateData, TemplateModuleClosure,
@@ -90,4 +90,90 @@ fn mixed_or_duplicate_bodies_fail_before_output() {
             assert!(output.rendered.is_empty());
         }
     }
+}
+
+#[test]
+fn implicit_imports_and_anonymous_overrides_match_all_explicit_body_forms() {
+    let base = r#"{template @name=present @visibility=public | {param @name=subject}
+        {apply-templates @select=subject @mode=cell}}
+        {template @mode=cell @match=true | {span | {$dom:text()}}}"#;
+    let declarations = r#"{import @as=base @src="./base.cemt"}
+        {template @mode=cell @match='node == "ivy"' |
+            {cem:variable @name=label @select=dom:text()}{b | {$label}}}"#;
+    let content = r#"{i | before}{call @from=base @template=present @with:subject='{("ivy", "saur")}' }{i | after}"#;
+    for root_wrapper in [false, true] {
+        for body_wrapper in [false, true] {
+            for import_wrapper in [false, true] {
+                let content = if body_wrapper {
+                    format!("{{body | {content}}}")
+                } else {
+                    content.into()
+                };
+                let source = format!("{declarations}{content}");
+                let source = if root_wrapper {
+                    format!("{{module | {source}}}")
+                } else {
+                    source
+                };
+                let base = if import_wrapper {
+                    format!("{{module | {base}}}")
+                } else {
+                    base.into()
+                };
+                let artifact = imported(&source, &base);
+                let plan = render_compiled_template(&artifact, &TemplateData::default());
+                assert!(
+                    plan.diagnostics.is_empty(),
+                    "{source}: {:?}",
+                    plan.diagnostics
+                );
+                assert_eq!(
+                    render_plan_to_html(&plan)
+                        .split_whitespace()
+                        .collect::<String>(),
+                    "<i>before</i><b>ivy</b><span>saur</span><i>after</i>"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn invalid_default_module_bodies_fail_without_partial_output() {
+    for body in [
+        "{body | first}{b | second}",
+        "text{body | wrapped}",
+        "{body | first}{body | second}",
+    ] {
+        for source in [body.to_owned(), format!("{{module | {body}}}")] {
+            let output = render_template(&source, &TemplateData::default());
+            assert!(
+                output
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == "cem.transform_template.declaration_invalid"),
+                "{source}: {:?}",
+                output.diagnostics
+            );
+            assert!(output.rendered.is_empty());
+        }
+    }
+}
+
+#[test]
+fn implicit_imports_keep_private_entrypoints_private() {
+    let artifact = imported(
+        "{import @as=base @src='./base.cemt'}{call @from=base @template=secret}",
+        "{template @name=secret | hidden}",
+    );
+    assert!(
+        artifact
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.ql.template.module_template_not_public"),
+        "{:?}",
+        artifact.diagnostics
+    );
+    let plan = render_compiled_template(&artifact, &TemplateData::default());
+    assert!(plan.nodes.is_empty());
 }
