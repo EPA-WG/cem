@@ -61,7 +61,7 @@ pub fn load_builtin_schema_package(
             schema_uri: schema_uri.to_owned(),
         }
     })?;
-    load_descriptor(descriptor)
+    load_builtin_schema_package_from_descriptor(descriptor)
 }
 
 pub fn load_builtin_schema_package_for_content_type(
@@ -69,10 +69,11 @@ pub fn load_builtin_schema_package_for_content_type(
 ) -> Result<BuiltinSchemaPackage, BuiltinSchemaPackageLoadError> {
     let registry = SchemaRegistry::with_builtin_schemas();
     let descriptor = registry.resolve_content_type(content_type)?;
-    load_descriptor(descriptor)
+    load_builtin_schema_package_from_descriptor(descriptor)
 }
 
-fn load_descriptor(
+/// Load embedded sources for an identity already resolved by a local registry.
+pub(crate) fn load_builtin_schema_package_from_descriptor(
     descriptor: &SchemaDescriptor,
 ) -> Result<BuiltinSchemaPackage, BuiltinSchemaPackageLoadError> {
     let Some(source) = builtin_schema_package_source(&descriptor.package_id) else {

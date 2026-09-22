@@ -2164,15 +2164,33 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         and exact typed inspection output. Rust probe and all eighteen browser
         connected-count assertions pass; production code is unchanged.
         See [profile findings](browser-stabilization-review.tmp.md#workernative-tree-rendering-profile).
-  - [ ] Decide the bounded shared conversion-registry correction before
+  - [x] Decide the bounded shared conversion-registry correction before
         implementation. Recommend one local schema registry per assembly,
         preserving package validation, ordering, formatter selection and owned
         registry lifetimes. Compare with caching immutable built-ins in
         [the proposal](browser-stabilization-review.tmp.md#pending-decision-built-in-conversion-registry-assembly).
-        If selected, add focused native metadata/output/isolation regression
-        coverage first, implement the correction, rebuild WASM/browser assets,
+        Accepted 2026-09-22: reuse one local schema registry per assembly.
+  - [x] Fixture and implementation: add focused native metadata/output/isolation
+        regression coverage first, implement the accepted local-registry
+        correction, rebuild WASM/browser assets,
         then rerun the profiles and normal/combined-load Storybook gates without
         changing viewers, time budgets or concurrency.
+        Completed 2026-09-22: one local registry resolves all eighteen packages;
+        registration order, validation and independent ownership are preserved.
+        All 160 conversion, five loader and ten inspection/viewer tests pass.
+        Native full renders improve from 561–584 ms to 80–85 ms; refreshed
+        browser round trips improve from 1.19/1.23 s to 0.34/0.74 s. Normal
+        Storybook passes 203/203. Two combined-load runs pass 202/203 plus all
+        64 stock probes: the tree completes within budget, but the table still
+        times out. Overall stabilization remains open; see
+        [the correction and remaining gate](browser-stabilization-review.tmp.md#local-schema-registry-correction).
+  - [ ] Profiling fixture: investigate the remaining table startup/sorting
+        timeout using the authored multi-format page and native
+        `data_view_templates.rs` fixtures. Separate compilation, CEM import,
+        row/column selection, sorting and output from worker queue/setup time,
+        including competing authored instances. Propose a measured bounded
+        correction before further shared behavior changes; retain viewer
+        templates, story coverage, time budgets and concurrency.
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
         available lifecycle signals before migrating each affected fixture;

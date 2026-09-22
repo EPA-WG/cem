@@ -1129,6 +1129,9 @@ those temporary files remaining available.
 
 ### Pending decision: built-in conversion registry assembly
 
+Accepted 2026-09-22: reuse one local schema registry per assembly. The user
+authorized the recommended correction and its native/browser verification.
+
 The requested profiling is complete. The accepted scope above requires a
 bounded proposal before shared evaluator/rendering changes, and the user asked
 to stop at decisions. Choose the next implementation scope:
@@ -1155,3 +1158,99 @@ tests, rebuild WASM and browser assets, then rerun these probes and the normal
 and combined-load Storybook gates. Keep time budgets, concurrency and viewers
 unchanged. Any remaining hotspot or gate failure requires new evidence before
 another shared behavior change.
+
+### Local schema registry correction
+
+The accepted implementation resolves the existing eighteen conversion packages
+against one local `SchemaRegistry`, then retains those loaded package
+descriptors for the existing descriptor and artifact registration passes. The
+standalone built-in descriptor and artifact helpers also use one local schema
+registry per call. The embedded-source loader exposes its descriptor-based
+entry point only within CEM-ML; public lookup and error contracts are unchanged.
+No global cache or shared mutable registry is introduced.
+
+The new `conversion_registry_tests.rs` regression compares complete metadata
+and artifact order against packages loaded independently through the public
+loader. It checks default/tabular formatter selection and exact typed
+inspection output for XML, JSON, YAML and CSV, including the retained source
+owner. A second test verifies independent registry mutations and duplicate-ID
+errors. Both tests passed against the original implementation before the
+constructor was changed. After the correction, all 160 conversion tests, five
+package-loader tests and ten CEM-QL inspection/viewer tests pass. The latter
+retain coverage of lowered scope budgets, cancellation and source revision
+handling. External data still enters only through CEM-ML import.
+
+The release profiling fixture passes after the production change. Warm medians
+from five calls per stage, in milliseconds, compared with the preceding profile:
+
+| Stage | Small XML before | Small XML after | Local XML before | Local XML after |
+| --- | ---: | ---: | ---: | ---: |
+| Conversion-registry construction | 539.770 | 59.276 | 528.714 | 48.254 |
+| `cemml:inspect` expression | 563.803 | 77.501 | 553.179 | 82.890 |
+| Full authored viewer render | 560.912 | 79.970 | 583.647 | 84.666 |
+| Request template with retained document | 580.408 | 79.540 | 552.072 | 90.061 |
+
+The full native render takes about 86% less time for both fixtures. These are separate
+wall-clock samples, not deterministic time limits. First full renders also
+improve to 77.764/83.648 ms. Exact output/metadata assertions pass; omitting
+inspection still leaves the same branches and about 2 ms of native work.
+
+After successful `cem_ql:build:wasm` and `cem-elements:build`, the unchanged
+worker probe passes all eighteen connected checks without diagnostics. A repeat
+after the full test target rebuilds standalone CEM-ML WASM also passes. Warm
+medians from the final eight selection renders, milliseconds:
+
+| Stage | Small XML before | Small XML after | Local XML before | Local XML after |
+| --- | ---: | ---: | ---: | ---: |
+| Host send-to-response round trip | 1188.30 | 338.50 | 1230.15 | 736.65 |
+| Worker request handling | 1186.65 | 337.20 | 1227.70 | 734.55 |
+| WASM render plus binding/string transfer | 1181.05 | 333.80 | 1222.20 | 728.35 |
+
+Browser gains differ from native gains; remaining WASM work is not attributed
+by this correction. JavaScript result mapping remains 0.25/0.30 ms and diff
+0.10/0.15 ms. The first post-change probe records round-trip medians of
+328.85/633.80 ms, illustrating timing variance across runs. Both use packaged
+CEM-QL WASM with SHA-256
+`698f00144d5099e279ffa668680e1449f020f1ad253fe8801df5817ade551059`.
+The original probes, templates, time budgets and worker configuration are
+unchanged. Native and browser profiles ran separately from builds and suites.
+
+Browser verification with the existing phase/worker observations enabled:
+
+| Run | Storybook result | Tree journey | Inspector journey | Stock probes |
+| --- | --- | ---: | ---: | --- |
+| Normal | 203/203; 54.44 s suite | 10.886 s | 15.239 s | — |
+| Combined, started 14:14:47 UTC | 202/203; 78.75 s suite | 23.499 s | 28.033 s | 32/32 pass; warning 7.08–11.15 s |
+| Combined repeat, started 14:17:14 UTC | 202/203; 74.14 s suite | 21.557 s | 27.295 s | 32/32 pass; warning 5.39–10.96 s |
+
+Both combined runs fail only `data-table-demo.stories.ts`'s
+`EveryAuthoredSample` at its existing 30-second limit. The tree completes its
+selection, disclosure, reset and source-replacement sequence while connected
+in both runs; it previously timed out under this load. The table is still a
+real failing gate: setup consumes 22.712/21.122 seconds, XML numeric comparison
+is verified at 29.003/26.695 seconds, and CSV sorting reaches verification at
+30.998/29.031 seconds. Later format/namespace activity continues after teardown
+and does not count as passing coverage. The registry correction therefore
+improves the measured native/browser paths but does not close overall browser
+stabilization. All 64 new stock probes pass (314 total timing probes); the
+historical stock warning timeout remains unattributed.
+
+Next, continue the already-selected profiling direction with the remaining
+table startup and sorting path. Reuse `data_view_templates.rs` and the authored
+multi-format table page; separate native compilation, import, row/column
+selection, sorting and output from browser setup/worker queue time. Measure
+the competing authored instances as well as a single retained document before
+proposing another shared correction. Keep the viewer sources, story coverage,
+budgets and concurrency intact. Story splitting and additional runtime changes
+are not part of this completed registry correction.
+
+Evidence: `/tmp/cem-registry-baseline.log`,
+`/tmp/cem-registry-conversion.log`, `/tmp/cem-registry-loader.log`,
+`/tmp/cem-registry-inspection.log`, `/tmp/cem-registry-native-profile.log`,
+`/tmp/cem-registry-browser-profile-final.json`,
+`/tmp/cem-registry-storybook-normal.log`,
+`/tmp/cem-registry-assembly-stress.log`,
+`/tmp/cem-registry-assembly-repeat.log` and their `*-stock.json` reports.
+Use the profile commands above and the existing synchronized eight-page,
+four-batch stock-probe procedure to reproduce these checks. Rust formatting
+and whitespace checks also pass.

@@ -26,7 +26,11 @@ use crate::projection::{
     CemTreeAstWriterTokenSourceRange, CemTreeAstWriterTokenStyle,
 };
 use crate::run_config::ScopeConfig;
-use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
+#[cfg(test)]
+use crate::schema::package_loader::load_builtin_schema_package;
+use crate::schema::package_loader::{
+    load_builtin_schema_package_from_descriptor, BuiltinSchemaPackage,
+};
 use crate::schema::package_sources::{
     builtin_schema_package_artifact_source, builtin_schema_package_source,
 };
@@ -1292,14 +1296,21 @@ impl ConversionRegistry {
     }
 
     pub fn with_builtin_converters() -> Self {
+        // Resolve each embedded package once, sharing one local schema registry.
+        // Keep the descriptor/artifact passes and their registration order.
+        let packages: Vec<_> = builtin_conversion_packages().collect();
         let mut registry = Self::new();
-        for descriptor in builtin_conversion_descriptors() {
-            registry
-                .register(descriptor)
-                .expect("built-in conversion descriptors must not conflict");
+        for package in &packages {
+            for descriptor in builtin_package_conversion_descriptors(package) {
+                registry
+                    .register(descriptor)
+                    .expect("built-in conversion descriptors must not conflict");
+            }
         }
-        for artifact in builtin_conversion_package_artifacts() {
-            registry.register_package_artifact(artifact);
+        for package in &packages {
+            for artifact in builtin_package_conversion_package_artifacts(package) {
+                registry.register_package_artifact(artifact);
+            }
         }
         registry
     }
@@ -14744,32 +14755,41 @@ fn element_child_ids_by_local_name(
 }
 
 pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
-    builtin_converter_package_schema_uris()
-        .iter()
-        .flat_map(|schema_uri| builtin_package_conversion_descriptors(schema_uri))
+    builtin_conversion_packages()
+        .flat_map(|package| builtin_package_conversion_descriptors(&package))
         .collect()
 }
 
 pub fn builtin_conversion_package_artifacts() -> Vec<ConversionPackageArtifactDescriptor> {
-    builtin_converter_package_schema_uris()
-        .iter()
-        .flat_map(|schema_uri| builtin_package_conversion_package_artifacts(schema_uri))
+    builtin_conversion_packages()
+        .flat_map(|package| builtin_package_conversion_package_artifacts(&package))
         .collect()
 }
 
-fn builtin_package_conversion_descriptors(schema_uri: &str) -> Vec<ConversionDescriptor> {
-    let package = load_builtin_schema_package(schema_uri)
-        .expect("built-in converter package must have embedded sources");
-    conversion_descriptors_from_schema_package(&package)
+fn builtin_conversion_packages() -> impl Iterator<Item = BuiltinSchemaPackage> {
+    let schemas = SchemaRegistry::with_builtin_schemas();
+    builtin_converter_package_schema_uris()
+        .iter()
+        .map(move |schema_uri| {
+            let descriptor = schemas
+                .schema(schema_uri)
+                .expect("built-in converter package must have a schema descriptor");
+            load_builtin_schema_package_from_descriptor(descriptor)
+                .expect("built-in converter package must have embedded sources")
+        })
+}
+
+fn builtin_package_conversion_descriptors(
+    package: &BuiltinSchemaPackage,
+) -> Vec<ConversionDescriptor> {
+    conversion_descriptors_from_schema_package(package)
         .expect("built-in package converter metadata must be valid")
 }
 
 fn builtin_package_conversion_package_artifacts(
-    schema_uri: &str,
+    package: &BuiltinSchemaPackage,
 ) -> Vec<ConversionPackageArtifactDescriptor> {
-    let package = load_builtin_schema_package(schema_uri)
-        .expect("built-in converter package must have embedded sources");
-    conversion_package_artifacts_from_schema_package(&package)
+    conversion_package_artifacts_from_schema_package(package)
         .expect("built-in package artifact metadata must be valid")
 }
 
@@ -14795,6 +14815,10 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         XSLT_SCHEMA_URI,
     ]
 }
+
+#[cfg(test)]
+#[path = "conversion_registry_tests.rs"]
+mod registry_assembly_tests;
 
 #[cfg(test)]
 fn endpoint(content_type: &str, schema: &str) -> ConversionEndpoint {
