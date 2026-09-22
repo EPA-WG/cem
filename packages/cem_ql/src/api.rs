@@ -31,6 +31,34 @@ pub mod wasm;
 pub mod native_values;
 mod binding_selection;
 
+#[cfg(test)]
+pub(crate) mod prepared_tests;
+
+/// One compilation's immutable built-in surface. Working checkers never flow
+/// back into this baseline, so imports, bindings and declarations stay local.
+#[derive(Default)]
+pub(crate) struct PreparedTypeChecking {
+    builtins: Option<TypeChecker>,
+}
+
+impl PreparedTypeChecking {
+    pub(crate) fn compile(
+        &mut self,
+        source: &str,
+        context: &CompileContext,
+    ) -> Result<CompiledQuery, CompileError> {
+        #[cfg(test)]
+        if prepared_tests::fresh_checkers_enabled() {
+            return compile(source, context);
+        }
+        compile_with_type_check(source, context, |module| self.type_check(module, context))
+    }
+
+    fn type_check(&mut self, module: &SurfaceModule, context: &CompileContext) -> Vec<Diagnostic> {
+        type_check_with_baseline(module, context, Some(&mut self.builtins))
+    }
+}
+
 pub const CEM_QL_EXPRESSION_CONTENT_TYPE: &str = "application/vnd.cem.query-expression+cem-ql";
 pub const CEM_QL_EXPRESSION_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1#expression";
 pub const PRIMARY_INPUT_BINDING: &str = "input";
@@ -38,6 +66,14 @@ const DEFAULT_EXPRESSION_QUEUE_SIZE: u32 = 256;
 
 /// Compile a CEM-QL query module source string into a typed IR.
 pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, CompileError> {
+    compile_with_type_check(source, context, |module| type_check(module, context))
+}
+
+fn compile_with_type_check(
+    source: &str,
+    context: &CompileContext,
+    check: impl FnOnce(&SurfaceModule) -> Vec<Diagnostic>,
+) -> Result<CompiledQuery, CompileError> {
     #[cfg(test)]
     let mut profile = crate::compile_profile::Span::new("query/parse");
     let parsed = parse(source);
@@ -59,7 +95,7 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
     }
     #[cfg(test)]
     profile.next("query/type-check");
-    let type_report = type_check(&parsed.module, context);
+    let type_report = check(&parsed.module);
     if let Some(diagnostic) = type_report
         .iter()
         .find(|diagnostic| diagnostic.severity.is_hard_violation())
@@ -233,12 +269,34 @@ pub fn resolve_imports(module: &SurfaceModule, import_policy: &ImportPolicy) -> 
 
 /// Run strict or profile-configured static type checks for a parsed module.
 pub fn type_check(module: &SurfaceModule, context: &CompileContext) -> Vec<Diagnostic> {
+    type_check_with_baseline(module, context, None)
+}
+
+fn type_check_with_baseline(
+    module: &SurfaceModule,
+    context: &CompileContext,
+    baseline: Option<&mut Option<TypeChecker>>,
+) -> Vec<Diagnostic> {
     #[cfg(test)]
-    let mut profile = crate::compile_profile::Span::new("type-check/new");
-    let mut checker = TypeChecker::with_config(context.type_config.clone());
-    #[cfg(test)]
-    profile.next("type-check/seed-functions");
-    checker.seed_runtime_import_surface(module);
+    let mut profile = crate::compile_profile::Span::new("type-check/seed-functions");
+    let mut checker = match baseline {
+        Some(baseline) => {
+            let builtins = baseline.get_or_insert_with(|| {
+                let mut checker = TypeChecker::new();
+                checker.seed_builtin_surface();
+                checker
+            });
+            let mut checker = builtins.clone();
+            checker.config = context.type_config.clone();
+            checker.seed_module_import_surface(module);
+            checker
+        }
+        None => {
+            let mut checker = TypeChecker::with_config(context.type_config.clone());
+            checker.seed_runtime_import_surface(module);
+            checker
+        }
+    };
     #[cfg(test)]
     profile.next("type-check/bindings");
     for name in context.policy_bindings.keys() {

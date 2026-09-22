@@ -272,8 +272,16 @@ impl TypeChecker {
     }
 
     pub fn seed_runtime_import_surface(&mut self, module: &SurfaceModule) {
+        self.seed_builtin_surface();
+        self.seed_module_import_surface(module);
+    }
+
+    pub(crate) fn seed_builtin_surface(&mut self) {
         self.register_default_stdlib_aliases();
         self.register_bare_stdlib_helpers();
+    }
+
+    pub(crate) fn seed_module_import_surface(&mut self, module: &SurfaceModule) {
         for node in &module.nodes {
             if let SurfaceNode::Import(import) = node {
                 self.register_import_surface(import);

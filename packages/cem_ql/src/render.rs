@@ -20,7 +20,7 @@ use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKin
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
 
-use crate::api::{compile, CompileContext, EvaluationContext};
+use crate::api::{CompileContext, EvaluationContext, PreparedTypeChecking};
 use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
@@ -36,6 +36,9 @@ mod attributes;
 pub use attributes::project_attribute_value;
 pub use references::expand_reference;
 use construction::ResultBuffer;
+
+#[cfg(test)]
+mod prepared_tests;
 
 /// Explicit result instructions survive portable compilation. Unknown instructions
 /// are rejected by older artifact readers instead of becoming literal elements.
@@ -368,6 +371,7 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         source_identity: cem_ml::content_cache::ContentHash::from_blake3(source.as_bytes()).header_value(),
         index: 0,
         compile_context,
+        type_checking: PreparedTypeChecking::default(),
         diagnostics: tokenizer.take_diagnostics(),
         element_stack: Vec::new(),
         skip_cemt_function_bodies: options.skip_cemt_function_bodies,
@@ -1754,6 +1758,7 @@ struct TemplateCompiler<'a> {
     tokens: &'a [SchemaToken],
     index: usize,
     compile_context: CompileContext,
+    type_checking: PreparedTypeChecking,
     diagnostics: Vec<Diagnostic>,
     element_stack: Vec<String>,
     skip_cemt_function_bodies: bool,
@@ -2661,7 +2666,7 @@ impl TemplateCompiler<'_> {
         host: &SchemaToken,
     ) -> CompiledTemplateExpression {
         let source = normalize_host_expression(source).to_owned();
-        let query = match compile(&source, &self.compile_context) {
+        let query = match self.type_checking.compile(&source, &self.compile_context) {
             Ok(mut query) => {
                 // Keep the enclosing template slot before the query-local frames
                 // so caught native diagnostics still identify their source host.

@@ -2318,20 +2318,30 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         base/aspect bundle compilation to 959/1,559 CEM-QL type checks. Two
         test-only setup candidates preserve checked contracts; a per-compilation
         prepared baseline reduces the 128-setup median from 53.819 to 44.105 ms.
-        No production optimization is implemented; see the
-        [type-surface proposal](browser-stabilization-review.tmp.md#pending-decision-prepared-type-checking-baseline).
-  - [ ] Decide the shared compiler correction: recommend one lazily initialized,
+        That profiling checkpoint changed no production behavior; see the
+        [type-surface proposal](browser-stabilization-review.tmp.md#prepared-type-checking-baseline-accepted-2026-09-22).
+  - [x] Decide the shared compiler correction: accepted 2026-09-22, one lazily initialized,
         owned built-in type-checker baseline per CEMT compilation, cloned before
         adding each expression's bindings, imports and declarations. Preserve
         the complete public function table, diagnostics/configuration and artifact bytes;
         do not share mutable checkers or introduce a process-global cache.
-  - [ ] Fixture and implementation after that decision: validate checker
+  - [x] Fixture and implementation of the approved prepared baseline: validate checker
         isolation, import aliases, local function/variable overrides, type
         configuration, source maps, diagnostics and portable artifact equality;
         implement the accepted bounded setup reuse, repeat native stage profiles,
         rebuild WASM, and verify normal plus synchronized browser coverage.
         Measure complete compiler/browser improvement rather than projecting the
         microbenchmark percentage. Keep viewer sources, limits and concurrency.
+        Completed 2026-09-22: lazy baseline reuse preserves expression isolation,
+        diagnostics, complete query IR and portable bytes. Paired release medians
+        for complete base/aspects bundle compilation improve 517.700→439.875 ms
+        and 883.580→756.092 ms (15.0%/14.4%). All 652 native tests, both release
+        profiles, native lint and the WASM/browser build pass. Browser checks
+        pass 203/203 normally and under synchronized stock load, with 32/32
+        stock probes plus 40/40 table and 18/18 tree assertions. The loaded table
+        story completes in 24.082 s within its unchanged 30-second limit.
+        NPM/location ran after the added stock load ended; their readiness work
+        stays open. See the [implementation evidence](browser-stabilization-review.tmp.md#prepared-baseline-implementation-and-validation).
   - [ ] Profile remaining complete selected-record and template-scope copies
         independently. Preserve native identities, all public binding access and
         opaque-callback context; propose measured bounded changes before shared

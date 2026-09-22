@@ -114,6 +114,34 @@ fn profile_xslt_compilation_stages() {
             start.elapsed().as_secs_f64() * 1000.0
         );
         assert_eq!(compiled.bytes, expected.unwrap());
+        // Same binary, same inputs: compare against the unchanged standalone
+        // checker path, including complete portable bundle bytes.
+        let mut fresh_times = Vec::new();
+        let mut prepared_times = Vec::new();
+        for _ in 0..6 {
+            let start = Instant::now();
+            let prepared = compile_xslt_bundle_with_options(source, &uri, &options).unwrap();
+            prepared_times.push(start.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(compiled.bytes, prepared.bytes);
+            let start = Instant::now();
+            let fresh = crate::api::prepared_tests::without_prepared(|| {
+                compile_xslt_bundle_with_options(source, &uri, &options).unwrap()
+            });
+            fresh_times.push(start.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(compiled.bytes, fresh.bytes);
+        }
+        let first = fresh_times.remove(0);
+        fresh_times.sort_by(f64::total_cmp);
+        let prepared_first = prepared_times.remove(0);
+        prepared_times.sort_by(f64::total_cmp);
+        println!(
+            "{case}\tfresh_checkers_first_ms={first:.3}\tfresh_checkers_median_ms={:.3}\tmin_ms={:.3}\tmax_ms={:.3}",
+            fresh_times[2], fresh_times[0], fresh_times[4]
+        );
+        println!(
+            "{case}\tprepared_first_ms={prepared_first:.3}\tprepared_median_ms={:.3}\tmin_ms={:.3}\tmax_ms={:.3}",
+            prepared_times[2], prepared_times[0], prepared_times[4]
+        );
         let start = Instant::now();
         let bundle = XsltBundle::from_bytes(
             &compiled.bytes,

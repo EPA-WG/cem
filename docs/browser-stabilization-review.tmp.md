@@ -2050,12 +2050,11 @@ artifact sizes; comparisons use identical URIs. Runtime source data still enters
 through shared CEM-ML import. Viewer templates and production code paths are
 unchanged.
 
-### Pending decision: prepared type-checking baseline
+### Prepared type-checking baseline (accepted 2026-09-22)
 
-The measured next correction is in shared CEM-QL/CEMT compilation. Per the
-request to stop at decisions and the active TODO's requirement to propose a
-bounded change before further shared implementation, no production optimization
-has been made.
+The user approved one lazy prepared baseline per template compilation on
+2026-09-22. The measurements below record the pre-implementation proposal;
+implementation and verification are the active TODO.
 
 Two test-only candidates retain the full function table. Six batches of 128
 checker setups, reporting the median after the first batch, give the following.
@@ -2126,6 +2125,93 @@ Nx test gate passes **648 tests**, with seven opt-in profiles skipped; native
 lint passes with the existing 131 CEM-ML/41 CEM-QL warnings. New fixture
 formatting and whitespace checks pass. Logs:
 `/tmp/cem-xslt-stage-native-tests.log` and `/tmp/cem-xslt-stage-native-lint.log`.
-Browser/WASM gates are deferred until an actual production optimization; this
-test-only investigation does not claim improved browser startup or completion
-of stabilization.
+At that profiling checkpoint, browser/WASM gates were deferred until an actual
+production optimization. The test-only investigation made no browser speed or
+stabilization-completion claim; implementation results follow below.
+
+### Prepared baseline implementation and validation
+
+The accepted implementation owns `PreparedTypeChecking` inside each CEMT
+`TemplateCompiler`. Parsing and import resolution still run first. The first
+expression that reaches type checking seeds the existing built-in surface once;
+every expression receives an independent clone with its current type
+configuration, module imports and host bindings, followed by local declarations.
+The baseline contains no caller data and is dropped with the template compiler.
+Public `compile`, `type_check` and `TypeChecker` entry points keep their existing
+initialization and ordering. There is no process cache, signature pruning,
+mutable checker reuse, format-specific branch or viewer change.
+
+Native regressions compare strict/development diagnostics and complete query IR
+across imports, local function overrides, variables, policy bindings, arity and
+failed expressions. The baseline's complete signature table remains unchanged.
+Literal templates and parse/import failures do not create it; two separate
+three-expression template compilations each assemble the built-in registries
+18 times, compared with 54 before this change. Portable template envelopes match
+byte for byte against the standalone checker path in Dev and Prod modes,
+including compilation diagnostics and source frames; reloaded valid templates
+render successfully. A thread-local test-only comparison switch is restored on
+unwind and is absent from production and WASM.
+
+The release profile now compares both actual viewer bundles against fresh
+checkers in the same binary, preserving every portable byte and rendering check.
+Paired timings run with recording disabled for both paths. The complete native
+suite passes **652 tests**, with seven opt-in profiles skipped. Native lint passes with the unchanged 131 CEM-ML/41 CEM-QL warnings.
+
+The release profile passes both fixtures. Each measurement creates a fresh
+bundle; the reported five-run medians exclude the first run and retain warm
+process-level schema caches. Both paths run in the same binary without stage
+recording during the paired comparison:
+
+| Complete bundle compilation | Fresh checkers (ms) | Prepared baseline (ms) | Reduction |
+| --- | ---: | ---: | ---: |
+| Base viewer | 517.700 | 439.875 | 15.0% |
+| Aspects viewer | 883.580 | 756.092 | 14.4% |
+
+Prepared ranges are 436.991–465.036 / 735.023–790.800 ms; fresh-checker ranges
+are 505.719–572.264 / 863.393–908.897 ms. This is measured complete native
+compilation, not the earlier setup-only projection or a browser speed claim.
+The separately recorded stages show 18 registry assemblies per bundle instead
+of 17,262/28,062. All 959/1,559 expression checks still run with the complete
+function table. Bundle sizes remain 2,184,579/3,772,915 bytes. Native source
+import, numeric sorting, empty diagnostics, reload and repeated rendering pass.
+
+Evidence: `/tmp/cem-prepared-red.log`, `/tmp/cem-prepared-focused.log`,
+`/tmp/cem-prepared-native-tests.log`, `/tmp/cem-prepared-native-lint.log`, and
+`/tmp/cem-prepared-release-profile.log`. Browser verification follows below.
+
+The browser package and WASM build pass. The packaged CEM-QL WASM SHA-256 is
+`935a52f614f56d9b163e308ea68b4b084ec9675dff4670fc16a16352aff1bc23`.
+Standalone table and tree profiles pass **40/40** and **18/18** assertions with
+no reported errors. This table run measures base/aspects XSLT retention at
+799.0/753.1 ms, versus 924.9/1,031.5 ms in the preceding hook profile. Authored
+four-table startup measures 3.015 s (previously 3.310 s); all seven cards are
+ready at 4.219 s (previously 4.417 s). These single-run browser comparisons are
+observations, not a controlled speed estimate. Viewer sources, data-import
+boundaries, rendering limits and worker concurrency are unchanged.
+
+Logs: `/tmp/cem-prepared-browser-build.log`,
+`/tmp/cem-prepared-table-profile.{json,log}` and
+`/tmp/cem-prepared-tree-profile.{json,log}`.
+
+Both full Storybook runs pass **203/203** tests: normal 40.43 s and synchronized
+62.57 s. Viewer completion times (normal / synchronized) are 11.195 / 24.082 s
+for tables, 7.184 / 15.410 s for trees and 3.581 / 7.342 s for the inspector.
+The synchronized table remains below its unchanged 30-second deadline; the
+preceding run completed at 28.600 s. These are observations under the recorded
+workloads, not a claim that all historical readiness failures are resolved.
+
+The synchronized run launches stock probes only after Vitest's `RUN` marker.
+All **32/32** probes pass at eight concurrent pages over four batches, with
+initial warnings in 3.987–9.237 s and no recorded errors. Probes ran from
+17:53:21.690 through 17:53:57.665 UTC, overlapping table, tree and inspector
+work. NPM and location stories started later, after this additional stock load
+ended: their longest waits were 153/200 frames (2.797 s) and 31/180 frames
+(1.077 s). This run therefore does not settle their historical failures under
+load. Their readiness attribution, the historical stock timeout and remaining
+selected-record/template-scope copies remain open; no viewer, request-lifecycle,
+concurrency or deadline adjustment is bundled into this compiler change.
+
+Evidence: `/tmp/cem-prepared-normal.log`,
+`/tmp/cem-prepared-synchronized.log`,
+`/tmp/cem-prepared-synchronized-stock.{json,log}` and
+`/tmp/cem-prepared-synchronized-status.log` (both subprocesses exit zero).
