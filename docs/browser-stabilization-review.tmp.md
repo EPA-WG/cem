@@ -1897,3 +1897,101 @@ the existing story deadline. Separately profile cold XSLT construction and the
 remaining selected-record/template-scope copies before proposing another shared
 change. No overall stabilization completion is claimed: the initial normal
 retry failures and historical timeouts remain evidence requiring follow-up.
+
+### Declaration and retry readiness audit
+
+The external-source story now awaits each of its four declarations, asserts
+registration, and awaits each produced instance's render before checking the
+existing button, whole-document, subtree and XSLT output. Its earlier captured
+120-frame deadline expired during pending rendering. The fixture uses the
+existing public lifecycle promises and the existing 30-second story deadline;
+no frame budget is increased and no output assertion is removed.
+
+The opt-in readiness observer now recognizes the runtime's declaration tag,
+excludes declaration elements from the produced-instance inventory, and records
+the state of its initial render observation. `initialRender` is deliberately
+not a claim about every later HTTP or interaction revision. Explicit retry
+checkpoints capture acquisition count, registration, retained diagnostic
+history and render state. The shared worker tracer observes compile/render
+requests and responses. This is control metadata, not a runtime snapshot or a
+source-document export. Tracing remains disabled by default.
+
+Before changing retry waits, the focused four-story subset and normal full
+suite pass (4/4 and 203/203); the normal suite takes 37.01 s. A synchronized
+full suite also passes 203/203 in 59.10 s, alongside 32/32 stock probes. The
+table journey takes 26.355 s; tree/inspector take 15.570/6.841 s. External-source
+button/XSLT renders settle at 4.001/4.124 s and all subsequent assertions pass.
+NPM's default selection takes 65/200 frames (1.513 s), and location's readers
+take 33/180 frames (1.123 s). Those two waits remain unchanged.
+
+The retry stories run late in that full suite, so focused concurrent coverage
+is necessary. A first stock-first attempt passes 4/4 and 32/32 but does not
+overlap: Nx startup delays the stories until 2.1 s after stock finishes. This
+is not evidence about retry behavior under contention. Launching stock at the
+focused Vitest `RUN` marker then reproduces **one failure out of four** with
+the original one-second wait:
+
+- `retry/transport` successfully settles its first retried declaration at
+  876.7 ms. All three produced tags register; the replacement declaration has
+  no errors. The first two declarations retain their intentional earlier
+  `src_load_failed` history, as required by the retry contract.
+- The worker becomes ready at 1,052.9 ms and successfully completes compile
+  jobs. The first instance's `render-diff` is sent at 1,834.4 ms.
+- The assertion expires at **1,914.9 ms**, while that render is in flight.
+  All three initial renders remain pending and none reports an instance
+  diagnostic. The two acquisition attempts remain exactly two.
+- Cleanup disposes the scope after failure. Render diagnostics observed after
+  that disposal are not evidence that source retry failed before the timeout;
+  this failed run does not verify the remaining output/cache assertions.
+
+The shared recovery assertion now awaits declaration settlement, checks
+registration, awaits render settlement, and directly asserts `Ready`. Both
+transport and interrupted-body recovery, replacement and cache reuse take this
+same path. Source loading, retries, request counts, diagnostic history and
+scope-disposal behavior are unchanged. The stream failure from the earlier
+normal suite was not reproduced here; only the transport failure above is
+attributed by this run.
+
+With that fixture correction, the same synchronized focused workload passes
+**4/4**, including every later cache assertion, alongside **32/32** stock probes.
+The transport declaration settles at 805.6 ms and its render at 2,132.5 ms:
+the intervening **1,326.9 ms** exceeds the removed polling deadline, yet the
+complete story passes within its existing limit. No production/runtime/viewer
+change is involved.
+
+The remaining inventory needs separate attention. Thirteen demo-story files
+contain animation-frame waits: components, data slices, DOM merge, for-each,
+forms, HTTP, local storage, location, module URL, module URL referrers, NPM,
+set-URL and string functions. Some waits check interactions rather than startup;
+they must not all be replaced by a generic initialization wait. NPM's five
+cards contain five named pickers plus three anonymous wrappers and asynchronous
+native HTTP data. Location's three cards contain separate anonymous readers.
+A complete card count establishes neither child initialization nor resource
+completion. `whenRenderSettled` observes current rendering and pending native
+local-storage work; it is not a general future-HTTP completion signal. Preserve
+resource/output-specific checks and capture NPM/location failure state before
+choosing their correction. No shared lifecycle extension is proposed here.
+
+Evidence: `/tmp/cem-readiness-retry-focused.log`,
+`/tmp/cem-readiness-normal.log`, `/tmp/cem-readiness-synchronized.log` and its
+`-stock.json` report; `/tmp/cem-readiness-retry-load.log` (no actual overlap),
+`/tmp/cem-readiness-retry-synchronized.log` (reproduced failure), and
+`/tmp/cem-readiness-retry-fixed.log`, with their respective `-stock.json` reports.
+
+Final normal coverage, with worker/readiness tracing disabled, passes
+**203/203** in 41.83 s; the table journey takes 13.152 s. Final synchronized
+coverage passes **203/203** in 63.60 s, with table/tree/inspector completion at
+**28.600/18.163/8.066 s**. Its 32 stock probes pass, with warnings at 4.76–9.70 s.
+NPM's unchanged default-selection wait uses 114/200 frames (2.561 s), and
+location's unchanged reader wait uses 31/180 frames (0.945 s). All 160 stock
+probes in this audit pass (698 cumulative timing probes); this still does not
+attribute the historical 45-second stock timeout.
+
+Final evidence: `/tmp/cem-readiness-final-normal.log`,
+`/tmp/cem-readiness-final-synchronized.log` and its `-stock.json` report.
+Package lint passes with its two existing non-null-assertion warnings
+(`/tmp/cem-readiness-final-lint.log`); the whitespace check passes. No native
+production code changed, and the browser target reused the existing WASM build.
+The fixture correction is complete, not overall browser stabilization. Keep
+NPM/location tracing available for a reproduced failure and continue the
+independent cold-XSLT stage profile before choosing another shared optimization.

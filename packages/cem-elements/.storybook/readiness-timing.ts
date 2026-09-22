@@ -22,11 +22,14 @@ export function startReadinessTiming(root: HTMLElement, story: string, runtime?:
         code: item.code, severity: item.severity,
     })) ?? [];
     const declarations = () => Array.from(root.querySelectorAll<HTMLElement>(
-        'cem-element, cem-element-story-ext-src'));
+        `cem-element, ${CSS.escape(runtime?.declarationTag ?? 'cem-element')}`));
+    const renders = new WeakMap<HTMLElement, 'awaiting-definition' | 'pending' | 'settled' | 'rejected'>();
     const instances = () => {
-        const declared = new Set(declarations().map(element => element.getAttribute('tag')));
+        const owners = declarations();
+        const declared = new Set(owners.map(element => element.getAttribute('tag')));
         return Array.from(root.querySelectorAll<HTMLElement>('*')).filter(element =>
             element.localName.includes('-') && !element.localName.startsWith('cem-element')
+            && !owners.includes(element)
             && element.localName !== 'cem-demo-element'
             && (declared.has(element.localName) || customElements.get(element.localName)));
     };
@@ -40,6 +43,7 @@ export function startReadinessTiming(root: HTMLElement, story: string, runtime?:
         })),
         instances: instances().map(element => ({
             tag: element.localName, registered: !!customElements.get(element.localName),
+            initialRender: renders.get(element) ?? 'unobserved',
             children: element.childElementCount, buttons: element.querySelectorAll('button').length,
             definitions: element.querySelectorAll('dd').length,
             tables: element.querySelectorAll('table').length,
@@ -75,12 +79,16 @@ export function startReadinessTiming(root: HTMLElement, story: string, runtime?:
         for (const instance of instances()) {
             if (observed.has(instance)) continue;
             observed.add(instance);
+            renders.set(instance, 'awaiting-definition');
             void customElements.whenDefined(instance.localName).then(async () => {
                 if (!alive) return;
+                renders.set(instance, 'pending');
                 emit('defined', { tag: instance.localName });
                 await runtime?.whenRenderSettled(instance);
+                renders.set(instance, 'settled');
                 if (alive) emit('render-settled', { tag: instance.localName, diagnostics: diagnostics(instance) });
             }).catch(error => {
+                renders.set(instance, 'rejected');
                 if (alive) emit('render-rejected', { tag: instance.localName, error: String(error) });
             });
         }
@@ -101,6 +109,11 @@ export function startReadinessTiming(root: HTMLElement, story: string, runtime?:
     };
     emit('start');
     observe();
+}
+
+/** Capture an explicit attempt/assertion boundary without waiting or changing it. */
+export function readinessCheckpoint(event: string, detail: object = {}): void {
+    if (active?.root.isConnected) active.emit(event, { ...detail, ...active.snapshot() });
 }
 
 /** Surround the existing frame loop without changing its predicate or deadline. */

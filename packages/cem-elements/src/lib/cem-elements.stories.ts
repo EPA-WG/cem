@@ -2292,7 +2292,7 @@ export const LegacySliceInputEventParity: Story = {
 
 export const ExternalSrcDeclarationLoadingParity: Story = {
     render: () => {
-        const root = document.createElement('section');
+        const root = document.createElement('section') as HTMLElement & { sourceRuntime?: CemElementRuntime };
         root.setAttribute('aria-label', 'external src declaration loading story');
 
         // The host `loadSrcDocument` resolves + fetches the referenced document (here a
@@ -2336,6 +2336,7 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
                 throw new Error(`unexpected external src path ${path}`);
             },
         });
+        root.sourceRuntime = runtime;
         runtime.install(window);
 
         const declaration = document.createElement('cem-element-story-ext-src');
@@ -2378,9 +2379,20 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         return root;
     },
     play: async ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[aria-label="external src declaration loading story"]') as
+            HTMLElement & { sourceRuntime?: CemElementRuntime };
+        const runtime = root.sourceRuntime;
+        if (!runtime) throw new Error('expected the external src story runtime');
+        const declarations = Array.from(root.querySelectorAll<HTMLElement>(runtime.declarationTag));
+        assertEqual(declarations.length, 4, 'all external src declarations are present');
+        await Promise.all(declarations.map(async declaration => {
+            await runtime.whenDeclarationSettled(declaration);
+            const tag = declaration.getAttribute('tag') ?? '';
+            assertEqual(!!customElements.get(tag), true, `${tag} registers after source settlement`);
+            await runtime.whenRenderSettled(requiredElement(root, tag));
+        }));
         const instance = requiredElement(canvasElement, 'story-ext-src-button');
-        // The produced tag is defined only after the async fetch + parse completes.
-        const button = await waitForElement(instance, 'button');
+        const button = requiredElement(instance, 'button');
         assertEqual(
             button.textContent?.trim(),
             'Remote',
@@ -2389,7 +2401,7 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         assertEqual(button.getAttribute('type'), 'button', 'the fetched template renders its attributes');
 
         const wholeInstance = requiredElement(canvasElement, 'story-ext-src-whole-document');
-        const wholeButton = await waitForElement(wholeInstance, '.whole-document');
+        const wholeButton = requiredElement(wholeInstance, '.whole-document');
         assertEqual(
             wholeButton.textContent?.trim(),
             'Whole document',
@@ -2397,7 +2409,7 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         );
 
         const subtreeInstance = requiredElement(canvasElement, 'story-ext-src-subtree');
-        const subtree = await waitForElement(subtreeInstance, '.subtree-fragment');
+        const subtree = requiredElement(subtreeInstance, '.subtree-fragment');
         assertEqual(
             subtree.textContent?.trim(),
             'Subtree fragment',
@@ -2405,7 +2417,7 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         );
 
         const xsltInstance = requiredElement(canvasElement, 'story-ext-src-xslt');
-        const xsltOutput = await waitForElement(xsltInstance, 'article.standalone-xslt');
+        const xsltOutput = requiredElement(xsltInstance, 'article.standalone-xslt');
         assertEqual(
             requiredElement(xsltOutput, 'strong').textContent?.trim(),
             'catalog',

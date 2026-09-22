@@ -2283,6 +2283,26 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         pass; capture render/worker state on recurrence before attributing the
         failure or migrating these waits. Do not change retry/cache behavior
         based on a missing paragraph at a polling deadline.
+        Follow-up 2026-09-22: external-src and retry fixtures now await existing
+        lifecycle settlement (completed item below). The broader audit remains
+        open for NPM/location failure attribution and other aggregate/frame
+        predicates; the thirteen-file inventory is recorded in the
+        [readiness audit](browser-stabilization-review.tmp.md#declaration-and-retry-readiness-audit).
+  - [x] Fixture: replace external-src's reproduced premature frame wait with
+        declaration and render settlement, then assert every existing output
+        within the unchanged story deadline. Add opt-in retry-attempt and
+        assertion-failure snapshots with render/worker observations. After
+        reproducing the retry deadline during an in-flight render, migrate the
+        shared recovery assertion to render settlement too. Retain NPM and
+        location waits until their failure state is captured.
+        Verify focused, normal and synchronized Storybook coverage.
+        Completed 2026-09-22: the original retry wait fails with a successful
+        acquisition and an in-flight render; after lifecycle migration the
+        focused concurrent run passes 4/4 despite a 1.327 s declaration-to-render
+        gap. Final normal and synchronized suites pass 203/203 each; all 160
+        stock probes pass. Viewer/runtime sources, story limits and concurrency
+        are unchanged. Table completion under final load is 28.600 s, so startup
+        headroom and the remaining historical failures stay open.
   - [ ] Profiling fixture: separate cold XSLT lowering, XPath compilation,
         generated CEMT compilation and bundle assembly/validation before choosing
         a compiler optimization. Attribute remaining complete selected-record

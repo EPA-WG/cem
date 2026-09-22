@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { expect, waitFor } from 'storybook/test';
+import { expect } from 'storybook/test';
 import { CemElementRuntime, type CemSrcDocumentLoadResult } from './cem-elements.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
+import { readinessCheckpoint, startReadinessTiming } from '../../.storybook/readiness-timing.js';
+import { treeProcessingTimingOptions } from '../../.storybook/tree-processing-timing.js';
 
 const meta: Meta = { title: 'CEM Elements/Declaration Source Retry', tags: ['test'] };
 export default meta;
@@ -33,11 +35,26 @@ function recoveryStory(failure: 'transport' | 'stream'): Story {
             const retryLoad = deferred<string>();
             let requests = 0;
             const runtime = new CemElementRuntime({
+                ...treeProcessingTimingOptions,
                 declarationTag: `cem-retry-${failure}-declaration`, declarationScope: scope,
                 loadSrcDocument: () => ++requests === 1 ? firstLoad.promise : retryLoad.promise,
             });
             runtime.install(window);
+            startReadinessTiming(canvasElement, `retry/${failure}`, runtime);
             const src = `/retry-${failure}.html#card`;
+            const expectReady = async (owner: ReturnType<typeof mount>) => {
+                await runtime.whenDeclarationSettled(owner.declaration);
+                readinessCheckpoint('retry-declaration-settled', { tag: owner.instance.localName, requests });
+                try {
+                    expect(customElements.get(owner.instance.localName)).toBeDefined();
+                    await runtime.whenRenderSettled(owner.instance);
+                    readinessCheckpoint('retry-render-settled', { tag: owner.instance.localName, requests });
+                    await expect(owner.instance.querySelector('p')).toHaveTextContent('Ready');
+                } catch (error) {
+                    readinessCheckpoint('assertion-failed', { tag: owner.instance.localName, requests });
+                    throw error;
+                }
+            };
             try {
                 const first = mount(canvasElement, runtime, `story-retry-${failure}-first`, src);
                 const second = mount(canvasElement, runtime, `story-retry-${failure}-second`, src);
@@ -76,6 +93,7 @@ function recoveryStory(failure: 'transport' | 'stream'): Story {
                     expect(owner.instance.querySelector('p')).toBeNull();
                 }
                 expect(requests).toBe(1); // Failure itself does not schedule a retry.
+                readinessCheckpoint('failed-acquisition-settled', { requests });
 
                 // Reconnection, explicit registration and a fresh declaration share
                 // one new acquisition while it is pending.
@@ -84,18 +102,17 @@ function recoveryStory(failure: 'transport' | 'stream'): Story {
                 runtime.registerDeclaration(second.declaration);
                 const replacement = mount(canvasElement, runtime, `story-retry-${failure}-replacement`, src);
                 expect(requests).toBe(2);
+                readinessCheckpoint('retry-start', { requests });
                 retryLoad.resolve(SOURCE);
                 for (const owner of [first, second, replacement]) {
-                    await runtime.whenDeclarationSettled(owner.declaration);
-                    await waitFor(() => expect(owner.instance.querySelector('p')).toHaveTextContent('Ready'));
+                    await expectReady(owner);
                 }
                 // Diagnostics remain attempt history, rather than disappearing on success.
                 expect(runtime.diagnosticsFor(first.declaration).map(diagnostic => diagnostic.code))
                     .toEqual(['cem-element.src_load_failed']);
                 expect(runtime.diagnosticsFor(replacement.declaration)).toEqual([]);
                 const cached = mount(canvasElement, runtime, `story-retry-${failure}-cached`, src);
-                await runtime.whenDeclarationSettled(cached.declaration);
-                await waitFor(() => expect(cached.instance.querySelector('p')).toHaveTextContent('Ready'));
+                await expectReady(cached);
                 expect(requests).toBe(2);
                 expect(runtime.diagnosticsFor(cached.declaration)).toEqual([]);
             } finally {
