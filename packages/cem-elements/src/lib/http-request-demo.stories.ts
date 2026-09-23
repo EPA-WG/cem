@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { traceCemReadiness } from '../../.storybook/preview.js';
+import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
 
 const SOURCE_TAG = 'story-http-request-demo-document';
 const DEMO_URL = new URL('../../demo/http-request.html', import.meta.url);
@@ -28,15 +30,24 @@ export const EveryAuthoredSample: Story = {
         declaration.setAttribute('src', DEMO_URL.href);
 
         root.append(declaration, document.createElement(SOURCE_TAG));
+        traceCemReadiness(root, 'http/EveryAuthoredSample');
         return root;
     },
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
-        await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend] article').length === EXPECTED_LEGENDS.length,
-            'all three HTTP request samples render from the HTML source',
-            300
-        );
+        const articleCounts = () => Array.from(host.querySelectorAll('cem-demo-element[legend]'), sample =>
+            ({ legend: sample.getAttribute('legend'), articles: sample.querySelectorAll('article').length }));
+        try {
+            await waitForCondition(
+                () => host.querySelectorAll('cem-demo-element[legend] article').length === EXPECTED_LEGENDS.length,
+                'all three HTTP request samples render from the HTML source',
+                300
+            );
+        } catch (error) {
+            readinessCheckpoint('initial-articles-failed', { samples: articleCounts() });
+            throw error;
+        }
+        readinessCheckpoint('initial-articles-ready', { samples: articleCounts() });
 
         assertDeepEqual(
             Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
@@ -212,10 +223,15 @@ function requiredElement(root: ParentNode, selector: string): HTMLElement {
 }
 
 async function waitForCondition(condition: () => boolean, message: string, attempts = 160): Promise<void> {
+    const mark = readinessWait(message, attempts);
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
+        if (condition()) {
+            mark('ready', attempt);
+            return;
+        }
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
+    mark('timeout', attempts);
     throw new Error(message);
 }
 

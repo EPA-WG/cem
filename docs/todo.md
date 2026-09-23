@@ -2358,6 +2358,24 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           correction. It failed once in the storage diagnostic workload;
           that run did not observe HTTP lifecycle state or verify its later
           resource assertions.
+          Follow-up 2026-09-23: two traced 16-file runs and a focused five-file
+          startup workload pass 26/26, 26/26 and 15/15, with 96/96 stock probes.
+          The timeout remains unattributed; no wait or runtime change is made.
+          Permanent opt-in tracing records lifecycle state and per-card article
+          counts on startup success/failure, rethrowing the original error.
+          Resume attribution on a traced recurrence. Next active work is the
+          native storage-diagnostic item below; see
+          [HTTP observation](browser-stabilization-review.tmp.md#http-startup-observation-without-a-reproduced-failure).
+      - [x] Fixture: trace the unchanged HTTP startup predicate under the
+            existing 16-file/stock and focused startup workloads. Record actual
+            overlap and all resource assertions. Observe later settlement only
+            after a retained failure during diagnosis, then remove that probe;
+            keep read-only lifecycle/per-card observations for future failures.
+      - [ ] On a traced HTTP failure, distinguish declaration/library startup,
+            current rendering and future HTTP completion before changing the
+            fixture. If startup polling is premature, use existing lifecycle
+            settlement before checking each authored instance; preserve the
+            resource assertions and 30-second story deadline.
     - [ ] Native fixture: attribute local-storage's initial fruit-watcher
           arithmetic diagnostics and the JSON sample's
           `cem.render_plan_apply.replace_scope` warning. Distinguish absent

@@ -5338,3 +5338,77 @@ After Vitest's `RUN` marker, start
 `node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=remaining-readiness-inventory --output=/tmp/cem-readiness-inventory-stock.json`.
 Check both exit codes and actual UTC intervals. Use `yarn nx run
 cem-elements:test` for the normal full regression gate with tracing disabled.
+
+### HTTP startup observation without a reproduced failure
+
+Investigated 2026-09-23. The HTTP story now uses the existing opt-in readiness
+and worker tracer. It records the initial article predicate's frame usage and
+the later HTTP/interaction predicates with their original limits. A startup
+checkpoint also records each public sample legend and its article count,
+alongside declaration/render control state. A failed startup assertion is
+re-thrown unchanged. No source text, document value, native handle, response
+body or new runtime snapshot is recorded.
+
+The authored page contains three anonymous instances, each unconditionally
+producing one article. The first is idle until GET; the other two initiate
+requests. Thus the existing three-article predicate checks that structure,
+not completion of response import or the later request states.
+
+Three runs preserve the original 300-frame startup predicate, 160/300-frame
+interaction/resource checks, 30-second story limit and runner concurrency:
+
+| Workload | Result | Initial article wait | HTTP journey (UTC) | Stock interval (UTC) |
+| --- | --- | --- | --- | --- |
+| Thirteen audited stories plus three viewer files | 26/26 | 153 frames, 3.1248 s | 15:49:28.285–15:49:35.554 | 15:49:06.859–15:49:36.279 |
+| HTTP, storage and three viewer files | 15/15 | 185 frames, 4.2793 s | 15:50:23.781–15:50:31.291 | 15:50:17.690–15:50:41.731 |
+| Sixteen-file repeat | 26/26 | 156 frames, 3.0412 s | 15:51:27.886–15:51:35.058 | 15:51:07.488–15:51:38.212 |
+
+Each run overlaps all HTTP interactions with stock activity; each stock probe
+uses eight concurrent pages in four batches and passes **32/32** without
+errors. All six subprocesses exit zero. Evidence is
+`/tmp/cem-readiness-http-traced{,-stock,-status}.log`,
+`/tmp/cem-readiness-http-focused{,-stock,-status}.log` and
+`/tmp/cem-readiness-http-traced-repeat{,-stock,-status}.log`, with their stock
+JSON reports. All **96** stock cases pass, and every recorded runtime/viewer/
+WASM hash matches the unchanged current files.
+
+The first run reaches its article predicate at **15:49:31.416**, while the
+catalog and inspection render observations settle at **15:49:32.149** and
+**15:49:32.195**. The existing response-specific checks subsequently pass.
+This confirms the separation between article presence and current resource
+rendering; it does not identify the cause of the historical article timeout.
+All three runs cover GET, compact-response replacement, invalid JSON failure,
+recovery, empty-URL reset, six Pokémon buttons and request/response metadata.
+
+A temporary diagnostic probe would have awaited existing source settlement
+after a failed assertion, captured per-card article counts, then re-thrown
+the failure. No run entered that branch. The probe is removed; the final story
+keeps only read-only observations on the original success and failure paths.
+It does not add lifecycle waits or increase polling budgets. The timeout
+remains unattributed, and no production correction is claimed.
+
+The final focused story passes **1/1** with the permanent checkpoint recording
+one article in each of the three samples, including the two pending render
+observations (`/tmp/cem-readiness-http-final-focused.log`). Lint passes with its
+two existing warnings, and typecheck passes using its valid cached inputs
+(`/tmp/cem-readiness-http-{lint,typecheck}.log`). Only Storybook observation and
+documentation change; the native/WASM implementations and authored demos are
+unchanged. Final normal coverage passes **204/204 tests in 43 files** in
+**30.61 s**, with tracing disabled (`/tmp/cem-readiness-http-normal.log`). The
+whitespace check passes.
+
+Next, investigate the storage arithmetic and JSON projection diagnostics in
+native fixtures. Keep HTTP tracing available for a future recurrence rather
+than assigning a cause from these passing controls. Location's earlier timeout
+and the historical stock timeout also remain separate unresolved evidence.
+
+Reproduce focused startup overlap with:
+
+```sh
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test --args='http-request-demo.stories.ts local-storage-demo.stories.ts data-table-demo.stories.ts data-tree-demo.stories.ts table-inspector-demo.stories.ts'
+```
+
+Start the existing eight-concurrent, four-batch stock command after Vitest's
+`RUN` marker, and retain both exit codes plus actual UTC intervals. The
+sixteen-file command is recorded in the previous section. Final normal
+regression coverage uses `yarn nx run cem-elements:test` with tracing disabled.
