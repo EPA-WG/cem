@@ -1001,14 +1001,7 @@ fn render_compiled_template_internal(
         let _profile = crate::compile_profile::Span::new("copy/initial-bindings");
         data.bindings.clone()
     };
-    #[cfg(test)]
-    let datadom = if input_profile_tests::enabled() {
-        input_profile_tests::take_data_document(&mut policy_bindings)
-    } else {
-        data_document_with_host_bindings(&data.bindings)
-    };
-    #[cfg(not(test))]
-    let datadom = data_document_with_host_bindings(&data.bindings);
+    let datadom = data_document_with_host_bindings(&mut policy_bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
     let mut host_attribute_updates = {
         #[cfg(test)]
@@ -1115,60 +1108,47 @@ pub fn render_template(source: &str, data: &TemplateData) -> RenderedTemplate {
     }
 }
 
-/// Build the `/datadom` data document exposed to cem-ql expressions for functional
-/// data selection. Host bindings (the attributes/slices the runtime supplies) become
-/// `datadom.attributes.<name>`, the functional-parity equivalent of the legacy
-/// `/datadom/attributes` XPath model — navigated with cem-ql record/pipeline access
-/// (`record_field`) rather than an XPath engine.
-fn data_document_with_host_bindings(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
-    let synthesized = build_data_document(bindings);
-    let Some(explicit) = bindings.get(DATA_DOCUMENT_BINDING) else {
-        return synthesized;
-    };
-    let explicit = {
-        #[cfg(test)]
-        let _profile = crate::compile_profile::Span::new("copy/explicit-data-document");
-        explicit.clone()
-    };
-    merge_data_documents(explicit, synthesized)
-}
-
-fn build_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
+/// Finish the owned `/datadom` control document without intermediate copies.
+/// Reuse the explicit document from the renderer's copied bindings, preserving
+/// its metadata and shallow field precedence. Host values fill missing fields
+/// and `attributes`; native CEM handles retain their owners without traversal.
+fn data_document_with_host_bindings(bindings: &mut BTreeMap<String, ItemStream>) -> ItemStream {
     #[cfg(test)]
-    let _profile = crate::compile_profile::Span::new("copy/data-document-synthesis");
-    let attributes: BTreeMap<String, Vec<Item>> = bindings
-        .iter()
-        .filter(|(name, _)| name.as_str() != DATA_DOCUMENT_BINDING)
-        .map(|(name, stream)| (name.clone(), stream.items.clone()))
-        .collect();
-    let mut datadom = BTreeMap::new();
-    for (name, stream) in bindings
-        .iter()
-        .filter(|(name, _)| name.as_str() != DATA_DOCUMENT_BINDING)
-    {
-        datadom.insert(name.clone(), stream.items.clone());
+    if input_profile_tests::force_input_copy() {
+        return input_profile_tests::copied_data_document(bindings);
     }
-    datadom.insert("attributes".to_owned(), vec![Item::Record(attributes)]);
-    ItemStream::once(Item::Record(datadom))
-}
-
-fn merge_data_documents(mut explicit: ItemStream, synthesized: ItemStream) -> ItemStream {
     #[cfg(test)]
-    let _profile = crate::compile_profile::Span::new("copy/data-document-merge");
-    let Some(Item::Record(synthesized_fields)) = synthesized.items.first() else {
-        return explicit;
-    };
-    for item in &mut explicit.items {
-        let Item::Record(explicit_fields) = item else {
+    let _profile = crate::compile_profile::Span::new("render/direct-input-document");
+    let mut document = bindings
+        .remove(DATA_DOCUMENT_BINDING)
+        .unwrap_or_else(|| ItemStream::once(Item::Record(BTreeMap::new())));
+    for item in &mut document.items {
+        let Item::Record(fields) = item else {
             continue;
         };
-        for (name, values) in synthesized_fields {
-            explicit_fields
-                .entry(name.clone())
-                .or_insert_with(|| values.clone());
+        for (name, stream) in bindings.iter() {
+            // The synthesized attributes field always contains the complete host
+            // binding map, including a host binding itself named attributes.
+            if name != "attributes" {
+                fields.entry(name.clone()).or_insert_with(|| {
+                    #[cfg(test)]
+                    let _copy = crate::compile_profile::Span::new("copy/input-missing-field");
+                    stream.items.clone()
+                });
+            }
         }
+        fields.entry("attributes".into()).or_insert_with(|| {
+            #[cfg(test)]
+            let _copy = crate::compile_profile::Span::new("copy/input-missing-attributes");
+            vec![Item::Record(
+                bindings
+                    .iter()
+                    .map(|(name, stream)| (name.clone(), stream.items.clone()))
+                    .collect(),
+            )]
+        });
     }
-    explicit
+    document
 }
 
 fn bind_attribute_values(bindings: &mut BTreeMap<String, ItemStream>, name: &str, values: Vec<Item>) {

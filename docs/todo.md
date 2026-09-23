@@ -2556,7 +2556,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         synthesized record. A test-only direct construction preserves complete
         owned bindings and halves repeat XML setup (1.076→0.533 ms); full table
         rendering is 3.980→3.471 ms. The dominant tree body cost remains separate.
-        See the [proposal](browser-stabilization-review.tmp.md#pending-decision-direct-owned-input-context-construction).
+        See the [proposal](browser-stabilization-review.tmp.md#accepted-direct-owned-input-context-construction).
   - [x] Fixture: separate initial binding copies, data-document synthesis/merge,
         scoped variable snapshots, try restoration and hook capture/dispatch.
         Compare a native test-only input-context candidate that moves the copied
@@ -2568,16 +2568,26 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         six direct/renderer checks pass afterward. Both isolated release profiles,
         all 686 native tests, lint and fixture formatting pass. Snapshot workloads
         retain their existing copies; timing differences are not snapshot gains.
-  - [ ] Decide whether to construct the owned renderer input context directly:
+  - [x] Decide whether to construct the owned renderer input context directly:
         move the already-copied explicit datadom and fill only missing fields,
         preserving full public bindings, shallow precedence, metadata and native
         owners. Recommend the bounded candidate; see the
-        [decision](browser-stabilization-review.tmp.md#pending-decision-direct-owned-input-context-construction).
-  - [ ] If approved, promote direct owned input-context construction with
+        [decision](browser-stabilization-review.tmp.md#accepted-direct-owned-input-context-construction).
+        Accepted by the user 2026-09-22: promote direct input construction.
+  - [x] Promote approved direct owned input-context construction with
         default-path allocation/precedence/status/owner regressions, repeat native
         profiling, rebuild WASM and verify unchanged table/tree plus normal and
         synchronized Storybook. Preserve viewer sources, external import, public
         artifacts, limits and concurrency; keep snapshot mechanisms unchanged.
+        Fixture: require default construction to reuse the copied document
+        allocation and default rendering to skip transient document copies.
+        Completed 2026-09-22: both default regressions fail before promotion and
+        pass afterward. All 687 native tests and lint pass. Loaded XML setup
+        falls 1.268→0.716 ms (43.5% in this profile), preserving owned values,
+        metadata, public bindings and native owners. Rebuilt WASM passes 40
+        table/18 tree checks, both 203-test Storybook runs and all 32 stock cases.
+        Table/tree/inspector overlap stock load; NPM/location waits follow it.
+        See the [production evidence](browser-stabilization-review.tmp.md#production-direct-owned-input-context-construction).
   - [ ] After that correction, attribute the dominant authored tree-render body
         cost and assess representative authored hook/recovery workloads before
         choosing another shared optimization. Require a measured proposal; keep

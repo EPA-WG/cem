@@ -18,7 +18,7 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    input_profile_tests::with_candidate(false, || {
+    input_profile_tests::with_copied_input(|| {
         crate::eval::let_profile_tests::with_copied_lets(|| {
             crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
                 crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
@@ -87,33 +87,33 @@ fn report(case: &str, samples: &[Stages]) {
     }
 }
 fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
-    crate::eval::let_profile_tests::with_copied_lets(|| {
-        with_context_copy(|| {
-            profile_strategy(&format!("{case}/copied-context"), &mut operation, &verify);
-        });
-        crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
-            crate::eval::binding_profile_tests::with_copied_inputs(|| {
-                profile_strategy(&format!("{case}/copied-inputs"), &mut operation, &verify);
+    input_profile_tests::with_copied_input(|| {
+        crate::eval::let_profile_tests::with_copied_lets(|| {
+            with_context_copy(|| {
+                profile_strategy(&format!("{case}/copied-context"), &mut operation, &verify);
             });
-            profile_strategy(&format!("{case}/copied-fields"), &mut operation, &verify);
+            crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
+                crate::eval::binding_profile_tests::with_copied_inputs(|| {
+                    profile_strategy(&format!("{case}/copied-inputs"), &mut operation, &verify);
+                });
+                profile_strategy(&format!("{case}/copied-fields"), &mut operation, &verify);
+            });
+            crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
+                profile_strategy(
+                    &format!("{case}/copied-record-reads"),
+                    &mut operation,
+                    &verify,
+                );
+            });
+            profile_strategy(&format!("{case}/copied-lets"), &mut operation, &verify);
         });
-        crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
-            profile_strategy(
-                &format!("{case}/copied-record-reads"),
-                &mut operation,
-                &verify,
-            );
-        });
-        profile_strategy(&format!("{case}/copied-lets"), &mut operation, &verify);
-    });
-    profile_strategy(&format!("{case}/moved-lets"), &mut operation, &verify);
-    input_profile_tests::with_candidate(true, || {
         profile_strategy(
-            &format!("{case}/direct-input-candidate"),
+            &format!("{case}/copied-input-construction"),
             &mut operation,
             &verify,
         );
     });
+    profile_strategy(&format!("{case}/direct-input"), &mut operation, &verify);
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {

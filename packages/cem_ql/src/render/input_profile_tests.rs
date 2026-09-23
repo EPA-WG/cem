@@ -1,57 +1,77 @@
-//! Native-only investigation of owned renderer input-context construction.
+//! Owned renderer input regressions and a test-only synthesis/copy baseline.
 use super::*;
 use crate::compile_profile::measure;
 use std::cell::Cell;
 
 thread_local! {
-    static DIRECT_INPUT: Cell<bool> = const { Cell::new(false) };
+    static FORCE_INPUT_COPY: Cell<bool> = const { Cell::new(false) };
 }
 
-pub(super) fn enabled() -> bool {
-    DIRECT_INPUT.with(Cell::get)
+pub(super) fn force_input_copy() -> bool {
+    FORCE_INPUT_COPY.with(Cell::get)
 }
 
-pub(super) fn with_candidate<T>(enabled: bool, run: impl FnOnce() -> T) -> T {
+fn with_input_copy<T>(enabled: bool, run: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset {
         fn drop(&mut self) {
-            DIRECT_INPUT.with(|value| value.set(self.0));
+            FORCE_INPUT_COPY.with(|value| value.set(self.0));
         }
     }
-    let _reset = Reset(DIRECT_INPUT.with(|value| value.replace(enabled)));
+    let _reset = Reset(FORCE_INPUT_COPY.with(|value| value.replace(enabled)));
     run()
 }
 
-pub(super) fn take_data_document(bindings: &mut BTreeMap<String, ItemStream>) -> ItemStream {
-    let _profile = crate::compile_profile::Span::new("candidate/direct-input-document");
-    let mut document = bindings
-        .remove(DATA_DOCUMENT_BINDING)
-        .unwrap_or_else(|| ItemStream::once(Item::Record(BTreeMap::new())));
-    for item in &mut document.items {
-        let Item::Record(fields) = item else {
+pub(super) fn with_copied_input<T>(run: impl FnOnce() -> T) -> T {
+    with_input_copy(true, run)
+}
+
+pub(super) fn copied_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
+    let synthesized = build_data_document(bindings);
+    let Some(explicit) = bindings.get(DATA_DOCUMENT_BINDING) else {
+        return synthesized;
+    };
+    let explicit = {
+        let _profile = crate::compile_profile::Span::new("copy/explicit-data-document");
+        explicit.clone()
+    };
+    merge_data_documents(explicit, synthesized)
+}
+
+fn build_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
+    let _profile = crate::compile_profile::Span::new("copy/data-document-synthesis");
+    let attributes: BTreeMap<String, Vec<Item>> = bindings
+        .iter()
+        .filter(|(name, _)| name.as_str() != DATA_DOCUMENT_BINDING)
+        .map(|(name, stream)| (name.clone(), stream.items.clone()))
+        .collect();
+    let mut datadom = BTreeMap::new();
+    for (name, stream) in bindings
+        .iter()
+        .filter(|(name, _)| name.as_str() != DATA_DOCUMENT_BINDING)
+    {
+        datadom.insert(name.clone(), stream.items.clone());
+    }
+    datadom.insert("attributes".to_owned(), vec![Item::Record(attributes)]);
+    ItemStream::once(Item::Record(datadom))
+}
+
+fn merge_data_documents(mut explicit: ItemStream, synthesized: ItemStream) -> ItemStream {
+    let _profile = crate::compile_profile::Span::new("copy/data-document-merge");
+    let Some(Item::Record(synthesized_fields)) = synthesized.items.first() else {
+        return explicit;
+    };
+    for item in &mut explicit.items {
+        let Item::Record(explicit_fields) = item else {
             continue;
         };
-        for (name, stream) in bindings.iter() {
-            // The synthesized attributes field always contains the complete host
-            // binding map, including a host binding itself named attributes.
-            if name != "attributes" {
-                fields.entry(name.clone()).or_insert_with(|| {
-                    let _copy = crate::compile_profile::Span::new("copy/input-missing-field");
-                    stream.items.clone()
-                });
-            }
+        for (name, values) in synthesized_fields {
+            explicit_fields
+                .entry(name.clone())
+                .or_insert_with(|| values.clone());
         }
-        fields.entry("attributes".into()).or_insert_with(|| {
-            let _copy = crate::compile_profile::Span::new("copy/input-missing-attributes");
-            vec![Item::Record(
-                bindings
-                    .iter()
-                    .map(|(name, stream)| (name.clone(), stream.items.clone()))
-                    .collect(),
-            )]
-        });
     }
-    document
+    explicit
 }
 
 fn text(value: &str) -> Item {
@@ -63,7 +83,7 @@ fn record(fields: impl IntoIterator<Item = (&'static str, Vec<Item>)>) -> Item {
 }
 
 #[test]
-fn input_candidate_moves_explicit_allocation_and_skips_transient_copies() {
+fn default_input_moves_explicit_allocation_and_skips_transient_copies() {
     let mut bindings = BTreeMap::from([
         ("label".into(), ItemStream::once(text("host"))),
         (
@@ -71,9 +91,9 @@ fn input_candidate_moves_explicit_allocation_and_skips_transient_copies() {
             ItemStream::once(record([("label", vec![text("explicit")])])),
         ),
     ]);
-    let expected = data_document_with_host_bindings(&bindings);
+    let expected = copied_data_document(&bindings);
     let allocation = bindings["datadom"].items.as_ptr();
-    let (actual, stages) = measure(|| take_data_document(&mut bindings));
+    let (actual, stages) = measure(|| super::data_document_with_host_bindings(&mut bindings));
     assert_eq!(actual, expected);
     assert_eq!(actual.items.as_ptr(), allocation);
     assert!(!bindings.contains_key("datadom"));
@@ -99,7 +119,7 @@ fn same_stream(actual: &ItemStream, expected: &ItemStream) {
 }
 
 #[test]
-fn input_candidate_preserves_precedence_stream_metadata_and_host_bindings() {
+fn direct_input_preserves_precedence_stream_metadata_and_host_bindings() {
     let native = crate::eval::imported_cem_tree(
         cem_ml::import::import_data("<name>ivy</name>", "xml", "cem", "memory:input").unwrap(),
     );
@@ -142,8 +162,8 @@ fn input_candidate_preserves_precedence_stream_metadata_and_host_bindings() {
             bindings.insert("datadom".into(), stream);
         }
         let original = bindings.clone();
-        let expected = data_document_with_host_bindings(&bindings);
-        let actual = take_data_document(&mut bindings);
+        let expected = copied_data_document(&bindings);
+        let actual = data_document_with_host_bindings(&mut bindings);
         same_stream(&actual, &expected);
         for (name, value) in &bindings {
             same_stream(value, &original[name]);
@@ -156,7 +176,7 @@ fn input_candidate_preserves_precedence_stream_metadata_and_host_bindings() {
 }
 
 #[test]
-fn input_candidate_owns_results_without_invoking_native_accessors() {
+fn direct_input_owns_results_without_invoking_native_accessors() {
     use crate::eval::{QueryItemView, QueryItemViewKind};
     use std::sync::Arc;
     #[derive(Debug)]
@@ -181,7 +201,7 @@ fn input_candidate_owns_results_without_invoking_native_accessors() {
             panic!("must not invoke native accessors")
         }
     }
-    for candidate in [false, true] {
+    for copied in [true, false] {
         let owner = Arc::new(());
         let weak = Arc::downgrade(&owner);
         let native = Item::native(Owner(owner));
@@ -193,11 +213,8 @@ fn input_candidate_owns_results_without_invoking_native_accessors() {
                 ItemStream::once(record([("label", vec![text("original")])])),
             ),
         ]);
-        let mut output = if candidate {
-            take_data_document(&mut bindings)
-        } else {
-            data_document_with_host_bindings(&bindings)
-        };
+        let mut output =
+            with_input_copy(copied, || data_document_with_host_bindings(&mut bindings));
         let Item::Record(fields) = &mut output.items[0] else {
             panic!("record")
         };
@@ -224,7 +241,7 @@ fn input_candidate_owns_results_without_invoking_native_accessors() {
 }
 
 #[test]
-fn input_candidate_preserves_declarations_hooks_and_scope_restoration() {
+fn direct_input_preserves_declarations_hooks_and_scope_restoration() {
     let data = TemplateData::default()
         .with_binding("label", ItemStream::once(text("host")))
         .with_binding(
@@ -257,16 +274,16 @@ fn input_candidate_preserves_declarations_hooks_and_scope_restoration() {
             "{source}: {:?}",
             artifact.diagnostics
         );
-        let expected = render_compiled_template(&artifact, &data);
-        let actual = with_candidate(true, || render_compiled_template(&artifact, &data));
+        let expected = with_copied_input(|| render_compiled_template(&artifact, &data));
+        let actual = render_compiled_template(&artifact, &data);
         copy_profile_tests::verify_plan(&actual, &expected);
         assert_eq!(data.bindings, original);
     }
 }
 
 #[test]
-fn input_candidate_preserves_renderer_contracts() {
-    with_candidate(true, || {
+fn copied_input_construction_preserves_renderer_contracts() {
+    with_copied_input(|| {
         copy_profile_tests::borrowing_preserves_focus_records_recovery_and_callbacks();
         copy_profile_tests::borrowing_preserves_reader_retention_across_renders();
         copy_profile_tests::borrowing_preserves_protected_failures_and_recovery();
@@ -314,12 +331,38 @@ pub(super) fn tree_fixture(count: usize) -> (TemplateArtifact, TemplateData) {
 }
 
 #[test]
-fn input_candidate_preserves_authored_tree() {
+fn direct_input_preserves_authored_tree() {
     let (artifact, data) = tree_fixture(2);
-    let expected = render_compiled_template(&artifact, &data);
-    let actual = with_candidate(true, || render_compiled_template(&artifact, &data));
+    let expected = with_copied_input(|| render_compiled_template(&artifact, &data));
+    let actual = render_compiled_template(&artifact, &data);
     copy_profile_tests::verify_plan(&actual, &expected);
     let html = render_plan_to_html(&actual);
     assert!(html.contains("Selected branches"));
     assert!(html.contains('🍒') && html.contains('🍋'));
+}
+
+#[test]
+fn default_render_builds_input_context_directly() {
+    let data = TemplateData::default()
+        .with_binding("label", ItemStream::once(text("host")))
+        .with_binding(
+            "datadom",
+            ItemStream::once(record([("label", vec![text("explicit")])])),
+        );
+    let artifact = compile_template(
+        "{p | {$datadom.label}|{$datadom.attributes.label}|{$label}}",
+        &CompileTemplateOptions {
+            host_bindings: vec!["label".into()],
+            ..Default::default()
+        },
+    );
+    assert!(artifact.diagnostics.is_empty());
+    let (actual, stages) = measure(|| render_compiled_template(&artifact, &data));
+    assert!(actual.diagnostics.is_empty());
+    assert_eq!(render_plan_to_html(&actual), "<p>explicit|host|host</p>");
+    assert_eq!(stages["copy/initial-bindings"].calls, 1);
+    assert!(!stages.contains_key("copy/explicit-data-document"));
+    assert!(!stages.contains_key("copy/data-document-synthesis"));
+    assert!(!stages.contains_key("copy/data-document-merge"));
+    assert_eq!(stages["render/direct-input-document"].calls, 1);
 }

@@ -3666,6 +3666,9 @@ exit codes and compare actual timestamps rather than assuming overlap.
 
 ### Renderer snapshots and initial input context (2026-09-22)
 
+This section records the test-only investigation at `253df191`, before the
+production promotion documented below.
+
 This investigation follows production owned-let promotion `7596f928`. Renderer
 setup, CEMT variable restoration, try/catch recovery and expression-hook capture
 are distinct ownership paths. The native profile now attributes setup to the
@@ -3848,9 +3851,9 @@ yarn nx run cem_ql:test --skipNxCache
 yarn nx run cem_ql:lint --skipNxCache
 ```
 
-#### Pending decision: direct owned input-context construction
+#### Accepted: direct owned input-context construction
 
-Recommend promoting the bounded candidate: retain one owned copy of host input
+Accepted by the user 2026-09-22: retain one owned copy of host input
 bindings, move its copied explicit `datadom` into final construction, and create
 only missing output fields. The repeat halves XML table setup (1.076→0.533 ms)
 while preserving complete public bindings, explicit precedence, metadata, native
@@ -3864,8 +3867,8 @@ must explicitly retain the current shallow merge, special `attributes` behavior,
 empty/non-record streams and multiple-record handling. The fixtures make these
 compatibility rules reviewable before promotion.
 
-If approved, require default-path allocation and compatibility regressions
-before promotion, then repeat native profiling, rebuild WASM and run unchanged
+The approved implementation requires default-path allocation and compatibility
+regressions before promotion, then native profiling, rebuilt WASM and unchanged
 table/tree and normal/synchronized Storybook checks. Keep viewer sources, import
 boundaries, public artifacts, scope limits and concurrency unchanged. Keep the
 snapshot mechanisms and broader argument/result ownership changes separate.
@@ -3873,6 +3876,144 @@ After this correction, attribute the dominant actual tree-render body cost and
 use representative authored hook/recovery workloads before choosing another
 shared optimization.
 
-Production remains unchanged. The active TODO requires a measured proposal
-before shared ownership changes, and the user's current instruction requires a
-stop at decisions. This checkpoint records the tested candidate for that review.
+Production was unchanged at the investigation checkpoint. The user has now
+authorized this bounded construction change after reviewing its measured
+proposal, as required by the active TODO and stop-at-decisions instruction.
+
+
+#### Production direct owned input-context construction
+
+The approved direct construction is now the default renderer path. Setup keeps
+one owned clone of the host binding map, moves its copied explicit `datadom`
+into final construction and creates only missing output fields. It preserves
+shallow explicit precedence, the special `attributes` field, absent versus empty
+or non-record streams, independently owned plain records, full stream metadata
+and retained native CEM owners. Defaults/selects and rendering then proceed in
+the same order, with every public binding available.
+
+The former synthesize-then-merge implementation is retained only in the native
+`cfg(test)` baseline. Its restoring thread-local switch is off by default.
+Profiling compares `copied-input-construction` with default `direct-input`;
+older copy strategies explicitly retain the former construction. The default
+path records only initial binding copies and required missing-field values in test
+attribution, with no separate explicit-document, synthesized-document or merge
+copy. Variable scopes, try/catch, hooks, evaluator reads/results, public artifacts,
+source maps and scope limits retain their existing behavior.
+
+The default allocation regression fails before promotion on the copied item
+pointer. The new default render regression fails on its extra document-copy
+spans (`/tmp/cem-input-promote-red.log`). Both pass after promotion, proving
+allocation reuse, one initial binding-map copy, removed transient copies and
+public direct/explicit/attribute field precedence. Existing compatibility and
+owner checks now exercise production directly against the copied baseline;
+the renderer matrix also retains a forced-copy pass. All **104 unit tests**
+pass, with three opt-in profiles skipped (`/tmp/cem-input-promote-unit.log`).
+Native lint passes with the existing 131 CEM-ML/41 CEM-QL warnings
+(`/tmp/cem-input-promote-lint.log`).
+
+
+The promoted release profile passes in 106.15 s
+(`/tmp/cem-input-promote-release.log`), with no unrelated build/browser work
+running. Record-free medians use five warm samples after discarding the first.
+With 256 synthetic host controls, current copied construction versus default
+direct construction produces:
+
+| Workload | Copied construction, ms | Default direct construction, ms |
+| --- | ---: | ---: |
+| Authored XML table | 3.747 | 3.234 |
+| Retained XML table | 4.323 | 3.169 |
+| Authored CSV table | 5.018 | 4.202 |
+| Retained CSV table | 4.816 | 3.860 |
+| Authored YAML table | 6.535 | 5.473 |
+| Retained YAML table | 5.108 | 4.032 |
+| Authored JSON table | 5.686 | 4.717 |
+| Retained JSON table | 4.464 | 4.519 |
+| Authored XML tree | 95.295 | 93.832 |
+| 32 literal spans | 1.822 | 0.908 |
+
+Loaded XML setup falls **1.268→0.716 ms (43.5%)** in recorded attribution.
+Its one initial binding copy remains (0.272/0.229 ms). Separate synthesis and
+merge spans (0.366 ms each), plus the redundant explicit-document copy, are
+absent on the default path. Direct construction takes 0.473 ms, including
+0.167 ms for two required top-level fields and 0.276 ms for the attributes
+record. Nested and independently sampled medians are not additive. The full
+XML table median improves 13.7% in this run, with overlapping
+3.590–4.544 / 2.837–6.174 ms ranges; no general percentage is claimed.
+
+Tree setup falls 1.481→0.700 ms, while its roughly 94–95 ms total remains
+dominated by body work. Tree total ranges overlap (89.239–98.404 /
+91.789–97.102 ms). Retained JSON totals also overlap (4.372–4.545 /
+4.130–4.773 ms). These do not establish a stable end-to-end improvement for
+every fixture or a browser speedup.
+
+All four-format table and authored tree output/source-map/diagnostic/host-update,
+sorting and retained-native identity checks pass. They still record no try/hook
+snapshot spans. Scoped snapshot bookkeeping remains 120 calls at 0.014/0.013 ms
+for XML tables and 99 at 0.007/0.008 ms for the tree. Synthetic shadow, successful
+try, catch scan and hook scan medians are 11.486/9.889, 63.520/62.891,
+127.695/125.542 and 260.507/255.026 ms. Those mechanisms retain their copies;
+this setup change is not a snapshot optimization.
+
+
+Full native Nx validation passes **687 tests across 77 suites**, with eight
+opt-in profiles skipped (`/tmp/cem-input-promote-native-tests.log`). Native lint
+retains its existing warning counts, and fixture formatting/diff checks pass.
+No viewer source, external import path, artifact contract, scope limit or
+concurrency setting changed.
+
+
+The WASM/browser package rebuild passes
+(`/tmp/cem-input-promote-browser-build.log`). Packaged CEM-QL WASM SHA-256:
+`882f3525d0ecbd1ddb04d9f078f2e65af5353b4a24b7543993672f7434dd186d`.
+The unchanged standalone demos pass **40/40 table** and **18/18 tree** checks
+with no reported errors (`/tmp/cem-input-promote-{table,tree}-profile.{json,log}`).
+The authored page reaches four tables at 3.0519 s and seven cards at 3.8995 s.
+These observations validate browser integration, not a measured browser speedup.
+
+
+The normal Storybook run passes **203/203 tests in 42 files** in 39.86 s
+(`/tmp/cem-input-promote-normal.log`). Table, tree and inspector journeys
+complete in 12.3263/8.2504/2.7139 s. Viewer sources, assertions, scope limits
+and browser concurrency remain unchanged.
+
+
+The synchronized run passes **203/203 tests in 42 files** in 63.65 s
+(`/tmp/cem-input-promote-synchronized.log`). The stock probe starts after the
+actual Vitest `RUN` marker, with eight concurrent pages across four batches and
+the unchanged 45 s warning deadline. All **32/32 stock cases** pass without
+errors, with warning readiness at 4.809–10.939 s
+(`/tmp/cem-input-promote-synchronized-stock.{json,log}`). Both subprocesses exit
+zero (`/tmp/cem-input-promote-synchronized-status.log`). The table, tree and
+stock reports all record the rebuilt WASM hash above.
+
+Stock cases span **2026-09-23 03:25:41.071–03:26:20.852 UTC** (September 22
+locally). Table/tree stories start at 03:25:54.735/55.124 and the inspector at
+03:26:03.539. They complete in 24.8184/16.3963/7.2342 s, all during stock load.
+NPM default selection becomes ready at 03:26:27.466 (132/200 attempts,
+2.7027 s), and both location readers at 03:26:43.993 (23/180 attempts,
+0.7391 s). Those latter waits start after stock load ends; their behavior under
+that extra load remains unverified. The historical stock timeout remains
+unreproduced, and this correction does not claim to resolve it.
+
+The approved direct input construction is complete. XML, JSON, YAML and CSV
+still enter through shared CEM-ML import into retained native CEM trees. Next,
+attribute the dominant authored tree-render body cost and assess representative
+authored hook/recovery workloads before choosing another shared optimization.
+Further ownership changes require their own measured proposal.
+
+Reproduce the promoted path with:
+
+```sh
+cargo test -p cem-ql --lib input_profile_tests
+cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+yarn nx run cem-elements:build
+node tools/scripts/profile-cem-tree-render.mjs --fixture=table --output=/tmp/cem-input-promote-table-profile.json
+node tools/scripts/profile-cem-tree-render.mjs --output=/tmp/cem-input-promote-tree-profile.json
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test
+```
+
+For synchronized coverage, launch
+`node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=direct-input-construction --output=/tmp/cem-input-promote-synchronized-stock.json`
+after Vitest's `RUN` marker, retain both exit codes and verify actual overlap.
