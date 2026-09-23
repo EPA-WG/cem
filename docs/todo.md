@@ -2288,6 +2288,33 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         open for NPM/location failure attribution and other aggregate/frame
         predicates; the thirteen-file inventory is recorded in the
         [readiness audit](browser-stabilization-review.tmp.md#declaration-and-retry-readiness-audit).
+        Follow-up 2026-09-23: focused overlapping load reproduces NPM's
+        premature startup wait twice. Awaiting existing initial settlement
+        before the unchanged HTTP predicates passes the same workload, both
+        204-test full suites and all 160 stock probes. Location passes under
+        focused load; its failure and the broader inventory remain open. See
+        [NPM/location evidence](browser-stabilization-review.tmp.md#npm-and-location-readiness-under-overlapping-load).
+    - [x] Fixture: run focused NPM/location stories during synchronized stock
+          load, retaining the authored samples, predicates, frame budgets and
+          concurrency. Verify actual overlap from timestamps and capture
+          declaration/render/worker and resource-specific state at a reproduced
+          failure before choosing a bounded fixture correction. Record passing
+          controls and limitations separately from historical timeout claims.
+    - [x] Fixture: add opt-in HTTP lifecycle and native document-action metadata
+          to the existing worker trace. Test that observations exclude document
+          payloads, handles, response headers and unrelated slices; rerun the
+          unchanged readiness failure before choosing its correction.
+    - [x] Fixture: after the reproduced NPM startup timeout, await existing
+          source/declaration/render settlement before its unchanged HTTP and
+          interaction predicates. Preserve the 200-frame checks and 30-second
+          story limit; validate focused, viewer/stock, normal and synchronized
+          full coverage. Keep location unchanged until its failure is captured.
+    - [ ] Native fixture: attribute the NPM template's initial
+          `cem.ql.type_error` / `cem.ql.render.test_failed` diagnostics with an
+          absent registry slice versus a retained loaded document. They occur
+          in passing and failing browser runs; separate authored pending-state
+          guards from shared evaluator/loader behavior before changing either.
+          Keep diagnostics visible and stop before a shared contract change.
   - [x] Fixture: replace external-src's reproduced premature frame wait with
         declaration and render settlement, then assert every existing output
         within the unchanged story deadline. Add opt-in retry-attempt and

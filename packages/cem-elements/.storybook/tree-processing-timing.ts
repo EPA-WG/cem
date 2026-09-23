@@ -1,4 +1,4 @@
-import type { CemElementRuntimeOptions } from '../src/index.js';
+import type { CemElementRuntimeOptions, CemHttpResourceEnvelope } from '../src/index.js';
 import {
     defaultCemProcessingWorkerFactory,
     type CemProcessingEnvelope,
@@ -37,6 +37,16 @@ function viewerState(): object {
     };
 }
 
+/** Select lifecycle control fields only; never inspect the native document data. */
+export function httpReadinessMetadata(slices: Readonly<Record<string, unknown>>) {
+    return Object.entries(slices).flatMap(([slice, value]) => {
+        if (!value || typeof value !== 'object' || !('kind' in value) || value.kind !== 'http-request') return [];
+        const resource = value as CemHttpResourceEnvelope;
+        return [{ slice, state: resource.state, resourceRevision: resource.resourceRevision,
+            status: resource.response?.status }];
+    });
+}
+
 const workerFactory: CemProcessingWorkerFactory = input => {
     const worker = defaultCemProcessingWorkerFactory(input);
     const send = worker.postMessage.bind(worker);
@@ -51,9 +61,13 @@ const workerFactory: CemProcessingWorkerFactory = input => {
                 .filter(([key]) => key.startsWith('branch.'))
                 .map(([key, value]) => [key, typeof value === 'string' || typeof value === 'boolean' || value === null
                     ? value : '[non-scalar]'])),
+            httpResources: httpReadinessMetadata(message.payload.snapshot.slices),
         } : message.operation === 'compile' ? {
             tag: message.payload.producedTag,
             artifact: message.payload.templateArtifactId,
+        } : message.operation === 'document' ? {
+            action: message.payload.action,
+            instanceId: message.payload.handle.instanceId,
         } : message.operation === 'cancel' ? message.payload : {};
         jobs.set(message.jobId, { story, ...detail });
         emit('worker-send', { worker: input.name, jobId: message.jobId, operation: message.operation, ...detail });
@@ -74,6 +88,8 @@ const workerFactory: CemProcessingWorkerFactory = input => {
             patchOperations: data.result.frames.reduce((count, frame) =>
                 count + (frame.type === 'ops' ? frame.ops.length : 0), 0),
             diagnostics: data.result.diagnostics.map(item => item.code),
+        } : data.outcome === 'success' && data.operation === 'document' ? {
+            retained: data.result.retained,
         } : data.outcome !== 'success' ? { diagnostics: data.diagnostics.map(item => item.code) } : {};
         emit('worker-response', {
             worker: input.name, jobId: data.jobId, operation: data.operation, outcome: data.outcome,

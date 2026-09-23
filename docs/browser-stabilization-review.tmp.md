@@ -4967,3 +4967,142 @@ For synchronized coverage, launch
 `node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=single-pass-public-projection --output=/tmp/cem-projection-promote-synchronized-stock.json`
 after the traced Storybook run's Vitest `RUN` marker; retain both exit codes and
 verify actual overlap.
+
+
+### NPM and location readiness under overlapping load
+
+The public-projection follow-up returns to the remaining readiness audit. The
+existing tracer is enabled with `STORYBOOK_CEM_TREE_TRACE=1`; stock probing
+starts at the focused Vitest `RUN` marker with the established eight pages,
+four batches and 45-second warning limit. The original stories retain all
+predicates, 200/180-frame NPM/location waits and their 30-second story limit.
+The authored demos, templates and native runtime are unchanged.
+
+The two-story control passes **2/2**, alongside **32/32 stock cases**, with no
+stock errors (`/tmp/cem-readiness-focus-synchronized{,-stock,-status}.log` and
+`/tmp/cem-readiness-focus-synchronized-stock.json`). Stock activity spans
+**2026-09-23 14:52:24.857–14:52:44.558 UTC**. NPM's default selection finishes at
+14:52:31.243 after 1.8994 s / 90 frames; location's two readers finish at
+14:52:30.269 after 0.9223 s / 33 frames. All later interactions pass too. This
+establishes actual overlapping coverage, unlike preceding full-suite runs where
+these stories started after the stock probes finished.
+
+Adding the existing table, tree and inspector files to the focused workload
+reproduces **one NPM failure, with 14 other tests passing** in five files
+(`/tmp/cem-readiness-viewers-synchronized.log`). All 32 stock cases pass without
+errors. Stock activity spans **14:53:28.135–14:53:52.179 UTC**. At 14:53:40.093,
+NPM's default-selection wait expires after **5.6102 s / 200 frames**. The source
+and all eight nested declarations have registered, with no declaration
+diagnostics. All five picker instances remain in pending initial rendering;
+the default picker has no select. Its later revision-4 render succeeds at
+14:53:40.378. Location passes all its assertions, with initial readers ready in
+2.6992 s / 67 frames. The failed NPM run does not verify its later assertions.
+
+#### Resource-specific observations before the correction
+
+The existing opt-in worker trace now selects only HTTP lifecycle control fields
+from the render request's existing snapshot: slice name, state, resource
+revision and response status. Native document requests report action and
+instance ID; responses report retention success. These are observations of
+already submitted messages, not fresh runtime snapshots or a new readiness
+API. No source body, native value, document key, response headers or complete
+snapshot is exported. The guard regression in `readiness-timing.stories.ts`
+uses throwing getters to reject document/private-response reads and checks
+pending/loaded summaries plus unrelated-slice exclusion. It passes **1/1**
+(`/tmp/cem-readiness-metadata.log`); package lint passes with the two existing
+warnings (`/tmp/cem-readiness-lint.log`).
+
+With only that observation added, the five-file workload reproduces the same
+**14/15** result (`/tmp/cem-readiness-resource-synchronized.log`). Stock is
+**32/32**, error-free, during **14:57:24.756–14:57:49.007 UTC**. NPM's unchanged
+200-frame wait expires at **14:57:36.267**, after **5.1771 s**. Its initial
+render was sent at 14:57:36.161 with no HTTP slice yet. The default picker's
+native document retain is sent at **14:57:36.533**, succeeds at **36.547**, and
+the loaded-state render is sent at **36.768** with `registry` state `loaded`,
+resource revision 1 and HTTP 200. That render succeeds without diagnostics at
+**36.963**, 696 ms after the polling deadline. This identifies a premature
+startup wait before native import/render completion; it does not identify a
+transport failure or prove the post-failure story's remaining behavior.
+Location again passes, reaching its initial readers in 3.7186 s / 87 frames.
+
+Both the passing two-story control and failing viewer workload contain initial
+`cem.ql.type_error` / `cem.ql.render.test_failed` diagnostics before a registry
+slice exists; their loaded renders have no diagnostics. Initial diagnostic
+history is therefore not sufficient to attribute this timing failure. This
+fixture correction does not suppress those diagnostics or change missing-value
+semantics; their native/template validation remains separate follow-up work.
+
+#### NPM fixture correction
+
+After checking the existing five-card inventory, the NPM story now awaits the
+existing `whenCemSourceRendered` helper before testing default selection. That
+helper observes source rendering, nested declaration settlement and the current
+render of their produced instances. A read-only checkpoint records that phase.
+It does not promise completion of future HTTP work: all resource/output and
+interaction predicates remain in place, with their original frame limits.
+The global 30-second story limit also remains unchanged. Location receives no
+wait change because its failure has not been reproduced in this audit.
+
+The trace-boundary regression and focused NPM/location stories pass **3/3**
+(`/tmp/cem-readiness-fixed-focused.log`). Initial render settlement is recorded
+at 1.2571 s and the existing NPM default-selection check passes immediately.
+
+The formerly failing five-file viewer workload now passes **15/15**, with
+**32/32 stock cases** and no stock errors
+(`/tmp/cem-readiness-fixed-synchronized{,-stock,-status}.log` and the stock JSON
+report). Stock activity spans **14:59:28.974–14:59:52.495 UTC**. NPM's initial
+render checkpoint occurs at **14:59:41.253**, **6.0331 s** after story startup;
+the unchanged default-selection predicate then passes on its first check.
+Every later selection, date, label, propagation and URL assertion passes.
+The readiness phase exceeds both previously failed polling durations, within
+the same 30-second story limit. Location also passes, taking 2.1854 s / 74 frames
+to render both initial readers. Both complete journeys overlap stock activity.
+
+Final normal coverage passes **204/204 tests in 43 files**, with tracing
+disabled, in **33.06 s** (`/tmp/cem-npm-readiness-normal.log`). The new test is
+the control-metadata boundary regression; authored sample coverage is retained.
+Final synchronized full coverage passes **204/204** in **58.08 s**, alongside
+**32/32 stock cases** with no errors and warning readiness at 3.0169–8.8550 s
+(`/tmp/cem-npm-readiness-full-synchronized{,-stock,-status}.log` and the stock
+JSON report). Both subprocesses exit zero.
+
+The final stock interval is **15:02:32.690–15:03:06.431 UTC**. Table/tree/inspector
+journeys overlap it and complete in 21.5230/9.1540/4.7579 s. NPM's initial
+checkpoint is later, at 15:03:14.143; its default check passes immediately.
+Location's readers finish at 15:03:27.568 after 1.3126 s / 37 frames. Thus the
+focused runs above provide the NPM/location overlap evidence; the full run
+provides regression coverage, not another reproduction under stock load.
+
+All **160 stock cases** in this investigation pass. Every recorded stock-report
+file hash matches the final unchanged runtime/viewer artifacts, including
+packaged CEM-QL WASM
+`045686972ebbcef44c444653086ad9b74e52d03c9e09d465b4e6a3fa3dd97881`.
+The Storybook target reuses the existing native/WASM builds. Only the NPM test
+sequence, opt-in observations and their test change; no Rust, production runtime,
+HTTP/import contract or viewer template changes, so native suites are not rerun
+for this fixture correction. Final package lint passes with its two existing
+warnings (`/tmp/cem-npm-readiness-lint.log`), and `git diff --check` passes.
+
+The NPM readiness correction is complete. The historical stock timeout remains
+unreproduced, as does location's earlier timeout. Next, isolate the initial NPM
+missing-registry diagnostics in a native fixture, distinguishing an authored
+pending-state guard from evaluator/loader semantics before changing either.
+Continue the remaining frame/aggregate readiness audit separately; do not apply
+this initial-render wait to future HTTP completion or every interaction.
+
+Reproduce the focused and full gates:
+
+```sh
+STORYBOOK_CEM_TREE_TRACE=1 yarn nx run cem-elements:test --args='readiness-timing.stories.ts npm-versions-demo.stories.ts location-element-demo.stories.ts'
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test --args='npm-versions-demo.stories.ts location-element-demo.stories.ts data-table-demo.stories.ts data-tree-demo.stories.ts table-inspector-demo.stories.ts'
+yarn nx run cem-elements:test
+yarn nx run cem-elements:lint
+git diff --check
+```
+
+For overlapping coverage, launch
+`node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=npm-readiness --output=/tmp/cem-npm-readiness-stock.json`
+after the traced run's Vitest `RUN` marker. Retain both process exit codes,
+stock failures/errors, readiness snapshots and actual UTC intervals. The failed
+runs retain their original later-assertion limitations; they are not passing
+coverage merely because the worker eventually finishes.

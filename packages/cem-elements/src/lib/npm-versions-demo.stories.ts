@@ -1,5 +1,5 @@
-import { readinessWait } from '../../.storybook/readiness-timing.js';
-import { traceCemReadiness } from '../../.storybook/preview.js';
+import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
+import { traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 
 const SOURCE_TAG = 'story-npm-versions-demo-document';
@@ -32,6 +32,10 @@ export const EveryAuthoredSample: Story = {
                 300
             );
             assertDeepEqual(sampleLegends(host), [...EXPECTED_LEGENDS], 'npm-version sample inventory');
+            await whenCemSourceRendered(host);
+            readinessCheckpoint('initial-render-settled');
+            // Initial rendering can precede HTTP completion. Keep the resource
+            // and interaction predicates below, with their existing frame limits.
 
             const defaults = sampleByLegend(host, EXPECTED_LEGENDS[0]);
             await waitForCondition(
