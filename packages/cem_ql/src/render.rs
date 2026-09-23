@@ -43,6 +43,8 @@ mod prepared_tests;
 mod copy_profile_tests;
 #[cfg(test)]
 mod input_profile_tests;
+#[cfg(test)]
+mod body_profile_tests;
 
 /// Explicit result instructions survive portable compilation. Unknown instructions
 /// are rejected by older artifact readers instead of becoming literal elements.

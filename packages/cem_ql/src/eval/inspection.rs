@@ -14,11 +14,16 @@ use cem_ml::{
 };
 use std::sync::Arc;
 
+#[cfg(test)]
+pub(crate) mod profile_tests;
+
 pub(super) fn inspect(
     arguments: Vec<ItemStream>,
     ctx: &mut EvalCtx<'_>,
     source: IrId,
 ) -> ItemStream {
+    #[cfg(test)]
+    let mut profile = crate::compile_profile::Span::new("inspect/payload");
     let document = match arguments[0].items.as_slice() {
         [] => return ItemStream::empty(),
         [item] => super::data::retained_document(item),
@@ -52,12 +57,30 @@ pub(super) fn inspect(
         Ok(permit) => permit,
         Err(failure) => return failure,
     };
+    #[cfg(test)]
+    profile.next("inspect/projection");
     let stream = Arc::new(cem_tree_inspection(owner.clone()));
     if let Err(failure) = ctx.force_safe_point(source) {
         return failure;
     }
+    #[cfg(test)]
+    profile.next("inspect/environment-and-writer");
+    #[cfg(test)]
+    if let Some(result) = profile_tests::prepared_output(&owner, stream.clone()) {
+        profile.next("inspect/accept");
+        if let Err(failure) = ctx.force_safe_point(source) {
+            return failure;
+        }
+        return accept_output(result, ctx, source);
+    }
+    #[cfg(test)]
+    profile.next("inspect/schema-registry");
     let registry = SchemaRegistry::with_builtin_schemas();
+    #[cfg(test)]
+    profile.next("inspect/conversion-registry");
     let conversions = ConversionRegistry::with_builtin_converters();
+    #[cfg(test)]
+    profile.next("inspect/writer");
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &registry,
         conversion_registry: &conversions,
@@ -78,6 +101,8 @@ pub(super) fn inspect(
         None,
         Some(owner.source_uri()),
     );
+    #[cfg(test)]
+    profile.next("inspect/accept");
     // Native formatting is synchronous. Observe cancellation/deadlines after
     // it as well as before it; its text remains private until acceptance.
     if let Err(failure) = ctx.force_safe_point(source) {

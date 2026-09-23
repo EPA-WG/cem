@@ -26,6 +26,8 @@ use crate::types::Type;
 mod data;
 mod chain;
 mod inspection;
+#[cfg(test)]
+pub(crate) use inspection::profile_tests as inspection_profile_tests;
 pub mod values;
 pub mod value_control;
 mod template_dispatch;

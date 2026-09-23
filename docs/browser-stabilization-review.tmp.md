@@ -4017,3 +4017,157 @@ STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements
 For synchronized coverage, launch
 `node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=direct-input-construction --output=/tmp/cem-input-promote-synchronized-stock.json`
 after Vitest's `RUN` marker, retain both exit codes and verify actual overlap.
+
+### Authored body attribution after direct input construction
+
+The next investigation is complete on the `0b1a289e` production baseline.
+All new attribution and the alternative registry path are `cfg(test)` only.
+The data-table, XML/tree and cell override viewers, shared import boundary,
+production registry lifetimes, output contracts, limits and concurrency remain
+unchanged. The candidate does not ship in the native library or WASM.
+
+`eval/inspection/profile_tests.rs` tests an immutable pair of complete built-in
+schema and conversion registries held by a lazy `OnceLock`. A restoring
+thread-local test override supplies that pair to `cemml:inspect`. The candidate
+still executes the same tabular typed CEM writer for every call, with its
+per-call pipeline and artifact cache. It caches no documents, projections,
+render plans, writer results, caller bindings, scope controls or diagnostics.
+The production path continues to build both registries for each invocation.
+
+`render/body_profile_tests.rs` measures the exact unchanged
+`data-tree-view.cemt` and `tree-source.xml`, and extracts the existing parent and
+child templates from sample 3 of `cell-overrides.html`. Hook cases render each
+component separately; they do not measure cross-worker attribute delivery.
+The import-recovery expression comes verbatim from `xpath-functions.html`,
+wrapped in a `pre` for native rendering. The CEMT recovery body comes from the
+package README; the fixture supplies its named `load-content` template with a
+successful body or either of two explicit failures. No demo feature was added.
+Zero/256-control cases use synthetic host-control metadata to measure input-size
+sensitivity, not to assert actual browser component state sizes. XML document
+inputs still enter only through shared CEM-ML import into native CEM trees.
+
+Two isolated release runs pass in **6.43/6.32 s**, with compilation and other
+heavy work kept outside the measurements. Each case has six recorded and six
+record-free renders; warm statistics discard the first and report the median
+of five. Compilation, assertions and final HTML projection are outside the
+timed render. A separate cold case supplies a new registry pair for every
+render, including its destruction. These are native measurements, not browser
+readiness claims.
+
+| Record-free workload | First run, ms | Repeat, ms |
+| --- | ---: | ---: |
+| Tree, no added controls, current per-call registries | 87.743 | 88.232 |
+| Tree, no added controls, warm candidate | 21.849 | 25.897 |
+| Tree, 256 controls, current per-call registries | 91.724 | 92.066 |
+| Tree, 256 controls, warm candidate | 24.637 | 22.601 |
+| Tree, 256 controls, cold candidate each render | 90.184 | 91.290 |
+| Direct inspection query, current registries | 92.607 | 89.879 |
+| Direct inspection query, warm candidate | 22.172 | 21.546 |
+
+The loaded tree's warm ranges are **85.907–94.742 / 21.654–25.083 ms**
+(current/candidate) in the first run and **86.437–94.389 / 21.900–23.424 ms**
+in the repeat. Cold-candidate ranges, **88.906–99.722 / 88.579–92.008 ms**, overlap
+the current path. Reuse reduces warm tree time by 73–75% in these two runs;
+there is no demonstrated first-use improvement.
+
+Recorded loaded-tree attribution identifies **14.481/13.956 ms** in schema
+construction and **51.578/52.579 ms** in conversion-registry construction.
+Projection takes **0.031/0.033 ms** and the typed writer **19.670/20.465 ms**.
+The candidate constructs the pair once (66.281/65.246 ms on its first call),
+then records zero registry builds on warm calls. Its writer still costs
+19.257/20.055 ms. Nested and independently sampled medians are not additive.
+The result identifies metadata setup as the next bounded target; it does not
+justify skipping package formatters or replacing typed CEM output with JSON.
+
+Authored hook and recovery measurements are:
+
+| Record-free workload | No added controls, first/repeat ms | 256 controls, first/repeat ms |
+| --- | ---: | ---: |
+| Child's content hook | 0.079 / 0.098 | 7.238 / 7.528 |
+| Parent's typed attribute hook | 0.506 / 0.451 | 9.600 / 9.526 |
+| README CEMT recovery, success | 0.014 / 0.012 | 3.021 / 2.938 |
+| README CEMT recovery, first catch | 0.023 / 0.026 | 2.925 / 3.268 |
+| README CEMT recovery, second catch | 0.025 / 0.026 | 3.740 / 3.572 |
+| Demo query import recovery, valid XML | 0.331 / 0.407 | 1.476 / 1.400 |
+| Demo query import recovery, malformed XML | 0.418 / 0.429 | 1.261 / 1.335 |
+
+The child records one hook capture and one dispatch; the parent records one
+capture and two dispatches. In the first loaded-parent profile, capture costs
+0.470 ms, scope copies 1.110 ms, caller copies 1.031 ms and installed-binding
+copies 1.066 ms. Each CEMT recovery case records one snapshot; success and the
+first catch restore once, while the second catch restores twice. The loaded
+second-catch case records 0.431 ms for snapshotting and 0.910 ms for restores.
+Query recovery records no CEMT try/hook snapshots. The tree records neither.
+These single authored examples establish size-sensitive snapshot costs, but
+the earlier synthetic 32-hook/try totals do not describe ordinary demo renders.
+Broader hook, recovery or argument/result ownership changes remain separate
+work requiring their own proposal.
+
+Six new native checks cover exact output, diagnostics, source maps and output
+spans; both imported and XPath document views for XML/JSON/YAML/CSV; raw and
+formatted owner identity; document release while the registry pair remains
+alive; empty-input laziness; lowered item/output/payload limits; enclosing
+memory failure and cancellation; concurrent first initialization; override
+restoration after unwinding; and the authored hook/recovery behaviors above.
+Four simultaneous native callers build one pair and receive their own document
+text and source URI. Existing per-call limits and protected-failure behavior
+remain in force. The focused run passes 41 profile-related tests, with four
+opt-in profiles skipped. Lint passes with the existing 131 CEM-ML/41 CEM-QL
+warnings; new fixture formatting and diff checks pass. Full native Nx validation
+passes **693 tests across 77 suites**, with nine opt-in profiles skipped
+(`/tmp/cem-inspect-body-native-tests.log`). Browser/WASM was not rebuilt or
+rerun for this test-only investigation; the last production validation remains
+the direct-input-construction checkpoint above.
+
+Evidence: `/tmp/cem-inspect-body-unit.log`,
+`/tmp/cem-inspect-body-lint.log`,
+`/tmp/cem-inspect-body-release-build.log`,
+`/tmp/cem-inspect-body-release.log` and
+`/tmp/cem-inspect-body-repeat.log`. Reproduce sequentially:
+
+```sh
+cargo test -p cem-ql --lib profile_tests
+cargo test -p cem-ql --release --lib profile_authored_bodies -- --ignored --nocapture --test-threads=1
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+```
+
+### Pending decision: immutable inspection registries
+
+The active TODO requires a measured proposal before another shared optimization,
+and the user requested a stop at decisions. The prototype above establishes a
+warm benefit; changing registry lifetime in production now needs a decision.
+
+| Direction | Benefit | Cost or limit |
+| --- | --- | --- |
+| **Reuse a private immutable built-in registry pair for `cemml:inspect` (recommended)** | Eliminates repeated schema/package metadata construction; native candidate lowers warm loaded-tree render from about 92 ms to 23–25 ms | Retains one complete metadata pair for the native process or WASM-instance lifetime; first call still pays construction; each worker initializes independently |
+| Keep per-call registry construction | Keeps the present lifetime and releases metadata after each inspection | Repeats roughly 66 ms of setup on each measured tree render |
+
+Recommended production scope: a lazy, private `OnceLock` containing only the
+built-in `SchemaRegistry` and `ConversionRegistry`. Borrow their immutable
+references for inspection. Native callers share one process-local pair;
+independent WASM instances/workers each own theirs. Do not change the public
+registry constructors or cache keys for documents or artifacts. No caller
+registration, package reader or scope state can enter this baseline. The
+writer's mutable `ConversionOutputPipelineArtifactCache` remains per call.
+Embedded package metadata is fixed by the binary, so a new binary/worker owns
+a new baseline; no runtime invalidation protocol is introduced.
+
+This trades repeated allocation for retained, fixed built-in metadata. Heap
+retention in bytes has not been measured; it is bounded by the embedded
+registry contents, not by document count or size. Metadata setup remains host
+infrastructure, with the current document/output charging and environment-defined
+limits preserved. Validate those limits and scope lowering again on promotion.
+Initialization remains synchronous; a concurrent native first caller can wait
+for the same initialization, with the existing safe points before/after native
+formatting. The proposal does not add finer-grained initialization cancellation.
+
+If accepted, promote the pair behind the same immutable access, retain a
+per-call test baseline, and add default-path reuse/lifetime/concurrency checks.
+Run the native suite and repeat the profile, rebuild WASM, verify unchanged
+table/tree and cell-hook examples, then run normal and synchronized Storybook
+with the stock probe and unchanged limits/concurrency. Check actual load overlap
+and retain the rebuilt WASM hash. First-use browser startup and the historical
+stock timeout remain unproven by this warm native improvement. Attribute the
+remaining typed writer cost only after the approved change is validated; keep
+hook/recovery ownership work separate.

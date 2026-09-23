@@ -2588,10 +2588,34 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         table/18 tree checks, both 203-test Storybook runs and all 32 stock cases.
         Table/tree/inspector overlap stock load; NPM/location waits follow it.
         See the [production evidence](browser-stabilization-review.tmp.md#production-direct-owned-input-context-construction).
-  - [ ] After that correction, attribute the dominant authored tree-render body
+  - [x] After that correction, attribute the dominant authored tree-render body
         cost and assess representative authored hook/recovery workloads before
         choosing another shared optimization. Require a measured proposal; keep
         broad argument/result ownership redesigns separate.
+        Completed 2026-09-22: registry setup dominates the unchanged tree;
+        authored hook and query/CEMT recovery costs are measured separately.
+        See the [body attribution](browser-stabilization-review.tmp.md#authored-body-attribution-after-direct-input-construction).
+    - [x] Fixture: split retained inspection into payload/projection, built-in
+          registry construction and typed writer execution. Compare a native
+          test-only immutable registry baseline on the unchanged tree template,
+          including cold setup and four-format output/owner/limit contracts.
+          Profile the cell override demo's authored hooks and its documented
+          import-recovery expression and README CEMT recovery example;
+          distinguish query recovery from CEMT snapshots. Keep production
+          registry lifetime and viewers unchanged.
+          Completed 2026-09-22: six new checks, both isolated release profiles,
+          all 693 native tests, lint and fixture formatting pass. Warm loaded
+          tree rendering falls 91.724→24.637 ms and 92.066→22.601 ms with the
+          test-only registry pair; cold rendering remains about 90–91 ms.
+          Four-format output/provenance, document release, limits and concurrent
+          initialization pass. No production or browser behavior changed.
+  - [ ] Decide whether `cemml:inspect` should reuse one private immutable
+        built-in schema/conversion registry pair for the process/WASM-instance
+        lifetime. Recommend lazy reuse; retain per-call writer/cache, native
+        owners, limits and public constructor behavior. The tested proposal
+        records the retained metadata and unchanged first-call cost; stop before
+        production promotion per the user's instruction. See the
+        [decision](browser-stabilization-review.tmp.md#pending-decision-immutable-inspection-registries).
 
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
