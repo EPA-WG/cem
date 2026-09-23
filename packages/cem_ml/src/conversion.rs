@@ -11217,7 +11217,11 @@ fn cemt_tree_public_projection(
                 .to_public_json()
                 .expect("typed CEM-tree public projection is infallible"),
         ),
-        source_map: artifact.source_map().cloned(),
+        source_map: {
+            #[cfg(test)]
+            let _profile = writer_profile_tests::Span::new("projection/source-map-clone");
+            artifact.source_map().cloned()
+        },
         output_spans: Vec::new(),
         encoded: true,
     }

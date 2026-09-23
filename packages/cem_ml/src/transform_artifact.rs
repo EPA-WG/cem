@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod projection_profile_tests;
+
 use crate::engine::FormatIdentity;
 use crate::interpreter::OutputSpan;
 use crate::lifecycle::LoadedInputAstStream;
@@ -529,6 +532,8 @@ impl CemtTreeArtifact {
     /// boundary. Runtime stages retain `CemtTreeArtifact` ownership and must
     /// not consume this JSON projection.
     pub fn to_public_json(&self) -> Result<serde_json::Value, String> {
+        #[cfg(test)]
+        let _profile = crate::conversion::writer_profile_tests::Span::new("projection/value-json");
         let mut value = CemtEvaluatorValue::borrowed(self.evaluator_view()).to_public_json()?;
         if let Some(overlay) = self.colored_overlay.as_ref() {
             let formatted_overlay = self
@@ -2115,6 +2120,10 @@ impl<'a> CemtEvaluatorValue<'a> {
                 .map(serde_json::Value::Array),
             Self::Record(_) => self.record_to_public_json(),
             Self::SourceMap(value) => {
+                #[cfg(test)]
+                let _profile = crate::conversion::writer_profile_tests::Span::new(
+                    "projection/source-map-json",
+                );
                 serde_json::to_value(value.as_ref()).map_err(|error| error.to_string())
             }
             Self::Borrowed(value) => match value {
@@ -2136,23 +2145,37 @@ impl<'a> CemtEvaluatorValue<'a> {
                         })
                         .collect(),
                 )),
-                CemtEvaluatorValueRef::Sequence(sequence) => (0..sequence.len())
-                    .map(|index| {
-                        sequence
-                            .item(index)
-                            .map(Self::from_borrowed_ref)
-                            .ok_or_else(|| {
-                                format!("typed evaluator sequence item {index} is unavailable")
-                            })?
-                            .to_public_json()
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .map(serde_json::Value::Array),
+                CemtEvaluatorValueRef::Sequence(sequence) => {
+                    #[cfg(test)]
+                    if let Some(projected) = projection_profile_tests::project_sequence(sequence) {
+                        return projected;
+                    }
+                    (0..sequence.len())
+                        .map(|index| {
+                            sequence
+                                .item(index)
+                                .map(Self::from_borrowed_ref)
+                                .ok_or_else(|| {
+                                    format!("typed evaluator sequence item {index} is unavailable")
+                                })?
+                                .to_public_json()
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .map(serde_json::Value::Array)
+                }
                 CemtEvaluatorValueRef::Record(_) => self.record_to_public_json(),
                 CemtEvaluatorValueRef::SourceMap(value) => {
+                    #[cfg(test)]
+                    let _profile = crate::conversion::writer_profile_tests::Span::new(
+                        "projection/source-map-json",
+                    );
                     serde_json::to_value(value).map_err(|error| error.to_string())
                 }
                 CemtEvaluatorValueRef::OwnedSourceMap(value) => {
+                    #[cfg(test)]
+                    let _profile = crate::conversion::writer_profile_tests::Span::new(
+                        "projection/source-map-json",
+                    );
                     serde_json::to_value(value.as_ref()).map_err(|error| error.to_string())
                 }
             },
@@ -3317,6 +3340,10 @@ fn cemt_evaluator_formatted_node_sequence_len(
     parent: Option<&CemtOwnerPath>,
     overlay: &CemtFormattedTreeOverlay,
 ) -> usize {
+    #[cfg(test)]
+    let _profile = crate::conversion::writer_profile_tests::Span::new(
+        "projection/formatted-sequence-len",
+    );
     let inserted = (0..=nodes.len())
         .map(|before_node| {
             overlay
@@ -3348,6 +3375,10 @@ fn cemt_evaluator_formatted_node_sequence_item<'a>(
     overlay: &'a CemtFormattedTreeOverlay,
     requested: usize,
 ) -> Option<CemtEvaluatorValueRef<'a>> {
+    #[cfg(test)]
+    let _profile = crate::conversion::writer_profile_tests::Span::new(
+        "projection/formatted-sequence-item",
+    );
     let mut logical_index = 0usize;
     for before_node in 0..=nodes.len() {
         for (operation_index, operation) in overlay.node_operations.iter().enumerate() {
@@ -8557,6 +8588,8 @@ fn cemt_evaluator_owner_operation<'a>(
     path: &CemtOwnerPath,
     kind_matches: impl Fn(&CemtNodeFormatOperationKind) -> bool,
 ) -> Option<CemtEvaluatorValueRef<'a>> {
+    #[cfg(test)]
+    let _profile = crate::conversion::writer_profile_tests::Span::new("projection/owner-operation");
     overlay
         .node_operations
         .iter()

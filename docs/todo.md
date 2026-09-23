@@ -2704,7 +2704,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           writer fixtures, 2,370 Rust checks in the full Nx chain, lint and
           formatting pass. Production promotion pauses at the decision above.
 
-  - [ ] Attribute the remaining public projection cost after single-build
+  - [x] Attribute the remaining public projection cost after single-build
         formatter validation. Fixture: separate projection traversal,
         materialization and source-map work on the authored tree and bounded
         larger native trees; compare exact public sidecars, provenance, native
@@ -2712,6 +2712,33 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         preserve existing public projections. Record isolated release evidence
         before proposing any shared projection or ownership change; stop for
         a decision before production promotion. Keep hook/recovery work separate.
+    - [x] Fixture: instrument formatted-sequence traversal, public value
+          construction and source-map work; compare a test-only single-pass
+          public projection with indexed reads. Cover inserted/removed nodes,
+          empty and nested sequences, overlay order, raw/formatted/colored
+          artifacts, four imports, exact sidecars and native document release.
+          Profile authored and bounded larger inputs with production unchanged.
+          Completed 2026-09-23: five focused tests and the debug profile pass;
+          full Nx validation passes 2,376 Rust checks (2,045 CEM-ML unit tests),
+          lint and formatting. Two isolated release runs attribute larger-input
+          cost to repeated indexed traversal. The test-only candidate cuts
+          32-row projection 11.568→3.816 ms and its full writer 66.457→58.328 ms
+          in the repeat; the authored case has no established gain. Public
+          sidecars, provenance and native owners remain intact. See
+          [attribution](browser-stabilization-review.tmp.md#public-projection-traversal-attribution).
+  - [ ] Decide whether to promote single-pass public projection for borrowed
+        formatted-node sequences. Recommend the tested private exporter while
+        preserving indexed access, exact sidecars and native ownership. Stop
+        before this shared production change per the user's instruction. See
+        [the tested proposal](browser-stabilization-review.tmp.md#pending-decision-single-pass-public-projection).
+  - [ ] After approval, promote the single-pass public exporter. Fixture: require
+        the default projection to avoid repeated indexed reads and retain the
+        former exporter as a test comparison; preserve gap/order/removal,
+        raw/formatted/colored output, errors, four-format source provenance and
+        document release. Repeat native tests and isolated release profiling,
+        rebuild WASM and run unchanged table/tree and normal/synchronized
+        Storybook/stock checks. Keep field/index caching and hook/recovery
+        ownership changes separate; stop if new behavior differences emerge.
 
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test

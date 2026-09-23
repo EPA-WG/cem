@@ -4669,3 +4669,168 @@ For synchronized coverage, launch
 `node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=single-build-formatter --output=/tmp/cem-single-promote-synchronized-stock.json`
 after the traced Storybook run's Vitest `RUN` marker; retain both exit codes
 and verify actual overlap.
+
+
+### Public projection traversal attribution
+
+The single-build follow-up adds a test-only fixture in
+`src/transform_artifact/projection_profile_tests.rs`. Existing writer profiling
+helpers are shared within the test build. Production keeps indexed projection;
+all instrumentation and the candidate switch are gated by `cfg(test)`.
+
+The indexed `FormattedNodes` projection first computes its length, then calls
+`item(index)` for every output position. Each indexed call starts at the first
+gap, scans the overlay operations at each visited gap, and checks retained owner
+paths again. A wide sequence repeats traversal of its earlier members. Source
+inspection identifies this repeated work; the measurements below distinguish
+it from public value construction and source-map serialization.
+
+The bounded candidate specializes only the explicit public projection of
+borrowed `FormattedNodes`. It visits each gap and retained native node once,
+appending directly to the required public array. It borrows nodes and overlay
+operations, preserving original owner paths, operation indices and operation
+vector order. It does not clone a native tree, create a materialized AST,
+retain a new index, or change the indexed/iterator API. The public result vector
+can grow as it is filled; this prototype does not precompute its final length.
+Overlay matching at each gap, retained-path membership and field lookups still
+use their existing scans, so this is not a claim of linear complexity for the
+whole projection.
+
+A restoring thread-local switch limits the counterfactual to a test scope;
+nested scopes and panic unwinding restore the prior mode. Other sequence types
+use the default exporter, including package-owned sparse sequences and their
+exact missing-item errors. The candidate's exported JSON is the existing
+explicit API/debug sidecar, never an internal AST handoff.
+
+The first regression fails while the candidate is a no-op because it still
+records indexed formatted reads (`/tmp/cem-projection-red.log`). The implemented
+candidate eliminates both formatted-sequence length and indexed-item calls
+inside that projection. All **five focused tests** pass
+(`/tmp/cem-projection-unit.log`), covering:
+
+- Empty sequences, generated gaps before/between/after original nodes, removed
+  nodes, out-of-range gaps and operation-vector order that differs from ordinal
+  order.
+- Nested and empty-child gaps, raw/formatted/colored projections, a color
+  wrapper, exact sidecar serialization, source-map identity, native owner
+  identity/release and unchanged missing-formatted-overlay rejection.
+- Package sparse-sequence error parity and restoration after nested scopes and
+  panic unwinding.
+- XML/JSON/YAML/CSV through CEM-ML import into retained CEM AST DOM trees, three
+  formatter profiles, with and without terminal coloring. Complete pipeline
+  output, spans, source maps, format/color execution metadata and public
+  sidecars remain identical; both successful results release their input owner
+  when dropped.
+
+The opt-in profile separates an existing formatted artifact's public projection
+from full inspection-plus-writer execution. It samples the unchanged authored
+tree and separate 8/32/64-row imports. Test-only spans record formatted length/
+indexed reads, owner-operation lookup, source-map JSON serialization and the
+outer sidecar's source-map clone. A walk-only control follows the same native
+field and indexed-sequence access without constructing public containers or
+serializing source maps. Comparing that control with full projection estimates
+where export materialization matters; independently sampled medians are not
+exactly subtractable. Nested projection spans are likewise not additive.
+
+The complete ignored profiling fixture also passes in a debug smoke run
+(`/tmp/cem-projection-smoke.log`, 89.59 s), including both full pipeline modes
+and the 64-row control. That run overlaps compilation and is used only to
+validate the fixture, not to claim performance. Native lint passes with the
+existing 131 library warnings (`/tmp/cem-projection-lint.log`). New fixture
+formatting and `git diff --check` pass.
+
+Full native Nx validation passes **2,376 Rust checks in 56 result summaries**,
+including **2,045 CEM-ML unit tests**, with the two opt-in profiles ignored
+(`/tmp/cem-projection-native.log`). Counts normalize terminal line breaks as in
+the preceding checkpoints. The diagnostic/source-boundary regressions remain
+unchanged and pass in that full chain.
+
+Both isolated release runs pass after other builds/checks finish, in
+**5.40 s / 5.16 s** (`/tmp/cem-projection-release.log` and
+`/tmp/cem-projection-release-repeat.log`). The second run checks the small
+case's variability rather than replacing the first result. Record-free medians
+use five warm samples after discarding the first. Projection-only timings reuse
+an already formatted native artifact; full pipeline timings include inspection,
+formatting, writing and sidecar construction, with built-in registries outside
+the timer. All samples check exact outputs and retain the native owner checks.
+
+| Input | Indexed projection, ms (first / repeat) | Single-pass projection, ms (first / repeat) | Indexed walk only, ms (first / repeat) |
+| --- | ---: | ---: | ---: |
+| Authored tree | 0.487 / 0.445 | 0.499 / 0.579 | 0.143 / 0.145 |
+| 8 rows | 0.884 / 0.791 | 0.733 / 0.756 | 0.355 / 0.397 |
+| 32 rows | 11.390 / 11.568 | 3.918 / 3.816 | 8.979 / 9.074 |
+| 64 rows | 76.646 / 75.447 | 11.518 / 11.095 | 71.773 / 69.553 |
+
+The 32-row projection improves **65.6% / 67.0%**; 64 rows improve
+**85.0% / 85.3%**. Repeat ranges do not overlap: 10.765–12.064 versus
+3.550–4.292 ms for 32 rows, and 74.684–76.708 versus 10.707–11.374 ms for
+64 rows. The authored case has overlapping ranges (0.433–0.481 versus
+0.389–1.307 ms in the repeat); no small-tree projection improvement is claimed.
+
+The 32-row recorded indexed-item work is 7.371 ms across 304 calls in the first
+run, compared with 1.411 ms of source-map JSON serialization across 1,658 calls
+and 0.274 ms of owner-operation lookups. At 64 rows in the repeat, indexed-item
+work reaches 62.370 ms across 592 calls, while source-map serialization is
+3.093 ms across 3,320 calls and owner lookups 1.169 ms. The walk-only controls
+likewise approach full projection cost on larger input, showing repeated
+traversal dominates there. On the small authored tree, indexed-item work is only
+0.033 ms, while source-map serialization is 0.162 ms; export materialization
+matters more at that size. The candidate records zero formatted length/indexed
+item calls, but preserves all source-map serialization and owner lookups.
+Outer source-map cloning is below 0.001 ms at the reporting precision in every
+workload. These timings do not justify removing or weakening source provenance.
+
+Native value visits / overlay operations / retained owner paths are
+1,913/126/23 authored, 2,993/190/33 at 8 rows, 10,697/670/105 at 32 rows and
+21,434/1,372/201 at 64 rows. Explicit public sidecars serialized as MessagePack
+are 71,317 / 111,349 / 402,819 / 814,344 bytes. The candidate preserves those
+values byte for byte; it changes traversal, not the output size or format.
+
+| Full native writer | Indexed, ms (first / repeat) | Single pass, ms (first / repeat) |
+| --- | ---: | ---: |
+| Authored tree | 11.386 / 11.555 | 12.387 / 10.900 |
+| 32 rows | 71.303 / 66.457 | 65.222 / 58.328 |
+
+The 32-row full pipeline improves **8.5% / 12.2%**, with non-overlapping
+ranges in both runs. Authored pipeline direction reverses and ranges overlap;
+no authored viewer speedup or fixed regression is established by these samples.
+Browser behavior/performance remains unmeasured for this candidate. No production
+exporter, authored viewer, timeout, public contract or WASM bundle is promoted
+at this checkpoint.
+
+### Pending decision: single-pass public projection
+
+Recommend promoting the tested specialization for public projection of borrowed
+`FormattedNodes`. Keep the existing indexed sequence API and all other value
+exporters unchanged. The shared native AST still supplies the source; the
+existing explicit public sidecar remains fully materialized and identical.
+No persistent cache, new owner lifetime or input-format handling is needed.
+
+| Choice | Benefit | Cost / limit |
+| --- | --- | --- |
+| **Recommended: project each formatted sequence in one pass** | Removes repeated indexed traversal; preserves native ownership, source maps, exact public output and error behavior in the tested contracts. Larger projections and the 32-row full writer improve. | Maintains a private export traversal alongside indexed access. The output array grows while emitting rather than allocating from a precomputed length; peak allocation is not measured. Small-tree improvement is unproven, and existing per-gap/owner scans remain. |
+| Keep indexed projection and investigate a general sequence iterator | Avoids adding a specialized exporter and could benefit other native consumers. | Leaves the measured cost in place. A shared iterator would have a broader contract and needs a separate prototype, parity tests and measurements; it is not tested here. |
+
+Pause before promotion per the user's stop-at-decisions instruction and the
+active TODO's shared projection/ownership review requirement. If approved,
+promote the private traversal, retain the former formatted-node exporter as a
+test comparison, require the default exporter to avoid repeated indexed reads,
+and repeat native
+correctness/performance checks. Then rebuild WASM and run unchanged viewer and
+normal/synchronized Storybook/stock checks. Preserve public sidecars and import
+boundaries throughout; keep further field/index caching and hook/recovery work
+separate.
+
+Reproduce this test-only checkpoint:
+
+```sh
+cargo test -p cem-ml --lib projection_profile_tests
+# Smoke check of the ignored fixture, without a performance claim:
+cargo test -p cem-ml --lib profile_public_projection -- --ignored --nocapture --test-threads=1
+yarn nx run cem_ml:test --skipNxCache
+yarn nx run cem_ml:lint --skipNxCache
+# Run alone, after other builds/checks finish:
+cargo test -p cem-ml --release --lib profile_public_projection -- --ignored --nocapture --test-threads=1
+rustfmt --edition 2021 --check packages/cem_ml/src/transform_artifact/projection_profile_tests.rs packages/cem_ml/src/conversion/writer_profile_tests.rs
+git diff --check
+```

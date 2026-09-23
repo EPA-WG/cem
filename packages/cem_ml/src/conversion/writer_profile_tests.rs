@@ -4,11 +4,11 @@ use crate::{import::import_data, parser::tree::RetainedCemTree, projection::cem_
 use std::{hint::black_box, time::Duration};
 
 #[derive(Default)]
-struct Stage {
-    calls: usize,
-    elapsed: Duration,
+pub(crate) struct Stage {
+    pub(crate) calls: usize,
+    pub(crate) elapsed: Duration,
 }
-type Stages = BTreeMap<String, Stage>;
+pub(crate) type Stages = BTreeMap<String, Stage>;
 thread_local! {
     static ACTIVE: RefCell<Option<Stages>> = const { RefCell::new(None) };
 }
@@ -53,7 +53,7 @@ impl Drop for Span {
         self.finish();
     }
 }
-fn measure<T>(run: impl FnOnce() -> T) -> (T, Stages) {
+pub(crate) fn measure<T>(run: impl FnOnce() -> T) -> (T, Stages) {
     struct Reset;
     impl Drop for Reset {
         fn drop(&mut self) {
@@ -67,7 +67,7 @@ fn measure<T>(run: impl FnOnce() -> T) -> (T, Stages) {
     (value, stages)
 }
 
-fn pipeline() -> ConversionOutputPipeline {
+pub(crate) fn pipeline() -> ConversionOutputPipeline {
     let mut pipeline = direct_cem_output_pipeline();
     pipeline.cemt_options.formatter_profile = Some("tabular".into());
     pipeline.cemt_insertion_context.formatter_profile = Some("tabular".into());
@@ -80,7 +80,7 @@ fn write(
 ) -> ConversionOutputPipelineExecution {
     write_pipeline(environment, owner, &pipeline())
 }
-fn write_pipeline(
+pub(crate) fn write_pipeline(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     owner: &Arc<RetainedCemTree>,
     pipeline: &ConversionOutputPipeline,
@@ -497,7 +497,7 @@ fn writer_cache_counterfactuals_preserve_native_output_and_release_documents() {
     }
 }
 
-fn profile(
+pub(crate) fn profile(
     name: &str,
     mut run: impl FnMut() -> ConversionOutputPipelineExecution,
     expected: &ConversionOutputPipelineExecution,
