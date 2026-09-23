@@ -1,4 +1,4 @@
-//! Opt-in attribution and bounded counterfactuals; production is unchanged.
+//! Formatter regressions, opt-in attribution, and test-only comparison baselines.
 use super::*;
 use crate::{import::import_data, parser::tree::RetainedCemTree, projection::cem_tree_inspection};
 use std::{hint::black_box, time::Duration};
@@ -142,33 +142,58 @@ fn builtin_reader(
     })
 }
 
-// Supply the counterfactual through the public package-reader contract. No
-// production helper or evaluator behavior is replaced by the profiling hooks.
-fn single_build_reader(
+// Retain the former double-build expression only as a test baseline, supplied
+// through the public package-reader contract. Profiling hooks only record data.
+fn double_build_reader(
     artifact: &ConversionPackageArtifactDescriptor,
 ) -> Result<ConversionPackageArtifactRead, String> {
     let mut result = builtin_reader(artifact)?;
     if result.uri == "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt" {
-        const BEFORE: &str = r#"match(typeOf(call("cem.format-tree.build-node-list", { subject: $subject })), {
+        const DOUBLE_BUILD: &str = r#"match(typeOf(call("cem.format-tree.build-node-list", { subject: $subject })), {
                 array: call("cem.format-tree.format-inter-node-whitespace", {
                     subject: call("cem.format-tree.build-node-list", { subject: $subject }),
                     lineEnding: $lineEnding
                 }),
                 default: call("cem.format-tree.build-node-list", { subject: $subject })
             })"#;
-        const AFTER: &str = r#"call("cem.format-tree.format-inter-node-whitespace", {
+        const SINGLE_BUILD: &str = r#"call("cem.format-tree.format-inter-node-whitespace", {
                 subject: call("cem.format-tree.build-node-list", { subject: $subject }),
                 lineEnding: $lineEnding
             })"#;
         let text = String::from_utf8(result.bytes).unwrap();
-        assert_eq!(text.matches(BEFORE).count(), 1);
-        result.bytes = text.replacen(BEFORE, AFTER, 1).into_bytes();
+        assert_eq!(text.matches(SINGLE_BUILD).count(), 1);
+        result.bytes = text.replacen(SINGLE_BUILD, DOUBLE_BUILD, 1).into_bytes();
     }
     Ok(result)
 }
 
 #[test]
-fn single_build_candidate_preserves_native_output_and_release() {
+fn default_formatter_builds_node_list_once() {
+    let schemas = SchemaRegistry::with_builtin_schemas();
+    let conversions = ConversionRegistry::with_builtin_converters();
+    let owner = import_data("<r><a>value</a></r>", "xml", "cem", "memory:default-writer").unwrap();
+    let (result, stages) = measure(|| {
+        write(
+            &ConversionOutputPipelineEnvironment {
+                schema_registry: &schemas,
+                conversion_registry: &conversions,
+                package_artifact_reader: None,
+                artifact_cache: None,
+            },
+            &owner,
+        )
+    });
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert!(result.output.is_some());
+    assert_eq!(stages["eval/call/cem.format-tree.build-node-list"].calls, 1);
+    drop(result);
+    let weak = Arc::downgrade(&owner);
+    drop(owner);
+    assert!(weak.upgrade().is_none());
+}
+
+#[test]
+fn default_single_build_preserves_native_output_and_release() {
     let schemas = SchemaRegistry::with_builtin_schemas();
     let conversions = ConversionRegistry::with_builtin_converters();
     let environment = ConversionOutputPipelineEnvironment {
@@ -177,8 +202,8 @@ fn single_build_candidate_preserves_native_output_and_release() {
         package_artifact_reader: None,
         artifact_cache: None,
     };
-    let candidate = ConversionOutputPipelineEnvironment {
-        package_artifact_reader: Some(&single_build_reader),
+    let baseline = ConversionOutputPipelineEnvironment {
+        package_artifact_reader: Some(&double_build_reader),
         ..environment
     };
     for (format, source) in [
@@ -208,8 +233,8 @@ fn single_build_candidate_preserves_native_output_and_release() {
             pipeline.cemt_options.formatter_profile = Some(profile.into());
             pipeline.cemt_insertion_context.formatter_profile = Some(profile.into());
             pipeline.writer_insertion_context.formatter_profile = Some(profile.into());
-            let (expected, before) = measure(|| write_pipeline(&environment, &owner, &pipeline));
-            let (actual, after) = measure(|| write_pipeline(&candidate, &owner, &pipeline));
+            let (expected, before) = measure(|| write_pipeline(&baseline, &owner, &pipeline));
+            let (actual, after) = measure(|| write_pipeline(&environment, &owner, &pipeline));
             assert_same(&actual, &expected, &owner);
             let label = "eval/call/cem.format-tree.build-node-list";
             assert_eq!(before[label].calls, 2);
@@ -222,7 +247,7 @@ fn single_build_candidate_preserves_native_output_and_release() {
 }
 
 #[test]
-fn single_build_candidate_preserves_recursion_errors() {
+fn default_single_build_preserves_recursion_errors() {
     let schemas = SchemaRegistry::with_builtin_schemas();
     let conversions = ConversionRegistry::with_builtin_converters();
     let environment = ConversionOutputPipelineEnvironment {
@@ -231,8 +256,8 @@ fn single_build_candidate_preserves_recursion_errors() {
         package_artifact_reader: None,
         artifact_cache: None,
     };
-    let candidate = ConversionOutputPipelineEnvironment {
-        package_artifact_reader: Some(&single_build_reader),
+    let baseline = ConversionOutputPipelineEnvironment {
+        package_artifact_reader: Some(&double_build_reader),
         ..environment
     };
     let mut rejected = 0;
@@ -264,8 +289,8 @@ fn single_build_candidate_preserves_recursion_errors() {
                 Some("memory:depth"),
             )
         };
-        let expected = run(&environment);
-        let actual = run(&candidate);
+        let expected = run(&baseline);
+        let actual = run(&environment);
         assert_eq!(actual.diagnostics, expected.diagnostics);
         assert_eq!(actual.output, expected.output);
         assert_eq!(actual.source_map, expected.source_map);
@@ -279,7 +304,7 @@ fn single_build_candidate_preserves_recursion_errors() {
 }
 
 #[test]
-fn single_build_candidate_characterizes_invalid_subject_diagnostics() {
+fn default_single_build_characterizes_invalid_subject_diagnostics() {
     let schemas = SchemaRegistry::with_builtin_schemas();
     let conversions = ConversionRegistry::with_builtin_converters();
     let owner = import_data("<r/>", "xml", "cem", "memory:invalid-subject").unwrap();
@@ -295,9 +320,9 @@ fn single_build_candidate_characterizes_invalid_subject_diagnostics() {
         let run = |single| {
             let reader = |artifact: &ConversionPackageArtifactDescriptor| {
                 let mut source = if single {
-                    single_build_reader(artifact)?
-                } else {
                     builtin_reader(artifact)?
+                } else {
+                    double_build_reader(artifact)?
                 };
                 if source.uri == "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt" {
                     let text = String::from_utf8(source.bytes).unwrap();
@@ -344,7 +369,7 @@ fn single_build_candidate_characterizes_invalid_subject_diagnostics() {
 }
 
 #[test]
-fn single_build_candidate_preserves_invalid_return_errors() {
+fn default_single_build_preserves_invalid_return_errors() {
     let schemas = SchemaRegistry::with_builtin_schemas();
     let conversions = ConversionRegistry::with_builtin_converters();
     let owner = import_data("<r/>", "xml", "cem", "memory:invalid-return").unwrap();
@@ -357,9 +382,9 @@ fn single_build_candidate_preserves_invalid_return_errors() {
         let run = |single| {
             let reader = |artifact: &ConversionPackageArtifactDescriptor| {
                 let mut source = if single {
-                    single_build_reader(artifact)?
-                } else {
                     builtin_reader(artifact)?
+                } else {
+                    double_build_reader(artifact)?
                 };
                 if source.uri == "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt"
                 {
@@ -548,7 +573,7 @@ fn profile_inspection_writer() {
         let owner = import_data(source, "xml", "cem", "memory:writer-profile").unwrap();
         let expected = write(&environment, &owner);
         profile(
-            &format!("{name}/per-call-cache"),
+            &format!("{name}/default-single-build"),
             || write(&environment, &owner),
             &expected,
             &owner,
@@ -588,11 +613,11 @@ fn profile_inspection_writer() {
             &owner,
         );
         profile(
-            &format!("{name}/single-build"),
+            &format!("{name}/double-build-baseline"),
             || {
                 write(
                     &ConversionOutputPipelineEnvironment {
-                        package_artifact_reader: Some(&single_build_reader),
+                        package_artifact_reader: Some(&double_build_reader),
                         ..environment
                     },
                     &owner,

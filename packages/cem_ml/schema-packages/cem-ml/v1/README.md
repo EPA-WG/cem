@@ -96,6 +96,13 @@ boundary only: it consumes formatted and optionally colored `cem-tree` nodes,
 serializes structural target syntax, and renders formatter-owned fragments
 without inventing package layout.
 
+The formatter evaluates its typed node-list builder once before whitespace
+formatting. Malformed subjects still fail with
+`cem.converter.output_pipeline_execution`; an unresolved node-list result now
+names `cem.format-tree.format-inter-node-whitespace` as the failing helper,
+previously `cem.format-tree.build-envelope`. Return-type and recursion errors
+are unchanged.
+
 ## Folder Contract
 
 `package.cem` is the manifest-owned index for this folder. It declares the

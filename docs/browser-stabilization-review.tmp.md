@@ -4450,7 +4450,10 @@ git diff --check
 ```
 
 
-### Pending decision: single-build formatter diagnostics
+### Accepted: single-build formatter diagnostics
+
+Accepted by the user's continuation on 2026-09-22: retain the earlier failing
+helper name and promote the measured single-build expression.
 
 The approved promotion's negative tests reproduce a diagnostic difference for
 malformed subjects before any production change. Recommend accepting the
@@ -4506,10 +4509,11 @@ no new performance result or production improvement is claimed here.
 | **Recommended: accept the earlier helper diagnostic** | Keeps the small, already measured change and reports where resolution now fails. Error code, severity, source and rejection stay intact. | Consumers matching the old helper name in message text must update. |
 | Preserve the exact old message | Maintains text compatibility for malformed custom-formatter input. | Requires a different implementation or compatibility handling, followed by fresh correctness and performance checks. No such alternative is promoted or claimed tested. |
 
-The production formatter, shared evaluator and authored viewers remain
-unchanged. Pause promotion here per the user's stop-at-decisions instruction
-and the active TODO's negative-contract review. This decision is narrower than
-the already accepted elimination of duplicate node-list construction. Browser
+At this diagnostic-review checkpoint the production formatter, shared evaluator
+and authored viewers remained unchanged. Promotion paused per the user's
+stop-at-decisions instruction and the active TODO's negative-contract review.
+This decision is narrower than the already accepted elimination of duplicate
+node-list construction. Browser
 and WASM promotion checks belong after the decision; rebuilding them for this
 test-only checkpoint would not exercise the candidate.
 
@@ -4533,3 +4537,135 @@ included; the approved optimization remains pending this diagnostic decision.
 Test totals above normalize terminal line breaks inside summary words. This
 also corrects the preceding writer checkpoint's aggregate from 2,365 to 2,368;
 its unit-test count and passing result are unchanged.
+
+
+### Production single-build formatter
+
+The accepted package change evaluates `cem.format-tree.build-node-list` once
+and passes its array result directly to
+`cem.format-tree.format-inter-node-whitespace`. The former `typeOf`/`match`
+expression built the same list again in its selected branch. The default
+formatter regression reproduces two builds before promotion
+(`/tmp/cem-single-promote-red.log`) and requires one afterward. The former
+expression now exists only in a test package reader used as the comparison
+baseline; production keeps its existing per-call helper cache.
+
+All six ordinary writer fixtures pass, with the opt-in profile ignored
+(`/tmp/cem-single-promote-unit.log`). XML, JSON, YAML and CSV still enter through
+CEM-ML import into retained CEM AST DOM trees. Compact, pretty and tabular
+formatting preserve exact text, output spans, source maps, execution metadata,
+public debug projection and source-owner identity. Dropping the executions
+releases their native source documents. The default and former expressions
+also preserve recursion rejection and exact invalid-return diagnostics.
+Five malformed-subject cases change only the approved failing helper name;
+null rejection is identical. The package README records that diagnostic-text
+migration and its unchanged `cem.converter.output_pipeline_execution` code.
+
+This change adds no shared evaluator behavior, cache lifetime, input ownership,
+external-format decoding or viewer presentation. The native AST remains the
+pipeline handoff; public projections remain explicit output sidecars.
+
+CEM-QL native validation passes **696 tests across 77 suites**, with nine opt-in
+profiles ignored (`/tmp/cem-single-promote-ql-tests.log`). Both native lint
+targets pass with the existing 131 CEM-ML and 41 CEM-QL warnings
+(`/tmp/cem-single-promote-{ml,ql}-lint.log`). Fixture formatting and diff checks
+also pass.
+
+The full CEM-ML Nx chain passes **2,371 Rust checks**, including **2,040 CEM-ML
+unit tests**, with the one profiling fixture ignored
+(`/tmp/cem-single-promote-ml-tests.log`). Counts normalize terminal line breaks
+inside summary words, as at the preceding checkpoint.
+
+The WASM/browser build passes (`/tmp/cem-single-promote-browser-build.log`).
+Packaged CEM-QL WASM SHA-256:
+`fb9d670c5cf9810ddb18186e2d1ca56cd06073de458951aba0ba55734e9504c2`.
+The unchanged standalone viewers pass **40/40 table** and **18/18 tree** checks
+with no reported errors (`/tmp/cem-single-promote-{table,tree}-profile.{json,log}`).
+Both reports record that rebuilt hash. Storybook's dependency build also
+refreshes the CEM-ML demo-wrapper WASM to
+`35a5cfa0d500c25c0b634a51fe05d35b17533567a4d32a69f4bb733a5c292e8f`.
+The table check is refreshed after that build and all its recorded file hashes
+match the final artifacts; the tree check's artifacts remain unchanged. The
+final authored table page reaches four tables at 2.9501 s and seven cards at
+3.7683 s. These are integration observations, not a controlled browser speed
+comparison. The earlier table observation is retained under
+`/tmp/cem-single-promote-table-before-demo-rebuild.{json,log}`.
+
+Normal Storybook passes **203/203 tests in 42 files** in 42.26 s
+(`/tmp/cem-single-promote-normal.log`). The table/tree/inspector journeys
+complete in 11.9614/5.9430/2.5720 s. Existing cell overrides and native attribute
+value/content-hook stories pass unchanged.
+
+Synchronized Storybook passes **203/203 tests in 42 files** in 60.95 s
+(`/tmp/cem-single-promote-synchronized.log`). The stock probe starts after
+Vitest's actual `RUN` marker, using eight concurrent pages across four batches
+and the unchanged 45 s warning deadline. All **32/32 stock cases** pass, with
+zero errors and warning readiness at 3.9231–9.0012 s
+(`/tmp/cem-single-promote-synchronized-stock.{json,log}`). Both subprocesses
+exit zero (`/tmp/cem-single-promote-synchronized-status.log`), and the stock
+report records the rebuilt CEM-QL WASM hash above.
+
+Stock runs span **2026-09-23 05:15:02.088–05:15:39.201 UTC** (September 22
+locally). Tree/table/inspector journeys start at 05:15:16.428/16.466/24.156 and
+complete in 9.3741/21.2720/5.7914 s, within that stock-load interval. NPM default
+selection finishes at 05:15:45.758 (129/200 attempts, 2.6166 s); both location
+readers finish at 05:16:00.576 (35/180 attempts, 1.3435 s). Those two waits start
+after stock load ends, so their behavior under extra stock load remains
+unverified. The historical stock timeout remains unreproduced; this formatter
+change does not claim to resolve it. No authored viewer, story assertion,
+timeout or concurrency setting changes.
+
+The promoted release profile passes in **5.82 s**, after other builds and
+browser checks finish (`/tmp/cem-single-promote-release.log`). Record-free
+medians use five warm samples after discarding the first; registry assembly is
+outside the timer, while inspection projection, typed formatting/writing and
+public sidecar construction remain inside. The former double-build comparison
+includes its test package-reader replacement work.
+
+| Input | Former double build, ms | Default single build, ms | Reduction |
+| --- | ---: | ---: | ---: |
+| Unchanged authored tree source | 21.343 | 12.411 | 41.8% |
+| Separate 32-row source | 130.478 | 73.187 | 43.9% |
+
+Former/default ranges do not overlap: 19.702–27.020 / 12.190–14.970 ms for the
+authored source and 122.908–135.231 / 69.914–76.218 ms for 32 rows. Recorded
+node-list calls are exactly two versus one; authored binding copies fall
+3,383→1,699. Every timed result still passes exact output/provenance and native
+source-owner checks. These bounded native writer measurements do not establish
+a browser speedup.
+
+Public projection remains 0.637→0.602 ms for the authored input and
+11.365→11.131 ms for 32 rows (former/default recorded medians); no projection
+improvement is claimed. Retained/forked helper-cache record-free medians are
+10.791/12.543 ms authored and 76.697/70.215 ms for 32 rows. Those remain private
+counterfactuals, with no cache-lifetime promotion. Nested/independent stage
+medians are not additive.
+
+The accepted formatter promotion is complete. Next, attribute the remaining
+public projection cost with bounded native fixtures and isolated release
+measurements. Preserve public sidecars, native handoff, provenance and document
+release; stop for a decision before any shared production projection or
+ownership change. Keep hook/recovery redesigns separate.
+
+Reproduce:
+
+```sh
+cargo test -p cem-ml --lib writer_profile_tests
+yarn nx run cem_ml:test --skipNxCache
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ml:lint --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+yarn nx run cem-elements:build
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test
+node tools/scripts/profile-cem-tree-render.mjs --fixture=table --output=/tmp/cem-single-promote-table-profile.json
+node tools/scripts/profile-cem-tree-render.mjs --output=/tmp/cem-single-promote-tree-profile.json
+# Run alone, after other builds/checks finish.
+cargo test -p cem-ml --release --lib profile_inspection_writer -- --ignored --nocapture --test-threads=1
+rustfmt --edition 2021 --check packages/cem_ml/src/conversion/writer_profile_tests.rs
+git diff --check
+```
+
+For synchronized coverage, launch
+`node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=single-build-formatter --output=/tmp/cem-single-promote-synchronized-stock.json`
+after the traced Storybook run's Vitest `RUN` marker; retain both exit codes
+and verify actual overlap.

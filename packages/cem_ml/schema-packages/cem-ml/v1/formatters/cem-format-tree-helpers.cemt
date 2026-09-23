@@ -49,12 +49,9 @@
         |
         {param @name="subject" @type="any" @required=true}
         {body |
-            {$ match(typeOf(call("cem.format-tree.build-node-list", { subject: $subject })), {
-                array: call("cem.format-tree.format-inter-node-whitespace", {
-                    subject: call("cem.format-tree.build-node-list", { subject: $subject }),
-                    lineEnding: $lineEnding
-                }),
-                default: call("cem.format-tree.build-node-list", { subject: $subject })
+            {$ call("cem.format-tree.format-inter-node-whitespace", {
+                subject: call("cem.format-tree.build-node-list", { subject: $subject }),
+                lineEnding: $lineEnding
             }) }
         }
     }

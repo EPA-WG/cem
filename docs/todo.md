@@ -2669,20 +2669,30 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         separate. Stop before shared production promotion per the user's
         instruction. See the [accepted decision](browser-stabilization-review.tmp.md#accepted-build-the-formatter-node-list-once).
         Accepted 2026-09-22: continue with the recommended promotion.
-  - [ ] Decide malformed-subject diagnostic compatibility before single-build
+  - [x] Decide malformed-subject diagnostic compatibility before single-build
         promotion. Five negative cases preserve all diagnostic fields except
         the named helper (`build-envelope` → `format-inter-node-whitespace`).
         Recommend accepting this earlier failure location; exact message
         compatibility needs a different implementation and fresh validation.
         Stop per the user's instruction. See the
-        [tested decision](browser-stabilization-review.tmp.md#pending-decision-single-build-formatter-diagnostics).
-  - [ ] Promote the approved single-build formatter expression. Fixture: require
+        [accepted decision](browser-stabilization-review.tmp.md#accepted-single-build-formatter-diagnostics).
+        Accepted 2026-09-22: continue with the earlier helper diagnostic.
+  - [x] Promote the approved single-build formatter expression. Fixture: require
         one default node-list build, retain the prior body only as a comparison,
         and verify unsupported subjects, return-type errors, recursion limits,
         four-format output/provenance and document release. Stop if negative
         coverage exposes an unresolved behavior change. Run native checks and
         release profiling, rebuild WASM, then unchanged table/tree and normal
         and synchronized Storybook/stock validation before committing.
+        Completed 2026-09-22: the default formatter builds the list once;
+        six writer regressions pass, including comparison with the former
+        test-only body.
+        Isolated native medians improve 21.343→12.411 ms authored and
+        130.478→73.187 ms for 32 rows. The CEM-ML Nx chain passes 2,371 Rust
+        checks, CEM-QL passes 696, and both lint targets pass. Rebuilt browser
+        artifacts pass 40 table/18 tree checks, 203 normal and 203 synchronized
+        Storybook tests, plus 32 stock cases. No viewer or timeout changes.
+        See [production evidence](browser-stabilization-review.tmp.md#production-single-build-formatter).
     - [x] Fixture: characterize the discovered malformed-subject diagnostic
           difference through the public package-reader/native output path.
           Verify unchanged code, severity, source, rejection and absent output;
@@ -2693,6 +2703,15 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           return types preserve exact errors and native owner release. All five
           writer fixtures, 2,370 Rust checks in the full Nx chain, lint and
           formatting pass. Production promotion pauses at the decision above.
+
+  - [ ] Attribute the remaining public projection cost after single-build
+        formatter validation. Fixture: separate projection traversal,
+        materialization and source-map work on the authored tree and bounded
+        larger native trees; compare exact public sidecars, provenance, native
+        handoff and document release. Keep external-format import in CEM-ML and
+        preserve existing public projections. Record isolated release evidence
+        before proposing any shared projection or ownership change; stop for
+        a decision before production promotion. Keep hook/recovery work separate.
 
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test
