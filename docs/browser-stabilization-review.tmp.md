@@ -5200,3 +5200,141 @@ For the overlapping workload, run the five-file command from the previous
 section and launch the same 8-concurrent, 4-batch stock probe after Vitest's
 `RUN` marker. Preserve both exit codes and actual intervals when reporting
 overlap.
+
+### Remaining demo readiness inventory and local-storage startup
+
+Audited 2026-09-23. The thirteen files from the earlier readiness inventory
+contain different kinds of waits. A card count checks the source-page inventory;
+it does not establish that the contained declarations, native resources or
+subsequent interactions have finished. The current authored cases give this
+more specific inventory (`*.stories.ts` below are in `cem-elements/src/lib`):
+
+| Demo story | Authored startup boundary | Later checks to retain |
+| --- | --- | --- |
+| `cem-components-demo` | Eight iframe cards; wrapper `updateComplete`/ready state, then selected component controls | Iframe document and child component readiness belong to its own runtime, not the parent preview |
+| `data-slices-demo` | Sixteen cards, eighteen article instances; existing source/declaration/render settlement followed by per-card counts | Event updates and both instances in each fan-out case |
+| `dom-merge-demo` | Three anonymous instances, each producing one article; the current three-article count agrees with that inventory | Input/change distinctions, node identity, focus and caret assertions |
+| `for-each-demo` | Nine cards; seven anonymous instances plus the payload and HTTP components; each case checks its controls or output | Toggle removals follow positive row checks; JSON and XML need loaded-state and response-content predicates |
+| `form-demo` | Five parent articles; existing source settlement, followed by the named fruit control's six buttons | Native validity, branch changes and child value propagation |
+| `http-request-demo` | Three anonymous instances, each with one article; article count does not mean HTTP completion | Idle, loaded, failed, recovery, exact response rows and envelope fields |
+| `local-storage-demo` | Twelve cards, ten anonymous instances, one initial-only named reader and two named editors | Typed text/date/number hydration, native JSON import/export, invalid-input recovery, independent readers and two-way edits |
+| `location-element-demo` | Three cards with separate anonymous readers; the first wait covers the live and initial readers' definition lists | Initial-only stability, live navigation and the explicit external URL need separate assertions |
+| `module-url-demo` | Thirteen cards, including the static import-map case, named/anonymous wrappers and nested image/link/declaration helpers | Resolved URLs, nested declarations and actual image loading; a wrapper render does not prove those resources ready |
+| `module-url-referrer-demo` | One anonymous matrix with nine expected URL cells | All nine resolved values and removal of transient controls |
+| `npm-versions-demo` | Five pickers and three anonymous wrappers; existing initial settlement before HTTP output checks | Exact selection, dates, label, propagation, URL synchronization and clean picker diagnostics |
+| `set-url-demo` | Four anonymous instances; the first case waits for its button, later cases immediately access their own controls | Draft/commit distinctions and subsequent external navigation; capture each later case on a startup failure |
+| `str-functions-demo` | Eleven cards; named seven-row matrix and ten anonymous function examples | Per-case initial outputs, committed edits and exact results; an absent output does not satisfy an empty-string expectation |
+
+The DOM-merge and HTTP aggregate article counts agree with their current
+one-article-per-instance sources; no count mismatch was found. They are not
+general subtree readiness signals. Data-slice fan-out already checks its two
+instances separately. No broad replacement of these predicates is justified
+by the presence of `requestAnimationFrame` alone. Remaining timing questions
+need the failing case's own lifecycle observations, especially later controls
+in set-URL and nested resources in module-URL.
+
+#### Local-storage failure attribution
+
+The unchanged thirteen stories plus the three viewer files run as **26 tests
+in 16 files**, with an independent eight-concurrent, four-batch stock workload
+started at Vitest's `RUN` marker. The baseline passes **25/26**; local storage
+fails its first `the live text slice hydrates` assertion. Stock passes **32/32**
+without errors (`/tmp/cem-readiness-inventory-baseline{,-stock,-status}.log`
+and the stock JSON report). Location passes with its original 180-frame wait:
+both readers are ready after 1.6825 s / 57 frames at **15:37:14.012 UTC**, within
+the stock interval **15:36:45.319–15:37:14.812 UTC**. This does not reproduce or
+attribute location's earlier timeout.
+
+Adding only opt-in calls to the existing readiness/worker tracer reproduces
+the same **25/26** result (`/tmp/cem-readiness-storage-traced{,-stock,-status}.log`).
+The source page and twelve-card inventory are ready at **15:38:05.472 UTC**.
+The unchanged 160-frame live-text check expires at **15:38:08.171**, after
+2.6977 s. The outer page has settled; the nested declarations have registered
+but none has emitted declaration settlement. The named reader and editors are
+still awaiting their initial render, and the anonymous produced instances do
+not yet exist. The snapshot has no declaration or instance diagnostics. No
+worker request has been observed in this story yet, so this evidence must not
+be described as a render already in flight or a storage import failure.
+
+The traced story keeps its original predicates and deadlines. It logs only
+existing control metadata through the shared observer; it does not inspect
+stored values, source documents or native handles. Failed runs do not verify
+the later storage interactions.
+
+A temporary diagnostic probe awaited the existing source lifecycle only after
+an assertion had failed, logged whether the initial text was now correct, and
+re-threw the original failure. Its first run passes **26/26**, reaching initial
+text after 4.3645 s / **157 of 160 frames**; the failure-only probe never runs
+(`/tmp/cem-readiness-storage-after-failure{,-stock,-status}.log`). This passing
+control shows the variable wall-clock duration of the frame budget, not a fix.
+
+The repeat fails the original storage assertion at **15:41:12.552 UTC** after
+2.7956 s. Its first child declaration settles at **15:41:14.053** and the live
+text instance's render settles at **15:41:14.758** with no diagnostics, **2.206 s
+after the failed assertion**. The whole source settles at **15:41:16.920**, with
+the expected initial text present. The original error is still re-thrown;
+later interactions remain unverified. This attributes a premature startup wait,
+not a storage-text failure. Evidence is
+`/tmp/cem-readiness-storage-after-failure-repeat{,-stock,-status}.log`.
+
+That repeat passes **24/26**: HTTP also fails its initial 300-frame article
+count, without HTTP-specific tracing. This is new follow-up evidence, not an
+attributed HTTP failure. All four pre-correction stock batches pass **32/32**
+each without errors. The post-failure storage snapshot additionally records
+four `cem.ql.type_error` errors and `cem.ql.render.eval_failed` on the anonymous
+fruit watcher, plus `cem.render_plan_apply.replace_scope` on the JSON example.
+These are separate from the clean live-text instance. Native attribution is
+recorded in the TODO before considering a template or shared-runtime change;
+this investigation does not suppress them.
+
+#### Local-storage fixture correction
+
+The story now awaits the existing `whenCemSourceRendered` helper after checking
+the twelve-card inventory and before running its hydration assertions. It
+settles the source's child declarations and current renders, including pending
+native local-storage work. The helper already serves other source-loaded
+stories. A read-only checkpoint records completion. The temporary failure-only
+probe is removed; the 160-frame hydration/interaction checks, 300-frame card
+check and 30-second story deadline remain in place. The demo, storage behavior,
+JSON import/export and shared runtime are unchanged.
+
+The corrected 16-file workload passes **26/26** in **32.98 s** alongside
+**32/32 stock cases**, with both subprocesses exiting zero
+(`/tmp/cem-readiness-storage-fixed{,-stock,-status}.log` and its stock JSON
+report). Stock is active during **15:43:25.640–15:43:55.107 UTC**. Storage's
+initial settlement occurs at **15:43:40.562**, 6.5655 s after its start; the
+unchanged initial text check passes on its first attempt. All date/time/number
+and JSON validation, malformed-value recovery, native basket writes, initial
+and live readers, and two-editor interactions pass. The final editor assertion
+finishes at **15:43:44.877**, still under stock load. HTTP passes this repeat;
+that does not attribute its earlier timeout. The storage diagnostics remain
+visible and separate from this startup correction.
+
+All **160 stock probes** in this audit pass without errors. Their recorded
+runtime, viewer and packaged-WASM hashes match the unchanged current artifacts,
+including CEM-QL WASM
+`045686972ebbcef44c444653086ad9b74e52d03c9e09d465b4e6a3fa3dd97881`.
+The production code and demos are unchanged, so native suites and demo-layout
+checks are not rerun for this Storybook-only correction. Package lint passes
+with its two existing warnings and typecheck passes
+(`/tmp/cem-readiness-storage-{lint,typecheck}.log`).
+Final normal Storybook coverage with tracing disabled passes **204/204 tests
+in 43 files** in **32.57 s** (`/tmp/cem-readiness-storage-normal.log`). The
+whitespace check also passes.
+
+The thirteen-file classification and local-storage startup correction are
+complete. Overall stabilization remains open: next capture HTTP's startup
+failure with its own lifecycle trace, and isolate the storage diagnostics in
+native fixtures before choosing changes. Keep the unreproduced location and
+historical stock timeouts separate from both.
+
+Reproduce the browser workload with the original limits and concurrency:
+
+```sh
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test --args='cem-components-demo.stories.ts data-slices-demo.stories.ts dom-merge-demo.stories.ts for-each-demo.stories.ts form-demo.stories.ts http-request-demo.stories.ts local-storage-demo.stories.ts location-element-demo.stories.ts module-url-demo.stories.ts module-url-referrer-demo.stories.ts npm-versions-demo.stories.ts set-url-demo.stories.ts str-functions-demo.stories.ts data-table-demo.stories.ts data-tree-demo.stories.ts table-inspector-demo.stories.ts'
+```
+
+After Vitest's `RUN` marker, start
+`node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=remaining-readiness-inventory --output=/tmp/cem-readiness-inventory-stock.json`.
+Check both exit codes and actual UTC intervals. Use `yarn nx run
+cem-elements:test` for the normal full regression gate with tracing disabled.

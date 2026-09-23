@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
+import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
 
 const SOURCE_TAG = 'story-local-storage-demo-document';
 const DEMO_URL = new URL('../../demo/local-storage.html', import.meta.url);
@@ -56,6 +58,7 @@ export const EveryAuthoredSample: Story = {
         declaration.setAttribute('src', DEMO_URL.href);
 
         root.append(declaration, document.createElement(SOURCE_TAG));
+        traceCemReadiness(root, 'local-storage/EveryAuthoredSample');
         return root;
     },
     play: async ({ canvasElement }) => {
@@ -74,6 +77,10 @@ export const EveryAuthoredSample: Story = {
             'local-storage sample inventory'
         );
 
+        await whenCemSourceRendered(host);
+        readinessCheckpoint('initial-render-settled');
+        // Card presence precedes child declaration/render settlement. Keep the
+        // hydration and interaction predicates below with their existing limits.
         await verifyLiveText(sampleByLegend(host, EXPECTED_LEGENDS[0]));
         await verifyAuthoritativeValue(sampleByLegend(host, EXPECTED_LEGENDS[1]));
         await verifyPersistedDefault(sampleByLegend(host, EXPECTED_LEGENDS[2]));
@@ -387,10 +394,15 @@ async function waitForText(root: ParentNode, selector: string, expected: string,
 }
 
 async function waitForCondition(condition: () => boolean, message: string, attempts = 160): Promise<void> {
+    const mark = readinessWait(message, attempts);
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
+        if (condition()) {
+            mark('ready', attempt);
+            return;
+        }
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
+    mark('timeout', attempts);
     throw new Error(message);
 }
 

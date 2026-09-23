@@ -2332,6 +2332,38 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             an existing explicit fallback and verify browser diagnostics and
             the current standalone/source-loaded samples without new waits.
             Track the authored page and response in native Nx test inputs.
+    - [x] Fixture audit: classify startup, resource and interaction predicates
+          in the thirteen remaining frame-wait demo stories against their
+          authored instances. Run the remaining stories with viewer/stock load,
+          capture any failing declaration/render state before changing waits,
+          and replace only demonstrated premature or incomplete readiness
+          assertions. Preserve all samples, output assertions and deadlines;
+          keep unreproduced location/stock timeouts explicitly open.
+          Completed 2026-09-23: classified all thirteen files against their
+          authored cases. Three runs reproduce local-storage's initial timeout;
+          the retained-failure probe observes successful first rendering 2.206 s
+          after its assertion deadline. Existing lifecycle settlement fixes
+          that fixture; final coverage passes 26 workload tests and 204 normal
+          Storybook tests. All 160 stock probes across the audit pass. HTTP's newly
+          observed startup failure and storage diagnostics remain separate
+          follow-ups below; see the
+          [inventory and attribution](browser-stabilization-review.tmp.md#remaining-demo-readiness-inventory-and-local-storage-startup).
+      - [x] Capture local-storage's reproduced 160-frame hydration timeout,
+            including child declaration/render settlement. After attributing
+            premature startup polling, await the existing source lifecycle
+            before hydration checks and verify every storage interaction under
+            the same workload. Keep the failed runs' later assertions unverified.
+    - [ ] Capture HTTP's newly observed 300-frame initial article-count
+          timeout with declaration/render/worker tracing before choosing its
+          correction. It failed once in the storage diagnostic workload;
+          that run did not observe HTTP lifecycle state or verify its later
+          resource assertions.
+    - [ ] Native fixture: attribute local-storage's initial fruit-watcher
+          arithmetic diagnostics and the JSON sample's
+          `cem.render_plan_apply.replace_scope` warning. Distinguish absent
+          scalar bindings from native import/export or patch behavior before
+          changing either; preserve intentional invalid-input errors and
+          stop before a shared contract change.
   - [x] Fixture: replace external-src's reproduced premature frame wait with
         declaration and render settlement, then assert every existing output
         within the unchanged story deadline. Add opt-in retry-attempt and
