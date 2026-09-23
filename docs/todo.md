@@ -2363,8 +2363,8 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           The timeout remains unattributed; no wait or runtime change is made.
           Permanent opt-in tracing records lifecycle state and per-card article
           counts on startup success/failure, rethrowing the original error.
-          Resume attribution on a traced recurrence. Next active work is the
-          native storage-diagnostic item below; see
+          Resume attribution on a traced recurrence. The native storage
+          diagnostic follow-up below is complete; see
           [HTTP observation](browser-stabilization-review.tmp.md#http-startup-observation-without-a-reproduced-failure).
       - [x] Fixture: trace the unchanged HTTP startup predicate under the
             existing 16-file/stock and focused startup workloads. Record actual
@@ -2394,15 +2394,13 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             Preserve its blank pending total, complete numeric arithmetic,
             invalid-bound-value errors and strict evaluator behavior. Verify
             native cases and diagnostic history after browser interactions.
-      - [ ] Decision: validate direct retained-root updates against the previous
-            committed plan before reconciling the next plan. The native JSON
-            import/export succeeds; an ordinary added/removed list root triggers
-            conservative scope recovery and replaces unchanged paragraphs.
-            The temporary candidate preserves them and still recovers a foreign
-            root; see "Pending decision: expected root changes in direct
-            projection" in docs/browser-stabilization-review.tmp.md. Review the
-            shared projection contract before promotion; do not wrap the sample
-            or silence warnings to disguise recovery.
+      - [x] Decision: keep whole-scope replacement. User selected the existing
+            direct projection behavior on 2026-09-23: root-set changes retain
+            conservative scope recovery, including its warning and replacement
+            of unchanged paragraphs. Keep the native JSON transition assertions
+            as regression coverage of this accepted behavior. The previous-plan
+            candidate is declined and requires no implementation follow-up; see
+            [decision](browser-stabilization-review.tmp.md#decision-keep-whole-scope-replacement).
   - [x] Fixture: replace external-src's reproduced premature frame wait with
         declaration and render settlement, then assert every existing output
         within the unchanged story deadline. Add opt-in retry-attempt and

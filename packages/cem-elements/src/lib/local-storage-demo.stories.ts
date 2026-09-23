@@ -104,8 +104,8 @@ export const EveryAuthoredSample: Story = {
     },
 };
 
-// Characterize the shared projection limitation separately from native import.
-// The decision and follow-up are tracked in the browser stabilization checklist.
+// Protect the accepted whole-scope recovery policy separately from native import.
+// The decision is recorded in the browser stabilization checklist.
 export const NativeJsonRootTransitions: Story = {
     render: () => document.createElement('section'),
     play: async ({ canvasElement }) => {

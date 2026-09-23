@@ -5462,14 +5462,18 @@ The later invalid JSON produces the expected import diagnostic; the fruit
 watcher's history is empty. Both stories pass
 (`/tmp/cem-storage-diagnostics-history.log`). The probe was removed.
 
-### Pending decision: expected root changes in direct projection
+### Decision: keep whole-scope replacement
 
-**Recommendation:** when the direct renderer has a previous committed plan,
-validate the retained DOM roots against that plan, then reconcile the next
-plan with the existing merge machinery. Preserve conservative recovery for
-untrusted or corrupted scopes and for calls lacking an authoritative previous
-plan. This changes a shared projection contract and remains unpromoted pending
-review under the active TODO and the user's stop-at-decisions instruction.
+**Accepted 2026-09-23:** the user selected **Keep whole-scope replacement**.
+Direct projection keeps its existing conservative root-set recovery, including
+the warning and replacement of unchanged roots during expected additions or
+removals. Existing native import and rendering behavior remains in place.
+The `NativeJsonRootTransitions` assertions cover this accepted behavior.
+
+The reviewed alternative was to validate retained DOM roots against the
+previous committed plan before reconciling the next plan. The user declined
+that shared contract change. Its prototype and review criteria below are
+historical evidence; they are not an active implementation plan.
 
 The source-loaded JSON sample uses the direct retained-plan application path.
 `renderScopeRecoveryReason` currently compares the retained root identity set
@@ -5503,10 +5507,10 @@ patches without recovery and preserves the original paragraph. A manually
 foreign paragraph identity still triggers scope replacement. All **76 tests
 in two Storybook files** pass, including the existing comment-range and focus
 recovery cases (`/tmp/cem-storage-root-candidate.log`). The production candidate
-and candidate-only assertions were removed; the committed story characterizes
-the current limitation until a decision is made.
+and candidate-only assertions were removed; the committed story now protects
+the accepted whole-scope replacement behavior.
 
-The recommended implementation should:
+The unselected candidate's review criteria were:
 
 - Accept the prior committed plan only within the same instance, template,
   output target and scope-policy identity. Data revisions may advance.
@@ -5523,12 +5527,10 @@ The recommended implementation should:
   path; this prototype does not establish that every worker transition will
   preserve roots, or justify introducing a new patch operation.
 
-The alternative is to retain conservative whole-scope replacement for every
-root-set change. It requires no new prior-plan input, but loses unchanged DOM
-identity and continues to report recovery for valid authored branches. Wrapping
-this one sample would avoid its root-set change while leaving the shared issue;
-merely suppressing the warning would retain the replacement cost. Neither is
-recommended.
+The selected policy accepts lost DOM identity for unchanged roots and recovery
+warnings for valid authored root-set changes. The sample and diagnostic
+severity remain as tested. The decision is resolved; previous-plan validation
+has no implementation follow-up.
 
 Validation for the authored fix and attribution fixtures:
 
@@ -5554,3 +5556,7 @@ The final whitespace check passes.
 No CEM-QL/CEM-ML production source or viewer implementation changes; external JSON still resolves only in CEM-ML import into native CEM
 AST trees. HTTP/location/historical stock timing investigations remain open
 and are not attributed by this storage work.
+
+Recording the decision changes documentation and a Storybook comment only.
+The existing assertions and runtime behavior are unchanged; the whitespace
+check passes, and no test rerun is needed for this decision record.
