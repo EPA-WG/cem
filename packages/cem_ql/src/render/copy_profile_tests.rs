@@ -18,7 +18,7 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    crate::eval::let_profile_tests::with_moved_lets(false, || {
+    crate::eval::let_profile_tests::with_copied_lets(|| {
         crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
             crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
                 crate::eval::binding_profile_tests::with_copied_inputs(operation)
@@ -85,34 +85,26 @@ fn report(case: &str, samples: &[Stages]) {
     }
 }
 fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
-    with_context_copy(|| {
-        profile_strategy(&format!("{case}/copied-context"), &mut operation, &verify);
-    });
-    crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
-        crate::eval::binding_profile_tests::with_copied_inputs(|| {
-            profile_strategy(&format!("{case}/copied-inputs"), &mut operation, &verify);
+    crate::eval::let_profile_tests::with_copied_lets(|| {
+        with_context_copy(|| {
+            profile_strategy(&format!("{case}/copied-context"), &mut operation, &verify);
         });
-        profile_strategy(&format!("{case}/copied-fields"), &mut operation, &verify);
+        crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
+            crate::eval::binding_profile_tests::with_copied_inputs(|| {
+                profile_strategy(&format!("{case}/copied-inputs"), &mut operation, &verify);
+            });
+            profile_strategy(&format!("{case}/copied-fields"), &mut operation, &verify);
+        });
+        crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
+            profile_strategy(
+                &format!("{case}/copied-record-reads"),
+                &mut operation,
+                &verify,
+            );
+        });
+        profile_strategy(&format!("{case}/copied-lets"), &mut operation, &verify);
     });
-    crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
-        profile_strategy(
-            &format!("{case}/copied-record-reads"),
-            &mut operation,
-            &verify,
-        );
-    });
-    profile_strategy(
-        &format!("{case}/direct-record-reads"),
-        &mut operation,
-        &verify,
-    );
-    crate::eval::let_profile_tests::with_moved_lets(true, || {
-        profile_strategy(
-            &format!("{case}/moved-let-candidate"),
-            &mut operation,
-            &verify,
-        );
-    });
+    profile_strategy(&format!("{case}/moved-lets"), &mut operation, &verify);
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -185,6 +177,31 @@ fn default_render_borrows_proven_expression_context() {
     assert!(!stages.contains_key("copy/field-input"));
     assert!(!stages.contains_key("eval/borrowed-field-input"));
     assert_eq!(stages["eval/direct-record-read"].calls, 1);
+    assert_eq!(stages["copy/direct-field-selected"].calls, 1);
+}
+
+#[test]
+fn default_render_moves_owned_let_values() {
+    let data = TemplateData::default().with_binding(
+        "datadom",
+        ItemStream::once(record([("mode", text("fixed"))])),
+    );
+    let artifact = compile_template(
+        "{span | {$ { let local = datadom; local.mode }}}",
+        &CompileTemplateOptions {
+            host_bindings: vec!["datadom".into()],
+            ..Default::default()
+        },
+    );
+    assert!(artifact.diagnostics.is_empty());
+    let expected = with_context_copy(|| render_compiled_template(&artifact, &data));
+    let (plan, stages) = measure(|| render_compiled_template(&artifact, &data));
+    verify_plan(&plan, &expected);
+    assert_eq!(render_plan_to_html(&plan), "<span>fixed</span>");
+    assert!(!stages.contains_key("copy/let-binding"));
+    assert_eq!(stages["eval/move-let-binding"].calls, 1);
+    // Initializer reads and selected results remain owned.
+    assert_eq!(stages["copy/local-value"].calls, 1);
     assert_eq!(stages["copy/direct-field-selected"].calls, 1);
 }
 
@@ -534,8 +551,8 @@ fn copied_record_read_baseline_preserves_renderer_contracts() {
 }
 
 #[test]
-fn moved_let_candidate_preserves_renderer_contracts() {
-    crate::eval::let_profile_tests::with_moved_lets(true, || {
+fn copied_let_baseline_preserves_renderer_contracts() {
+    crate::eval::let_profile_tests::with_copied_lets(|| {
         borrowing_preserves_focus_records_recovery_and_callbacks();
         borrowing_preserves_reader_retention_across_renders();
         borrowing_preserves_protected_failures_and_recovery();

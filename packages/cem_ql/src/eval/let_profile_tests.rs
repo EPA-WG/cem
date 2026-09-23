@@ -1,4 +1,4 @@
-//! Native-only experiment moving an owned let value into its local scope.
+//! Owned let regressions and a test-only copy baseline for native profiling.
 use super::*;
 use crate::api::{compile, evaluate, CompileContext};
 use crate::compile_profile::measure;
@@ -6,53 +6,35 @@ use crate::eval::pipeline::record_read_profile_tests::with_points;
 use std::cell::Cell;
 
 thread_local! {
-    static MOVE_LET: Cell<bool> = const { Cell::new(false) };
+    static FORCE_LET_COPY: Cell<bool> = const { Cell::new(false) };
 }
 
-pub(crate) fn enabled() -> bool {
-    MOVE_LET.with(Cell::get)
+pub(crate) fn force_let_copy() -> bool {
+    FORCE_LET_COPY.with(Cell::get)
 }
 
-pub(crate) fn with_moved_lets<T>(enabled: bool, run: impl FnOnce() -> T) -> T {
+pub(crate) fn with_let_copies<T>(enabled: bool, run: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset {
         fn drop(&mut self) {
-            MOVE_LET.with(|value| value.set(self.0));
+            FORCE_LET_COPY.with(|value| value.set(self.0));
         }
     }
-    let _reset = Reset(MOVE_LET.with(|value| value.replace(enabled)));
+    let _reset = Reset(FORCE_LET_COPY.with(|value| value.replace(enabled)));
     run()
 }
 
-fn bind_moved(ctx: &mut EvalCtx<'_>, name: BindingId, value: ItemStream) -> ItemStream {
-    let _profile = crate::compile_profile::Span::new("candidate/move-let-binding");
-    // Reads of the binding still see its complete status and stream metadata.
-    // The enclosing let needs only diagnostics/error after evaluating the body.
-    let status = {
-        let _status = crate::compile_profile::Span::new("copy/let-status");
-        ItemStream {
-            diagnostics: value.diagnostics.clone(),
-            error: value.error.clone(),
-            ..ItemStream::empty()
-        }
-    };
-    ctx.bind(name, value);
-    status
+pub(crate) fn with_copied_lets<T>(run: impl FnOnce() -> T) -> T {
+    with_let_copies(true, run)
 }
 
-pub(crate) fn eval_let(
-    ctx: &mut EvalCtx<'_>,
-    name: BindingId,
-    value: IrId,
-    body: IrId,
-) -> ItemStream {
-    let value = ctx.eval_id(value);
-    ctx.push_scope();
-    let status = bind_moved(ctx, name, value);
-    let mut out = ctx.eval_id(body);
-    out.extend_diagnostics(status);
-    ctx.pop_scope();
-    out
+pub(crate) fn bind_copied(ctx: &mut EvalCtx<'_>, name: BindingId, value: ItemStream) -> ItemStream {
+    let bound = {
+        let _profile = crate::compile_profile::Span::new("copy/let-binding");
+        value.clone()
+    };
+    ctx.bind(name, bound);
+    value
 }
 
 fn text(value: &str) -> Item {
@@ -91,20 +73,20 @@ fn same(actual: &ItemStream, expected: &ItemStream) {
 }
 
 #[test]
-fn let_move_candidate_avoids_redundant_binding_copy() {
+fn default_let_avoids_redundant_binding_copy() {
     let context = context();
     let query = query("{ let local = input; local.label }", &context);
-    let expected = evaluate(&query, &context);
-    let (actual, stages) = measure(|| with_moved_lets(true, || evaluate(&query, &context)));
+    let expected = with_copied_lets(|| evaluate(&query, &context));
+    let (actual, stages) = measure(|| evaluate(&query, &context));
     same(&actual, &expected);
     assert_eq!(actual.items, vec![text("outer")]);
     assert!(!stages.contains_key("copy/let-binding"));
-    assert_eq!(stages["candidate/move-let-binding"].calls, 1);
+    assert_eq!(stages["eval/move-let-binding"].calls, 1);
     assert_eq!(stages["copy/local-value"].calls, 1);
 }
 
 #[test]
-fn let_move_candidate_moves_allocation_and_keeps_full_binding_metadata() {
+fn owned_let_moves_allocation_and_keeps_full_binding_metadata() {
     let context = context();
     let query = query("input", &context);
     let name = *query.policy_bindings.keys().next().unwrap();
@@ -125,7 +107,7 @@ fn let_move_candidate_moves_allocation_and_keeps_full_binding_metadata() {
         ROOT_EXECUTION_SCOPE_ID,
     );
     ctx.push_scope();
-    let status = bind_moved(&mut ctx, name, value);
+    let status = ctx.bind_owned_let(name, value);
     let bound = &ctx.scopes.last().unwrap()[&name];
     same(bound, &expected);
     assert_eq!(bound.items.as_ptr(), allocation);
@@ -140,7 +122,7 @@ fn let_move_candidate_moves_allocation_and_keeps_full_binding_metadata() {
 }
 
 #[test]
-fn let_move_candidate_preserves_shadowing_reads_recovery_and_safe_points() {
+fn owned_let_preserves_shadowing_reads_recovery_and_safe_points() {
     let context = context();
     for source in [
         "{ let local = input; local }",
@@ -154,22 +136,19 @@ fn let_move_candidate_preserves_shadowing_reads_recovery_and_safe_points() {
         "{ let local = input; try { 1 / 0 } catch (code, message) { local.label } }",
     ] {
         let query = query(source, &context);
-        let (expected, expected_points) = with_points(|| evaluate(&query, &context));
-        let ((actual, points), stages) =
-            measure(|| with_moved_lets(true, || with_points(|| evaluate(&query, &context))));
+        let (expected, expected_points) =
+            with_copied_lets(|| with_points(|| evaluate(&query, &context)));
+        let ((actual, points), stages) = measure(|| with_points(|| evaluate(&query, &context)));
         assert!(actual.error.is_none(), "{source}: {actual:?}");
         same(&actual, &expected);
         assert_eq!(points, expected_points, "{source}");
-        assert!(
-            stages.contains_key("candidate/move-let-binding"),
-            "{source}"
-        );
+        assert!(stages.contains_key("eval/move-let-binding"), "{source}");
         assert!(!stages.contains_key("copy/let-binding"));
     }
 }
 
 #[test]
-fn let_move_candidate_preserves_diagnostic_order_and_failed_values() {
+fn owned_let_preserves_diagnostic_order_and_failed_values() {
     for failed in [false, true] {
         let mut context = context();
         let value = context.policy_bindings.get_mut("input").unwrap();
@@ -189,18 +168,18 @@ fn let_move_candidate_preserves_diagnostic_order_and_failed_values() {
             "try { let local = input; local } catch (code, message) { message }",
         ] {
             let query = query(source, &context);
-            let (expected, expected_points) = with_points(|| evaluate(&query, &context));
-            let ((actual, points), stages) =
-                measure(|| with_moved_lets(true, || with_points(|| evaluate(&query, &context))));
+            let (expected, expected_points) =
+                with_copied_lets(|| with_points(|| evaluate(&query, &context)));
+            let ((actual, points), stages) = measure(|| with_points(|| evaluate(&query, &context)));
             same(&actual, &expected);
             assert_eq!(points, expected_points, "{source}");
-            assert!(stages.contains_key("candidate/move-let-binding"));
+            assert!(stages.contains_key("eval/move-let-binding"));
         }
     }
 }
 
 #[test]
-fn let_move_candidate_retains_fresh_native_owners_and_releases_them() {
+fn owned_let_retains_fresh_native_owners_and_releases_them() {
     use crate::native::{NativeQueryFunction, NativeQueryRequest};
     use std::sync::{Mutex, Weak};
     type Log = Arc<Mutex<Vec<&'static str>>>;
@@ -243,7 +222,7 @@ fn let_move_candidate_retains_fresh_native_owners_and_releases_them() {
         }
     }
     for return_node in [false, true] {
-        for candidate in [false, true] {
+        for copied in [true, false] {
             let log = Log::default();
             let weak = Arc::new(Mutex::new(Weak::new()));
             let mut context = context();
@@ -258,9 +237,9 @@ fn let_move_candidate_retains_fresh_native_owners_and_releases_them() {
             };
             let query = query(source, &context);
             let (result, stages) =
-                measure(|| with_moved_lets(candidate, || evaluate(&query, &context)));
+                measure(|| with_let_copies(copied, || evaluate(&query, &context)));
             assert!(result.error.is_none());
-            assert_eq!(stages.contains_key("candidate/move-let-binding"), candidate);
+            assert_eq!(stages.contains_key("eval/move-let-binding"), !copied);
             drop(context);
             if return_node {
                 assert!(weak.lock().unwrap().upgrade().is_some());
@@ -281,7 +260,7 @@ fn let_move_candidate_retains_fresh_native_owners_and_releases_them() {
 }
 
 #[test]
-fn let_move_candidate_preserves_cancellation_and_lower_child_budgets() {
+fn owned_let_preserves_cancellation_and_lower_child_budgets() {
     use crate::api::evaluate_with_control;
     use cem_ml::operation_control::{ExecutionScopeKind, ExecutionScopeRegistration};
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -314,7 +293,7 @@ fn let_move_candidate_preserves_cancellation_and_lower_child_budgets() {
             "declare function down(n, value) { let local = value; if n == 0 { local.label } else { (local.label, down(n - 1, local)) } } try { down(17, input) } catch (code, message) { \"must-not-catch\" }"
         };
         let mut baseline = None;
-        for candidate in [false, true] {
+        for copied in [true, false] {
             let policy = ScopePolicy::host_root().with_cpu_workers(2);
             let control = OperationControl::with_root_policy(Default::default(), policy).unwrap();
             let child = control
@@ -354,14 +333,14 @@ fn let_move_candidate_preserves_cancellation_and_lower_child_budgets() {
             );
             let query = query(source, &context);
             let ((result, points), stages) = measure(|| {
-                with_moved_lets(candidate, || {
+                with_let_copies(copied, || {
                     with_points(|| evaluate_with_control(&query, &context, &control, child))
                 })
             });
             assert!(result.error.is_some());
             assert!(result.items.is_empty());
             assert!(!result.diagnostics.is_empty());
-            assert_eq!(stages.contains_key("candidate/move-let-binding"), candidate);
+            assert_eq!(stages.contains_key("eval/move-let-binding"), !copied);
             if let Some((expected, expected_points)) = &baseline {
                 same(&result, expected);
                 assert_eq!(&points, expected_points);

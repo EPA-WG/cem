@@ -3342,6 +3342,9 @@ measured proposal.
 
 ### Remaining value copies and owned `let` bindings (2026-09-22)
 
+This section records the test-only investigation at `5b58c8ee`, before the
+production promotion documented below.
+
 The `b2e041bb` correction removes complete binding reads for eligible plain
 fields. The remaining ownership paths are distinct:
 
@@ -3511,11 +3514,11 @@ yarn nx run cem_ql:test --skipNxCache
 yarn nx run cem_ql:lint --skipNxCache
 ```
 
-#### Pending decision: move owned let values
+#### Accepted: move owned let values
 
-Recommend moving already-owned CEM-QL `let` initializers into their local scope
-and retaining only status metadata for the post-body merge. The measured
-benefit applies to actual `let` workloads. The value remains fully owned; no
+Accepted by the user 2026-09-22: move already-owned CEM-QL `let` initializers
+into their local scope and retain only status metadata for the post-body merge.
+The measured benefit applies to actual `let` workloads. The value remains fully owned; no
 borrow crosses evaluation, and public values/artifacts, diagnostic order,
 native owners, source maps and scope limits keep their current contract.
 
@@ -3531,9 +3534,131 @@ destruction-order review. The current viewer's remaining read/projection costs
 do not establish a need for those broader changes. Keep them separate and
 investigate renderer snapshots/input-context costs after this bounded correction.
 
-If approved, first make the ownership/status regression assert default behavior,
-then promote the move, repeat native profiling, rebuild WASM and verify unchanged
-table/tree plus normal and synchronized Storybook coverage. Preserve import
-boundaries, viewer sources, limits and concurrency. Production remains unchanged
-at this checkpoint: the active TODO requires a measured proposal before shared
-ownership changes, and the user's latest instruction requires a stop at decisions.
+The approved implementation must first make the ownership/status regression
+assert default behavior, then promote the move, repeat native profiling, rebuild
+WASM and verify unchanged table/tree plus normal and synchronized Storybook
+coverage. Preserve import boundaries, viewer sources, limits and concurrency.
+Production was unchanged at the investigation checkpoint; the user has now
+authorized this bounded ownership change.
+
+
+#### Production owned let moves
+
+The approved move is now the default evaluator path. `bind_owned_let` installs
+an owned initializer without cloning its items, cursor or chain marker. It
+retains cloned diagnostics and the typed error in an empty-item stream for the
+existing post-body status merge. Both copies of status remain available, so
+binding reads, diagnostic order and body-error precedence are unchanged.
+Evaluation order, safe points, native owner retention and release, returned
+owned values, portable artifacts and scope limits retain their contracts.
+
+The former full-value clone is available only through a `cfg(test)` baseline.
+Its thread-local switch is off by default and restores its prior value on
+unwind. Profiling compares `copied-lets` with default `moved-lets`; older copy
+strategies explicitly retain the old let clone. `eval/move-let-binding` measures
+installation and `copy/let-status` measures its nested metadata copy. Whole
+initializer reads and selected-result copies remain separate costs.
+
+Both default-path regressions fail on the old `copy/let-binding` span before
+promotion (`/tmp/cem-let-promote-red.log`) and pass afterward. The direct
+allocation/status check now calls the production installer, and the ownership,
+shadowing, failure and safe-point matrix compares the default path with the
+copied baseline. The default renderer check preserves complete output/source-map
+parity while proving that initializer reads and selected results remain owned.
+The broader renderer matrix covers native identity, callbacks, portable-template
+reload, retained readers, recovery, cancellation and lower child budgets under
+both paths. All **97 unit tests** pass, with three opt-in profiles skipped
+(`/tmp/cem-let-promote-unit.log`).
+
+The release profile passes in 77.62 s (`/tmp/cem-let-promote-release.log`),
+with no unrelated build or browser workload running. Record-free medians use
+five warm samples after discarding the first; timings are observations, not
+thresholds. With 256 synthetic host controls:
+
+| Workload | Copied lets, ms | Default moved lets, ms |
+| --- | ---: | ---: |
+| Scalar field from a local let | 0.588 | 0.287 |
+| Whole local let returned | 0.832 | 0.433 |
+| Scalar field from a constructed local record | 0.647 | 0.297 |
+| 32 let interpolations | 44.314 | 22.920 |
+
+The 32-let case improves **48.3%** in this run, with sample ranges
+42.853–51.746 / 20.895–27.147 ms. The zero-control case is 0.119/0.096 ms;
+this does not establish a general small-value speedup. Recorded attribution
+removes 32 complete binding clones (10.725 ms); 32 move installations take
+0.016 ms including 0.002 ms for status copies. The 32 whole initializer reads
+remain (10.620/10.505 ms), as do 32 owned scalar result copies. Nested recorded
+spans are not additive and are separate from the record-free total timings.
+
+The unchanged authored and retained XML/CSV/YAML/JSON viewer cases pass full
+output, source-map and diagnostic parity and record **zero let installation or
+status spans**. Authored medians are 4.247/3.680, 4.727/4.505, 5.156/5.700 and
+4.918/4.812 ms; retained medians are 3.717/4.372, 5.891/4.960, 4.864/5.322 and
+5.037/4.824 ms. These differences are run variation, not an owned-let benefit.
+Shadow/try/catch-scan/hook-scan cases also retain their separate work
+(12.477/11.586, 63.946/65.245, 125.919/131.685, 246.996/246.139 ms).
+
+Full native Nx validation passes **680 tests across 77 suites**, with eight
+opt-in profiles skipped (`/tmp/cem-let-promote-native-tests.log`). Native lint
+passes with the existing 131 CEM-ML/41 CEM-QL warnings
+(`/tmp/cem-let-promote-lint.log`); focused fixture formatting and diff checks
+also pass. No viewer source, import path, public artifact, limit or concurrency
+setting changed.
+
+The WASM/browser package rebuild passes
+(`/tmp/cem-let-promote-browser-build.log`). Packaged CEM-QL WASM SHA-256:
+`bea0ebac5a92be170c3e9ab3b7af70e9b13c6e44a4eeeeb408c4793314e57b57`.
+The unchanged standalone demos pass **40/40 table** and **18/18 tree** checks
+with no reported errors (`/tmp/cem-let-promote-{table,tree}-profile.{json,log}`).
+The authored page reaches four tables at 3.0486 s and seven cards at 3.9212 s.
+These observations validate browser integration; no viewer speedup is claimed.
+
+The normal Storybook run passes **203/203 tests in 42 files** in 42.39 s
+(`/tmp/cem-let-promote-normal.log`). Table, tree and inspector journeys complete
+in 11.9673/8.6278/3.0554 s. Viewer sources, assertions, scope limits and browser
+concurrency remain unchanged.
+
+The synchronized run passes **203/203 tests in 42 files** in 64.05 s
+(`/tmp/cem-let-promote-synchronized.log`). The stock probe starts after Vitest's
+actual `RUN` marker, with eight concurrent pages across four batches and the
+unchanged 45 s warning deadline. All **32/32 stock cases** pass without errors;
+warning readiness is 4.454–9.297 s
+(`/tmp/cem-let-promote-synchronized-stock.{json,log}`). Both subprocesses exit
+zero (`/tmp/cem-let-promote-synchronized-status.log`). The table, tree and stock
+reports all record the rebuilt WASM hash above.
+
+Stock cases span **2026-09-23 00:02:25.608–00:03:03.777 UTC** (September 22
+locally). Table/tree stories start at 00:02:39.839/39.944 and the inspector at
+00:02:48.916. Their journeys complete in 23.9019/14.0990/5.2394 s, all during
+the stock workload. NPM default selection becomes ready at 00:03:09.965
+(162/200 attempts, 3.1691 s), and both location readers at 00:03:27.278
+(45/180 attempts, 1.2225 s). These latter waits start after the stock workload
+ends, so their behavior under that extra load remains unverified. The historical
+stock timeout remains unreproduced; this let correction does not resolve it.
+
+The approved owned-let promotion is complete. External XML, JSON, YAML and CSV
+still enter through shared CEM-ML import into retained native CEM trees. Next,
+investigate renderer shadow/try/hook snapshots and initial input-context copies
+as separate costs in actual workloads. Further shared ownership changes require
+a measured proposal; broader argument borrowing or shared results are separate
+work.
+
+Reproduce the promoted path with:
+
+```sh
+cargo test -p cem-ql --lib owned_let
+cargo test -p cem-ql --lib default_let
+cargo test -p cem-ql --lib copied_let_baseline
+cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+yarn nx run cem-elements:build
+node tools/scripts/profile-cem-tree-render.mjs --fixture=table --output=/tmp/cem-let-promote-table-profile.json
+node tools/scripts/profile-cem-tree-render.mjs --output=/tmp/cem-let-promote-tree-profile.json
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test
+```
+
+For the synchronized run, start
+`node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=owned-let-moves --output=/tmp/cem-let-promote-synchronized-stock.json`
+after that Storybook command emits Vitest's `RUN` marker; preserve both process
+exit codes and compare actual timestamps rather than assuming overlap.

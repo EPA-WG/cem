@@ -905,20 +905,11 @@ impl<'a> EvalCtx<'a> {
                 }
             }
             IrNode::Let { name, value, body } => {
-                #[cfg(test)]
-                if let_profile_tests::enabled() {
-                    return let_profile_tests::eval_let(self, name, value, body);
-                }
                 let value = self.eval_id(value);
                 self.push_scope();
-                let bound = {
-                    #[cfg(test)]
-                    let _profile = crate::compile_profile::Span::new("copy/let-binding");
-                    value.clone()
-                };
-                self.bind(name, bound);
+                let status = self.bind_owned_let(name, value);
                 let mut body = self.eval_id(body);
-                body.extend_diagnostics(value);
+                body.extend_diagnostics(status);
                 self.pop_scope();
                 body
             }
@@ -1662,6 +1653,28 @@ impl<'a> EvalCtx<'a> {
             .last_mut()
             .expect("evaluator always has a scope")
             .insert(binding, value);
+    }
+
+    fn bind_owned_let(&mut self, binding: BindingId, value: ItemStream) -> ItemStream {
+        #[cfg(test)]
+        if let_profile_tests::force_let_copy() {
+            return let_profile_tests::bind_copied(self, binding, value);
+        }
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("eval/move-let-binding");
+        // The scope owns the full initializer, including its stream metadata.
+        // The post-body merge reads only diagnostics/error, so retain just those.
+        let status = {
+            #[cfg(test)]
+            let _status = crate::compile_profile::Span::new("copy/let-status");
+            ItemStream {
+                diagnostics: value.diagnostics.clone(),
+                error: value.error.clone(),
+                ..ItemStream::empty()
+            }
+        };
+        self.bind(binding, value);
+        status
     }
 
     fn push_scope(&mut self) {

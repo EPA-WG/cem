@@ -2513,7 +2513,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         its post-body merge. A test-only move reduces 32 `let` interpolations
         40.479→21.451 ms (47.0%) while preserving status and native owners.
         The unchanged viewer does not use the candidate and gains no proven
-        speedup. See the [proposal](browser-stabilization-review.tmp.md#pending-decision-move-owned-let-values).
+        speedup. See the [proposal](browser-stabilization-review.tmp.md#accepted-move-owned-let-values).
   - [x] Fixture: attribute whole argument reads, selected results and `let`
         binding copies independently. Compare a native test-only `let` candidate
         that moves the owned value into scope and retains only status metadata.
@@ -2524,17 +2524,28 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         six direct checks and the renderer matrix pass afterward, including
         fresh native-owner release and portable-template reload. All 679 native
         tests, the release profile and native lint pass. Production is unchanged.
-  - [ ] Decide whether to move owned CEM-QL `let` initializers into their local
+  - [x] Decide whether to move owned CEM-QL `let` initializers into their local
         scope while retaining cloned diagnostics/error for the post-body merge.
         Recommend the bounded move; preserve the full binding metadata, owned
         reads/results, checkpoint order and native lifetimes. See the
-        [decision](browser-stabilization-review.tmp.md#pending-decision-move-owned-let-values).
-  - [ ] If approved, promote owned-let moves with default-path allocation,
+        [decision](browser-stabilization-review.tmp.md#accepted-move-owned-let-values).
+        Accepted by the user 2026-09-22: promote owned let moves.
+  - [x] Promote approved owned-let moves with default-path allocation,
         metadata, failure and native-owner regressions, repeat native profiling,
         rebuild WASM and verify unchanged table/tree plus normal/synchronized
         Storybook. Preserve public artifacts, import boundaries, scope limits
         and concurrency; retain status on the binding and the post-body merge.
-  - [ ] After that decision, investigate renderer shadow/try/hook snapshots and
+        Fixture: assert default evaluator and renderer paths skip the binding
+        clone while preserving allocation, owned reads and selected results.
+        Completed 2026-09-22: default evaluator/renderer checks fail before the
+        promotion and pass afterward. All 680 native tests and lint pass; the
+        32-let fixture improves 44.314→22.920 ms (48.3%), preserving status and
+        native owners. Rebuilt WASM passes 40 table/18 tree checks, both
+        203-test Storybook runs and all 32 synchronized stock cases. Viewer
+        cases have no let installations, so no viewer speedup is claimed.
+        Table/tree/inspector overlap stock load; NPM/location waits follow it.
+        See the [production evidence](browser-stabilization-review.tmp.md#production-owned-let-moves).
+  - [ ] After that promotion, investigate renderer shadow/try/hook snapshots and
         initial input-context copies as separate costs using actual workloads.
         Require a measured proposal before shared ownership changes. Keep broad
         argument borrowing and shared/consumed results separate; the current
