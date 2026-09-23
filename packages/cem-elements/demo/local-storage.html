@@ -461,7 +461,7 @@
 
     <cem-demo-element
         legend="6. Fruit buttons and a storage watcher"
-        description="An independent writer increments fruit keys while a live DCE observes those keys and updates its slices and total">
+        description="An independent writer increments fruit keys while a live DCE observes those keys. The total waits for all four slices before calculating">
         <template>
 <fieldset>
     <legend>Add one fruit to localStorage</legend>
@@ -523,12 +523,19 @@
         {dd | {$datadom.slices.bananas}}
         {dt @aria-label=Total @title=Total | 🛒}
         {dd |
-            {$(
-                datadom.slices.lemons
-                + datadom.slices.cherries
-                + datadom.slices.apples
-                + datadom.slices.bananas
-            )}
+            {cem:if @test='seq:count((
+                datadom.slices.lemons,
+                datadom.slices.cherries,
+                datadom.slices.apples,
+                datadom.slices.bananas
+            )) == 4' |
+                {$(
+                    datadom.slices.lemons
+                    + datadom.slices.cherries
+                    + datadom.slices.apples
+                    + datadom.slices.bananas
+                )}
+            }
         }
     }
 }

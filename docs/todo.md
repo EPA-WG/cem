@@ -2376,12 +2376,33 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             fixture. If startup polling is premature, use existing lifecycle
             settlement before checking each authored instance; preserve the
             resource assertions and 30-second story deadline.
-    - [ ] Native fixture: attribute local-storage's initial fruit-watcher
+    - [x] Native fixture: attribute local-storage's initial fruit-watcher
           arithmetic diagnostics and the JSON sample's
           `cem.render_plan_apply.replace_scope` warning. Distinguish absent
           scalar bindings from native import/export or patch behavior before
           changing either; preserve intentional invalid-input errors and
           stop before a shared contract change.
+      - [x] Fixture: render the authored fruit watcher with missing, partial,
+            complete and invalid scalar bindings; render the JSON validation
+            template with pending and CEM-ML-imported object/array/scalar values.
+            Check output, diagnostics, source provenance and unchanged roots;
+            reproduce the browser warning with those native plans before
+            proposing any shared projection correction. Completed 2026-09-23:
+            five new native cases, 701 native passes, 205 Storybook passes,
+            18 source-contract passes and all 64 demo documents verified.
+      - [x] Guard only the authored watcher's unbound startup calculation.
+            Preserve its blank pending total, complete numeric arithmetic,
+            invalid-bound-value errors and strict evaluator behavior. Verify
+            native cases and diagnostic history after browser interactions.
+      - [ ] Decision: validate direct retained-root updates against the previous
+            committed plan before reconciling the next plan. The native JSON
+            import/export succeeds; an ordinary added/removed list root triggers
+            conservative scope recovery and replaces unchanged paragraphs.
+            The temporary candidate preserves them and still recovers a foreign
+            root; see "Pending decision: expected root changes in direct
+            projection" in docs/browser-stabilization-review.tmp.md. Review the
+            shared projection contract before promotion; do not wrap the sample
+            or silence warnings to disguise recovery.
   - [x] Fixture: replace external-src's reproduced premature frame wait with
         declaration and render settlement, then assert every existing output
         within the unchanged story deadline. Add opt-in retry-attempt and

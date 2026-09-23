@@ -5412,3 +5412,145 @@ Start the existing eight-concurrent, four-batch stock command after Vitest's
 `RUN` marker, and retain both exit codes plus actual UTC intervals. The
 sixteen-file command is recorded in the previous section. Final normal
 regression coverage uses `yarn nx run cem-elements:test` with tracing disabled.
+
+### Local-storage diagnostic attribution and authored startup guard
+
+Investigated 2026-09-23. The earlier readiness trace recorded four
+`cem.ql.type_error` diagnostics plus `cem.ql.render.eval_failed` in the fruit
+watcher, and one `cem.render_plan_apply.replace_scope` warning in JSON
+validation. These have separate causes.
+
+The new Rust fixture `packages/cem_ql/tests/local_storage_diagnostics.rs`
+extracts each authored CEMT template from `local-storage.html`. Only scalar
+bindings and the host control envelope use records. Every JSON source enters
+`native_values::import_document`, which uses CEM-ML import, and crosses the
+portable native-value boundary before rendering. Export must reproduce the
+original JSON text; the artifact byte buffer is dropped before the retained
+native values are rendered.
+
+The initial red run has four passing cases and one failing startup case
+(`/tmp/cem-storage-diagnostics-native-red.log`). Empty scalar bindings reproduce
+all five fruit diagnostics, including the strict numeric-operand message and
+CEMT/query source frames. Complete values already produce 13, later edits 17,
+and four zero values 0. No JSON import, native ownership or arithmetic defect
+is needed to explain the startup failure.
+
+The authored total now checks that all four scalar slices are bound before
+performing its existing addition. It remains blank while any binding is
+absent; it does not invent zero values or show a partial total. Bound null and
+invalid-string inputs still produce arithmetic diagnostics. An independent
+unguarded missing-value expression also remains an error. The evaluator and
+storage runtime are unchanged. The sample description explains this wait.
+
+All five native tests pass. JSON cases cover pending, object, array, string,
+number, boolean, zero, JSON null, object replacement and invalid input. Native
+rendering emits no diagnostics for valid shapes; the two paragraph roots keep
+their source provenance while an object adds `ul`, an array adds `ol`, and a
+scalar has neither list. Invalid `ABC` fails at import, while rendering the
+cleared native slice displays null without an additional evaluator error.
+
+Downstream Storybook now checks that the fruit watcher's entire diagnostic
+history is empty after startup and valid edits. JSON hydration permits only
+the separately characterized projection warning, and the invalid-input
+interaction must still record `cem-element.local_storage_json_invalid`.
+A temporary read-only diagnostic probe confirmed the actual authored sample's
+warning message at **16:45:39 UTC**:
+
+> retained render scope root identities did not match the next render plan; replaced the scope
+
+The later invalid JSON produces the expected import diagnostic; the fruit
+watcher's history is empty. Both stories pass
+(`/tmp/cem-storage-diagnostics-history.log`). The probe was removed.
+
+### Pending decision: expected root changes in direct projection
+
+**Recommendation:** when the direct renderer has a previous committed plan,
+validate the retained DOM roots against that plan, then reconcile the next
+plan with the existing merge machinery. Preserve conservative recovery for
+untrusted or corrupted scopes and for calls lacking an authoritative previous
+plan. This changes a shared projection contract and remains unpromoted pending
+review under the active TODO and the user's stop-at-decisions instruction.
+
+The source-loaded JSON sample uses the direct retained-plan application path.
+`renderScopeRecoveryReason` currently compares the retained root identity set
+to the **next** plan. Its check cannot distinguish a legitimate added/removed
+root from corruption. Pending JSON has two visible paragraph roots; importing
+an object adds a list, so the whole scope is replaced, including the unchanged
+paragraphs. Removing that list does the same. This is a browser projection
+policy, not JSON-specific rendering, an import/export failure, or native
+source-map instability.
+
+The permanent `NativeJsonRootTransitions` story renders the authored template
+through the packaged CEM-QL WASM, using native CEM value artifacts imported by
+CEM-ML. It proves the following current behavior without mocking render plans:
+
+| Transition | Current direct application | Existing paragraph identity |
+| --- | --- | --- |
+| Empty range → pending | Patch, no warning | Created |
+| Pending → object | Scope replacement with recovery warning | Lost |
+| Object → array | Patch | Retained |
+| Array → boolean | Scope replacement with recovery warning | Lost |
+
+The object/array case has the same root identity set and changes the list tag;
+the existing merger already handles that transition. The pending/object
+paragraph IDs are equal in the actual WASM plans. The extra list root alone
+is enough to trigger the recovery warning.
+
+A temporary candidate added `previousPlan` to direct application options,
+passed the runtime's already-retained committed plan, and compared the current
+root IDs with that previous plan. The pending/object/array/boolean journey then
+patches without recovery and preserves the original paragraph. A manually
+foreign paragraph identity still triggers scope replacement. All **76 tests
+in two Storybook files** pass, including the existing comment-range and focus
+recovery cases (`/tmp/cem-storage-root-candidate.log`). The production candidate
+and candidate-only assertions were removed; the committed story characterizes
+the current limitation until a decision is made.
+
+The recommended implementation should:
+
+- Accept the prior committed plan only within the same instance, template,
+  output target and scope-policy identity. Data revisions may advance.
+- Validate the retained scope before applying the new plan, respecting
+  transient resource nodes and existing component-owned-child boundaries.
+- Reuse the current merge machinery for expected additions/removals, including
+  transitions to/from no element roots. Keep corruption warnings and recovery
+  for unexpected retained roots and identity mismatches.
+- Add positive identity/focus tests and negative stale-plan, foreign-root and
+  missing-root cases before promotion. Keep calls without a prior plan
+  conservative; do not trust the next plan as evidence of past DOM ownership.
+- Keep explicit worker `replaceScope` transaction semantics unchanged in this
+  bounded correction. Worker root-cardinality diff fallback is a separate
+  path; this prototype does not establish that every worker transition will
+  preserve roots, or justify introducing a new patch operation.
+
+The alternative is to retain conservative whole-scope replacement for every
+root-set change. It requires no new prior-plan input, but loses unchanged DOM
+identity and continues to report recovery for valid authored branches. Wrapping
+this one sample would avoid its root-set change while leaving the shared issue;
+merely suppressing the warning would retain the replacement cost. Neither is
+recommended.
+
+Validation for the authored fix and attribution fixtures:
+
+- `yarn nx run cem_ql:test --skipNxCache`: **701 passing tests**, nine ignored
+  profiling cases (`/tmp/cem-storage-diagnostics-native-full.log`).
+- Focused Storybook: **2/2**, including the actual diagnostic-history probe.
+- Focused source-contract unit coverage passes **18/18**; package lint and
+  typecheck pass. Lint
+  retains its two existing non-null-assertion warnings; typecheck uses valid
+  cached production inputs. Evidence:
+  `/tmp/cem-storage-diagnostics-{unit,lint,typecheck}.log`.
+- A real standalone page at 1440 px has a two-card row, 1440 px document width,
+  no card outside the viewport, flush-left payloads for all twelve cards, and
+  all four related-page links resolving with HTTP 200
+  (`/tmp/cem-storage-layout.log`).
+
+Final normal Storybook coverage passes **205/205 tests in 43 files** in
+**36.43 s** (`/tmp/cem-storage-diagnostics-browser-full.log`). The complete
+demo verifier passes **29 standalone pages and 35 source-loaded documents**
+(`/tmp/cem-storage-diagnostics-fixtures.log`). The packaged CEM-QL WASM hash
+remains `045686972ebbcef44c444653086ad9b74e52d03c9e09d465b4e6a3fa3dd97881`.
+The final whitespace check passes.
+No CEM-QL/CEM-ML production source or viewer implementation changes; external JSON still resolves only in CEM-ML import into native CEM
+AST trees. HTTP/location/historical stock timing investigations remain open
+and are not attributed by this storage work.

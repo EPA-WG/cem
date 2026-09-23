@@ -1,6 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
+import { cemDiagnosticCodes, traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
 import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
+import { expect } from 'storybook/test';
+import storagePage from '../../demo/local-storage.html?raw';
+import { processNativeCemValue, renderCemMlTemplate } from './internal/runtime-support/cem-ql-render.js';
+import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS } from './native-values.js';
+import { applyRenderPlanToRange, type RenderPlan } from './projection.js';
 
 const SOURCE_TAG = 'story-local-storage-demo-document';
 const DEMO_URL = new URL('../../demo/local-storage.html', import.meta.url);
@@ -90,9 +95,72 @@ export const EveryAuthoredSample: Story = {
         await verifyInitialRead(sampleByLegend(host, EXPECTED_LEGENDS[8]));
         await verifyJsonBasket(sampleByLegend(host, EXPECTED_LEGENDS[9]));
         await verifyFruitWriterAndWatcher(sampleByLegend(host, EXPECTED_LEGENDS[10]));
+        assertDeepEqual(
+            cemDiagnosticCodes(producedInstance(sampleByLegend(host, EXPECTED_LEGENDS[10]))),
+            [],
+            'initial binding and valid fruit edits produce no diagnostics'
+        );
         await verifySliceEditor(sampleByLegend(host, EXPECTED_LEGENDS[11]));
     },
 };
+
+// Characterize the shared projection limitation separately from native import.
+// The decision and follow-up are tracked in the browser stabilization checklist.
+export const NativeJsonRootTransitions: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        // Select authored template text; source documents enter only CEM-ML import.
+        const source = storagePage.split(`legend="${EXPECTED_LEGENDS[7]}"`)[1]
+            .split('<template type="text/cem-ml">')[1].split('</template>')[0];
+        const start = document.createComment('cem-render-start');
+        const end = document.createComment('cem-render-end');
+        canvasElement.append(start, end);
+        const bounds = { start, end };
+        let revision = 0;
+        const plan = async (text: string | null): Promise<RenderPlan> => {
+            const imported = text === null ? null : await processNativeCemValue({
+                action: 'import', bytes: new TextEncoder().encode(text).buffer,
+                contentType: 'application/json', sourceUri: 'storage:diagnostics',
+                scopePolicyStamp: 'test', limits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS,
+            });
+            if (imported && !('value' in imported)) throw new Error('Expected a native CEM document');
+            const result = await renderCemMlTemplate(source, { datadom: { slices: { raw: text, json: null } } }, {
+                nativeSlices: imported ? [{ name: 'json', value: imported.value }] : [],
+            });
+            expect(result.diagnostics).toEqual([]);
+            return { nodes: result.nodes, producedTag: 'storage-projection', instanceId: 'one',
+                dataRevision: String(++revision), templateArtifactId: 'storage',
+                scopePolicyStamp: 'test', outputTarget: 'light-dom' };
+        };
+        const pending = await plan(null);
+        expect(applyRenderPlanToRange(bounds, pending, document).diagnostics).toEqual([]);
+        const originalParagraph = canvasElement.querySelector('p');
+        const loaded = await plan('{"a":1,"b":"B"}');
+        const rootIds = (value: RenderPlan) => value.nodes.flatMap(node =>
+            node.kind === 'element' && node.tag === 'p' ? [node.renderNodeId] : []);
+        expect(rootIds(loaded)).toEqual(rootIds(pending));
+        const applied = applyRenderPlanToRange(bounds, loaded, document);
+        expect(applied.mode).toBe('replaceScope');
+        expect(applied.diagnostics).toEqual([{
+            code: 'cem.render_plan_apply.replace_scope', severity: 'warning', reason: 'recovery',
+            message: 'retained render scope root identities did not match the next render plan; replaced the scope',
+        }]);
+        expect(canvasElement.querySelector('p')).not.toBe(originalParagraph);
+        expect(textList(canvasElement, 'li')).toEqual(['a: 1', 'b: B']);
+        const array = await plan('[1,2,3]');
+        expect(applyRenderPlanToRange(bounds, array, document).mode).toBe('patch');
+        expect(textList(canvasElement, 'li')).toEqual(['1', '2', '3']);
+        const scalar = await plan('false');
+        expect(applyRenderPlanToRange(bounds, scalar, document).mode).toBe('replaceScope');
+        expect(textList(canvasElement, 'output')).toEqual(['false', 'false']);
+    },
+};
+
+function producedInstance(sample: HTMLElement): HTMLElement {
+    const tag = requiredElement(sample, 'cem-element').getAttribute('tag');
+    if (!tag) throw new Error('Anonymous storage declaration has no produced tag');
+    return requiredElement(sample, tag);
+}
 
 async function verifyLiveText(sample: HTMLElement): Promise<void> {
     await waitForText(sample, 'output', 'stored initial', 'the live text slice hydrates');
@@ -207,6 +275,11 @@ async function verifyNumbers(sample: HTMLElement): Promise<void> {
 
 async function verifyJson(sample: HTMLElement): Promise<void> {
     await waitForCondition(() => textList(sample, 'ul li').join('|') === 'a: 1|b: B', 'JSON object fields hydrate');
+    assertDeepEqual(
+        cemDiagnosticCodes(producedInstance(sample)).filter(code => code !== 'cem.render_plan_apply.replace_scope'),
+        [],
+        'valid native JSON hydration has no import or evaluation diagnostics'
+    );
     for (const [button, raw, parsed] of [
         ['JSON string', '"ABC"', 'ABC'],
         ['JSON number', '12.345', '12.345'],
@@ -219,6 +292,10 @@ async function verifyJson(sample: HTMLElement): Promise<void> {
             `${button} projects the raw and parsed JSON values`
         );
         assertEqual(localStorage.getItem('cemDemoJson'), raw, 'JSON parsing does not rewrite storage');
+        if (raw === 'ABC') {
+            assertEqual(cemDiagnosticCodes(producedInstance(sample)).includes('cem-element.local_storage_json_invalid'),
+                true, 'invalid JSON retains the import diagnostic');
+        }
     }
     submitRaw(sample, '0');
     await waitForCondition(() => textList(sample, 'output').join('|') === '0|0', 'JSON zero stays zero');
