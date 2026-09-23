@@ -3662,3 +3662,217 @@ For the synchronized run, start
 `node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=owned-let-moves --output=/tmp/cem-let-promote-synchronized-stock.json`
 after that Storybook command emits Vitest's `RUN` marker; preserve both process
 exit codes and compare actual timestamps rather than assuming overlap.
+
+
+### Renderer snapshots and initial input context (2026-09-22)
+
+This investigation follows production owned-let promotion `7596f928`. Renderer
+setup, CEMT variable restoration, try/catch recovery and expression-hook capture
+are distinct ownership paths. The native profile now attributes setup to the
+initial full binding copy, synthesized data-document construction, explicit
+`datadom` copying, missing-field merge and declaration defaults. Existing shadow,
+try and hook spans retain their meaning. No production ownership behavior or
+viewer source changes in this checkpoint.
+
+#### Initial context construction
+
+Current setup clones `TemplateData.bindings` to create the renderer's owned
+context. It separately synthesizes `datadom` from all non-`datadom` host bindings,
+copying their item values into both top-level fields and an `attributes` record.
+If an explicit `datadom` exists, setup clones it again, fills its missing fields
+from the synthesized record by cloning those values, then replaces the first
+copy of explicit `datadom` in the context. Synthesized fields that explicit data
+already provides are discarded. These host-control records are not imported
+XML/JSON/YAML/CSV documents; imported documents remain retained native CEM trees.
+
+The bounded candidate in `render/input_profile_tests.rs` keeps the one complete
+owned input binding copy, removes its already-copied explicit `datadom`, and
+fills only missing fields directly from the remaining host bindings. Missing
+`datadom` starts as one empty record. Present empty/non-record streams keep their
+existing behavior, and every record in a mixed or multi-record stream is filled
+independently. Explicit fields, including empty fields and `attributes`, always
+win; the merge stays shallow. A host binding named `attributes` appears inside
+the synthesized attributes record, rather than replacing that record. All
+public top-level and `datadom` bindings remain available to ordinary expressions,
+opaque callbacks and template calls.
+
+The resulting values remain owned and independently mutable where they are plain
+records; native handles retain their original owners and identities. The
+candidate introduces no lazy field access, borrowed renderer context, shared
+plain-record representation, format branch or callback. Status metadata and the
+stream cursor/chain marker move with explicit `datadom`. Defaults and selects
+still run after setup, and control checks stay in their current order.
+
+The candidate and its restoring thread-local switch are `cfg(test)`, off by
+default. The production path remains unchanged. Profile strategy
+`direct-input-candidate` follows current `moved-lets`; older copied-context
+baselines explicitly disable the candidate. Nested attribution spans are not
+additive to their enclosing input-context total. A new fixture uses the unchanged
+`data-tree-view.cemt` and `tree-source.xml`, alongside the existing authored and
+retained four-format table matrix and synthetic shadow/try/hook workloads.
+
+#### Native contract evidence
+
+The TODO fixture was added before implementation. The allocation regression
+fails on the old copied explicit document before adding the candidate
+(`/tmp/cem-input-candidate-red.log`). Six candidate checks then cover:
+
+- Reusing the explicit item allocation and eliminating transient synthesis,
+  explicit-document and merge copies.
+- Missing, empty, scalar, array, native, reference, record and mixed/multiple
+  record inputs; explicit precedence, the host `attributes` name collision,
+  complete status metadata, iterator position and unchanged host bindings.
+- Native owners retained by output after the input bindings drop, and released
+  after output drops, without invoking native accessors during setup.
+- Declaration defaults/selects, content and attribute hooks, shadowed variables,
+  catch scanning and unchanged caller input.
+- Portable-template reload, native focus/identity, opaque and CEMT callbacks,
+  reader retention, diagnostic recovery, cancellation and lower child budgets
+  through the existing renderer contract matrix.
+- Complete output/source-map/diagnostic parity for the authored tree fixture.
+
+All **103 unit tests** pass, with three opt-in profiles skipped
+(`/tmp/cem-input-candidate-unit.log`). Native lint passes with the existing
+131 CEM-ML/41 CEM-QL warnings (`/tmp/cem-input-candidate-lint.log`).
+
+
+#### Snapshot ownership remains separate
+
+Inspection distinguishes three restoration mechanisms:
+
+- `render_nodes_scoped` snapshots only names declared by direct variable nodes,
+  before rendering any sibling. Outer values remain visible to earlier siblings
+  and to each variable's initializer, so removing those bindings at scope entry
+  would change behavior. A move-based replacement would need to save displaced
+  values at the actual write and restore them through nested scopes/failures.
+- `render_try` copies the complete binding map before the protected body, copies
+  it back after that body and after each rejected catch predicate, then moves
+  the saved map back on the final catch/propagation path. Removing these copies
+  requires proving every mutation and rollback path, including catch bindings,
+  callbacks, nested recovery and protected failures.
+- Eligible expression hooks capture their lexical bindings, clone the hook scope
+  list (including captures) during dispatch, save caller bindings, and install
+  a copied capture for each candidate. The existing ineligible-hook shortcut
+  already avoids these copies when no hook can run. Moving the caller map or
+  sharing immutable captured definitions are possible separate candidates, but
+  need their own reentrancy, lexical visibility, native-owner and failure tests.
+
+The input candidate changes none of these mechanisms. It also preserves the
+initial owned binding-map copy needed by the current mutable renderer context;
+removing that copy would require a broader borrowed/overlay representation.
+Use actual hook/recovery workloads before choosing a snapshot optimization,
+rather than attributing synthetic snapshot costs to viewers that never run them.
+
+
+#### Release measurements
+
+Both isolated release profiles pass (101.16 s and 100.54 s;
+`/tmp/cem-input-candidate-release{,-repeat}.log`). Each record-free median uses
+five warm samples after discarding the first, with no unrelated build/browser
+work running. Results below compare current `moved-lets` with the test-only
+`direct-input-candidate`, with 256 synthetic host controls.
+
+| Workload | First current/candidate, ms | Repeat current/candidate, ms |
+| --- | ---: | ---: |
+| Authored XML table | 5.293 / 3.808 | 3.980 / 3.471 |
+| Retained XML table | 4.309 / 3.459 | 3.630 / 2.998 |
+| Authored CSV table | 4.414 / 4.087 | 4.521 / 4.301 |
+| Retained CSV table | 4.439 / 4.312 | 5.053 / 3.959 |
+| Authored YAML table | 4.929 / 4.034 | 6.653 / 4.838 |
+| Retained YAML table | 5.011 / 4.386 | 5.623 / 4.044 |
+| Authored JSON table | 5.969 / 4.115 | 5.190 / 4.205 |
+| Retained JSON table | 4.950 / 4.399 | 4.552 / 3.866 |
+| Authored XML tree | 94.396 / 94.575 | 96.225 / 92.163 |
+| 32 literal spans | 2.717 / 0.927 | 1.727 / 0.885 |
+
+The repeat authored XML table improves **12.8%** in this run, with overlapping
+3.693–5.511 / 2.975–5.638 ms ranges. The first run improves 28.1%, also with
+overlapping ranges. These observations do not support one general end-to-end
+percentage. The repeat literal fixture, whose body does little work, falls
+48.8% with non-overlapping 1.723–1.820 / 0.861–0.942 ms ranges.
+
+Setup attribution establishes the removed work more directly. Authored XML
+input-context medians fall **1.223→0.647 ms** in the first run and
+**1.076→0.533 ms** in the repeat. Repeat attribution preserves one initial
+binding copy (0.176/0.231 ms) and declaration defaults (0.002/0.003 ms), removes
+the separate synthesized-document/merge copies (0.309/0.310 ms) and explicit
+copy (0.001 ms), and constructs only missing output values (0.316 ms total,
+including two missing fields at 0.148 ms and the attributes record at 0.154 ms).
+These nested, independently sampled medians must not be added to each other.
+
+The tree's input-context median similarly falls 1.286→0.639 ms and
+1.228→0.754 ms. Its roughly 94–96 ms render is dominated outside setup; its
+first total is slightly slower and the repeat ranges overlap. No stable tree
+end-to-end speedup or browser speedup is claimed. All table/tree output,
+source-map, diagnostic, host-update, sorting and retained-native identity checks
+pass in both profiles. Query-only cases bypass renderer setup and gain no
+change in work from this candidate.
+
+The actual authored/retained table and tree fixtures record **zero try/hook
+snapshot spans**. Their variable-snapshot setup is small: the repeat XML table
+records 120 calls at 0.010/0.012 ms, and the tree 99 calls at 0.007/0.007 ms
+in the first run. The count covers scoped bookkeeping, not 120/99 complete
+binding-map clones. These viewers do not justify a shared snapshot redesign.
+
+Synthetic 32-scope cases establish the other costs independently:
+
+| Repeat workload | Snapshot copies retained in both paths | Current/candidate total, ms |
+| --- | --- | ---: |
+| Shadow a loaded binding | 32 selected outer-value snapshots | 11.405 / 10.139 |
+| Successful try | 32 full saves + 32 full restores | 61.365 / 59.292 |
+| Two rejected catches then recovery | 32 full saves + 96 full restores | 121.817 / 138.733 |
+| Three eligible hooks scanned | 3 captures + 32 scope-list copies + 32 caller saves + 96 capture installs | 241.843 / 243.214 |
+
+The candidate does not remove those snapshots. Repeat catch-scan recorded save
+and restore medians remain 16.196/16.361 and 46.968/47.544 ms, while its
+record-free candidate has a 157.989 ms maximum. The first record-free scan is
+129.350/119.429 ms, the opposite ordering. Hook scan similarly varies around
+unchanged capture/copy work. No consistent snapshot-workload speedup is claimed;
+these costs and their variation remain separate from the deterministic setup
+copy removal.
+
+
+Full native Nx validation passes **686 tests across 77 suites**, with eight
+opt-in profiles skipped (`/tmp/cem-input-candidate-native-tests.log`). Fixture
+formatting and diff checks pass. This test-only investigation does not rebuild
+WASM or repeat browser coverage; the packaged WASM remains validated production
+`7596f928`, SHA-256
+`bea0ebac5a92be170c3e9ab3b7af70e9b13c6e44a4eeeeb408c4793314e57b57`.
+
+Reproduce the candidate and attribution with:
+
+```sh
+cargo test -p cem-ql --lib input_candidate
+cargo test -p cem-ql --release --lib profile_render_copies -- --ignored --nocapture --test-threads=1
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+```
+
+#### Pending decision: direct owned input-context construction
+
+Recommend promoting the bounded candidate: retain one owned copy of host input
+bindings, move its copied explicit `datadom` into final construction, and create
+only missing output fields. The repeat halves XML table setup (1.076→0.533 ms)
+while preserving complete public bindings, explicit precedence, metadata, native
+owners, declaration behavior and mutable owned results. This is a removal of
+transient construction copies, not a borrowed/shared-value redesign.
+
+Keeping the current construction preserves its simple synthesize-then-merge
+implementation, but retains both a redundant explicit copy and an intermediate
+record whose values are copied again or discarded. The direct implementation
+must explicitly retain the current shallow merge, special `attributes` behavior,
+empty/non-record streams and multiple-record handling. The fixtures make these
+compatibility rules reviewable before promotion.
+
+If approved, require default-path allocation and compatibility regressions
+before promotion, then repeat native profiling, rebuild WASM and run unchanged
+table/tree and normal/synchronized Storybook checks. Keep viewer sources, import
+boundaries, public artifacts, scope limits and concurrency unchanged. Keep the
+snapshot mechanisms and broader argument/result ownership changes separate.
+After this correction, attribute the dominant actual tree-render body cost and
+use representative authored hook/recovery workloads before choosing another
+shared optimization.
+
+Production remains unchanged. The active TODO requires a measured proposal
+before shared ownership changes, and the user's current instruction requires a
+stop at decisions. This checkpoint records the tested candidate for that review.

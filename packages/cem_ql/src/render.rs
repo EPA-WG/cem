@@ -41,6 +41,8 @@ use construction::ResultBuffer;
 mod prepared_tests;
 #[cfg(test)]
 mod copy_profile_tests;
+#[cfg(test)]
+mod input_profile_tests;
 
 /// Explicit result instructions survive portable compilation. Unknown instructions
 /// are rejected by older artifact readers instead of becoming literal elements.
@@ -994,11 +996,25 @@ fn render_compiled_template_internal(
         .unwrap_or_else(ScopePolicy::host_root);
     #[cfg(test)]
     let mut profile = crate::compile_profile::Span::new("render/input-context");
-    let mut policy_bindings = data.bindings.clone();
+    let mut policy_bindings = {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("copy/initial-bindings");
+        data.bindings.clone()
+    };
+    #[cfg(test)]
+    let datadom = if input_profile_tests::enabled() {
+        input_profile_tests::take_data_document(&mut policy_bindings)
+    } else {
+        data_document_with_host_bindings(&data.bindings)
+    };
+    #[cfg(not(test))]
     let datadom = data_document_with_host_bindings(&data.bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
-    let mut host_attribute_updates =
-        seed_declaration_defaults(&artifact.nodes, &mut policy_bindings);
+    let mut host_attribute_updates = {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("render/declaration-defaults");
+        seed_declaration_defaults(&artifact.nodes, &mut policy_bindings)
+    };
     #[cfg(test)]
     profile.next("render/index-templates");
     let templates = collect_named_templates(&artifact.nodes);
@@ -1109,10 +1125,17 @@ fn data_document_with_host_bindings(bindings: &BTreeMap<String, ItemStream>) -> 
     let Some(explicit) = bindings.get(DATA_DOCUMENT_BINDING) else {
         return synthesized;
     };
-    merge_data_documents(explicit.clone(), synthesized)
+    let explicit = {
+        #[cfg(test)]
+        let _profile = crate::compile_profile::Span::new("copy/explicit-data-document");
+        explicit.clone()
+    };
+    merge_data_documents(explicit, synthesized)
 }
 
 fn build_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
+    #[cfg(test)]
+    let _profile = crate::compile_profile::Span::new("copy/data-document-synthesis");
     let attributes: BTreeMap<String, Vec<Item>> = bindings
         .iter()
         .filter(|(name, _)| name.as_str() != DATA_DOCUMENT_BINDING)
@@ -1130,6 +1153,8 @@ fn build_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
 }
 
 fn merge_data_documents(mut explicit: ItemStream, synthesized: ItemStream) -> ItemStream {
+    #[cfg(test)]
+    let _profile = crate::compile_profile::Span::new("copy/data-document-merge");
     let Some(Item::Record(synthesized_fields)) = synthesized.items.first() else {
         return explicit;
     };

@@ -18,10 +18,12 @@ fn with_context_copy<T>(operation: impl FnOnce() -> T) -> T {
         }
     }
     let _reset = Reset(FORCE_CONTEXT_COPY.with(|v| v.replace(true)));
-    crate::eval::let_profile_tests::with_copied_lets(|| {
-        crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
-            crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
-                crate::eval::binding_profile_tests::with_copied_inputs(operation)
+    input_profile_tests::with_candidate(false, || {
+        crate::eval::let_profile_tests::with_copied_lets(|| {
+            crate::eval::pipeline::record_read_profile_tests::with_copied_record_reads(|| {
+                crate::eval::pipeline::field_profile_tests::with_copied_fields(|| {
+                    crate::eval::binding_profile_tests::with_copied_inputs(operation)
+                })
             })
         })
     })
@@ -44,7 +46,7 @@ fn record(fields: impl IntoIterator<Item = (&'static str, Item)>) -> Item {
             .collect(),
     )
 }
-fn controls(count: usize) -> Item {
+pub(super) fn controls(count: usize) -> Item {
     // Synthetic browser control metadata, never an imported document.
     Item::Record(
         (0..count)
@@ -105,6 +107,13 @@ fn profile<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T))
         profile_strategy(&format!("{case}/copied-lets"), &mut operation, &verify);
     });
     profile_strategy(&format!("{case}/moved-lets"), &mut operation, &verify);
+    input_profile_tests::with_candidate(true, || {
+        profile_strategy(
+            &format!("{case}/direct-input-candidate"),
+            &mut operation,
+            &verify,
+        );
+    });
 }
 
 fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: impl Fn(&T)) {
@@ -133,7 +142,7 @@ fn profile_strategy<T>(case: &str, mut operation: impl FnMut() -> T, verify: imp
         times[2], times[0], times[4]
     );
 }
-fn verify_plan(plan: &RenderPlan, expected: &RenderPlan) {
+pub(super) fn verify_plan(plan: &RenderPlan, expected: &RenderPlan) {
     assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
     verify_plan_including_errors(plan, expected);
 }
@@ -206,7 +215,7 @@ fn default_render_moves_owned_let_values() {
 }
 
 #[test]
-fn borrowing_preserves_focus_records_recovery_and_callbacks() {
+pub(super) fn borrowing_preserves_focus_records_recovery_and_callbacks() {
     use crate::native::{NativeQueryFunction, NativeQueryRequest};
     #[derive(Debug)]
     struct Echo;
@@ -274,7 +283,7 @@ fn borrowing_preserves_focus_records_recovery_and_callbacks() {
 }
 
 #[test]
-fn borrowing_preserves_reader_retention_across_renders() {
+pub(super) fn borrowing_preserves_reader_retention_across_renders() {
     use crate::xpath::functions::XPathQueryItem;
     use std::sync::Arc;
     let owner = |item: &Item| {
@@ -334,7 +343,7 @@ fn borrowing_preserves_reader_retention_across_renders() {
 }
 
 #[test]
-fn borrowing_preserves_protected_failures_and_recovery() {
+pub(super) fn borrowing_preserves_protected_failures_and_recovery() {
     for (source, fallback, recovered) in [
         (
             r#"{b | prefix}{$report:raise("fixture.failure", "bad value")}{i | suffix}"#,
@@ -384,7 +393,7 @@ fn borrowing_preserves_protected_failures_and_recovery() {
 }
 
 #[test]
-fn borrowing_preserves_scoped_cancellation_and_budget_failure() {
+pub(super) fn borrowing_preserves_scoped_cancellation_and_budget_failure() {
     use crate::eval::{QueryItemView, QueryItemViewKind};
     use cem_ml::operation_control::{
         ExecutionScopeKind, ExecutionScopeRegistration, ROOT_EXECUTION_SCOPE_ID,
@@ -812,5 +821,15 @@ fn profile_render_copies() {
                 Some(identity.as_str())
             );
         }
+    }
+    for count in [0, 256] {
+        let (artifact, data) = input_profile_tests::tree_fixture(count);
+        let expected = render_compiled_template(&artifact, &data);
+        assert!(render_plan_to_html(&expected).contains("Selected branches"));
+        profile(
+            &format!("tree/xml/{count}"),
+            || render_compiled_template(&artifact, &data),
+            |plan| verify_plan(plan, &expected),
+        );
     }
 }
