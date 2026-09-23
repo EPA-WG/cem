@@ -2642,7 +2642,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         single-build candidate preserves four-format/three-profile output,
         provenance, owners and tested recursion errors, reducing authored
         writer time 22.960→13.054 ms and 32 rows 128.916→75.488 ms. Full Nx
-        validation passes 2,365 Rust checks after aligning two stale inherited
+        validation passes 2,368 Rust checks after aligning two stale inherited
         template-name assertions with the accepted anonymous-match contract;
         lint and fixture formatting pass. Production behavior is unchanged.
         See the [attribution and proposal](browser-stabilization-review.tmp.md#typed-inspection-writer-attribution).
@@ -2661,13 +2661,38 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           template contract. Accept anonymous matches and retain rejection of
           calls missing their required template selector; change no schema.
 
-  - [ ] Decide whether to promote the built-in formatter's single node-list
+  - [x] Decide whether to promote the built-in formatter's single node-list
         build. Recommend the tested one-expression package change; retain the
         old body only as a test comparison, require the default path to build
         once, extend negative contract coverage and run native/browser checks.
         Keep helper caches, public projections and hook/recovery ownership
         separate. Stop before shared production promotion per the user's
-        instruction. See the [pending decision](browser-stabilization-review.tmp.md#pending-decision-build-the-formatter-node-list-once).
+        instruction. See the [accepted decision](browser-stabilization-review.tmp.md#accepted-build-the-formatter-node-list-once).
+        Accepted 2026-09-22: continue with the recommended promotion.
+  - [ ] Decide malformed-subject diagnostic compatibility before single-build
+        promotion. Five negative cases preserve all diagnostic fields except
+        the named helper (`build-envelope` → `format-inter-node-whitespace`).
+        Recommend accepting this earlier failure location; exact message
+        compatibility needs a different implementation and fresh validation.
+        Stop per the user's instruction. See the
+        [tested decision](browser-stabilization-review.tmp.md#pending-decision-single-build-formatter-diagnostics).
+  - [ ] Promote the approved single-build formatter expression. Fixture: require
+        one default node-list build, retain the prior body only as a comparison,
+        and verify unsupported subjects, return-type errors, recursion limits,
+        four-format output/provenance and document release. Stop if negative
+        coverage exposes an unresolved behavior change. Run native checks and
+        release profiling, rebuild WASM, then unchanged table/tree and normal
+        and synchronized Storybook/stock validation before committing.
+    - [x] Fixture: characterize the discovered malformed-subject diagnostic
+          difference through the public package-reader/native output path.
+          Verify unchanged code, severity, source, rejection and absent output;
+          separately require exact parity for invalid helper return types.
+          Record the result before deciding diagnostic compatibility.
+          Completed 2026-09-22: five malformed-subject cases change only the
+          diagnostic's helper name; null rejection is identical. Four invalid
+          return types preserve exact errors and native owner release. All five
+          writer fixtures, 2,370 Rust checks in the full Nx chain, lint and
+          formatting pass. Production promotion pauses at the decision above.
 
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test

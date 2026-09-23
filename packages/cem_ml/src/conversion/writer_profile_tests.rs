@@ -130,15 +130,25 @@ fn fork_cache(
     }
 }
 
+fn builtin_reader(
+    artifact: &ConversionPackageArtifactDescriptor,
+) -> Result<ConversionPackageArtifactRead, String> {
+    let source = builtin_schema_package_artifact_source(&artifact.package_id, &artifact.path)
+        .ok_or_else(|| "no built-in source".to_owned())?;
+    Ok(ConversionPackageArtifactRead {
+        uri: source.path.to_owned(),
+        bytes: source.source.as_bytes().to_vec(),
+        content_type: artifact.content_type.clone(),
+    })
+}
+
 // Supply the counterfactual through the public package-reader contract. No
 // production helper or evaluator behavior is replaced by the profiling hooks.
 fn single_build_reader(
     artifact: &ConversionPackageArtifactDescriptor,
 ) -> Result<ConversionPackageArtifactRead, String> {
-    let source = builtin_schema_package_artifact_source(&artifact.package_id, &artifact.path)
-        .ok_or_else(|| "no built-in source".to_owned())?;
-    let mut bytes = source.source.as_bytes().to_vec();
-    if source.path == "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt" {
+    let mut result = builtin_reader(artifact)?;
+    if result.uri == "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt" {
         const BEFORE: &str = r#"match(typeOf(call("cem.format-tree.build-node-list", { subject: $subject })), {
                 array: call("cem.format-tree.format-inter-node-whitespace", {
                     subject: call("cem.format-tree.build-node-list", { subject: $subject }),
@@ -150,14 +160,11 @@ fn single_build_reader(
                 subject: call("cem.format-tree.build-node-list", { subject: $subject }),
                 lineEnding: $lineEnding
             })"#;
-        assert_eq!(source.source.matches(BEFORE).count(), 1);
-        bytes = source.source.replacen(BEFORE, AFTER, 1).into_bytes();
+        let text = String::from_utf8(result.bytes).unwrap();
+        assert_eq!(text.matches(BEFORE).count(), 1);
+        result.bytes = text.replacen(BEFORE, AFTER, 1).into_bytes();
     }
-    Ok(ConversionPackageArtifactRead {
-        uri: source.path.to_owned(),
-        bytes,
-        content_type: artifact.content_type.clone(),
-    })
+    Ok(result)
 }
 
 #[test]
@@ -269,6 +276,153 @@ fn single_build_candidate_preserves_recursion_errors() {
         }
     }
     assert!(rejected > 0);
+}
+
+#[test]
+fn single_build_candidate_characterizes_invalid_subject_diagnostics() {
+    let schemas = SchemaRegistry::with_builtin_schemas();
+    let conversions = ConversionRegistry::with_builtin_converters();
+    let owner = import_data("<r/>", "xml", "cem", "memory:invalid-subject").unwrap();
+    let mut changed_messages = 0;
+    for (name, expression) in [
+        ("null", "null"),
+        ("boolean", "true"),
+        ("number", "1"),
+        ("string", r#""invalid subject""#),
+        ("unknown-kind", r#"{ kind: "unknown" }"#),
+        ("invalid-nodes", r#"{ kind: "cem-tree", nodes: true }"#),
+    ] {
+        let run = |single| {
+            let reader = |artifact: &ConversionPackageArtifactDescriptor| {
+                let mut source = if single {
+                    single_build_reader(artifact)?
+                } else {
+                    builtin_reader(artifact)?
+                };
+                if source.uri == "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt" {
+                    let text = String::from_utf8(source.bytes).unwrap();
+                    assert_eq!(text.matches("{ subject: $subject }").count(), 1);
+                    source.bytes = text
+                        .replace(
+                            "{ subject: $subject }",
+                            &format!("{{ subject: {expression} }}"),
+                        )
+                        .into_bytes();
+                }
+                Ok(source)
+            };
+            write(
+                &ConversionOutputPipelineEnvironment {
+                    schema_registry: &schemas,
+                    conversion_registry: &conversions,
+                    package_artifact_reader: Some(&reader),
+                    artifact_cache: None,
+                },
+                &owner,
+            )
+        };
+        let expected = run(false);
+        let actual = run(true);
+        assert!(expected.output.is_none());
+        assert!(actual.output.is_none());
+        assert_eq!(expected.diagnostics.len(), 1);
+        assert!(expected.diagnostics[0].message.contains("CEMT function"));
+        let mut normalized = actual.diagnostics.clone();
+        if name != "null" {
+            const BEFORE: &str =
+                "`cem.format-tree.build-envelope` argument `subject` could not be resolved";
+            const AFTER: &str = "`cem.format-tree.format-inter-node-whitespace` argument `subject` could not be resolved";
+            assert!(expected.diagnostics[0].message.contains(BEFORE));
+            assert!(actual.diagnostics[0].message.contains(AFTER));
+            normalized[0].message = normalized[0].message.replacen(AFTER, BEFORE, 1);
+            changed_messages += 1;
+        }
+        // Only the reported helper changes; compare every other public field.
+        assert_eq!(normalized, expected.diagnostics, "{name}");
+    }
+    assert_eq!(changed_messages, 5);
+}
+
+#[test]
+fn single_build_candidate_preserves_invalid_return_errors() {
+    let schemas = SchemaRegistry::with_builtin_schemas();
+    let conversions = ConversionRegistry::with_builtin_converters();
+    let owner = import_data("<r/>", "xml", "cem", "memory:invalid-return").unwrap();
+    for (kind, expression) in [
+        ("boolean", "true"),
+        ("null", "null"),
+        ("string", r#""wrong result""#),
+        ("object", "{}"),
+    ] {
+        let run = |single| {
+            let reader = |artifact: &ConversionPackageArtifactDescriptor| {
+                let mut source = if single {
+                    single_build_reader(artifact)?
+                } else {
+                    builtin_reader(artifact)?
+                };
+                if source.uri == "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt"
+                {
+                    let mut text = String::from_utf8(source.bytes).unwrap();
+                    let start = text
+                        .find("    {function\n        @name=\"cem.format-tree.build-node-list\"")
+                        .unwrap();
+                    let end = text
+                        .find("    {function\n        @name=\"cem.format-tree.build-tree-nodes\"")
+                        .unwrap();
+                    let stub = format!(
+                        r#"    {{function @name="cem.format-tree.build-node-list"
+    @visibility="private" @returns="array" @deterministic=true |
+        {{param @name="subject" @type="any" @required=true}}
+        {{body | {{$ {expression} }} }}
+    }}
+
+"#
+                    );
+                    text.replace_range(start..end, &stub);
+                    source.bytes = text.into_bytes();
+                }
+                Ok(source)
+            };
+            write(
+                &ConversionOutputPipelineEnvironment {
+                    schema_registry: &schemas,
+                    conversion_registry: &conversions,
+                    package_artifact_reader: Some(&reader),
+                    artifact_cache: None,
+                },
+                &owner,
+            )
+        };
+        let expected = run(false);
+        let actual = run(true);
+        assert!(expected.output.is_none());
+        assert!(actual.output.is_none());
+        assert_eq!(actual.diagnostics, expected.diagnostics);
+        assert_eq!(actual.diagnostics.len(), 1);
+        assert!(
+            actual.diagnostics[0].message.contains(&format!(
+                "`cem.format-tree.build-node-list` returned {kind}, expected array"
+            )),
+            "{:?}",
+            actual.diagnostics
+        );
+        for execution in [&expected, &actual] {
+            assert!(Arc::ptr_eq(
+                execution
+                    .raw_cem_tree
+                    .as_ref()
+                    .unwrap()
+                    .owner()
+                    .source_owner()
+                    .unwrap(),
+                &owner,
+            ));
+        }
+    }
+    let weak = Arc::downgrade(&owner);
+    drop(owner);
+    assert!(weak.upgrade().is_none());
 }
 
 #[test]

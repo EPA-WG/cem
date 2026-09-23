@@ -4341,7 +4341,11 @@ after collecting attribution; it is not a passing validation or a release
 performance result. No public sidecar is removed or used as an internal AST
 handoff. All external formats still resolve only at shared CEM-ML import.
 
-### Pending decision: build the formatter node list once
+### Accepted: build the formatter node list once
+
+Accepted by the user's continuation on 2026-09-22. The negative-contract
+follow-up below found an additional diagnostic compatibility decision before
+production promotion.
 
 Recommend simplifying the body of the built-in private
 `cem.format-tree.build-nodes` helper to:
@@ -4419,7 +4423,7 @@ change. Public projection remains 0.698/0.672 ms (current/candidate) for the
 authored input and 11.538/11.912 ms for 32 rows; no projection improvement is
 claimed. All timed outputs still pass the full equality/owner checks.
 
-Final `cem_ml:test` passes **2,365 Rust tests in the Nx task chain**, including
+Final `cem_ml:test` passes **2,368 Rust tests in the Nx task chain**, including
 **2,037 CEM-ML unit tests**, with the one profiling fixture ignored
 (`/tmp/cem-writer-native-tests-final.log`). `cem_ml:lint` passes with the existing
 131 library warnings (`/tmp/cem-writer-native-lint.log`). The new fixture's
@@ -4444,3 +4448,88 @@ cargo test -p cem-ml --release --lib profile_inspection_writer -- --ignored --no
 rustfmt --edition 2021 --check packages/cem_ml/src/conversion/writer_profile_tests.rs
 git diff --check
 ```
+
+
+### Pending decision: single-build formatter diagnostics
+
+The approved promotion's negative tests reproduce a diagnostic difference for
+malformed subjects before any production change. Recommend accepting the
+**earlier failing helper name** while retaining the existing diagnostic code,
+severity, source identity and rejection behavior. Then continue the approved
+one-expression promotion and its default-path/native/browser verification.
+
+The fixture supplies a package reader through the public native output API,
+`execute_conversion_output_pipeline_from_cem_tree_with_environment`. Input XML
+still enters through CEM-ML import and retains its CEM AST owner. The test reader
+changes the package formatter's argument to a malformed native CEMT expression;
+it compares the shipped two-build helper with the proposed single-build body.
+This reaches actual typed evaluation and public diagnostics. It does not pass
+external data through JavaScript or a JSON-record AST substitute.
+
+Five cases reproduce the difference: boolean, number, string, an unknown node
+kind and a tree whose `nodes` member is a boolean. Both versions produce one
+error, no output and the same diagnostic fields other than the message:
+
+| Field | Shipped helper | Single-build candidate |
+| --- | --- | --- |
+| Code | `cem.converter.output_pipeline_execution` | Same |
+| Severity, URI, node, source map, details | Unchanged | Unchanged |
+| Unresolved argument | `subject` | `subject` |
+| Helper named in the message | `cem.format-tree.build-envelope` | `cem.format-tree.format-inter-node-whitespace` |
+| Result | Rejected; no output | Rejected; no output |
+
+A null subject is rejected with exactly the same diagnostic in both versions.
+The first equality regression fails on the other five cases
+(`/tmp/cem-single-build-negative-public.log`). The committed characterization
+asserts the exact helper-name substitution and compares every remaining field;
+it does not silently drop diagnostic equality or relax input rejection.
+
+The reason is that `@returns="array"` checks resolved return values. It does
+not turn an unresolved expression into an array or a return-type error. The
+old helper propagates an unresolved node list to `build-envelope`; the direct
+call encounters its unresolved required argument earlier, in the whitespace
+helper. Successful native output and the existing recursion-error fixtures
+remain identical. A separate package-reader test forces boolean/null/string/
+object results from the array-declared `build-node-list` helper: both versions
+reject each result with **exactly the same return-type diagnostic**, retain the
+original native owner in the failed execution and release it after results
+are dropped. All five ordinary writer fixtures pass; the profiling fixture is
+ignored (`/tmp/cem-single-build-contracts.log`).
+
+This is an observable message change for consumers that match diagnostic text.
+The existing successful-input release measurements (22.960→13.054 ms authored,
+128.916→75.488 ms for 32 rows) remain evidence for the unchanged candidate body;
+no new performance result or production improvement is claimed here.
+
+| Choice | Benefit | Cost |
+| --- | --- | --- |
+| **Recommended: accept the earlier helper diagnostic** | Keeps the small, already measured change and reports where resolution now fails. Error code, severity, source and rejection stay intact. | Consumers matching the old helper name in message text must update. |
+| Preserve the exact old message | Maintains text compatibility for malformed custom-formatter input. | Requires a different implementation or compatibility handling, followed by fresh correctness and performance checks. No such alternative is promoted or claimed tested. |
+
+The production formatter, shared evaluator and authored viewers remain
+unchanged. Pause promotion here per the user's stop-at-decisions instruction
+and the active TODO's negative-contract review. This decision is narrower than
+the already accepted elimination of duplicate node-list construction. Browser
+and WASM promotion checks belong after the decision; rebuilding them for this
+test-only checkpoint would not exercise the candidate.
+
+Reproduce the new contracts:
+
+```sh
+cargo test -p cem-ml --lib writer_profile_tests
+yarn nx run cem_ml:test --skipNxCache
+yarn nx run cem_ml:lint --skipNxCache
+rustfmt --edition 2021 --check packages/cem_ml/src/conversion/writer_profile_tests.rs
+git diff --check
+```
+
+Final validation passes **2,370 Rust tests in the Nx task chain**, including
+**2,039 CEM-ML unit tests**, with the one profiling fixture ignored
+(`/tmp/cem-single-build-diagnostics-native.log`). Native lint passes with the
+existing 131 library warnings (`/tmp/cem-single-build-diagnostics-lint.log`).
+Fixture formatting and diff checks pass. No production or browser change is
+included; the approved optimization remains pending this diagnostic decision.
+
+Test totals above normalize terminal line breaks inside summary words. This
+also corrects the preceding writer checkpoint's aggregate from 2,365 to 2,368;
+its unit-test count and passing result are unchanged.
