@@ -18,6 +18,12 @@ The low-level npm/WASM deployment is published separately as
 [`cem-ml-cli`](../cem_ml_cli/README.md) crate, while CEM-QL evaluation is owned by
 [`cem-ql`](../cem_ql/README.md).
 
+`CemtTreeArtifact::to_public_json` produces an explicit public/debug sidecar.
+It exports formatted node sequences in one pass over their gaps and retained
+nodes, borrowing the native tree and preserving overlay order and provenance.
+Native pipeline stages retain the artifact; this export is not an AST handoff.
+Indexed access to the borrowed evaluator view remains available.
+
 ## Native document I/O
 
 `import::import_data_bytes` resolves external content types into retained CEM

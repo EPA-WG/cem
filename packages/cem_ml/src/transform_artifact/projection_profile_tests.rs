@@ -1,4 +1,4 @@
-//! Opt-in attribution and a restoring test-only public projection candidate.
+//! Default public projection regressions and a restoring indexed test baseline.
 use super::*;
 use crate::conversion::writer_profile_tests::{measure, Span};
 use crate::conversion::{
@@ -10,77 +10,72 @@ use std::cell::Cell;
 use std::{hint::black_box, time::Instant};
 
 thread_local! {
-    static SINGLE_PASS: Cell<bool> = const { Cell::new(false) };
+    static INDEXED: Cell<bool> = const { Cell::new(false) };
 }
-fn candidate<T>(run: impl FnOnce() -> T) -> T {
+fn indexed<T>(run: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset {
         fn drop(&mut self) {
-            SINGLE_PASS.with(|flag| flag.set(self.0));
+            INDEXED.with(|flag| flag.set(self.0));
         }
     }
-    let _reset = Reset(SINGLE_PASS.with(|flag| flag.replace(true)));
+    let _reset = Reset(INDEXED.with(|flag| flag.replace(true)));
     run()
 }
 
+// Restore the former formatted-node exporter only inside an indexed baseline
+// scope. Other sequence types continue through their unchanged production path.
 pub(super) fn project_sequence(
     sequence: &CemtEvaluatorSequenceRef<'_>,
 ) -> Option<Result<serde_json::Value, String>> {
-    if !SINGLE_PASS.with(Cell::get) {
+    if !INDEXED.with(Cell::get)
+        || !matches!(sequence, CemtEvaluatorSequenceRef::FormattedNodes { .. })
+    {
         return None;
     }
-    let CemtEvaluatorSequenceRef::FormattedNodes {
-        nodes,
-        parent,
-        overlay,
-    } = sequence
-    else {
-        return None;
-    };
-    Some((|| {
-        let _profile = Span::new("projection/candidate-sequence-json");
-        // Emit directly into the required public array. Borrow native nodes and
-        // overlay operations; retain their original owner paths and indices.
-        let mut values = Vec::new();
-        for before_node in 0..=nodes.len() {
-            for (index, operation) in overlay.node_operations.iter().enumerate() {
-                if cemt_evaluator_gap_operation_matches(operation, parent.as_ref(), before_node) {
-                    values.push(
-                        CemtEvaluatorValue::borrowed(CemtEvaluatorValueRef::Record(
-                            CemtEvaluatorRecordRef::NodeFormatOperation { operation, index },
-                        ))
-                        .to_public_json()?,
-                    );
-                }
-            }
-            if let Some(node) = nodes.get(before_node) {
-                let path = match parent {
-                    Some(parent) => parent.child(before_node),
-                    None => CemtOwnerPath::root(before_node),
-                };
-                if overlay.retains_node(&path) {
-                    values.push(
-                        CemtEvaluatorValue::borrowed(CemtEvaluatorValueRef::Record(
-                            CemtEvaluatorRecordRef::FormattedNode {
-                                node,
-                                path,
-                                overlay,
-                            },
-                        ))
-                        .to_public_json()?,
-                    );
-                }
-            }
-        }
-        Ok(serde_json::Value::Array(values))
-    })())
+    Some(
+        (0..sequence.len())
+            .map(|index| {
+                sequence
+                    .item(index)
+                    .map(CemtEvaluatorValue::borrowed)
+                    .ok_or_else(|| format!("typed evaluator sequence item {index} is unavailable"))?
+                    .to_public_json()
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(serde_json::Value::Array),
+    )
 }
 
 #[test]
-fn single_pass_candidate_avoids_indexed_formatted_reads() {
+fn default_projection_avoids_indexed_reads_and_preserves_indexed_access() {
     let artifact = fixture(8);
-    let (expected, before) = measure(|| artifact.to_public_json().unwrap());
-    let (actual, after) = measure(|| candidate(|| artifact.to_public_json().unwrap()));
+    let weak = Arc::downgrade(artifact.owner());
+    let (output, stages) = measure(|| artifact.to_public_json().unwrap());
+    assert_eq!(output["nodes"].as_array().unwrap().len(), 8);
+    assert!(!stages.contains_key("projection/formatted-sequence-item"));
+    assert!(!stages.contains_key("projection/formatted-sequence-len"));
+    // Explicit indexed access remains available on the unchanged borrowed view.
+    let (value, stages) = measure(|| {
+        let view = artifact.evaluator_view().field("nodes").unwrap();
+        let sequence = view.as_sequence().unwrap();
+        assert_eq!(sequence.len(), 8);
+        CemtEvaluatorValue::borrowed(sequence.item(7).unwrap())
+            .to_public_json()
+            .unwrap()
+    });
+    assert_eq!(value["value"], "value-7");
+    assert_eq!(stages["projection/formatted-sequence-item"].calls, 1);
+    assert_eq!(stages["projection/formatted-sequence-len"].calls, 1);
+    drop(artifact);
+    assert!(weak.upgrade().is_none());
+}
+
+#[test]
+fn default_single_pass_matches_indexed_export() {
+    let artifact = fixture(8);
+    let (expected, before) = measure(|| indexed(|| artifact.to_public_json().unwrap()));
+    let (actual, after) = measure(|| artifact.to_public_json().unwrap());
     assert_eq!(actual, expected);
     assert!(before["projection/formatted-sequence-item"].calls >= 8);
     assert!(!after.contains_key("projection/formatted-sequence-item"));
@@ -166,8 +161,8 @@ fn single_pass_preserves_gap_order_removed_nodes_and_empty_sequences() {
             },
             "out-of-range",
         ));
-        let expected = artifact.to_public_json().unwrap();
-        let actual = candidate(|| artifact.to_public_json().unwrap());
+        let expected = indexed(|| artifact.to_public_json().unwrap());
+        let actual = artifact.to_public_json().unwrap();
         assert_eq!(actual, expected);
         let nodes = actual["nodes"].as_array().unwrap();
         assert_eq!(nodes.len(), 2 * (count + 1) + count.div_ceil(2));
@@ -176,7 +171,7 @@ fn single_pass_preserves_gap_order_removed_nodes_and_empty_sequences() {
     }
     let empty = fixture(0);
     assert_eq!(
-        candidate(|| empty.to_public_json()).unwrap()["nodes"],
+        empty.to_public_json().unwrap()["nodes"],
         serde_json::Value::Array(vec![])
     );
 }
@@ -261,8 +256,8 @@ fn single_pass_preserves_nested_and_colored_projections_and_errors() {
         CemtTreeArtifact::formatted(owner.clone(), Some(source.clone()), overlay.clone()),
         CemtTreeArtifact::colored(owner.clone(), Some(source.clone()), overlay, colors.clone()),
     ] {
-        let expected = artifact.to_public_json().unwrap();
-        let actual = candidate(|| artifact.to_public_json().unwrap());
+        let expected = indexed(|| artifact.to_public_json().unwrap());
+        let actual = artifact.to_public_json().unwrap();
         assert_eq!(actual, expected);
         assert_eq!(
             rmp_serde::to_vec_named(&actual).unwrap(),
@@ -273,8 +268,8 @@ fn single_pass_preserves_nested_and_colored_projections_and_errors() {
     }
     let mut malformed = CemtTreeArtifact::raw(owner.clone(), Some(source));
     malformed.colored_overlay = Some(colors);
-    let error = malformed.to_public_json().unwrap_err();
-    assert_eq!(candidate(|| malformed.to_public_json()).unwrap_err(), error);
+    let error = indexed(|| malformed.to_public_json()).unwrap_err();
+    assert_eq!(malformed.to_public_json().unwrap_err(), error);
     drop(malformed);
     let weak = Arc::downgrade(&owner);
     drop(owner);
@@ -298,16 +293,16 @@ fn single_pass_falls_back_for_sparse_package_sequences_and_restores_scope() {
     ));
     let expected = value.to_public_json().unwrap_err();
     assert_eq!(expected, "typed evaluator sequence item 1 is unavailable");
-    assert_eq!(candidate(|| value.to_public_json()).unwrap_err(), expected);
+    assert_eq!(indexed(|| value.to_public_json()).unwrap_err(), expected);
     let panic = std::panic::catch_unwind(|| {
-        candidate(|| {
-            candidate(|| assert!(SINGLE_PASS.with(Cell::get)));
-            assert!(SINGLE_PASS.with(Cell::get));
+        indexed(|| {
+            indexed(|| assert!(INDEXED.with(Cell::get)));
+            assert!(INDEXED.with(Cell::get));
             panic!("scope restoration fixture");
         })
     });
     assert!(panic.is_err());
-    assert!(!SINGLE_PASS.with(Cell::get));
+    assert!(!INDEXED.with(Cell::get));
 }
 
 fn assert_execution(
@@ -385,13 +380,13 @@ fn single_pass_preserves_four_imports_pipeline_sidecars_and_document_release() {
                 pipeline.cemt_options.color_profile = color.map(str::to_owned);
                 pipeline.cemt_insertion_context.color_profile = color.map(str::to_owned);
                 pipeline.writer_insertion_context.color_profile = color.map(str::to_owned);
-                let expected = write_pipeline(&environment, &owner, &pipeline);
+                let expected = indexed(|| write_pipeline(&environment, &owner, &pipeline));
                 assert!(
                     expected.diagnostics.is_empty(),
                     "{:?}",
                     expected.diagnostics
                 );
-                let actual = candidate(|| write_pipeline(&environment, &owner, &pipeline));
+                let actual = write_pipeline(&environment, &owner, &pipeline);
                 assert_execution(&actual, &expected, &owner);
                 assert_eq!(actual.colored_cemt_tree.is_some(), color.is_some());
             }
@@ -498,12 +493,12 @@ fn profile_public_projection() {
         println!("{name}\tvalue_visits={count}\toverlay_operations={}\tretained_paths={}\tpublic_bytes={}", artifact.formatted_overlay().unwrap().node_operations.len(), artifact.formatted_overlay().unwrap().retained_node_paths().len(), rmp_serde::to_vec_named(&expected).unwrap().len());
         sample(
             &format!("{name}/indexed-projection"),
-            || artifact.to_public_json().unwrap(),
+            || indexed(|| artifact.to_public_json().unwrap()),
             |actual| assert_eq!(actual, &expected),
         );
         sample(
-            &format!("{name}/single-pass-projection"),
-            || candidate(|| artifact.to_public_json().unwrap()),
+            &format!("{name}/default-single-pass-projection"),
+            || artifact.to_public_json().unwrap(),
             |actual| assert_eq!(actual, &expected),
         );
         sample(
@@ -519,13 +514,13 @@ fn profile_public_projection() {
         if name == "authored" || name == "32-rows" {
             profile(
                 &format!("{name}/indexed-pipeline"),
-                || write_pipeline(&environment, &owner, &pipeline),
+                || indexed(|| write_pipeline(&environment, &owner, &pipeline)),
                 &expected_execution,
                 &owner,
             );
             profile(
-                &format!("{name}/single-pass-pipeline"),
-                || candidate(|| write_pipeline(&environment, &owner, &pipeline)),
+                &format!("{name}/default-single-pass-pipeline"),
+                || write_pipeline(&environment, &owner, &pipeline),
                 &expected_execution,
                 &owner,
             );

@@ -2150,6 +2150,14 @@ impl<'a> CemtEvaluatorValue<'a> {
                     if let Some(projected) = projection_profile_tests::project_sequence(sequence) {
                         return projected;
                     }
+                    if let CemtEvaluatorSequenceRef::FormattedNodes {
+                        nodes,
+                        parent,
+                        overlay,
+                    } = sequence
+                    {
+                        return cemt_formatted_nodes_to_public_json(nodes, parent.as_ref(), overlay);
+                    }
                     (0..sequence.len())
                         .map(|index| {
                             sequence
@@ -3334,6 +3342,51 @@ impl<'a> Iterator for CemtEvaluatorSequenceIter<'a> {
 }
 
 impl ExactSizeIterator for CemtEvaluatorSequenceIter<'_> {}
+
+// Explicit public/debug export only. Runtime stages keep the native artifact.
+fn cemt_formatted_nodes_to_public_json(
+    nodes: &[CemTreeAstNode],
+    parent: Option<&CemtOwnerPath>,
+    overlay: &CemtFormattedTreeOverlay,
+) -> Result<serde_json::Value, String> {
+    #[cfg(test)]
+    let _profile =
+        crate::conversion::writer_profile_tests::Span::new("projection/single-pass-sequence-json");
+    // Emit directly into the required public array. Borrow native nodes and
+    // overlay operations; retain their original owner paths and indices.
+    let mut values = Vec::new();
+    for before_node in 0..=nodes.len() {
+        for (index, operation) in overlay.node_operations.iter().enumerate() {
+            if cemt_evaluator_gap_operation_matches(operation, parent, before_node) {
+                values.push(
+                    CemtEvaluatorValue::borrowed(CemtEvaluatorValueRef::Record(
+                        CemtEvaluatorRecordRef::NodeFormatOperation { operation, index },
+                    ))
+                    .to_public_json()?,
+                );
+            }
+        }
+        if let Some(node) = nodes.get(before_node) {
+            let path = match parent {
+                Some(parent) => parent.child(before_node),
+                None => CemtOwnerPath::root(before_node),
+            };
+            if overlay.retains_node(&path) {
+                values.push(
+                    CemtEvaluatorValue::borrowed(CemtEvaluatorValueRef::Record(
+                        CemtEvaluatorRecordRef::FormattedNode {
+                            node,
+                            path,
+                            overlay,
+                        },
+                    ))
+                    .to_public_json()?,
+                );
+            }
+        }
+    }
+    Ok(serde_json::Value::Array(values))
+}
 
 fn cemt_evaluator_formatted_node_sequence_len(
     nodes: &[CemTreeAstNode],

@@ -2726,12 +2726,13 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           in the repeat; the authored case has no established gain. Public
           sidecars, provenance and native owners remain intact. See
           [attribution](browser-stabilization-review.tmp.md#public-projection-traversal-attribution).
-  - [ ] Decide whether to promote single-pass public projection for borrowed
+  - [x] Decide whether to promote single-pass public projection for borrowed
         formatted-node sequences. Recommend the tested private exporter while
         preserving indexed access, exact sidecars and native ownership. Stop
         before this shared production change per the user's instruction. See
-        [the tested proposal](browser-stabilization-review.tmp.md#pending-decision-single-pass-public-projection).
-  - [ ] After approval, promote the single-pass public exporter. Fixture: require
+        [the accepted proposal](browser-stabilization-review.tmp.md#accepted-single-pass-public-projection).
+        Accepted 2026-09-23: promote the recommended private exporter.
+  - [x] After approval, promote the single-pass public exporter. Fixture: require
         the default projection to avoid repeated indexed reads and retain the
         former exporter as a test comparison; preserve gap/order/removal,
         raw/formatted/colored output, errors, four-format source provenance and
@@ -2739,6 +2740,16 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         rebuild WASM and run unchanged table/tree and normal/synchronized
         Storybook/stock checks. Keep field/index caching and hook/recovery
         ownership changes separate; stop if new behavior differences emerge.
+        Completed 2026-09-23: the default exporter uses the approved traversal;
+        six focused regressions preserve exact sidecars, provenance and native
+        owner release. The CEM-ML Nx chain passes 2,377 Rust checks, CEM-QL
+        passes 696, and both lint targets pass. Rebuilt WASM passes 40 table,
+        18 tree, 203 normal/203 synchronized Storybook tests and 32 stock cases.
+        Two isolated release runs cut 32-row projection 69.2%/65.7%; the authored
+        case has no established gain. See
+        [production evidence](browser-stabilization-review.tmp.md#production-single-pass-public-projection).
+        Next, resume the remaining readiness audit above with focused
+        NPM/location runs that overlap stock load before changing their waits.
 
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test

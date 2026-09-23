@@ -4798,7 +4798,9 @@ Browser behavior/performance remains unmeasured for this candidate. No productio
 exporter, authored viewer, timeout, public contract or WASM bundle is promoted
 at this checkpoint.
 
-### Pending decision: single-pass public projection
+### Accepted: single-pass public projection
+
+Accepted 2026-09-23: the user chose the recommended private exporter.
 
 Recommend promoting the tested specialization for public projection of borrowed
 `FormattedNodes`. Keep the existing indexed sequence API and all other value
@@ -4811,15 +4813,14 @@ No persistent cache, new owner lifetime or input-format handling is needed.
 | **Recommended: project each formatted sequence in one pass** | Removes repeated indexed traversal; preserves native ownership, source maps, exact public output and error behavior in the tested contracts. Larger projections and the 32-row full writer improve. | Maintains a private export traversal alongside indexed access. The output array grows while emitting rather than allocating from a precomputed length; peak allocation is not measured. Small-tree improvement is unproven, and existing per-gap/owner scans remain. |
 | Keep indexed projection and investigate a general sequence iterator | Avoids adding a specialized exporter and could benefit other native consumers. | Leaves the measured cost in place. A shared iterator would have a broader contract and needs a separate prototype, parity tests and measurements; it is not tested here. |
 
-Pause before promotion per the user's stop-at-decisions instruction and the
-active TODO's shared projection/ownership review requirement. If approved,
-promote the private traversal, retain the former formatted-node exporter as a
-test comparison, require the default exporter to avoid repeated indexed reads,
-and repeat native
-correctness/performance checks. Then rebuild WASM and run unchanged viewer and
-normal/synchronized Storybook/stock checks. Preserve public sidecars and import
-boundaries throughout; keep further field/index caching and hook/recovery work
-separate.
+The preceding checkpoint paused for the user's decision under the active TODO's
+shared projection/ownership review requirement. The approved scope promotes the
+private traversal, retains the former formatted-node exporter as a test
+comparison, and requires the default exporter to avoid repeated indexed reads.
+Validation repeats native correctness/performance checks, rebuilds WASM, and
+runs unchanged viewer and normal/synchronized Storybook/stock checks. Preserve
+public sidecars and import boundaries throughout; keep further field/index
+caching and hook/recovery work separate.
 
 Reproduce this test-only checkpoint:
 
@@ -4834,3 +4835,135 @@ cargo test -p cem-ml --release --lib profile_public_projection -- --ignored --no
 rustfmt --edition 2021 --check packages/cem_ml/src/transform_artifact/projection_profile_tests.rs packages/cem_ml/src/conversion/writer_profile_tests.rs
 git diff --check
 ```
+
+
+### Production single-pass public projection
+
+The approved traversal is now the default for borrowed `FormattedNodes` in
+`CemtEvaluatorValue::to_public_json`. The private helper emits directly into the
+existing public array, borrowing native nodes and overlay operations in their
+original order. Indexed access and other sequence/value exporters retain their
+existing behavior. No cache, native document lifetime, input-format handling,
+public schema or viewer template changes.
+
+The former indexed exporter is retained only behind the restoring test scope.
+The added default-path regression first fails on the indexed production path
+(`/tmp/cem-projection-promote-red.log`), then passes after promotion. It checks
+that public export performs no formatted length/indexed-item reads, explicit
+indexed access still works, and retaining the owned public output does not
+retain the native document. All six focused regressions pass, with the profile
+ignored (`/tmp/cem-projection-promote-unit.log`). The existing parity matrix now
+compares the indexed baseline against the production default, including exact
+sidecars, gaps/order/removal, nested/raw/formatted/colored output, sparse errors,
+XML/JSON/YAML/CSV import, provenance and native owner release.
+
+CEM-QL's full Nx target passes **696 native checks** in 77 result summaries,
+with nine opt-in profiles ignored (`/tmp/cem-projection-promote-ql-tests.log`).
+Both native lint targets pass with the existing 131 CEM-ML and 41 CEM-QL
+warnings (`/tmp/cem-projection-promote-{lint,ql-lint}.log`). The new fixture's
+formatting and the diff whitespace check pass. The browser/WASM build passes
+(`/tmp/cem-projection-promote-browser-build.log`).
+
+The full CEM-ML Nx chain passes **2,377 Rust checks** in 56 result summaries,
+including **2,046 CEM-ML unit tests**, with two profiles ignored
+(`/tmp/cem-projection-promote-native.log`). Counts normalize terminal wrapping
+inside summary words, as at preceding checkpoints.
+
+The unchanged standalone pages pass **40/40 table** and **18/18 tree** checks
+with no reported errors (`/tmp/cem-projection-promote-{table,tree}-profile.{json,log}`).
+These run after Storybook refreshes the demo-wrapper WASM. Every file hash in
+both reports matches the final artifacts. Packaged CEM-QL WASM SHA-256 is
+`045686972ebbcef44c444653086ad9b74e52d03c9e09d465b4e6a3fa3dd97881`;
+CEM-ML demo-wrapper WASM SHA-256 is
+`d2bd60fb4a5b34f62318e81f937e96a4189f60c64ed90e709297fa3a3fe5cb52`.
+
+Normal Storybook passes **203/203 tests in 42 files** in **47.09 s**
+(`/tmp/cem-projection-promote-normal.log`). Table/tree/inspector journeys
+complete in 14.2595/7.5442/3.8590 s. The native release build is still compiling
+during these browser checks; their timings are integration observations, not a
+controlled browser performance comparison. Existing cell override and native
+attribute value/content-hook stories pass unchanged.
+
+Synchronized Storybook passes **203/203 tests in 42 files** in **58.95 s**
+(`/tmp/cem-projection-promote-synchronized.log`). The stock probe starts after
+the actual Vitest `RUN` marker, using eight concurrent pages across four batches
+and the unchanged 45 s warning deadline. All **32/32 stock cases** pass with
+zero errors; warning readiness is 3.4797–8.7995 s
+(`/tmp/cem-projection-promote-synchronized-stock.{json,log}`). Both subprocesses
+exit zero (`/tmp/cem-projection-promote-synchronized-status.log`), and all stock
+report hashes match the rebuilt artifacts.
+
+Stock load spans **2026-09-23 14:44:59.578–14:45:35.423 UTC**. Table/tree/inspector
+journeys start at 14:45:11.722/11.881/22.063 and complete in
+22.8102/11.8882/4.4941 s, within that interval. NPM's default-selection wait
+starts afterward at 14:45:39.401 and passes in 2.7442 s (145/200 attempts).
+Location's two-reader wait starts at 14:45:57.345 and passes in 0.5995 s
+(25/180 attempts). These NPM/location checks do not establish readiness under
+extra stock load; the historical stock timeout remains unreproduced. No
+viewer, story assertion, timeout or concurrency setting changes.
+
+Both isolated release profiles pass after all other builds and browser checks
+finish, in **5.82 s / 5.42 s**
+(`/tmp/cem-projection-promote-release.log` and
+`/tmp/cem-projection-promote-release-repeat.log`). The repeat checks the
+small-input variability observed in the first run. Record-free medians use
+five warm samples after discarding the first; all outputs still pass exact
+parity and native owner checks. Projection timings reuse a formatted native
+artifact; full writer timings include inspection, formatting, writing and
+sidecars, with registry assembly outside the timer.
+
+| Input | Indexed projection, ms (first / repeat) | Default single pass, ms (first / repeat) |
+| --- | ---: | ---: |
+| Authored tree | 0.651 / 0.520 | 0.640 / 0.495 |
+| 8 rows | 1.093 / 0.864 | 0.783 / 0.747 |
+| 32 rows | 12.617 / 12.116 | 3.883 / 4.160 |
+| 64 rows | 95.129 / 82.093 | 12.910 / 12.289 |
+
+The 32-row projection improves **69.2% / 65.7%**, and 64 rows improve
+**86.4% / 85.0%**, with non-overlapping ranges in both runs. The authored
+projection ranges overlap, so no small-tree speedup is established. The default
+records zero formatted length/indexed-item calls during public export while
+preserving source-map serialization, owner-operation lookups and byte-identical
+sidecars. Existing per-gap and retained-path scans remain; this is not a general
+linear-complexity or peak-allocation claim.
+
+| Full native writer | Indexed, ms (first / repeat) | Default single pass, ms (first / repeat) |
+| --- | ---: | ---: |
+| Authored tree | 12.934 / 11.570 | 14.724 / 11.876 |
+| 32 rows | 73.660 / 70.025 | 68.382 / 61.218 |
+
+The 32-row writer medians improve **7.2% / 12.6%**, although ranges overlap
+slightly in both runs. The authored writer has a slower median in both runs,
+with the difference shrinking from 1.790 to 0.306 ms; its ranges overlap
+(10.883–13.579 versus 11.252–12.951 ms in the repeat). These samples establish
+neither an authored viewer speedup nor a fixed small-input regression. Native
+projection improvements do not establish a browser speedup.
+
+The approved promotion is complete. Next, resume the remaining browser
+readiness audit, beginning with focused NPM/location runs that actually overlap
+stock load. Capture declaration/render/worker and resource-specific state before
+changing their waits. Keep the historical timeout attribution separate and
+stop for a decision before new shared lifecycle or ownership behavior.
+
+Reproduce:
+
+```sh
+cargo test -p cem-ml --lib projection_profile_tests
+yarn nx run cem_ml:test --skipNxCache
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem_ml:lint --skipNxCache
+yarn nx run cem_ql:lint --skipNxCache
+yarn nx run cem-elements:build
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test
+node tools/scripts/profile-cem-tree-render.mjs --fixture=table --output=/tmp/cem-projection-promote-table-profile.json
+node tools/scripts/profile-cem-tree-render.mjs --output=/tmp/cem-projection-promote-tree-profile.json
+# Run alone, after other builds/checks finish.
+cargo test -p cem-ml --release --lib profile_public_projection -- --ignored --nocapture --test-threads=1
+rustfmt --edition 2021 --check packages/cem_ml/src/transform_artifact/projection_profile_tests.rs
+git diff --check
+```
+
+For synchronized coverage, launch
+`node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=single-pass-public-projection --output=/tmp/cem-projection-promote-synchronized-stock.json`
+after the traced Storybook run's Vitest `RUN` marker; retain both exit codes and
+verify actual overlap.
