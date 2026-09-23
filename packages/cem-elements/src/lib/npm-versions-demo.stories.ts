@@ -1,5 +1,5 @@
 import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
-import { traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
+import { cemDiagnosticCodes, traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 
 const SOURCE_TAG = 'story-npm-versions-demo-document';
@@ -107,6 +107,12 @@ export const EveryAuthoredSample: Story = {
                 () => location.hash === '' && url.querySelector<HTMLSelectElement>('select')?.value === '0.1.0',
                 'an absent URL version falls back to latest without rewriting the hash'
             );
+            for (const tag of [
+                'cem-npm-version-default', 'cem-npm-version-preselected',
+                'cem-npm-version-propagated', 'cem-npm-version-label', 'cem-npm-version-url',
+            ]) {
+                assertDeepEqual(cemDiagnosticCodes(requiredElement(host, tag)), [], `${tag} diagnostic history`);
+            }
         } finally {
             history.replaceState({}, '', originalUrl);
         }

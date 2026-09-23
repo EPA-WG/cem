@@ -102,6 +102,12 @@ export function traceCemReadiness(root: HTMLElement, story: string): void {
     startReadinessTiming(root, story, runtime);
 }
 
+/** Read diagnostic history without creating a runtime snapshot or revision. */
+export function cemDiagnosticCodes(target: HTMLElement): readonly string[] {
+    if (!runtime) throw new Error('Storybook CEM runtime is not installed');
+    return runtime.diagnosticsFor(target).map(({ code }) => code);
+}
+
 export async function whenCemRendered(instance: HTMLElement): Promise<void> {
     await customElements.whenDefined(instance.localName);
     await runtime?.whenRenderSettled(instance);

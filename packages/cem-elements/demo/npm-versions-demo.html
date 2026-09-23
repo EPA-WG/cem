@@ -35,6 +35,11 @@
             registry endpoint also needs XPath functions for its response vocabulary
             and host authorization for that origin.
         </p>
+        <p>
+            Before the first request starts, the registry slice can be absent.
+            The template uses <code>?? ""</code> to give its state comparison an
+            explicit default and renders the version list only after loading.
+        </p>
         <dl>
             <dt>package</dt><dd>Package name shown by the picker.</dd>
             <dt>initialversion</dt><dd>Version selected after the records load.</dd>
@@ -72,7 +77,7 @@
     {span | {slot @name=label |
         {code | {$package}} version:
     }}
-    {cem:if @test='datadom.slices.registry.state == "loaded"' |
+    {cem:if @test='(datadom.slices.registry.state ?? "") == "loaded"' |
         {select
             @name=version
             @autocomplete=off

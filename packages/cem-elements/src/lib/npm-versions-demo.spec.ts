@@ -48,6 +48,7 @@ describe('npm versions demo source contracts', () => {
         expect(DEMO_SOURCE).toContain('Choose a package version from registry data');
         expect(normalized).toContain('current version, optional publication dates, a projected label, value propagation');
         expect(normalized).toContain('small same-origin registry fixture');
+        expect(normalized).toContain('Before the first request starts, the registry slice can be absent.');
         expect(DEMO_SOURCE).toContain('href="./http-request.html"');
         expect(DEMO_SOURCE).toContain('href="./location-element.html"');
         expect(DEMO_SOURCE).toContain('href="./set-url.html"');

@@ -2309,12 +2309,29 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           interaction predicates. Preserve the 200-frame checks and 30-second
           story limit; validate focused, viewer/stock, normal and synchronized
           full coverage. Keep location unchanged until its failure is captured.
-    - [ ] Native fixture: attribute the NPM template's initial
+    - [x] Native fixture: attribute the NPM template's initial
           `cem.ql.type_error` / `cem.ql.render.test_failed` diagnostics with an
           absent registry slice versus a retained loaded document. They occur
           in passing and failing browser runs; separate authored pending-state
           guards from shared evaluator/loader behavior before changing either.
           Keep diagnostics visible and stop before a shared contract change.
+          Completed 2026-09-23: the native fixture reproduces the diagnostic
+          trio from comparing an absent state with a string. An authored
+          `?? ""` fallback removes it; strict unguarded and loaded-data failures
+          remain visible. All 700 native tests, 204 normal Storybook tests,
+          15 overlapping-load tests and 32 stock probes pass. All five picker
+          histories remain empty; 29 standalone and 35 source-loaded pages,
+          eight focused unit tests, lint, typecheck and desktop layout pass.
+          The remaining readiness audit stays open; see
+          [NPM diagnostic correction](browser-stabilization-review.tmp.md#npm-pending-state-diagnostic-correction).
+      - [x] Fixture and bounded correction: render the authored picker with
+            absent/pending/failed control metadata and a loaded native CEM
+            document. Preserve strict predicate errors as a control; verify
+            option order, dates, selection, native ownership and loaded-data
+            errors. If the fault is an authored missing-state comparison, use
+            an existing explicit fallback and verify browser diagnostics and
+            the current standalone/source-loaded samples without new waits.
+            Track the authored page and response in native Nx test inputs.
   - [x] Fixture: replace external-src's reproduced premature frame wait with
         declaration and render settlement, then assert every existing output
         within the unchanged story deadline. Add opt-in retry-attempt and

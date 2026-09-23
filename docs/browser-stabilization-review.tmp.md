@@ -5106,3 +5106,97 @@ after the traced run's Vitest `RUN` marker. Retain both process exit codes,
 stock failures/errors, readiness snapshots and actual UTC intervals. The failed
 runs retain their original later-assertion limitations; they are not passing
 coverage merely because the worker eventually finishes.
+
+### NPM pending-state diagnostic correction
+
+Implemented 2026-09-23. The initial NPM diagnostics are caused by the authored
+state comparison, before the registry slice exists. They do not require a
+loader or evaluator contract change. The picker now uses the existing explicit
+fallback:
+
+```cem-ml
+{cem:if @test='(datadom.slices.registry.state ?? "") == "loaded"' | ...}
+```
+
+`packages/cem_ql/tests/npm_pending_state.rs` renders the actual demo template
+and loads its existing XPath function library. Before this correction, the
+absent-state case reproduces both `cem.ql.type_error` diagnostics and
+`cem.ql.render.test_failed`, with source frames identifying the state guard;
+the other three cases already pass (`/tmp/cem-npm-pending-red.log`). After the
+one-line guard correction, all four cases pass
+(`/tmp/cem-npm-pending-native-focused.log`):
+
+- Absent, scheduled, in-progress and failed registry metadata produce no
+  diagnostics or select. No function library is installed in these cases, so
+  an accidental attempt to query the document would fail.
+- Loaded fixture bytes enter through CEM-ML `import_data_bytes`, remain a
+  retained CEM tree through `bind_cem_document`, and feed the existing XPath
+  functions. Version order, optional dates and explicit selection are preserved;
+  the native owner survives rendering and is released when its binding drops.
+- The unguarded missing-state comparison still reports strict predicate errors.
+  A loaded state without a native document still reports an error. This
+  correction does not suppress diagnostics or redefine missing-value semantics.
+
+Only HTTP control metadata is constructed as records in the fixture. No JSON
+response is projected into records or JavaScript objects. The Nx native test
+inputs now include the authored page and response fixture, alongside the
+already tracked XPath library, so edits invalidate cached test results.
+
+The source-loaded story checks the complete diagnostic history of each of its
+five pickers after the existing interactions. Its preview helper reads
+`diagnosticsFor` without taking a runtime snapshot or changing a revision. The
+focused story passes **1/1**; all **17** observed picker render responses,
+including each initial response with no registry slice, have empty diagnostics
+(`/tmp/cem-npm-pending-story-focused.log`).
+
+The five-file NPM/location/viewer workload passes **15/15** alongside **32/32
+stock cases**, with no stock errors; both subprocesses exit zero
+(`/tmp/cem-npm-pending-synchronized{,-stock,-status}.log` and the stock JSON
+report). Stock runs from **15:21:06.061 to 15:21:30.195 UTC**. NPM's initial
+checkpoint occurs at **15:21:19.439**, 6.1841 s after its start, and all remaining
+interactions finish by **15:21:20.760**. All 17 picker render responses remain
+diagnostic-free. Location's initial readers settle at **15:21:16.359** after
+2.9450 s / 65 frames, and its interactions pass. These journeys overlap stock
+activity; the unchanged resource predicates and story limits still apply.
+Stock readiness is 2.4888–6.0463 s. Every recorded artifact hash matches the
+current files; packaged CEM-QL WASM remains
+`045686972ebbcef44c444653086ad9b74e52d03c9e09d465b4e6a3fa3dd97881`.
+
+Native regression coverage passes **700 tests**, with 9 existing ignored tests
+(`/tmp/cem-npm-pending-native.log`). The focused unit suite passes **8/8**,
+typecheck passes, and lint passes with the same two existing warnings. The
+demo verifier passes **29 standalone pages and 35 source-loaded documents**
+(`/tmp/cem-npm-pending-{unit,typecheck,lint,demo-fixtures}.log`).
+Final normal Storybook coverage, with tracing disabled, passes **204/204 tests
+in 43 files** in **32.88 s** (`/tmp/cem-npm-pending-normal.log`).
+
+The standalone desktop check at 1440 px confirms two 704 px cards per row for
+the first four cases, no page/card horizontal overflow, all five expected
+version lists, and successful relative navigation links. All five authored
+payloads start at column 1. Inspection output and screenshot are
+`/tmp/cem-npm-pending-layout.{json,png}`. The native template, request lifecycle,
+viewer implementations and browser wait budgets receive no shared behavior
+change.
+
+The NPM diagnostic correction is complete. Continue the remaining
+frame/aggregate readiness audit; location's earlier timeout and the historical
+stock timeout remain unreproduced. Do not infer their causes from this authored
+guard correction.
+
+Reproduce the focused gates:
+
+```sh
+cargo test -p cem-ql --test npm_pending_state --target-dir dist/target/cem_ql
+yarn nx run cem_ql:test --skipNxCache
+yarn nx run cem-elements:test:unit --args=npm-versions-demo.spec.ts
+STORYBOOK_CEM_TREE_TRACE=1 yarn nx run cem-elements:test --args=npm-versions-demo.stories.ts
+yarn nx run cem-elements:verify-demo-fixtures
+yarn nx run cem-elements:test
+yarn nx run cem-elements:lint
+yarn nx run cem-elements:typecheck
+```
+
+For the overlapping workload, run the five-file command from the previous
+section and launch the same 8-concurrent, 4-batch stock probe after Vitest's
+`RUN` marker. Preserve both exit codes and actual intervals when reporting
+overlap.
