@@ -2294,6 +2294,31 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         204-test full suites and all 160 stock probes. Location passes under
         focused load; its failure and the broader inventory remain open. See
         [NPM/location evidence](browser-stabilization-review.tmp.md#npm-and-location-readiness-under-overlapping-load).
+    - [x] Fixture: trace location's per-card reader structure and field-hydration
+          predicates at startup, initial-value capture and assertion failure.
+          Run the original 180-frame waits with HTTP/viewer stories and the
+          eight-page/four-batch stock workload. Distinguish missing structure,
+          pending hydration and later navigation before correcting a reproduced
+          fixture race; keep runtime behavior, assertions and budgets intact.
+          Preserve failures while observing later settlement during diagnosis,
+          then remove that temporary wait before committing.
+          Completed 2026-09-23: both focused and sixteen-file workloads pass
+          (15/15 and 27/27), with 64/64 stock probes and actual location/HTTP
+          overlap. All three readers publish fields before initial-value capture.
+          No failure enters the temporary settlement probe; it is removed.
+          Keep original waits and retain the read-only per-card checkpoints.
+          Final normal and synchronized suites pass 205/205 each; all 96 stock
+          probes pass. Lint/typecheck and whitespace checks pass. Location's
+          historical failure remains unattributed; see
+          [reader observations](browser-stabilization-review.tmp.md#location-reader-startup-and-snapshot-timing).
+    - [ ] Sequencing decision: keep unattributed HTTP/location/stock timeouts
+          open for investigation when they recur, while beginning the authored
+          page-and-legend coverage inventory. Recommended after the latest
+          passing controls; the earlier instruction keeps stabilization ahead
+          of that inventory, so obtain a decision before changing that order.
+          See "Pending decision: coverage inventory while timeout attribution
+          remains open" in docs/browser-stabilization-review.tmp.md. Passing
+          controls do not establish a historical cause or complete stabilization.
     - [x] Fixture: run focused NPM/location stories during synchronized stock
           load, retaining the authored samples, predicates, frame budgets and
           concurrency. Verify actual overlap from timestamps and capture

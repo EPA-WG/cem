@@ -5560,3 +5560,125 @@ and are not attributed by this storage work.
 Recording the decision changes documentation and a Storybook comment only.
 The existing assertions and runtime behavior are unchanged; the whitespace
 check passes, and no test rerun is needed for this decision record.
+
+### Location reader startup and snapshot timing
+
+Investigated 2026-09-23 after the decision to retain whole-scope replacement.
+Location's historical 180-frame startup failure remained unattributed. The
+story now adds read-only checkpoints for each public sample legend: definition
+count, whether the initial reader publishes `source = window`, whether its
+origin matches the current window, and whether a pathname is present. Alongside the public legends, only
+counts and booleans are emitted; no reader URL value, query content, native document,
+new runtime snapshot or render revision is collected.
+
+Checkpoints surround the existing two-reader predicate, the capture used to
+check initial-only immutability, assertion failure and successful completion.
+The exact 180-frame predicates, interactions, URL restoration and 30-second
+story budget remain unchanged. The authored page has separate live, initial
+and external readers with three, five and four definition values, respectively.
+Those elements alone are structural evidence; the added observations distinguish
+that structure from published URL fields at snapshot capture.
+
+The native runtime reads the initial location after the first plan is rendered,
+binds its scalar control slice and queues rendering of the published values.
+The audit checks whether the story captures its immutable comparison before
+that second rendering, without assuming that this explains the historical
+failure. It also preserves the distinction between initial-only publication,
+live `pushState`/`replaceState`/hash updates and parsing the explicit external URL.
+
+The stock probe starts at Vitest's `RUN` marker, with the established eight
+concurrent pages, four batches and 45-second warning budget. Both subprocess
+exit codes are retained. These new runs use the current packaged runtime and
+unchanged viewer/native artifacts:
+
+| Workload | Story result | Location two-reader wait | Location journey (UTC) | Stock interval (UTC) |
+| --- | --- | --- | --- | --- |
+| Location, HTTP and three viewer files | 15/15 | 47 frames, 2.4509 s | 17:25:29.202–17:25:32.257 | 17:25:22.131–17:25:45.325 |
+| Sixteen-file readiness inventory | 27/27 | 31 frames, 1.2650 s | 17:26:53.418–17:26:55.034 | 17:26:31.937–17:27:01.863 |
+
+All three readers have their expected definition counts and published pathnames
+before the initial comparison is captured. The initial reader also has the
+expected source and origin in both captures. Every navigation and external-URL
+assertion passes while stock work is active. The first run observes all three
+current renders settling at **17:25:31.856–31.857**, before its predicate passes
+at **31.862**; the inventory run has the same ordering at **17:26:54.828–54.831**.
+No premature capture is demonstrated, and no wait migration is justified by
+these observations.
+
+HTTP also passes its complete journeys. Its original three-article predicate
+finishes at **17:25:33.451** and **17:26:46.677**, with one article per sample,
+while stock work is active. Neither run reproduces the previous article timeout.
+All **64 stock cases** pass without errors. Warning readiness ranges from
+**2.9020 to 5.7134 s** in the focused run and **3.3918 to 6.7196 s** in the
+inventory run. Every recorded artifact/source hash matches the current files.
+These are passing controls, not attribution of the old 45-second stock failure.
+
+Evidence is `/tmp/cem-readiness-location-focused{,-stock,-status}.log` and
+`/tmp/cem-readiness-location-inventory{,-stock,-status}.log`, with their stock
+JSON reports. Raw event replay in failed test output must be deduplicated before
+counting observations. The new orchestration checks both subprocess exit codes.
+
+A temporary failure-only probe would have awaited existing source/declaration/
+render settlement, recorded the resulting reader state, and re-thrown the
+original startup error. Neither run entered it. The probe and its helper import
+are removed. The committed story retains only read-only observations; failed
+assertions still throw immediately, and the original URL is restored in `finally`.
+Native production code, browser lifecycle behavior, authored viewers and whole-
+scope recovery are unchanged. Native/WASM rebuilds and demo-layout verification
+are unnecessary for this Storybook-only instrumentation.
+
+Reproduce the focused control with:
+
+```sh
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test --args='location-element-demo.stories.ts http-request-demo.stories.ts data-table-demo.stories.ts data-tree-demo.stories.ts table-inspector-demo.stories.ts'
+```
+
+After Vitest prints `RUN`, start
+`node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=location-startup-readiness --output=/tmp/cem-readiness-location-focused-stock.json`.
+Preserve both exits and verify actual UTC overlap. The sixteen-file command is
+recorded in the earlier readiness inventory section.
+
+After removing the temporary probe, the full traced suite passes **205/205
+in 43 files** in **46.67 s**, alongside another **32/32 stock cases** with no
+errors (`/tmp/cem-readiness-location-full{,-stock,-status}.log` and its stock
+JSON report). Stock spans **17:28:46.443–17:29:14.129 UTC**. HTTP's initial
+article predicate passes at **17:29:12.927**, during that interval. Location
+runs at **17:29:31.128–17:29:32.086**, after stock ends; this is full regression
+coverage, not a third location-overlap result. Its snapshot is hydrated, and
+all assertions pass. All recorded hashes still match.
+
+All **96 stock probes** in this investigation pass; no historical timeout is
+reproduced. Final normal coverage with tracing disabled passes **205/205 tests
+in 43 files** in **32.89 s** (`/tmp/cem-readiness-location-normal.log`). Package
+lint passes with its two existing warnings; typecheck passes with valid cached
+production inputs (`/tmp/cem-readiness-location-{lint,typecheck}.log`). The
+whitespace check passes. Only the location story and investigation/checklist
+documentation change. Passing controls leave historical attribution open.
+
+### Pending decision: coverage inventory while timeout attribution remains open
+
+**Recommendation:** keep the unattributed HTTP, location and historical stock
+timeouts open as follow-ups to investigate when a traced failure recurs, and
+begin the authored page-and-legend coverage inventory already listed in
+`docs/todo.md`. Do not mark stabilization or timeout attribution complete.
+Retain the original predicates, budgets, concurrent workloads, diagnostic
+histories and stock probe, including their failure exit status.
+
+This changes work order. The current TODO explicitly says to “keep this item
+active before the authored-sample coverage inventory,” following the user's
+2026-09-21 decision to continue investigation. The latest controls pass and
+provide richer observations but no new failure to correct. Proceeding to the
+inventory therefore needs a decision under the user's stop-at-decisions
+instruction; the inventory is not started in this change.
+
+If accepted, inventory work starts with a machine-checked mapping from authored
+HTML pages and `cem-demo-element[legend]` entries to source-loaded Storybook
+contracts. It must detect missing or stale entries and retain the independent
+standalone/source-document verifier. Any failure observed during that work
+returns to the existing readiness traces before proposing a correction.
+The existing whole-scope replacement decision remains in force.
+
+The alternative is to continue dedicated timeout reproduction as the blocking
+priority. That keeps the earlier ordering, but the current passing controls do
+not identify a specific runtime correction or justify broader time limits.
+Neither choice establishes a cause for the historical failures.

@@ -1,4 +1,4 @@
-import { readinessWait } from '../../.storybook/readiness-timing.js';
+import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
 import { traceCemReadiness } from '../../.storybook/preview.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 
@@ -23,6 +23,14 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement }) => {
         const originalUrl = location.href;
         const host = requiredElement(canvasElement, SOURCE_TAG);
+        // Only counts and readiness booleans enter the trace, never URL values.
+        const readers = () => Array.from(host.querySelectorAll('cem-demo-element[legend]'), sample => {
+            const field = (term: string) => Array.from(sample.querySelectorAll('dt'))
+                .find(dt => normalize(dt.textContent ?? '') === term)?.nextElementSibling?.textContent?.trim();
+            return { legend: sample.getAttribute('legend'), definitions: sample.querySelectorAll('dd').length,
+                windowSource: field('source') === 'window', originMatches: field('origin') === location.origin,
+                pathnamePublished: !!field('pathname') };
+        });
         try {
             await waitForCondition(
                 () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
@@ -32,11 +40,18 @@ export const EveryAuthoredSample: Story = {
 
             const live = sampleByLegend(host, EXPECTED_LEGENDS[0]);
             const initial = sampleByLegend(host, EXPECTED_LEGENDS[1]);
-            await waitForCondition(
-                () => live.querySelector('dd') !== null && initial.querySelectorAll('dd').length === 5,
-                'both location readers finish rendering'
-            );
+            try {
+                await waitForCondition(
+                    () => live.querySelector('dd') !== null && initial.querySelectorAll('dd').length === 5,
+                    'both location readers finish rendering'
+                );
+            } catch (error) {
+                readinessCheckpoint('initial-readers-failed', { readers: readers() });
+                throw error;
+            }
+            readinessCheckpoint('initial-readers-ready', { readers: readers() });
             const initialValues = normalize(initial.querySelector('dl')?.textContent ?? '');
+            readinessCheckpoint('initial-values-captured', { readers: readers() });
             buttonByName(live, 'history.pushState').click();
             await waitForCondition(
                 () => definitionValue(live, 'hash') === '#checked'
@@ -69,6 +84,10 @@ export const EveryAuthoredSample: Story = {
                     && normalize(external.querySelector('ul')?.textContent ?? '').includes('b = 2,3'),
                 'the href reader parses an external URL and repeated parameters'
             );
+            readinessCheckpoint('location-journey-verified', { readers: readers() });
+        } catch (error) {
+            readinessCheckpoint('location-assertion-failed', { readers: readers() });
+            throw error;
         } finally {
             history.replaceState({}, '', originalUrl);
         }
