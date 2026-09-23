@@ -2609,13 +2609,34 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           test-only registry pair; cold rendering remains about 90–91 ms.
           Four-format output/provenance, document release, limits and concurrent
           initialization pass. No production or browser behavior changed.
-  - [ ] Decide whether `cemml:inspect` should reuse one private immutable
+  - [x] Decide whether `cemml:inspect` should reuse one private immutable
         built-in schema/conversion registry pair for the process/WASM-instance
         lifetime. Recommend lazy reuse; retain per-call writer/cache, native
         owners, limits and public constructor behavior. The tested proposal
         records the retained metadata and unchanged first-call cost; stop before
         production promotion per the user's instruction. See the
-        [decision](browser-stabilization-review.tmp.md#pending-decision-immutable-inspection-registries).
+        [decision](browser-stabilization-review.tmp.md#accepted-immutable-inspection-registries).
+        Accepted by the user 2026-09-22: reuse immutable inspection registries.
+  - [x] Promote approved immutable inspection registries with default-path
+        reuse, document-release, lazy initialization and concurrent-call
+        regressions. Fixture: require default queries/renders to share built-in
+        metadata without per-call registry construction; retain a fresh baseline
+        and cold-initialization override for native profiling. Preserve typed
+        output, native owners, imports, public constructors and scope limits.
+        Run native checks/profiling, rebuild WASM, verify table/tree and cell
+        hooks, then normal and synchronized Storybook with the stock probe.
+        Completed 2026-09-22: both default reuse regressions fail before promotion
+        and pass afterward. All 696 native tests, lint and the release profile
+        pass; loaded tree rendering falls 93.364→24.137 ms while cold cost
+        remains 92.944 ms. Rebuilt WASM passes 40 table/18 tree checks, both
+        203-test Storybook runs (including cell hooks) and all 32 stock cases.
+        Table/tree/inspector overlap stock; NPM/location waits follow it.
+        Native owners, imports, public contracts and scope limits are preserved.
+        See the [production evidence](browser-stabilization-review.tmp.md#production-immutable-inspection-registries).
+  - [ ] Attribute the remaining typed inspection writer cost after registry
+        reuse before proposing another shared change. Keep authored viewers and
+        formatter/package contracts intact; separate hook/recovery ownership
+        work and require a measured proposal before production changes.
 
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test

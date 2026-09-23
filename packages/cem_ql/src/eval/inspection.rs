@@ -8,14 +8,83 @@ use cem_ml::{
         ConversionOutputPipelineEnvironment, ConversionOutputPipelineExecution, ConversionRegistry,
     },
     operation_control::MemoryPermit,
-    parser::CemAstNode,
-    projection::cem_tree_inspection,
+    parser::{tree::RetainedCemTree, CemAstNode},
+    projection::{cem_tree_inspection, CemTreeAstStream},
     schema::SchemaRegistry,
 };
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 #[cfg(test)]
 pub(crate) mod profile_tests;
+
+// Only immutable embedded metadata lives across calls. Document owners, scope
+// controls, package readers and mutable writer caches remain per invocation.
+struct InspectionRegistries {
+    schema: SchemaRegistry,
+    conversion: ConversionRegistry,
+}
+
+impl InspectionRegistries {
+    fn builtin() -> Self {
+        #[cfg(test)]
+        let _build = crate::compile_profile::Span::new("inspect/registry-build");
+        #[cfg(test)]
+        let mut profile = crate::compile_profile::Span::new("inspect/schema-registry");
+        let schema = SchemaRegistry::with_builtin_schemas();
+        #[cfg(test)]
+        profile.next("inspect/conversion-registry");
+        let conversion = ConversionRegistry::with_builtin_converters();
+        Self { schema, conversion }
+    }
+}
+
+static INSPECTION_REGISTRIES: OnceLock<InspectionRegistries> = OnceLock::new();
+
+fn registry_pair(cache: &OnceLock<InspectionRegistries>) -> &InspectionRegistries {
+    #[cfg(test)]
+    let _profile = crate::compile_profile::Span::new("inspect/registry-access");
+    cache.get_or_init(InspectionRegistries::builtin)
+}
+
+fn inspection_output(
+    owner: &Arc<RetainedCemTree>,
+    stream: Arc<CemTreeAstStream>,
+) -> ConversionOutputPipelineExecution {
+    #[cfg(test)]
+    if let Some(result) = profile_tests::override_output(owner, stream.clone()) {
+        return result;
+    }
+    write_inspection(owner, stream, registry_pair(&INSPECTION_REGISTRIES))
+}
+
+fn write_inspection(
+    owner: &Arc<RetainedCemTree>,
+    stream: Arc<CemTreeAstStream>,
+    registries: &InspectionRegistries,
+) -> ConversionOutputPipelineExecution {
+    #[cfg(test)]
+    let _profile = crate::compile_profile::Span::new("inspect/writer");
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &registries.schema,
+        conversion_registry: &registries.conversion,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let mut pipeline = direct_cem_output_pipeline();
+    pipeline.cemt_options.formatter_profile = Some("tabular".into());
+    pipeline.cemt_insertion_context.formatter_profile = Some("tabular".into());
+    pipeline.writer_insertion_context.formatter_profile = Some("tabular".into());
+    execute_conversion_output_pipeline_from_cem_tree_with_environment(
+        &environment,
+        &pipeline,
+        stream,
+        owner.node(0).map(|node| node.source.clone()),
+        vec![],
+        "cemml:inspect",
+        None,
+        Some(owner.source_uri()),
+    )
+}
 
 pub(super) fn inspect(
     arguments: Vec<ItemStream>,
@@ -65,42 +134,7 @@ pub(super) fn inspect(
     }
     #[cfg(test)]
     profile.next("inspect/environment-and-writer");
-    #[cfg(test)]
-    if let Some(result) = profile_tests::prepared_output(&owner, stream.clone()) {
-        profile.next("inspect/accept");
-        if let Err(failure) = ctx.force_safe_point(source) {
-            return failure;
-        }
-        return accept_output(result, ctx, source);
-    }
-    #[cfg(test)]
-    profile.next("inspect/schema-registry");
-    let registry = SchemaRegistry::with_builtin_schemas();
-    #[cfg(test)]
-    profile.next("inspect/conversion-registry");
-    let conversions = ConversionRegistry::with_builtin_converters();
-    #[cfg(test)]
-    profile.next("inspect/writer");
-    let environment = ConversionOutputPipelineEnvironment {
-        schema_registry: &registry,
-        conversion_registry: &conversions,
-        package_artifact_reader: None,
-        artifact_cache: None,
-    };
-    let mut pipeline = direct_cem_output_pipeline();
-    pipeline.cemt_options.formatter_profile = Some("tabular".into());
-    pipeline.cemt_insertion_context.formatter_profile = Some("tabular".into());
-    pipeline.writer_insertion_context.formatter_profile = Some("tabular".into());
-    let result = execute_conversion_output_pipeline_from_cem_tree_with_environment(
-        &environment,
-        &pipeline,
-        stream,
-        owner.node(0).map(|node| node.source.clone()),
-        vec![],
-        "cemml:inspect",
-        None,
-        Some(owner.source_uri()),
-    );
+    let result = inspection_output(&owner, stream);
     #[cfg(test)]
     profile.next("inspect/accept");
     // Native formatting is synchronous. Observe cancellation/deadlines after

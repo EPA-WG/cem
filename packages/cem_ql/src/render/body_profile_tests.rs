@@ -1,9 +1,9 @@
-//! Authored body attribution and a test-only inspection registry candidate.
+//! Authored body attribution with current and per-call inspection registries.
 use super::*;
 use crate::{
     api::{compile, evaluate},
     compile_profile::{measure, Span},
-    eval::inspection_profile_tests::{with_prepared, Prepared},
+    eval::inspection_profile_tests::{with_fresh, with_prepared, Prepared},
 };
 use std::{hint::black_box, time::Instant};
 
@@ -119,7 +119,8 @@ fn authored_hooks_and_inspection_keep_output_and_attribution() {
         assert!(!stages.contains_key("copy/try-snapshot"));
     }
     let (artifact, data) = input_profile_tests::tree_fixture(2);
-    let (expected, baseline) = measure(|| render_compiled_template(&artifact, &data));
+    let (expected, baseline) =
+        measure(|| with_fresh(|| render_compiled_template(&artifact, &data)));
     assert_eq!(baseline["inspect/schema-registry"].calls, 1);
     assert_eq!(baseline["inspect/conversion-registry"].calls, 1);
     let prepared = Prepared::default();
@@ -127,9 +128,9 @@ fn authored_hooks_and_inspection_keep_output_and_attribution() {
         let (plan, stages) =
             measure(|| with_prepared(&prepared, || render_compiled_template(&artifact, &data)));
         copy_profile_tests::verify_plan(&plan, &expected);
-        assert_eq!(stages.contains_key("inspect/prepared-registry-build"), cold);
-        assert_eq!(stages["inspect/prepared-writer"].calls, 1);
-        assert!(!stages.contains_key("inspect/schema-registry"));
+        assert_eq!(stages.contains_key("inspect/registry-build"), cold);
+        assert_eq!(stages["inspect/writer"].calls, 1);
+        assert_eq!(stages.contains_key("inspect/schema-registry"), cold);
         assert!(!stages.contains_key("copy/try-snapshot"));
         assert!(!stages.contains_key("copy/hook-capture"));
     }
@@ -253,15 +254,14 @@ fn profile_authored_bodies() {
         let (artifact, data) = input_profile_tests::tree_fixture(controls);
         let expected = render_compiled_template(&artifact, &data);
         let render = || render_compiled_template(&artifact, &data);
-        profile(&format!("tree/{controls}/fresh"), render, |plan| {
-            copy_profile_tests::verify_plan(plan, &expected)
-        });
-        let prepared = Prepared::default();
         profile(
-            &format!("tree/{controls}/prepared"),
-            || with_prepared(&prepared, render),
+            &format!("tree/{controls}/fresh"),
+            || with_fresh(render),
             |plan| copy_profile_tests::verify_plan(plan, &expected),
         );
+        profile(&format!("tree/{controls}/reused"), render, |plan| {
+            copy_profile_tests::verify_plan(plan, &expected)
+        });
         for tag in ["cem-native-value-card", "cem-native-value-parent"] {
             let (artifact, data) = hooks(tag, controls);
             let expected = render_compiled_template(&artifact, &data);
@@ -326,15 +326,14 @@ fn profile_authored_bodies() {
     )
     .unwrap();
     let expected = evaluate(&query, &context);
-    let prepared = Prepared::default();
     for cached in [false, true] {
         profile(
             &format!("inspect/prepared={cached}"),
             || {
                 if cached {
-                    with_prepared(&prepared, || evaluate(&query, &context))
-                } else {
                     evaluate(&query, &context)
+                } else {
+                    with_fresh(|| evaluate(&query, &context))
                 }
             },
             |result| {
@@ -343,4 +342,16 @@ fn profile_authored_bodies() {
             },
         );
     }
+}
+
+#[test]
+fn default_tree_render_reuses_inspection_registries() {
+    let (artifact, data) = input_profile_tests::tree_fixture(2);
+    let expected = render_compiled_template(&artifact, &data);
+    let (actual, stages) = measure(|| render_compiled_template(&artifact, &data));
+    copy_profile_tests::verify_plan(&actual, &expected);
+    assert!(!stages.contains_key("inspect/schema-registry"));
+    assert!(!stages.contains_key("inspect/conversion-registry"));
+    assert_eq!(stages["inspect/registry-access"].calls, 1);
+    assert_eq!(stages["inspect/writer"].calls, 1);
 }

@@ -4132,11 +4132,11 @@ yarn nx run cem_ql:test --skipNxCache
 yarn nx run cem_ql:lint --skipNxCache
 ```
 
-### Pending decision: immutable inspection registries
+### Accepted: immutable inspection registries
 
-The active TODO requires a measured proposal before another shared optimization,
-and the user requested a stop at decisions. The prototype above establishes a
-warm benefit; changing registry lifetime in production now needs a decision.
+Accepted by the user 2026-09-22: reuse immutable inspection registries.
+The following proposal records the approved scope and tradeoff. Production
+validation is recorded below when complete.
 
 | Direction | Benefit | Cost or limit |
 | --- | --- | --- |
@@ -4171,3 +4171,120 @@ and retain the rebuilt WASM hash. First-use browser startup and the historical
 stock timeout remain unproven by this warm native improvement. Attribute the
 remaining typed writer cost only after the approved change is validated; keep
 hook/recovery ownership work separate.
+
+### Production immutable inspection registries
+
+The approved change puts one private `InspectionRegistries` pair behind a
+`OnceLock` in `eval/inspection.rs`. It initializes only after retained-document,
+item-budget, payload-memory and cancellation checks. Native calls borrow the
+same immutable metadata for the process lifetime; each independent WASM
+instance owns its baseline. Public registry constructors remain unchanged.
+The typed writer still runs for each call with the same tabular options and
+per-call mutable artifact cache. No documents, projections, output, caller
+bindings, capabilities, diagnostics or scope controls enter the static pair.
+XML/JSON/YAML/CSV continue through shared CEM-ML import into retained CEM AST
+DOM trees; the query and renderer consume those native trees.
+
+The old per-call registry construction is retained only as a restoring test
+override. The former candidate's isolated lazy pair now uses the same production
+initializer, access helper and writer, allowing cold initialization and
+concurrent construction to be tested without resetting the process singleton.
+The authored profile compares `fresh` with default `reused` and separately
+measures a newly initialized pair on every render. Hook/recovery behavior and
+the authored viewers remain unchanged.
+
+Two default regressions fail before promotion on the per-call schema-construction
+span (`/tmp/cem-inspect-promote-red.log`) and pass afterward. They verify repeat
+query and unchanged tree rendering without rebuilding registries, with exact
+output/source-map checks and document release. A third default regression runs
+four concurrent queries, verifies the shared registry address, distinct output
+and source URIs, and release of each input document. The existing isolated
+concurrent test proves exactly one initialization; the four-format, two-view,
+provenance and limit checks compare fresh, isolated and default execution.
+Empty input, pre-cancelled work and rejected payloads perform no registry access.
+All **113 unit tests** pass, with four opt-in profiles skipped
+(`/tmp/cem-inspect-promote-unit.log`). Native lint passes with the existing
+131 CEM-ML/41 CEM-QL warnings (`/tmp/cem-inspect-promote-lint.log`).
+
+The promoted release profile passes in **6.16 s**, isolated from other heavy
+work (`/tmp/cem-inspect-promote-release.log`). Record-free warm medians use five
+samples after discarding the first:
+
+| Workload | Fresh registries, ms | Default reuse, ms |
+| --- | ---: | ---: |
+| Authored tree, no added controls | 92.149 | 22.708 |
+| Authored tree, 256 synthetic controls | 93.364 | 24.137 |
+| Direct retained-document inspection query | 92.297 | 23.913 |
+
+The loaded tree improves **74.1% in this native profile**, with non-overlapping
+91.770–98.125 / 21.660–26.650 ms ranges. The isolated cold-pair case remains
+92.944 ms (90.295–100.144 ms), overlapping fresh construction; no first-use
+improvement is claimed. Recorded fresh setup is 14.939 ms for schemas and
+56.405 ms for conversions. Default warm inspection records zero builds and one
+registry access, below 0.001 ms at this precision. Projection remains
+0.031/0.033 ms and typed writing 19.774/22.025 ms (fresh/reused). Independently
+sampled and nested medians are not additive; writing is now the dominant
+remaining native tree cost.
+
+The authored cell parent/child, query recovery and README CEMT recovery checks
+all pass with their existing snapshot behavior. Loaded parent/child medians
+are 9.088/7.474 ms; CEMT success/first/second catch are 2.821/2.747/4.181 ms;
+query valid/invalid import are 1.522/1.721 ms. These are unchanged-path
+observations, not hook/recovery improvements from registry reuse.
+
+Full native Nx validation passes **696 tests across 77 suites**, with nine
+opt-in profiles skipped (`/tmp/cem-inspect-promote-native-tests.log`). Fixture
+formatting and diff checks pass. The approved native behavior is ready for
+WASM/browser validation below.
+
+The WASM/browser build passes (`/tmp/cem-inspect-promote-browser-build.log`).
+Packaged CEM-QL WASM SHA-256:
+`8c09baa70fe091eeb5ba18ea9a7e9938b218a12e937860182a0bf62afe6f7ac0`.
+The standalone unchanged viewers pass **40/40 table** and **18/18 tree** checks
+with no reported errors (`/tmp/cem-inspect-promote-{table,tree}-profile.{json,log}`).
+Both reports record this rebuilt hash. The authored table page reaches four
+tables at 3.2542 s and seven cards at 4.1064 s. These observations establish
+browser integration, not a controlled browser speed comparison.
+
+Normal Storybook passes **203/203 tests in 42 files** in 40.46 s
+(`/tmp/cem-inspect-promote-normal.log`), including the existing cell override
+stories and `NativeAttributeValues` checks for the integer/date, retained
+`name > em` subtree and text-only content hook. The table, tree and inspector
+journeys complete in 12.1153/6.3619/2.7942 s. No story assertion, source viewer,
+timeout or concurrency setting changed.
+
+Synchronized Storybook passes **203/203 tests in 42 files** in 60.44 s
+(`/tmp/cem-inspect-promote-synchronized.log`). The stock probe starts after
+Vitest's actual `RUN` marker, with eight concurrent pages across four batches
+and the unchanged 45 s warning deadline. All **32/32 stock cases** pass with
+zero errors and warning readiness at 5.035–8.951 s
+(`/tmp/cem-inspect-promote-synchronized-stock.{json,log}`). Both subprocesses
+exit zero (`/tmp/cem-inspect-promote-synchronized-status.log`). The stock report
+records the same rebuilt WASM hash as the table/tree checks.
+
+Stock runs span **2026-09-23 04:02:14.317–04:02:52.167 UTC** (September 22
+locally). Table/tree/inspector journeys start at 04:02:27.905/28.108/37.138 and
+complete in 23.3807/11.7721/5.4166 s, entirely during stock load. NPM default
+selection completes at 04:02:57.600 (133/200 attempts, 2.8581 s), and both
+location readers at 04:03:12.886 (48/180 attempts, 1.1940 s). Those waits start
+after stock load ends; their behavior under that extra load remains unverified.
+The historical stock timeout remains unreproduced. Registry reuse does not
+claim to resolve it or improve first-use browser startup.
+
+The approved implementation and validation are complete. Next, attribute the
+remaining typed inspection writer cost before proposing another shared change.
+Keep hook/recovery ownership redesigns separate, preserve the authored viewers,
+and require a measured proposal before changing writer/package behavior.
+
+Reproduce browser validation after the native commands above:
+
+```sh
+yarn nx run cem-elements:build
+node tools/scripts/profile-cem-tree-render.mjs --fixture=table --output=/tmp/cem-inspect-promote-table-profile.json
+node tools/scripts/profile-cem-tree-render.mjs --output=/tmp/cem-inspect-promote-tree-profile.json
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test
+```
+
+For synchronized coverage, launch
+`node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=immutable-inspection-registries --output=/tmp/cem-inspect-promote-synchronized-stock.json`
+after Vitest's `RUN` marker, retain both exit codes and verify actual overlap.

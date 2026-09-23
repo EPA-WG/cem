@@ -1,84 +1,62 @@
-//! Test-only immutable inspection registries; no production lifetime change.
+//! Inspection lifetime regressions, fresh baseline and isolated cold-cache override.
 use super::*;
 use crate::{
     api::{compile, evaluate, evaluate_with_control, CompileContext, EvaluationContext},
-    compile_profile::{measure, Span},
+    compile_profile::measure,
     eval::imported_cem_tree,
 };
 use cem_ml::{
     import::import_data,
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
-    parser::tree::RetainedCemTree,
-    projection::CemTreeAstStream,
     scheduler::ScopePolicy,
     validation::xpath::XPathNativeNode,
 };
 use std::{cell::RefCell, collections::BTreeMap, sync::OnceLock};
 
-pub(crate) struct Registries {
-    schema: SchemaRegistry,
-    conversion: ConversionRegistry,
+#[derive(Clone, Default)]
+pub(crate) struct Prepared(Arc<OnceLock<InspectionRegistries>>);
+
+#[derive(Clone)]
+enum RegistryOverride {
+    Fresh,
+    Prepared(Prepared),
 }
-pub(crate) type Prepared = Arc<OnceLock<Registries>>;
 thread_local! {
-    static PREPARED: RefCell<Option<Prepared>> = const { RefCell::new(None) };
+    static OVERRIDE: RefCell<Option<RegistryOverride>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn with_prepared<T>(prepared: &Prepared, run: impl FnOnce() -> T) -> T {
-    struct Reset(Option<Prepared>);
+fn with_override<T>(value: RegistryOverride, run: impl FnOnce() -> T) -> T {
+    struct Reset(Option<RegistryOverride>);
     impl Drop for Reset {
         fn drop(&mut self) {
-            PREPARED.with(|slot| *slot.borrow_mut() = self.0.take());
+            OVERRIDE.with(|slot| *slot.borrow_mut() = self.0.take());
         }
     }
-    let _reset = Reset(PREPARED.with(|slot| slot.replace(Some(prepared.clone()))));
+    let _reset = Reset(OVERRIDE.with(|slot| slot.replace(Some(value))));
     run()
 }
 
-pub(super) fn prepared_output(
+pub(crate) fn with_prepared<T>(prepared: &Prepared, run: impl FnOnce() -> T) -> T {
+    with_override(RegistryOverride::Prepared(prepared.clone()), run)
+}
+
+pub(crate) fn with_fresh<T>(run: impl FnOnce() -> T) -> T {
+    with_override(RegistryOverride::Fresh, run)
+}
+
+pub(super) fn override_output(
     owner: &Arc<RetainedCemTree>,
     stream: Arc<CemTreeAstStream>,
 ) -> Option<ConversionOutputPipelineExecution> {
-    let prepared = PREPARED.with(|slot| slot.borrow().clone())?;
-    let registries = {
-        let _span = Span::new("inspect/prepared-registry-access");
-        prepared.get_or_init(|| {
-            let _span = Span::new("inspect/prepared-registry-build");
-            Registries {
-                schema: SchemaRegistry::with_builtin_schemas(),
-                conversion: ConversionRegistry::with_builtin_converters(),
-            }
-        })
-    };
-    let _span = Span::new("inspect/prepared-writer");
-    Some(write(owner, stream, registries))
-}
-
-fn write(
-    owner: &Arc<RetainedCemTree>,
-    stream: Arc<CemTreeAstStream>,
-    registries: &Registries,
-) -> ConversionOutputPipelineExecution {
-    let environment = ConversionOutputPipelineEnvironment {
-        schema_registry: &registries.schema,
-        conversion_registry: &registries.conversion,
-        package_artifact_reader: None,
-        artifact_cache: None,
-    };
-    let mut pipeline = direct_cem_output_pipeline();
-    pipeline.cemt_options.formatter_profile = Some("tabular".into());
-    pipeline.cemt_insertion_context.formatter_profile = Some("tabular".into());
-    pipeline.writer_insertion_context.formatter_profile = Some("tabular".into());
-    execute_conversion_output_pipeline_from_cem_tree_with_environment(
-        &environment,
-        &pipeline,
-        stream,
-        owner.node(0).map(|node| node.source.clone()),
-        vec![],
-        "cemml:inspect",
-        None,
-        Some(owner.source_uri()),
-    )
+    let override_value = OVERRIDE.with(|slot| slot.borrow().clone())?;
+    Some(match override_value {
+        RegistryOverride::Fresh => {
+            write_inspection(owner, stream, &InspectionRegistries::builtin())
+        }
+        RegistryOverride::Prepared(prepared) => {
+            write_inspection(owner, stream, registry_pair(&prepared.0))
+        }
+    })
 }
 
 fn context(document: ItemStream) -> (crate::ir::CompiledQuery, EvaluationContext) {
@@ -101,7 +79,7 @@ fn context(document: ItemStream) -> (crate::ir::CompiledQuery, EvaluationContext
 }
 
 #[test]
-fn prepared_inspection_preserves_formats_views_provenance_and_owner_lifetime() {
+fn inspection_preserves_formats_views_provenance_and_owner_lifetime() {
     let prepared = Prepared::default();
     let mut previous = None;
     for (format, source) in [
@@ -119,30 +97,31 @@ fn prepared_inspection_preserves_formats_views_provenance_and_owner_lifetime() {
             )),
         ] {
             let (query, context) = context(ItemStream::once(document));
-            let expected = evaluate(&query, &context);
+            let expected = with_fresh(|| evaluate(&query, &context));
+            let actual = evaluate(&query, &context);
+            assert_eq!(actual, expected);
+            assert_eq!(actual.diagnostics, expected.diagnostics);
             let (actual, stages) =
                 measure(|| with_prepared(&prepared, || evaluate(&query, &context)));
             assert!(actual.error.is_none(), "{:?}", actual.diagnostics);
             assert_eq!(actual, expected);
             assert_eq!(actual.diagnostics, expected.diagnostics);
-            assert!(!stages.contains_key("inspect/schema-registry"));
-            assert!(!stages.contains_key("inspect/conversion-registry"));
             assert_eq!(
-                stages.contains_key("inspect/prepared-registry-build"),
+                stages.contains_key("inspect/registry-build"),
                 previous.is_none()
             );
             previous = Some(());
         }
         let stream = Arc::new(cem_tree_inspection(owner.clone()));
-        let expected = write(
+        let expected = write_inspection(
             &owner,
             stream.clone(),
-            &Registries {
+            &InspectionRegistries {
                 schema: SchemaRegistry::with_builtin_schemas(),
                 conversion: ConversionRegistry::with_builtin_converters(),
             },
         );
-        let actual = with_prepared(&prepared, || prepared_output(&owner, stream).unwrap());
+        let actual = inspection_output(&owner, stream);
         assert_eq!(actual.output, expected.output);
         assert_eq!(actual.diagnostics, expected.diagnostics);
         assert_eq!(actual.source_map, expected.source_map);
@@ -166,11 +145,11 @@ fn prepared_inspection_preserves_formats_views_provenance_and_owner_lifetime() {
             "registry baseline must not retain documents"
         );
     }
-    assert!(PREPARED.with(|slot| slot.borrow().is_none()));
+    assert!(OVERRIDE.with(|slot| slot.borrow().is_none()));
 }
 
 #[test]
-fn prepared_inspection_keeps_lowered_limits_cancellation_and_empty_input_lazy() {
+fn inspection_keeps_lowered_limits_cancellation_and_empty_input_lazy() {
     let owner = import_data(
         "<r><row>one</row><row>two</row></r>",
         "xml",
@@ -191,7 +170,10 @@ fn prepared_inspection_keeps_lowered_limits_cancellation_and_empty_input_lazy() 
         ScopePolicy::host_root().with_memory_bytes(output.len() as u64),
     ] {
         context.scope_policy = policy;
-        let expected = evaluate(&query, &context);
+        let expected = with_fresh(|| evaluate(&query, &context));
+        let actual = evaluate(&query, &context);
+        assert_eq!(actual, expected);
+        assert_eq!(actual.diagnostics, expected.diagnostics);
         let actual = with_prepared(&prepared, || evaluate(&query, &context));
         assert_eq!(actual, expected);
         assert_eq!(actual.diagnostics, expected.diagnostics);
@@ -219,7 +201,12 @@ fn prepared_inspection_keeps_lowered_limits_cancellation_and_empty_input_lazy() 
             evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID)
         });
         assert!(actual.error.is_some() && actual.items.is_empty());
-        assert!(empty.get().is_none());
+        assert!(empty.0.get().is_none());
+        let (default, stages) =
+            measure(|| evaluate_with_control(&query, &context, &control, ROOT_EXECUTION_SCOPE_ID));
+        assert_eq!(default, actual);
+        assert_eq!(default.diagnostics, actual.diagnostics);
+        assert!(!stages.contains_key("inspect/registry-access"));
         assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
     }
     context
@@ -228,7 +215,10 @@ fn prepared_inspection_keeps_lowered_limits_cancellation_and_empty_input_lazy() 
     let empty = Prepared::default();
     let actual = with_prepared(&empty, || evaluate(&query, &context));
     assert!(actual.error.is_none() && actual.items.is_empty());
-    assert!(empty.get().is_none());
+    assert!(empty.0.get().is_none());
+    let (default, stages) = measure(|| evaluate(&query, &context));
+    assert_eq!(default, actual);
+    assert!(!stages.contains_key("inspect/registry-access"));
 }
 
 #[test]
@@ -257,7 +247,7 @@ fn prepared_inspection_initializes_once_across_concurrent_calls_and_restores_on_
                 assert!(text.contains(&format!("document-{i}")));
                 assert!(text.contains(&format!("memory:thread-{i}")));
                 assert!(result.error.is_none());
-                usize::from(stages.contains_key("inspect/prepared-registry-build"))
+                usize::from(stages.contains_key("inspect/registry-build"))
             })
         })
         .collect();
@@ -270,5 +260,64 @@ fn prepared_inspection_initializes_once_across_concurrent_calls_and_restores_on_
     );
     let failed = std::panic::catch_unwind(|| with_prepared(&prepared, || panic!("fixture unwind")));
     assert!(failed.is_err());
-    assert!(PREPARED.with(|slot| slot.borrow().is_none()));
+    assert!(OVERRIDE.with(|slot| slot.borrow().is_none()));
+}
+
+#[test]
+fn default_inspection_reuses_registries_without_retaining_documents() {
+    let owner = import_data("<r>unique owner</r>", "xml", "cem", "memory:default").unwrap();
+    let weak = Arc::downgrade(&owner);
+    let (query, context) = context(ItemStream::once(imported_cem_tree(owner)));
+    let expected = with_fresh(|| evaluate(&query, &context));
+    assert_eq!(evaluate(&query, &context), expected);
+    for _ in 0..2 {
+        let (actual, stages) = measure(|| evaluate(&query, &context));
+        assert_eq!(actual, expected);
+        assert_eq!(actual.diagnostics, expected.diagnostics);
+        assert!(!stages.contains_key("inspect/schema-registry"));
+        assert!(!stages.contains_key("inspect/conversion-registry"));
+        assert_eq!(stages["inspect/registry-access"].calls, 1);
+        assert_eq!(stages["inspect/writer"].calls, 1);
+    }
+    drop(query);
+    drop(context);
+    drop(expected);
+    assert!(weak.upgrade().is_none());
+}
+
+#[test]
+fn default_concurrent_inspection_shares_registries_and_keeps_documents_local() {
+    let start = Arc::new(std::sync::Barrier::new(4));
+    let threads: Vec<_> = (0..4)
+        .map(|i| {
+            let start = start.clone();
+            std::thread::spawn(move || {
+                let owner = import_data(
+                    &format!("<r>default-{i}</r>"),
+                    "xml",
+                    "cem",
+                    &format!("memory:default-{i}"),
+                )
+                .unwrap();
+                let weak = Arc::downgrade(&owner);
+                let (query, context) = context(ItemStream::once(imported_cem_tree(owner)));
+                start.wait();
+                let (result, stages) = measure(|| evaluate(&query, &context));
+                assert!(result.error.is_none());
+                assert_eq!(stages["inspect/registry-access"].calls, 1);
+                let [Item::Atomic(AtomValue::String(text))] = result.items.as_slice() else {
+                    panic!("inspection text")
+                };
+                assert!(text.contains(&format!("default-{i}")));
+                assert!(text.contains(&format!("memory:default-{i}")));
+                drop(query);
+                drop(context);
+                drop(result);
+                assert!(weak.upgrade().is_none());
+                registry_pair(&INSPECTION_REGISTRIES) as *const InspectionRegistries as usize
+            })
+        })
+        .collect();
+    let identities: Vec<_> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+    assert!(identities.iter().all(|id| id == &identities[0]));
 }
