@@ -4,6 +4,9 @@
 //! converter edges. Runtime execution still flows through the existing
 //! lifecycle and transform-template adapters.
 
+#[cfg(test)]
+pub(crate) mod writer_profile_tests;
+
 pub use crate::conversion_output::CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE;
 use crate::conversion_output::{
     cemt_output_function_descriptor, default_formatter_tab_size, failed_pipeline_execution,
@@ -2860,6 +2863,8 @@ fn parse_cem_tree_cemt_output_artifact_module_options_uncached(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     artifact: &ConversionPackageArtifactDescriptor,
 ) -> Result<TransformTemplateModuleOptions, String> {
+    #[cfg(test)]
+    let _profile = writer_profile_tests::Span::new("module/artifact-load-and-parse");
     let source =
         read_cem_tree_cemt_output_stage_artifact(environment, artifact).map_err(|error| {
             format!(
@@ -2946,6 +2951,8 @@ fn load_cem_tree_cemt_output_stage_helpers(
     stage: &CemTreeCemtOutputStage,
     module_options: &mut TransformTemplateModuleOptions,
 ) -> Result<Vec<String>, String> {
+    #[cfg(test)]
+    let _profile = writer_profile_tests::Span::new("format/helpers");
     let Some(helper_kind) = cemt_output_stage_helper_artifact_kind(stage.function_kind) else {
         return Ok(Vec::new());
     };
@@ -3186,6 +3193,8 @@ fn execute_conversion_native_cem_tree_output_stage_body(
         _ => {}
     }
 
+    #[cfg(test)]
+    let mut profile = writer_profile_tests::Span::new("format/evaluate");
     let subject = CemtEvaluatorValue::borrowed(artifact.evaluator_view());
     let Some(value) = execute_transform_template_typed_cemt_body_expression(
         binding,
@@ -3208,6 +3217,8 @@ fn execute_conversion_native_cem_tree_output_stage_body(
             message,
         )
     })?;
+    #[cfg(test)]
+    profile.next("format/lower");
     match stage.function_kind {
         TransformTemplateOutputFunctionKind::Format => {
             lower_typed_formatted_cemt_tree_artifact(artifact, value, &stage.function_name)
@@ -11197,6 +11208,8 @@ fn cemt_tree_public_projection(
     artifact: &Arc<CemtTreeArtifact>,
     identity: &TransformTemplateEncodedArtifactIdentity,
 ) -> TransformTemplateEncodedArtifact {
+    #[cfg(test)]
+    let _profile = writer_profile_tests::Span::new("pipeline/public-projection");
     TransformTemplateEncodedArtifact {
         identity: identity.clone(),
         value: TransformTemplateEncodedArtifactPayload::PublicJson(
@@ -11241,6 +11254,8 @@ fn conversion_cem_tree_output_function_registry(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     pipeline: &ConversionOutputPipeline,
 ) -> TransformTemplateOutputFunctionRegistry {
+    #[cfg(test)]
+    let _profile = writer_profile_tests::Span::new("pipeline/function-registry");
     let mut registry = TransformTemplateOutputFunctionRegistry::new();
     registry.register(conversion_cem_tree_format_function_descriptor(
         pipeline

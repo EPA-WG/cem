@@ -2633,10 +2633,41 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         Table/tree/inspector overlap stock; NPM/location waits follow it.
         Native owners, imports, public contracts and scope limits are preserved.
         See the [production evidence](browser-stabilization-review.tmp.md#production-immutable-inspection-registries).
-  - [ ] Attribute the remaining typed inspection writer cost after registry
+  - [x] Attribute the remaining typed inspection writer cost after registry
         reuse before proposing another shared change. Keep authored viewers and
         formatter/package contracts intact; separate hook/recovery ownership
         work and require a measured proposal before production changes.
+        Completed 2026-09-22: attribution finds two node-list builds per
+        output; cache reuse has smaller gains. The package-reader-only
+        single-build candidate preserves four-format/three-profile output,
+        provenance, owners and tested recursion errors, reducing authored
+        writer time 22.960→13.054 ms and 32 rows 128.916→75.488 ms. Full Nx
+        validation passes 2,365 Rust checks after aligning two stale inherited
+        template-name assertions with the accepted anonymous-match contract;
+        lint and fixture formatting pass. Production behavior is unchanged.
+        See the [attribution and proposal](browser-stabilization-review.tmp.md#typed-inspection-writer-attribution).
+    - [x] Fixture: attribute native inspection function discovery, module
+          parsing, formatting/lowering, final writing and public projection.
+          Compare bounded test-only setup candidates against complete typed
+          output, provenance and document-owner contracts for all four imports.
+          Keep production behavior, cache lifetime and viewers unchanged; record
+          isolated release measurements and any required decision.
+    - [x] Fixture: test a package-reader-only candidate that builds the typed
+          formatter node list once. Compare all four imports and formatter
+          profiles, exact output/provenance, owner release and recursion errors;
+          measure it separately from cache reuse before proposing promotion.
+    - [x] Fixture maintenance: align the two stale transform-schema inheritance
+          tests found by the full native suite with the accepted optional-name
+          template contract. Accept anonymous matches and retain rejection of
+          calls missing their required template selector; change no schema.
+
+  - [ ] Decide whether to promote the built-in formatter's single node-list
+        build. Recommend the tested one-expression package change; retain the
+        old body only as a test comparison, require the default path to build
+        once, extend negative contract coverage and run native/browser checks.
+        Keep helper caches, public projections and hook/recovery ownership
+        separate. Stop before shared production promotion per the user's
+        instruction. See the [pending decision](browser-stabilization-review.tmp.md#pending-decision-build-the-formatter-node-list-once).
 
   - [x] Fixture: trace source-loaded stock startup with controlled declaration
         and sample-mount timing. Distinguish missing sample mounting, lost test

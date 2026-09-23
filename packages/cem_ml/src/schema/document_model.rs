@@ -37818,7 +37818,9 @@ mod tests {
             load_builtin_document_model_for_identity(Some(CEM_TRANSFORM_SCHEMA_URI), None).unwrap();
 
         let template = model.element("template").unwrap();
-        assert!(template.required_attributes.contains("name"));
+        assert!(!template.required_attributes.contains("name"));
+        assert!(template.optional_attributes.contains("name"));
+        assert!(template.optional_attributes.contains("match"));
         assert!(template.child_elements.contains("body"));
         let call = model.element("call").unwrap();
         assert!(call.required_attributes.contains("template"));
@@ -37914,7 +37916,7 @@ mod tests {
     }
 
     #[test]
-    fn validates_transform_template_inherited_required_attribute() {
+    fn validates_transform_template_inherited_attribute_contracts() {
         let model =
             load_builtin_document_model_for_identity(None, Some(CEM_TRANSFORM_CONTENT_TYPE))
                 .unwrap();
@@ -37924,17 +37926,27 @@ mod tests {
 @default transform
 
 {module |
-    {template |
-        {body | Missing required template name.}
+    {template @match="true" |
+        {body | Anonymous matching template.}
     }
 }"#,
         );
 
         let diagnostics = validate_document_model(&document, &model);
 
+        assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+
+        let invalid_call = parse_cem_document(
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module | {body | {call}}}"#,
+        );
+        let diagnostics = validate_document_model(&invalid_call, &model);
         assert!(diagnostics.iter().any(|diagnostic| diagnostic.code
             == MISSING_REQUIRED_ATTRIBUTE_CODE
-            && diagnostic.message.contains("name")));
+            && diagnostic.message.contains("template")));
     }
 
     #[test]

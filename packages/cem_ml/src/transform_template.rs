@@ -14065,6 +14065,8 @@ mod cemt_typed_runtime {
         }
         reject_removed_cemt_typed_runtime_operation(function_name)?;
 
+        #[cfg(test)]
+        let _profile = crate::conversion::writer_profile_tests::Span::detail("eval/call", function_name);
         let arguments = parse_cemt_object_literal(&args[1]).map_err(|error| error.to_string())?;
         let Some(function) = context.functions.get(function_name) else {
             return Ok(None);
@@ -14108,7 +14110,11 @@ mod cemt_typed_runtime {
             bound_arguments.push((param.name.clone(), value));
         }
 
-        let mut bindings = context.bindings.clone();
+        let mut bindings = {
+            #[cfg(test)]
+            let _profile = crate::conversion::writer_profile_tests::Span::new("eval/binding-copy");
+            context.bindings.clone()
+        };
         for (name, value) in bound_arguments {
             bindings.bind(name, value);
         }
@@ -14181,7 +14187,11 @@ mod cemt_typed_runtime {
             let Some(item) = collection.item(index) else {
                 return Ok(None);
             };
-            let mut bindings = context.bindings.clone();
+            let mut bindings = {
+                #[cfg(test)]
+                let _profile = crate::conversion::writer_profile_tests::Span::new("eval/binding-copy");
+                context.bindings.clone()
+            };
             bindings.bind("item", item);
             bindings.bind("index", CemtEvaluatorValue::unsigned_integer(index as u64));
             let Some(value) = resolve_cemt_typed_expression_in_context(
@@ -14228,7 +14238,11 @@ mod cemt_typed_runtime {
             let Some(item) = collection.item(index) else {
                 return Ok(None);
             };
-            let mut bindings = context.bindings.clone();
+            let mut bindings = {
+                #[cfg(test)]
+                let _profile = crate::conversion::writer_profile_tests::Span::new("eval/binding-copy");
+                context.bindings.clone()
+            };
             bindings.bind("item", item);
             bindings.bind("index", CemtEvaluatorValue::unsigned_integer(index as u64));
             bindings.bind("acc", accumulator.clone());
@@ -14892,7 +14906,11 @@ mod cemt_typed_runtime {
             })?;
         push_cemt_typed_stack_frame(&mut stack, &stack_name, frame)?;
 
-        let mut bindings = context.bindings.clone();
+        let mut bindings = {
+            #[cfg(test)]
+            let _profile = crate::conversion::writer_profile_tests::Span::new("eval/binding-copy");
+            context.bindings.clone()
+        };
         bindings.bind(stack_name, CemtEvaluatorValue::sequence(stack));
         resolve_cemt_typed_expression_in_context(
             &args[2],
@@ -15144,7 +15162,11 @@ mod cemt_typed_runtime {
         };
 
         for (index, item) in queue.iter().cloned().enumerate() {
-            let mut bindings = context.bindings.clone();
+            let mut bindings = {
+                #[cfg(test)]
+                let _profile = crate::conversion::writer_profile_tests::Span::new("eval/binding-copy");
+                context.bindings.clone()
+            };
             bindings.bind("item", item);
             bindings.bind("index", CemtEvaluatorValue::unsigned_integer(index as u64));
             bindings.bind("acc", accumulator.clone());
@@ -22149,6 +22171,8 @@ fn parse_cemt_function_call_args(
     expression: &str,
     name: &str,
 ) -> Result<Option<Vec<String>>, TransformTemplateEncodeExpressionParseError> {
+    #[cfg(test)]
+    let _profile = crate::conversion::writer_profile_tests::Span::new("eval/parse-call-args");
     let expression = expression.trim();
     let key = (expression.to_owned(), name.to_owned());
     if let Some(cached) =
@@ -22201,6 +22225,8 @@ fn parse_cemt_function_call_args_uncached(
 fn parse_cemt_object_literal(
     raw: &str,
 ) -> Result<BTreeMap<String, CemtExpressionLiteral>, TransformTemplateEncodeExpressionParseError> {
+    #[cfg(test)]
+    let _profile = crate::conversion::writer_profile_tests::Span::new("eval/parse-object");
     let key = raw.trim().to_owned();
     if let Some(cached) = CEMT_OBJECT_LITERAL_CACHE.with(|cache| cache.borrow().get(&key).cloned())
     {
@@ -24081,6 +24107,11 @@ pub fn is_template_module_declaration(name: &str) -> bool {
 pub fn parse_cem_native_template_module_options(
     request: TransformTemplateModuleParseRequest,
 ) -> TransformTemplateModuleParseResponse {
+    #[cfg(test)]
+    let _profile = crate::conversion::writer_profile_tests::Span::detail(
+        "module/parse",
+        &request.template.uri,
+    );
     let explicit_template_schema = template_has_native_module_schema(&request.template);
     let explicit_transform_schema = template_has_transform_module_schema(&request.template);
     let mut tokenizer = CemTokenizer::from_source(BytesSource::new(

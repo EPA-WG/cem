@@ -4288,3 +4288,159 @@ STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements
 For synchronized coverage, launch
 `node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency=8 --batches=4 --label=immutable-inspection-registries --output=/tmp/cem-inspect-promote-synchronized-stock.json`
 after Vitest's `RUN` marker, retain both exit codes and verify actual overlap.
+
+### Typed inspection writer attribution
+
+The registry-reuse follow-up now has a CEM-ML unit fixture at
+`src/conversion/writer_profile_tests.rs`. Test-only spans separate function
+registry assembly, artifact/module parsing, typed evaluation, lowering, final
+writing and the explicit public/debug projection. Nested evaluator spans count
+named helper calls, binding-map copies, binding-path reads and expression parse
+cache access. The profiler records six runs, discards the first for warm
+medians, and separately times six runs with recording disabled. Nested stage
+medians must not be summed; fine-grained recording adds overhead. Disabled
+hooks still exist in this test binary but are absent from production builds.
+
+The fixture imports the unchanged `tree-source.xml` and a separate 32-row XML
+input through CEM-ML into retained CEM AST DOM owners. Built-in registries are
+assembled outside the measured work. The timed call includes native inspection
+projection, per-call pipeline construction, formatting, writing and the public
+API's explicit debug sidecar. It is a writer profile, not an end-to-end browser
+measurement or a direct comparison with the earlier CEM-QL-only writer span.
+
+The first isolated release run (`/tmp/cem-writer-profile-release.log`) confirms
+that `cem.format-tree.build-node-list` runs **twice** per output. On the authored
+source, the inclusive combined calls take 26.093 ms of 26.353 ms recorded typed
+evaluation. For 32 rows they take 147.958 of 148.614 ms. The outer
+`format-inter-node-whitespace` span includes argument evaluation, so its time
+includes the second node-list build; it does not establish a whitespace-loop
+bottleneck. Binding/parse work is nested inside these traversals: authored
+counts are 3,383 binding copies, 15,330 path reads, 23,828 argument-cache accesses
+and 11,891 object-cache accesses.
+
+Helper setup is smaller: two function-registry assemblies total 1.987 ms in
+that authored profile; lowering is 0.234 ms, final writing 0.192 ms and public
+projection 0.553 ms. The main formatter module is parsed once, plus four helper
+modules. Existing cache keys already share helper parsing across profile
+registrations; there are not three parses of the same formatter helper.
+
+Two test-only cache counterfactuals retain four parsed helper modules or clone
+those modules into a fresh per-call cache. They preserve exact output,
+provenance, native owner identity and document release across XML/JSON/YAML/CSV;
+clearing the fork does not mutate its baseline. Initial record-free authored
+medians are 24.389 ms current, 23.822 ms retained and 20.775 ms forked, with
+overlapping ranges. At 32 rows they are 126.893/127.241/125.683 ms. Both still
+build the node list twice. This evidence does **not** recommend a new cache
+lifetime; setup reuse is a smaller opportunity and generic package-reader
+identity/content invalidation would need its own design.
+
+The 32-row public projection takes 10.555 ms in the first recorded release
+run. It merits separate scaling attribution after the duplicated formatting
+work. An earlier exploratory debug run at 128 rows was deliberately stopped
+after collecting attribution; it is not a passing validation or a release
+performance result. No public sidecar is removed or used as an internal AST
+handoff. All external formats still resolve only at shared CEM-ML import.
+
+### Pending decision: build the formatter node list once
+
+Recommend simplifying the body of the built-in private
+`cem.format-tree.build-nodes` helper to:
+
+```text
+{$ call("cem.format-tree.format-inter-node-whitespace", {
+    subject: call("cem.format-tree.build-node-list", { subject: $subject }),
+    lineEnding: $lineEnding
+}) }
+```
+
+Today it calls `build-node-list` to inspect its type, then calls it again in
+the selected branch. That helper already declares `@returns="array"`, which
+the typed evaluator validates. The proposed body passes its result directly
+to the existing whitespace helper. It adds no function, scope, memoization,
+node copy, new evaluator syntax or registry lifetime; it removes one duplicate
+traversal. The same helpers and recursive call-depth limit remain in use.
+
+The candidate exists **only in the test package reader**. It replaces exactly
+one expression in the embedded helper source while retaining its package URI;
+the production package, evaluator, viewers and WASM remain unchanged. The
+ordinary fixture proves the call count changes from two to one and compares
+all four imports across compact/pretty/tabular profiles. It checks full output,
+source maps, output spans, stage descriptors, native owner identity and the
+explicit public debug sidecar, then verifies input-owner release. A separate
+nested native-tree fixture compares success and recursion-error diagnostics;
+inspection itself is flat preorder, so deeper XML alone does not exercise
+formatter recursion. These checks pass (`/tmp/cem-writer-candidate-unit.log`).
+
+The benefit is less repeated evaluation without changing native ownership.
+The alternative is to leave the helper intact and continue investigating
+binding/parse or projection costs; that preserves current package source but
+retains the duplicate traversal. Broader formatter/CLI/coloring integration
+and the unchanged viewers must be revalidated if this package change is
+approved. No performance claim is made for browser startup or recovery hooks.
+
+If approved, promote the one-expression package change, retain the old body
+as the test-only comparison, and require the default path to build once. Extend
+negative subject/return-contract coverage, then run native CEM-ML/CEM-QL checks
+and rebuild/verify the unchanged viewers and normal/synchronized Storybook.
+Keep cache lifetime, public projections and hook/recovery work separate.
+
+Validation and final isolated release measurements are recorded below.
+
+The first full `cem_ml:test` run reports 2,035 passes and two failures in
+unchanged transform-schema inheritance tests
+(`/tmp/cem-writer-native-tests.log`). Both still required `template/@name`,
+contrary to the accepted [compact template contract](cemt-native-values.md#compact-template-bodies)
+and the base schema's existing optional-name declarations. The fixtures now
+check inherited optional `name`/`match`, accept an anonymous match, and retain
+a negative check for `call` without its required `template` selector. No schema
+or template grammar changed. The focused inheritance check passes
+(`/tmp/cem-writer-schema-fixture.log`); full validation is rerun below.
+
+Final isolated release profiling passes in **8.00 s** after all other checks
+finish (`/tmp/cem-writer-candidate-release.log`). Record-free medians use five
+warm samples after discarding the first; the candidate retains per-call caches
+and includes its package-reader replacement work in the timing:
+
+| Input | Current, ms | Retained helpers, ms | Forked helpers, ms | Single node-list build, ms |
+| --- | ---: | ---: | ---: | ---: |
+| Unchanged authored tree source | 22.960 | 20.813 | 19.818 | **13.054** |
+| Separate 32-row source | 128.916 | 135.765 | 130.715 | **75.488** |
+
+The candidate improves these native writer medians by **43.1% / 41.4%**.
+Current/candidate ranges do not overlap: 21.591–27.247 / 11.390–16.447 ms for
+the authored input and 127.350–132.509 / 72.173–77.597 ms for 32 rows. These
+are bounded native measurements, not browser performance promises.
+
+Recorded typed evaluation falls 25.360→11.238 ms and 151.184→73.466 ms.
+On the authored input, binding copies fall 3,383→1,699, path reads
+15,330→7,704, argument-cache accesses 23,828→11,943 and object-cache accesses
+11,891→5,965. This is less duplicated work, without a shared binding-ownership
+change. Public projection remains 0.698/0.672 ms (current/candidate) for the
+authored input and 11.538/11.912 ms for 32 rows; no projection improvement is
+claimed. All timed outputs still pass the full equality/owner checks.
+
+Final `cem_ml:test` passes **2,365 Rust tests in the Nx task chain**, including
+**2,037 CEM-ML unit tests**, with the one profiling fixture ignored
+(`/tmp/cem-writer-native-tests-final.log`). `cem_ml:lint` passes with the existing
+131 library warnings (`/tmp/cem-writer-native-lint.log`). The new fixture's
+format check and `git diff --check` pass. Only tests, test-only spans and review
+notes change; no production formatter, viewer, cache lifetime or browser
+artifact is promoted in this checkpoint.
+
+The writer attribution is complete. Pause here for the shared package decision
+per the user's stop-at-decisions instruction. After approved promotion and its
+native/browser verification, separately attribute public projection scaling;
+keep the public sidecar and native AST handoff contracts intact.
+
+Reproduce:
+
+```sh
+cargo test -p cem-ml --lib writer_profile_tests
+cargo test -p cem-ml --lib transform_template_inherited_attribute_contracts
+yarn nx run cem_ml:test --skipNxCache
+yarn nx run cem_ml:lint --skipNxCache
+# Run the profile alone, after other builds/checks finish.
+cargo test -p cem-ml --release --lib profile_inspection_writer -- --ignored --nocapture --test-threads=1
+rustfmt --edition 2021 --check packages/cem_ml/src/conversion/writer_profile_tests.rs
+git diff --check
+```

@@ -2715,6 +2715,8 @@ impl<'a> CemtEvaluatorBindings<'a> {
     }
 
     pub fn resolve_path(&self, path: &str) -> Option<CemtEvaluatorValue<'a>> {
+        #[cfg(test)]
+        let _profile = crate::conversion::writer_profile_tests::Span::new("eval/binding-path");
         let mut segments = path.split('.');
         let root = segments.next()?.trim();
         if root.is_empty() {
