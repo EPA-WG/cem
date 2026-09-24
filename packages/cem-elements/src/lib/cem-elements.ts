@@ -1002,6 +1002,7 @@ export const CEM_RESOURCE_BASE_URL = Symbol.for('@epa-wg/cem-elements/resource-b
 const CEM_BROWSER_REGISTRATION_MARKER = Symbol.for('@epa-wg/cem-elements/browser-registration-v1');
 const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
 const DEFAULT_PRIVACY_POLICY_STAMP = 'local-only';
+const MAX_FORM_REFRESH_PASSES = 8;
 const CEM_TEMPLATE_ARTIFACT_NAMESPACE: CemArtifactRegistryNamespace = {
     namespace: 'cem-template-artifacts',
     registryContractVersion: 'cem-artifact-registry-v1',
@@ -1697,8 +1698,9 @@ export class CemElementRuntime {
 
     /**
      * Resolves once the most recent render for an instance has settled, including the
-     * asynchronous `cem_ql` WASM render boundary for canonical CEM-ML. Synchronous
-     * (DOM / legacy) renders resolve immediately.
+     * asynchronous `cem_ql` WASM render boundary for canonical CEM-ML and form
+     * state refreshes after DOM commits. Circular form rules stop refreshing
+     * with a diagnostic so this promise can settle.
      */
     async whenRenderSettled(instance: HTMLElement): Promise<void> {
         for (;;) {
@@ -2591,7 +2593,7 @@ export class CemElementRuntime {
         }
     }
 
-    private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
+    private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration, formRefreshPass = 0): void {
         const island = this.ensureDataIsland(instance);
         if (this.frozenSerializedInstances.has(instance)) {
             this.renderSettled.set(instance, Promise.resolve());
@@ -2607,9 +2609,7 @@ export class CemElementRuntime {
             this.renderSettled.set(
                 instance,
                 this.renderViaProcessingHost(instance, compiled, snapshot, token).then(() => {
-                    if (this.renderTokens.get(instance) === token) {
-                        compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
-                    }
+                    this.finishRender(instance, compiled, snapshot, token, formRefreshPass);
                 }),
             );
             return;
@@ -2622,9 +2622,7 @@ export class CemElementRuntime {
             this.renderSettled.set(
                 instance,
                 this.renderViaWasm(instance, compiled, snapshot, token).then(() => {
-                    if (this.renderTokens.get(instance) === token) {
-                        compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
-                    }
+                    this.finishRender(instance, compiled, snapshot, token, formRefreshPass);
                 }),
             );
             return;
@@ -2639,11 +2637,46 @@ export class CemElementRuntime {
                 ? this.commitRenderPlan(instance, compiled, island, renderPlan, token)
                 : Promise.resolve()
             ).then(() => {
-                if (this.renderTokens.get(instance) === token) {
-                    compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
-                }
+                this.finishRender(instance, compiled, snapshot, token, formRefreshPass);
             }),
         );
+    }
+
+    private finishRender(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        snapshot: DataIslandSnapshot,
+        token: number,
+        formRefreshPass: number,
+    ): void {
+        if (this.renderTokens.get(instance) !== token || !instance.isConnected) return;
+        compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+        if (this.renderTokens.get(instance) !== token || !instance.isConnected) return;
+
+        // The commit can add/remove controls or change their constraints. Evaluate
+        // custom validity against that DOM before comparing with the rendered state.
+        let forms = this.captureRenderedForms(instance);
+        const slices = { ...snapshot.slices };
+        for (const [name, mirror] of Object.entries(forms.sliceMirrors)) {
+            slices[name] = isPlainRecord(slices[name]) ? { ...slices[name], ...mirror } : mirror;
+        }
+        if (this.applyRenderedCustomValidity(instance, {
+            ...snapshot, slices, formData: forms.formData, validationState: forms.validationState,
+        })) forms = this.captureRenderedForms(instance);
+        if (resourceValuesEqual(snapshot.formData ?? {}, forms.formData)
+            && resourceValuesEqual(snapshot.validationState, forms.validationState)) return;
+
+        if (formRefreshPass >= MAX_FORM_REFRESH_PASSES) {
+            this.recordDiagnostics(instance, [renderDiagnostic(
+                'cem-element.form_state_unstable',
+                `form data or validation did not settle after ${MAX_FORM_REFRESH_PASSES} refreshes; check for circular form rules`,
+                compiled.producedTag,
+            )]);
+            return;
+        }
+        // Publish a new render promise without awaiting it from its predecessor.
+        // whenRenderSettled follows the current promise until the forms are stable.
+        this.renderInstance(instance, compiled, formRefreshPass + 1);
     }
 
     /**
@@ -3875,6 +3908,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         form: HTMLFormElement,
     ): void {
+        if (!this.ownsRenderedFormElement(instance, form)) return;
         const sliceNames = parseSliceTargets(form.getAttribute('slice') ?? '');
         if (sliceNames.length > 0) {
             this.formSliceNames.set(form, sliceNames);
@@ -5975,6 +6009,7 @@ export class CemElementRuntime {
         }
         let applied = false;
         for (const element of renderedElementsBetween(bounds, 'form,input,select,textarea,button,fieldset')) {
+            if (!this.ownsRenderedFormElement(instance, element)) continue;
             const expression = this.customValidityExpressions.get(element) ?? element.getAttribute('custom-validity');
             if (expression === null || expression === undefined) {
                 continue;
@@ -6003,9 +6038,17 @@ export class CemElementRuntime {
             return null;
         }
         const bounds = this.renderBounds.get(instance);
-        const forms = bounds ? renderedElementsBetween(bounds, 'form') : [];
+        const forms = bounds ? renderedElementsBetween(bounds, 'form')
+            .filter(form => this.ownsRenderedFormElement(instance, form)) : [];
         const index = Math.max(0, forms.indexOf(form));
         return renderedFormKey(form, this.formSliceNames.get(form), index);
+    }
+
+    private ownsRenderedFormElement(instance: HTMLElement, element: Element): boolean {
+        for (let parent = element.parentElement; parent && parent !== instance; parent = parent.parentElement) {
+            if (directDataIsland(parent)) return false;
+        }
+        return true;
     }
 
     private captureRenderedForms(instance: HTMLElement): CapturedRenderedForms {
@@ -6014,7 +6057,8 @@ export class CemElementRuntime {
         if (!bounds) {
             return captured;
         }
-        const forms = renderedElementsBetween(bounds, 'form').filter((element) => element.localName === 'form');
+        const forms = renderedElementsBetween(bounds, 'form')
+            .filter(form => this.ownsRenderedFormElement(instance, form));
         for (const [index, element] of forms.entries()) {
             const form = element as HTMLFormElement;
             const names = this.formSliceNames.get(form);

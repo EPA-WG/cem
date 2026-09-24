@@ -37,48 +37,61 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement, step }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await whenCemSourceRendered(host);
-        assertEqual(
-            host.querySelectorAll('cem-demo-element[legend] article').length,
-            EXPECTED_LEGENDS.length,
-            'all five form samples render from the HTML source'
-        );
-
-        assertDeepEqual(
-            Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
-                normalize(sample.getAttribute('legend') ?? '')
-            ),
-            [...EXPECTED_LEGENDS],
-            'form sample inventory'
-        );
-
-        await step(EXPECTED_LEGENDS[0], () => verifySimpleValidation(sampleByLegend(host, EXPECTED_LEGENDS[0])));
-        await step(EXPECTED_LEGENDS[1], () => verifyFormLifecycle(sampleByLegend(host, EXPECTED_LEGENDS[1])));
-        await step(EXPECTED_LEGENDS[2], () => verifyNativeMessage(sampleByLegend(host, EXPECTED_LEGENDS[2])));
-        await step(EXPECTED_LEGENDS[3], () => verifyFormMessage(sampleByLegend(host, EXPECTED_LEGENDS[3])));
-        await step(EXPECTED_LEGENDS[4], () => verifyFormAssociatedDce(sampleByLegend(host, EXPECTED_LEGENDS[4])));
+        await waitFor(() => expect(host.querySelectorAll('cem-demo-element[legend] article')).toHaveLength(5));
+        expect(Array.from(host.querySelectorAll('cem-demo-element[legend]'), sample => sample.getAttribute('legend')))
+            .toEqual(EXPECTED_LEGENDS);
+        const checks = [verifySimpleValidation, verifyFormLifecycle, verifyNativeMessage, verifyFormMessage, verifyFormAssociatedDce];
+        for (const [index, check] of checks.entries()) {
+            const sample = sampleByLegend(host, EXPECTED_LEGENDS[index]);
+            await step(EXPECTED_LEGENDS[index], async () => {
+                await settle(sample);
+                await check(sample);
+                expect(cemDiagnosticCodes(requiredElement(sample, 'article').parentElement as HTMLElement)).toEqual([]);
+            });
+        }
+        expect(cemDiagnosticCodes(host)).toEqual([]);
     },
 };
 
 async function verifySimpleValidation(sample: HTMLElement): Promise<void> {
+    const form = requiredElement(sample, 'form') as HTMLFormElement;
     const username = requiredControl(sample, 'input[name="username"]');
-    click(requiredElement(sample, 'button'));
-    if (username.validity.valid || !username.validationMessage) throw new Error('empty Next must expose native validation');
-    setValueAndDispatch(username, 'short');
-    await waitForCondition(() => normalize(sample.textContent ?? '').includes('short'), 'short username is captured');
-    click(requiredElement(sample, 'button'));
-    setValueAndDispatch(requiredControl(sample, 'input[name="username"]'), 'long-username');
-    await waitForCondition(() => normalize(sample.textContent ?? '').includes('long-username'), 'username is captured');
-    if (sample.querySelector('input[name="password"]')) throw new Error('typing alone must not advance the step');
-    await waitForText(sample, 'form > p:nth-of-type(2) output', 'false', 'a missing password keeps Next from submitting');
-    click(requiredElement(sample, 'button'));
-    await waitForCondition(
-        () => sample.querySelector('input[name="password"]') !== null && buttonNames(sample).includes('Sign in'),
-        'a long username reveals the password step'
-    );
-
-    setValueAndDispatch(requiredControl(sample, 'input[name="password"]'), 'secret');
-    await waitForText(sample, 'form > p:nth-of-type(2) output', 'true', 'both values satisfy simple validation');
-    assertText(sample, 'form > p:nth-of-type(3) output', '', 'the simple form message clears');
+    const submissions: boolean[] = [];
+    // Observe runtime cancellation, then prevent the demo's native GET navigation.
+    const onSubmit = (event: Event) => { submissions.push(event.defaultPrevented); event.preventDefault(); };
+    sample.addEventListener('submit', onSubmit);
+    try {
+        expect(username.value).toBe('');
+        expect(buttonNames(sample)).toEqual(['Next']);
+        expect(textList(sample, 'form > p output')).toEqual(['', 'false', 'Enter a long username and password']);
+        await userEvent.click(requiredElement(sample, 'button'));
+        expect(username.validity.valid).toBe(false);
+        expect(submissions).toEqual([]);
+        await edit(sample, username, 'abcdefghij');
+        await userEvent.click(requiredElement(sample, 'button'));
+        await settle(sample);
+        expect(sample.querySelector('input[name="password"]')).toBeNull();
+        expect(submissions.every(cancelled => cancelled)).toBe(true);
+        await edit(sample, username, 'abcdefghijk');
+        expect(textList(sample, 'form > p output')).toEqual(['abcdefghijk', 'false', 'Enter a long username and password']);
+        expect(sample.querySelector('input[name="password"]')).toBeNull();
+        await userEvent.click(requiredElement(sample, 'button'));
+        await settle(sample);
+        expect(buttonNames(sample)).toEqual(['Sign in']);
+        const password = requiredControl(sample, 'input[name="password"]');
+        for (const [value, valid] of [['abc', false], ['abcd', true], ['', false], ['secret', true]] as const) {
+            await edit(sample, password, value);
+            expect(textList(sample, 'form > p output')).toEqual([
+                'abcdefghijk', String(valid), valid ? '' : 'Enter a long username and password',
+            ]);
+            expect(requiredElement(sample, 'form')).toBe(form);
+            expect(requiredControl(sample, 'input[name="username"]')).toBe(username);
+            expect(requiredControl(sample, 'input[name="password"]')).toBe(password);
+        }
+        await userEvent.click(requiredElement(sample, 'button'));
+        expect(submissions.at(-1)).toBe(false);
+        expect(Array.from(new FormData(form).entries())).toEqual([['username', 'abcdefghijk'], ['password', 'secret']]);
+    } finally { sample.removeEventListener('submit', onSubmit); }
 }
 
 async function verifyFormLifecycle(sample: HTMLElement): Promise<void> {
@@ -142,9 +155,7 @@ async function verifyFormLifecycle(sample: HTMLElement): Promise<void> {
     const password = requiredControl(sample, 'input[name="password"]');
     expect(password.value).toBe('');
     expect(password.validity.valid).toBe(false);
-    // The initial form-valid output after this conditional insertion is a
-    // recorded shared-refresh investigation in docs/todo.md.
-
+    await state('password', false, 'Complete the username and confirmation method');
     for (const [value, valid] of [['abc', false], ['abcd', true], ['', false], ['secret', true]] as const) {
         await edit(password, value);
         await state('password', valid, valid ? '' : 'Complete the username and confirmation method');
@@ -160,71 +171,96 @@ async function verifyFormLifecycle(sample: HTMLElement): Promise<void> {
 
 async function verifyNativeMessage(sample: HTMLElement): Promise<void> {
     const email = requiredControl(sample, 'input[name="email"]');
-    setValueAndDispatch(email, '');
-    await waitForCondition(
-        () => textValue(sample, 'form > p:nth-of-type(1) output') === 'false'
-            && textValue(sample, 'form > p:nth-of-type(2) output') !== '',
-        'clearing the required control exposes its native validation message'
-    );
-    assertEqual(
-        textValue(sample, 'form > p:nth-of-type(2) output'),
-        email.validationMessage,
-        'validation state mirrors the native control message'
-    );
+    expect(email.value).toBe('person@example.test');
+    expect(textList(sample, 'output')).toEqual(['true', '']);
+    for (const value of ['', 'not-an-email', 'reader@example.test', '', 'person@example.test']) {
+        await edit(sample, email, value);
+        expect(requiredControl(sample, 'input[name="email"]')).toBe(email);
+        expect(textList(sample, 'output')).toEqual([String(email.validity.valid), email.validationMessage]);
+        expect(email.validity.valueMissing).toBe(value === '');
+        expect(email.validity.typeMismatch).toBe(value === 'not-an-email');
+    }
 }
 
 async function verifyFormMessage(sample: HTMLElement): Promise<void> {
     const email = requiredControl(sample, 'input[name="email"]');
-    setValueAndDispatch(email, 'abc');
-    await waitForText(sample, 'form > p:first-of-type output', 'abc', 'the form sample exposes its current slice');
-    assertText(sample, 'form > p:nth-of-type(2) output', '3', 'the form sample exposes the current length');
-    assertText(sample, 'form > p:nth-of-type(3) output', 'false', 'three characters keep the form invalid');
-    assertText(
-        sample,
-        'form > p:nth-of-type(4) output',
-        'Use more than 3 characters',
-        'the form exposes its custom message'
-    );
-
-    setValueAndDispatch(requiredControl(sample, 'input[name="email"]'), 'abcd');
-    await waitForText(sample, 'form > p:nth-of-type(3) output', 'true', 'four characters satisfy the form');
-    assertText(sample, 'form > p:nth-of-type(4) output', '', 'the custom form message clears');
+    expect(email.value).toBe('');
+    expect(textList(sample, 'output').slice(0, 3)).toEqual(['', '0', 'false']);
+    // Initial custom messaging, nested fallback and Unicode validity remain
+    // open in docs/todo.md: the browser evaluator differs from native CEM-QL.
+    for (const value of ['abc', 'abcd', '', 'reader']) {
+        await edit(sample, email, value);
+        const length = [...value].length;
+        expect(requiredControl(sample, 'input[name="email"]')).toBe(email);
+        expect(textList(sample, 'output')).toEqual([
+            value, String(length), String(length > 3), length > 3 ? '' : 'Use more than 3 characters',
+        ]);
+    }
 }
 
 async function verifyFormAssociatedDce(sample: HTMLElement): Promise<void> {
-    await waitForCondition(
-        () => sample.querySelectorAll('cem-form-fruit-choice button').length === 6,
-        'both form-associated DCE choices render their options'
-    );
-
-    chooseFruit(sample, 0, 'Apple');
-    chooseFruit(sample, 1, 'Banana');
-    await waitForText(sample, 'form > p:nth-of-type(2) output', 'false', 'different fruit choices remain invalid');
-    assertText(sample, 'form > p:nth-of-type(3) output', 'Choose the same fruit', 'the mismatch message is visible');
-
-    chooseFruit(sample, 1, 'Apple');
-    await waitForText(sample, 'form > p:nth-of-type(2) output', 'true', 'matching DCE values satisfy the form');
-    assertDeepEqual(
-        Array.from(sample.querySelectorAll('form > p:first-of-type output'), (output) => normalize(output.textContent ?? '')),
-        ['🍏', '🍏'],
-        'both form-associated values reach parent form data'
-    );
-    assertText(sample, 'form > p:nth-of-type(3) output', '', 'the fruit mismatch message clears');
+    const form = requiredElement(sample, 'form') as HTMLFormElement;
+    const choices = Array.from(sample.querySelectorAll<HTMLElement>('cem-form-fruit-choice'));
+    expect(choices).toHaveLength(2);
+    const labels = ['Choose fruit', 'Apple', 'Banana'];
+    for (const choice of choices) {
+        await whenCemRendered(choice);
+        expect(textList(choice, 'button')).toEqual(['Choose fruit', '🍏', '🍌']);
+        expect(Array.from(choice.querySelectorAll('button'), button => [button.getAttribute('aria-label'), button.title]))
+            .toEqual(labels.map(label => [label, label]));
+    }
+    const state = async (first: string, second: string) => {
+        await Promise.all(choices.map(whenCemRendered));
+        await settle(sample);
+        const valid = first !== '' && first === second;
+        await waitFor(() => expect(textList(sample, 'form > p output')).toEqual([
+            first, second, String(valid), valid ? '' : 'Choose the same fruit',
+        ]));
+        expect(Array.from(new FormData(form).entries())).toEqual([['firstFruit', first], ['secondFruit', second]]);
+        expect(Array.from(sample.querySelectorAll('cem-form-fruit-choice'))).toEqual(choices);
+        for (const [index, value] of [first, second].entries()) {
+            const choice = choices[index];
+            expect(textList(choice, 'output')).toEqual([value]);
+            expect(Array.from(choice.querySelectorAll('button'), button => button.getAttribute('aria-pressed')))
+                .toEqual(['', '🍏', '🍌'].map(option => String(option === value)));
+            expect(cemDiagnosticCodes(choice)).toEqual([]);
+        }
+    };
+    const choose = async (index: number, label: string) => {
+        const button = requiredElement(choices[index], `button[aria-label="${label}"]`);
+        await userEvent.click(button);
+    };
+    await state('', '');
+    await choose(0, 'Apple');
+    await state('🍏', '');
+    await choose(1, 'Banana');
+    await state('🍏', '🍌');
+    await choose(1, 'Apple');
+    await state('🍏', '🍏');
+    await choose(0, 'Choose fruit');
+    await state('', '🍏');
+    await choose(0, 'Banana');
+    await state('🍌', '🍏');
+    await choose(1, 'Banana');
+    await state('🍌', '🍌');
 }
 
-function chooseFruit(sample: ParentNode, index: number, label: string): void {
-    const choices = sample.querySelectorAll<HTMLElement>('cem-form-fruit-choice');
-    const choice = choices.item(index);
-    if (!choice) throw new Error(`expected fruit choice ${index + 1}`);
-    const button = Array.from(choice.querySelectorAll<HTMLButtonElement>('button')).find(
-        (candidate) => candidate.getAttribute('aria-label') === label
-    );
-    if (!button) throw new Error(`expected ${label} option in fruit choice ${index + 1}`);
-    assertEqual(normalize(button.textContent ?? ''), label === 'Apple' ? '🍏' : '🍌', `${label} uses its fruit symbol`);
-    assertEqual(button.title, label, `${label} retains its tooltip`);
-    click(button);
+async function settle(sample: HTMLElement): Promise<void> {
+    await whenCemRendered(requiredElement(sample, 'article').parentElement as HTMLElement);
 }
 
+async function edit(sample: HTMLElement, control: HTMLInputElement, value: string): Promise<void> {
+    await userEvent.clear(control);
+    if (value) await userEvent.type(control, value);
+    await settle(sample);
+    expect(control.isConnected).toBe(true);
+    expect(document.activeElement).toBe(control);
+    expect(control.value).toBe(value);
+}
+
+function textList(sample: ParentNode, selector: string): string[] {
+    return Array.from(sample.querySelectorAll(selector), element => normalize(element.textContent ?? ''));
+}
 
 function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
     const sample = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]')).find(
@@ -240,15 +276,6 @@ function requiredControl(root: ParentNode, selector: string): HTMLInputElement {
     return element;
 }
 
-function setValueAndDispatch(control: HTMLInputElement, value: string): void {
-    control.value = value;
-    control.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function click(element: HTMLElement): void {
-    element.click();
-}
-
 function buttonNames(root: ParentNode): string[] {
     return Array.from(root.querySelectorAll('button'), (button) => normalize(button.getAttribute('aria-label') ?? button.textContent ?? ''));
 }
@@ -259,36 +286,8 @@ function requiredElement(root: ParentNode, selector: string): HTMLElement {
     return element;
 }
 
-async function waitForText(root: ParentNode, selector: string, expected: string, label: string): Promise<void> {
-    await waitForCondition(() => textValue(root, selector) === expected, label);
-}
-
-async function waitForCondition(condition: () => boolean, message: string, attempts = 160): Promise<void> {
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    }
-    throw new Error(message);
-}
-
-function assertText(root: ParentNode, selector: string, expected: string, label: string): void {
-    assertEqual(textValue(root, selector), expected, label);
-}
-
 function textValue(root: ParentNode, selector: string): string {
     return normalize(requiredElement(root, selector).textContent ?? '');
-}
-
-function assertDeepEqual(actual: readonly string[], expected: readonly string[], label: string): void {
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-        throw new Error(`${label}: expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-    }
-}
-
-function assertEqual(actual: string, expected: string, label: string): void {
-    if (actual !== expected) {
-        throw new Error(`${label}: expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-    }
 }
 
 function normalize(value: string): string {

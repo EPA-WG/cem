@@ -725,7 +725,7 @@ const formSamples = [
         countExactly('input[name="password"]', 1),
         propertyEquals('input[name="password"]', 'value', ''),
         propertyEquals('input[name="password"]', 'required', true),
-        // Form-valid refresh immediately after insertion remains an open audit finding.
+        ...lifecycleChecks('password', false),
         ...[['abc', false], ['abcd', true], ['', false], ['secret', true]].flatMap(([value, valid]) => [
             fillThenText('input[name="password"]', value, 'form > p:nth-of-type(4) output', String(valid)),
             propertyEquals('input[name="password"]', 'value', value),
@@ -743,6 +743,9 @@ const formSamples = [
         fillThenText('input[name="email"]', '', 'form > p:nth-of-type(2) output', 'Please fill out this field.'),
     ]),
     sampleContract('4. Form custom validity message', [
+        propertyEquals('input[name="email"]', 'value', ''),
+        nodeTexts('form > p:nth-of-type(2) output', ['0']),
+        nodeTexts('form > p:nth-of-type(3) output', ['false']),
         fillThenText('input[name="email"]', 'abc', 'form > p:nth-of-type(4) output', 'Use more than 3 characters'),
         text('form > p:nth-of-type(2) output', '3'),
     ]),

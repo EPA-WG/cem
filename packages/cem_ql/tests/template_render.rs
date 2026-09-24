@@ -1063,6 +1063,35 @@ fn form_text_length_distinguishes_uninitialized_and_empty_slices() {
 }
 
 #[test]
+fn form_custom_validity_fallback_preserves_values_and_codepoint_length() {
+    let source = r#"{slice @name=email}{output | {$datadom.slices.email ?? ""}}{output | {$str:length(datadom.slices.email ?? "")}}{output | {$str:length(datadom.slices.email ?? "") > 3}}"#;
+    for (value, expected) in [
+        (None, "<output></output><output>0</output><output>false</output>"),
+        (Some(""), "<output></output><output>0</output><output>false</output>"),
+        (Some("abc"), "<output>abc</output><output>3</output><output>false</output>"),
+        (Some("abcd"), "<output>abcd</output><output>4</output><output>true</output>"),
+        (Some("🍒ab"), "<output>🍒ab</output><output>3</output><output>false</output>"),
+        (Some("🍒abc"), "<output>🍒abc</output><output>4</output><output>true</output>"),
+    ] {
+        let mut data = TemplateData::default();
+        if let Some(value) = value {
+            data.bind_native_slice("email", string_value(value)).unwrap();
+        }
+        let rendered = render_template(source, &data);
+        assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+        assert_eq!(rendered.rendered, expected);
+    }
+    // The browser's legacy validity-message idiom is not native coalescing:
+    // a present false value is retained rather than replaced with the message.
+    let rendered = render_template(
+        r#"{output | {$false ?? "Use more than 3 characters"}}"#,
+        &TemplateData::default(),
+    );
+    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    assert_eq!(rendered.rendered, "<output>false</output>");
+}
+
+#[test]
 fn declared_boolean_slice_defaults_keep_their_boolean_type() {
     let rendered = render_template(
         r#"{slice @name="open" | false}{output | {$open}|{$datadom.slices.open}}{cem:if @test="datadom.slices.open" | {p | must stay hidden}}"#,

@@ -269,7 +269,7 @@
         }
         {button @type=submit @aria-label=Next @title=Next | →}
         {p | Current slice: {output | {$datadom.slices.email}}}
-        {p | Current length: {output | {$str:length(datadom.slices.email)}}}
+        {p | Current length: {output | {$str:length(datadom.slices.email ?? "")}}}
         {p | Form valid: {output | {$datadom.validationState.customMessage.valid}}}
         {p |
             Form message:

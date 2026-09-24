@@ -4227,7 +4227,8 @@ registration identities may reuse an inherited or existing definition.
           Checkpoint 2026-09-24: the existing story passes but misses sample 2's
           absent initial prompt and compiler/comparison errors. The approved
           correction below restores the prompt; the full audit remains open
-          for conditional form-validation refresh and the initial text count.
+          for shared custom-validity expression handling and the remaining
+          independent-gallery and form-associated keyboard/submit checks.
     - [x] Fixture: characterize sample 2's initial confirmation-method guards
           in a small native render test. Compare the authored XPath `not(...)`
           and unset comparisons with canonical `!` and explicit empty-string
@@ -4265,7 +4266,7 @@ registration identities may reuse an inherited or existing definition.
           the unset slice displays no text. Native `?? ""` gives initial length
           0 and preserves empty, three/four-character and Unicode values. The
           sample is unchanged pending the decision below.
-    - [ ] Decision: investigate and fix shared form-validation refresh after
+    - [x] Decision: investigate and fix shared form-validation refresh after
           inserting conditional controls (recommended), or record the limitation.
           Sample 2 switches from SMS to Password with a ten-character username
           and reports `Form valid: true` / no form message while the new empty
@@ -4273,10 +4274,39 @@ registration identities may reuse an inherited or existing definition.
           password refreshes the form correctly. The strict browser assertion
           reproduces this mismatch; current passing checks explicitly leave it
           open instead of treating the stale value as desired behavior.
-    - [ ] Decision: correct only sample 4's `str:length` calls in its validity
+          Accepted 2026-09-24: fix shared validation refresh.
+    - [x] Decision: correct only sample 4's `str:length` calls in its validity
           expression and displayed length with an explicit empty-string fallback
           (recommended), or investigate shared null conversion. Continue the
           five-sample form audit after these decisions.
+          Accepted 2026-09-24: correct the fixture only.
+    - [x] Fixture: refresh shared form data and validation after DOM commits.
+          Cover initial forms, conditional required controls appearing/removing,
+          custom validity, stable control identity, settled readiness and bounded
+          circular rules across the shared rendering paths. Restore the strict
+          sample 2 assertion in Storybook and both gallery modes. Apply sample
+          4's displayed-count fallback; defer its validity-expression edit at
+          the new decision below. The parent five-sample audit stays open.
+          Completed 2026-09-24: five shared browser regressions cover all three
+          rendering paths, nested form ownership and bounded circular rules.
+          All 54 native template-render tests, 513 unit tests, 226 Storybook
+          tests and 31 standalone / 37 source-loaded documents pass. Aggregate
+          coverage, native/package lint and typecheck pass with existing warnings;
+          the form page passes desktop two-card and desktop/mobile overflow checks.
+    - [x] Fixture: characterize sample 4's nested fallback in native CEM-QL
+          and the browser custom-validity evaluator. Native `??` retains its
+          non-null operand; the browser evaluator substitutes `true`, making
+          `abc` incorrectly valid after adding the approved fallback. Check
+          missing/empty values and Unicode codepoint length as well.
+          Completed 2026-09-24: 54 native template-render tests pass. The browser
+          probe renders `abc`, length 3, valid true with the nested fallback;
+          its missing-path and UTF-16 length handling also differ from native.
+          Native `false ?? message` retains false; the existing browser validity
+          dialect returns the message. Preserve that compatibility question
+          explicitly rather than silently switching evaluators.
+    - [ ] Decision: fix shared custom-validity expression handling (recommended),
+          or apply only sample 4's displayed-count fallback and defer its
+          validity-expression correction. Keep the five-sample audit open.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

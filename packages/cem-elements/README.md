@@ -43,6 +43,13 @@ part of the outer projection.
 The [demo teaching-point audit](docs/demo-teaching-points.md) records the lessons
 preserved from the local prototype and the standalone/source-loaded checks.
 
+After each DOM commit, the runtime recaptures its own forms and reapplies
+custom validity. Inserting or removing a required control updates form data,
+validation state and form slice mirrors without another input event. Nested
+instances retain ownership of their forms. `runtime.whenRenderSettled(instance)`
+includes these refresh renders. Circular form rules stop after eight refreshes
+with `cem-element.form_state_unstable`; a later state change can render again.
+
 CEMT and XSLT render plans derive node IDs from native source provenance, the
 parent ID and the occurrence at that source site. Conditional output at another
 site leaves those IDs stable, allowing unaffected DOM nodes to retain browser

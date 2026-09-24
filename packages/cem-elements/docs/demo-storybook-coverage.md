@@ -706,6 +706,48 @@ coverage, native/package lint and typecheck pass with existing warnings. The
 gallery also verifies a two-card row at 1280px and no overflow at 1280px/390px.
 Existing Nx inputs cover the changed sources and fixtures.
 
+## Form refresh and length checkpoint, 2026-09-24
+
+The user approved shared validation refresh and fixture-only empty-string
+fallbacks for sample 4. The runtime now recaptures its forms after committing
+DOM and applying custom validity, then rerenders when form data or validation
+has changed. This covers initial forms and conditional required controls
+without another input event. Nested instances retain their form state and
+event handlers. Readiness includes refresh renders; circular form rules stop
+after eight refreshes with `cem-element.form_state_unstable` and can recover
+after a later state change.
+
+Four new browser regressions failed before the runtime fix. Five now pass,
+covering DOM, processing-host and direct WASM rendering, conditional insertion
+and removal, persisted form state, slice mirrors, live identity, rapid updates,
+nested ownership and bounded circular rules. Sample 2 again requires immediate
+invalid form state after Password replaces SMS, in Storybook and both gallery
+modes. Storybook also expands sample 1's step/submit boundaries, sample 3's
+native validity recovery and sample 5's repeated choices and native FormData.
+
+Sample 4's displayed length now uses the approved fallback and starts at 0.
+Applying it inside the custom-validity expression exposed a separate mismatch:
+the browser returned `abc`, length 3, valid true. Its legacy evaluator replaces
+a truthy `??` operand with boolean true, resolves missing paths as literal text
+and uses UTF-16 string length. Native characterization instead preserves the
+value and counts codepoints. Native `false ?? message` retains false, while the
+existing browser validity dialect returns the message, so a shared fix also
+needs an explicit compatibility choice. The validity-expression edit is
+deferred; passing checks do not claim initial custom-message or Unicode
+validity parity. All 54 native template-render tests pass.
+
+The new decision is whether to fix shared custom-validity expression handling
+or keep only the displayed-count correction. The five-sample audit remains
+open for that decision, the remaining independent-gallery expansion and the
+form-associated choice keyboard/submit contracts. In particular, Space on a
+focused option currently follows the capability's dropdown open/commit
+behavior; it does not directly activate that option as a native button would.
+
+Checkpoint validation passes: 54 native template-render tests, 513 unit tests,
+226 Storybook tests and 31 standalone / 37 source-loaded documents. Aggregate
+coverage, native/package lint and typecheck pass with existing warnings. The
+form page passes desktop two-card layout and 1280px/390px overflow checks.
+
 This completes the 11-sample audit. The broader per-sample audit remains open.
 The next fixture covers all five `form.html` samples: step advancement,
 lifecycle validation, native/custom validity messages and form-associated DCE
