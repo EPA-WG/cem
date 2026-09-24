@@ -91,7 +91,7 @@ export interface CemQlRenderOptions {
     nativeAttributes?: readonly NativeCemAttributeBinding[];
     nativeSlices?: readonly NativeCemSliceBinding[];
     nativeValueLimits?: CemValueArtifactLimits;
-    /** Prefix for deterministic, pre-order render-node ids (typically the produced tag). */
+    /** Prefix for deterministic source/parent/occurrence render-node ids (typically the produced tag). */
     renderNodeIdPrefix?: string;
     /** Resolver/loader for static CEMT imports. Omit when the source has no module imports. */
     moduleLoader?: CemMlTemplateModuleLoader;
@@ -707,14 +707,30 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
     };
 
     const prefix = options.renderNodeIdPrefix ?? 'cem-node';
-    let sequence = 0;
-    const nextRenderNodeId = (): string => {
-        sequence += 1;
-        return `${prefix}-${sequence}`;
+    const sourceSites = new Map<string, string>();
+    const mapNodes = (nodes: WasmRenderNode[], parent: string): RenderPlanNode[] => {
+        const occurrences = new Map<string, number>();
+        return nodes.map(node => {
+            // Native provenance identifies the emitting site, not a unique
+            // occurrence. Scope repeated sites to their parent and local
+            // ordinal so conditional output elsewhere cannot renumber them.
+            const source = [node.kind, node.sourceMap ?? node.byteOffset ?? null,
+                node.kind === 'element' ? [node.namespace ?? null, node.tag] : null];
+            const key = JSON.stringify(source);
+            let site = sourceSites.get(key);
+            if (site === undefined) {
+                site = edgeContentAddress('render-plan', source).digest;
+                sourceSites.set(key, site);
+            }
+            const occurrence = occurrences.get(site) ?? 0;
+            occurrences.set(site, occurrence + 1);
+            const id = `${prefix}-${edgeContentAddress('render-plan', [parent, site, occurrence]).digest}`;
+            return mapNode(node, id, children => mapNodes(children, id), artifact);
+        });
     };
 
     return {
-        nodes: (plan.nodes ?? []).map((node, index) => mapNode(node, nextRenderNodeId, `${prefix}:root:${index}`, artifact)),
+        nodes: mapNodes(plan.nodes ?? [], `${prefix}:root`),
         hostAttributeUpdates: (plan.hostAttributeUpdates ?? []).map((update) => ({
             name: update.name,
             value: update.value,
@@ -831,7 +847,7 @@ interface WasmStylesheetArtifact {
     scope?: string | null;
 }
 
-type WasmRenderNode =
+type WasmRenderNode = (
     | { kind: 'text'; text: string; byteOffset?: number | null }
     | { kind: 'comment'; text: string; byteOffset?: number | null }
     | {
@@ -841,7 +857,7 @@ type WasmRenderNode =
           attributes?: WasmRenderAttribute[];
           children?: WasmRenderNode[];
           byteOffset?: number | null;
-      };
+      }) & { sourceMap?: unknown };
 
 interface WasmRenderAttribute {
     nativeValueIndex?: number | null;
@@ -863,16 +879,13 @@ function mapStylesheet(stylesheet: WasmStylesheetArtifact): CemQlStylesheetArtif
     };
 }
 
-function mapNode(node: WasmRenderNode, nextRenderNodeId: () => string, occurrence: string, artifact?: { artifact: ArrayBuffer; contentHash: string }): RenderPlanNode {
+function mapNode(node: WasmRenderNode, renderNodeId: string, mapChildren: (nodes: WasmRenderNode[]) => RenderPlanNode[], artifact?: { artifact: ArrayBuffer; contentHash: string }): RenderPlanNode {
     if (node.kind === 'text') {
-        return { kind: 'text', text: node.text, renderNodeId: `text:${occurrence}`, sourceMapRef: frameFrom(node.byteOffset) };
+        return { kind: 'text', text: node.text, renderNodeId, sourceMapRef: frameFrom(node.byteOffset) };
     }
     if (node.kind === 'comment') {
-        return { kind: 'comment', text: node.text, renderNodeId: `comment:${occurrence}`, sourceMapRef: frameFrom(node.byteOffset) };
+        return { kind: 'comment', text: node.text, renderNodeId, sourceMapRef: frameFrom(node.byteOffset) };
     }
-    // Assign the render-node id before recursing so ids follow a deterministic
-    // pre-order sequence, matching the DOM/projection path.
-    const renderNodeId = nextRenderNodeId();
     return {
         kind: 'element',
         namespace: node.namespace ?? null,
@@ -883,7 +896,7 @@ function mapNode(node: WasmRenderNode, nextRenderNodeId: () => string, occurrenc
             ...(attribute.nativeValueIndex != null && artifact ? { nativeValue: { kind: 'cem-native-value-v1' as const, ...artifact, index: attribute.nativeValueIndex } } : {}),
         })),
         renderNodeId,
-        children: (node.children ?? []).map((child, index) => mapNode(child, nextRenderNodeId, `${renderNodeId}:child:${index}`, artifact)),
+        children: mapChildren(node.children ?? []),
         sourceMapRef: frameFrom(node.byteOffset),
     };
 }

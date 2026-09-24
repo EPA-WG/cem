@@ -36,6 +36,18 @@ binding for resource role, acquisition policy, metadata, and expected content-ty
 The [demo teaching-point audit](docs/demo-teaching-points.md) records the lessons
 preserved from the local prototype and the standalone/source-loaded checks.
 
+CEMT and XSLT render plans derive node IDs from native source provenance, the
+parent ID and the occurrence at that source site. Conditional output at another
+site leaves those IDs stable, allowing unaffected DOM nodes to retain browser
+state. The [data-tree demo](demo/data-tree.html) exercises a collapsed disclosure
+while its parent's selection label disappears. Repeated results from one source
+site remain positional within their parent; item-keyed reordering is outside
+this identity contract.
+Direct whole-plan projection retains its existing recovery rule: a changed
+root-ID set replaces the scope with a diagnostic. Distinct authored root
+branches, such as the storage demo's object `ul` and array `ol`, have distinct
+source-based IDs and therefore use that recovery path.
+
 For event-driven browser navigation, `location-element` accepts an optional
 `trigger` token. An empty token does not write; a new nonempty token is consumed
 before navigation, once per writer position in an instance. Rerendering a live

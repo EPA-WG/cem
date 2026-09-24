@@ -147,8 +147,20 @@ export const NativeJsonRootTransitions: Story = {
         }]);
         expect(canvasElement.querySelector('p')).not.toBe(originalParagraph);
         expect(textList(canvasElement, 'li')).toEqual(['a: 1', 'b: B']);
+        const loadedParagraph = canvasElement.querySelector('p');
         const array = await plan('[1,2,3]');
-        expect(applyRenderPlanToRange(bounds, array, document).mode).toBe('patch');
+        expect(rootIds(array)).toEqual(rootIds(loaded));
+        // Object and array lists come from distinct authored branches. Their
+        // source-based IDs differ, so the accepted root-set recovery applies.
+        const listId = (value: RenderPlan) => value.nodes.find(node =>
+            node.kind === 'element' && (node.tag === 'ul' || node.tag === 'ol'))?.renderNodeId;
+        expect(listId(loaded)).toBeTruthy();
+        expect(listId(array)).toBeTruthy();
+        expect(listId(array)).not.toBe(listId(loaded));
+        const arrayApplied = applyRenderPlanToRange(bounds, array, document);
+        expect(arrayApplied.mode).toBe('replaceScope');
+        expect(arrayApplied.diagnostics).toEqual(applied.diagnostics);
+        expect(canvasElement.querySelector('p')).not.toBe(loadedParagraph);
         expect(textList(canvasElement, 'li')).toEqual(['1', '2', '3']);
         const scalar = await plan('false');
         expect(applyRenderPlanToRange(bounds, scalar, document).mode).toBe('replaceScope');

@@ -342,9 +342,8 @@ export const InlineBrowserSubstrateContract: Story = {
             'only the produced instance renders visible output'
         );
 
-        assertEqual(
-            button.getAttribute('data-cem-render-node-id'),
-            'story-inline-contract-1',
+        assert(
+            button.getAttribute('data-cem-render-node-id')?.startsWith('story-inline-contract-'),
             'rendered output carries produced-tag scoped render-node identity'
         );
         assert(button.hasAttribute('data-cem-template-artifact-id'), 'rendered output carries template artifact identity');
@@ -897,8 +896,9 @@ export const CemQlWasmRenderBoundary: Story = {
     render: () =>
         storyPanel('cem_ql WASM render boundary', 'canonical CEM-ML source + host bindings → render plan via WASM'),
     play: async () => {
+        const source = '{button @type=button @class="tone {$tone}" | {$label}}';
         const result = await renderCemMlTemplate(
-            '{button @type=button @class="tone {$tone}" | {$label}}',
+            source,
             { label: 'Save', tone: 'primary' },
             { renderNodeIdPrefix: 'cem-wasm' }
         );
@@ -910,7 +910,7 @@ export const CemQlWasmRenderBoundary: Story = {
         const [button] = result.nodes;
         assert(button.kind === 'element', 'root render-plan node is an element');
         assertEqual(button.tag, 'button', 'WASM render preserves the element tag');
-        assertEqual(button.renderNodeId, 'cem-wasm-1', 'render-node ids use the supplied prefix in pre-order');
+        assert(button.renderNodeId.startsWith('cem-wasm-'), 'render-node ids use the supplied prefix');
         assertEqual(
             button.attributes.find((attribute) => attribute.name === 'type')?.value,
             'button',
@@ -927,6 +927,16 @@ export const CemQlWasmRenderBoundary: Story = {
         assertEqual(text, 'Save', 'content expression resolves the host binding through WASM');
         const [buttonText] = button.children;
         assert(buttonText.kind === 'text', 'WASM render carries a text render-plan child');
+        const updated = await renderCemMlTemplate(source, { label: 'Update', tone: 'secondary' },
+            { renderNodeIdPrefix: 'cem-wasm' });
+        assertEqual(updated.diagnostics.length, 0, 'updated host data renders without diagnostics');
+        const [updatedButton] = updated.nodes;
+        assert(updatedButton.kind === 'element', 'updated render-plan root remains an element');
+        assertEqual(updatedButton.renderNodeId, button.renderNodeId, 'element identity survives host-data changes');
+        const [updatedText] = updatedButton.children;
+        assert(updatedText.kind === 'text', 'updated render carries a text child');
+        assertEqual(updatedText.renderNodeId, buttonText.renderNodeId, 'text identity survives value changes');
+        assertEqual(updatedText.text, 'Update', 'retained text identity carries the updated value');
         assertEqual(
             buttonText.sourceMapRef?.fidelity,
             'author-byte-exact',
@@ -1098,9 +1108,8 @@ export const CemQlWasmRenderLoopUpgrade: Story = {
         assertEqual(button.getAttribute('class'), 'tone primary', 'AVT attribute resolves host attribute through WASM');
         assertEqual(button.textContent?.trim(), 'Submit', 'content expression resolves the host attribute through WASM');
 
-        assertEqual(
-            button.getAttribute('data-cem-render-node-id'),
-            'story-wasm-button-1',
+        assert(
+            button.getAttribute('data-cem-render-node-id')?.startsWith('story-wasm-button-'),
             'WASM render-node ids are produced-tag scoped'
         );
         assertEqual(button.getAttribute('data-cem-data-revision'), '1', 'WASM render carries the first data revision');
@@ -5032,16 +5041,16 @@ export const CemMlRenderMetadataCarriesAuthorByteFrames: Story = {
         assert(/^cem:\d+$/.test(buttonFrame), 'CEM-ML nested frame is a source byte offset');
         assert(buttonFrame !== 'cem:0', 'nested CEM-ML frame differs from the root offset');
 
-        assertEqual(
-            section.getAttribute('data-cem-render-node-id'),
-            'story-meta-cem-1',
-            'CEM-ML render-node ids are deterministic'
+        assert(
+            section.getAttribute('data-cem-render-node-id')?.startsWith('story-meta-cem-'),
+            'CEM-ML root render-node ids are produced-tag scoped'
         );
-        assertEqual(
-            button.getAttribute('data-cem-render-node-id'),
-            'story-meta-cem-2',
-            'CEM-ML nested render-node ids increment'
+        assert(
+            button.getAttribute('data-cem-render-node-id')?.startsWith('story-meta-cem-'),
+            'CEM-ML nested render-node ids are produced-tag scoped'
         );
+        assert(section.getAttribute('data-cem-render-node-id') !== button.getAttribute('data-cem-render-node-id'),
+            'CEM-ML root and nested nodes have distinct identities');
         assertEqual(button.textContent?.trim(), 'Submit', 'CEM-ML leaf interpolation renders alongside metadata');
     },
 };

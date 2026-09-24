@@ -882,61 +882,148 @@ const tableInspectorSamples = [
     ]),
 ];
 
+const dataTreePage = await readFile(join(repoRoot, 'packages/cem-elements/demo/data-tree.html'), 'utf8');
+const treeSource = format => dataTreePage.split(`<cem-data-tree format="${format}">`)[1]
+    .split('</cem-data-tree>')[0].replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&').trim();
+const treeBranch = label => `li:has(> label > input[aria-label="Select branch ${label}"])`;
 const dataTreeSamples = [
     sampleContract('1. XML branches: independent selection', [
         text('pre[aria-label="CEM-ML document"]', '{ast'),
         computedStyle('pre[aria-label="CEM-ML document"] code', 'whiteSpace', 'pre-wrap'),
-        text('pre[aria-label="CEM-ML document"]', '<raw>🍋'),
-        normalizedText('output[aria-label="Selected branches"]', '0'),
+        text('pre[aria-label="CEM-ML document"]', '@kind=cdata'), text('pre[aria-label="CEM-ML document"]', '@target=keep'),
+        treeSelection([], ['1: orchard', '1.1: fruit', '1.2: fruit']),
+        countExactly(`${treeBranch('1: orchard')} > details > ul > li`, 0),
+        countExactly(`${treeBranch('1.1: fruit')} > details > ul > li`, 1),
+        countExactly(`${treeBranch('1.2: fruit')} > details > ul > li`, 0),
+        text(`${treeBranch('1.1: fruit')} > details > summary`, 'urn:fruit'),
+        normalizedText(`${treeBranch('1.1: fruit')} > details > ul`, '@ color : ""'),
+        propertyEquals(`${treeBranch('1.1: fruit')} > details > ul .value`, 'textContent', '""'),
+        ...['text : pre', 'cdata : <raw>🍋', 'processing-instruction · keep : inert', 'text : post'].map((value, index) =>
+            normalizedText(`${treeBranch('1.2: fruit')} > details > ol > li:nth-child(${index + 1})`, value)),
         pressThenProperty('input[aria-label="Select branch 1.1: fruit"]', 'Space',
             'input[aria-label="Select branch 1.1: fruit"]', 'checked', true),
-        normalizedText('output[aria-label="Selected branches"]', '1'),
+        treeSelection(['1.1: fruit']),
         pressThenProperty('input[aria-label="Select branch 1.2: fruit"]', 'Space',
             'input[aria-label="Select branch 1.2: fruit"]', 'checked', true),
-        normalizedText('output[aria-label="Selected branches"]', '2'),
-        pressThenProperty('li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details > summary', 'Enter',
-            'li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details', 'open', false),
-        normalizedText('output[aria-label="Selected branches"]', '2'),
-        propertyEquals('input[aria-label="Select branch 1.1: fruit"]', 'checked', true),
+        treeSelection(['1.1: fruit', '1.2: fruit']),
+        pressThenProperty(`${treeBranch('1.1: fruit')} > details > summary`, 'Enter',
+            `${treeBranch('1.1: fruit')} > details`, 'open', false),
+        treeSelection(['1.1: fruit', '1.2: fruit']),
         pressThenProperty('input[aria-label="Select branch 1.2: fruit"]', 'Space',
             'input[aria-label="Select branch 1.2: fruit"]', 'checked', false),
-        normalizedText('output[aria-label="Selected branches"]', '1'),
-        propertyEquals('li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details', 'open', false),
-        pressThenProperty('li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details > summary', 'Space',
-            'li:has(> label > input[aria-label="Select branch 1.1: fruit"]) > details', 'open', true),
+        treeSelection(['1.1: fruit']),
+        propertyEquals(`${treeBranch('1.1: fruit')} > details`, 'open', false),
+        pressThenProperty(`${treeBranch('1.1: fruit')} > details > summary`, 'Space',
+            `${treeBranch('1.1: fruit')} > details`, 'open', true),
         clickThenText('article > button', 'output[aria-label="Selected branches"]', '0'),
-        countExactly('input:checked', 0),
-        countExactly('script, raw', 0),
+        treeSelection([]),
+        propertyEquals('textarea', 'value', treeSource('xml')),
+        clickThenText('input[aria-label="Select branch 1.1: fruit"]', 'output[aria-label="Selected branches"]', '1'),
+        fillBlurThenText('textarea', '<r><script>neverRun()</script><fruit>🍏</fruit></r>', 'pre[aria-label="CEM-ML document"]', 'neverRun()'),
+        treeSelection([], ['1: r', '1.1: script', '1.2: fruit']),
+        countExactly(':is(script, raw)', 0),
+        clickThenText('article > button', 'pre[aria-label="CEM-ML document"]', '<raw>🍋'),
+        treeSelection([], ['1: orchard', '1.1: fruit', '1.2: fruit']),
+        propertyEquals('textarea', 'value', treeSource('xml')),
     ]),
     sampleContract('2. JSON through the same CEM tree', [
-        text('pre[aria-label="CEM-ML document"]', '🍒'),
-        text('pre[aria-label="CEM-ML document"]', 'sweet'),
-        normalizedText('output[aria-label="Selected branches"]', '0'),
-        countExactly('input:checked', 0),
+        text('pre[aria-label="CEM-ML document"]', '{ast'),
+        treeSelection([], ['1: object', '1.1: property', '1.1.1: string', '1.2: property',
+            '1.2.1: string', '1.3: property', '1.3.1: array', '1.3.1.1: string', '1.3.1.2: string']),
+        text(treeBranch('1.1: property'), 'fruit'),
+        text(treeBranch('1.1.1: string'), '🍒'),
+        text(treeBranch('1.2: property'), 'note'),
+        text(treeBranch('1.2.1: string'), '""'),
+        text(treeBranch('1.3.1.1: string'), 'red'),
+        text(treeBranch('1.3.1.2: string'), 'sweet'),
+        clickThenText('input[aria-label="Select branch 1.3: property"]', 'output[aria-label="Selected branches"]', '1'),
+        treeSelection(['1.3: property']),
+        clickThenText('input[aria-label="Select branch 1.3.1.2: string"]', 'output[aria-label="Selected branches"]', '2'),
+        treeSelection(['1.3: property', '1.3.1.2: string']),
+        elementIdentity(`${treeBranch('1.3: property')} > details`, 'remember'),
+        elementIdentity(`${treeBranch('1.3: property')} > details > summary`, 'remember'),
+        elementIdentity(`${treeBranch('1.3.1.2: string')} > label > input`, 'remember'),
+        pressThenProperty(`${treeBranch('1.3: property')} > details > summary`, 'Enter',
+            `${treeBranch('1.3: property')} > details`, 'open', false),
+        treeSelection(['1.3: property', '1.3.1.2: string']),
+        clickThenText('input[aria-label="Select branch 1.3: property"]', 'output[aria-label="Selected branches"]', '1'),
+        treeSelection(['1.3.1.2: string']),
+        elementIdentity(`${treeBranch('1.3: property')} > details`, 'check'),
+        elementIdentity(`${treeBranch('1.3: property')} > details > summary`, 'check'),
+        elementIdentity(`${treeBranch('1.3.1.2: string')} > label > input`, 'check'),
+        propertyEquals(`${treeBranch('1.3: property')} > details`, 'open', false),
+        pressThenProperty(`${treeBranch('1.3: property')} > details > summary`, 'Space',
+            `${treeBranch('1.3: property')} > details`, 'open', true),
+        // A change event with the same source bytes must clear selection too.
+        dispatchThenText('textarea', 'change', 'output[aria-label="Selected branches"]', '0'),
+        treeSelection([]),
+        clickThenText('input[aria-label="Select branch 1.2.1: string"]', 'output[aria-label="Selected branches"]', '1'),
+        treeSelection(['1.2.1: string']),
+        clickThenText('article > button', 'output[aria-label="Selected branches"]', '0'),
+        treeSelection([]),
+        propertyEquals('textarea', 'value', treeSource('json')),
     ]),
     sampleContract('3. Malformed source and repair', [
         text('[role="alert"]', 'could not be imported'),
-        countExactly('pre[aria-label="CEM-ML document"]', 0),
+        countExactly('article :is(pre, input, output)', 0),
         fillBlurThenText('textarea', '<orchard><fruit>🍒</fruit></orchard>', 'pre[aria-label="CEM-ML document"]', '{ast'),
         countExactly('[role="alert"]', 0),
+        treeSelection([], ['1: orchard', '1.1: fruit']),
+        clickThenText('input[aria-label="Select branch 1.1: fruit"]', 'output', '1'),
+        treeSelection(['1.1: fruit']),
         clickThenText('article > button', '[role="alert"]', 'could not be imported'),
-        countExactly('input[type="checkbox"]', 0),
+        countExactly('article :is(pre, input, output)', 0),
+        propertyEquals('textarea', 'value', '<orchard><fruit>🍒</orchard>'),
         fillBlurThenText('textarea', '<orchard><fruit>🍋</fruit></orchard>', 'pre[aria-label="CEM-ML document"]', '🍋'),
-        normalizedText('output[aria-label="Selected branches"]', '0'),
+        treeSelection([], ['1: orchard', '1.1: fruit']),
+        countExactly('[role="alert"]', 0),
     ]),
     sampleContract('4. Load and release a local document', [
-        text('pre[aria-label="CEM-ML document"]', 'xml-stylesheet'),
+        text('pre[aria-label="CEM-ML document"]', 'xml-stylesheet'), text('pre[aria-label="CEM-ML document"]', '🍒'), text('pre[aria-label="CEM-ML document"]', '🍋'),
         propertyEquals('select[aria-label="Local source"]', 'value', './tree-source.xml'),
-        attributeContains('article a', 'href', '/demo/tree-source.xml'),
+        propertyEquals('output[aria-label="Request state"]', 'textContent', 'loaded'),
+        attributeContains('article a', 'href', '/packages/cem-elements/demo/tree-source.xml'),
         attributeEquals('article a', 'download', ''),
-        selectThenText('select[aria-label="Local source"]', './tree-source.json',
-            'pre[aria-label="CEM-ML document"]', 'tree-source.json'),
-        normalizedText('output[aria-label="Selected branches"]', '0'),
+        treeSelection([]),
+        clickThenText('article > section:nth-of-type(2) > ol > li > label > input', 'output[aria-label="Selected branches"]', '1'),
+        countExactly('input:checked', 1),
+        selectThenText('select[aria-label="Local source"]', './tree-source.json', 'pre[aria-label="CEM-ML document"]', 'tree-source.json'),
+        propertyEquals('output[aria-label="Request state"]', 'textContent', 'loaded'),
+        propertyEquals('select[aria-label="Local source"]', 'value', './tree-source.json'),
+        attributeContains('article a', 'href', '/packages/cem-elements/demo/tree-source.json'),
+        attributeEquals('article a', 'download', ''),
+        text('pre[aria-label="CEM-ML document"]', '🍋'),
+        treeSelection([]),
+        clickThenText('input[aria-label="Select branch 1: object"]', 'output[aria-label="Selected branches"]', '1'),
+        treeSelection(['1: object']),
         selectThenText('select[aria-label="Local source"]', '', 'output[aria-label="Request state"]', 'idle'),
-        countExactly('pre[aria-label="CEM-ML document"]', 0),
-        selectThenText('select[aria-label="Local source"]', './tree-source.xml',
-            'pre[aria-label="CEM-ML document"]', 'xml-stylesheet'),
-        countExactly('input:checked', 0),
+        propertyEquals('select[aria-label="Local source"]', 'value', ''),
+        countExactly(':is(article pre, article input, article a, output[aria-label="Selected branches"])', 0),
+        selectThenText('select[aria-label="Local source"]', './tree-source.xml', 'pre[aria-label="CEM-ML document"]', 'xml-stylesheet'),
+        treeSelection([]),
+        propertyEquals('output[aria-label="Request state"]', 'textContent', 'loaded'),
+        attributeContains('article a', 'href', '/packages/cem-elements/demo/tree-source.xml'),
+        countExactly('script', 0),
+    ]),
+    sampleContract('tree-source.xml', [
+        attributeEquals(':scope', 'src', './tree-source.xml'),
+        attributeEquals(':scope', 'type', 'xml'),
+        attributeEquals(':scope', 'demo', 'false'),
+        attributeEquals(':scope', 'data-state', 'ready'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo/tree-source.xml'), 'utf8')),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
+    ]),
+    sampleContract('tree-source.json', [
+        attributeEquals(':scope', 'src', './tree-source.json'),
+        attributeEquals(':scope', 'type', 'json'),
+        attributeEquals(':scope', 'demo', 'false'),
+        attributeEquals(':scope', 'data-state', 'ready'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo/tree-source.json'), 'utf8')),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
     ]),
 ];
 
@@ -2533,7 +2620,6 @@ const sourceDocumentSpecs = [
 for (const [directory, page, files] of [
     ['cem-elements', 'http-request.html', ['http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json']],
     ['cem-elements', 'for-each.html', ['http-data.json', 'http-data.xml']],
-    ['cem-elements', 'data-tree.html', ['tree-source.xml', 'tree-source.json']],
     ['cem-elements', 'npm-versions-demo.html', ['npm-versions.json']],
     ['custom-element', 'http-request.html', ['http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json']],
     ['custom-element', 'npm-versions-demo.html', ['npm-versions.json']],
@@ -3143,6 +3229,37 @@ async function runCheck(page, check) {
             case 'propertyEquals':
                 await waitForExactProperty(page, check.selector, check.name, check.expected);
                 return;
+            case 'elementIdentity':
+                if (check.action === 'remember') {
+                    await waitForExactCount(page, check.selector, 1);
+                    await page.evaluate(({ selector }) => {
+                        globalThis.__cemFixtureElements ??= new Map();
+                        globalThis.__cemFixtureElements.set(selector, document.querySelector(selector));
+                    }, check);
+                } else {
+                    await poll(page, ({ selector }) => {
+                        const remembered = globalThis.__cemFixtureElements?.get(selector);
+                        return remembered?.isConnected && document.querySelector(selector) === remembered;
+                    }, check);
+                }
+                return;
+            case 'treeSelection':
+                await poll(page, ({ selector, selected, branches }) => {
+                    const root = document.querySelector(selector);
+                    if (!root) return false;
+                    const inputs = Array.from(root.querySelectorAll('input[type=checkbox]'));
+                    const label = input => input.getAttribute('aria-label')?.replace(/^Select branch /u, '');
+                    return (!branches || JSON.stringify(inputs.map(label)) === JSON.stringify(branches))
+                        && JSON.stringify(inputs.filter(input => input.checked).map(label)) === JSON.stringify(selected)
+                        && root.querySelector('output[aria-label="Selected branches"]')?.textContent === String(selected.length)
+                        && root.querySelectorAll('strong').length === selected.length
+                        && inputs.every(input => {
+                            const li = input.closest('li');
+                            return li?.classList.contains('selected') === input.checked
+                                && (li?.querySelector(':scope > label > strong')?.textContent ?? '') === (input.checked ? 'Selected' : '');
+                        });
+                }, check);
+                return;
             case 'tableState':
                 await poll(page, ({ selector, cells, selected }) => {
                     const table = document.querySelector(selector);
@@ -3431,6 +3548,14 @@ function attributeEquals(selector, name, expected) {
 
 function propertyEquals(selector, name, expected) {
     return { kind: 'propertyEquals', selector, name, expected };
+}
+
+function elementIdentity(selector, action) {
+    return { kind: 'elementIdentity', selector, action };
+}
+
+function treeSelection(selected, branches) {
+    return { kind: 'treeSelection', selector: ':scope', selected, branches };
 }
 
 // null skips a nested cell whose own table has a separate contract.
@@ -3800,6 +3925,10 @@ function describeCheck(check) {
             return `attributeEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'propertyEquals':
             return `propertyEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
+        case 'elementIdentity':
+            return `elementIdentity(${check.selector}, ${check.action})`;
+        case 'treeSelection':
+            return `treeSelection(${check.selector}, selected=${JSON.stringify(check.selected)}, branches=${JSON.stringify(check.branches)})`;
         case 'tableState':
             return `tableState(${check.selector}, ${JSON.stringify(check.cells)}, selected=${JSON.stringify(check.selected)})`;
         case 'formState':

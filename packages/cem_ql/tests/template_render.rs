@@ -14,6 +14,68 @@ fn bool_value(value: bool) -> ItemStream {
     ItemStream::once(Item::Atomic(AtomValue::Boolean(value)))
 }
 
+#[test]
+fn conditional_labels_preserve_native_disclosure_provenance_in_repeated_branches() {
+    let source = r#"{cem:for-each @select='("first", "second")' @as=name |
+        {section |
+            {label | {$name}{cem:if @test=selected | {strong | Selected}}}
+            {details @open=open | {summary | {$name}}{p | Details}}
+        }}"#;
+    let artifact = compile_template(
+        source,
+        &CompileTemplateOptions {
+            host_bindings: vec!["selected".into()],
+            ..Default::default()
+        },
+    );
+    assert!(
+        artifact.diagnostics.is_empty(),
+        "{:?}",
+        artifact.diagnostics
+    );
+    let before = render_compiled_template(
+        &artifact,
+        &TemplateData::default().with_binding("selected", bool_value(true)),
+    );
+    let after = render_compiled_template(
+        &artifact,
+        &TemplateData::default().with_binding("selected", bool_value(false)),
+    );
+    assert!(before.diagnostics.is_empty(), "{:?}", before.diagnostics);
+    assert!(after.diagnostics.is_empty(), "{:?}", after.diagnostics);
+    assert_eq!(render_plan_to_html(&before).matches("<strong>").count(), 2);
+    assert!(!render_plan_to_html(&after).contains("<strong>"));
+    fn details(nodes: &[RenderPlanNode]) -> Vec<cem_ml::source_map::SourceMapStack> {
+        nodes
+            .iter()
+            .flat_map(|node| match node {
+                RenderPlanNode::Element {
+                    tag,
+                    children,
+                    source_map,
+                    ..
+                } => {
+                    let mut maps = if tag == "details" {
+                        vec![source_map.clone()]
+                    } else {
+                        vec![]
+                    };
+                    maps.extend(details(children));
+                    maps
+                }
+                _ => vec![],
+            })
+            .collect()
+    }
+    let before_maps = details(&before.nodes);
+    assert_eq!(before_maps.len(), 2);
+    assert!(before_maps.iter().all(|map| !map.frames.is_empty()));
+    assert_eq!(before_maps, details(&after.nodes));
+    // Repeated output shares a source site: the host must distinguish its
+    // occurrences without using a global output-order counter.
+    assert_eq!(before_maps[0], before_maps[1]);
+}
+
 fn record(fields: impl IntoIterator<Item = (&'static str, Vec<Item>)>) -> Item {
     Item::Record(
         fields

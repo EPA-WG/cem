@@ -4066,11 +4066,46 @@ registration identities may reuse an inherited or existing definition.
           Authored HTML and shared behavior are unchanged. Aggregate coverage
           passes 221 stories, 508 unit tests and 31 standalone / 37 source-loaded
           documents; lint and typecheck pass with the two existing lint warnings.
-    - [ ] Fixture: audit all 6 `demo/data-tree.html` samples against their
+    - [x] Fixture: audit all 6 `demo/data-tree.html` samples against their
           source-loaded Storybook and independent gallery contracts. Check
           XML/JSON branches, independent selection and disclosure, malformed
           source recovery, local-document loading/release, and both external
           source previews. Preserve authored HTML and run affected gates.
+          Completed 2026-09-24: all six named Storybook steps and both gallery
+          modes check exact branches, independent selection, source recovery,
+          loading/release and exact external previews. The audit exposed a
+          collapsed-parent disclosure replacement hidden by a detached-element
+          assertion; the approved shared fix below preserves its live identity
+          and closed state. Authored HTML and CEMT templates are unchanged.
+    - [x] Decision: investigate and fix shared render identity/patch handling
+          for collapsed-parent deselection (recommended), or record the
+          limitation and leave the fix pending. Confirmed reproduction and
+          browser evidence are in the data-tree coverage audit.
+          Accepted 2026-09-24: the user chose to investigate and fix shared
+          handling. A native regression confirms stable source provenance;
+          the browser adapter used to renumber nodes by global output order.
+    - [x] Fixture: after the disclosure decision, verify retained live DOM
+          identity and collapsed state when deselecting a selected JSON parent
+          with a selected child. Investigate natively first if shared
+          transformation behavior is changed, then require fresh-element
+          assertions in Storybook and both independent gallery modes before
+          closing the data-tree audit. Retain produced-tag scoping, stable
+          metadata IDs and the accepted whole-scope recovery on root-ID changes.
+          Completed 2026-09-24: the shared adapter derives IDs from native
+          source provenance, parent identity and local occurrence instead of
+          global output order. Native and adapter regressions cover repeated
+          branches; Storybook and both gallery modes compare live disclosure,
+          summary and child-checkbox identities after collapsed-parent deselection.
+          Metadata assertions retain scoped/stable IDs; distinct storage list
+          roots follow the accepted whole-scope recovery rule. All 723 native
+          tests (9 existing ignored), 510 unit tests, 221 Storybook tests and
+          31 standalone / 37 source-loaded documents pass. Aggregate coverage,
+          lint and typecheck pass with existing warnings.
+    - [ ] Fixture: audit all 3 `demo/dom-merge.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Check
+          word/character counts, empty and whitespace input, Unicode text,
+          and focus/caret retention across updates. Preserve authored HTML
+          and run affected verification gates.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

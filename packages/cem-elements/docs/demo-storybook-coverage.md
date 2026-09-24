@@ -424,3 +424,67 @@ checks now use exact DOM `textContent`, matching the Storybook assertions.
 This completes the 10-sample data-table audit. The six data-tree samples are
 next; the broader per-sample audit and historical startup investigations remain
 open.
+
+## Data-tree audit, 2026-09-24
+
+`EditingSelectionAndDisclosure` now runs named steps for all six authored
+samples after the source document settles. The existing repair, request and
+preview stories remain focused entry points. Both independent gallery modes
+use the same six sample contracts, including explicit external-preview entries
+instead of appending attribute-only checks from the generic inventory loop.
+
+| Sample | Observable behavior checked |
+| --- | --- |
+| 1. XML branches | Exact branch labels, namespace and empty attribute, ordered text/CDATA/processing-instruction content, and namespace declarations excluded from branch attributes. Independent selection agrees with checked properties, visible Selected labels and the total. Disclosure preserves selection; reload and replacement clear it. Script-like source remains inert. |
+| 2. JSON branches | Exact object/property/string/array branch structure, present empty note, fruit and nested tag values. Parent/child selections remain independent; deselecting a collapsed parent preserves the live disclosure, summary and child checkbox identities, closed state and child selection. An unchanged-source change event and reload both clear selection. Storybook also verifies instance isolation. |
+| 3. Repair | Malformed source has an error without stale inspection, branches or count. Repair creates the expected branches; selection is cleared after returning through the malformed original and repairing again. Storybook retains the textarea-focus check. |
+| 4. Local requests | Loaded XML and JSON content, selector values and resolved download links; switching files clears selection. No source removes inspection, controls, selection count and link and reports idle. Reloading XML starts unselected. |
+| XML/JSON source previews | Exact repository-file contents, ready state and empty demo output. Storybook additionally checks source token coloring. |
+
+Gallery selection checks compare branch labels, checked properties, selected
+classes, visible Selected markers and the displayed count in one observation.
+The existing pointer and keyboard disclosure checks remain. Authored HTML and
+CEMT templates are unchanged.
+
+The stronger JSON interaction exposed a disclosure-retention defect:
+
+1. In sample 2, select `1.3: property` (tags) and `1.3.1.2: string` (sweet).
+2. Collapse the tags property's disclosure, retaining both selections.
+3. Deselect the tags property with its checkbox, leaving sweet selected.
+
+The independent standalone browser resolved the live disclosure again after
+step 3 and found `open=true`. A focused Storybook probe confirmed that the old
+`details` is disconnected and a different live element is open, with no owning
+instance diagnostic codes. The first Storybook assertion had incorrectly
+inspected the detached element, whose `open` property was still false.
+The user approved a shared fix. A native regression establishes that source
+provenance is stable across conditional label removal, including repeated
+branches. Adapter regressions then reproduced changing disclosure IDs in both
+a small repeated template and the actual JSON tree template. The adapter's
+global preorder counter renumbered later elements when a Selected label
+disappeared, causing the patch layer to replace them.
+
+The shared WASM adapter now derives element, text and comment IDs from native
+source provenance, parent identity and occurrence at the emitting site. This
+keeps unrelated conditional output from shifting later IDs while distinguishing
+repeated source sites. Repeated output at the same site remains positional;
+this change does not introduce item-keyed list reconciliation. The existing
+projection patch implementation needs no change for this defect.
+
+Storybook and both gallery modes now deselect the parent while it is closed,
+query the current elements and compare their identities with the connected
+originals. They also check the closed property and remaining child selection
+before reopening the disclosure.
+
+Four metadata stories now assert scoped and stable IDs instead of ordinal
+literals. The storage JSON transition regression also checks the accepted
+whole-scope recovery policy: its object `ul` and array `ol` are separate authored
+root branches and now have distinct IDs. Direct whole-plan application therefore
+replaces that scope with the existing recovery diagnostic, including unchanged
+paragraphs. No recovery or projection policy is changed.
+
+Validation passes all 723 native tests (9 existing ignored), 510 unit tests,
+221 Storybook tests, 31 standalone pages and 37 source-loaded documents. The
+aggregate coverage gate, native lint, package lint and typecheck pass; existing
+lint warnings remain. This closes the six-sample data-tree audit. The three
+`dom-merge.html` samples are next; the broader per-sample audit remains open.

@@ -28,4 +28,45 @@ describe('repeated native expression patch identities', () => {
         expect(changes).toHaveLength(3);
         expect(new Set(changes.map((op) => op.target.id)).size).toBe(3);
     });
+
+    it('keeps repeated disclosures and their text identities when conditional labels disappear', async () => {
+        const source = `{cem:for-each @select='("first", "second")' @as=name |
+            {section | {label | {$name}{cem:if @test=selected | {strong | Selected}}}
+                {details @open=open | {summary | {$name}}{p | Details}}}}`;
+        const before = await renderCemMlTemplate(source, { selected: true });
+        const after = await renderCemMlTemplate(source, { selected: false });
+        expect(before.diagnostics).toEqual([]);
+        expect(after.diagnostics).toEqual([]);
+        const retained = (nodes: RenderPlanNode[]) => flatten(nodes).flatMap(node =>
+            node.kind === 'element' && node.tag === 'details' ? flatten([node]) : []);
+        expect(retained(before.nodes).map(node => node.sourceMapRef)).toEqual(retained(after.nodes).map(node => node.sourceMapRef));
+        expect(retained(before.nodes).map(node => node.renderNodeId)).toEqual(retained(after.nodes).map(node => node.renderNodeId));
+        for (const result of [before, after]) {
+            const nodes = flatten(result.nodes);
+            expect(new Set(nodes.map(node => node.renderNodeId)).size).toBe(nodes.length);
+        }
+    });
+
+    it('keeps the authored JSON tree branch identities across parent deselection', async () => {
+        const source = readFileSync(new URL('../../demo/data-tree-view.cemt', import.meta.url), 'utf8');
+        const data = (selected: boolean) => ({
+            format: 'json',
+            datadom: {
+                payload: { nodes: { text: '{"fruit":"🍒","note":"","tags":["red","sweet"]}' } },
+                slices: { 'branch.1.3': selected ? 'edit-0' : '', 'branch.1.3.1.2': 'edit-0' },
+                eventPayloads: {},
+            },
+        });
+        const before = await renderCemMlTemplate(source, data(true));
+        const after = await renderCemMlTemplate(source, data(false));
+        expect(before.diagnostics).toEqual([]);
+        expect(after.diagnostics).toEqual([]);
+        const details = (nodes: RenderPlanNode[]) => flatten(nodes).filter(node => node.kind === 'element' && node.tag === 'details');
+        expect(details(before.nodes)).toHaveLength(9);
+        expect(details(before.nodes).map(node => node.renderNodeId)).toEqual(details(after.nodes).map(node => node.renderNodeId));
+    });
 });
+
+function flatten(nodes: RenderPlanNode[]): RenderPlanNode[] {
+    return nodes.flatMap(node => [node, ...(node.kind === 'element' ? flatten(node.children) : [])]);
+}
