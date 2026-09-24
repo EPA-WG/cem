@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { cemDiagnosticCodes, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-module-url-referrer-document';
 const DEMO_URL = new URL('../../demo/module-url-referrer.html', import.meta.url);
@@ -28,12 +29,19 @@ export const EveryAuthoredSample: Story = {
     },
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
+        await whenCemSourceRendered(host);
         await waitForCondition(
             () => host.querySelectorAll('cem-demo-element[legend]').length === 1,
             'the module-URL referrer sample renders from the HTML source'
         );
 
         const sample = requiredElement(host, `cem-demo-element[legend="${MATRIX_LEGEND}"]`);
+        const declaration = requiredElement(sample, '[slot=demo] cem-element[tag]');
+        const tag = declaration.getAttribute('tag');
+        assert(tag, 'the matrix declaration has its generated tag');
+        const instance = requiredElement(sample, tag);
+        assert(cemDiagnosticCodes(declaration).length === 0, 'the matrix declaration has no diagnostics');
+        assert(cemDiagnosticCodes(instance).length === 0, 'the settled matrix has no diagnostics');
         const cells = () => Array.from(
             sample.querySelectorAll('tbody td'),
             (cell) => normalize(cell.textContent ?? '')

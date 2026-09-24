@@ -2110,8 +2110,28 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       component pass their focused stories and all 31 standalone / 37
       source-loaded gallery documents. The referrer matrix's scalar-URL frame
       timeout recurred in both final aggregate runs and a dedicated full
-      Storybook rerun (219/220 each), leaving aggregate sign-off blocked.
-      Trace that recurrence before changing its predicate, budget or runtime.
+      Storybook rerun (219/220 each), temporarily blocking aggregate sign-off.
+      The specific referrer fixture below now attributes and corrects it.
+  - [x] Fixture: attribute the recurring scalar-referrer matrix timeout using
+        its unchanged 120-frame predicate. Capture all nine URL cells, owning
+        declaration/instance diagnostics and render revision, sample connection
+        state, and the same observations after the owning render settles.
+        Preserve the original failure in diagnostic runs. Apply an evidence-led
+        fixture correction if this is readiness only; stop for a decision if
+        URL-resolution or shared runtime behavior must change. Verify focused
+        and full Storybook, independent gallery, unit, lint and typecheck gates.
+        Captured 2026-09-24 with the matrix first in the full suite: the original
+        predicate fails at revision 1 with nine empty cells; 324.7ms later the
+        same connected instance settles at revision 10 with all nine exact
+        URLs and no declaration/instance diagnostics. The diagnostic run
+        rethrows the original failure (219/220). The story now awaits the
+        existing source/instance render lifecycle and rejects diagnostics before
+        its unchanged predicates. Completed 2026-09-24: the focused story and
+        both full-suite orders pass. With temporary instrumentation and ordering
+        removed, `verify-demo-coverage`, lint and typecheck pass: 220 Storybook
+        tests, 508 unit tests, 31 standalone / 37 source-loaded documents, and
+        two existing lint warnings. Historical HTTP/location/stock attribution
+        remains open; shared runtime and URL-resolution behavior are unchanged.
   - [x] Fixture: capture output-specific lifecycle state for the null inline
         resource `href` in `NestedExternalSrcUsesLoadedDocumentBase` and null
         logo `src` in `MaterialIconLinkParity`, observed during the authored
@@ -3932,7 +3952,7 @@ registration identities may reuse an inherited or existing definition.
           declarative architecture, lint (two existing warnings), and typecheck.
           The aggregate coverage gate passes. Earlier referrer and other startup
           timeout investigations remain open; their budgets are unchanged.
-    - [ ] Fixture: continue the behavior audit with all six
+    - [x] Fixture: continue the behavior audit with all six
           `demo/cell-overrides.html` samples. Map the three source previews and
           Pokémon, stock-warning and native-value examples to their existing
           source-loaded story assertions; fill any observable-output or
@@ -3942,9 +3962,10 @@ registration identities may reuse an inherited or existing definition.
           row and source-preview assertions. Independent gallery table/selection
           checks are strengthened; both gallery modes now require exact file
           previews. All 31 standalone pages and 37 source-loaded documents pass
-          with the real source-harness component. The four affected stories pass,
-          but full-suite sign-off remains blocked by the existing referrer-frame
-          timeout (219/220 in the final aggregate and dedicated full rerun).
+          with the real source-harness component. Completed 2026-09-24 after
+          the referrer readiness correction: all 220 Storybook tests and 508
+          unit tests pass together in the aggregate coverage gate; lint and
+          typecheck pass. The parent per-sample audit continues below.
     - [x] Decision: replace the independent source-document harness's minimal
           `cem-demo-element` stub with the real shared component (recommended),
           or retain the stub and document file-preview rendering as covered only
@@ -3961,8 +3982,8 @@ registration identities may reuse an inherited or existing definition.
           Completed 2026-09-24: both gallery modes pass, including all three
           exact file previews. The scoped-CSS `b` assertion targets the live
           demo slot, excluding source tokens. All 508 unit tests, lint (two
-          existing warnings) and typecheck pass. The separate referrer timeout
-          keeps the aggregate gate and audit sign-off open above.
+          existing warnings) and typecheck pass. The referrer readiness
+          correction completes aggregate verification and audit sign-off.
     - [ ] Fixture: audit all 16 `demo/data-slices.html` samples against their
           existing source-loaded story and independent gallery assertions.
           Check initial values and event results together, both instances in

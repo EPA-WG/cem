@@ -255,9 +255,40 @@ source-highlighting tokens cannot substitute for the live element under test.
 
 The focused four-story selection, 508 unit tests, lint and typecheck pass. The
 independent gallery passes all 31 standalone pages and 37 source-loaded
-documents with the real helper. Both final aggregate attempts and a dedicated
-full Storybook rerun pass 219/220, failing only the previously recorded
+documents with the real helper. Both initial aggregate attempts and a dedicated
+full Storybook rerun passed 219/220, failing only the previously recorded
 referrer-frame timeout. An earlier full run before the harness replacement
-passed 220/220. The timeout's budget and semantics are unchanged; the aggregate
-gate and six-sample audit sign-off remain open pending that investigation.
-Lint retains its two existing warnings.
+passed 220/220. The referrer readiness follow-up below resolves that failure;
+the aggregate gate and six-sample audit now pass. Lint retains its two existing
+warnings.
+
+## Referrer matrix readiness, 2026-09-24
+
+The scalar-referrer timeout is an assertion preceding render settlement. A
+diagnostic full run retained the original 120-frame predicates and observed the
+failure before awaiting the owning instance solely to collect its later state.
+The original error was rethrown, so that run still failed at 219/220.
+
+| Observation | Render revision | Nine URL cells | Connection and diagnostics |
+| --- | --- | --- | --- |
+| Original assertion failure | 1 | All empty | Same connected sample; no declaration or instance diagnostics |
+| Owning render settled, 324.7ms later | 10 | All exact expected URLs | Same connected sample; no declaration or instance diagnostics |
+
+The diagnosis also accounted for test order: Vitest prioritizes previously
+failed files, whereas this short story ran later after passing. A temporary
+sequencer placed the matrix first in the full suite to reproduce its startup
+conditions. No worker or network delay was injected. Earlier passing probes
+reached revision 10 in both focused and concurrent runs; those passes alone
+were not treated as attribution.
+
+The story now uses the existing `whenCemSourceRendered` helper before checking
+the sample inventory and exact URL matrix, and rejects declaration/instance
+diagnostics. Both 120-frame predicates, the nine expected URLs, transient-control
+removal assertion, and 30-second story timeout are retained. The corrected
+story passes its focused run and all 220 stories with the matrix first.
+Temporary observations and test ordering have been removed. Final validation
+under normal ordering passes all 220 Storybook tests, 508 unit tests, and
+31 standalone / 37 source-loaded gallery documents. The aggregate
+`verify-demo-coverage` gate, lint and typecheck pass; lint retains two existing
+warnings. This closes the referrer fixture and cell-override audit sign-off.
+The separate historical HTTP/location/stock investigations remain open.
