@@ -445,15 +445,57 @@ function splitPartChecks(...values) {
     ];
 }
 
-const xpathWordSample = sampleContract('3. XPath word and character count', [
-    normalizedText('p:first-of-type strong', '5'),
-    normalizedText('p:nth-of-type(2) strong', '3'),
-    fillThenText('textarea', ' one\tone\n🍒  🍋 ', 'p:nth-of-type(2) strong', '4'),
-    fillThenText('textarea', '\t\n\u00a0\u2003', 'p:nth-of-type(2) strong', '1'),
-    fillThenText('textarea', '🍒e\u0301', 'p:first-of-type strong', '3'),
-    fillThenText('textarea', ' \t\n', 'p:nth-of-type(2) strong', '0'),
-    fillThenText('textarea', '', 'p:first-of-type strong', '0'),
-]);
+const counterControl = ':is(input, textarea)';
+const counterSelection = value => value ? [0, Math.min(2, value.length), 'backward'] : [0, 0];
+const domMergeSamples = [
+    sampleContract('1. Textarea word count', [
+        elementIdentity(counterControl, 'remember'),
+        counterState('Hello world!', ['2']),
+        fillThenText(counterControl, 'one two three', 'article strong', '2'),
+        counterState('one two three', ['2'], { focused: true }),
+        pressThenProperty(counterControl, 'Tab', counterControl, 'value', 'one two three'),
+        counterState('one two three', ['3'], { focused: false }),
+        ...[
+            [' one\tone\n🍒  🍋 ', '4'], ['\t\n\u00a0\u2003', '0'],
+            ['🍒e\u0301', '1'], [' \t\n', '0'], ['', '0'],
+        ].flatMap(([value, words]) => [
+            editControl(value, 'change'),
+            counterState(value, [words], { focused: true, selection: counterSelection(value) }),
+        ]),
+    ]),
+    sampleContract('2. Input word and character count', [
+        elementIdentity(counterControl, 'remember'),
+        counterState('Type to update', ['14', '3'], { output: 'Type to update' }),
+        editControl('two words'),
+        counterState('two words', ['9', '2'], { output: 'two words', focused: true, selection: counterSelection('two words') }),
+        replaceControlText(4, 4, 'short '),
+        counterState('two short words', ['15', '3'], { output: 'two short words', focused: true, selection: [10, 10] }),
+        replaceControlText(4, 9, '🍒'),
+        counterState('two 🍒 words', ['11', '3'], { output: 'two 🍒 words', focused: true, selection: [6, 6] }),
+        ...[
+            ['🍒 🍒 🍋', '3'], ['🍒e\u0301', '1'], ['one\u00a0one\u2003🍋', '3'],
+            ['\u00a0\u2003', '0'], ['   ', '0'], ['', '0'],
+        ].flatMap(([value, words]) => [
+            editControl(value),
+            counterState(value, [String([...value].length), words],
+                { output: value, focused: true, selection: counterSelection(value) }),
+        ]),
+    ]),
+    sampleContract('3. XPath word and character count', [
+        elementIdentity(counterControl, 'remember'),
+        counterState('🍒 🍒 🍋', ['5', '3']),
+        replaceControlText(2, 2, ' red'),
+        counterState('🍒 red 🍒 🍋', ['9', '4'], { focused: true, selection: [6, 6] }),
+        ...[
+            [' one\tone\n🍒  🍋 ', '4'], ['\t\n\u00a0\u2003', '1'],
+            ['one\u00a0one\u2003🍋', '1'], ['🍒e\u0301', '1'], [' \t\n', '0'], ['', '0'],
+        ].flatMap(([value, words]) => [
+            editControl(value),
+            counterState(value, [String([...value].length), words],
+                { focused: true, selection: counterSelection(value) }),
+        ]),
+    ]),
+];
 
 const stringMethodSamples = [
     sampleContract('URL ID with a string chain', [
@@ -522,26 +564,6 @@ const stringMethodSamples = [
         propertyEquals('output', 'textContent', 'a\u00a0b'),
         fillThenText('textarea', '', 'output', ''),
     ]),
-];
-
-const wordCountEdgeChecks = [
-    fillBlurThenText(
-        'cem-demo-element[legend="1. Textarea word count"] textarea', ' one\tone\n🍒  🍋 ',
-        'cem-demo-element[legend="1. Textarea word count"] form > p strong', '4',
-    ),
-    fillBlurThenText(
-        'cem-demo-element[legend="1. Textarea word count"] textarea', '\t\n\u00a0\u2003',
-        'cem-demo-element[legend="1. Textarea word count"] form > p strong', '0',
-    ),
-    fillThenText(
-        'cem-demo-element[legend="2. Input word and character count"] input', '🍒 🍒 🍋',
-        'cem-demo-element[legend="2. Input word and character count"] form > p:nth-of-type(2) strong', '3',
-    ),
-    normalizedText('cem-demo-element[legend="2. Input word and character count"] form > p:first-of-type strong', '5'),
-    fillThenText(
-        'cem-demo-element[legend="2. Input word and character count"] input', '',
-        'cem-demo-element[legend="2. Input word and character count"] form > p:nth-of-type(2) strong', '0',
-    ),
 ];
 
 const dataTablePage = await readFile(join(repoRoot, 'packages/cem-elements/demo/data-table.html'), 'utf8');
@@ -1211,31 +1233,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/dom-merge.html',
-        checks: [
-            text('cem-demo-element[legend="1. Textarea word count"] h2', 'Textarea word count'),
-            fillBlurThenText(
-                'cem-demo-element[legend="1. Textarea word count"] textarea',
-                'one two three',
-                'cem-demo-element[legend="1. Textarea word count"] form > p strong',
-                '3',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="2. Input word and character count"] input',
-                'two words',
-                'cem-demo-element[legend="2. Input word and character count"] output',
-                'two words',
-            ),
-            text(
-                'cem-demo-element[legend="2. Input word and character count"] form > p:first-of-type strong',
-                '9',
-            ),
-            text(
-                'cem-demo-element[legend="2. Input word and character count"] form > p:nth-of-type(2) strong',
-                '2',
-            ),
-            ...wordCountEdgeChecks,
-            ...xpathWordSample.checks.map((check) => scopeCheck(check, `cem-demo-element[legend="${xpathWordSample.legend}"]`)),
-        ],
+        checks: domMergeSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
         path: '/packages/cem-elements/demo/external-template.html',
@@ -2113,20 +2112,7 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/dom-merge.html',
-        checks: wordCountEdgeChecks,
-        samples: [
-            sampleContract('1. Textarea word count', [
-                text('h2', 'Textarea word count'),
-                fillBlurThenText('textarea', 'one two three', 'form > p strong', '3'),
-            ]),
-            sampleContract('2. Input word and character count', [
-                text('h2', 'Input word and character count'),
-                fillThenText('input', 'two words', 'output', 'two words'),
-                text('form > p:first-of-type strong', '9'),
-                text('form > p:nth-of-type(2) strong', '2'),
-            ]),
-            xpathWordSample,
-        ],
+        samples: domMergeSamples,
     },
     { path: '/packages/cem-elements/demo/embed-1.html', checks: [text('h4', 'embed-1.html'), text(':scope', '🖖')] },
     {
@@ -2769,6 +2755,9 @@ try {
                 await runCheck(page, check);
             }
             await verifySymbolicControls(page, fixture.path);
+            if (fixture.path === '/packages/cem-elements/demo/dom-merge.html') {
+                await verifyDomMergeLayout(page);
+            }
             if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
                 await verifyHexRowNavigation(page);
             }
@@ -3171,6 +3160,20 @@ async function verifyHexRowNavigation(page) {
     ]);
 }
 
+async function verifyDomMergeLayout(page) {
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, ({ width }) => {
+            const cards = Array.from(document.querySelectorAll('main > cem-demo-element'),
+                card => card.getBoundingClientRect());
+            return cards.length === 3
+                && document.documentElement.scrollWidth <= width
+                && cards.every(card => card.left >= 0 && card.right <= width)
+                && (width < 1000 || (Math.abs(cards[0].top - cards[1].top) < 1 && cards[0].left !== cards[1].left));
+        }, { width });
+    }
+}
+
 async function installOfflineRoutes(page) {
     await page.route('https://unpkg.com/cem-demo-element@*/cem-demo-element.js', (route) =>
         route.fulfill({ contentType: 'text/javascript; charset=utf-8', body: htmlDemoElementModule }),
@@ -3258,6 +3261,42 @@ async function runCheck(page, check) {
                             return li?.classList.contains('selected') === input.checked
                                 && (li?.querySelector(':scope > label > strong')?.textContent ?? '') === (input.checked ? 'Selected' : '');
                         });
+                }, check);
+                return;
+            case 'editControl':
+                await page.waitForSelector(check.selector, { timeout });
+                await page.evaluate(({ selector, value, eventName, selection, replacement }) => {
+                    const control = document.querySelector(selector);
+                    const revision = control.closest('article')?.getAttribute('data-cem-data-revision');
+                    if (!revision) throw new Error('Counter render revision is missing');
+                    globalThis.__cemFixtureCounterRevisions ??= new Map();
+                    globalThis.__cemFixtureCounterRevisions.set(selector, revision);
+                    control.focus();
+                    if (replacement) {
+                        const [start, end, text] = replacement;
+                        control.setSelectionRange(start, end);
+                        control.setRangeText(text, start, end, 'end');
+                    } else {
+                        control.value = value;
+                        control.setSelectionRange(...selection);
+                    }
+                    control.dispatchEvent(new Event(eventName, { bubbles: true }));
+                }, check);
+                return;
+            case 'counterState':
+                await poll(page, ({ selector, value, counts, output, focused, selection }) => {
+                    const control = document.querySelector(selector);
+                    const article = control?.closest('article');
+                    if (!article || !control.isConnected || globalThis.__cemFixtureElements?.get(selector) !== control) return false;
+                    const before = globalThis.__cemFixtureCounterRevisions?.get(selector);
+                    // Even equal counts must be checked after the edit's projection.
+                    if (before !== undefined && article.getAttribute('data-cem-data-revision') === before) return false;
+                    return control.value === value
+                        && JSON.stringify(Array.from(article.querySelectorAll('strong'), node => node.textContent.trim())) === JSON.stringify(counts)
+                        && (output === undefined || article.querySelector('output')?.textContent === output)
+                        && (focused === undefined || (document.activeElement === control) === focused)
+                        && (!selection || (control.selectionStart === selection[0] && control.selectionEnd === selection[1]
+                            && (!selection[2] || control.selectionDirection === selection[2])));
                 }, check);
                 return;
             case 'tableState':
@@ -3552,6 +3591,18 @@ function propertyEquals(selector, name, expected) {
 
 function elementIdentity(selector, action) {
     return { kind: 'elementIdentity', selector, action };
+}
+
+function counterState(value, counts, options = {}) {
+    return { kind: 'counterState', selector: counterControl, value, counts, ...options };
+}
+
+function editControl(value, eventName = 'input') {
+    return { kind: 'editControl', selector: counterControl, value, eventName, selection: counterSelection(value) };
+}
+
+function replaceControlText(start, end, text) {
+    return { kind: 'editControl', selector: counterControl, eventName: 'input', replacement: [start, end, text] };
 }
 
 function treeSelection(selected, branches) {
@@ -3927,6 +3978,10 @@ function describeCheck(check) {
             return `propertyEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'elementIdentity':
             return `elementIdentity(${check.selector}, ${check.action})`;
+        case 'editControl':
+            return `editControl(${check.selector}, ${JSON.stringify(check.value ?? check.replacement)}, ${check.eventName})`;
+        case 'counterState':
+            return `counterState(${check.selector}, ${JSON.stringify(check.value)}, counts=${JSON.stringify(check.counts)}, selection=${JSON.stringify(check.selection)})`;
         case 'treeSelection':
             return `treeSelection(${check.selector}, selected=${JSON.stringify(check.selected)}, branches=${JSON.stringify(check.branches)})`;
         case 'tableState':

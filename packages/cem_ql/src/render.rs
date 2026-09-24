@@ -30,6 +30,7 @@ mod references;
 mod hooks;
 mod dispatch;
 mod projection;
+mod whitespace;
 pub use projection::{project_attribute_value_with_control, project_render_plan_with_control};
 pub use hooks::ExpressionScope;
 mod attributes;
@@ -344,6 +345,8 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     while let Some(token) = tokenizer.next_token() {
         tokens.push(token);
     }
+    let mut diagnostics = tokenizer.take_diagnostics();
+    diagnostics.extend(whitespace::lower(&mut tokens));
 
     #[cfg(test)]
     profile.next("template/bindings");
@@ -378,7 +381,7 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         index: 0,
         compile_context,
         type_checking: PreparedTypeChecking::default(),
-        diagnostics: tokenizer.take_diagnostics(),
+        diagnostics,
         element_stack: Vec::new(),
         skip_cemt_function_bodies: options.skip_cemt_function_bodies,
     };

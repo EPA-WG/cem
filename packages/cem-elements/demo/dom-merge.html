@@ -52,11 +52,14 @@
 {slice @name=text | Hello world!}
 {article @class=demo-card |
     {h2 | 1. Textarea word count}
-    {p | Type several words, then Tab out to commit the count.}
+    {p | Type several words, then Tab out to commit the count.
+        The layout policy excludes template indentation while keeping
+        the spaces and line breaks you type.}
     {form |
         {label |
             Text
             {textarea
+                @cem:whitespace=layout
                 @slice=text
                 @slice-event=change
                 @slice-value="$target.value"

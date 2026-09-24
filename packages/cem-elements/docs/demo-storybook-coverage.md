@@ -533,8 +533,8 @@ leading and trailing whitespace asymmetric. It applies equally to `textarea`,
 whitespace mode.
 
 The new `packages/cem_ql/tests/template_whitespace.rs` characterization fixture
-records these results with binding `text = "A"`. Escapes below denote actual
-source characters, not CEM escape syntax.
+records these unannotated-template results with binding `text = "A"`. Escapes
+below denote actual source characters, not CEM escape syntax.
 
 | CEM body after `\|` | Current rendered body | Compatibility implication |
 | --- | --- | --- |
@@ -573,26 +573,63 @@ edits, while a changed authored body updates the live control. The existing
 `TextPatchIdentityAndDirtyTextarea` story covers that distinction. No projection
 change is warranted by this investigation.
 
-**Proposed decision, not an accepted contract:** add a shared, explicitly scoped
-template layout policy and opt sample 1 into it (recommended), or make that
-layout policy the default for all CEM templates. The proposed layout mode drops
+**Decision accepted after investigation:** the user selected a shared,
+explicitly scoped template layout policy and opting sample 1 into it on
+2026-09-24. The accepted layout mode drops
 only whitespace-only source trivia containing CR/LF and otherwise made of ASCII
 spaces/tabs/line endings. It preserves inline spaces, Unicode spacing, nonempty
 literal runs, expression values and rich-content bodies. An explicit preserve
-mode would retain body whitespace, including opening layout; policy selection
-would be declarative and inherited within the selected template scope. Compiler
+mode retains body whitespace, including opening layout; policy selection
+is declarative and inherited within the selected template scope. Compiler
 handling must retain source evidence and stay independent of browser projection
-and the XSLT compiler. Exact control syntax is part of implementation after the
-scope/default decision.
+and the XSLT compiler. The implementation uses `@cem:whitespace=layout|preserve`.
 
 An opt-in policy protects current templates, especially inline mixed content and
 text generators, while allowing sample 1 to retain its multiline formatting.
 A new default would fix sample 1 without a policy annotation, but changes the
 rendered output of existing templates, including `pre`/`textarea` and multiline
-inline separators. That compatibility choice needs user direction before
-implementation, per the instruction to stop at decisions.
+inline separators. The accepted opt-in leaves the default unchanged.
 
 Investigation validation: 5 new characterization tests, 49 template-render tests
 and 9 XSLT-output tests pass (63 total). Native lint passes with existing
 warnings. These characterize current behavior; they do not claim the textarea
 issue or the three-sample audit is fixed.
+
+### Opt-in template whitespace and DOM-merge audit
+
+The shared native compiler now consumes `@cem:whitespace=layout|preserve`
+before lowering template instructions. The policy is lexical, inherited and
+overridable on constructors and control nodes. The
+[package contract](../../cem_ql/README.md#template-whitespace) defines the exact
+ASCII layout runs, opening-trivia behavior, literal/rich/value preservation and
+diagnostics. Unannotated templates and XSLT retain their previous behavior.
+Suppressed layout remains zero-width text with its authored byte range in the
+portable IR; dev artifact reload preserves that evidence, and prod reload
+preserves the output semantics.
+
+Sample 1 opts only its textarea into layout handling. Its closing brace stays
+on the authored separate line, and the initial value is exactly `Hello world!`.
+Its explanatory paragraph describes the distinction between template indentation
+and typed whitespace. The source contract, teaching inventory and legacy mapping
+record this correction without changing sample ownership or legends.
+
+The three named Storybook steps check initial states, actual typing and Tab
+commit, exact values, word/codepoint counts, empty/whitespace/Unicode input,
+middle insertion and replacement, live control identity, focus, selection range
+and backward selection direction. They settle the owning instance before reading
+the current control and reject diagnostics. The independent gallery applies the
+same three sample contracts in both standalone and source-loaded modes. Edits
+must publish a new render revision before state assertions pass, even when word
+counts are unchanged. The standalone page also checks two cards sharing a row
+at 1280px and no horizontal overflow at 1280px/390px.
+
+Validation passes all 734 native tests (9 existing ignored), including five new
+policy regressions following the five investigation fixtures; 510 unit tests;
+221 Storybook tests; and 31 standalone / 37 source-loaded documents. The
+aggregate coverage gate, native/package lint and typecheck pass with existing
+warnings. The existing Nx inputs cover the changed sources and fixtures.
+
+This closes the three-sample DOM-merge audit. The broader per-sample audit stays
+open; the next fixture is the 23-sample `external-template.html` audit, including
+named/anonymous sources, fragment types, payloads, fallbacks, nested relative
+resources and file previews.

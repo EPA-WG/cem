@@ -667,6 +667,39 @@ uses string functions, XML reader nodes and boolean CEMT predicates across chang
 Verification: [native companion fixtures](tests/xpath_function_companion.rs) and
 `node tools/scripts/verify-xpath-function-companions.mjs` after the Nx WASM build.
 
+## Template whitespace
+
+CEM templates can opt a constructor or control node into an inherited, lexical
+whitespace policy with `@cem:whitespace=layout` or `@cem:whitespace=preserve`:
+
+```cem
+{textarea @cem:whitespace=layout |
+    {$text}
+}
+```
+
+`layout` suppresses source trivia made entirely of ASCII spaces, tabs, CR and LF
+when the run includes a line break. As in unannotated templates, opening trivia
+before the first body item is skipped. Inline spaces after body items, Unicode
+spacing, nonempty literal text runs, triple-backtick content and evaluated
+values remain exact. This is not a trim/dedent operation on the rendered value.
+The example emits exactly `text`, including any whitespace in that value.
+
+`preserve` keeps all body trivia after an explicit `|`, including opening
+spaces/indentation. Nested nodes inherit the selected policy and may override
+it; siblings outside the scope retain their previous policy. Selection is
+static at compilation, including named templates and imported modules, not
+inherited from the runtime caller. Without an annotation, existing whitespace
+behavior is unchanged. Both controls are consumed before output attributes are
+compiled. Missing, dynamic, unknown or duplicate values produce
+`cem.ql.render.whitespace_policy_invalid` at the authored attribute range.
+
+Suppressed layout retains byte provenance as zero-width text in portable
+template IR. The input tokenizer/source is unchanged. The browser does not
+trim control values, and XSLT's separate `xml:space` behavior is unchanged.
+See the [native whitespace fixtures](tests/template_whitespace.rs) and
+[DOM-merge demo](../cem-elements/demo/dom-merge.html).
+
 ## Error recovery
 
 Tier B queries support `try { expression } catch (code, message) { expression }`

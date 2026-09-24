@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { expect, userEvent } from 'storybook/test';
+import { cemDiagnosticCodes, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-dom-merge-document';
 const DEMO_URL = new URL('../../demo/dom-merge.html', import.meta.url);
@@ -8,159 +10,138 @@ const EXPECTED_LEGENDS = [
     '3. XPath word and character count',
 ] as const;
 
-const meta: Meta = {
-    title: 'CEM Elements/DOM Merge Demo',
-    tags: ['test'],
-};
+type TextControl = HTMLInputElement | HTMLTextAreaElement;
+type Selection = [number, number, 'backward'?];
+const selectionFor = (value: string): Selection => value ? [0, Math.min(2, value.length), 'backward'] : [0, 0];
 
+const meta: Meta = { title: 'CEM Elements/DOM Merge Demo', tags: ['test'] };
 export default meta;
-
 type Story = StoryObj;
 
 export const EveryAuthoredSample: Story = {
     render: () => {
         const root = document.createElement('section');
         root.setAttribute('aria-label', 'source-loaded DOM merge demo coverage');
-
         const declaration = document.createElement('cem-element');
         declaration.hidden = true;
         declaration.setAttribute('tag', SOURCE_TAG);
         declaration.setAttribute('src', DEMO_URL.href);
-
         root.append(declaration, document.createElement(SOURCE_TAG));
         return root;
     },
-    play: async ({ canvasElement }) => {
-        const host = requiredElement(canvasElement, SOURCE_TAG);
-        await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend] article').length === EXPECTED_LEGENDS.length,
-            'all DOM merge samples render from the HTML source',
-            600
-        );
+    play: async ({ canvasElement, step }) => {
+        const host = canvasElement.querySelector<HTMLElement>(SOURCE_TAG);
+        if (!host) throw new Error('DOM merge source host is missing');
+        await whenCemSourceRendered(host);
+        expect(Array.from(host.querySelectorAll('cem-demo-element[legend]'), sample => sample.getAttribute('legend')))
+            .toEqual(EXPECTED_LEGENDS);
+        const samples = EXPECTED_LEGENDS.map(legend => {
+            const article = host.querySelector<HTMLElement>(`cem-demo-element[legend="${legend}"] article`);
+            if (!article) throw new Error(`Missing article for ${legend}`);
+            return article;
+        });
 
-        assertDeepEqual(
-            Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
-                normalize(sample.getAttribute('legend') ?? '')
-            ),
-            [...EXPECTED_LEGENDS],
-            'DOM merge sample inventory'
-        );
+        await step(EXPECTED_LEGENDS[0], async () => {
+            const article = samples[0];
+            const textarea = controlIn(article);
+            await expectState(article, textarea, 'Hello world!', ['2']);
+            await userEvent.clear(textarea);
+            await userEvent.type(textarea, 'one two three');
+            await expectState(article, textarea, 'one two three', ['2'], { focused: true });
+            // The actual blur commits the change-bound slice.
+            await userEvent.tab();
+            await expectState(article, textarea, 'one two three', ['3'], { focused: false });
+            for (const [value, words] of [
+                [' one\tone\n🍒  🍋 ', '4'], ['\t\n\u00a0\u2003', '0'],
+                ['🍒e\u0301', '1'], [' \t\n', '0'], ['', '0'],
+            ]) {
+                edit(textarea, value, 'change');
+                await expectState(article, textarea, value, [words], { focused: true, selection: selectionFor(value) });
+            }
+            expect(cemDiagnosticCodes(article.parentElement as HTMLElement)).toEqual([]);
+        });
 
-        const textareaSample = sampleByLegend(host, EXPECTED_LEGENDS[0]);
-        const textarea = requiredElement(textareaSample, 'textarea') as HTMLTextAreaElement;
-        textarea.focus();
-        setValueAndDispatch(textarea, 'one two three');
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        assertText(textareaSample, 'form > p strong', '2', 'typing alone does not commit the textarea');
-        textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        await waitForText(textareaSample, 'form > p strong', '3', 'textarea word count updates');
-        assert(
-            requiredElement(textareaSample, 'textarea') === textarea,
-            'DOM merge preserves the edited textarea node'
-        );
-        assert(document.activeElement === textarea, 'DOM merge preserves textarea focus');
-        setValueAndDispatch(textarea, ' one\tone\n🍒  🍋 ');
-        textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        await waitForText(textareaSample, 'form > p strong', '4', 'split counts repeated words and mixed whitespace');
-        setValueAndDispatch(textarea, '\t\n\u00a0\u2003');
-        textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        await waitForText(textareaSample, 'form > p strong', '0', 'Unicode whitespace yields no words');
+        await step(EXPECTED_LEGENDS[1], async () => {
+            const article = samples[1];
+            const input = controlIn(article);
+            await expectState(article, input, 'Type to update', ['14', '3'], { output: 'Type to update' });
+            edit(input, 'two words');
+            await expectState(article, input, 'two words', ['9', '2'],
+                { output: 'two words', focused: true, selection: selectionFor('two words') });
+            replaceSelection(input, 4, 4, 'short ');
+            await expectState(article, input, 'two short words', ['15', '3'],
+                { output: 'two short words', focused: true, selection: [10, 10] });
+            replaceSelection(input, 4, 9, '🍒');
+            await expectState(article, input, 'two 🍒 words', ['11', '3'],
+                { output: 'two 🍒 words', focused: true, selection: [6, 6] });
+            expect(controlIn(samples[0]).value).toBe('');
+            expect(controlIn(samples[2]).value).toBe('🍒 🍒 🍋');
+            for (const [value, words] of [
+                ['🍒 🍒 🍋', '3'], ['🍒e\u0301', '1'], ['one\u00a0one\u2003🍋', '3'],
+                ['\u00a0\u2003', '0'], ['   ', '0'], ['', '0'],
+            ]) {
+                edit(input, value);
+                await expectState(article, input, value, [String([...value].length), words],
+                    { output: value, focused: true, selection: selectionFor(value) });
+            }
+            expect(cemDiagnosticCodes(article.parentElement as HTMLElement)).toEqual([]);
+        });
 
-        const inputSample = sampleByLegend(host, EXPECTED_LEGENDS[1]);
-        const input = requiredElement(inputSample, 'input') as HTMLInputElement;
-        input.focus();
-        setValueAndDispatch(input, 'two words');
-        await waitForText(inputSample, 'output', 'two words', 'input value updates the displayed slice');
-        assertText(inputSample, 'form > p:first-of-type strong', '9', 'character count follows the input slice');
-        assertText(inputSample, 'form > p:nth-of-type(2) strong', '2', 'word count follows the input slice');
-        assert(requiredElement(inputSample, 'input') === input, 'DOM merge preserves the edited input node');
-        assert(document.activeElement === input, 'DOM merge preserves input focus');
-        input.setSelectionRange(4, 4);
-        input.setRangeText('short ', 4, 4, 'end');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        await waitForText(inputSample, 'output', 'two short words', 'insertion updates the slice');
-        assert(input.selectionStart === 10 && input.selectionEnd === 10, 'the caret stays at the insertion');
-        setValueAndDispatch(input, '🍒 🍒 🍋');
-        await waitForText(inputSample, 'form > p:first-of-type strong', '5', 'character count uses codepoints');
-        assertText(inputSample, 'form > p:nth-of-type(2) strong', '3', 'repeated fruit words each count');
-        setValueAndDispatch(input, '   ');
-        await waitForText(inputSample, 'form > p:nth-of-type(2) strong', '0', 'whitespace contains no words');
-        setValueAndDispatch(input, '');
-        await waitForText(inputSample, 'form > p:first-of-type strong', '0', 'empty input has zero characters');
-
-        const xpathSample = sampleByLegend(host, EXPECTED_LEGENDS[2]);
-        const xpathInput = requiredElement(xpathSample, 'textarea') as HTMLTextAreaElement;
-        xpathInput.focus();
-        for (const [value, words] of [
-            [' one\tone\n🍒  🍋 ', '4'],
-            ['\t\n\u00a0\u2003', '1'],
-            ['🍒e\u0301', '1'],
-            [' \t\n', '0'],
-            ['', '0'],
-        ]) {
-            setValueAndDispatch(xpathInput, value);
-            xpathInput.setSelectionRange(1, 1);
-            const caret = xpathInput.selectionStart;
-            await waitForText(xpathSample, 'p:first-of-type strong', String([...value].length), 'XPath counts codepoints');
-            await waitForText(xpathSample, 'p:nth-of-type(2) strong', words, 'XPath counts XML-whitespace tokens');
-            assert(requiredElement(xpathSample, 'textarea') === xpathInput, 'XPath edits preserve the control');
-            assert(document.activeElement === xpathInput, 'XPath edits preserve focus');
-            assert(xpathInput.selectionStart === caret, 'XPath edits preserve the caret');
-        }
+        await step(EXPECTED_LEGENDS[2], async () => {
+            const article = samples[2];
+            const textarea = controlIn(article);
+            await expectState(article, textarea, '🍒 🍒 🍋', ['5', '3']);
+            textarea.focus();
+            replaceSelection(textarea, 2, 2, ' red');
+            await expectState(article, textarea, '🍒 red 🍒 🍋', ['9', '4'], { focused: true, selection: [6, 6] });
+            expect([controlIn(samples[0]).value, controlIn(samples[1]).value]).toEqual(['', '']);
+            for (const [value, words] of [
+                [' one\tone\n🍒  🍋 ', '4'], ['\t\n\u00a0\u2003', '1'],
+                ['one\u00a0one\u2003🍋', '1'], ['🍒e\u0301', '1'], [' \t\n', '0'], ['', '0'],
+            ]) {
+                edit(textarea, value);
+                await expectState(article, textarea, value, [String([...value].length), words],
+                    { focused: true, selection: selectionFor(value) });
+            }
+            expect(cemDiagnosticCodes(article.parentElement as HTMLElement)).toEqual([]);
+        });
+        // All three same-named slices belong to independent instances.
+        expect(samples.map(article => controlIn(article).value)).toEqual(['', '', '']);
+        expect(cemDiagnosticCodes(host)).toEqual([]);
     },
 };
 
-
-function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
-    const sample = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]')).find(
-        (candidate) => normalize(candidate.getAttribute('legend') ?? '') === legend
-    );
-    if (!sample) throw new Error(`expected sample ${legend}`);
-    return sample;
+function controlIn(article: HTMLElement): TextControl {
+    const control = article.querySelector<TextControl>('input, textarea');
+    if (!control) throw new Error('Counter control is missing');
+    return control;
 }
 
-function setValueAndDispatch(control: HTMLInputElement | HTMLTextAreaElement, value: string): void {
+async function expectState(article: HTMLElement, original: TextControl, value: string, counts: string[],
+    options: { output?: string; focused?: boolean; selection?: Selection } = {}): Promise<void> {
+    await whenCemRendered(article.parentElement as HTMLElement);
+    const live = controlIn(article);
+    expect(live).toBe(original);
+    expect(live.isConnected).toBe(true);
+    expect(live.value).toBe(value);
+    expect(Array.from(article.querySelectorAll('strong'), strong => strong.textContent?.trim())).toEqual(counts);
+    if (options.output !== undefined) expect(article.querySelector('output')?.textContent).toBe(options.output);
+    if (options.focused !== undefined) expect(document.activeElement === live).toBe(options.focused);
+    if (options.selection) {
+        expect([live.selectionStart, live.selectionEnd]).toEqual(options.selection.slice(0, 2));
+        if (options.selection[2]) expect(live.selectionDirection).toBe(options.selection[2]);
+    }
+}
+
+function edit(control: TextControl, value: string, eventName = 'input'): void {
+    control.focus();
     control.value = value;
+    control.setSelectionRange(...selectionFor(value));
+    control.dispatchEvent(new Event(eventName, { bubbles: true }));
+}
+
+function replaceSelection(control: TextControl, start: number, end: number, text: string): void {
+    control.setSelectionRange(start, end);
+    control.setRangeText(text, start, end, 'end');
     control.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function requiredElement(root: ParentNode, selector: string): HTMLElement {
-    const element = root.querySelector<HTMLElement>(selector);
-    if (!element) throw new Error(`expected ${selector}`);
-    return element;
-}
-
-async function waitForText(root: ParentNode, selector: string, expected: string, label: string): Promise<void> {
-    await waitForCondition(() => textValue(root, selector) === expected, label);
-}
-
-async function waitForCondition(condition: () => boolean, message: string, attempts = 120): Promise<void> {
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    }
-    throw new Error(message);
-}
-
-function assertText(root: ParentNode, selector: string, expected: string, label: string): void {
-    const actual = textValue(root, selector);
-    if (actual !== expected) throw new Error(`${label}: expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-}
-
-function textValue(root: ParentNode, selector: string): string {
-    return normalize(requiredElement(root, selector).textContent ?? '');
-}
-
-function assertDeepEqual(actual: readonly string[], expected: readonly string[], label: string): void {
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-        throw new Error(`${label}: expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-    }
-}
-
-function assert(condition: unknown, message: string): asserts condition {
-    if (!condition) throw new Error(message);
-}
-
-function normalize(value: string): string {
-    return value.replace(/\s+/gu, ' ').trim();
 }

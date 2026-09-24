@@ -4101,15 +4101,19 @@ registration identities may reuse an inherited or existing definition.
           tests (9 existing ignored), 510 unit tests, 221 Storybook tests and
           31 standalone / 37 source-loaded documents pass. Aggregate coverage,
           lint and typecheck pass with existing warnings.
-    - [ ] Fixture: audit all 3 `demo/dom-merge.html` samples against their
+    - [x] Fixture: audit all 3 `demo/dom-merge.html` samples against their
           source-loaded Storybook and independent gallery contracts. Check
           word/character counts, empty and whitespace input, Unicode text,
-          and focus/caret retention across updates. Preserve authored HTML
+          and focus/caret retention across updates. Preserve authored formatting
           and run affected verification gates.
           Audit finding 2026-09-24: sample 1's textarea body includes a newline
           and 12 spaces after its slice expression. Committing `one two three`
           projects that suffix into the live value; the count is correctly 3.
-          Exact-value coverage and final audit sign-off await the decision below.
+          Resolved 2026-09-24 by the approved opt-in policy below. All three
+          Storybook steps and both gallery modes now require exact values,
+          live identity, focus, selection and counts after edits. Real Tab
+          commit, empty/Unicode input and middle insertion/replacement pass.
+          Desktop two-card layout and desktop/mobile overflow checks pass.
     - [x] Fixture: attribute the textarea suffix with a native authored-body
           whitespace regression and settled browser observations. Preserve the
           source and shared whitespace rules while the correction is undecided.
@@ -4136,15 +4140,35 @@ registration identities may reuse an inherited or existing definition.
           pass-through; XSLT owns a separate policy. All 63 affected native
           tests and native lint pass (existing warnings). See the investigation in
           `packages/cem-elements/docs/demo-storybook-coverage.md`.
-    - [ ] Decision: add an explicitly scoped template layout policy and opt
-          sample 1 into it (recommended), or make layout stripping the default
+    - [x] Decision: add an explicitly scoped template layout policy and opt
+          sample 1 into it, or make layout stripping the default
           for all CEM templates. Proposed layout mode removes only ASCII
           whitespace-only source trivia containing a line break; preserve
           inline spaces, Unicode spacing, literal text, expression values,
           rich content and source evidence. Include an explicit preserve mode.
-          A default change also affects preformatted text and multiline inline
-          separators. Implementation and the three-sample audit await this
-          compatibility decision; do not trim live textarea values.
+          Accepted 2026-09-24: explicit opt-in policy. Unannotated templates
+          retain existing behavior; do not trim live textarea values.
+    - [x] Fixture: implement `@cem:whitespace=layout|preserve` in the shared
+          native template compiler. Test lexical inheritance and overrides,
+          unchanged defaults, exact bound/rich/literal content, inline spacing,
+          CRLF and Unicode, invalid/duplicate controls, byte provenance and
+          portable artifact reload. Preserve source evidence for suppressed
+          layout. Enable layout on sample 1 and finish the three-sample audit
+          in Storybook and both independent gallery loading modes, including
+          desktop two-card layout and mobile overflow checks.
+          Completed 2026-09-24: native lexical lowering consumes the control,
+          retains suppressed layout provenance in portable IR and leaves
+          unannotated templates unchanged. Sample 1 opts in without moving its
+          closing brace. All 734 native tests (9 existing ignored), 510 unit
+          tests, 221 Storybook tests and 31 standalone / 37 source-loaded
+          documents pass. Aggregate coverage, lint and typecheck pass with
+          existing warnings. Existing Nx inputs cover all changed fixtures.
+    - [ ] Fixture: audit all 23 `demo/external-template.html` samples against
+          their source-loaded Storybook and independent gallery contracts.
+          Check named/anonymous sources, SVG/MathML/HTML fragments, CEM-ML/XSLT
+          payloads, missing-source/fragment fallbacks, nested relative resource
+          resolution and exact external-file previews. Preserve authored
+          examples and stop for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

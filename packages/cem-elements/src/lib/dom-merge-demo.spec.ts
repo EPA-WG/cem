@@ -16,7 +16,7 @@ const DEMO_SOURCE = readFileSync(
 const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     {
         legend: '1. Textarea word count',
-        includes: ['{textarea', '@slice-event=change', 'Word count:', 'seq:where('],
+        includes: ['{textarea', '@cem:whitespace=layout', '@slice-event=change', 'Word count:', 'seq:where('],
     },
     {
         legend: '2. Input word and character count',

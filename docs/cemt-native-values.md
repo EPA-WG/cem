@@ -54,6 +54,12 @@ ordinary CEMT construction, such as `{name | ...}`, to author a named element.
 
 ### Compact template bodies
 
+Template source whitespace can be controlled lexically with
+`@cem:whitespace=layout|preserve`; see the
+[template whitespace contract](../packages/cem_ql/README.md#template-whitespace).
+The policy applies to source trivia, never to evaluated native values. Templates
+without a policy retain their existing behavior.
+
 Matching templates, named templates and expression hooks accept direct content
 without a `{body | ...}` wrapper, including inside imported CEMT modules.
 Matching supplies `node`; hooks supply `value` and `context`. Declare parameters when a named call needs additional

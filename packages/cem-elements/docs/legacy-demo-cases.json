@@ -287,7 +287,7 @@
               "legend": "1. Textarea word count"
             }
           ],
-          "note": "Textarea commits on change and now counts words, correcting the legacy sample that counted characters despite its label."
+          "note": "Textarea commits on change and counts words. The shared opt-in layout policy excludes template indentation while preserving exact typed values, control identity, focus and selection."
         },
         {
           "legacy": "2. Word count in HTML input field",
