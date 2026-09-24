@@ -103,6 +103,74 @@ function conditionalForm(mode: 'worker' | 'wasm'): Story {
 export const ConditionalWorkerForm = conditionalForm('worker');
 export const ConditionalWasmForm = conditionalForm('wasm');
 
+function validityExpressions(mode: Mode): Story {
+    return {
+        render: () => document.createElement('section'),
+        play: async ({ canvasElement }) => {
+            const rule = 'str:length(datadom.slices.text ?? "") > 3 ?? "Use more than 3 characters"';
+            const source = mode === 'dom'
+                ? `<form slice="entry" custom-validity='${rule.replace('>', '&gt;')}'>`
+                    + `<input name="text" custom-validity='${rule.replace('>', '&gt;')}' />`
+                    + '<output name="valid">${$datadom.validationState.entry.valid}</output>'
+                    + '<output name="message">${$datadom.validationState.entry.validationMessage}</output></form>'
+                : `{form @slice=entry @custom-validity='${rule}' |
+                    {input @name=text @custom-validity='${rule}'}
+                    {output @name=valid | {$datadom.validationState.entry.valid}}
+                    {output @name=message | {$datadom.validationState.entry.validationMessage}}
+                }`;
+            const { runtime, instance } = await mount(canvasElement, `validity-${mode}`, source, mode);
+            const input = instance.querySelector('input');
+            if (!input) throw new Error('Validated input is missing');
+            const check = (valid: boolean) => {
+                const message = valid ? '' : 'Use more than 3 characters';
+                expect(output(instance, 'valid')).toBe(String(valid));
+                expect(output(instance, 'message')).toBe(message);
+                expect(input.validity.valid).toBe(valid);
+                expect(input.validationMessage).toBe(message);
+                expect(instance.querySelector('input')).toBe(input);
+                expect(persistedField(instance, 'cem-validation:validation-state', 'entry', 'valid')?.textContent)
+                    .toBe(String(valid));
+                expect(runtime.diagnosticsFor(instance)).toEqual([]);
+            };
+            check(false); // Undeclared/missing path must not become its source text.
+            for (const [text, valid] of [[null, false], ['', false], ['abc', false], ['abcd', true],
+                ['🍒ab', false], ['🍒abc', true], ['', false]] as const) {
+                runtime.setInstanceSlices(instance, { text });
+                await runtime.whenRenderSettled(instance);
+                check(valid);
+            }
+        },
+    };
+}
+
+export const DomValidityExpressions = validityExpressions('dom');
+export const WorkerValidityExpressions = validityExpressions('worker');
+export const WasmValidityExpressions = validityExpressions('wasm');
+
+export const LegacyValidityFallbacks: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        const paths = ['datadom.slices.text', '/datadom/slices/text', '/datadom/slice/text', '//slice/text', '//text'];
+        const fields = paths.map((path, index) => `<input name="path${index}" custom-validity='string-length(${path} ?? "") &gt; 3 ?? "Too short"' />`).join('');
+        const { runtime, instance } = await mount(canvasElement, 'legacy-validity',
+            `<form slice="legacy">${fields}<input name="message" custom-validity='datadom.slices.message ?? "Fallback message"' /></form>`, 'dom');
+        const inputs = Array.from(instance.querySelectorAll('input'));
+        expect(inputs.map(input => input.validationMessage)).toEqual([...paths.map(() => 'Too short'), 'Fallback message']);
+        for (const [text, message, expected] of [
+            ['🍒ab', 'Specific message', 'Specific message'],
+            ['🍒abc', true, ''],
+            ['abc', false, 'Fallback message'],
+            ['abcd', null, 'Fallback message'],
+        ] as const) {
+            runtime.setInstanceSlices(instance, { text, message });
+            await runtime.whenRenderSettled(instance);
+            expect(inputs.map(input => input.validationMessage))
+                .toEqual([...paths.map(() => [...text].length > 3 ? '' : 'Too short'), expected]);
+            expect(runtime.diagnosticsFor(instance)).toEqual([]);
+        }
+    },
+};
+
 export const NestedFormOwnership: Story = {
     render: () => document.createElement('section'),
     play: async ({ canvasElement }) => {

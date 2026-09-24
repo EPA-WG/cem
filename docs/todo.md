@@ -4226,9 +4226,9 @@ registration identities may reuse an inherited or existing definition.
           Preserve authored examples and stop for any new behavior decision.
           Checkpoint 2026-09-24: the existing story passes but misses sample 2's
           absent initial prompt and compiler/comparison errors. The approved
-          correction below restores the prompt; the full audit remains open
-          for shared custom-validity expression handling and the remaining
-          independent-gallery and form-associated keyboard/submit checks.
+          corrections below restore the prompt, form refresh and sample 4's
+          length/validity behavior. The full audit remains open for sample 5's
+          native invalid-submission focus decision.
     - [x] Fixture: characterize sample 2's initial confirmation-method guards
           in a small native render test. Compare the authored XPath `not(...)`
           and unset comparisons with canonical `!` and explicit empty-string
@@ -4304,9 +4304,38 @@ registration identities may reuse an inherited or existing definition.
           Native `false ?? message` retains false; the existing browser validity
           dialect returns the message. Preserve that compatibility question
           explicitly rather than silently switching evaluators.
-    - [ ] Decision: fix shared custom-validity expression handling (recommended),
+    - [x] Decision: fix shared custom-validity expression handling (recommended),
           or apply only sample 4's displayed-count fallback and defer its
           validity-expression correction. Keep the five-sample audit open.
+          Accepted 2026-09-24: fix shared validity-expression handling.
+    - [x] Fixture: fix nested custom-validity fallback values, unresolved data
+          paths and Unicode codepoint length while preserving the existing
+          boolean-message fallback contract. Add browser regressions for form
+          and control validity across DOM, processing-host and direct WASM
+          rendering; retain the native characterization. Apply sample 4's
+          approved validity-expression fallback and finish its initial, empty,
+          short, valid and Unicode checks in Storybook and both gallery modes.
+          The compatibility boundary preserves the legacy validity dialect's
+          boolean/message fallback; ordinary CEM-QL coalescing stays native.
+          Expand the parent form audit's standalone/source-loaded step, native
+          validation, native FormData, choice keyboard and submit checks; stop
+          at the separate invalid-submission focus decision below.
+          Completed 2026-09-24: four new browser regressions fail before the fix
+          and pass afterward. The native characterization, 513 unit tests,
+          230 Storybook tests and 31 standalone / 37 source-loaded documents
+          pass. Aggregate coverage, lint and typecheck pass with the two
+          existing lint warnings. The form page passes desktop two-card layout
+          and desktop/mobile overflow checks. Sample 4's fallback is complete;
+          the parent audit stays open only for the new focus decision.
+    - [x] Fixture: characterize native submission with both sample 5 choices
+          empty. The independent browser check blocks submission but reports
+          both `firstFruit` and `secondFruit` as invalid and not focusable.
+          The shared choice capability uses `.cem-select__control` as its
+          validity anchor; this demo supplies a nonfocusable fieldset there.
+          Keep the initial-submit focus case open rather than allowlisting the
+          console errors. Mismatch cancellation and valid submission pass.
+    - [ ] Decision: fix shared form-associated validation focus (recommended),
+          or record the sample 5 limitation and defer that part of the audit.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

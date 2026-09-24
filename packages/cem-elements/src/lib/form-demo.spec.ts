@@ -46,7 +46,8 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     {
         legend: '4. Form custom validity message',
         declarationCount: 1,
-        includes: ['@slice=customMessage', 'str:length(datadom.slices.email ?? "")', 'Current length:', 'customMessage.validationMessage'],
+        includes: ['@slice=customMessage', 'str:length(datadom.slices.email ?? "") &gt; 3',
+            '{$str:length(datadom.slices.email ?? "")}', 'Current length:', 'customMessage.validationMessage'],
     },
     {
         legend: '5. DCE as a form input',

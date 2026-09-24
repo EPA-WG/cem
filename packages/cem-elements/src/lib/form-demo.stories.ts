@@ -185,10 +185,8 @@ async function verifyNativeMessage(sample: HTMLElement): Promise<void> {
 async function verifyFormMessage(sample: HTMLElement): Promise<void> {
     const email = requiredControl(sample, 'input[name="email"]');
     expect(email.value).toBe('');
-    expect(textList(sample, 'output').slice(0, 3)).toEqual(['', '0', 'false']);
-    // Initial custom messaging, nested fallback and Unicode validity remain
-    // open in docs/todo.md: the browser evaluator differs from native CEM-QL.
-    for (const value of ['abc', 'abcd', '', 'reader']) {
+    expect(textList(sample, 'output')).toEqual(['', '0', 'false', 'Use more than 3 characters']);
+    for (const value of ['abc', 'abcd', '🍒ab', '🍒abc', '', 'reader']) {
         await edit(sample, email, value);
         const length = [...value].length;
         expect(requiredControl(sample, 'input[name="email"]')).toBe(email);
@@ -243,6 +241,23 @@ async function verifyFormAssociatedDce(sample: HTMLElement): Promise<void> {
     await state('🍌', '🍏');
     await choose(1, 'Banana');
     await state('🍌', '🍌');
+
+    // The choice-select capability uses dropdown navigation: open, move, commit.
+    const selected = requiredElement(choices[1], 'button[aria-pressed="true"]');
+    selected.focus();
+    await userEvent.keyboard(' {ArrowUp} ');
+    await state('🍌', '🍏');
+    const submissions: boolean[] = [];
+    const onSubmit = (event: Event) => { submissions.push(event.defaultPrevented); event.preventDefault(); };
+    sample.addEventListener('submit', onSubmit);
+    try {
+        await userEvent.click(requiredElement(sample, 'button[type="submit"]'));
+        expect(submissions).toEqual([true]);
+        await choose(1, 'Banana');
+        await state('🍌', '🍌');
+        await userEvent.click(requiredElement(sample, 'button[type="submit"]'));
+        expect(submissions).toEqual([true, false]);
+    } finally { sample.removeEventListener('submit', onSubmit); }
 }
 
 async function settle(sample: HTMLElement): Promise<void> {

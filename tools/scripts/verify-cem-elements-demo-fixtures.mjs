@@ -702,10 +702,28 @@ function aspectTableChecks() {
 
 const formSamples = [
     sampleContract('1. Simple validation', [
-        fillThenText('input[name="username"]', 'long-username', 'form', 'Username: long-username'),
+        propertyEquals('input[name="username"]', 'value', ''),
+        ...simpleFormChecks('', false),
+        nodeTexts('button', ['→']),
+        submitForm('button', 'blocked'),
+        ...['form', 'input[name="username"]'].map(selector => elementIdentity(selector, 'remember')),
+        fillThenText('input[name="username"]', 'abcdefghij', 'form > p:first-of-type output', 'abcdefghij'),
+        submitForm('button', 'cancelled'),
         countExactly('input[name="password"]', 0),
-        clickThenText('button', 'form', '🔑'),
-        fillThenText('input[name="password"]', 'secret', 'form > p:nth-of-type(2) output', 'true'),
+        fillThenText('input[name="username"]', 'abcdefghijk', 'form > p:first-of-type output', 'abcdefghijk'),
+        ...simpleFormChecks('abcdefghijk', false),
+        countExactly('input[name="password"]', 0),
+        submitForm('button', 'cancelled'),
+        countExactly('input[name="password"]', 1),
+        attributeEquals('button', 'aria-label', 'Sign in'),
+        elementIdentity('input[name="password"]', 'remember'),
+        ...[['abc', false], ['abcd', true], ['', false], ['secret', true]].flatMap(([value, valid]) => [
+            fillThenText('input[name="password"]', value, 'form > p:nth-of-type(2) output', String(valid)),
+            ...simpleFormChecks('abcdefghijk', valid),
+            ...['form', 'input[name="username"]', 'input[name="password"]'].map(selector => elementIdentity(selector, 'same')),
+        ]),
+        formState({ formData: [['username', 'abcdefghijk'], ['password', 'secret']] }),
+        submitForm('button', 'allowed'),
     ]),
     sampleContract('2. Form lifecycle', [
         nodeTexts('fieldset > p', ['Select a confirmation method.']),
@@ -740,33 +758,80 @@ const formSamples = [
             .map(selector => elementIdentity(selector, 'same')),
     ]),
     sampleContract('3. Native control validity message', [
-        fillThenText('input[name="email"]', '', 'form > p:nth-of-type(2) output', 'Please fill out this field.'),
+        propertyEquals('input[name="email"]', 'value', 'person@example.test'),
+        nodeTexts('output', ['true', '']),
+        elementIdentity('input[name="email"]', 'remember'),
+        ...['', 'not-an-email', 'reader@example.test', '', 'person@example.test'].flatMap(value => [
+            fillThenText('input[name="email"]', value, 'form > p:first-of-type output', String(value.includes('@'))),
+            nativeValidity('input[name="email"]', { valid: value.includes('@'), valueMissing: value === '', typeMismatch: value === 'not-an-email' },
+                'form > p:nth-of-type(2) output'),
+            propertyEquals('input[name="email"]', 'value', value),
+            elementIdentity('input[name="email"]', 'same'),
+        ]),
     ]),
     sampleContract('4. Form custom validity message', [
         propertyEquals('input[name="email"]', 'value', ''),
-        nodeTexts('form > p:nth-of-type(2) output', ['0']),
-        nodeTexts('form > p:nth-of-type(3) output', ['false']),
-        fillThenText('input[name="email"]', 'abc', 'form > p:nth-of-type(4) output', 'Use more than 3 characters'),
-        text('form > p:nth-of-type(2) output', '3'),
+        formState({ outputs: ['', '0', 'false', 'Use more than 3 characters'] }),
+        elementIdentity('input[name="email"]', 'remember'),
+        ...['abc', 'abcd', '🍒ab', '🍒abc', '', 'reader'].flatMap(value => {
+            const length = [...value].length;
+            return [
+                fillThenText('input[name="email"]', value, 'form > p:nth-of-type(2) output', String(length)),
+                formState({ outputs: [value, String(length), String(length > 3), length > 3 ? '' : 'Use more than 3 characters'] }),
+                propertyEquals('input[name="email"]', 'value', value),
+                elementIdentity('input[name="email"]', 'same'),
+            ];
+        }),
     ]),
     sampleContract('5. DCE as a form input', [
-        clickThenText(
-            'cem-form-fruit-choice:first-of-type button[data-option-index="1"]',
-            'form > p:first-of-type output:first-of-type',
-            '🍏',
-        ),
-        clickThenText(
-            'cem-form-fruit-choice:last-of-type button[data-option-index="2"]',
-            'form > p:nth-of-type(3) output',
-            'Choose the same fruit',
-        ),
-        clickThenText(
-            'cem-form-fruit-choice:last-of-type button[data-option-index="1"]',
-            'form > p:nth-of-type(2) output',
-            'true',
-        ),
+        countExactly('cem-form-fruit-choice', 2),
+        ...['first', 'last'].flatMap(position => [
+            elementIdentity(`cem-form-fruit-choice:${position}-of-type`, 'remember'),
+            nodeTexts(`cem-form-fruit-choice:${position}-of-type button`, ['Choose fruit', '🍏', '🍌']),
+            ...['Choose fruit', 'Apple', 'Banana'].flatMap((label, index) => [
+                attributeEquals(`cem-form-fruit-choice:${position}-of-type button[data-option-index="${index}"]`, 'aria-label', label),
+                attributeEquals(`cem-form-fruit-choice:${position}-of-type button[data-option-index="${index}"]`, 'title', label),
+            ]),
+        ]),
+        ...fruitFormChecks('', ''),
+        // Initial empty-choice submission exposes the pending validation-focus
+        // issue in docs/todo.md; do not allowlist its browser console errors.
+        ...[
+            ['first', 1, '🍏', ''], ['last', 2, '🍏', '🍌'], ['last', 1, '🍏', '🍏'],
+            ['first', 0, '', '🍏'], ['first', 2, '🍌', '🍏'], ['last', 2, '🍌', '🍌'],
+        ].flatMap(([position, index, first, second]) => [
+            clickThenText(`cem-form-fruit-choice:${position}-of-type button[data-option-index="${index}"]`,
+                'form > p:first-of-type output', position === 'first' ? first : second),
+            ...fruitFormChecks(first, second),
+        ]),
+        ...['Space', 'ArrowUp', 'Space'].map(key => pressThenProperty(
+            'cem-form-fruit-choice:last-of-type button[data-option-index="2"]', key,
+            'cem-form-fruit-choice:last-of-type', 'isConnected', true)),
+        ...fruitFormChecks('🍌', '🍏'),
+        submitForm('button[type="submit"]', 'cancelled'),
+        clickThenText('cem-form-fruit-choice:last-of-type button[data-option-index="2"]', 'form > p:nth-of-type(2) output', 'true'),
+        ...fruitFormChecks('🍌', '🍌'),
+        submitForm('button[type="submit"]', 'allowed'),
     ]),
 ];
+
+function simpleFormChecks(username, valid) {
+    return [nodeTexts('form > p output', [username, String(valid), valid ? '' : 'Enter a long username and password'])];
+}
+
+function fruitFormChecks(first, second) {
+    const valid = first !== '' && first === second;
+    return [
+        nodeTexts('form > p output', [first, second, String(valid), valid ? '' : 'Choose the same fruit']),
+        formState({ formData: [['firstFruit', first], ['secondFruit', second]] }),
+        ...[[first, 'first'], [second, 'last']].flatMap(([value, position]) => [
+            elementIdentity(`cem-form-fruit-choice:${position}-of-type`, 'same'),
+            nodeTexts(`cem-form-fruit-choice:${position}-of-type output`, [value]),
+            ...['', '🍏', '🍌'].map((option, index) => attributeEquals(
+                `cem-form-fruit-choice:${position}-of-type button[data-option-index="${index}"]`, 'aria-pressed', String(option === value))),
+        ]),
+    ];
+}
 
 function lifecycleChecks(method, valid) {
     return [
@@ -3328,11 +3393,45 @@ async function runCheck(page, check) {
                         checked: inputs.map(input => input.checked),
                         outputs: Array.from(root.querySelectorAll('output'), output =>
                             globalThis.__cemFixtureNormalizeText(globalThis.__cemFixtureVisibleText(output))),
+                        ...(expected.formData ? { formData: Array.from(new FormData(root.querySelector('form')).entries()) } : {}),
                     };
                     return Object.entries(expected).every(([key, values]) =>
                         JSON.stringify(actual[key]) === JSON.stringify(values));
                 }, check);
                 return;
+            case 'nativeValidity':
+                await poll(page, ({ selector, expected, resultSelector }) => {
+                    const input = document.querySelector(selector);
+                    return input && Object.entries(expected).every(([key, value]) => input.validity[key] === value)
+                        && document.querySelector(resultSelector)?.textContent?.trim() === input.validationMessage;
+                }, check);
+                return;
+            case 'submitForm': {
+                const root = page.locator(check.selector);
+                await root.evaluate(element => {
+                    const capture = { events: [], listener: null };
+                    capture.listener = event => {
+                        capture.events.push(event.defaultPrevented);
+                        event.preventDefault(); // Keep valid demo GET submissions on this test page.
+                    };
+                    element.__cemFixtureSubmit = capture;
+                    element.addEventListener('submit', capture.listener);
+                });
+                try {
+                    await page.locator(check.actionSelector).click();
+                    const actual = await root.evaluate(element => element.__cemFixtureSubmit.events);
+                    const expected = check.expected === 'blocked' ? [] : [check.expected === 'cancelled'];
+                    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+                        throw new Error(`Expected ${check.expected} submission, received cancellation flags ${JSON.stringify(actual)}`);
+                    }
+                } finally {
+                    await root.evaluate(element => {
+                        element.removeEventListener('submit', element.__cemFixtureSubmit.listener);
+                        delete element.__cemFixtureSubmit;
+                    });
+                }
+                return;
+            }
             case 'urlEquals':
                 await poll(page, ({ selector, name, expected }) =>
                     document.querySelector(selector)?.[name] === new URL(expected, location.href).href, check);
@@ -3627,6 +3726,14 @@ function tableState(selector, cells, selected = []) {
 
 function formState(expected) {
     return { kind: 'formState', selector: ':scope', expected };
+}
+
+function nativeValidity(selector, expected, resultSelector) {
+    return { kind: 'nativeValidity', selector, expected, resultSelector };
+}
+
+function submitForm(actionSelector, expected) {
+    return { kind: 'submitForm', selector: ':scope', actionSelector, expected };
 }
 
 function urlEquals(selector, name, expected) {
@@ -4006,6 +4113,10 @@ function describeCheck(check) {
             return `tableState(${check.selector}, ${JSON.stringify(check.cells)}, selected=${JSON.stringify(check.selected)})`;
         case 'formState':
             return `formState(${check.selector}, ${JSON.stringify(check.expected)})`;
+        case 'nativeValidity':
+            return `nativeValidity(${check.selector}, ${JSON.stringify(check.expected)})`;
+        case 'submitForm':
+            return `submitForm(${check.actionSelector}, ${check.expected})`;
         case 'imageLoaded':
             return `imageLoaded(${check.selector})`;
         case 'pressThenProperty':

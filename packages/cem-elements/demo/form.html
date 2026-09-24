@@ -254,7 +254,7 @@
     {form
         @slice=customMessage
         @custom-validity='
-            str:length(datadom.slices.email) &gt; 3
+            str:length(datadom.slices.email ?? "") &gt; 3
             ?? "Use more than 3 characters"' |
         {label |
             Email or username

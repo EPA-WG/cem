@@ -8638,8 +8638,11 @@ function evaluateCustomValidityValue(expression: string, context: CustomValidity
     const body = stripBalancedOuterParens(expression.trim());
     const fallback = splitTopLevelOperator(body, '??');
     if (fallback) {
-        return truthyCustomValidityValue(evaluateCustomValidityValue(fallback.left, context))
-            ? true
+        const value = evaluateCustomValidityValue(fallback.left, context);
+        // Keep the legacy boolean/message rule, but retain values used inside
+        // another expression (for example str:length(value ?? "")).
+        return truthyCustomValidityValue(value)
+            ? value
             : evaluateCustomValidityValue(fallback.right, context);
     }
 
@@ -8666,7 +8669,7 @@ function evaluateCustomValidityValue(expression: string, context: CustomValidity
 
     const lengthArg = functionArgument(body, 'string-length') ?? functionArgument(body, 'str:length');
     if (lengthArg !== null) {
-        return String(evaluateCustomValidityValue(lengthArg, context) ?? '').length;
+        return [...String(evaluateCustomValidityValue(lengthArg, context) ?? '')].length;
     }
 
     const concatArgs = parseConcatArguments(body);
@@ -8688,8 +8691,7 @@ function evaluateCustomValidityValue(expression: string, context: CustomValidity
         return Number(body);
     }
 
-    const pathValue = resolveCustomValidityPath(body, context);
-    return pathValue !== undefined ? pathValue : body;
+    return resolveCustomValidityPathOrLiteral(body, context);
 }
 
 function truthyCustomValidityValue(value: unknown): boolean {
@@ -8721,7 +8723,7 @@ function compareCustomValidityValues(left: unknown, operator: string, right: unk
     }
 }
 
-function resolveCustomValidityPath(path: string, context: CustomValidityEvalContext): unknown {
+function resolveCustomValidityPathOrLiteral(path: string, context: CustomValidityEvalContext): unknown {
     const body = path.trim();
     if (body.startsWith('/datadom/slice/')) {
         const parts = body.slice('/datadom/slice/'.length).split('/').filter(Boolean);
@@ -8750,7 +8752,9 @@ function resolveCustomValidityPath(path: string, context: CustomValidityEvalCont
         const parts = body.slice(2).split('/').filter(Boolean);
         return resolveShorthandCustomValidityPath(parts, context);
     }
-    return undefined;
+    // An unresolved recognized data path is empty, not a literal message.
+    // Preserve the existing bare-message behavior only for non-path values.
+    return body;
 }
 
 function resolveLegacySlicePath(parts: string[], context: CustomValidityEvalContext): unknown {

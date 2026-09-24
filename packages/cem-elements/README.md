@@ -50,6 +50,15 @@ instances retain ownership of their forms. `runtime.whenRenderSettled(instance)`
 includes these refresh renders. Circular form rules stop after eight refreshes
 with `cem-element.form_state_unstable`; a later state change can render again.
 
+`custom-validity` retains its legacy boolean/message expression contract:
+`condition ?? "Explain the error"` clears the message when the condition is
+true and supplies it when false. Fallbacks retain their selected value, so
+`str:length(datadom.slices.text ?? "")` can safely appear inside a rule.
+Missing recognized data paths are empty. `str:length` and legacy `string-length`
+count Unicode codepoints. In this validity dialect, false, null/missing, empty
+strings, zero and the string `"false"` select the fallback; ordinary CEM-QL
+queries use null/empty-sequence coalescing and retain false and zero.
+
 CEMT and XSLT render plans derive node IDs from native source provenance, the
 parent ID and the occurrence at that source site. Conditional output at another
 site leaves those IDs stable, allowing unaffected DOM nodes to retain browser
