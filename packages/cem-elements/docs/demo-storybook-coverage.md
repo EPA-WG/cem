@@ -29,7 +29,8 @@ that the designated story already asserts every sample's behavior.
 The broader TODO item remains open until each sample's observable output and
 interaction contract has been audited. Structural ownership does not substitute
 for those assertions. Inventory enforcement adds no runtime changes or readiness
-waits. The approved root-gallery and fixture corrections are described below.
+waits. The approved root-gallery, fixture and shared empty-string corrections are
+described below.
 
 ## Approved root-gallery correction
 
@@ -136,3 +137,85 @@ same two existing warnings. The full browser run with only the Material fix
 passed 216/217, isolating the remaining nested-source failure before its approved
 correction. The per-sample behavior audit remains open, starting with the eight
 attributes-demo samples and their missing default-precedence assertion.
+
+## Attributes audit finding, 2026-09-24
+
+The audit draft adds a named step for each of the eight authored legends and
+checks visible paragraphs and input values together with reflected attributes.
+The first sample and the nonempty external changes pass. Case 1a's empty-value
+assertion fails before the remaining cases can be validated.
+
+After the authored **set p3** button reads an empty input, an immediate read
+finds `p3=""` while the output still says `p3: def_P3`. After the produced
+instance's render settles, the attribute is `p3="true"`, the output says
+`p3: true`, and diagnostic history is empty. The original story checked only
+the immediate attribute, allowing a pass before the contradictory output.
+Temporary observations were removed after reproducing this transition.
+
+The shared `hostAttributes()` reader in `cem-elements.ts` converts every empty
+DOM attribute string to boolean `true`. The fixture's `??` expression then
+keeps that boolean and reflects its text. This conflicts with the authored
+empty-versus-missing lesson and the exact-string attribute authority required by
+`docs/cem-element-lifecycle-principle.md`.
+
+The user approved the shared fix on 2026-09-24. Host snapshots, template-value
+bindings and serialized hydration now preserve empty DOM strings. Actual typed
+booleans remain typed values. The native authored-template contract already
+passed before the adapter fix, distinguishing missing values, empty strings,
+the string `false`, and both boolean values. Browser regressions cover CEM-ML,
+DOM templates and serialized hydration, including resumed mutation, empty
+dataset values and explicit boolean slices. All three initially reproduced the
+empty-string conversion. The hydration fixture captures serialized output and
+island at the same revision before calling the snapshot API again.
+
+The authored attributes HTML remains unchanged. The source-loaded story now
+checks each normalized legend in its own named step:
+
+| Sample | Observable assertions |
+| --- | --- |
+| 1. attributes definition | All three defaults, reflected and displayed. |
+| 1a. External attribute changes | External p1/p3 edits, constant p2, removal restoring p3's default, and empty p3 remaining empty. |
+| 1b. Container attribute values | Container p1/p3 values and isolation from the edited instance. |
+| 2. attribute from slice | Initial title, nonempty input and empty input, reflected and displayed with the input value. |
+| 3. V attribute matches input value | Default, input update, empty input and is-changed state. |
+| 3a. Container value before input | Container value, input replacement, empty input and is-changed state. |
+| 4. attribute defaults, from container, and from slice | Default before input, entered and cleared values, effective value and has-input state. |
+| 4a. External changes versus user input | Container and external values before input; entered and cleared input retain precedence after further external changes. |
+
+Both independent gallery modes now require the exact normalized `p3:` output
+and empty reflected attribute, then removal restoring `def_P3`. This prevents a
+substring or transient attribute-only assertion from hiding the conversion.
+
+The first full browser run passed 216/220 tests. Three failures identified
+consumers that relied on the coercion: the canonical CEM-ML render-loop fixture
+and `cem-select`'s loading and invalid-state projections. The component
+conventions already require presence-only boolean flags; preserving raw strings
+therefore requires explicit presence checks, not truthiness. Those consumers
+now use `seq:count(datadom.attributes.<name>) > 0`. The select declaration covers
+busy, invalid and disabled flags in dropdown and listbox modes. Its native
+contract reads the actual XHTML and exercises absent, empty, `false` and other
+nonempty flag values. The existing listbox `aria-disabled` compound expression
+also used an invalid XPath `$` prefix; the replacement is a bare CEM-QL
+expression. Browser expectations retain the existing public behavior.
+
+The canonical fixture's revised expression also exposed its frame-only startup
+wait. A diagnostic run retained the failing assertion and then awaited that
+instance's render: it produced the expected `aria-busy="true"` button with no
+diagnostics. The fixture now awaits its own runtime's render settlement and
+rejects diagnostics before asserting output. Its native regression reads the
+actual story template and verifies absent and present flag values. Temporary
+observations were removed; the shared render lifecycle and frame budget are
+unchanged.
+
+The fourth failure was the previously recorded referrer-frame timeout; its wait
+budget and semantics remain unchanged. It repeated in the compatibility
+selection and passed during the subsequent diagnostic selection, so that
+historical attribution remains open.
+
+Final serial validation passes all three native authored-template tests, all
+220 Storybook tests, all 508 unit tests, and all 31 standalone / 37 source-loaded
+gallery documents. The aggregate coverage gate, component declarative
+architecture, lint and package typecheck pass; lint retains its two existing
+warnings. The eight-sample attributes audit is complete. The next behavior-audit
+fixture covers the six `cell-overrides.html` samples. The wider per-sample audit
+and earlier startup-timeout investigations remain open.

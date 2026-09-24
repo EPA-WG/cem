@@ -7889,9 +7889,7 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
             typeof hydration.scopePolicyStamp === 'string' ? hydration.scopePolicyStamp : '',
         privacyPolicyStamp:
             typeof hydration.privacyPolicyStamp === 'string' ? hydration.privacyPolicyStamp : '',
-        hostAttributes: Object.fromEntries(
-            Object.entries(serializedHostAttributes).map(([name, value]) => [name, value === '' ? true : value]),
-        ) as Record<string, string | boolean | null>,
+        hostAttributes: serializedHostAttributes as Record<string, string>,
         nativeSlices: hydration.nativeSlices === undefined ? [] : importNativeCemSlices(hydration.nativeSlices),
         nativeAttributes: hydration.nativeAttributes === undefined ? [] : importNativeCemAttributes(hydration.nativeAttributes),
         dataset: readIslandRecordSection(island, DATA_ISLAND_SECTIONS.dataset) as Record<string, string>,
@@ -8419,7 +8417,7 @@ function templateValues(
         values[declaration.name] = declaration.defaultValue;
     }
     for (const [name, value] of Object.entries(snapshot.hostAttributes)) {
-        values[name] = value === '' ? true : value;
+        values[name] = value;
     }
     for (const [name, value] of Object.entries(snapshot.slices)) {
         values[name] = toTemplateValue(value);
@@ -9300,10 +9298,10 @@ function resourceRevisionsFromSnapshot(snapshot: DataIslandSnapshot | undefined)
     );
 }
 
-function hostAttributes(instance: HTMLElement): Record<string, string | boolean | null> {
-    const attributes: Record<string, string | boolean | null> = {};
+function hostAttributes(instance: HTMLElement): Record<string, string> {
+    const attributes: Record<string, string> = {};
     for (const attribute of Array.from(instance.attributes)) {
-        attributes[attribute.name] = attribute.value === '' ? true : attribute.value;
+        attributes[attribute.name] = attribute.value;
     }
     return attributes;
 }

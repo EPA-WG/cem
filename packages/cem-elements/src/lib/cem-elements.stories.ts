@@ -855,7 +855,7 @@ export const CanonicalCemMlRenderLoop: Story = {
         template.textContent = `
             {attribute @name="label" | Save}
             {attribute @name="busy"}
-            {button @type=button @aria-busy={$busy} | {$label}}
+            {button @type=button @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} | {$label}}
         `;
         declaration.appendChild(template);
         root.appendChild(declaration);
@@ -864,12 +864,17 @@ export const CanonicalCemMlRenderLoop: Story = {
         const instance = document.createElement('story-cem-button');
         instance.setAttribute('label', 'Submit');
         instance.setAttribute('busy', '');
+        (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
         root.appendChild(instance);
 
         return root;
     },
     play: async ({ canvasElement }) => {
         const instance = requiredElement(canvasElement, 'story-cem-button');
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'the canonical render fixture exposes its runtime');
+        await runtime.whenRenderSettled(instance);
+        assertEqual(runtime.diagnosticsFor(instance).length, 0, 'canonical render settles without diagnostics');
         const button = await waitForElement(instance, 'button');
 
         assertEqual(button.textContent?.trim(), 'Submit', 'canonical CEM-ML text projection should use host value');

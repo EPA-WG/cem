@@ -3883,11 +3883,55 @@ registration identities may reuse an inherited or existing definition.
           Storybook `play` test, while retaining exact source-shape assertions in
           `test:unit` and avoiding test-only IDs, roles, or data attributes in the
           demo HTML.
-    - [ ] Fixture: begin the behavior audit with all eight `demo/attributes.html`
+    - [x] Fixture: begin the behavior audit with all eight `demo/attributes.html`
           samples. Add explicit rendered default/container-value assertions and
-          cover `#precedence-default`, currently absent from the source-loaded
+          cover `#precedence-default`, previously absent from the source-loaded
           story's assertions. Cross-check the independent gallery contracts,
           preserve the authored HTML, and run the affected verification gates.
+          Audit finding 2026-09-24: case 1a's empty p3 value initially reads
+          `""`, then settles as `"true"` and displays `p3: true` without a
+          diagnostic. The old attribute-only assertion could pass before that
+          render. Shared `hostAttributes()` converted empty DOM strings to
+          boolean true. Keep the empty-versus-missing contract; do not change
+          the demo or weaken its expected result to hide this discrepancy.
+          Completed 2026-09-24 after the shared fix below: all eight named
+          steps check reflected attributes and visible output together, with
+          input values and empty-value precedence where applicable. The authored
+          HTML is unchanged; both independent gallery modes check empty p3 and
+          removal restoring its default.
+    - [x] Decision: fix shared empty-string attribute handling with native and
+          browser regressions before continuing the attributes behavior audit
+          instead of recording the defect and stopping. Accepted 2026-09-24:
+          the user chose the shared handling fix before continuing the audit.
+    - [x] Fixture: preserve empty DOM attribute strings through host snapshots,
+          template bindings and serialized hydration. Cover missing versus
+          empty values and actual typed booleans with native/browser regression
+          cases, then finish all eight attributes-demo steps and run affected
+          unit, Storybook, independent gallery, lint and typecheck gates.
+          Completed 2026-09-24: all three adapter paths retain exact strings;
+          CEM-ML, DOM-template and serialized-resume browser regressions pass.
+    - [x] Fixture: retain documented boolean-presence behavior while preserving
+          raw attribute strings. Cover absent, empty and nonempty flag values
+          natively in the actual `cem-select` declaration, and use explicit
+          presence checks for its busy/invalid/disabled projections and the
+          canonical render-loop fixture. Keep existing browser expectations for
+          loading, validation and disabled behavior; rerun affected gates.
+          Completed 2026-09-24: explicit presence checks preserve component
+          flags without coercing raw strings. Native regressions read the actual
+          attributes demo, canonical story and select declaration. The canonical
+          story also settles its own render before asserting, after a diagnostic
+          run captured correct output beyond its original frame-only wait.
+          Final validation passes three native tests, 220 Storybook tests,
+          508 unit tests, 31 standalone / 37 source-loaded gallery documents,
+          declarative architecture, lint (two existing warnings), and typecheck.
+          The aggregate coverage gate passes. Earlier referrer and other startup
+          timeout investigations remain open; their budgets are unchanged.
+    - [ ] Fixture: continue the behavior audit with all six
+          `demo/cell-overrides.html` samples. Map the three source previews and
+          Pokémon, stock-warning and native-value examples to their existing
+          source-loaded story assertions; fill any observable-output or
+          interaction gaps, cross-check the independent gallery, preserve the
+          authored HTML, and run affected verification gates.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

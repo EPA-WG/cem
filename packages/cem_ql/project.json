@@ -20,6 +20,8 @@
                 "default",
                 "^default",
                 "{workspaceRoot}/packages/cem-elements/index.html",
+                "{workspaceRoot}/packages/cem-elements/demo/attributes.html",
+                "{workspaceRoot}/packages/cem-components/src/components/cem-select/cem-select.xhtml",
                 "{workspaceRoot}/packages/cem-elements/src/lib/cem-elements.stories.ts",
                 "{workspaceRoot}/packages/cem-elements/demo/data-island-tree.xsl",
                 "{workspaceRoot}/packages/cem-elements/demo/http-data.cemt",
